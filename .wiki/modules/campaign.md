@@ -1,0 +1,37 @@
+---
+covers:
+  - "js/levels.js"
+  - "js/save.js"
+  - "tools/validate.mjs"
+---
+# Campaign, saves & the beatability proof
+
+## Purpose
+
+Defines the 100-level campaign, persists progress, and proves every level
+beatable headlessly.
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `js/levels.js` | `METROS`, `MECHANICS`, `levelDef(i)` formulas, stars/coins |
+| `js/save.js` | localStorage schema v4 (+settings), migrations v1→v4, quarantine |
+| `tools/validate.mjs` | Overlap + snack-ring + greedy-bot margin proof |
+
+## Talks To
+
+- **citygen.js / sim.js** — validator imports the same modules as the game
+- **ui/screens.js** — reads save for locks/stars, writes via `main.js` actions
+
+## Gotchas
+
+- Level params are *formulas* over index (size, clock, target, mechanics);
+  the validator's margin gate (win with ≥ 15% clock left) is what makes a
+  formula change safe. Never hand-edit a single level's target without
+  re-running the full proof.
+- Mechanic rollout schedule: golden L6, rivals L21, tide L41, landmark L20;
+  landmark also on all metro finales + L91–100.
+- Save version bumps need a `MIGRATIONS[oldV]` entry; future-version saves
+  are quarantined, not read.
+- `starsForResult`: 1★ win, 2★ ≥20% time left, 3★ ≥35%.

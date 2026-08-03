@@ -1,0 +1,47 @@
+---
+covers:
+  - "js/sim.js"
+  - "js/tiers.js"
+  - "js/rng.js"
+---
+# Sim (pure simulation core)
+
+## Purpose
+
+Runs the entire game ruleset with zero rendering/DOM dependencies so the Node
+validator can prove levels beatable on the exact shipping code.
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `js/sim.js` | `Sim` class: holes, eating, combos, tides, landmark, win/fail |
+| `js/tiers.js` | 7-tier 1.35× ladder, growth curve, edibility gate, speed curve |
+| `js/rng.js` | `hashString`, `mulberry32`, `RNG` — all randomness |
+
+## Talks To
+
+- **citygen.js** — builds the city at construction; sim only mutates `eaten`
+  flags, bounds, and hole state
+- **world3d.js** — consumes `drainEvents()` (`eat`, `flooded`, `tide`,
+  `unlocked`, `win`, `fail`)
+- **tools/validate.mjs** — drives `Sim` directly with a greedy bot
+
+## Gotchas
+
+- `step(dt)` must only ever be called with `1/60` (fixed timestep; rival
+  retarget cadence and deterministic replays depend on it).
+- **Fit & throughput model** (2026-07-31): edibility is
+  `hole.radius > tier.radius * FIT_MARGIN` (1.12) — the hole opening must fit
+  the object, not just out-class it. Movable props (tier ≤ 4) that touch the
+  mouth without fitting **bounce off the rim** (velocity + damping, hash
+  re-homed via `hash.update`). Eating is queued: `MAX_SWALLOW = 2` concurrent,
+  duration `0.22 + 0.4·min(1, objR/holeR)` — piles jam at the rim. Committed
+  objects are `obj.committed` and eaten at queue completion (`completeEat`).
+  Tunables live at the top of `sim.js`; the validator's margin gate is the
+  guardrail if you loosen/tighten them.
+- Events: `enter` (swallow start → tip-fall anim), `eat` (completion → mass),
+  `bounce` (rim rejection → position sync + hop). Rivals emit them too;
+  sound/toast is player-only.
+- `growthBonus` (shop item) is applied to gain in `main.js`'s level clone —
+  beatability proof assumes it's absent; keep it that way.

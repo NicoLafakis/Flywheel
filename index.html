@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Hole City</title>
+<link rel="stylesheet" href="css/main.css">
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="app">
+  <canvas id="game-canvas"></canvas>
+  <div id="hud" class="hidden">
+    <div id="hud-left">
+      <div id="level-banner">LEVEL 1 - SUBURBS</div>
+      <div id="mass-bar-wrap"><div id="mass-bar"></div></div>
+      <div id="mass-label">0 collected</div>
+      <div id="combo-label" class="hidden"></div>
+    </div>
+    <div id="hud-right">
+      <button id="btn-mute" class="round-btn" title="Sound">&#128266;</button>
+      <button id="btn-pause" class="round-btn" title="Pause">&#10073;&#10073;</button>
+      <div id="timer">75</div>
+    </div>
+    <div id="minimap-wrap"><canvas id="minimap" width="150" height="150"></canvas></div>
+    <div id="joystick" class="hidden"><div id="joystick-knob"></div></div>
+    <div id="toast" class="hidden"></div>
+    <div id="big-pop" class="hidden"></div>
+  </div>
+  <div id="screen-root"></div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
