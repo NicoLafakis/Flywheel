@@ -2,12 +2,19 @@
 // Hand-authored and deterministic (pure sim: no Math.random, no three.js).
 // Builders come from js/voxelkit.js (the 5-class size system).
 //
-// Layout (x = east, z = south, north = -z), world bounds ±40:
+// Layout (x = east, z = south, north = -z), world bounds ±80 (plus a
+// `boundsRect` clamp — the peninsula is off-center, see sim.boundsRect below):
 //   NW  WTC plaza: One WTC (setback tiers + spire), twin memorial pools
-//   N   Woolworth-style setback tower (terracotta), modern glass slab tower
-//   MID Wall St bank canyon (portico facades), Trinity Church, City Hall
-//   E   elevated train viaduct over Pearl St, with a parked 3-car train
-//   S   Battery Park (trees, lamps), Charging Bull, ferry pier on the harbor
+//   N   Woolworth-style setback tower (terracotta), modern glass slab tower;
+//       Civic Center (Municipal Building, courthouse), Chinatown storefront
+//       rows, Columbus Park, Tribeca lofts, Brooklyn Bridge pylons (NE edge)
+//   MID Wall St bank canyon (portico facades), Trinity Church, City Hall;
+//       FiDi infill — Federal Reserve, NYSE, 7 WTC, Oculus rib pavilion
+//   E   elevated train viaduct over Pearl St, with a parked 3-car train;
+//       East River Seaport (pavilion, pier sheds, tall ship), heliport
+//   W   Battery Park City towers, Hudson marina + pier shed, esplanade
+//   S   Battery Park (trees, lamps), Charging Bull, ferry pier on the harbor,
+//       Castle Clinton, Staten Island Ferry Terminal + slips, Custom House
 //
 // Build rules (same as the gallery — see .wiki/modules/voxel.md):
 //   - one block per fine cell (placement step must match brick size)
@@ -22,7 +29,11 @@
 import { sedan, bus, boxVan, motorcycle, tree, lampPost, hydrant, mailbox, bench, trafficLight, newsstand, hotDogCart, subwayEntrance, tower } from './voxelkit.js';
 
 export function buildManhattan(sim) {
-  sim.bounds = 40;
+  sim.bounds = 80;
+  // Off-center peninsula: a square ±80 left ~36 m of empty harbor south of the
+  // last block (~4 s of driving into nothing). Content bbox is x[-60,64]
+  // z[-74,44]; this keeps ~10 m of open water on every side.
+  sim.boundsRect = { minX: -70, maxX: 74, minZ: -84, maxZ: 54 };
   const B = (x, y, z, m, s, c) => sim._block(x, y, z, m, s, c);
   const BOX = (x0, y0, z0, nx, ny, nz, m, s, c) => sim._box(x0, y0, z0, nx, ny, nz, m, s, c);
   const F = (x, y, z, m, c) => B(x, y, z, m, 0.25, c);
@@ -37,7 +48,7 @@ export function buildManhattan(sim) {
   BOX(-25, 47, -29, 2, 1, 2, 'steel', 1);              // spire base
   BOX(-24.75, 48, -28.75, 1, 40, 1, 'steel', 0.25);    // mast (slim, 10 m)
   B(-24.75, 58, -28.75, 'glass', 0.25, 0xffffff);      // beacon tip
-  sim.cameraBlockers.push({ minX: -30, maxX: -18, minZ: -34, maxZ: -22, h: 58 });
+  sim.cameraBlockers.push({ minX: -30, maxX: -18, minZ: -34, maxZ: -22, h: 59 });
 
   // --- memorial pools (twin footprints E of the tower) -------------------------
   for (const pz of [-33, -25]) {
@@ -70,14 +81,16 @@ export function buildManhattan(sim) {
   for (const bx of [-28, -19, -10]) {
     tower(sim, bx, -10, 8, 9, 0, 10, 'masonry', 'concrete', 0xa89f8d);
     // portico: 4 columns 1 m proud of the facade + pediment slab (Federal Hall)
-    for (const px of [1, 3, 5, 6]) BOX(bx + px, 0, -1, 1, 3, 1, 'steel', 1);
-    BOX(bx + 1, 3, -1, 6, 1, 1, 'concrete', 1, 0xa89f8d);
+    for (const px of [1, 3, 5, 7]) BOX(bx + px, 0, -1, 1, 3, 1, 'steel', 1);
+    BOX(bx + 1, 3, -1, 7, 1, 1, 'concrete', 1, 0xa89f8d);
     sim.cameraBlockers.push({ minX: bx, maxX: bx + 8, minZ: -10, maxZ: -1, h: 11 });
   }
   // south side (z 8..13): brick offices, one with a rooftop water tower
   tower(sim, -30, 8, 10, 6, 0, 7, 'masonry', 'brick', 0x8a5a44);     // slabs 0..6
   tower(sim, -18, 8, 12, 6, 0, 10, 'masonry', 'concrete', 0x7a7f88); // slabs 0..9
-  sim.cameraBlockers.push({ minX: -30, maxX: -20, minZ: 8, maxZ: 14, h: 9 });
+  // h: 11 — the rooftop water tower's cap tops out at 11 m, and camera.js only
+  // pulls in when camY < b.h, so a 9 here let the camera clip through the tank
+  sim.cameraBlockers.push({ minX: -30, maxX: -20, minZ: 8, maxZ: 14, h: 11 });
   sim.cameraBlockers.push({ minX: -18, maxX: -6, minZ: 8, maxZ: 14, h: 10 });
   {
     // water tower on the brick roof slab: legs, ring tank, cap
@@ -90,9 +103,11 @@ export function buildManhattan(sim) {
   }
 
   // --- TRINITY CHURCH (Broadway at Wall St, x -5..-1, z 7..15) ------------------
-  // Nave + south bell tower as one bonded complex. Every block kept ≥ 3.6 m
-  // from the (0,16) spawn: supported blocks with a cantilever hop (span ≥ 1)
-  // inside remR + span + 1.5 (≈3.55 m) read as hanging and let go.
+  // Nave + south bell tower as one bonded complex. The nearest block (the
+  // brick at x-2, z12) sits 3.16 m from the (0,16) spawn. The threshold it has
+  // to clear is the radius-scaled hanging margin — remR + (span + 1.5) ×
+  // radius/6.6, ≈ 1.6 m at the 1.1 m start radius — not the old flat
+  // remR + span + 1.5 (≈3.55 m) this comment used to cite.
   for (let x = 0; x < 4; x++) for (let z = 0; z < 6; z++) {
     const edge = x === 0 || x === 3 || z === 0 || z === 5;
     if (!edge) continue;
@@ -105,6 +120,7 @@ export function buildManhattan(sim) {
   for (let y = 0; y < 6; y++) for (const [tx, tz] of [[-5, 13], [-4, 13], [-5, 14], [-4, 14]]) B(tx, y, tz, 'brick', 1);
   BOX(-5, 6, 13, 2, 1, 2, 'wood', 1);
   B(-4.75, 7, 13.25, 'wood', 0.5);                     // spire tip
+  sim.cameraBlockers.push({ minX: -5, maxX: -1, minZ: 7, maxZ: 15, h: 7.5 });
 
   // --- CITY HALL (x -8..0, z -20..-16) ------------------------------------------
   tower(sim, -8, -20, 8, 5, 0, 4, 'masonry', 'concrete', 0xcfc8b8);  // slabs 0..3
@@ -114,12 +130,14 @@ export function buildManhattan(sim) {
   BOX(-6, 5, -19, 4, 1, 3, 'wood', 1);                 // dome
   BOX(-5.5, 6, -18.5, 3, 1, 2, 'wood', 0.5);           // cupola
   B(-5, 6.5, -18.25, 'wood', 0.5, 0x3e7d5c);           // copper tip
+  sim.cameraBlockers.push({ minX: -8, maxX: 0, minZ: -20, maxZ: -14, h: 7 });
 
   // --- SE TENEMENTS (x 8..19, z 8..14): shops at grade --------------------------
   tower(sim, 8, 8, 5, 6, 0, 7, 'masonry', 'brick', 0x9a5a3a);
   tower(sim, 14, 8, 5, 6, 0, 7, 'masonry', 'brick', 0x8a4a3a);
   BOX(8, 1, 7, 5, 1, 1, 'panel', 1, 0xc23b2e);         // shop awnings
   BOX(14, 1, 7, 5, 1, 1, 'panel', 1, 0x2e5d3a);
+  sim.cameraBlockers.push({ minX: 8, maxX: 19, minZ: 7, maxZ: 14, h: 7 });
 
   // --- ELEVATED TRAIN over Pearl St (x 22..27, z -36..22) -----------------------
   for (let z = -36; z <= 20; z += 4) {
@@ -138,6 +156,7 @@ export function buildManhattan(sim) {
     BOX(23.5, 4.5, cz + 5, 3, 1, 2, 'steel', 0.5);                 // bogies
     BOX(23.5, 5, cz, 3, 2, 8, 'panel', 0.5, 0xb8c0c8);             // carbody
   }
+  sim.cameraBlockers.push({ minX: 22, maxX: 27, minZ: -36, maxZ: 22, h: 6 });
 
   // --- BATTERY PARK (z 18..25): trees, lamps, benches ---------------------------
   for (const [tx, tz] of [[-26, 20], [-18, 22.5], [-10, 20], [-2, 22.5], [6, 20], [12, 22.5], [16, 19.5], [-22, 24]]) tree(sim, tx, tz);
@@ -186,7 +205,6 @@ export function buildManhattan(sim) {
   subwayEntrance(sim, 3, -10.75);                      // City Hall park corner
 
   // ================= S — BATTERY / FERRY (full-peninsula expansion) ============
-  sim.bounds = 80;
 
   // --- CASTLE CLINTON (round fort in Battery Park, ~(-22, 30)) -------------------
   // Square ring with chamfered corners reads as the circular fort at voxel
@@ -265,10 +283,12 @@ export function buildManhattan(sim) {
     for (const px of [29, 31, 33, 35]) BOX(px, 0, 7, 1, 4, 1, 'steel', 1); // columns
     BOX(28, 4, 7, 8, 1, 1, 'concrete', 1, 0xcfc8b8);   // entablature
     BOX(30, 8, 10, 4, 1, 3, 'wood', 1);                // low dome
+    sim.cameraBlockers.push({ minX: 27, maxX: 37, minZ: 6, maxZ: 15, h: 9 });
   }
 
   // --- BATTERY PARK EAST gardens: hedges, trees, lamps, benches ------------------
-  for (let x = 18; x <= 30; x += 1) { B(x, 0, 19, 'leaf', 0.5); B(x, 0.5, 19, 'leaf', 0.5); } // hedge row
+  // step 0.5 to match the brick size — a 1 m step left 0.5 m gaps (isolated cubes)
+  for (let x = 18; x <= 30; x += 0.5) { B(x, 0, 19, 'leaf', 0.5); B(x, 0.5, 19, 'leaf', 0.5); } // hedge row
   for (const [tx, tz] of [[20, 22.5], [24, 23.5], [28, 22.5], [32, 20]]) tree(sim, tx, tz);
   for (const [lx, lz] of [[18, 21], [27, 22], [34, 21]]) lampPost(sim, lx, lz);
   bench(sim, 22, 21.5); bench(sim, 30, 21.5);
@@ -278,6 +298,7 @@ export function buildManhattan(sim) {
   tower(sim, 48, -22, 10, 8, 0, 4, 'masonry', 'wood', 0x8f6a4a); // 4 = 3k+1, tops on slab
   BOX(49, 4, -21, 8, 1, 6, 'wood', 1);                 // gabled roof
   BOX(50, 5, -20, 6, 1, 4, 'wood', 1);
+  sim.cameraBlockers.push({ minX: 48, maxX: 58, minZ: -22, maxZ: -14, h: 6 });
   BOX(58, 0, -20, 6, 1, 6, 'wood', 1);                 // pier deck east into the river
   // --- PIER SHEDS (x 58..63): brick cargo sheds -------------------------------------
   tower(sim, 58, -6, 6, 8, 0, 4, 'masonry', 'brick', 0x8a5a44);
@@ -300,6 +321,7 @@ export function buildManhattan(sim) {
     for (const mz of [-30, -27.5]) BOX(61.5, 0.5, mz, 1, 11, 1, 'wood', 0.5);
     for (const mz of [-30, -27.5]) for (const yd of [61, 61.5, 62]) HB(yd, 6, mz, 'wood', 0x6a4a32);
   }
+  sim.cameraBlockers.push({ minX: 60, maxX: 64, minZ: -32, maxZ: -26, h: 6.5 });
   // --- HELIPORT (x 56..61, z 14..17): pad with the H painted INTO the slab ------
   // (marker blocks layered on top would share fine cells — paint, not stack)
   for (let x = 0; x < 6; x++) {
@@ -319,7 +341,10 @@ export function buildManhattan(sim) {
   BOX(-10, 23, -52, 8, 1, 8, 'concrete', 1);           // top plate
   BOX(-8, 24, -50, 4, 2, 4, 'wood', 1);                // cupola
   for (const px of [-9, -6, -3, 0]) BOX(px, 0, -43, 1, 4, 1, 'steel', 1); // portico
-  BOX(-10, 4, -43, 11, 1, 1, 'concrete', 1, 0xa89f8d); // entablature
+  // entablature spans z[-44,-43]: it bridges the base facade (ends at z-44) to
+  // the column row at z-43, so the portico reads as a porch roof, not a
+  // detached colonnade standing 1 m clear of the wall
+  BOX(-10, 4, -44, 11, 1, 2, 'concrete', 1, 0xa89f8d); // entablature
   sim.cameraBlockers.push({ minX: -12, maxX: 2, minZ: -54, maxZ: -44, h: 26 });
 
   // --- COURTHOUSE (x -26..-16, z -52..-44) -----------------------------------------
@@ -327,7 +352,8 @@ export function buildManhattan(sim) {
   BOX(-26, 7, -52, 10, 1, 8, 'concrete', 1);           // roof plate
   BOX(-27, 0, -42, 12, 1, 1, 'concrete', 1);           // steps (clear of the columns)
   for (const px of [-24, -22, -20, -18]) BOX(px, 0, -43, 1, 4, 1, 'steel', 1); // columns
-  BOX(-26, 4, -43, 10, 1, 1, 'concrete', 1, 0xcfc8b8); // pediment
+  BOX(-26, 4, -44, 10, 1, 2, 'concrete', 1, 0xcfc8b8); // pediment (bridges facade → columns)
+  sim.cameraBlockers.push({ minX: -27, maxX: -16, minZ: -52, maxZ: -42, h: 8 });
 
   // --- CHINATOWN storefront rows (x 24..43, z -56..-50): bright awnings -----------
   {
@@ -338,6 +364,7 @@ export function buildManhattan(sim) {
     for (const [rx, wall, awn] of rows) {
       tower(sim, rx, -56, 5, 6, 0, 7, 'masonry', 'brick', wall);
       BOX(rx, 1, -50, 5, 1, 1, 'panel', 1, awn);       // awning, face-adjacent (span support)
+      sim.cameraBlockers.push({ minX: rx, maxX: rx + 5, minZ: -56, maxZ: -49, h: 7 });
     }
   }
 
@@ -417,6 +444,7 @@ export function buildManhattan(sim) {
   BOX(10, 7, -2, 8, 1, 8, 'concrete', 1);              // roof plate
   for (const px of [11, 13, 15, 16]) BOX(px, 0, 6, 1, 4, 1, 'steel', 1); // columns
   BOX(10, 4, 6, 8, 1, 1, 'concrete', 1, 0xcfc8b8);     // pediment
+  sim.cameraBlockers.push({ minX: 10, maxX: 18, minZ: -2, maxZ: 7, h: 8 });
   // one flag in the gap between the tenement awnings (x 13 — the only clear
   // cell column; poles elsewhere share cells with columns or awnings)
   B25(13, 0, 7.5, 1, 8, 1, 'steel');
@@ -444,9 +472,12 @@ export function buildManhattan(sim) {
       for (let y = 0; y < heights[i]; y++) B(-9 + i, y, rz, 'steel', 1, 0xe8ecf2);
     }
   }
+  sim.cameraBlockers.push({ minX: -9, maxX: -2, minZ: -29, maxZ: -24, h: 6 });
   // --- street life, west + infill -----------------------------------------------------------------
-  hydrant(sim, -46, 4); mailbox(sim, -42, -24);
-  newsstand(sim, -36, -22); trafficLight(sim, -2, -24);
+  hydrant(sim, -43, 4); mailbox(sim, -42, -24);         // hydrant on the West Side Hwy curb
+  // newsstand on Fulton St's north sidewalk. z -21.75, not -22: its roof
+  // overhangs 0.25 m north of the body, and One WTC's base tier ends at z-22.
+  newsstand(sim, -29, -21.75); trafficLight(sim, -2, -24);
   subwayEntrance(sim, -2, -34);                        // WTC site
   for (const [lx, lz] of [[-38, -28], [-34, -10], [-46, 6], [12, -6], [47, -10]]) lampPost(sim, lx, lz);
 
@@ -454,7 +485,7 @@ export function buildManhattan(sim) {
   sim.sceneDecor = {
     roads: [
       { x: -2.5, z: -38, w: 5, d: 62 },   // Broadway
-      { x: 22, z: -38, w: 4, d: 62 },     // Pearl St (under the El)
+      { x: 22, z: -38, w: 4, d: 56 },     // Pearl St (under the El) — stops at the park edge
       { x: -34, z: 3, w: 68, d: 4 },      // Wall St
       { x: -34, z: -14, w: 68, d: 3 },    // Chambers St
       { x: -30, z: 15, w: 52, d: 3 },     // Battery Pl
@@ -469,17 +500,31 @@ export function buildManhattan(sim) {
       { x: -2, z: -44, w: 4, d: 24 },     // Park Row
       { x: -14, z: -56, w: 4, d: 12 },    // Centre St
       { x: -60, z: -80, w: 120, d: 4 },   // Canal-side north edge
+      { x: -20, z: -43, w: 46, d: 5 },    // Duane St — Civic Center cross street
+      { x: 22, z: -49, w: 24, d: 4 },     // Bayard St — Chinatown
+      { x: 46, z: -3, w: 12, d: 3 },      // South St apron, N of the pier sheds
+      { x: 46, z: 3, w: 12, d: 3 },       // South St apron, by the heliport
     ],
     parks: [
-      { x: -30, z: 18, w: 50, d: 8 },     // Battery Park
+      { x: -30, z: 18, w: 66, d: 8 },     // Battery Park (reaches the east gardens)
       { x: -26, z: 26, w: 10, d: 8 },     // Castle Clinton point
       { x: -10, z: -24, w: 14, d: 10 },   // City Hall Park
       { x: 24, z: -66, w: 14, d: 8 },     // Columbus Park
     ],
     water: [
-      { x: -80, z: 26, w: 160, d: 54 },   // the harbor (S)
+      // The harbor is carved around the two land pockets that carry structures:
+      // Castle Clinton's Battery point and the Whitehall ferry apron. A single
+      // rect put the fort and the ferry terminal in open water, and buried the
+      // Castle Clinton park plane (water draws at y .008 over parks at .006).
+      { x: -80, z: 26, w: 54, d: 54 },    // harbor, W of Castle Clinton
+      { x: -26, z: 35, w: 46, d: 45 },    // harbor, S of Castle Clinton
+      { x: -16, z: 26, w: 36, d: 9 },     // harbor, E of the fort (ferry pier)
+      { x: 20, z: 37, w: 60, d: 43 },     // harbor, S of the ferry apron
+      { x: 36, z: 26, w: 44, d: 11 },     // harbor, E of the ferry apron
       { x: -80, z: -80, w: 14, d: 106 },  // Hudson River (W)
+      { x: -66, z: 10, w: 22, d: 16 },    // Hudson marina basin — reaches the moorings
       { x: 66, z: -80, w: 14, d: 106 },   // East River (E)
+      { x: 58, z: -40, w: 22, d: 26 },    // East River off the Seaport (tall ship + pier)
       { x: 40, z: -80, w: 40, d: 14 },    // under the Brooklyn Bridge (NE)
     ],
   };

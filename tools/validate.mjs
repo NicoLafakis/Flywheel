@@ -196,6 +196,45 @@ function validateManhattan() {
   }
   if (ghosts > 0) fail(`manhattan: ${ghosts} fine cells owned by the wrong block (overlapping placement)`);
 
+  // camera-blocker coverage: the blocker list is hand-written per structure, so
+  // it drifts every time content lands. The chase cam's LOWEST framing is
+  // ~8.6 m high (SIZE 1), so anything under 6 m is already cleared with margin
+  // — above that, an unlisted roof occludes the hole. Scoped to manhattan: the
+  // gallery ships zero blockers by design (camera.js falls back to a flat pull).
+  const tops = new Map(); // "cx,cz" 1 m footprint cell -> highest block top (m)
+  for (const b of sim.blocks) {
+    const top = (b.gy + b.fs) * 0.25;
+    for (let cx = Math.floor(b.gx * 0.25); cx < Math.ceil((b.gx + b.fs) * 0.25); cx++) {
+      for (let cz = Math.floor(b.gz * 0.25); cz < Math.ceil((b.gz + b.fs) * 0.25); cz++) {
+        const k = `${cx},${cz}`;
+        if (!(tops.get(k) >= top)) tops.set(k, top);
+      }
+    }
+  }
+  let uncovered = 0, worstH = 0, worstCell = '';
+  for (const [k, top] of tops) {
+    if (top < 6) continue;
+    const [cx, cz] = k.split(',').map(Number);
+    const covered = sim.cameraBlockers.some((b) =>
+      cx + 1 > b.minX && cx < b.maxX && cz + 1 > b.minZ && cz < b.maxZ && b.h + 0.01 >= top);
+    if (!covered) {
+      uncovered++;
+      if (top > worstH) { worstH = top; worstCell = k; }
+    }
+  }
+  if (uncovered > 0) {
+    fail(`manhattan: ${uncovered} footprint cell(s) >=6 m tall have no cameraBlocker covering their height (tallest ${worstH} m at cell ${worstCell})`);
+  }
+
+  // decor draw order: water renders at y .008 OVER parks at y .006, so a park
+  // rect fully inside a water rect never appears (Castle Clinton's park was
+  // exactly this bug when the harbor was one big rect).
+  for (const p of sim.sceneDecor.parks) {
+    const buried = sim.sceneDecor.water.find((w) =>
+      p.x >= w.x && p.x + p.w <= w.x + w.w && p.z >= w.z && p.z + p.d <= w.z + w.d);
+    if (buried) fail(`manhattan: park rect (${p.x},${p.z} ${p.w}x${p.d}) is fully inside water rect (${buried.x},${buried.z} ${buried.w}x${buried.d}) — it never renders`);
+  }
+
   // idle stability: 3 s parked at spawn — nothing may collapse or be eaten
   for (let i = 0; i < 3 * 60; i++) sim.step(DT, { x: 0, z: 0 });
   const nonStatic = sim.blocks.filter((b) => b.state !== 'static').length;
@@ -211,6 +250,11 @@ function validateManhattan() {
     sim.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
   }
   if (sim.hole.eatenCount < 100) fail(`manhattan: only ${sim.hole.eatenCount} blocks eaten on the WTC excursion (expected >=100)`);
+  // progression floor: the SIZE ladder is scaled by round(totalMass / 4200) —
+  // ×10 for this scene's ~43.5k mass — so ANY content change silently re-paces
+  // every level, and nothing else here asserts pacing. The excursion reaches
+  // SIZE 5 today; a drop below 4 means the ladder outran the scene.
+  if (sim.hole.size < 4) fail(`manhattan: WTC excursion reached only SIZE ${sim.hole.size} (expected >=4 — mass-scaled SIZE ladder too steep?)`);
   let bad = 0;
   for (const bl of sim.blocks) {
     if (!Number.isFinite(bl.x) || !Number.isFinite(bl.y) || !Number.isFinite(bl.z)) bad++;

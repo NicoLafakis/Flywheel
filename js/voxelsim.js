@@ -103,6 +103,7 @@ export class VoxelSandboxSim {
     this._massMarkIdx = 0;                 // city-consumption milestones: 25/50/75/100%
     this.MAX_SIZE = MAX_SIZE;
     this.bounds = 24;          // hole movement clamp (m); scenes may widen it
+    this.boundsRect = null;    // optional {minX,maxX,minZ,maxZ}; overrides `bounds` for off-center maps
     this.sceneDecor = null;    // render-only roads/parks/water (VoxelWorld3D)
     this.cameraBlockers = [];  // tall-building AABBs for the chase cam
     // Live-tunable physics (dev sliders in SETTINGS → main.js pushes values
@@ -1222,8 +1223,11 @@ export class VoxelSandboxSim {
       const len = Math.hypot(move.x, move.z) || 1;
       h.x += (move.x / len) * speed * dt;
       h.z += (move.z / len) * speed * dt;
-      h.x = Math.min(this.bounds, Math.max(-this.bounds, h.x));
-      h.z = Math.min(this.bounds, Math.max(-this.bounds, h.z));
+      // `boundsRect` wins when a scene sets it (off-center maps need an
+      // asymmetric clamp); otherwise the scalar square around the origin.
+      const r = this.boundsRect;
+      h.x = Math.min(r ? r.maxX : this.bounds, Math.max(r ? r.minX : -this.bounds, h.x));
+      h.z = Math.min(r ? r.maxZ : this.bounds, Math.max(r ? r.minZ : -this.bounds, h.z));
     }
 
     // 1. support graph (only when coverage/graph actually changed)

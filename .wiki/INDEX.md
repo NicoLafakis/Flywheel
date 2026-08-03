@@ -1,6 +1,6 @@
 # Project Wiki
 
-> Living documentation for **Hole City** (repo: `Flywheel`). Updated 2026-08-01.
+> Living documentation for **Hole City** (repo: `Flywheel`). Updated 2026-08-03.
 
 ## What is this?
 

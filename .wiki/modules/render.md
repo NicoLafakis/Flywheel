@@ -30,6 +30,10 @@ mutates sim state.
 - Camera occlusion uses 2D XZ AABB tests against `world.blockers` (buildings
   with `h > 6`); eaten buildings are removed from the blocker list on the
   `eat` event — if you change building visuals, keep `blockers` in sync.
+  The voxel sandbox feeds the same camera from `sim.cameraBlockers`, which is
+  hand-written per scene instead of derived from the city objects, and is never
+  pruned as towers fall. Same `h > 6` cut applies; `tools/validate.mjs`
+  enforces it for Manhattan because nothing in the sim can.
 - All geometry/material must come from the module-level caches; per-frame
   allocation shows up fast at 1500+ objects. Exception: `gableGeo` builds a
   small BufferGeometry per building — if house counts grow, cache per

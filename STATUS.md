@@ -1,6 +1,6 @@
 # STATUS.md — Hole City
 
-Last updated: 2026-08-02
+Last updated: 2026-08-03
 
 ## Current state
 
@@ -10,7 +10,8 @@ Last updated: 2026-08-02
 
 **Voxel Sandbox**: physics complete and playtest-tuned, two levels: the
 city gallery (~3,800 blocks, ~30 object kinds in 7 districts) and **full
-Lower Manhattan** (~25,800 blocks, bounds ±80 — WTC + 7 WTC + Oculus,
+Lower Manhattan** (~25,800 blocks, asymmetric clamp x[-70,74] z[-84,54] —
+WTC + 7 WTC + Oculus,
 memorial pools, Woolworth, Wall St canyon + NYSE + Fed Reserve, Municipal
 Building + courthouse, Chinatown rows, Tribeca lofts, Brooklyn Bridge
 tower, Seaport + pier sheds + tall ship + heliport, Battery Park City +
@@ -62,6 +63,26 @@ stability, a 56 s gallery tour, Manhattan overlap/idle/excursion checks
 
 ## Recent history
 
+- 2026-08-03: **Manhattan sandbox review pass**. The physics layer audited
+  clean (0 ghost fine cells, 0 floaters, validator `ALL PASS`); every finding
+  was in the derived/render-only data no test covered. Fixed: 13 missing
+  `cameraBlockers` for the 6-9 m mid-rise band (Trinity, City Hall, NYSE,
+  Custom House, Courthouse, Chinatown rows ×3, SE tenements, Seaport, Oculus,
+  tall ship, and the 58 m-long El viaduct) plus one entry that understated its
+  rooftop water tower by 2 m; `sceneDecor` extended with the peninsula (Duane
+  St, Bayard St, two South St aprons, Battery Park green out to x 36, Pearl St
+  no longer running through the park) and the harbor carved into five rects so
+  Castle Clinton and the ferry terminal stand on land — the Castle Clinton
+  park plane was being drawn over by the harbor and never rendered at all;
+  Hudson marina basin + East River Seaport reach added so the moored boats and
+  the tall ship float on water instead of asphalt; asymmetric `sim.boundsRect`
+  replaces the square ±80 clamp (~36 m of dead harbor removed); the Battery
+  Park hedge row rebuilt on a 0.5 m step (it was 13 isolated cubes); Municipal
+  and Courthouse porticoes bridged to their facades and the Wall St bank
+  colonnades evened to a 2 m pitch. Validator gained three anti-drift probes:
+  per-footprint-cell camera-blocker coverage (≥ 6 m, matching the campaign's
+  `world3d.js` cut), a SIZE ≥ 4 progression floor (the mass-scaled ladder is
+  now ×10 and had nothing pinning it), and a decor draw-order check.
 - 2026-08-02: **Full Lower Manhattan expansion + 5-class kit**. New
   `js/voxelkit.js`: the five object size classes (PROP 0.25 m / VEHICLE
   0.5 m / SMALL_BLDG / LARGE_BLDG / MEGA) with canonical builders extracted
@@ -142,7 +163,8 @@ stability, a 56 s gallery tour, Manhattan overlap/idle/excursion checks
   Charging Bull, ferry pier, full street-furniture/vehicle set. Engine grew
   a scene option: `bounds` per scene, render-only `sceneDecor` (roads/park/
   harbor), `cameraBlockers` for supertall occlusion, and the SIZE ladder
-  scales with scene mass (gallery exactly ×1, Manhattan ×5). Bug-hunted via
+  scales with scene mass (gallery exactly ×1, Manhattan ×10 at its current
+  43.5k mass — it was ×5 before the full-peninsula expansion). Bug-hunted via
   the new validator checks: El-through-tower overlap (ghost cells), lamps
   inside buildings, setback tiers topping out on wall rings (floating base
   slabs), interior-column grid math, El rails one cell past the deck edge,

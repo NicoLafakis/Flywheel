@@ -20,7 +20,7 @@ bottom-up, along material bond strengths.
 |------|---------|
 | `js/voxelsim.js` | `VoxelSandboxSim`: support graph, stress delays, chunk + debris physics, scoring, the `gallery` scene. Pure sim (no three.js, seeded RNG via `rng.js`) |
 | `js/voxelkit.js` | The 5 object size classes (PROP 0.25 m / VEHICLE 0.5 m / SMALL_BLDG / LARGE_BLDG / MEGA) + their canonical builders (vehicles, trees, lamps, props, `tower()`). Pure sim, shared by both scenes |
-| `js/voxelscene-manhattan.js` | `buildManhattan(sim)`: the full Lower Manhattan peninsula (~25.8k blocks, bounds ±80). Sets `bounds`, `sceneDecor`, `cameraBlockers` |
+| `js/voxelscene-manhattan.js` | `buildManhattan(sim)`: the full Lower Manhattan peninsula (~25.8k blocks). Sets `bounds`/`boundsRect`, `sceneDecor`, `cameraBlockers` |
 | `js/voxelworld.js` | `VoxelWorld3D`: one `InstancedMesh` per material, per-frame matrix compose (chunk rotation, debris tumble, rim lean, stress wobble); renders `sceneDecor` (roads/parks/water) |
 
 ## Model
@@ -103,16 +103,25 @@ Consumption: a block whose top sinks below `SINK_Y` (0.15) inside the
 removal zone → mass (`mat.mass × s³ × comboMult`), combo (window 1.5 s,
 mirrors `sim.js`), and SIZE progression via escalating `SIZE_MASS`
 thresholds (radius interpolates +0.5 m per level from the 1.1 start).
-The ladder scales per scene (`× max(1, round(totalMass/4200))` — gallery
-is exactly ×1, Manhattan ×5) so progression pacing is scene-relative.
+The ladder scales per scene (`× max(1, round(totalMass/4200))` — gallery is
+exactly ×1, Manhattan ×10 at its 43,593 mass) so progression pacing is
+scene-relative. In absolute terms Manhattan's SIZE 8 costs 23,000 combo-mass
+(53% of the entire city at a 1× combo), SIZE 10 costs 133% and SIZE 12 costs
+230% — the top levels are reachable only on sustained combos, by design.
+Re-check this whenever scene mass changes: the ladder re-paces silently, and
+it drags the camera's SIZE-keyed zoom ramp with it. `tools/validate.mjs` pins
+a floor (the WTC excursion must reach ≥ SIZE 4).
 
 ## Scenes
 
 Two levels share the sim (`new VoxelSandboxSim({ scene })`, default
 `'gallery'`). Scene builders run inside the constructor, may set
-`sim.bounds` (hole clamp, 24 gallery / 40 manhattan), `sim.sceneDecor`
+`sim.bounds` (square hole clamp in m — 24 gallery) or `sim.boundsRect`
+(`{minX,maxX,minZ,maxZ}`, which overrides the scalar; off-center maps need it
+— Manhattan's peninsula is 124 × 118 m and asymmetric, so the old square ±80
+left ~36 m of empty harbor south of the last block), `sim.sceneDecor`
 (render-only roads/parks/water planes) and `sim.cameraBlockers`
-(tall-building AABBs for the chase cam's occlusion pull-in — stale after a
+(building AABBs for the chase cam's occlusion pull-in — stale after a
 tower falls, accepted).
 
 ### gallery (VOXEL SANDBOX)
@@ -175,6 +184,27 @@ Hwy, FDR; Hudson W, East River E, harbor S):
   Broadway lamps, traffic lights, hydrants, mailboxes, newsstands, hot dog
   carts, subway entrances (green globes)
 
+**Render-only decor** is a rect list (min-corner + size), drawn roads y .004 →
+parks y .006 → water y .008, so water always wins an overlap. Two consequences
+survive as scene invariants: the harbor is deliberately *carved* into five
+rects around the two land pockets that carry structures (Castle Clinton's
+Battery point, the Whitehall ferry apron) — one big rect put a fort and a
+ferry terminal in open water and buried the Castle Clinton park plane beneath
+the harbor; and each river needs an inboard rect to reach the built waterfront
+(the Hudson ribbon ends at x −66 and the East River at x +66, ~20 m outboard
+of the last pier, so the marina boats and the tall ship floated on asphalt
+until the marina basin and the Seaport reach were added). Props and vehicles
+must land on the surface they imply — the road grid grew with the peninsula
+only after 21 of 43 sites were found standing on bare ground.
+
+**Camera blockers must cover every structure ≥ 6 m** — the same cut
+`world3d.js` uses for the campaign (`o.h > 6`). The sandbox chase cam's lowest
+framing is ~8.6 m high / 11 m back at SIZE 1, so a 7-9 m mid-rise occludes the
+hole with no pull-in when it has no entry, and `camera.js` only pulls in while
+`camY < b.h` — an entry whose `h` understates its rooftop water tower is as
+bad as a missing one. The list is hand-written, so `tools/validate.mjs`
+enforces coverage per footprint cell rather than trusting it.
+
 Physics come from the material; paint is a per-block `color` override
 (grouped into instancing batches by `matType:size:color`). Glass must never
 have to carry load (strips between columns). Roof caps must sit on a full
@@ -194,6 +224,10 @@ hops.
   `Math.random` source guard for all pure-sim files (incl.
   `voxelscene-manhattan`). Manhattan: fine-cell ownership (ghost/overlap
   guard), 3 s spawn-idle stability, a scripted WTC excursion (must eat ≥ 100)
+  plus a second expansion-district sweep, per-footprint-cell camera-blocker
+  coverage (every cell ≥ 6 m needs an entry with `h` ≥ its top), a SIZE ≥ 4
+  progression floor, and a decor draw-order check (no park rect may sit fully
+  inside a water rect — it would never render)
 
 ## Gotchas
 
@@ -244,7 +278,13 @@ hops.
   tight (~11 m) at SIZE 1, then a smoothstep ramp from SIZE 4 that clears
   the scene's tallest `cameraBlocker` (+8 m) by SIZE 10 — the
   see-over-any-building rule (`camera.js maxBlockerH`) — and holds there
-  through SIZE 12 (~84 m dist, ~66 m high in Manhattan).
+  through SIZE 12 (~86 m dist, ~67 m high in Manhattan). The **gallery ships
+  zero `cameraBlockers`**, so `maxBlockerH` is 0 there, the ramp never engages
+  and the camera stays on the base curve (11 → 31 m) with no occlusion pull-in
+  at all: the see-over rule is Manhattan-only today. The ramp is keyed to
+  radius, i.e. to SIZE, i.e. to the mass-scaled ladder — in Manhattan it is
+  fully out by SIZE 9-10, which costs 87-133% of the city's raw mass, so most
+  of a session is played on the low half of the curve.
 - **Scene-building rules** (all learned from spawn-collapse bugs):
   1. Two blocks may NEVER share a fine cell — the grid Map holds one owner,
      and the overwritten "ghost" block is unreachable in the support BFS, so
@@ -283,6 +323,16 @@ hops.
      ≥ 1.7 m from spawn, not just 1.05 m. Trinity's nave once sat 9 mm
      inside the OLD flat threshold (3.55 m) and dropped its roof into the
      hole.
+  9. **Every structure ≥ 6 m needs a `cameraBlockers` entry** whose `h` is its
+     true top, water tower and spire included, and whose AABB matches the
+     footprint (not the district). Nothing in the sim derives these — a new
+     building is invisible to the camera until someone types it in, which is
+     how all nineteen original entries ended up being ≥ 9 m towers while a
+     dozen 6-9 m mid-rises, the 58 m-long El viaduct among them, had none.
+  10. **The placement step must equal the brick size.** `_block(x, …, 0.5)`
+     walked on a 1 m step leaves 0.5 m gaps — the Battery Park "hedge row"
+     was 13 isolated cubes for exactly this reason. Physics never complains
+     (each cube is grounded), so only the eye catches it.
 - Bond semantics are "outgoing carry capacity": a wheel (`rubber`) supports
   the car vertically (0.9) but shears off sideways (0.2). Don't read bonds as
   probabilities — the pre-2026-08-01 sim did per-frame dice rolls and whole
