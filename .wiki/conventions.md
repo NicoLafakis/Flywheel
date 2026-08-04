@@ -36,5 +36,8 @@
 
 - Update the covering `.wiki/modules/*.md` page and `STATUS.md` in the same
   commit as the code change.
+- `STATUS.md` is a lean board (planned / doing / done), budget ≤ 5,000 tokens:
+  a shipped item is ONE line there. The detailed dated entry goes in
+  `CHANGELOG.md`; build narrative never accretes on the board.
 - `covers:` globs must keep matching real paths.
 - ADRs are append-only; supersede, never edit an accepted one.
