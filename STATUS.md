@@ -2,6 +2,151 @@
 
 Last updated: 2026-08-04
 
+---
+
+## ⏸ PAUSED MID-WORK — READ THIS FIRST (2026-08-04)
+
+Session paused for resource reasons with **a large uncommitted working tree**.
+Nothing is staged, nothing is committed, nothing is pushed. Four subagents were
+running in parallel and have been stood down. **The open question at the moment
+of pausing is whether this work has turned into spaghetti — that audit was
+started and is NOT finished. Do not commit any of this until it is.**
+
+### Working tree at pause
+
+`git status` — 9 modified, 2 new, **+3,451 / -93 lines**:
+
+| file | Δ | owner | what |
+|---|---|---|---|
+| `js/voxelworld.js` | +1,553 | brooklyn-render | decor layers, ambient animation, shadow-box framing |
+| `js/voxelkit.js` | +928 | brooklyn-scene | 8 large-mass builders + 5 new `C1 PROP` builders |
+| `js/camera.js` | +531 | intro-camera | `beginIntro`/`releaseIntro`/`skipIntro`, yaw sweep, `minBox`, `orbitArc`, lighting term |
+| `tools/validate.mjs` | +301 | brooklyn-scene | `validateBrooklyn()` at :432, 12 probes, called at :664 |
+| `css/main.css` | +232 | ready-gate-ui | READY gate styling, scrim as a local radial pool |
+| `js/main.js` | +122 | intro-camera | READY gate wiring, `beginIntro` call, Brooklyn-only gate, `sunDirOf()`, `window.__world` hook at :235 |
+| `js/ui/hud.js` | +26 | (lead) | minimap show/hide on sandbox vs campaign |
+| `js/voxelsim.js` | +18 | brooklyn-scene | Brooklyn scene dispatch + SIZE-ladder ×10 cap at :158 |
+| `js/ui/screens.js` | +4 | ready-gate-ui | settings button label |
+| `js/ui/ready.js` | NEW | ready-gate-ui | `mountReadyGate()` → `{ dismiss() }` |
+| `js/voxelscene-brooklyn.js` | NEW | brooklyn-scene | the Brooklyn scene itself |
+
+### The unfinished audit — resume here
+
+Nico flagged: *"Seems like you're auto-creating code spaghetti here potentially,
+but I can't tell."* He is right that it needs checking. All four agents were
+frozen and asked to self-report (a) what they added section by section, (b)
+anything now **unused, superseded, or a replaced approach left in place**, and
+(c) anything they changed that they were not asked to change. **Those reports
+were never received — the pause came first.**
+
+Two commands were launched and interrupted; re-run both:
+
+```
+node tools/validate.mjs
+git diff -U0 js/voxelworld.js   # +1,553 is the largest change; justify it section by section
+```
+
+Specific spaghetti suspicions worth checking by hand:
+
+- `js/voxelkit.js` is **shared** with both Manhattan scenes. Anything
+  Brooklyn-only added there does not belong in a shared kit.
+- Possible **two overlapping mechanisms for the same job**: the positional
+  `BROOKLYN_ROAD_SPANS` allowlist vs. the declared-span approach.
+- Kit builders that nothing calls.
+- Leftovers from replaced approaches: the pre-`orbitArc` orbit implementation
+  in `camera.js`; the original full-frame scrim in `css/main.css` before it
+  became a local radial pool.
+- `js/voxelscene-brooklyn.js:672` asserts a "40k block ceiling" **that does not
+  exist** (see Established facts below). The comment is still there.
+
+### Established facts (measured this session, trust these)
+
+- **The scene build is NOT superlinear.** An earlier "exponent ≈ 2.08,
+  something is quadratic" claim was measurement noise from a loaded box and is
+  retracted. Round-robin, min-of-9: gallery 3,798 blocks / 169 ms · upper
+  8,442 / 570 ms · manhattan 25,875 / 2,521 ms · brooklyn 39,984 / **4,051 ms**
+  (not 12.4 s). Exponent 1.15 vs *fine volume*; per-fine-cell cost is flat to
+  1.47× where per-block cost spreads 2.27×. Cost is linear in total fine
+  volume, as the code implies — `_addBlock` (`voxelsim.js:188`) writes `fs³`
+  grid cells, `_buildNeighbors` (`:516`) probes `6·fs²`.
+- **There is no 40k block ceiling.** Only occurrence in the repo is that one
+  comment. `voxelworld.js:377` sizes each `InstancedMesh` to `list.length`, and
+  draw calls scale with (material × size) buckets, not block count. +2,000
+  blocks ≈ +203 ms build, 0 extra draw calls.
+- **Perf measurement precondition:** this box showed 2.0–2.6× median/min noise
+  and a 40 s outlier on a 2.5 s build while agents were live. No perf number is
+  quotable until the tree is still. Min-of-N round-robin is the minimum
+  acceptable instrument. Probes: `probe-buildcost2.mjs` (v1 kept as the
+  broken-instrument counterexample).
+- Brooklyn last known good: `blocks=39984 mass=65346 eaten=530 size=4
+  blockers=510`, validator ALL PASS, 0 of 32 spawn headings dead.
+- Shipped intro pose (desktop): yaw 90°, 238.6 m, 12.19% coverage at
+  `orbitArc: ±30`. Static (`orbitArc: 0`) = 170.1 m / 24.22%. Portrait: yaw 0°,
+  521.4 m. Worst-in-arc ndc 0.591/0.805 — nothing crops.
+- **The "establishing shot got 38% darker" diagnosis was wrong and is
+  retracted.** I attributed a 54.7 → 34.1 luma drop to the yaw objective
+  lacking a lighting term. Measured across 48 poses on the shipped build,
+  frame luma only ranges 36.08–40.11 — an 11% spread, so yaw cannot produce a
+  38% swing, and neither number appears in this build at any pose. The shipped
+  pose is in fact the *brightest* of the three candidates (40.10, vs 39.80 for
+  the old framing and 37.63 for the old coverage pick); the city reads ~70 luma
+  against a 32.1 background, so more city means a brighter frame. If the
+  darkening was real it came from something else moving in parallel — Brooklyn
+  scene edits were live between my two captures. **Re-measure before acting.**
+- **A real latent bug was found underneath that wrong diagnosis.** The distance
+  fit is period-π but lighting is period-2π, and the yaw search only swept
+  `[0, π)` — so it could return either member of a lit/unlit antipodal pair,
+  arbitrarily. Yaw 90 was correct *by luck*: it scores 0.5567 on the lighting
+  term against 0.1752 for its antipode 270, which measures 6.6 luma darker yet
+  has *higher* coverage, so a coverage-only objective would have taken 270.
+  Now fixed by construction, with a Lambertian term validated at r = 0.851
+  against measured city luma over all 48 poses.
+
+### Awaiting Nico — three decisions, none answered
+
+1. **Construction vocabulary.** His actual request, and **nothing has been
+   started on it**: not bigger buildings, but *per-building construction
+   vocabulary* — one apartment built from tons of blocks of one type, another
+   from brick-shaped configurations, another from planks, another from columns
+   made of extruded-cylinder "slices". He asked for thoughts before any action
+   and has not yet replied. The enabling insight: the sim/render split
+   (ADR-0002) means the **sim** needs cubes but the **renderer** does not.
+   Caution: the renderer batches on `matType + ':' + b.s`, so a `shape` tag
+   adds a third key dimension and multiplies draw-call buckets.
+2. **Sun elevation** — leave at 54.2°, or drop to 32°? New information: the
+   intro's lighting term reads the renderer's actual light via `sunDirOf()`
+   rather than assuming a constant, and it gets more decisive as the sun drops
+   (lit spread 0.758 at 54.2°, 0.868 at 32°, 0.917 at 20°). At 32° the portrait
+   hold pose would move from yaw 0° to 15° on its own, no code change. So this
+   decision now also improves the mobile establishing shot for free.
+3. **Intro orbit** — motion at ±30° (shipped, 12.19%) or static (24.22%)?
+   A ±20° option exists at 15.16%; apparent orbit speed is now identical at
+   every arc, so ±20 dominates ±30 on coverage. Gated on an unmeasured check:
+   whether the arc endpoint eases or snaps.
+
+### Not started
+
+- **Performance pass** (Nico's explicit request): optimise for low-resource
+  systems without degrading graphics or introducing tearing. Sequenced by him
+  to come after the Brooklyn work.
+- **Request A, still open from the prior session:** 11 Upper Manhattan defects
+  were produced and remain unfixed, awaiting his decision.
+- Brooklyn voids: SW corner (exclude via a *declared named region*, never by
+  narrowing a probe until it goes green) and the central 110×12 m band at
+  Z[-16,-4] (needs block headroom; runtime cost still unmeasured).
+
+### Process notes for whoever resumes
+
+- Four parallel agents on work this size produced real coordination waste:
+  stale numbers relayed from a task description instead of from the owner, and
+  a decision (±30) invalidated by a change landing underneath it. Fewer agents.
+- Do not quote a task description as a measurement. Ask the owner.
+- Commit path is gated: stage explicitly → `py ~/.claude/scripts/sop_attest.py`
+  → standalone `git commit`. Never `git add -A`. Multiline messages via a
+  scratchpad file and `git commit -F <abs-path>`.
+
+---
+
 ## Current state
 
 **Campaign**: playable v1, mechanically complete. All 100 levels validated
@@ -71,168 +216,26 @@ stability, a 56 s gallery tour, Manhattan overlap/idle/excursion checks
 
 ## Recent history
 
-- 2026-08-04: **Upper Manhattan realism + graphics pass**. Repositioned the
-  Reservoir, The Lake, Harlem Meer, Belvedere Castle, and Met to match the
-  recognizable Central Park geography; added 59th/72nd/86th/96th/102nd/110th
-  street surfaces, sidewalks, loop bike paths, lane markers, striped
-  crosswalks, oriented curb traffic, hydrants, waste bins, traffic lights,
-  subway entrances, a newsstand, and a hot-dog cart. Fine-cell ownership,
-  idle stability, camera coverage, roadway clearance, and deterministic
-  excursion remain ALL PASS;
-  the renderer now batches by material/brick size and caches static transforms;
-  Playwright smoke found WebGL/page/request errors at zero and 61–66 measured
-  draw calls per frame under the available SwiftShader browser renderer.
+Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
+git log, not here. This section is NOT a changelog.
 
-- 2026-08-04: **Upper Manhattan grid + object alignment scrub**. Applied the
-  official park map and object-level NYC street references to a reusable
-  intersection template: five-stripe zebra crossings without border rails,
-  consistent curb-side furniture offsets, avenue-facing vehicles, and a clear
-  sidewalk buffer. Moved the Met and Belvedere footprints off roadway bands,
-  corrected castle turret/building ownership, and added a validator guard for
-  tall structures, foliage, benches, and roadway overlap. Playwright close-ups
-  at the 72nd Street / west-curb template show aligned roads, sidewalks,
-  crossings, lamps, signals, hydrants, bins, and benches.
+- 2026-08-04: Upper Manhattan realism + graphics pass (park geography, streets/furniture, renderer batching) — ALL PASS
+- 2026-08-04: Upper Manhattan grid + object alignment scrub (intersection template, footprints off roads, validator guard)
+- 2026-08-04: Sandbox feel tuning defaults (gravity 70, wave 0.10 s/m, pull 2, instant creak; schema v9)
+- 2026-08-03: Upper Manhattan (Central Park) added as third sandbox scene — ALL PASS
+- 2026-08-03: Instant sandbox collapse default (schema v9)
+- 2026-08-03: SIZE-scaled sandbox handling (speed/turn/camera ramps)
+- 2026-08-03: Voxel collision hardening (full AABB separation, overlap probes) — ALL PASS
+- 2026-08-03: Upper Manhattan prop-accuracy scrub (bench leg fix)
+- 2026-08-03: Manhattan sandbox review pass (13 cameraBlockers, sceneDecor peninsula/harbor, asymmetric bounds, 3 anti-drift probes)
+- 2026-08-02: Full Lower Manhattan expansion + 5-class kit (`js/voxelkit.js`, ±80 bounds, 25,827 blocks) — ALL PASS
+- 2026-08-02: Hanging reach scales with hole radius
+- 2026-08-02: Loose-body contact resolution + sleep rework — ALL PASS
+- 2026-08-02: Sandbox camera see-over-any-building rule — ALL PASS
+- 2026-08-02: Hole ring visible through buildings (depth-test disabled)
+- 2026-08-01: Settings sliders measurement readouts
+- 2026-08-01: Block-vs-block collision (heightmap, piles, repose slide)
+- 2026-08-01: Dev voxel-physics sliders in SETTINGS (schema v7) + `applySettings` crash fix
+- 2026-08-01: Voxel gravity 26 → 65
+- 2026-08-01: Lower Manhattan sandbox level added (`js/voxelscene-manhattan.js`)
 
-- 2026-08-03: **Upper Manhattan: Central Park sandbox level** added as a third
-  scene (`js/voxelscene-upper-manhattan.js`). The park-first map has ~7,600
-  deterministic blocks around Central Park, the Reservoir, The Lake, Harlem
-  Meer, Bethesda Terrace, Belvedere Castle, the Met, Dakota, Museum Mile, and
-  Harlem edges. Added a title-screen entry, scene-specific loading/HUD labels,
-  camera-blocker coverage, and a validator excursion from the park promenade
-  to the Upper West Side; full suite `ALL PASS`.
-
-- 2026-08-03: **Instant sandbox collapse**. Support loss now detaches newly
-  unsupported blocks on the next `sim.step` by default, removing the visible
-  creak/wave wait between the hole touching a structure and its fall. The
-  optional SETTINGS tuning can still restore a nonzero delay; save schema v9
-  migrates existing saves to the instant default. Validator now asserts that
-  no blocks remain in the delayed `unstable` state.
-
-- 2026-08-03: **SIZE-scaled sandbox handling**. Hole speed rises across SIZE
-  1→12, turn sensitivity ramps `.20→.80`, and the chase camera ramps from
-  max zoom-in to max zoom-out on top of its blocker-clearance curve. Campaign
-  movement remains unchanged.
-
-- 2026-08-04: **Sandbox feel tuning**. Defaults are now gravity 70, collapse
-  wave `0.10 s/m`, attraction pull 2, and instant creak. Existing saves
-  migrate to these values in schema v9; the gradual turn `.20→.80` and camera
-  ramps remain tied to sandbox SIZE rather than campaign settings.
-
-- 2026-08-03: **Voxel collision hardening**. Falling bodies now use full AABB
-  separation against nearby solid buckets when a directional/top contact is
-  detected; chunk members split on solid overlap, and loose-body separation
-  remains prioritized over preserving flight paths. Added deterministic solid
-  and loose-body overlap probes; full suite `ALL PASS`.
-
-- 2026-08-03: **Upper Manhattan prop-accuracy scrub**. Playwright screenshots
-  swept the spawn promenade, park water, Met edge, and Upper West Side. The
-  shared bench builder had its second leg 1 m beyond the 1 m seat; moved it
-  under the seat so every park bench now has aligned supports. Trees, lamps,
-  subway railings, and vehicle frames passed the source/visual review.
-
-- 2026-08-03: **Manhattan sandbox review pass**. The physics layer audited
-  clean (0 ghost fine cells, 0 floaters, validator `ALL PASS`); every finding
-  was in the derived/render-only data no test covered. Fixed: 13 missing
-  `cameraBlockers` for the 6-9 m mid-rise band (Trinity, City Hall, NYSE,
-  Custom House, Courthouse, Chinatown rows ×3, SE tenements, Seaport, Oculus,
-  tall ship, and the 58 m-long El viaduct) plus one entry that understated its
-  rooftop water tower by 2 m; `sceneDecor` extended with the peninsula (Duane
-  St, Bayard St, two South St aprons, Battery Park green out to x 36, Pearl St
-  no longer running through the park) and the harbor carved into five rects so
-  Castle Clinton and the ferry terminal stand on land — the Castle Clinton
-  park plane was being drawn over by the harbor and never rendered at all;
-  Hudson marina basin + East River Seaport reach added so the moored boats and
-  the tall ship float on water instead of asphalt; asymmetric `sim.boundsRect`
-  replaces the square ±80 clamp (~36 m of dead harbor removed); the Battery
-  Park hedge row rebuilt on a 0.5 m step (it was 13 isolated cubes); Municipal
-  and Courthouse porticoes bridged to their facades and the Wall St bank
-  colonnades evened to a 2 m pitch. Validator gained three anti-drift probes:
-  per-footprint-cell camera-blocker coverage (≥ 6 m, matching the campaign's
-  `world3d.js` cut), a SIZE ≥ 4 progression floor (the mass-scaled ladder is
-  now ×10 and had nothing pinning it), and a decor draw-order check.
-- 2026-08-02: **Full Lower Manhattan expansion + 5-class kit**. New
-  `js/voxelkit.js`: the five object size classes (PROP 0.25 m / VEHICLE
-  0.5 m / SMALL_BLDG / LARGE_BLDG / MEGA) with canonical builders extracted
-  from `voxelsim.js` (vehicles) and `voxelscene-manhattan.js` (`tower()`);
-  both scenes now build from the kit. Manhattan expanded ±40 → ±80,
-  11,872 → 25,827 blocks: Seaport/piers/tall ship/heliport (E), Municipal
-  Building + courthouse + Chinatown rows + Columbus Park + Tribeca lofts +
-  Brooklyn Bridge tower (N), BPC towers + marina + pier shed (W), Fed
-  Reserve + NYSE + offices (FiDi), 7 WTC + Oculus (WTC site), Castle
-  Clinton + SI Ferry Terminal + orange ferry + Custom House (S). Every
-  placement validated per the scene rules; the tower helper's column rule
-  hardened (footprints ≥ 8 m need interior columns — an 8×8 masonry slab's
-  center cell was 4 hops out once window panes punched the verticals).
-  Loading overlay (`BUILDING CITY…`) covers the ~1.3 s scene build (was a
-  silent freeze — persona P0). Validator gained a second scripted excursion
-  (expansion-district sweep, 213 eaten). ALL PASS.
-- 2026-08-02: **Hanging reach scales with hole radius** (playtest: the hole
-  "affects buildings further out than the circle is"). The creak zone was
-  `remR + span + 1.5` flat — up to ~5.5 m at SIZE 1, vs the ~1 m visible
-  ring. Now `remR + (span + 1.5) × radius/6.6`: stress hugs the rim at
-  small sizes (~0.5 m out), unchanged at max radius. Probes: intact
-  building at 1.5 m/3 m pre-fails nothing (was rim-creak/facade-drop), and
-  during excavation the stressed set tracks the current radius (max ~2.5 m
-  at r 1.75). Validator ALL PASS.
-- 2026-08-02: **Loose-body contact resolution + sleep rework** (playtest:
-  blocks clipped through each other and spun in place near buildings).
-  `js/voxelsim.js`: new `_resolveDebrisContacts` pass — AABB least-
-  penetration separation between grounded/slow debris, sleepers, chunk
-  members, and rain (2 relaxation rounds, padded fine-column buckets,
-  deterministic pair order). Rim tip-over now requires the hole-facing edge
-  to truly overhang the void; attraction only acts on airborne/sliding
-  bodies (grounded blocks are exempt); debris sleeps anywhere once slow +
-  contact-free (committed after the contact pass — never mid-overlap);
-  `_restLoose` lets rubble serve as support so piles solidify bottom-up;
-  chunk/debris tumble capped; repose threshold 0.75→1.25×s; recursive
-  sleeper-wake crash fixed (`_topRemove` iterates a copy). Probes: frozen
-  sleeper overlaps 0, resting overlaps transient-only, spinners 0.
-  Manhattan excursion eats 1438 (was 1834 — piles no longer clip into the
-  hole); validator ALL PASS.
-- 2026-08-02: Sandbox camera see-over-any-building rule (`js/camera.js`):
-  `setBlockers` caches the scene's tallest blocker (`maxBlockerH`) and the
-  sandbox distance curve smoothstep-ramps from SIZE 4 (r 2.6) so that by
-  SIZE 10 (r 5.6) the camera clears it (+8 m margin), clamped just above
-  clearance through SIZE 12. Manhattan: ~84 m dist / ~66 m high at SIZE 10+
-  (WTC is 58 m); gallery unchanged (no cameraBlockers). Validator ALL PASS.
-- 2026-08-02: Hole ring render pass is now depth-test disabled (`depthTest: false`, `depthWrite: false`, `renderOrder: 999`) in both campaign (`js/world3d.js`) and voxel sandbox (`js/voxelworld.js`) — the hole's outer ring indicator remains visible through buildings and structures when occluded.
-- 2026-08-01: Settings sliders gained measurement readouts: Turn sensitivity
-  shows multiplier + actual turn rate (`0.15 · ~23°/s` — the user's optimal,
-  2nd step from min) and Hole speed shows × + actual m/s at SIZE 1
-  (`1.4× · ~9.9 m/s`, from `playerSpeedForRadius(1.1) = 7.1`).
-- 2026-08-01: **Block-vs-block collision** for the voxel sandbox: a
-  solid-surface heightmap (`_top`, per fine column: static + sleeping
-  debris) replaces the flat ground plane for falling bodies — debris/chunks
-  land on rooftops and stack into piles, an angle-of-repose slide spills
-  steep piles outward (the requested "messy"), `_contact` probes make
-  chunks shatter on facades + debris wall-scrape + hard hits smash-damage
-  what they strike, and sleeping debris registers for wake-on-support-loss
-  (piles stack, eaten bases drop what was on them). Probes: 24-block drop
-  stacks + spills (not a flat carpet), roof landing at exactly roofTop+s/2.
-  Tour eats dip ~5% (2044 vs 2152) as debris piles at rims — intended.
-- 2026-08-01: Dev voxel-physics sliders in SETTINGS (schema v7): Gravity
-  (26–130), Collapse wave (`WAVE_K` 0.05–1 s/m — higher = slower, more
-  readable rim→center sweep), Creak delay (0.25–2× global `mat.delay`
-  scale), Hole speed (0.7–3×), Attraction pull (0–20). Live-applied to the
-  running sim via `sim.tune` (validator keeps constant defaults). Fixed a
-  latent crash: `applySettings` called `world.setShadows` which
-  VoxelWorld3D lacks — everything after it in the handler silently skipped
-  (this is why live tuning never reached the sim).
-- 2026-08-01: Voxel gravity 26 → 65 (2.5×) — playtest: falls read as
-  floating. 10 m drop: steel 0.73 → 0.45 s, glass 1.06 → 0.68 s (density
-  spread preserved). Harder impacts split/bounce/scatter more — spillier
-  collapse, as requested. Tour eats slightly more (2125 → 2152), ALL PASS.
-- 2026-08-01: New sandbox level — **Lower Manhattan** (`js/voxelscene-manhattan.js`,
-  title → NYC: LOWER MANHATTAN). ~11,900 blocks in a ±40 m world: One WTC
-  (3 setback tiers + spire), twin memorial pools, Woolworth-style tower,
-  glass slab tower, Wall St bank canyon with porticos, elevated train
-  (58 m viaduct + 3-car train), Trinity Church, City Hall, Battery Park +
-  Charging Bull, ferry pier, full street-furniture/vehicle set. Engine grew
-  a scene option: `bounds` per scene, render-only `sceneDecor` (roads/park/
-  harbor), `cameraBlockers` for supertall occlusion, and the SIZE ladder
-  scales with scene mass (gallery exactly ×1, Manhattan ×10 at its current
-  43.5k mass — it was ×5 before the full-peninsula expansion). Bug-hunted via
-  the new validator checks: El-through-tower overlap (ghost cells), lamps
-  inside buildings, setback tiers topping out on wall rings (floating base
-  slabs), interior-column grid math, El rails one cell past the deck edge,
-  and Trinity 9 mm inside the hanging threshold (remR+span+1.5 ≈ 3.55 m).
