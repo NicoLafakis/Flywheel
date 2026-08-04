@@ -11,12 +11,32 @@ export class HUD {
     this.toast = document.getElementById('toast');
     this.bigPop = document.getElementById('big-pop');
     this.minimap = document.getElementById('minimap');
+    this.minimapWrap = document.getElementById('minimap-wrap');
     this.mctx = this.minimap.getContext('2d');
     this.toastTimer = null;
+    this._minimapShown = null; // no mode has declared itself yet
   }
 
-  show() { this.root.classList.remove('hidden'); }
-  hide() { this.root.classList.add('hidden'); }
+  // The minimap only has a data source in the campaign: drawMinimap() reads
+  // sim.city / sim.player / sim.rivals, none of which VoxelSandboxSim has, so
+  // the sandbox frame loop never calls it. Left alone, #minimap-wrap would
+  // still paint its bordered box over every sandbox frame with nothing inside
+  // it. So visibility follows whoever actually draws — revealed by
+  // drawMinimap, hidden by the sandbox's own per-frame update — which keeps
+  // the decision here in the HUD instead of needing a mode flag from main.js.
+  // Cached because both callers run every frame.
+  _showMinimap(on) {
+    if (this._minimapShown === on) return;
+    this._minimapShown = on;
+    this.minimapWrap.classList.toggle('hidden', !on);
+  }
+
+  // Start hidden on every show(): the mode is not known until the first frame
+  // draws, and one hidden frame beats an empty box. This is also what makes a
+  // sandbox -> campaign switch in the same session come back correctly, since
+  // the HUD instance outlives both.
+  show() { this.root.classList.remove('hidden'); this._showMinimap(false); }
+  hide() { this.root.classList.add('hidden'); this._showMinimap(false); }
 
   setLevel(level, metroName) {
     this.banner.textContent = `LEVEL ${level.index} - ${metroName}`;
@@ -60,6 +80,7 @@ export class HUD {
   // Voxel sandbox variant: SIZE level + progress to the next size on the
   // bar, voxel/mass counts in the label, elapsed time, combo readout.
   updateSandbox(sim) {
+    this._showMinimap(false);
     const h = sim.hole;
     this.massBar.style.width = `${(h.sizeFrac * 100).toFixed(1)}%`;
     this.massBar.style.background = '#ffd23f';
@@ -83,6 +104,7 @@ export class HUD {
   }
 
   drawMinimap(sim) {
+    this._showMinimap(true);
     const ctx = this.mctx;
     const W = this.minimap.width, H = this.minimap.height;
     const city = sim.city;

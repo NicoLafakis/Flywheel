@@ -2,11 +2,11 @@
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 9;
+export const CURRENT_VERSION = 10;
 
 function defaultSettings() {
   return {
-    invertX: false, invertY: false, shadows: true, camDist: 1, reducedMotion: false, sfxVol: 1, turnSens: 1,
+    invertX: false, invertY: false, shadows: true, camDist: 1, reducedMotion: false, sfxVol: 1, turnSens: 1, perfMode: false,
     // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
     voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2,
   };
@@ -96,6 +96,16 @@ const MIGRATIONS = {
       voxGravity: 70,
       voxWaveK: 0.10,
       voxAttract: 2,
+    },
+  }),
+  // v10: performance mode toggle to reduce lag on low-resource hardware
+  9: (s) => ({
+    ...s,
+    version: 10,
+    settings: {
+      ...defaultSettings(),
+      ...(s.settings || {}),
+      perfMode: s.settings && 'perfMode' in s.settings ? !!s.settings.perfMode : false,
     },
   }),
 };

@@ -4,6 +4,12 @@
 import * as THREE from 'three';
 import { METROS } from './levels.js';
 
+let _randSeed = 12345;
+function pseudoRand() {
+  _randSeed = (_randSeed * 1664525 + 1013904223) % 4294967296;
+  return _randSeed / 4294967296;
+}
+
 const geoCache = new Map();
 function boxGeo() { if (!geoCache.has('box')) geoCache.set('box', new THREE.BoxGeometry(1, 1, 1)); return geoCache.get('box'); }
 function cylGeo() { if (!geoCache.has('cyl')) geoCache.set('cyl', new THREE.CylinderGeometry(1, 1, 1, 12)); return geoCache.get('cyl'); }
@@ -420,19 +426,24 @@ export class World3D {
     mesh.userData.ring.scale.setScalar(h.radius);
   }
 
+  setPerfMode(on) {
+    this.perfMode = !!on;
+  }
+
   spawnEatParticles(x, z, color = 0xdddddd, count = 8) {
+    if (this.perfMode) count = Math.min(count, 4);
     const geo = sphereGeo();
     const matP = mat(color, { flat: true });
     for (let i = 0; i < count; i++) {
       const p = new THREE.Mesh(geo, matP);
-      p.scale.setScalar(0.15 + Math.random() * 0.2);
-      p.position.set(x + (Math.random() - 0.5) * 0.8, 0.2, z + (Math.random() - 0.5) * 0.8);
+      p.scale.setScalar(0.15 + pseudoRand() * 0.2);
+      p.position.set(x + (pseudoRand() - 0.5) * 0.8, 0.2, z + (pseudoRand() - 0.5) * 0.8);
       this.scene.add(p);
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 1.5 + Math.random() * 2.5;
+      const angle = pseudoRand() * Math.PI * 2;
+      const speed = 1.5 + pseudoRand() * 2.5;
       const vx = Math.cos(angle) * speed;
       const vz = Math.sin(angle) * speed;
-      const vy = 2.0 + Math.random() * 2.0;
+      const vy = 2.0 + pseudoRand() * 2.0;
       this.particles = this.particles || [];
       this.particles.push({ mesh: p, vx, vy, vz, life: 0.45, maxLife: 0.45 });
     }
@@ -460,9 +471,10 @@ export class World3D {
     // Choose voxel resolution based on object size
     const maxDim = Math.max(size.x, size.y, size.z);
     const step = Math.max(0.35, maxDim / 6);
+    const maxVoxelCap = this.perfMode ? 16 : 48;
     
     group.traverse((child) => {
-      if (child.isMesh && child.geometry) {
+      if (child.isMesh && child.geometry && voxels.length < maxVoxelCap) {
         const matP = child.material;
         const geoP = boxGeo();
         // Sample voxel grid over child bounding box
@@ -484,6 +496,7 @@ export class World3D {
         for (let ix = 0; ix < nx; ix++) {
           for (let iy = 0; iy < ny; iy++) {
             for (let iz = 0; iz < nz; iz++) {
+              if (voxels.length >= maxVoxelCap) break;
               const vx = cWorldPos.x - wx / 2 + (ix + 0.5) * (wx / nx);
               const vy = cWorldPos.y + (iy + 0.5) * (wy / ny);
               const vz = cWorldPos.z - wz / 2 + (iz + 0.5) * (wz / nz);
@@ -499,11 +512,11 @@ export class World3D {
               voxels.push({
                 mesh: voxel,
                 origY: vy,
-                targetX: holeX + (dx / dist) * (Math.random() * 0.5),
-                targetZ: holeZ + (dz / dist) * (Math.random() * 0.5),
-                rotAxis: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize(),
-                rotSpeed: 4 + Math.random() * 8,
-                delay: (dist / (hole ? hole.radius + 2 : 1)) * 0.15 + Math.random() * 0.1,
+                targetX: holeX + (dx / dist) * (pseudoRand() * 0.5),
+                targetZ: holeZ + (dz / dist) * (pseudoRand() * 0.5),
+                rotAxis: new THREE.Vector3(pseudoRand() - 0.5, pseudoRand() - 0.5, pseudoRand() - 0.5).normalize(),
+                rotSpeed: 4 + pseudoRand() * 8,
+                delay: (dist / (hole ? hole.radius + 2 : 1)) * 0.15 + pseudoRand() * 0.1,
                 dur,
                 t: 0,
               });

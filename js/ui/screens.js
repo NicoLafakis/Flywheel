@@ -47,11 +47,13 @@ export class Screens {
     nyc.onclick = () => this.actions.startVoxelSandbox('manhattan');
     const upper = el(`<button class="btn secondary" style="background:#3e8a5b;color:#fff">NYC: UPPER MANHATTAN — CENTRAL PARK</button>`);
     upper.onclick = () => this.actions.startVoxelSandbox('upper-manhattan');
+    const bklyn = el(`<button class="btn secondary" style="background:#8a4f33;color:#fff">NYC: BROOKLYN — BRIDGES TO CONEY ISLAND</button>`);
+    bklyn.onclick = () => this.actions.startVoxelSandbox('brooklyn');
     const shop = el(`<button class="btn secondary">SHOP</button>`);
     shop.onclick = () => this.showShop();
     const settings = el(`<button class="btn secondary">SETTINGS</button>`);
     settings.onclick = () => this.showSettings(() => this.showTitle());
-    s.append(play, sandbox, nyc, upper, shop, settings);
+    s.append(play, sandbox, nyc, upper, bklyn, shop, settings);
     this.root.appendChild(s);
     this.current = 'title';
   }
@@ -211,6 +213,7 @@ export class Screens {
     panel.appendChild(toggle('Invert move Y', 'invertY'));
     panel.appendChild(toggle('Shadows', 'shadows'));
     panel.appendChild(toggle('Reduced Motion', 'reducedMotion'));
+    panel.appendChild(toggle('Performance Mode', 'perfMode'));
 
     const muteRow = el(`<div style="margin:8px 0">Sound
       <button class="btn secondary" style="float:right;padding:4px 18px;font-size:14px;margin:0">

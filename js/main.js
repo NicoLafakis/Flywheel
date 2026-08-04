@@ -10,6 +10,7 @@ import { ChaseCamera } from './camera.js';
 import { Controls } from './controls.js';
 import { HUD } from './ui/hud.js';
 import { Screens, SKINS } from './ui/screens.js';
+import { mountReadyGate } from './ui/ready.js';
 
 const canvas = document.getElementById('game-canvas');
 const hud = new HUD();
@@ -41,6 +42,7 @@ let sim = null;
 let world = null;
 let cam = null;
 let controls = null;
+let readyGate = null; // live mountReadyGate handle, so teardown can dismiss it
 let accumulator = 0;
 let lastTs = 0;
 let shopBonus = { clock: 0, growth: 0 };
@@ -93,6 +95,10 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
       cam.setReducedMotion(save.settings.reducedMotion);
     }
     if (world && world.setShadows) world.setShadows(save.settings.shadows);
+    // Guarded like setShadows above: only the voxel renderer implements this,
+    // and the campaign World3D must not be called with a method it lacks.
+    if (world && world.setReducedMotion) world.setReducedMotion(save.settings.reducedMotion);
+    if (world && world.setPerfMode) world.setPerfMode(save.settings.perfMode);
     applyVoxTuning();
   },
 });
@@ -106,6 +112,7 @@ function applyVoxTuning() {
   sim.tune.creak = st.voxCreak;
   sim.tune.speed = st.voxSpeed;
   sim.tune.attract = st.voxAttract;
+  sim.tune.perfMode = !!st.perfMode;
 }
 
 function startLevel() {
@@ -120,6 +127,8 @@ function startLevel() {
   cam = new ChaseCamera(canvas.clientWidth / Math.max(1, canvas.clientHeight));
   cam.distScale = save.settings.camDist;
   cam.setReducedMotion(save.settings.reducedMotion);
+  // No-op on the campaign renderer, which has no such method — hence the guard.
+  if (world && world.setReducedMotion) world.setReducedMotion(save.settings.reducedMotion);
   cam.setBlockers(world.blockers);
   controls = controls || new Controls(canvas);
   controls.settings = save.settings;
@@ -134,6 +143,29 @@ function startLevel() {
   blip(520, 0.12, 'triangle', 0.07);
 }
 
+// The renderer's sun direction, for whoever needs to reason about which faces
+// are lit. Read from the light itself so it tracks any change to the sun rather
+// than duplicating its vector; the shadow offset is the same direction scaled,
+// and is the field that is populated earliest. Null if neither is available yet,
+// which callers must treat as "no lighting information", not as darkness.
+function sunDirOf(w) {
+  if (!w) return null;
+  const cand = [];
+  if (w._sun && w._sun.target) {
+    cand.push({
+      x: w._sun.position.x - w._sun.target.position.x,
+      y: w._sun.position.y - w._sun.target.position.y,
+      z: w._sun.position.z - w._sun.target.position.z,
+    });
+  }
+  if (w._sunOffset) cand.push(w._sunOffset);
+  if (w.sun) cand.push(w.sun.position);
+  for (const c of cand) {
+    if (c && Math.hypot(c.x, c.y, c.z) > 1e-6) return { x: c.x, y: c.y, z: c.z };
+  }
+  return null;
+}
+
 function startVoxelSandbox(scene = 'gallery') {
   // The scene build blocks the main thread (~1.3 s sim + instancing for
   // Lower Manhattan) — show a loading frame first so the click never reads
@@ -142,7 +174,16 @@ function startVoxelSandbox(scene = 'gallery') {
     ? 'NYC: LOWER MANHATTAN'
     : scene === 'upper-manhattan'
       ? 'NYC: UPPER MANHATTAN — CENTRAL PARK'
-      : 'VOXEL SANDBOX';
+      : scene === 'brooklyn'
+        ? 'NYC: BROOKLYN — BRIDGES TO CONEY ISLAND'
+        : 'VOXEL SANDBOX';
+  const hudLabel = scene === 'manhattan'
+    ? 'LOWER MANHATTAN'
+    : scene === 'upper-manhattan'
+      ? 'UPPER MANHATTAN · CENTRAL PARK'
+      : scene === 'brooklyn'
+        ? 'BROOKLYN · BRIDGES TO CONEY ISLAND'
+        : 'VOXEL PILE PHYSICS';
   screens.showLoading(sceneLabel);
   requestAnimationFrame(() => requestAnimationFrame(() => {
     teardownWorld();
@@ -150,12 +191,54 @@ function startVoxelSandbox(scene = 'gallery') {
     sim = new VoxelSandboxSim({ scene });
     window.__sim = sim; // debug/validator hook
     world = new VoxelWorld3D(canvas, sim, skinColor());
+    // The renderer reads the persisted setting at construction, but a mid-session
+    // toggle has to reach it too or the ambient layer keeps animating. Guarded
+    // to match the setShadows guard in applySettings.
+    if (world && world.setReducedMotion) world.setReducedMotion(save.settings.reducedMotion);
     cam = new ChaseCamera(canvas.clientWidth / Math.max(1, canvas.clientHeight));
     cam.distScale = save.settings.camDist;
     cam.setReducedMotion(save.settings.reducedMotion);
     cam.setFollowDirection(true); // chase cam swings behind the direction of travel
     cam.setBlockers(sim.cameraBlockers); // tall towers occlude the low chase cam
+    // Establishing shot, Brooklyn only. Ordered AFTER setBlockers because
+    // beginIntro frames the blocker box — call it first and the camera fits
+    // nothing and falls back to a 30 m radius.
+    //
+    // minBox is the world extent of everything that RENDERS, which is wider than
+    // the blocker list: generateBlockers drops anything under 6 m, so Coney
+    // Island's beach, pier and Cyclone carry no blockers at all and a
+    // blocker-only frame drops them off the bottom edge. Derived from the blocks
+    // rather than written down, so it tracks the scene instead of going stale —
+    // and passed as real bounds, not half-extents, because only the camera knows
+    // which point it ends up pivoting on.
+    if (scene === 'brooklyn') {
+      let mnX = Infinity, mxX = -Infinity, mnZ = Infinity, mxZ = -Infinity;
+      for (const b of sim.blocks) {
+        const h = b.s / 2;   // blocks carry a world centre and a world size
+        if (b.x - h < mnX) mnX = b.x - h;
+        if (b.x + h > mxX) mxX = b.x + h;
+        if (b.z - h < mnZ) mnZ = b.z - h;
+        if (b.z + h > mxZ) mxZ = b.z + h;
+      }
+      // Sun direction, READ from the renderer rather than restated here — the
+      // establishing yaw is scored partly on which facades are lit, and a copied
+      // vector would silently stop matching the moment the sun moves.
+      const sd = sunDirOf(world);
+      // orbitArc is the dial between motion and scale: the hold distance is
+      // fitted to the worst pose the orbit can reach, so widening it pushes the
+      // camera back. Measured on this scene at 1280x800: +/-30 deg = 238.6 m and
+      // 12.19% of the frame covered, +/-20 = 213.6 m / 15.16%, +/-10 = 188.6 m /
+      // 19.33%, 0 = 170.1 m / 24.22%. Angular speed is the SAME at every arc
+      // (the phase rate is scaled by the arc), so a narrower sweep costs cadence,
+      // not speed: the reversal comes every arc/rate seconds. Measured continuous
+      // at every arc — velocity crosses zero on a straight line, so the turn
+      // eases rather than bouncing, and 0 still reaches a static hold.
+      cam.beginIntro(mnX < mxX
+        ? { minBox: { minX: mnX, maxX: mxX, minZ: mnZ, maxZ: mxZ }, orbitArc: Math.PI / 9, sun: sd }
+        : { minR: 124.3, sun: sd });
+    }
     window.__cam = cam; // debug hook
+    window.__world = world; // debug hook
     controls = controls || new Controls(canvas);
     controls.settings = save.settings;
     controls.driveMode = true; // sandbox drives like a car: A/D steer, W/S throttle
@@ -163,24 +246,40 @@ function startVoxelSandbox(scene = 'gallery') {
     cam.setSandboxSizeProgress(0);
     applyVoxTuning(); // dev sliders from the save
     resize();
-    hud.setLevel(
-      { index: 'SANDBOX', clock: 999 },
-      scene === 'manhattan'
-        ? 'LOWER MANHATTAN'
-        : scene === 'upper-manhattan'
-          ? 'UPPER MANHATTAN · CENTRAL PARK'
-          : 'VOXEL PILE PHYSICS',
-    );
+    hud.setLevel({ index: 'SANDBOX', clock: 999 }, hudLabel);
     hud.show();
     screens.clear();
     state = 'playing';
     accumulator = 0;
     lastTs = performance.now();
     blip(640, 0.15, 'triangle', 0.08);
+    // The gate mounts over the live canvas, so the loop must already be running
+    // for the establishing orbit to animate behind it. The hole stays parked
+    // until the player starts — see the introHolding() check in frame().
+    // The handle is kept so teardownWorld() can dismiss it: dropping the node
+    // alone would leave a live window keydown listener AND body.rg-gate-up set,
+    // which strands the HUD invisible on the next campaign level.
+    if (scene === 'brooklyn') {
+      // Arrival sting: lower and longer than the sandbox-start blip above,
+      // because it plays under a wide static overview rather than a cut.
+      blip(196, 0.5, 'triangle', 0.06);
+      blip(294, 0.42, 'sine', 0.05);
+      readyGate = mountReadyGate({
+        title: 'READY?',
+        subtitle: 'BROOKLYN',   // the pill is sized for one short word
+        reducedMotion: save.settings.reducedMotion,
+        onStart: () => {
+          readyGate = null;     // the gate tears itself down after onStart
+          blip(880, 0.14, 'triangle', 0.07);   // downbeat for the zoom
+          cam.releaseIntro();
+        },
+      });
+    }
   }));
 }
 
 function teardownWorld() {
+  if (readyGate) { readyGate.dismiss(); readyGate = null; }
   if (world) { world.dispose(); world = null; }
   sim = null;
 }
@@ -210,13 +309,20 @@ function frame(ts) {
   lastTs = ts;
 
   if (state === 'playing' && sim) {
-    accumulator += realDt;
+    // The READY gate holds the establishing shot: the world renders and the
+    // camera orbits, but the sim does not advance a single tick. Draining the
+    // accumulator here (rather than letting it fill) means the level cannot
+    // lurch forward by however long the player looked at the sign.
+    const held = cam.introHolding();
+    accumulator = held ? 0 : accumulator + realDt;
     if (isVoxelSandbox) {
       const sizeT = sandboxSizeProgress(sim.hole.size, sim.hole.sizeFrac);
       controls.setSandboxSizeProgress(sizeT);
       cam.setSandboxSizeProgress(sizeT);
     }
-    const move = controls.getMove(cam.yaw);
+    // Steering is dropped on the floor while held, so the key press that starts
+    // the level is never also a throttle input.
+    const move = held ? { x: 0, z: 0 } : controls.getMove(cam.yaw);
     const orbit = controls.consumeOrbit();
     const zoom = controls.consumeZoom();
     while (accumulator >= FIXED_DT) {

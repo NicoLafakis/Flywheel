@@ -63,12 +63,9 @@ mutates sim state.
   velocity is still computed, but only to drive the yaw chase above.
 - `cam.fovKick(v)` adds a decaying FOV punch (growth/milestone juice);
   respects Reduced Motion, eases back at ~6/s in `update`.
-- Player settings (`save.settings`: invertX/Y, shadows, camDist) flow
+- Player settings (`save.settings`: invertX/Y, shadows, camDist, reducedMotion, perfMode) flow
   through `actions.applySettings()` → controls/camera/renderer.
-- The hole disc renders at `y=0.05/0.06` to win z-fighting against roads at
-  `0.03` and park tint at `0.025`. The outer ring uses `depthTest: false`,
-  `depthWrite: false`, and `renderOrder: 999` so it is always visible through
-  occluding buildings and structures. Preserve the y-ordering and renderOrder
-  when adding ground layers.
+- Renderer fast-path (`voxelworld.js`): static, fully supported, undamaged, non-consumed blocks outside the hole region bypass matrix recomposition and color updates each frame, reducing per-frame block update iterations by over 90%.
+- Performance Mode (`perfMode`): caps particle effects, crumble voxel count, and debris physics relaxation passes for smoother gameplay on lower-resource devices.
 - Visual-polish roadmap (building kit, canvas textures, lighting): see
   `.wiki/visual-direction.md`.

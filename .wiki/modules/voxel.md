@@ -53,7 +53,9 @@ Three layers, cheapest first:
    `maxSpan` (floor cells over the void cap at `FLOOR_CANTILEVER=1`). An edge
    only carries load if the *outgoing* block's `vertBond`/`horizBond` ≥ 0.5 —
    glass never carries. Recalc is **event-driven** (hole
-   coverage change, consumption, detachment), never per-frame.
+   coverage change, consumption, detachment), never per-frame. Damage/healing
+   likewise iterates only an explicit active set; an intact large scene has no
+   per-step whole-city damage scan.
 2. **Damage → chunks** — destruction is **rim-driven**: the crack front is
    seeded from solid (fully supported) blocks only, so the hanging rim — not
    the void's center — lets go first. The shipped `sim.tune.creak = 0`
@@ -83,7 +85,8 @@ Three layers, cheapest first:
    interpenetrates: AABB overlap tests between near-resting debris, sleeping
    debris, chunk members, and falling rain, separated along the least-
    penetration axis with bounce + friction + spin kill (2 relaxation rounds
-   per step, fine-column buckets padded 1 cell). Moving bodies also get full
+   per step, 1 in `perfMode`; fine-column buckets padded 1 cell using bit-packed
+   integer spatial keys `keyInt(x,z)` and pooled bucket arrays for zero GC allocations per frame). Moving bodies also get full
    AABB separation against nearby solid collision buckets when a directional
    or top-surface probe finds contact; chunk members split on solid overlap.
    Blocks resting on loose

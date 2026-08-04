@@ -141,3 +141,266 @@ body {
   background: var(--panel); border: 2px solid #ffd23f; border-radius: 14px;
   padding: 14px 22px; margin: 12px 0; max-width: min(520px, 90vw); text-align: center;
 }
+
+/* The gate owns the game HUD while it is up: a live '0% · 0 voxels' readout
+   behind a READY? splash tells the player the level already started, and at
+   phone-landscape height the BROOKLYN pill collides with the mass bar.
+   Driven by body classes so no element owned by hud.js is ever mutated.
+   Order matters: .rg-gate-still must follow the transition rule to win it. */
+body.rg-gate-up #hud,
+body.rg-gate-down #hud { transition: opacity .28s ease; }
+body.rg-gate-still #hud { transition: none; }
+body.rg-gate-up #hud { opacity: 0; }
+/* #hud is pointer-events:none but #hud-right re-enables it — kill the whole
+   subtree so an invisible mute/pause button can't be clicked or tabbed to. */
+body.rg-gate-up #hud,
+body.rg-gate-up #hud * { pointer-events: none; }
+
+/* ---------- READY gate (level start, layered over LIVE gameplay) ----------
+   z-index 15 sits above the HUD (10) and below the Screens takeovers (20), so
+   the canvas keeps rendering behind it and screens.clear() can't wipe it.
+   Contrast does NOT come from a backdrop — every glyph carries its own dark
+   outline ring, so the type reads over any part of a moving, bright city. */
+#ready-gate {
+  position: absolute; inset: 0; z-index: 15;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+/* The establishing shot IS the feature — the gate exists to make the player
+   look at the city, so the scrim must not bury it. A full-screen scrim cost
+   46% of the frame's luma and 87% of its legible pixels (measured). This is a
+   local pool sized to the type block instead: high enough at dead centre to
+   seat the sign, at zero by the frame edge. The glyphs carry their own
+   contrast via the outline ring (19:1 against white), so the pool is comfort,
+   not compliance, and can afford to be small. No top/bottom bands — the top
+   one guarded the HUD, which the gate now mutes outright. */
+#ready-gate .rg-scrim {
+  position: absolute; inset: 0; pointer-events: none;
+  /* Two edge bands, not one centred pool. The centred version was fitted when
+     the type sat in the middle of the frame; with the type split to the edges
+     it darkened only the establishing shot, and it was measured on desktop
+     alone — where the city is wide and mostly outside a 44%x38% core, so it
+     cost 3% of city luma. In portrait the city is a small central patch and the
+     same gradient sat straight on it, costing 39%. Anchored to the top and
+     bottom edges it tracks wherever the type went, and the middle of the frame
+     stays clear at every aspect. It is not carrying legibility either way —
+     the title, hint, subtitle plate and CTA each hold their own contrast — so
+     this is modality and settling, and it can stay light. */
+  background:
+    radial-gradient(78% 22% at 50% 0%,
+      rgba(4,7,14,.55) 0%, rgba(4,7,14,.34) 45%, rgba(4,7,14,0) 100%),
+    radial-gradient(78% 20% at 50% 100%,
+      rgba(4,7,14,.55) 0%, rgba(4,7,14,.34) 45%, rgba(4,7,14,0) 100%);
+  animation: rg-scrim-in .3s ease-out both;
+}
+/* The stack fills the frame and pushes its two clusters to the top and bottom
+   edges instead of stacking them in the middle. The establishing shot is the
+   point of this screen and a centred block sat directly on it: measured against
+   the settled hold pose, the centred stack covered 91% of the visible city on
+   desktop and 100% in portrait. Split, it clears the band the skyline occupies.
+   Top/bottom rather than one side because the split has to survive either
+   camera — the live bounded orbit and the static orbitArc-0 alternative frame
+   the city at different widths, but both leave the vertical extremes empty. */
+#ready-gate .rg-stack {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: space-between;
+  padding: clamp(12px, 3vh, 30px) 2vw; text-align: center;
+}
+/* Each cluster keeps the rhythm the single stack used to have, so splitting it
+   changes where the type sits and nothing else about how it reads. */
+#ready-gate .rg-top,
+#ready-gate .rg-bot {
+  display: flex; flex-direction: column; align-items: center;
+  gap: clamp(18px, 4vh, 40px); max-width: 96vw;
+}
+/* readable by a screen reader, invisible on screen */
+#ready-gate .rg-a11y {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+
+/* subtitle: dark plate + gold text (13:1) rather than the HUD's white-on-orange,
+   so the one orange thing on screen is the one thing to press */
+#ready-gate .rg-sub {
+  background: rgba(12, 16, 28, .92); color: #ffd23f;
+  border: 2px solid rgba(255, 255, 255, .55); border-radius: 22px;
+  padding: 5px clamp(14px, 3vw, 28px); font-weight: 800;
+  letter-spacing: clamp(2px, .5vw, 4px);
+  font-size: clamp(11px, min(2.4vw, 2.2vh), 19px);
+  box-shadow: 0 3px 0 rgba(0,0,0,.5), 0 8px 20px rgba(0,0,0,.45);
+  animation: rg-sub-in .5s cubic-bezier(.2,1.5,.4,1) .06s both;
+}
+
+#ready-gate .rg-title {
+  position: relative; z-index: 0;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end;
+  gap: 0 .3em; max-width: 96vw;
+  /* --rg-fit is set by ready.js so a long word shrinks to fit instead of overflowing */
+  font-size: calc(clamp(52px, min(22vw, 20vh), 148px) * var(--rg-fit, 1));
+  font-weight: 900; line-height: .95; letter-spacing: .01em;
+  /* the 10px block extrude paints outside the line box — keep the CTA clear of it */
+  padding-bottom: .12em;
+}
+#ready-gate .rg-word { display: flex; flex-wrap: nowrap; }
+#ready-gate .rg-ch {
+  display: inline-block; color: #ffd23f; transform-origin: 50% 88%;
+  text-shadow:
+    3px 0 0 #0a0e18, -3px 0 0 #0a0e18, 0 3px 0 #0a0e18, 0 -3px 0 #0a0e18,
+    2px 2px 0 #0a0e18, -2px 2px 0 #0a0e18, 2px -2px 0 #0a0e18, -2px -2px 0 #0a0e18,
+    0 7px 0 #8e2f00, 0 10px 0 #4a1900,
+    0 0 30px rgba(255,210,63,.5), 0 14px 26px rgba(0,0,0,.6);
+  animation:
+    rg-pop .56s cubic-bezier(.18,1.6,.42,1) calc(var(--i) * 58ms) both,
+    rg-bob 2.9s ease-in-out calc(760ms + var(--i) * 110ms) infinite;
+}
+#ready-gate .rg-ch-accent { color: #ff8a3f; }
+/* ambient gold pool so the sign separates from whatever is lit behind it */
+#ready-gate .rg-glow {
+  position: absolute; left: 50%; top: 50%; width: 132%; height: 200%;
+  transform: translate(-50%, -50%); z-index: -1; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255,210,63,.3),
+    rgba(255,138,43,.13) 52%, rgba(255,210,63,0) 78%);
+  animation: rg-glow 3.4s ease-in-out infinite;
+}
+/* sparkles live OUTSIDE the letter block so they never sit on a glyph */
+#ready-gate .rg-spark {
+  position: absolute; width: clamp(18px, 4.5vw, 40px); aspect-ratio: 1;
+  background: #fff; pointer-events: none;
+  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+  filter: drop-shadow(0 0 9px rgba(255,210,63,1)) drop-shadow(0 2px 3px rgba(0,0,0,.75));
+  animation: rg-twinkle 2.6s ease-in-out calc(600ms + var(--i) * 700ms) infinite;
+}
+#ready-gate .rg-spark:nth-of-type(1) { left: -10%; top: -8%; }
+#ready-gate .rg-spark:nth-of-type(2) { right: -10%; top: 10%; }
+#ready-gate .rg-spark:nth-of-type(3) { right: 6%; top: -28%; }
+
+#ready-gate .rg-cta-wrap {
+  position: relative; display: inline-flex;
+  animation:
+    rg-cta-in .6s cubic-bezier(.2,1.7,.4,1) .38s both,
+    rg-cta-idle 1.7s ease-in-out 1.2s infinite;
+}
+#ready-gate .rg-cta-wrap::before {
+  content: ''; position: absolute; inset: -7px; border-radius: 999px;
+  border: 3px solid rgba(255,210,63,.8); pointer-events: none;
+  animation: rg-ping 1.9s ease-out .9s infinite;
+}
+#ready-gate .rg-cta {
+  position: relative; font-family: inherit; cursor: pointer;
+  background: linear-gradient(180deg, #ffa23f 0%, #ff7a2b 44%, #ff5a1f 100%);
+  color: #2b1200; border: 3px solid #10141f; border-radius: 999px;
+  padding: clamp(11px, 2vh, 19px) clamp(40px, 9vw, 78px);
+  font-size: clamp(20px, min(5.5vw, 3.6vh), 34px);
+  font-weight: 900; letter-spacing: 1.6px;
+  box-shadow: 0 7px 0 #8e2f00, 0 14px 26px rgba(0,0,0,.55);
+}
+#ready-gate .rg-cta:active {
+  transform: translateY(4px);
+  box-shadow: 0 3px 0 #8e2f00, 0 8px 16px rgba(0,0,0,.55);
+}
+#ready-gate .rg-cta:focus-visible {
+  outline: 4px solid #fff; outline-offset: 5px;
+}
+#ready-gate .rg-hint {
+  font-size: clamp(11px, min(1.9vw, 1.9vh), 16px); font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase; color: #fff;
+  /* Same trick as the title: the hint carries its own outline ring rather than
+     relying on the scrim. It lands on Coney Island's boardwalk sand (luma 252)
+     in the Brooklyn establishing shot, and a soft shadow alone did not hold. */
+  text-shadow:
+    2px 0 0 #0a0e18, -2px 0 0 #0a0e18, 0 2px 0 #0a0e18, 0 -2px 0 #0a0e18,
+    1px 1px 0 #0a0e18, -1px 1px 0 #0a0e18, 1px -1px 0 #0a0e18, -1px -1px 0 #0a0e18,
+    0 3px 6px rgba(0,0,0,.9), 0 0 14px rgba(0,0,0,.85);
+  animation:
+    rg-hint-in .5s ease-out .66s both,
+    rg-hint-idle 2.6s ease-in-out 1.4s infinite;
+}
+#ready-gate .rg-hint-tap { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  #ready-gate .rg-hint-key { display: none; }
+  #ready-gate .rg-hint-tap { display: inline; }
+}
+/* phone landscape: ~390px tall, so tighten everything and drop the sparkles */
+@media (orientation: landscape) and (max-height: 480px) {
+  #ready-gate .rg-stack { padding: 10px 2vw; }
+  #ready-gate .rg-top,
+  #ready-gate .rg-bot { gap: clamp(14px, 3.5vh, 22px); }
+  #ready-gate .rg-title { font-size: calc(clamp(40px, 21vh, 92px) * var(--rg-fit, 1)); }
+  #ready-gate .rg-spark { display: none; }
+  #ready-gate .rg-cta { padding: 9px clamp(26px, 6vw, 48px); box-shadow: 0 5px 0 #8e2f00, 0 10px 20px rgba(0,0,0,.55); }
+}
+
+/* ----- exit: the hole eats the sign while the camera dives into the circle ----- */
+#ready-gate.rg-out { pointer-events: none; }
+#ready-gate.rg-out .rg-ch {
+  animation: rg-eat .42s cubic-bezier(.55,-0.25,.75,.35) calc(var(--i) * 26ms) forwards;
+}
+#ready-gate.rg-out .rg-scrim { animation: rg-fade-out .4s ease-in forwards; }
+#ready-gate.rg-out .rg-glow { animation: rg-fade-out .28s ease-in forwards; }
+#ready-gate.rg-out .rg-spark { animation: rg-fade-out .18s ease-in forwards; }
+#ready-gate.rg-out .rg-sub { animation: rg-slip-out .3s ease-in forwards; }
+#ready-gate.rg-out .rg-hint { animation: rg-fade-out .18s ease-in forwards; }
+#ready-gate.rg-out .rg-cta-wrap { animation: rg-cta-out .34s cubic-bezier(.3,-0.6,.7,.4) forwards; }
+#ready-gate.rg-out .rg-cta-wrap::before { animation: rg-fade-out .2s ease-in forwards; }
+
+/* ----- reduced motion: appear, sit still, disappear. Tilt is kept (it is
+   layout, not movement) so the sign keeps its character. ----- */
+#ready-gate.rg-still .rg-scrim,
+#ready-gate.rg-still .rg-sub,
+#ready-gate.rg-still .rg-glow,
+#ready-gate.rg-still .rg-spark,
+#ready-gate.rg-still .rg-cta-wrap,
+#ready-gate.rg-still .rg-cta-wrap::before,
+#ready-gate.rg-still .rg-hint { animation: none; }
+#ready-gate.rg-still .rg-ch { animation: none; transform: rotate(var(--rot)); }
+
+@keyframes rg-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rg-fade-out { to { opacity: 0; } }
+@keyframes rg-sub-in {
+  0% { opacity: 0; transform: translateY(-140%) scale(.7); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes rg-slip-out { to { opacity: 0; transform: translateY(-150%) scale(.8); } }
+@keyframes rg-pop {
+  0% { opacity: 0; transform: translateY(40%) scale(.32) rotate(calc(var(--rot) * 2.6)); }
+  55% { opacity: 1; transform: translateY(-10%) scale(1.17) rotate(calc(var(--rot) * -.5)); }
+  78% { transform: translateY(2%) scale(.96) rotate(var(--rot)); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(var(--rot)); }
+}
+@keyframes rg-bob {
+  0%, 100% { transform: translateY(0) scale(1) rotate(var(--rot)); }
+  50% { transform: translateY(-5%) scale(1.03) rotate(calc(var(--rot) + 1.3deg)); }
+}
+@keyframes rg-eat {
+  0% { opacity: 1; transform: translate(0, 0) scale(1) rotate(var(--rot)); }
+  20% { opacity: 1; transform: translate(0, -14%) scale(1.1, .9) rotate(var(--rot)); }
+  100% { opacity: 0; transform: translate(var(--dx), 150%) scale(.04) rotate(calc(var(--rot) * -14)); }
+}
+@keyframes rg-glow {
+  0%, 100% { opacity: .75; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.09); }
+}
+@keyframes rg-twinkle {
+  0%, 55%, 100% { opacity: 0; transform: scale(.2) rotate(0deg); }
+  72%, 84% { opacity: 1; transform: scale(1) rotate(35deg); }
+}
+@keyframes rg-cta-in {
+  0% { opacity: 0; transform: translateY(60%) scale(.6); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes rg-cta-idle {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4%) scale(1.045); }
+}
+@keyframes rg-cta-out {
+  0% { transform: scale(1); opacity: 1; }
+  30% { transform: scale(1.14); opacity: 1; }
+  100% { transform: scale(.2); opacity: 0; }
+}
+@keyframes rg-ping {
+  0% { opacity: .85; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(1.32); }
+}
+@keyframes rg-hint-in { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+@keyframes rg-hint-idle { 0%, 100% { opacity: .78; } 50% { opacity: 1; } }

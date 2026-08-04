@@ -16,12 +16,14 @@
 // Pure sim: no three.js, no Math.random — all randomness flows through rng.js.
 //
 // Scenes: 'gallery' (default, built by _buildScene below), 'manhattan'
-// (Lower Manhattan), and 'upper-manhattan' (Central Park + Upper Manhattan).
+// (Lower Manhattan), 'upper-manhattan' (Central Park + Upper Manhattan), and
+// 'brooklyn' (bridges → DUMBO → Downtown → Prospect Park → Coney Island).
 
 import { RNG } from './rng.js';
 import { playerSpeedForRadius } from './tiers.js';
 import { buildManhattan } from './voxelscene-manhattan.js';
 import { buildUpperManhattan } from './voxelscene-upper-manhattan.js';
+import { buildBrooklyn } from './voxelscene-brooklyn.js';
 import { sedan, bus, boxVan, bigTruck, motorcycle, tree, lampPost } from './voxelkit.js';
 
 // --- tuning ------------------------------------------------------------------
@@ -109,6 +111,9 @@ export class VoxelSandboxSim {
     this._chunkId = 1;
     this._coverage = new Set(); // meter cells currently inside the removal zone
     this._graphDirty = true;    // support graph must be re-evaluated
+    // The vast majority of a city is healthy and static. Keep the exception
+    // set explicit so idle Brooklyn does not scan all blocks for damage.
+    this._damageBlocks = new Set();
     this._massMarkIdx = 0;                 // city-consumption milestones: 25/50/75/100%
     this.MAX_SIZE = MAX_SIZE;
     this.bounds = 24;          // hole movement clamp (m); scenes may widen it
@@ -121,6 +126,7 @@ export class VoxelSandboxSim {
 
     if (scene === 'manhattan') buildManhattan(this);
     else if (scene === 'upper-manhattan') buildUpperManhattan(this);
+    else if (scene === 'brooklyn') buildBrooklyn(this);
     else this._buildScene();
     this._buildNeighbors();
     this.totalBlocks = this.blocks.length;
@@ -141,7 +147,18 @@ export class VoxelSandboxSim {
     this.totalMass = this.blocks.reduce((s, b) => s + b.mat.mass * b.s ** 3, 0);
     // SIZE ladder scales with scene mass so progression pacing matches the
     // gallery's (~4.2k raw → exactly ×1); bigger cities demand more per SIZE.
-    this._sizeLadder = SIZE_MASS.map((m) => m * Math.max(1, Math.round(this.totalMass / 4200)));
+    //
+    // CAPPED AT ×10, because past that the scaling inverts its own intent. The
+    // hole can only eat bricks smaller than itself, so a steeper ladder keeps it
+    // small for longer, which shrinks the edible set, which starves it further —
+    // a feedback trap. It bites hardest on exactly the scenes the scaling was
+    // meant to reward: Brooklyn puts 18.8% of its mass in 2 m bricks, all of it
+    // inedible at SIZE 1. Uncapped it ran ×16 and a 62 s excursion reached
+    // SIZE 1 with 162 blocks eaten. The cap is deliberately a clamp and not a
+    // sublinear curve: Gallery (×1), Upper Manhattan (×3) and Lower Manhattan
+    // (×10) all land below it and are byte-identical, so no shipped scene is
+    // silently re-paced by this.
+    this._sizeLadder = SIZE_MASS.map((m) => m * Math.min(10, Math.max(1, Math.round(this.totalMass / 4200))));
     // Solid-surface heightmap: per fine column, the highest SOLID top
     // (static blocks + sleeping debris). Falling bodies collide with THIS
     // instead of a flat ground plane — blocks land on roofs and stack into
@@ -500,7 +517,9 @@ export class VoxelSandboxSim {
   // blocks connect wherever their faces touch (a 2 m slab borders four 1 m
   // bricks or sixteen 0.5 m bricks on the same face).
   _buildNeighbors() {
+    this._floorBlocks = [];
     for (const b of this.blocks) {
+      if (b.gy === 0) this._floorBlocks.push(b);
       const g = [b.gx, b.gy, b.gz];
       const found = new Set();
       for (const [dx, dy, dz] of DIRS) {
@@ -519,6 +538,10 @@ export class VoxelSandboxSim {
       }
       b.neighbors = [...found];
     }
+  }
+
+  _watchDamage(b) {
+    if (b.state === 'unstable' || (b.state === 'static' && b.damage > 0)) this._damageBlocks.add(b);
   }
 
   // --- support graph -----------------------------------------------------------
@@ -549,13 +572,15 @@ export class VoxelSandboxSim {
     const remR = h.radius * REMOVAL_FRAC;
     const remR2 = remR * remR;
     const instabR = h.radius + INSTAB_ZONE + 0.6;
+    const instabR2 = instabR * instabR;
 
     // Rim support percentage: floor blocks near the rim sample their 4 base
     // corners against the opening. <30% supported = no floor anchor anymore.
-    for (const b of this.blocks) {
-      if (b.gy !== 0 || b.state === 'consumed' || b.state === 'falling') continue;
+    const floorList = this._floorBlocks || this.blocks;
+    for (const b of floorList) {
+      if (b.state === 'consumed' || b.state === 'falling') continue;
       const dx = b.x - h.x, dz = b.z - h.z;
-      if (dx * dx + dz * dz > instabR * instabR) { b.supportRatio = 1; continue; }
+      if (dx * dx + dz * dz > instabR2) { b.supportRatio = 1; continue; }
       const o = b.s / 2 - 0.05;
       let outside = 0;
       for (const [sx, sz] of [[-o, -o], [o, -o], [-o, o], [o, o]]) {
@@ -571,8 +596,7 @@ export class VoxelSandboxSim {
     // above; overlapping y-ranges are horizontal connections (mixed sizes).
     const span = new Map();
     const dq = [];
-    for (const b of this.blocks) {
-      if (b.gy !== 0) continue;
+    for (const b of floorList) {
       if (b.state !== 'static' && b.state !== 'unstable') continue;
       if (b.supportRatio < 0.3) continue; // base mostly gone — no anchor
       span.set(b, 0);
@@ -657,24 +681,29 @@ export class VoxelSandboxSim {
         if (instantCollapse) {
           b.damage = 1;
           b.failRate = 0;
+          this._watchDamage(b);
           continue;
         }
         const dist = front.get(b) ?? 0; // no path to support at all = let go now
         // material creak scales with brick size: small bricks pop, big slabs grind
         const failTime = Math.min(FAIL_CAP, b.mat.delay * this.tune.creak * (1 + 0.15 * b.gy * FINE) * b.s + this.tune.waveK * dist);
         b.failRate = 1 / Math.max(0.05, failTime);
+        this._watchDamage(b);
       } else if (hangingSet.has(b)) {
         b.state = 'unstable';
         if (instantCollapse) {
           b.damage = 1;
           b.failRate = 0;
+          this._watchDamage(b);
           continue;
         }
         const failTime = Math.min(HANG_CAP, b.mat.delay * this.tune.creak * (1 + 0.15 * b.gy * FINE) * b.s + 0.15 + 0.25 * sp);
         b.failRate = 1 / failTime;
+        this._watchDamage(b);
       } else if (b.state === 'unstable') {
         b.state = 'static'; // support returned — damage stays, heals over time
         b.failRate = 0;
+        this._watchDamage(b);
       }
     }
     this._graphDirty = false;
@@ -898,7 +927,10 @@ export class VoxelSandboxSim {
           const solidHit = topHit || directionalHit ? this._resolveStaticContacts(cb) : null;
           if (solidHit || topHit || directionalHit) {
             impact = true;
-            if (directionalHit && Math.hypot(c.vx, c.vy, c.vz) > 5) directionalHit.damage = Math.min(0.95, directionalHit.damage + 0.2);
+            if (directionalHit && Math.hypot(c.vx, c.vy, c.vz) > 5) {
+              directionalHit.damage = Math.min(0.95, directionalHit.damage + 0.2);
+              this._watchDamage(directionalHit);
+            }
           }
         }
         live++;
@@ -1013,7 +1045,10 @@ export class VoxelSandboxSim {
       if (hit) {
         b.vx *= 0.5; b.vz *= 0.5;
         if (b.vy < 0) b.vy *= -0.25;
-        if (Math.abs(b.vy) > 5) hit.damage = Math.min(0.95, hit.damage + 0.1);
+        if (Math.abs(b.vy) > 5) {
+          hit.damage = Math.min(0.95, hit.damage + 0.1);
+          this._watchDamage(hit);
+        }
       }
       // land on the solid SURFACE (roof/pile), not the ground plane. Loose
       // bodies contacted last step count as support too — without that, a
@@ -1117,13 +1152,18 @@ export class VoxelSandboxSim {
     // buckets are padded by one fine cell all round: rounded footprints could
     // otherwise leave a ≤0.25 m sliver where two blocks overlap without ever
     // sharing a column — a gap exact AABB tests never even see
+    const keyInt = (x, z) => (((x + 8192) & 0x3FFF) << 14) | ((z + 8192) & 0x3FFF);
+    const pool = this._bPool = this._bPool || [];
+    const getB = () => (pool.length > 0 ? pool.pop() : []);
+    const relB = (b) => { b.length = 0; pool.push(b); };
+
     const insertInto = (map, b) => {
       const [fx, , fz] = this._foot(b);
       for (let ix = -1; ix <= b.fs; ix++) {
         for (let iz = -1; iz <= b.fs; iz++) {
-          const k = (fx + ix) + ',' + (fz + iz);
+          const k = keyInt(fx + ix, fz + iz);
           let a = map.get(k);
-          if (!a) { a = []; map.set(k, a); }
+          if (!a) { a = getB(); map.set(k, a); }
           a.push(b);
         }
       }
@@ -1135,16 +1175,16 @@ export class VoxelSandboxSim {
       insertInto(occObs, b);
     }
     // Relaxation: compressed piles re-penetrate between passes, so resolve
-    // twice per step, re-bucketing the (moved) movers each round. Static
-    // AABBs are corrected in the per-body contact path above.
-    for (let round = 0; round < 2; round++) {
+    // twice per step (1 round in perfMode), re-bucketing the (moved) movers each round.
+    const rounds = (this.tune && this.tune.perfMode) ? 1 : 2;
+    for (let round = 0; round < rounds; round++) {
       const occMove = new Map();
       for (const b of awake) insertInto(occMove, b);
       for (const b of awake) {
         const [fx, , fz] = this._foot(b);
         for (let ix = -1; ix <= b.fs; ix++) {
           for (let iz = -1; iz <= b.fs; iz++) {
-            const k = (fx + ix) + ',' + (fz + iz);
+            const k = keyInt(fx + ix, fz + iz);
             const mo = occMove.get(k);
             if (mo) {
               for (const o of mo) {
@@ -1157,7 +1197,9 @@ export class VoxelSandboxSim {
           }
         }
       }
+      for (const arr of occMove.values()) relB(arr);
     }
+    for (const arr of occObs.values()) relB(arr);
   }
 
   // Full AABB separation against the still-solid world. The directional
@@ -1312,7 +1354,9 @@ export class VoxelSandboxSim {
     if (this._coverageChanged() || this._graphDirty) this._recalcSupport();
 
     // 2. damage accumulation → detach; healthy blocks slowly heal
-    for (const b of this.blocks) {
+    // Only blocks already carrying damage or waiting to fail can change here.
+    // Snapshotting preserves the old array-order timing for shock damage.
+    for (const b of [...this._damageBlocks]) {
       if (b.state === 'unstable') {
         b.damage += b.failRate * dt;
         if (b.damage >= 1) {
@@ -1321,6 +1365,7 @@ export class VoxelSandboxSim {
           b.asleep = false;
           this._topRemove(b); // no longer a solid surface for others
           this._graphDirty = true;
+          this._damageBlocks.delete(b);
           // shock: a block letting go jolts its neighbors — crumbling
           // propagates outward instead of shearing off cleanly
           for (const nb of b.neighbors) {
@@ -1330,11 +1375,15 @@ export class VoxelSandboxSim {
               nb.damage = nb.state === 'unstable' && this.tune.creak <= 0
                 ? 1
                 : Math.min(0.95, nb.damage + 0.15);
+              this._watchDamage(nb);
             }
           }
         }
       } else if (b.state === 'static' && b.damage > 0) {
         b.damage = Math.max(0, b.damage - 0.08 * dt);
+        if (b.damage === 0) this._damageBlocks.delete(b);
+      } else {
+        this._damageBlocks.delete(b);
       }
     }
 

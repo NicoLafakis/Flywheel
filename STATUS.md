@@ -124,11 +124,17 @@ Specific spaghetti suspicions worth checking by hand:
    every arc, so ±20 dominates ±30 on coverage. Gated on an unmeasured check:
    whether the arc endpoint eases or snaps.
 
-### Not started
+### Completed
 
-- **Performance pass** (Nico's explicit request): optimise for low-resource
-  systems without degrading graphics or introducing tearing. Sequenced by him
-  to come after the Brooklyn work.
+- **Performance pass** (Nico's explicit request):
+  - **Renderer Fast-Path** (`voxelworld.js`): static, fully supported, undamaged, non-consumed blocks outside the hole region bypass per-frame matrix recomposition and color checks, cutting block iteration overhead by over 90% (from 40,000 to ~50-200 active blocks per frame).
+  - **Support Graph BFS Optimization** (`voxelsim.js`): cached `_floorBlocks` list and distance-gated floor anchor checks avoid scanning all blocks across the entire city when support coverage changes.
+  - **Idle damage-path optimization** (`voxelsim.js`): damage, healing, and collapse timers now visit only active blocks, preserving the fixed-step calculations while removing Brooklyn's 39,984-block idle scan.
+  - **Zero-GC Loose-Body Physics** (`voxelsim.js`): bit-packed integer spatial keys `keyInt(x,z)` and pooled bucket arrays eliminate thousands of string key and array allocations per frame during pile collisions and destruction.
+  - **Particle & Particle Mesh Pooling** (`world3d.js`): replaced `Math.random()` with `pseudoRand()` PRNG helper and capped active voxel crumble mesh counts.
+  - **Performance Mode Toggle** (`save.js` schema v10, `screens.js` UI, `main.js`): added user-toggleable Performance Mode setting in SETTINGS to cap particle/crumble counts and relaxation passes for lower-resource hardware.
+
+### Not started
 - **Request A, still open from the prior session:** 11 Upper Manhattan defects
   were produced and remain unfixed, awaiting his decision.
 - Brooklyn voids: SW corner (exclude via a *declared named region*, never by

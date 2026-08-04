@@ -3,12 +3,63 @@
 // (paint is per-instance color) instead of one mesh per block. All per-block
 // motion (chunk rotation, debris tumble, rim
 // tilt, stress wobble) is composed into instance matrices each frame.
+//
+// Two render-only fields the scene builder may set, neither of which the sim
+// ever reads: `sim.sceneDecor` (flat ground rects — see DECOR_LAYERS) and
+// `sim.sceneAmbient` (gulls / surf / ferries / steam / neon / pigeons).
 import * as THREE from 'three';
+import { loadSave } from './save.js';
 
+// Read-only peek at the persisted SETTINGS block, so player preferences apply
+// from the first frame with no wiring in main.js. save.js owns the schema and
+// its migrations; re-deriving the storage key here would rot the moment it
+// changes. Read once per world, never written back.
+function savedSettings() {
+  try { return loadSave().settings || {}; } catch (e) { return {}; }
+}
+function pref(saved, key, dflt) { return key in saved ? !!saved[key] : dflt; }
+
+// Shared across every world, so no single world may dispose them while another
+// is alive — but they cannot simply live forever either. main.js reuses one
+// <canvas>, so every scene switch reuses the same WebGL context, and three only
+// deletes an attribute's GL buffer when the geometry fires `dispose`. Never
+// disposing meant 22 orphaned buffers per scene switch, growing without bound.
+// Refcount the worlds and flush the cache when the last one goes; rebuilding
+// five small geometries costs nothing next time.
+let liveWorlds = 0;
 const geoCache = new Map();
+function releaseSharedGeometry() {
+  for (const g of geoCache.values()) g.dispose();
+  geoCache.clear();
+}
 function boxGeo() { if (!geoCache.has('box')) geoCache.set('box', new THREE.BoxGeometry(1, 1, 1)); return geoCache.get('box'); }
 function circleGeo() { if (!geoCache.has('circ')) geoCache.set('circ', new THREE.CircleGeometry(1, 32)); return geoCache.get('circ'); }
 function ringGeo() { if (!geoCache.has('ring')) geoCache.set('ring', new THREE.RingGeometry(0.92, 1, 32)); return geoCache.get('ring'); }
+const smooth = (v) => { const d = Math.max(0, Math.min(1, v)); return d * d * (3 - 2 * d); };
+// Falloff quads: three multiplies the vertex color attribute AND instanceColor
+// into the same `vColor`, so a baked ramp gives soft-edged additive shapes with
+// no shader, no texture, and no extra draw call — a hard-edged rectangle is the
+// difference between "neon sign" and "coloured sticker on the pavement".
+function rampQuadGeo(key, segX, segZ, ramp) {
+  if (!geoCache.has(key)) {
+    const g = new THREE.PlaneGeometry(1, 1, segX, segZ);
+    g.rotateX(-Math.PI / 2);
+    const p = g.attributes.position;
+    const col = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i++) {
+      const f = ramp(p.getX(i), p.getZ(i));
+      col[i * 3] = f; col[i * 3 + 1] = f; col[i * 3 + 2] = f;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geoCache.set(key, g);
+  }
+  return geoCache.get(key);
+}
+// radial pool of light
+const glowQuadGeo = () => rampQuadGeo('glowq', 12, 12, (x, z) => smooth(1 - 2 * Math.hypot(x, z)));
+// long band, soft across its width and feathered at both ends
+const bandQuadGeo = () => rampQuadGeo('bandq', 14, 6, (x, z) =>
+  smooth(1 - Math.abs(2 * z)) * smooth((0.5 - Math.abs(x)) / 0.14));
 
 const matCache = new Map();
 function mat(color) {
@@ -20,10 +71,188 @@ function mat(color) {
   return matCache.get(color);
 }
 
+// ---------------------------------------------------------------- decor
+// Ground-surface registry: adding a surface kind is a row here, never a code
+// change. Draw order is list order (low index paints first, later layers paint
+// over it) — `boardwalk` sits after `water` on purpose so the Coney Island pier
+// reads as decking over the river. A rect may carry its own `color`, which
+// beats the layer default; that is how murals, painted courts, rusted rail beds
+// and tinted pavement happen without inventing a layer.
+export const DECOR_LAYERS = [
+  ['parks', 0x2d5a33],
+  ['sand', 0xd9c48a],
+  ['plaza', 0x8a8578],
+  ['cobbles', 0x5a5560],
+  ['sidewalks', 0x676b72],
+  ['roads', 0x1c2030],
+  ['rail', 0x3a3128],
+  ['bikePaths', 0x2a8068],
+  ['laneMarkers', 0xd6bd55],
+  ['crosswalks', 0xe4e5df],
+  ['water', 0x16375e],
+  ['boardwalk', 0xb08050],
+];
+// 12 layers between the ground plane and the hole disc at y 0.01.
+const DECOR_Y0 = 0.0012;
+const DECOR_DY = 0.0007; // top layer lands at 0.0089
+
+// Decor is merged into ONE geometry with vertex colors: N rects used to be N
+// meshes and N draw calls (Upper Manhattan alone ships 253 rects, and per-rect
+// color would only have made that worse). The merged mesh does not write depth
+// and renders at a fixed renderOrder between the ground and everything else, so
+// layer stacking is painter's order from the list above instead of a 0.7 mm
+// depth margin — which is what stops the whole ladder z-fighting once the
+// SIZE ramp pulls the camera 80 m out.
+const GROUND_ORDER = -2;
+const DECOR_ORDER = -1;
+
+// ---------------------------------------------------------------- shadows
+// The shadow box frames what the CAMERA can see, not the world origin and not
+// the hole. The hole is the right centre almost all the time — but Brooklyn
+// opens on an establishing shot 194 m up framing a 288 m ground radius, and a
+// hole-locked 45 m box covered 2.4% of that hero frame.
+//
+// Extent is quantised to a x2 ladder rather than eased. Texel size is derived
+// from the extent, so a box that resizes every frame moves the snap grid under
+// stationary geometry and every shadow edge crawls — exactly the artifact the
+// snap exists to prevent. Discrete rungs pop once instead.
+//   45 m -> 0.088 m/texel  chase distance; three texels per 0.25 m brick
+//   90 m -> 0.176 m/texel
+//  180 m -> 0.352 m/texel  covers all of Brooklyn (127 m half-diagonal), and at
+//                          194 m altitude one screen pixel is ~0.38 m anyway, so
+//                          this is texel-per-pixel, not a compromise.
+//
+// The ladder is stateful, not a pure function of the framed radius. A pure one
+// makes the two thresholds coincide, so a camera parked ON a rung boundary
+// flips 45<->90 every frame and the texel size halves and doubles at frame
+// rate — a strobe, strictly worse than the crawl. Measured: 57 flips in 120
+// frames with 0.5 m of camera jitter. So grow the moment the frame outruns the
+// box, but shrink only once the frame sits comfortably inside the rung below.
+const SHADOW_EXTENT_MIN = 45;
+const SHADOW_EXTENT_MAX = 180;
+const SHADOW_MARGIN = 1.15; // tall casters just outside the frame still cast in
+const SHADOW_SHRINK_AT = 0.425; // of current extent: half a rung, less 15% deadband
+const SHADOW_MAP_SIZE = 1024;
+// The light must sit far enough back that the far corner of the box is still in
+// front of the near plane; at ±180 a fixed 120 m offset clips a third of it.
+const shadowDistFor = (e) => e * 1.6 + 90;
+// Direction is the original sun vector; only the length changes, so the lighting
+// is byte-identical and only the shadow box travels.
+const SUN_DIR = new THREE.Vector3(30, 50, 20).normalize();
+const ZERO3 = new THREE.Vector3(0, 0, 0);
+
+// ---------------------------------------------------------------- ambient
+const AXIS_X = new THREE.Vector3(1, 0, 0);
+const AXIS_Y = new THREE.Vector3(0, 1, 0);
+const AXIS_Z = new THREE.Vector3(0, 0, 1);
+const ONE3 = new THREE.Vector3(1, 1, 1);
+const Q_ID = new THREE.Quaternion();
+
+const GULL_KIT = {
+  body: new THREE.Vector3(0.38, 0.15, 0.17),
+  rootY: 0.03, rootZ: 0.05,
+  wingL: null, wingR: null, // filled below
+};
+const PIGEON_KIT = {
+  body: new THREE.Vector3(0.3, 0.2, 0.18),
+  rootY: 0.02, rootZ: 0.05,
+  wingL: null, wingR: null,
+};
+function buildWings(kit, len, thick, chord) {
+  const mk = (side) => new THREE.Matrix4().compose(
+    new THREE.Vector3(0, 0, side * len * 0.5), Q_ID, new THREE.Vector3(chord, thick, len)
+  );
+  kit.wingL = mk(1);
+  kit.wingR = mk(-1);
+}
+buildWings(GULL_KIT, 0.3, 0.045, 0.22);
+buildWings(PIGEON_KIT, 0.2, 0.05, 0.2);
+
+const STEAM_LIFE = 3.4;
+const WAKE_PER_FERRY = 5;
+const SURF_BANDS = 2;
+
+function clampInt(v, lo, hi, dflt) {
+  const n = Math.round(Number.isFinite(v) ? v : dflt);
+  return Math.max(lo, Math.min(hi, n));
+}
+function num(v, dflt) { return Number.isFinite(v) ? v : dflt; }
+
+// ------------------------------------------------ derived ambient placement
+// Ambient sites authored as literal coordinates rot. The city gets re-authored
+// underneath them and the gull that circled the harbour ends up circling a
+// warehouse — silently, because nothing validates a coordinate against the
+// scene it was written for. Deriving sites from the decor registry and the
+// block field instead means ambient life follows the city whenever it moves.
+//
+// Deliberately DETERMINISTIC. Jitter is seeded from a hash of the geometry that
+// produced the site, so the same city always places life identically — which is
+// what makes the result reviewable and pixel-diffable — while any real edit to
+// the scene reseeds it and the life moves with it.
+function hash32(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return () => {
+    t = (t + 0x6d2b79f5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rectW = (r) => Math.max(0, num(r.w, 0));
+const rectD = (r) => Math.max(0, num(r.d, 0));
+const rectArea = (r) => rectW(r) * rectD(r);
+// Rects are corner-anchored everywhere in the decor registry, so centre them
+// once here rather than at every call site.
+const rectCX = (r) => num(r.x, 0) + rectW(r) / 2;
+const rectCZ = (r) => num(r.z, 0) + rectD(r) / 2;
+const rectKey = (r) => `${num(r.x, 0)},${num(r.z, 0)},${rectW(r)},${rectD(r)}`;
+// Overlap of two intervals, negative when they are apart. Used both to find
+// shorelines (water meeting sand) and frontages (building meeting pavement).
+const overlap1d = (a0, a1, b0, b1) => Math.min(a1, b1) - Math.max(a0, b0);
+function rectsFrom(decor, keys) {
+  const out = [];
+  if (!decor) return out;
+  for (const k of keys) {
+    const list = decor[k];
+    if (!Array.isArray(list)) continue;
+    for (const r of list) if (r && rectArea(r) > 0) out.push(r);
+  }
+  return out;
+}
+// Biggest first, then by position, so the pick is stable when two rects tie on
+// area — otherwise the scene's array order silently decides placement.
+function byAreaThenPos(a, b) {
+  const d = rectArea(b) - rectArea(a);
+  return d !== 0 ? d : (num(a.x, 0) - num(b.x, 0)) || (num(a.z, 0) - num(b.z, 0));
+}
+
 export class VoxelWorld3D {
-  constructor(canvas, sim, skinColor = 0xb44bff) {
+  constructor(canvas, sim, skinColor = 0xb44bff, opts = {}) {
     this.sim = sim;
     this.time = 0;
+    this._disposed = false;
+    liveWorlds++;
+    const saved = savedSettings();
+
+    // The shadow pass redraws every casting bucket a second time, so it is the
+    // one real performance lever a player on a weak machine has — and Brooklyn
+    // (~39k blocks) is exactly where they will reach for it. Resolved BEFORE the
+    // renderer so the first frame already honours the setting; `startVoxelSandbox`
+    // constructs with no options object, so the persisted value is the mechanism
+    // and `setShadows` below is the live-update path.
+    this.shadows = 'shadows' in opts ? !!opts.shadows : pref(saved, 'shadows', true);
+    // Meshes that participate in shadows, with their INTENDED flags — ambient
+    // movers are deliberately absent, so re-enabling never switches them on.
+    this._shadowMeshes = [];
+
     // The voxel scene is already flat-shaded; multisampling is expensive on
     // software/low-power WebGL and adds little to this art style.
     this.renderer = new THREE.WebGLRenderer({
@@ -31,7 +260,7 @@ export class VoxelWorld3D {
     });
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = this.shadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.scene = new THREE.Scene();
@@ -41,42 +270,73 @@ export class VoxelWorld3D {
     this.scene.add(hemi);
 
     const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-    sun.position.set(30, 50, 20);
-    sun.castShadow = true;
-    sun.shadow.mapSize.width = 512;
-    sun.shadow.mapSize.height = 512;
+    sun.castShadow = this.shadows;
+    sun.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+    sun.shadow.camera.near = 1;
+    // Depth bias, tuned against the 0.25 m bricks (railings, cables, kerbs) —
+    // acne and peter-panning both show up on the smallest geometry first.
+    // normalBias is well under a quarter-brick, so nothing detaches from its
+    // caster at this scale.
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.03;
+    this._sun = sun;
     this.scene.add(sun);
+    // A DirectionalLight aims at its target's WORLD matrix; an unparented target
+    // never gets one updated, so moving the box would silently do nothing.
+    this.scene.add(sun.target);
+    // Rotation-only basis of the light's view, for the texel snap below. Depends
+    // on the sun DIRECTION only, so resizing the box never invalidates it.
+    this._shadowRot = new THREE.Matrix4().lookAt(SUN_DIR, ZERO3, AXIS_Y);
+    this._shadowRotInv = new THREE.Matrix4().copy(this._shadowRot).invert();
+    this._shadowCentre = new THREE.Vector3();
+    this._shadowFwd = new THREE.Vector3();
+    this._sunOffset = new THREE.Vector3();
+    this._shadowExtent = 0;
+    this._setShadowExtent(SHADOW_EXTENT_MIN);
+    this._followShadow();
 
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(240, 240),
-      new THREE.MeshStandardMaterial({ color: 0x2a2f4c, roughness: 0.9 })
-    );
+    // Ambient motion is decoration; a player who asked the OS (or the in-game
+    // SETTINGS toggle) for less of it gets the scene posed, not animated.
+    // Both sources are read HERE, at construction — that is the mechanism, and
+    // it needs nothing from main.js. `setReducedMotion` below is a live-update
+    // nicety on top, and main.js must call it guarded
+    // (`world.setReducedMotion && ...`): the campaign renderer has no such
+    // method, and an unguarded call there throws and silently kills the rest of
+    // applySettings (see the setShadows guard at main.js:95).
+    this._osReduced = false;
+    this._mq = null;
+    try {
+      if (typeof window !== 'undefined' && window.matchMedia) {
+        this._mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+        this._osReduced = !!this._mq.matches;
+        this._onMq = (e) => { this._osReduced = !!e.matches; this._syncReducedMotion(); };
+        if (this._mq.addEventListener) this._mq.addEventListener('change', this._onMq);
+      }
+    } catch (e) { /* no matchMedia (headless/older) — fall through */ }
+    this._settingReduced = 'reducedMotion' in opts
+      ? !!opts.reducedMotion
+      : pref(saved, 'reducedMotion', false);
+    this.reducedMotion = this._osReduced || this._settingReduced;
+    this._ambientPosed = false;
+
+    this._ownedGeos = [];
+    this._ownedMats = [];
+    this._ambientMeshes = [];
+
+    const groundGeo = new THREE.PlaneGeometry(240, 240);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a2f4c, roughness: 0.9 });
+    this._ownedGeos.push(groundGeo);
+    this._ownedMats.push(groundMat);
+    const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
+    ground.renderOrder = GROUND_ORDER;
+    this._registerShadow(ground, false, true);
+    this.ground = ground;
     this.scene.add(ground);
 
-    // Scene decor (render-only, set by the scene builder): roads, sidewalks,
-    // parks, bike paths, markings, and water are thin planes below the hole
-    // disc (y 0.01/0.02), with draw order expressed by their small y offsets.
-    if (sim.sceneDecor) {
-      const deco = (r, color, y) => {
-        const p = new THREE.Mesh(
-          new THREE.PlaneGeometry(r.w, r.d),
-          mat(color)
-        );
-        p.rotation.x = -Math.PI / 2;
-        p.position.set(r.x + r.w / 2, y, r.z + r.d / 2);
-        p.receiveShadow = true;
-        this.scene.add(p);
-      };
-      for (const r of sim.sceneDecor.parks || []) deco(r, 0x2d5a33, 0.004);
-      for (const r of sim.sceneDecor.sidewalks || []) deco(r, 0x676b72, 0.005);
-      for (const r of sim.sceneDecor.roads || []) deco(r, 0x1c2030, 0.006);
-      for (const r of sim.sceneDecor.bikePaths || []) deco(r, 0x2a8068, 0.007);
-      for (const r of sim.sceneDecor.laneMarkers || []) deco(r, 0xd6bd55, 0.0075);
-      for (const r of sim.sceneDecor.crosswalks || []) deco(r, 0xe4e5df, 0.008);
-      for (const r of sim.sceneDecor.water || []) deco(r, 0x16375e, 0.009);
-    }
+    this.decorMesh = null;
+    this.decorRectCount = 0;
+    if (sim.sceneDecor) this._buildDecor(sim.sceneDecor);
 
     // Hole Mesh
     this.holeMesh = new THREE.Group();
@@ -93,10 +353,13 @@ export class VoxelWorld3D {
     ring.renderOrder = 999;
     this.holeMesh.add(disc, ring);
     this.holeMesh.userData = { disc, ring };
+    this._ownedMats.push(disc.material, ring.material);
     this.scene.add(this.holeMesh);
 
-    // One InstancedMesh per material × block size × paint color; each block
-    // owns a fixed instance index and is scaled to its brick size.
+    // One InstancedMesh per material × block size; paint rides in
+    // instanceColor. Nothing here enumerates legal brick sizes — the bucket key
+    // is whatever `b.s` says, so 2 m bricks cost one more bucket and nothing
+    // else.
     this.imMeshes = [];
     const byMat = new Map();
     for (const b of sim.blocks) {
@@ -109,20 +372,25 @@ export class VoxelWorld3D {
     }
     const boxG = boxGeo();
     const white = new THREE.Color(1, 1, 1);
+    const tmpColor = new THREE.Color();
     for (const [k, list] of byMat) {
       const im = new THREE.InstancedMesh(boxG, mat(0xffffff), list.length);
-      im.castShadow = true;
-      im.receiveShadow = true;
+      this._registerShadow(im, true, true);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       list.forEach((b, i) => {
         b._im = im; b._imIndex = i; b._imHidden = false; b._imTinted = false;
         b._renderMatrixReady = false;
         b._renderDamage = -1;
-        im.setColorAt(i, new THREE.Color(b.color));
+        im.setColorAt(i, tmpColor.setHex(b.color));
         b._renderBaseColor = b.color;
       });
       im.instanceColor.setUsage(THREE.DynamicDrawUsage);
       im.instanceColor.needsUpdate = true;
+      // Partial re-uploads: a 30k-instance bucket is a 1.9 MB matrix buffer, and
+      // a localized collapse touches a handful of contiguous instances. Track
+      // the dirty span per frame instead of re-sending the whole array.
+      im.userData.mLo = 0; im.userData.mHi = -1;
+      im.userData.cLo = 0; im.userData.cHi = -1;
       this.scene.add(im);
       this.imMeshes.push(im);
     }
@@ -137,8 +405,852 @@ export class VoxelWorld3D {
     this._skinColor = new THREE.Color(skinColor);
     this._hotWhite = new THREE.Color(0xffffff);
     this.particles = [];
+    this._dirtyM = new Set();
+    this._dirtyC = new Set();
+
+    // Ambient scratch — allocated once, reused every frame. Nothing in the
+    // ambient update path may call `new`.
+    this._aFrame = new THREE.Matrix4();
+    this._aLocal = new THREE.Matrix4();
+    this._aOut = new THREE.Matrix4();
+    this._aq = new THREE.Quaternion();
+    this._aq2 = new THREE.Quaternion();
+    this._av = new THREE.Vector3();
+    this._av2 = new THREE.Vector3();
+    this._as = new THREE.Vector3();
+    this._ac = new THREE.Color();
+    this._ac2 = new THREE.Color();
+
+    this.ambient = null;
+    // Authored sites that had gone stale against the current decor and were
+    // re-placed. Empty is the healthy state; a growing list is the scene and its
+    // ambient life drifting apart.
+    this.ambientRepairs = [];
+    this._buildAmbient(sim.sceneAmbient);
+
+    if (typeof window !== 'undefined') window.__voxelWorld = this; // debug hook
   }
 
+  // ------------------------------------------------------------ decor build
+  _buildDecor(decor) {
+    const rects = [];
+    for (let i = 0; i < DECOR_LAYERS.length; i++) {
+      const [key, layerColor] = DECOR_LAYERS[i];
+      const list = decor[key];
+      if (!list || !list.length) continue;
+      const y = DECOR_Y0 + i * DECOR_DY;
+      for (const r of list) {
+        if (!r) continue;
+        rects.push({ r, y, color: Number.isFinite(r.color) ? r.color : layerColor });
+      }
+    }
+    this.decorRectCount = rects.length;
+    if (!rects.length) return;
+
+    const n = rects.length;
+    const pos = new Float32Array(n * 18);
+    const nor = new Float32Array(n * 18);
+    const col = new Float32Array(n * 18);
+    const c = new THREE.Color();
+    let o = 0;
+    for (let i = 0; i < n; i++) {
+      const { r, y, color } = rects[i];
+      const x0 = r.x, x1 = r.x + r.w, z0 = r.z, z1 = r.z + r.d;
+      // Wound so the face normal is +y: (x0,z0)-(x1,z1)-(x1,z0) and
+      // (x0,z0)-(x0,z1)-(x1,z1).
+      const vx = [x0, x1, x1, x0, x0, x1];
+      const vz = [z0, z1, z0, z0, z1, z1];
+      // setHex converts sRGB -> linear working space, exactly like
+      // MeshStandardMaterial({ color }) did, so merged decor matches the old
+      // per-mesh look pixel for pixel.
+      c.setHex(color);
+      for (let k = 0; k < 6; k++) {
+        pos[o] = vx[k]; pos[o + 1] = y; pos[o + 2] = vz[k];
+        nor[o] = 0; nor[o + 1] = 1; nor[o + 2] = 0;
+        col[o] = c.r; col[o + 1] = c.g; col[o + 2] = c.b;
+        o += 3;
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.computeBoundingSphere();
+    const m = new THREE.MeshStandardMaterial({
+      vertexColors: true, roughness: 0.8, metalness: 0.1, flatShading: true,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geo, m);
+    this._registerShadow(mesh, false, true);
+    mesh.renderOrder = DECOR_ORDER;
+    this._ownedGeos.push(geo);
+    this._ownedMats.push(m);
+    this.decorMesh = mesh;
+    this.scene.add(mesh);
+  }
+
+  // ---------------------------------------------------------- ambient build
+  _ambientMat(spec) {
+    const m = new THREE[spec.basic ? 'MeshBasicMaterial' : 'MeshStandardMaterial'](spec.opts);
+    this._ownedMats.push(m);
+    return m;
+  }
+
+  _ambientMesh(geo, material, count, withColor) {
+    const im = new THREE.InstancedMesh(geo, material, count);
+    im.castShadow = false;
+    im.receiveShadow = false;
+    // Ambient movers roam well past the bounding sphere three.js computes once
+    // from their first pose; culling them would pop birds out of the sky.
+    im.frustumCulled = false;
+    im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    if (withColor) {
+      const c = this._ac.setRGB(1, 1, 1);
+      for (let i = 0; i < count; i++) im.setColorAt(i, c);
+      im.instanceColor.setUsage(THREE.DynamicDrawUsage);
+      im.instanceColor.needsUpdate = true;
+    }
+    this.scene.add(im);
+    this._ambientMeshes.push(im);
+    return im;
+  }
+
+  // ---------------------------------------------------- derived ambient sites
+  // Each deriver returns sites in exactly the shape the matching _init* already
+  // consumes, so nothing downstream needs to know where a site came from.
+  // Strictly read-only against the sim: decor rects and block positions in,
+  // nothing out.
+
+  _decor() { return this.sim && this.sim.sceneDecor ? this.sim.sceneDecor : null; }
+
+  // One coarse grid over the block field, shared by the derivers that need to
+  // know where the buildings are. The cell is about a street width, so a cell is
+  // usually either building or open rather than a mix of both.
+  _blockGrid(cell) {
+    const g = new Map();
+    const blocks = (this.sim && this.sim.blocks) || [];
+    for (const b of blocks) {
+      if (!b) continue;
+      const gx = Math.floor(b.x / cell), gz = Math.floor(b.z / cell);
+      const k = gx + ',' + gz;
+      let e = g.get(k);
+      if (!e) { e = { gx, gz, top: 0, n: 0, ind: 0 }; g.set(k, e); }
+      const top = b.y + b.s / 2; // b.y is the block CENTRE, not its base
+      if (top > e.top) e.top = top;
+      e.n++;
+      if (b.matType === 'steel' || b.matType === 'concrete') e.ind++;
+    }
+    return g;
+  }
+
+  // Tallest thing standing within `reach` metres of a point. Used to decide
+  // whether a patch of pavement has a building on it worth lighting or venting
+  // beside, without needing the scene to say so.
+  _massNear(grid, cell, x, z, reach) {
+    const r = Math.max(1, Math.ceil(reach / cell));
+    const gx = Math.floor(x / cell), gz = Math.floor(z / cell);
+    let top = 0, ind = 0;
+    for (let dz = -r; dz <= r; dz++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const e = grid.get((gx + dx) + ',' + (gz + dz));
+        if (!e) continue;
+        if (e.top > top) top = e.top;
+        if (e.ind > ind) ind = e.ind;
+      }
+    }
+    return { top, ind };
+  }
+
+  // Gulls circle over open water. One flock per water rect, biggest first, with
+  // radius and population taken from the rect — so a dock basin gets a pair of
+  // birds and the harbour gets a wheeling crowd, without either being named.
+  _deriveGulls(o) {
+    const rects = rectsFrom(this._decor(), ['water']).sort(byAreaThenPos);
+    const sites = [];
+    for (const r of rects.slice(0, clampInt(o.sites, 1, 12, 4))) {
+      const rnd = mulberry32(hash32('gull' + rectKey(r)));
+      const short = Math.min(rectW(r), rectD(r));
+      // Population tracks the square root of AREA, so splitting one bay into two
+      // rects does not double the birds over it.
+      sites.push({
+        x: rectCX(r) + (rnd() - 0.5) * short * 0.2,
+        z: rectCZ(r) + (rnd() - 0.5) * short * 0.2,
+        r: Math.max(6, Math.min(20, short * 0.42)),
+        y: 11 + rnd() * 11,
+        count: clampInt(Math.sqrt(rectArea(r)) * 0.55, 3, 13, 6),
+        speed: 0.3 + rnd() * 0.18,
+      });
+    }
+    return sites;
+  }
+
+  // Pigeons want ground a person would stand on — plazas, parks and the widest
+  // pavement. A 2 m sidewalk strip gets skipped, because a flock scattering on
+  // one reads as birds standing in the road.
+  _derivePigeons(o) {
+    const rects = rectsFrom(this._decor(), ['plaza', 'parks', 'sidewalks', 'boardwalk', 'cobbles'])
+      .filter((r) => Math.min(rectW(r), rectD(r)) >= 3.5)
+      .sort(byAreaThenPos);
+    const sites = [];
+    for (const r of rects.slice(0, clampInt(o.sites, 1, 20, 6))) {
+      const rnd = mulberry32(hash32('pgn' + rectKey(r)));
+      const short = Math.min(rectW(r), rectD(r));
+      sites.push({
+        x: rectCX(r) + (rnd() - 0.5) * short * 0.35,
+        z: rectCZ(r) + (rnd() - 0.5) * short * 0.35,
+        count: clampInt(Math.sqrt(rectArea(r)) * 1.1, 4, 16, 8),
+      });
+    }
+    return sites;
+  }
+
+  // The shoreline, not the water: find a water edge lying within a couple of
+  // metres of sand or boardwalk and overlapping it along the shared axis. Foam
+  // derived from the BOUNDARY keeps landing on the beach after the beach moves.
+  _shorelines() {
+    const water = rectsFrom(this._decor(), ['water']);
+    const shore = rectsFrom(this._decor(), ['sand', 'boardwalk']);
+    const GAP = 3; // how far apart the two may sit and still read as one edge
+    const found = [];
+    for (const w of water) {
+      const wx0 = num(w.x, 0), wx1 = wx0 + rectW(w);
+      const wz0 = num(w.z, 0), wz1 = wz0 + rectD(w);
+      for (const s of shore) {
+        const sx0 = num(s.x, 0), sx1 = sx0 + rectW(s);
+        const sz0 = num(s.z, 0), sz1 = sz0 + rectD(s);
+        const ox = overlap1d(wx0, wx1, sx0, sx1);
+        const oz = overlap1d(wz0, wz1, sz0, sz1);
+        // A shoreline runs along whichever axis the two rects share, and the
+        // meeting line sits between the facing edges.
+        if (ox > 3) {
+          for (const [gap, c] of [[sz0 - wz1, (sz0 + wz1) / 2], [wz0 - sz1, (wz0 + sz1) / 2]]) {
+            if (gap < -GAP || gap > GAP) continue;
+            found.push({ alongX: true, a0: Math.max(wx0, sx0), a1: Math.min(wx1, sx1), c, len: ox });
+          }
+        }
+        if (oz > 3) {
+          for (const [gap, c] of [[sx0 - wx1, (sx0 + wx1) / 2], [wx0 - sx1, (wx0 + sx1) / 2]]) {
+            if (gap < -GAP || gap > GAP) continue;
+            found.push({ alongX: false, a0: Math.max(wz0, sz0), a1: Math.min(wz1, sz1), c, len: oz });
+          }
+        }
+      }
+    }
+    return found.sort((p, q) => q.len - p.len);
+  }
+
+  _deriveSurf(o) {
+    const lines = this._shorelines().slice(0, clampInt(o.sites, 1, 6, 2));
+    const sites = [];
+    for (const L of lines) {
+      // Two offset bands per shoreline: one breaking on the sand, one draining
+      // back. Different periods keep them from pulsing in lockstep.
+      for (const [off, amp, period] of [[-1.6, 2.2, 6.5], [1.4, 1.4, 4.2]]) {
+        const long = L.a1 - L.a0, thick = 4.4;
+        sites.push(L.alongX
+          ? { x: L.a0, z: L.c + off - thick / 2, w: long, d: thick, amp, period }
+          : { x: L.c + off - thick / 2, z: L.a0, w: thick, d: long, amp, period });
+      }
+    }
+    return sites;
+  }
+
+  // Ferries run the long way across the biggest stretch of water, inset from the
+  // ends so they do not surface inside the quay.
+  _deriveFerries(o) {
+    const rects = rectsFrom(this._decor(), ['water']).sort(byAreaThenPos);
+    const sites = [];
+    const palette = [0xd96c2c, 0xe8ecf2, 0x4ad9ff];
+    const n = clampInt(o.sites, 1, 6, 2);
+    for (let i = 0; i < n && i < rects.length * 2; i++) {
+      const r = rects[Math.min(i, rects.length - 1)];
+      const rnd = mulberry32(hash32('fry' + i + rectKey(r)));
+      const alongX = rectW(r) >= rectD(r);
+      const long = alongX ? rectW(r) : rectD(r);
+      const inset = Math.min(long * 0.12, 14);
+      // Offset each route across the channel so two ferries do not share a lane.
+      const lane = (rnd() - 0.5) * Math.min(rectW(r), rectD(r)) * 0.5;
+      const a0 = (alongX ? num(r.x, 0) : num(r.z, 0)) + inset;
+      const a1 = a0 + long - inset * 2;
+      const cross = (alongX ? rectCZ(r) : rectCX(r)) + lane;
+      const flip = rnd() < 0.5;
+      sites.push({
+        x0: alongX ? (flip ? a1 : a0) : cross,
+        z0: alongX ? cross : (flip ? a1 : a0),
+        x1: alongX ? (flip ? a0 : a1) : cross + (rnd() - 0.5) * 6,
+        z1: alongX ? cross + (rnd() - 0.5) * 6 : (flip ? a0 : a1),
+        color: palette[i % palette.length],
+        period: 42 + rnd() * 24,
+      });
+    }
+    return sites;
+  }
+
+  // Street steam. The plume rises from y=0.12, so a vent belongs on open ground,
+  // not on a roof — but it should be open ground BESIDE an industrial mass, so
+  // sample road and plaza rects and keep the cells with steel or concrete over
+  // them. Sites are spread by a minimum separation so four vents do not all land
+  // on the same block.
+  _deriveSteam(o) {
+    const CELL = 8;
+    const grid = this._blockGrid(CELL);
+    const rects = rectsFrom(this._decor(), ['roads', 'plaza', 'cobbles']);
+    const cands = [];
+    for (const r of rects) {
+      const w = rectW(r), d = rectD(r);
+      const stepX = Math.max(6, w / 4), stepZ = Math.max(6, d / 4);
+      for (let x = num(r.x, 0) + stepX / 2; x < num(r.x, 0) + w; x += stepX) {
+        for (let z = num(r.z, 0) + stepZ / 2; z < num(r.z, 0) + d; z += stepZ) {
+          const m = this._massNear(grid, CELL, x, z, 10);
+          if (m.top < 6 || m.ind < 3) continue;
+          cands.push({ x, z, score: m.top + m.ind * 0.4 });
+        }
+      }
+    }
+    cands.sort((p, q) => q.score - p.score || p.x - q.x || p.z - q.z);
+    const sites = [];
+    const want = clampInt(o.sites, 1, 12, 4);
+    const MIN_SEP = 16;
+    for (const c of cands) {
+      if (sites.length >= want) break;
+      if (sites.some((s) => Math.hypot(s.x - c.x, s.z - c.z) < MIN_SEP)) continue;
+      const rnd = mulberry32(hash32(`stm${Math.round(c.x)},${Math.round(c.z)}`));
+      sites.push({ x: c.x, z: c.z, rate: 0.24 + rnd() * 0.3 });
+    }
+    return sites;
+  }
+
+  // Neon is a glow POOL on the pavement at y=0.0093, not a wall sign — so a
+  // frontage is a run of pavement with a building standing along one edge of it.
+  // Walk each pavement rect's long axis, keep the stretch that has mass beside
+  // it, and lay the strip down that stretch.
+  _deriveNeon(o) {
+    const CELL = 4;
+    const grid = this._blockGrid(CELL);
+    const rects = rectsFrom(this._decor(), ['sidewalks', 'plaza', 'boardwalk']);
+    const palette = [0xff4b3a, 0xffd166, 0xff2e63, 0x4ad9ff, 0xf2c14e, 0x8be04e];
+    const runs = [];
+    for (const r of rects) {
+      const w = rectW(r), d = rectD(r);
+      const alongX = w >= d;
+      const long = alongX ? w : d, thick = alongX ? d : w;
+      if (long < 6) continue;
+      const a0 = alongX ? num(r.x, 0) : num(r.z, 0);
+      const cross = alongX ? rectCZ(r) : rectCX(r);
+      // Sample along the run; a sample is "lit" when something tall stands
+      // within a building's depth of the pavement centre-line.
+      const STEP = 2;
+      let start = -1, best = 0;
+      const flush = (end) => {
+        if (start < 0) return;
+        const len = end - start;
+        if (len >= 6) runs.push({ alongX, a0: start, a1: end, cross, thick, len, mass: best });
+        start = -1; best = 0;
+      };
+      for (let t = a0; t <= a0 + long; t += STEP) {
+        const x = alongX ? t : cross, z = alongX ? cross : t;
+        const m = this._massNear(grid, CELL, x, z, thick / 2 + 5);
+        if (m.top >= 3.5) { if (start < 0) start = t; if (m.top > best) best = m.top; }
+        else flush(t - STEP);
+      }
+      flush(a0 + long);
+    }
+    // Tallest frontage first: the biggest facade is the one worth lighting.
+    runs.sort((p, q) => q.mass - p.mass || q.len - p.len);
+    const sites = [];
+    const want = clampInt(o.sites, 1, 16, 5);
+    const MIN_SEP = 18;
+    for (const R of runs) {
+      if (sites.length >= want) break;
+      const cx = R.alongX ? (R.a0 + R.a1) / 2 : R.cross;
+      const cz = R.alongX ? R.cross : (R.a0 + R.a1) / 2;
+      if (sites.some((s) => Math.hypot(s.x + s.w / 2 - cx, s.z + s.d / 2 - cz) < MIN_SEP)) continue;
+      const rnd = mulberry32(hash32(`neon${Math.round(cx)},${Math.round(cz)}`));
+      // Cap the strip: a 60 m frontage lit end to end reads as a runway.
+      const len = Math.min(R.len, 20);
+      const band = Math.min(R.thick * 0.8, 1.6);
+      sites.push({
+        x: R.alongX ? cx - len / 2 : cx - band / 2,
+        z: R.alongX ? cz - band / 2 : cz - len / 2,
+        w: R.alongX ? len : band,
+        d: R.alongX ? band : len,
+        color: palette[Math.floor(rnd() * palette.length)],
+        period: 1.1 + rnd() * 3.4,
+      });
+    }
+    return sites;
+  }
+
+  // Is (x, z) on any rect of these layers, within a pad? With no decor at all
+  // there is nothing to judge against, so the author is left alone.
+  _onAny(keys, x, z, pad) {
+    const d = this._decor();
+    if (!d) return true;
+    for (const k of keys) {
+      const list = d[k];
+      if (!Array.isArray(list)) continue;
+      for (const r of list) {
+        if (!r) continue;
+        const x0 = num(r.x, 0), z0 = num(r.z, 0);
+        if (x >= x0 - pad && x <= x0 + rectW(r) + pad
+          && z >= z0 - pad && z <= z0 + rectD(r) + pad) return true;
+      }
+    }
+    return false;
+  }
+
+  // An authored coordinate is a snapshot of a city that has since been
+  // re-authored. Rather than trusting it forever or discarding it, TEST each one
+  // against the geometry it depends on and replace only those that have gone
+  // stale: a gull still over water keeps its authored spot, a gull now circling
+  // a warehouse gets moved to the nearest water. The authored CHARACTER is kept
+  // — count, speed, colour, period — and only the position is taken from the
+  // derived candidate, so a repair never flattens hand-tuned life into defaults.
+  //
+  // This is the bridge that makes derivation useful to a scene that still ships
+  // literal coordinates: it needs no change in the scene file, and a scene that
+  // moves to 'auto' skips it entirely because derived sites are valid by
+  // construction. Repairs are recorded on `ambientRepairs` so what moved, and
+  // why, is inspectable rather than magic.
+  _repairSites(kind, sites, spec) {
+    const d = this._decor();
+    if (!d || !Array.isArray(sites) || !sites.length) return sites;
+    const { keys, pad, pos, at, derive } = spec;
+    const stale = [];
+    for (let i = 0; i < sites.length; i++) {
+      const s = sites[i];
+      if (!s) continue;
+      const p = at(s);
+      if (!p.every(([x, z]) => this._onAny(keys, x, z, pad))) stale.push(i);
+    }
+    if (!stale.length) return sites;
+    let cand = [];
+    try { cand = derive.call(this, { sites: stale.length }) || []; } catch (e) { cand = []; }
+    // Nothing better to offer means the layer this life depends on is gone from
+    // the scene entirely. Leave the authored site rather than deleting content.
+    if (!cand.length) return sites;
+    const out = sites.slice();
+    for (let k = 0; k < stale.length; k++) {
+      const i = stale[k];
+      const from = sites[i], to = cand[k % cand.length];
+      const fixed = Object.assign({}, from);
+      for (const f of pos) if (f in to) fixed[f] = to[f];
+      out[i] = fixed;
+      this.ambientRepairs.push({ kind, index: i, from: at(from)[0], to: at(fixed)[0] });
+    }
+    return out;
+  }
+
+  // What each layer stands on, and how to find its position. Kept as data so the
+  // test and the deriver for a layer can never drift apart.
+  //
+  // Note the deliberate asymmetry between a deriver and its host test: gulls are
+  // PLACED over open water because circling water is the better image, but they
+  // are ACCEPTED anywhere on the shore, because a flock authored over the beach
+  // is right and moving it would be vandalism. Derive to the best spot, accept
+  // any plausible one. Getting this backwards showed up immediately — the first
+  // version reported two repairs on the untouched scene, and both were correct
+  // authoring my test was too narrow to recognise.
+  static get AMBIENT_HOSTS() {
+    return {
+      gulls: { keys: ['water', 'sand', 'boardwalk'], pad: 4, pos: ['x', 'z'], at: (s) => [[num(s.x, 0), num(s.z, 0)]] },
+      pigeons: { keys: ['plaza', 'sidewalks', 'boardwalk', 'parks', 'cobbles'], pad: 3, pos: ['x', 'z'], at: (s) => [[num(s.x, 0), num(s.z, 0)]] },
+      surf: {
+        keys: ['water', 'sand', 'boardwalk'], pad: 4, pos: ['x', 'z', 'w', 'd'],
+        at: (s) => [[num(s.x, 0) + num(s.w, 0) / 2, num(s.z, 0) + num(s.d, 0) / 2]],
+      },
+      ferries: {
+        keys: ['water'], pad: 5, pos: ['x0', 'z0', 'x1', 'z1'],
+        at: (s) => [[num(s.x0, 0), num(s.z0, 0)], [num(s.x1, 0), num(s.z1, 0)]],
+      },
+      steam: { keys: ['roads', 'plaza', 'cobbles', 'sidewalks'], pad: 2, pos: ['x', 'z'], at: (s) => [[num(s.x, 0), num(s.z, 0)]] },
+      neon: {
+        keys: ['sidewalks', 'plaza', 'boardwalk'], pad: 3, pos: ['x', 'z', 'w', 'd'],
+        at: (s) => [[num(s.x, 0) + num(s.w, 0) / 2, num(s.z, 0) + num(s.d, 0) / 2]],
+      },
+    };
+  }
+
+  // A key may be an explicit array of sites — the authored path, whose character
+  // is preserved and whose positions are only touched where they have gone stale
+  // — or a request to derive: 'auto', a site count, or an options object.
+  _resolveAmbient(kind, value, derive) {
+    if (Array.isArray(value)) {
+      const host = VoxelWorld3D.AMBIENT_HOSTS[kind];
+      return host ? this._repairSites(kind, value, Object.assign({ derive }, host)) : value;
+    }
+    // Only these forms request derivation. Anything else is garbage and is
+    // ignored exactly as it was before derivation existed — a malformed value
+    // must not conjure life the scene never asked for, which is what a catch-all
+    // `else derive({})` would have done for a stray string.
+    if (value === 'auto' || value === true) return derive.call(this, {});
+    if (Number.isFinite(value)) return derive.call(this, { sites: value });
+    if (value && typeof value === 'object') return derive.call(this, value);
+    return null;
+  }
+
+  _buildAmbient(spec) {
+    // 'auto' on the whole block asks for every layer to be derived, which is
+    // what a scene still being reshaped wants: no coordinates to go stale.
+    if (spec === 'auto') spec = { gulls: 'auto', surf: 'auto', ferries: 'auto', steam: 'auto', neon: 'auto', pigeons: 'auto' };
+    if (!spec || typeof spec !== 'object') return;
+    const a = {};
+    this.ambientRepairs = [];
+    try {
+      const g = this._resolveAmbient('gulls', spec.gulls, this._deriveGulls);
+      if (g && g.length) this._initGulls(a, g);
+      const s = this._resolveAmbient('surf', spec.surf, this._deriveSurf);
+      if (s && s.length) this._initSurf(a, s);
+      const f = this._resolveAmbient('ferries', spec.ferries, this._deriveFerries);
+      if (f && f.length) this._initFerries(a, f);
+      const v = this._resolveAmbient('steam', spec.steam, this._deriveSteam);
+      if (v && v.length) this._initSteam(a, v);
+      const n = this._resolveAmbient('neon', spec.neon, this._deriveNeon);
+      if (n && n.length) this._initNeon(a, n);
+      const p = this._resolveAmbient('pigeons', spec.pigeons, this._derivePigeons);
+      if (p && p.length) this._initPigeons(a, p);
+    } catch (e) {
+      // A malformed ambient payload must never take the level down with it.
+      console.warn('[voxelworld] sceneAmbient ignored:', e);
+    }
+    // Unknown keys are simply not read — a scene may ship anything.
+    this.ambient = Object.keys(a).length ? a : null;
+  }
+
+  _initGulls(a, list) {
+    const birds = [];
+    for (const g of list) {
+      if (!g) continue;
+      const n = clampInt(g.count, 1, 48, 6);
+      const rad = Math.max(0.6, num(g.r, 6));
+      const spd = Math.max(0.2, num(g.speed, 3));
+      for (let i = 0; i < n; i++) {
+        const rr = rad * (0.72 + Math.random() * 0.5);
+        birds.push({
+          cx: num(g.x, 0), cz: num(g.z, 0),
+          rad: rr,
+          y: num(g.y, 9) + (Math.random() - 0.5) * 2.4,
+          w: (spd / rr) * (0.85 + Math.random() * 0.35) * (Math.random() < 0.18 ? -1 : 1),
+          ph: Math.random() * Math.PI * 2,
+          bob: 0.16 + Math.random() * 0.3,
+          bobW: 1.2 + Math.random() * 0.9,
+          flapW: 6.5 + Math.random() * 4,
+        });
+      }
+    }
+    if (!birds.length) return;
+    const mesh = this._ambientMesh(
+      boxGeo(),
+      this._ambientMat({ opts: { color: 0xffffff, roughness: 0.85, metalness: 0, flatShading: true } }),
+      birds.length * 3, true
+    );
+    const body = this._ac, wing = this._ac2;
+    for (let i = 0; i < birds.length; i++) {
+      body.setHex(Math.random() < 0.25 ? 0xe6ecf5 : 0xffffff);
+      wing.setHex(0xdfe7f2);
+      mesh.setColorAt(i * 3, body);
+      mesh.setColorAt(i * 3 + 1, wing);
+      mesh.setColorAt(i * 3 + 2, wing);
+    }
+    mesh.instanceColor.needsUpdate = true;
+    a.gulls = { birds, mesh };
+  }
+
+  _initSurf(a, list) {
+    const bands = [];
+    for (const s of list) {
+      if (!s) continue;
+      const w = Math.max(0.5, num(s.w, 10));
+      const d = Math.max(0.5, num(s.d, 4));
+      const alongX = w >= d;
+      for (let k = 0; k < SURF_BANDS; k++) {
+        bands.push({
+          cx: num(s.x, 0) + w / 2,
+          cz: num(s.z, 0) + d / 2,
+          alongX,
+          long: alongX ? w : d,
+          band: (alongX ? d : w) * 0.34,
+          amp: num(s.amp, (alongX ? d : w) * 0.35),
+          period: Math.max(0.5, num(s.period, 5)),
+          ph: k / SURF_BANDS,
+        });
+      }
+    }
+    if (!bands.length) return;
+    // Additive foam: over pale sand it reads as a bright wash, over dark water
+    // it glows, and per-instance dimming is the fade as the wave drains back.
+    const m = this._ambientMat({
+      basic: true,
+      opts: {
+        color: 0xffffff, transparent: true, opacity: 0.5, vertexColors: true,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      },
+    });
+    const mesh = this._ambientMesh(bandQuadGeo(), m, bands.length, true);
+    a.surf = { bands, mesh };
+  }
+
+  _initFerries(a, list) {
+    const boats = [];
+    for (const f of list) {
+      if (!f) continue;
+      const x0 = num(f.x0, 0), z0 = num(f.z0, 0);
+      const x1 = num(f.x1, x0 + 20), z1 = num(f.z1, z0);
+      boats.push({
+        x0, z0, x1, z1,
+        color: Number.isFinite(f.color) ? f.color : 0xe8873a,
+        period: Math.max(2, num(f.period, 40)),
+        ph: Math.random(),
+        bobW: 1.1 + Math.random() * 0.5,
+      });
+    }
+    if (!boats.length) return;
+    const hullMesh = this._ambientMesh(
+      boxGeo(),
+      this._ambientMat({ opts: { color: 0xffffff, roughness: 0.75, metalness: 0.05, flatShading: true } }),
+      boats.length * 3, true
+    );
+    const c = this._ac;
+    for (let i = 0; i < boats.length; i++) {
+      hullMesh.setColorAt(i * 3, c.setHex(boats[i].color));
+      hullMesh.setColorAt(i * 3 + 1, c.setHex(0xf2f4f8));
+      hullMesh.setColorAt(i * 3 + 2, c.setHex(0xd8452f));
+    }
+    hullMesh.instanceColor.needsUpdate = true;
+    // Additive wake: instanceColor doubles as the fade ramp, because a dimmer
+    // additive quad over dark water IS a fainter wake — no per-instance alpha
+    // needed, and it stays one draw call.
+    const wakeMesh = this._ambientMesh(
+      bandQuadGeo(),
+      this._ambientMat({
+        basic: true,
+        opts: {
+          color: 0xffffff, transparent: true, opacity: 0.55, vertexColors: true,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        },
+      }),
+      boats.length * WAKE_PER_FERRY, true
+    );
+    a.ferries = { boats, hullMesh, wakeMesh };
+  }
+
+  _initSteam(a, list) {
+    const vents = [];
+    let total = 0;
+    for (const s of list) {
+      if (!s) continue;
+      const rate = Math.max(0.05, num(s.rate, 0.8));
+      const cap = clampInt(rate * STEAM_LIFE + 2, 2, 20, 4);
+      const puffs = [];
+      for (let i = 0; i < cap; i++) {
+        puffs.push({ on: false, age: 0, ox: 0, oz: 0, dx: 0, dz: 0, spin: 0, size: 1 });
+      }
+      vents.push({ x: num(s.x, 0), z: num(s.z, 0), rate, acc: 0, puffs, base: total });
+      total += cap;
+    }
+    if (!total) return;
+    const mesh = this._ambientMesh(
+      boxGeo(),
+      this._ambientMat({
+        basic: true,
+        opts: {
+          color: 0xffffff, transparent: true, opacity: 0.4,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        },
+      }),
+      total, true
+    );
+    a.steam = { vents, mesh, total };
+  }
+
+  _initNeon(a, list) {
+    const signs = [];
+    for (const s of list) {
+      if (!s) continue;
+      signs.push({
+        x: num(s.x, 0) + num(s.w, 3) / 2,
+        z: num(s.z, 0) + num(s.d, 3) / 2,
+        w: Math.max(0.2, num(s.w, 3)),
+        d: Math.max(0.2, num(s.d, 3)),
+        color: Number.isFinite(s.color) ? s.color : 0xff9d3c,
+        period: Math.max(0.3, num(s.period, 2.6)),
+        ph: Math.random() * Math.PI * 2,
+      });
+    }
+    if (!signs.length) return;
+    const mesh = this._ambientMesh(
+      glowQuadGeo(),
+      this._ambientMat({
+        basic: true,
+        opts: {
+          color: 0xffffff, transparent: true, opacity: 0.8, vertexColors: true,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        },
+      }),
+      signs.length, true
+    );
+    a.neon = { signs, mesh, warm: new THREE.Color(0xffd9a8) };
+  }
+
+  _initPigeons(a, list) {
+    const birds = [];
+    for (const p of list) {
+      if (!p) continue;
+      const n = clampInt(p.count, 1, 40, 8);
+      const spread = 0.8 + n * 0.14;
+      for (let i = 0; i < n; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const rr = Math.sqrt(Math.random()) * spread;
+        const away = Math.random() * Math.PI * 2;
+        birds.push({
+          hx: num(p.x, 0) + Math.cos(ang) * rr,
+          hz: num(p.z, 0) + Math.sin(ang) * rr,
+          dx: Math.cos(away), dz: Math.sin(away),
+          dist: 3.5 + Math.random() * 4.5,
+          flyH: 3.2 + Math.random() * 3.4,
+          idleYaw: Math.random() * Math.PI * 2,
+          ph: Math.random() * Math.PI * 2,
+          alarm: 0,
+          grey: Math.random(),
+        });
+      }
+    }
+    if (!birds.length) return;
+    const mesh = this._ambientMesh(
+      boxGeo(),
+      this._ambientMat({ opts: { color: 0xffffff, roughness: 0.85, metalness: 0, flatShading: true } }),
+      birds.length * 3, true
+    );
+    const c = this._ac, cw = this._ac2;
+    for (let i = 0; i < birds.length; i++) {
+      const g = birds[i].grey;
+      c.setHex(g < 0.12 ? 0xe8ebf0 : g < 0.4 ? 0x9aa2b0 : 0x6b7280);
+      cw.copy(c).multiplyScalar(0.82);
+      mesh.setColorAt(i * 3, c);
+      mesh.setColorAt(i * 3 + 1, cw);
+      mesh.setColorAt(i * 3 + 2, cw);
+    }
+    mesh.instanceColor.needsUpdate = true;
+    a.pigeons = { birds, mesh };
+  }
+
+  // ------------------------------------------------------------- reduced UX
+  // Signature matches ChaseCamera.setReducedMotion (camera.js:39).
+  setReducedMotion(val) {
+    this._settingReduced = !!val;
+    this._syncReducedMotion();
+  }
+
+  _registerShadow(mesh, cast, receive) {
+    this._shadowMeshes.push({ mesh, cast, receive });
+    mesh.castShadow = this.shadows && cast;
+    mesh.receiveShadow = this.shadows && receive;
+  }
+
+  // Signature matches VoxelWorld3D's campaign counterpart (world3d.js:669) so
+  // the existing guarded call at main.js:95 picks it up with no wiring. The
+  // construction-time read of the persisted setting is the mechanism; this is
+  // the live path.
+  setShadows(on) {
+    const next = !!on;
+    if (next === this.shadows) return; // idempotent: applySettings fires often
+    this.shadows = next;
+    this.renderer.shadowMap.enabled = next;
+    if (this._sun) {
+      this._sun.castShadow = next;
+      // Drop the depth target when shadows go off — a 1024² render target that
+      // nothing samples any more. WebGLShadowMap reallocates it on re-enable,
+      // so flipping repeatedly neither leaks nor leaves a stale map bound.
+      if (!next && this._sun.shadow.map) {
+        this._sun.shadow.map.dispose();
+        this._sun.shadow.map = null;
+      }
+    }
+    for (const s of this._shadowMeshes) {
+      s.mesh.castShadow = next && s.cast;
+      s.mesh.receiveShadow = next && s.receive;
+    }
+    // Toggling shadowMap.enabled changes the USE_SHADOWMAP define; lit
+    // materials must recompile or they keep sampling a map that is gone.
+    this.scene.traverse((c) => { if (c.isMesh && c.material) c.material.needsUpdate = true; });
+    if (next) this._followShadow(); // the box may be 200 m stale
+  }
+
+  // Resize the box and pull the light back to match. Only ever called with a
+  // ladder rung, so the texel size is stable between calls and the snap below
+  // stays valid.
+  _setShadowExtent(e) {
+    if (e === this._shadowExtent) return;
+    this._shadowExtent = e;
+    this._shadowTexel = (e * 2) / SHADOW_MAP_SIZE;
+    const d = shadowDistFor(e);
+    this._sunOffset.copy(SUN_DIR).multiplyScalar(d);
+    const sc = this._sun.shadow.camera;
+    sc.left = -e; sc.right = e; sc.top = e; sc.bottom = -e;
+    // LightShadow.updateMatrices only ever repositions the camera, never
+    // reprojects it, so the projection has to be rebuilt here by hand.
+    sc.far = d + e * 1.6 + 120;
+    sc.updateProjectionMatrix();
+  }
+
+  // Frame the shadow box on what the camera can actually see. The centre is the
+  // camera's ground-plane look-at point (which at chase distance IS the hole),
+  // and the extent is the ladder rung that covers the framed footprint.
+  //
+  // The centre is quantised to whole shadow-map texels IN LIGHT SPACE: slide the
+  // box continuously and the texel grid slides under stationary geometry, so
+  // every shadow edge crawls and fizzes. Snapping keeps the grid pinned in world
+  // space while the box moves. Read-only against sim.hole and the camera.
+  _followShadow(camera) {
+    if (!this.shadows || !this._sun) return;
+    const c = this._shadowCentre;
+    // Default is the extent already in use, not the minimum: a camera that
+    // pitches up for a moment loses its ground hit, and slamming back to 45 m
+    // and out again is the same strobe the hysteresis below exists to stop.
+    let extent = this._shadowExtent || SHADOW_EXTENT_MIN;
+    let framed = false;
+    if (camera && camera.isPerspectiveCamera) {
+      const f = this._shadowFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+      // A camera looking at or above the horizon has no ground-plane hit; fall
+      // back to the hole rather than projecting to infinity.
+      if (f.y < -0.05) {
+        const t = camera.position.y / -f.y;
+        if (t > 0 && t < 4000) {
+          c.copy(camera.position).addScaledVector(f, t);
+          c.y = 0;
+          // Half-diagonal of the view rectangle where it meets the ground.
+          const r = t * Math.tan((camera.fov * Math.PI) / 360)
+            * Math.sqrt(1 + camera.aspect * camera.aspect) * SHADOW_MARGIN;
+          // Grow immediately, shrink only past the deadband. Both loops run so
+          // a teleport can cross several rungs in one frame.
+          while (extent < r && extent < SHADOW_EXTENT_MAX) extent *= 2;
+          while (extent > SHADOW_EXTENT_MIN && r < extent * SHADOW_SHRINK_AT) extent /= 2;
+          framed = true;
+        }
+      }
+    }
+    if (!framed) {
+      const h = this.sim.hole;
+      c.set(h ? h.x : 0, 0, h ? h.z : 0);
+    }
+    this._setShadowExtent(extent);
+    const texel = this._shadowTexel;
+    c.applyMatrix4(this._shadowRotInv);
+    c.x = Math.round(c.x / texel) * texel;
+    c.y = Math.round(c.y / texel) * texel;
+    c.applyMatrix4(this._shadowRot);
+    this._sun.target.position.copy(c);
+    this._sun.position.copy(c).add(this._sunOffset);
+  }
+
+  _syncReducedMotion() {
+    const next = this._osReduced || this._settingReduced;
+    if (next === this.reducedMotion) return;
+    this.reducedMotion = next;
+    this._ambientPosed = false; // re-pose (or resume) on the next update
+  }
+
+  // -------------------------------------------------------------- particles
   // Expanding shock wave ring at the hole — growth/combo/milestone juice.
   spawnShockRing(x, z, radius, color = 0x66ccff) {
     const ring = new THREE.Mesh(
@@ -172,6 +1284,255 @@ export class VoxelWorld3D {
     }
   }
 
+  // ------------------------------------------------------------ ambient tick
+  // Body + two flapping wings written into three consecutive instance slots.
+  _writeBird(mesh, base, frame, flap, kit) {
+    const local = this._aLocal, out = this._aOut;
+    local.makeScale(kit.body.x, kit.body.y, kit.body.z);
+    out.multiplyMatrices(frame, local);
+    mesh.setMatrixAt(base, out);
+    for (let k = 0; k < 2; k++) {
+      const side = k === 0 ? 1 : -1;
+      this._av2.set(0, kit.rootY, side * kit.rootZ);
+      this._aq2.setFromAxisAngle(AXIS_X, side * flap);
+      local.compose(this._av2, this._aq2, ONE3);
+      local.multiply(k === 0 ? kit.wingL : kit.wingR);
+      out.multiplyMatrices(frame, local);
+      mesh.setMatrixAt(base + 1 + k, out);
+    }
+  }
+
+  _updateAmbient(dt, t) {
+    const a = this.ambient;
+    if (!a) return;
+    if (a.gulls) this._tickGulls(a.gulls, t);
+    if (a.surf) this._tickSurf(a.surf, t);
+    if (a.ferries) this._tickFerries(a.ferries, t);
+    if (a.steam) this._tickSteam(a.steam, dt);
+    if (a.neon) this._tickNeon(a.neon, t);
+    if (a.pigeons) this._tickPigeons(a.pigeons, dt, t);
+  }
+
+  _tickGulls(g, t) {
+    const { birds, mesh } = g;
+    const frame = this._aFrame, q = this._aq, q2 = this._aq2, v = this._av;
+    for (let i = 0; i < birds.length; i++) {
+      const b = birds[i];
+      const ang = b.ph + t * b.w;
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      v.set(
+        b.cx + ca * b.rad,
+        b.y + Math.sin(t * b.bobW + b.ph) * b.bob,
+        b.cz + sa * b.rad
+      );
+      // local +X faces the tangent of the circle
+      const dir = b.w < 0 ? -1 : 1;
+      q.setFromAxisAngle(AXIS_Y, Math.atan2(-ca * dir, -sa * dir));
+      // bank into the turn, with a little wobble on the wingbeat
+      q2.setFromAxisAngle(AXIS_X, dir * (-0.42 + Math.sin(t * b.flapW + b.ph) * 0.06));
+      q.multiply(q2);
+      frame.compose(v, q, ONE3);
+      this._writeBird(mesh, i * 3, frame, Math.sin(t * b.flapW + b.ph) * 0.95 + 0.15, GULL_KIT);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  _tickSurf(s, t) {
+    const { bands, mesh } = s;
+    const v = this._av, sc = this._as, c = this._ac;
+    for (let i = 0; i < bands.length; i++) {
+      const b = bands[i];
+      const phase = (t / b.period + b.ph) * Math.PI * 2;
+      const slide = Math.sin(phase);
+      const breathe = 0.72 + 0.28 * (0.5 + 0.5 * Math.cos(phase));
+      const off = slide * b.amp;
+      v.set(b.cx + (b.alongX ? 0 : off), 0.0092, b.cz + (b.alongX ? off : 0));
+      sc.set(
+        b.alongX ? b.long : b.band * breathe, 1,
+        b.alongX ? b.band * breathe : b.long
+      );
+      this._aOut.compose(v, Q_ID, sc);
+      mesh.setMatrixAt(i, this._aOut);
+      // foam is brightest as it runs up the sand, thin as it drains back
+      const wash = 0.3 + 0.7 * (0.5 + 0.5 * slide);
+      c.setRGB(wash, wash * 0.99, wash * 0.97);
+      mesh.setColorAt(i, c);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.instanceColor.needsUpdate = true;
+  }
+
+  _tickFerries(f, t) {
+    const { boats, hullMesh, wakeMesh } = f;
+    const frame = this._aFrame, local = this._aLocal, out = this._aOut;
+    const q = this._aq, v = this._av, sc = this._as, c = this._ac;
+    for (let i = 0; i < boats.length; i++) {
+      const b = boats[i];
+      const phase = (t / b.period + b.ph) * Math.PI * 2;
+      // cosine ping-pong: the boat eases to a stop before it turns around, so
+      // the heading flip never snaps
+      const u = 0.5 - 0.5 * Math.cos(phase);
+      const dir = Math.sin(phase) >= 0 ? 1 : -1;
+      const dx = b.x1 - b.x0, dz = b.z1 - b.z0;
+      v.set(
+        b.x0 + dx * u,
+        0.3 + Math.sin(t * b.bobW + b.ph) * 0.06,
+        b.z0 + dz * u
+      );
+      q.setFromAxisAngle(AXIS_Y, Math.atan2(-dz * dir, dx * dir));
+      this._aq2.setFromAxisAngle(AXIS_Z, Math.sin(t * b.bobW * 0.7 + b.ph) * 0.05);
+      q.multiply(this._aq2);
+      frame.compose(v, q, ONE3);
+
+      local.compose(this._av2.set(0, 0, 0), Q_ID, sc.set(2.6, 0.55, 1.1));
+      out.multiplyMatrices(frame, local);
+      hullMesh.setMatrixAt(i * 3, out);
+      local.compose(this._av2.set(-0.25, 0.5, 0), Q_ID, sc.set(1.1, 0.55, 0.8));
+      out.multiplyMatrices(frame, local);
+      hullMesh.setMatrixAt(i * 3 + 1, out);
+      local.compose(this._av2.set(-0.55, 0.95, 0), Q_ID, sc.set(0.3, 0.5, 0.3));
+      out.multiplyMatrices(frame, local);
+      hullMesh.setMatrixAt(i * 3 + 2, out);
+
+      const len = Math.hypot(dx, dz) || 1;
+      const ux = (dx / len) * dir, uz = (dz / len) * dir;
+      for (let k = 0; k < WAKE_PER_FERRY; k++) {
+        const back = 1.7 + k * 1.35;
+        const spread = 1.0 + k * 0.75;
+        this._av2.set(v.x - ux * back, 0.0095, v.z - uz * back);
+        this._aq2.setFromAxisAngle(AXIS_Y, Math.atan2(-uz, ux));
+        sc.set(1.5, 1, spread);
+        out.compose(this._av2, this._aq2, sc);
+        wakeMesh.setMatrixAt(i * WAKE_PER_FERRY + k, out);
+        const fade = (1 - k / WAKE_PER_FERRY) * 0.85;
+        c.setRGB(fade, fade * 0.98, fade * 0.95);
+        wakeMesh.setColorAt(i * WAKE_PER_FERRY + k, c);
+      }
+    }
+    hullMesh.instanceMatrix.needsUpdate = true;
+    wakeMesh.instanceMatrix.needsUpdate = true;
+    wakeMesh.instanceColor.needsUpdate = true;
+  }
+
+  _tickSteam(s, dt) {
+    const { vents, mesh } = s;
+    const v = this._av, sc = this._as, c = this._ac, q = this._aq;
+    for (const vent of vents) {
+      if (dt > 0) {
+        vent.acc += dt * vent.rate;
+        while (vent.acc >= 1) {
+          vent.acc -= 1;
+          // Pool is the cap: if every slot is busy the plume simply skips a
+          // puff, so steam can never accumulate.
+          let slot = -1;
+          for (let i = 0; i < vent.puffs.length; i++) if (!vent.puffs[i].on) { slot = i; break; }
+          if (slot < 0) break;
+          const p = vent.puffs[slot];
+          p.on = true; p.age = 0;
+          p.ox = (Math.random() - 0.5) * 0.3;
+          p.oz = (Math.random() - 0.5) * 0.3;
+          p.dx = (Math.random() - 0.5) * 0.5 + 0.18;
+          p.dz = (Math.random() - 0.5) * 0.5;
+          p.spin = (Math.random() - 0.5) * 1.1;
+          p.size = 0.8 + Math.random() * 0.6;
+        }
+      }
+      for (let i = 0; i < vent.puffs.length; i++) {
+        const p = vent.puffs[i];
+        const idx = vent.base + i;
+        if (!p.on) { this._aOut.makeScale(0, 0, 0); mesh.setMatrixAt(idx, this._aOut); continue; }
+        p.age += dt;
+        if (p.age >= STEAM_LIFE) {
+          p.on = false;
+          this._aOut.makeScale(0, 0, 0);
+          mesh.setMatrixAt(idx, this._aOut);
+          continue;
+        }
+        const k = p.age / STEAM_LIFE;
+        const rise = 0.12 + k * 3.1 + k * k * 1.1;
+        const w = p.size * (0.26 + k * 0.95);
+        v.set(vent.x + p.ox + p.dx * p.age, rise, vent.z + p.oz + p.dz * p.age);
+        q.setFromAxisAngle(AXIS_Y, p.spin * p.age);
+        sc.set(w, w, w);
+        this._aOut.compose(v, q, sc);
+        mesh.setMatrixAt(idx, this._aOut);
+        // additive: dimming the instance colour IS the fade
+        const fade = Math.sin(Math.min(1, k * 3.4) * Math.PI * 0.5) * (1 - k) * 0.9;
+        c.setRGB(fade, fade * 0.99, fade);
+        mesh.setColorAt(idx, c);
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.instanceColor.needsUpdate = true;
+  }
+
+  _tickNeon(n, t) {
+    const { signs, mesh, warm } = n;
+    const v = this._av, sc = this._as, c = this._ac;
+    for (let i = 0; i < signs.length; i++) {
+      const s = signs[i];
+      const base = 0.5 + 0.5 * Math.sin((t / s.period + s.ph) * Math.PI * 2);
+      // a touch of tube flicker keeps it from reading as a smooth LED fade
+      const flick = 0.94 + 0.06 * Math.sin(t * 13.7 + s.ph * 3.1);
+      const k = (0.45 + 0.55 * base) * flick;
+      const breathe = 0.97 + 0.05 * base;
+      v.set(s.x, 0.0093, s.z);
+      sc.set(s.w * breathe, 1, s.d * breathe);
+      this._aOut.compose(v, Q_ID, sc);
+      mesh.setMatrixAt(i, this._aOut);
+      c.setHex(s.color).lerp(warm, 0.3 * base).multiplyScalar(k);
+      mesh.setColorAt(i, c);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.instanceColor.needsUpdate = true;
+  }
+
+  _tickPigeons(p, dt, t) {
+    const { birds, mesh } = p;
+    const h = this.sim.hole;
+    const frame = this._aFrame, q = this._aq, q2 = this._aq2, v = this._av;
+    const trigger = (h ? h.radius : 1) + 5;
+    const trig2 = trigger * trigger;
+    for (let i = 0; i < birds.length; i++) {
+      const b = birds[i];
+      if (h && dt > 0) {
+        const ddx = b.hx - h.x, ddz = b.hz - h.z;
+        // per-bird distance staggers the take-off: the near edge of the flock
+        // leaves first, the far edge a beat later
+        const near = ddx * ddx + ddz * ddz < trig2;
+        b.alarm = Math.max(0, Math.min(1, b.alarm + (near ? dt * 3.4 : -dt * 0.5)));
+      }
+      const al = b.alarm;
+      const e = al * al * (3 - 2 * al); // smoothstep: snappy launch, soft landing
+      const air = e > 0.015;
+      let px = b.hx, pz = b.hz, py = 0.12;
+      let yaw = b.idleYaw + Math.sin(t * 0.35 + b.ph) * 0.4;
+      let pitch = 0;
+      if (air) {
+        const swirl = Math.sin(t * 1.3 + b.ph) * 0.6 * e;
+        px += b.dx * e * b.dist - b.dz * swirl;
+        pz += b.dz * e * b.dist + b.dx * swirl;
+        py += e * b.flyH + Math.sin(t * 2.3 + b.ph) * 0.22 * e;
+        yaw = Math.atan2(-b.dz, b.dx);
+      } else {
+        // resting: a tiny hop, and the occasional peck at the pavement
+        py += 0.02 * Math.abs(Math.sin(t * 2.1 + b.ph));
+        pitch = Math.max(0, Math.sin(t * 0.9 + b.ph * 4) - 0.93) * 8;
+      }
+      v.set(px, py, pz);
+      q.setFromAxisAngle(AXIS_Y, yaw);
+      q2.setFromAxisAngle(AXIS_Z, -pitch * 0.7 + e * 0.2 * Math.sin(t * 1.7 + b.ph));
+      q.multiply(q2);
+      frame.compose(v, q, ONE3);
+      const flap = air
+        ? Math.sin(t * 15 + b.ph) * 1.15
+        : Math.sin(t * 2.6 + b.ph) * 0.07;
+      this._writeBird(mesh, i * 3, frame, flap, PIGEON_KIT);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  // ------------------------------------------------------------------ frame
   update(dt) {
     this.time += dt;
     const h = this.sim.hole;
@@ -185,6 +1546,20 @@ export class VoxelWorld3D {
     let glow = Math.min(0.6, h.chain * 0.05);
     if (h.chainTimer > 0 && h.chainTimer < 0.5 && Math.sin(this.time * 24) > 0) glow = 0.9;
     ringMat.color.copy(this._skinColor).lerp(this._hotWhite, glow);
+
+    // Reduced Motion: pose the ambient set once at t=0 and never touch it
+    // again — birds perched, ferry at its berth, signage at a steady glow.
+    if (this.ambient) {
+      if (this.reducedMotion) {
+        if (!this._ambientPosed) {
+          this._poseAmbientStatic();
+          this._ambientPosed = true;
+        }
+      } else {
+        this._ambientPosed = false;
+        this._updateAmbient(dt, this.time);
+      }
+    }
 
     // shock rings: expand + fade; burst cubes: fly, bounce, fade
     for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -214,16 +1589,23 @@ export class VoxelWorld3D {
       }
     }
 
-    const matrixMeshes = new Set();
-    const colorMeshes = new Set();
+    const matrixMeshes = this._dirtyM;
+    const colorMeshes = this._dirtyC;
+    matrixMeshes.clear();
+    colorMeshes.clear();
     for (const b of this.sim.blocks) {
       if (b.state === 'consumed') {
         if (!b._imHidden) {
           b._imHidden = true;
           this._m4.makeScale(0, 0, 0);
           b._im.setMatrixAt(b._imIndex, this._m4);
-          matrixMeshes.add(b._im);
+          this._dirtyMatrix(b._im, b._imIndex, matrixMeshes);
         }
+        continue;
+      }
+      const dx = b.x - h.x, dz = b.z - h.z;
+      const nearHole = (dx * dx + dz * dz) < (h.radius + 3.0) * (h.radius + 3.0);
+      if (b._renderMatrixReady && b.state === 'static' && !b.parentChunk && b.damage <= 0.03 && b.supportRatio >= 0.7 && !b._imTinted && !b._imHidden && !nearHole) {
         continue;
       }
       let px = b.x, py = b.y, pz = b.z, rx = 0, rz = 0;
@@ -253,13 +1635,17 @@ export class VoxelWorld3D {
       if (matrixChanged) {
         this._q.setFromEuler(this._e);
         this._v.set(px, py, pz);
-        this._s.set(b.s * 0.95, b.s * 0.95, b.s * 0.95);
+        // Proportional 5% mortar gap, capped at 5 cm absolute: 0.25/0.5/1 m
+        // bricks are byte-identical to the old `s * 0.95`, while a 2 m brick
+        // stops showing a 10 cm seam against its neighbours.
+        const inset = b.s - Math.min(0.05, b.s * 0.05);
+        this._s.set(inset, inset, inset);
         this._m4.compose(this._v, this._q, this._s);
         b._im.setMatrixAt(b._imIndex, this._m4);
         b._renderMatrixReady = true;
         b._renderPx = px; b._renderPy = py; b._renderPz = pz;
         b._renderRx = rx; b._renderRz = rz;
-        matrixMeshes.add(b._im);
+        this._dirtyMatrix(b._im, b._imIndex, matrixMeshes);
       }
 
       // damage heat: blocks glow hotter as structural damage accumulates, so
@@ -272,24 +1658,110 @@ export class VoxelWorld3D {
           b._im.setColorAt(b._imIndex, this._c);
           b._imTinted = true;
           b._renderDamage = b.damage;
-          colorMeshes.add(b._im);
+          this._dirtyColor(b._im, b._imIndex, colorMeshes);
         }
       } else if (b._imTinted) {
         b._imTinted = false;
         this._c.setHex(b._renderBaseColor);
         b._im.setColorAt(b._imIndex, this._c);
         b._renderDamage = b.damage;
-        colorMeshes.add(b._im);
+        this._dirtyColor(b._im, b._imIndex, colorMeshes);
       }
     }
-    for (const im of matrixMeshes) im.instanceMatrix.needsUpdate = true;
-    for (const im of colorMeshes) im.instanceColor.needsUpdate = true;
+    for (const im of matrixMeshes) this._flushRange(im.instanceMatrix, im.userData, 'mLo', 'mHi', 16);
+    for (const im of colorMeshes) this._flushRange(im.instanceColor, im.userData, 'cLo', 'cHi', 3);
   }
 
-  render(camera) { this.renderer.render(this.scene, camera); }
+  _dirtyMatrix(im, i, set) {
+    const u = im.userData;
+    if (u.mHi < 0) { u.mLo = i; u.mHi = i; } else { if (i < u.mLo) u.mLo = i; if (i > u.mHi) u.mHi = i; }
+    set.add(im);
+  }
+
+  _dirtyColor(im, i, set) {
+    const u = im.userData;
+    if (u.cHi < 0) { u.cLo = i; u.cHi = i; } else { if (i < u.cLo) u.cLo = i; if (i > u.cHi) u.cHi = i; }
+    set.add(im);
+  }
+
+  // Upload only the touched instance span. If ranges pile up (the mesh was not
+  // drawn, so three never consumed them) fall back to a full upload rather than
+  // growing the list without bound.
+  _flushRange(attr, u, loKey, hiKey, stride) {
+    const lo = u[loKey], hi = u[hiKey];
+    u[hiKey] = -1;
+    if (hi < 0) return;
+    if (attr.updateRanges && attr.addUpdateRange) {
+      if (attr.updateRanges.length > 24) attr.clearUpdateRanges();
+      else attr.addUpdateRange(lo * stride, (hi - lo + 1) * stride);
+    }
+    attr.needsUpdate = true;
+  }
+
+  // Reduced Motion end state: one pass at t = 0 with no elapsed time, so
+  // nothing spawns, nothing drifts, and the update loop skips ambient entirely
+  // from then on.
+  _poseAmbientStatic() {
+    const a = this.ambient;
+    if (!a) return;
+    if (a.pigeons) for (const b of a.pigeons.birds) b.alarm = 0;
+    if (a.steam) {
+      // seed a couple of frozen puffs per vent so the manholes still read
+      for (const vent of a.steam.vents) {
+        vent.acc = 0;
+        for (let i = 0; i < vent.puffs.length; i++) {
+          const p = vent.puffs[i];
+          if (i < 2) {
+            p.on = true; p.age = 0.9 + i * 1.1;
+            p.ox = (i - 0.5) * 0.12; p.oz = 0; p.dx = 0.05; p.dz = 0;
+            p.spin = 0; p.size = 1;
+          } else p.on = false;
+        }
+      }
+    }
+    this._updateAmbient(0, 0);
+  }
+
+  // The shadow box is framed here, not in update(), because this is where the
+  // camera is. main.js renders on every path including the one that holds the
+  // READY gate, so the establishing shot is covered too.
+  render(camera) {
+    this._followShadow(camera);
+    this.renderer.render(this.scene, camera);
+  }
   resize(w, h) { this.renderer.setSize(w, h, false); }
+
   dispose() {
-    for (const im of this.imMeshes) im.dispose();
+    if (this._disposed) return; // teardown can be reached twice; refcount must not go negative
+    this._disposed = true;
+    for (const p of this.particles) {
+      this.scene.remove(p.mesh);
+      p.mesh.material.dispose();
+    }
+    this.particles.length = 0;
+    for (const im of this._ambientMeshes) { this.scene.remove(im); im.dispose(); }
+    this._ambientMeshes.length = 0;
+    this.ambient = null;
+    if (this.decorMesh) { this.scene.remove(this.decorMesh); this.decorMesh = null; }
+    for (const im of this.imMeshes) { this.scene.remove(im); im.dispose(); }
+    this.imMeshes.length = 0;
+    this._shadowMeshes.length = 0;
+    // renderer.dispose() does not reach the shadow depth target.
+    if (this._sun) { this._sun.shadow.dispose(); this._sun.shadow.map = null; this._sun = null; }
+    // Geometries this world created. The shared caches go too, but only once
+    // the last world is gone — see releaseSharedGeometry. mat() materials stay:
+    // they own no GL buffers, and renderer.dispose() clears the program cache.
+    for (const g of this._ownedGeos) g.dispose();
+    for (const m of this._ownedMats) m.dispose();
+    this._ownedGeos.length = 0;
+    this._ownedMats.length = 0;
+    if (--liveWorlds <= 0) { liveWorlds = 0; releaseSharedGeometry(); }
+    if (this._mq && this._onMq && this._mq.removeEventListener) {
+      this._mq.removeEventListener('change', this._onMq);
+    }
+    this._mq = null;
+    this.scene.clear();
     this.renderer.dispose();
+    if (typeof window !== 'undefined' && window.__voxelWorld === this) window.__voxelWorld = null;
   }
 }
