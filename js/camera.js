@@ -4,6 +4,9 @@
 
 import * as THREE from 'three';
 
+const SANDBOX_ZOOM_IN = 0.7;
+const SANDBOX_ZOOM_OUT = 1.5;
+
 export class ChaseCamera {
   constructor(aspect) {
     this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 600);
@@ -11,6 +14,7 @@ export class ChaseCamera {
     this.pitch = 0.9;           // base elevation angle (rad)
     this.dist = 16;
     this.distScale = 1;         // settings slider multiplier
+    this.sandboxSizeProgress = 0;
     this.target = new THREE.Vector3();
     this.smoothTarget = new THREE.Vector3();
     this.blockers = [];         // {minX,maxX,minZ,maxZ,h} standing buildings
@@ -34,6 +38,9 @@ export class ChaseCamera {
   }
   setReducedMotion(val) { this.reducedMotion = !!val; }
   setFollowDirection(val) { this.followDir = !!val; }
+  setSandboxSizeProgress(progress) {
+    this.sandboxSizeProgress = Math.max(0, Math.min(1, progress || 0));
+  }
 
   // Brief FOV widen that eases back — used for growth/milestone moments.
   fovKick(v = 5) {
@@ -143,7 +150,9 @@ export class ChaseCamera {
         const s = t * t * (3 - 2 * t);
         d = Math.min(base + (clearDist - base) * s, clearDist * 1.15);
       }
-      scale = (d / 16) * this.distScale;
+      const sandboxZoom = SANDBOX_ZOOM_IN +
+        (SANDBOX_ZOOM_OUT - SANDBOX_ZOOM_IN) * this.sandboxSizeProgress;
+      scale = (d / 16) * this.distScale * sandboxZoom;
     } else {
       scale = (1 + Math.pow(holeRadius, 0.85) * 0.22) * this.distScale;
     }

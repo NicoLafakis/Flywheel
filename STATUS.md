@@ -1,6 +1,6 @@
 # STATUS.md — Hole City
 
-Last updated: 2026-08-03
+Last updated: 2026-08-04
 
 ## Current state
 
@@ -8,7 +8,7 @@ Last updated: 2026-08-03
 `ALL PASS` (worst bot margin 46%). Level 1 visually close to reference
 (verified by screenshot); other levels share the code but are unreviewed.
 
-**Voxel Sandbox**: physics complete and playtest-tuned, two levels: the
+**Voxel Sandbox**: physics complete and playtest-tuned, three levels: the
 city gallery (~3,800 blocks, ~30 object kinds in 7 districts) and **full
 Lower Manhattan** (~25,800 blocks, asymmetric clamp x[-70,74] z[-84,54] —
 WTC + 7 WTC + Oculus,
@@ -31,12 +31,12 @@ stability, a 56 s gallery tour, Manhattan overlap/idle/excursion checks
   L21, tide L41, landmark L20 + finales + L91–100)
 - Combos (×3 cap), star ratings, coins, shop (skins + clock/growth items)
 - World map with locks/stars, results screen, mechanic intro cards
-- Saves: localStorage schema v7, migrations v1→v7, quarantine
+- Saves: localStorage schema v9, migrations v1→v9, quarantine
 - Desktop (WASD/QE/RF) + mobile (joystick + touch orbit) controls
 - Chase camera with building-occlusion pull-in
 - **Voxel Sandbox** (see `.wiki/modules/voxel.md`): deterministic load-path
-  support graph, rim-first crack wave, persistent damage + neighbor shock,
-  chunks/debris by material bond, mass-scaled fall + size-scaled creak,
+  support graph, instant-default support loss, persistent damage + neighbor
+  shock, chunks/debris by material bond, mass-scaled fall + optional creak,
   damage heat tint, drive-mode steering + follow camera
 - Sandbox gallery: tower, warehouse, house, shop, church, brownstone,
   apartment, parking garage, gas station, crane, containers, fountain,
@@ -47,6 +47,14 @@ stability, a 56 s gallery tour, Manhattan overlap/idle/excursion checks
   porticos, rooftop water tower, Trinity Church, City Hall, elevated train
   (viaduct + 3-car train), Battery Park, Charging Bull, ferry pier, street
   furniture, road/park/harbor decor planes
+- Sandbox Upper Manhattan (`js/voxelscene-upper-manhattan.js`): ~8,400-block
+  Central Park district with geographically placed Reservoir, The Lake, Harlem
+  Meer, Bethesda Terrace, Belvedere Castle, the Met, Dakota/Upper West Side,
+  Museum Mile, Harlem blocks, sidewalks, loop bike paths, lane/crosswalk
+  markings, oriented avenue traffic, hydrants, waste bins, traffic lights,
+  subway entrances, park trees, benches, lamps, newsstand, and hot-dog cart.
+  Street and prop footprints use shared templates; validator rejects physical
+  blocks in road bands or overlapping fine cells.
 - Headless proof: `node tools/validate.mjs`
 
 ## Known gaps / next up
@@ -62,6 +70,65 @@ stability, a 56 s gallery tour, Manhattan overlap/idle/excursion checks
 - No unit tests beyond the validator; UI untested except smoke path.
 
 ## Recent history
+
+- 2026-08-04: **Upper Manhattan realism + graphics pass**. Repositioned the
+  Reservoir, The Lake, Harlem Meer, Belvedere Castle, and Met to match the
+  recognizable Central Park geography; added 59th/72nd/86th/96th/102nd/110th
+  street surfaces, sidewalks, loop bike paths, lane markers, striped
+  crosswalks, oriented curb traffic, hydrants, waste bins, traffic lights,
+  subway entrances, a newsstand, and a hot-dog cart. Fine-cell ownership,
+  idle stability, camera coverage, roadway clearance, and deterministic
+  excursion remain ALL PASS;
+  the renderer now batches by material/brick size and caches static transforms;
+  Playwright smoke found WebGL/page/request errors at zero and 61–66 measured
+  draw calls per frame under the available SwiftShader browser renderer.
+
+- 2026-08-04: **Upper Manhattan grid + object alignment scrub**. Applied the
+  official park map and object-level NYC street references to a reusable
+  intersection template: five-stripe zebra crossings without border rails,
+  consistent curb-side furniture offsets, avenue-facing vehicles, and a clear
+  sidewalk buffer. Moved the Met and Belvedere footprints off roadway bands,
+  corrected castle turret/building ownership, and added a validator guard for
+  tall structures, foliage, benches, and roadway overlap. Playwright close-ups
+  at the 72nd Street / west-curb template show aligned roads, sidewalks,
+  crossings, lamps, signals, hydrants, bins, and benches.
+
+- 2026-08-03: **Upper Manhattan: Central Park sandbox level** added as a third
+  scene (`js/voxelscene-upper-manhattan.js`). The park-first map has ~7,600
+  deterministic blocks around Central Park, the Reservoir, The Lake, Harlem
+  Meer, Bethesda Terrace, Belvedere Castle, the Met, Dakota, Museum Mile, and
+  Harlem edges. Added a title-screen entry, scene-specific loading/HUD labels,
+  camera-blocker coverage, and a validator excursion from the park promenade
+  to the Upper West Side; full suite `ALL PASS`.
+
+- 2026-08-03: **Instant sandbox collapse**. Support loss now detaches newly
+  unsupported blocks on the next `sim.step` by default, removing the visible
+  creak/wave wait between the hole touching a structure and its fall. The
+  optional SETTINGS tuning can still restore a nonzero delay; save schema v9
+  migrates existing saves to the instant default. Validator now asserts that
+  no blocks remain in the delayed `unstable` state.
+
+- 2026-08-03: **SIZE-scaled sandbox handling**. Hole speed rises across SIZE
+  1→12, turn sensitivity ramps `.20→.80`, and the chase camera ramps from
+  max zoom-in to max zoom-out on top of its blocker-clearance curve. Campaign
+  movement remains unchanged.
+
+- 2026-08-04: **Sandbox feel tuning**. Defaults are now gravity 70, collapse
+  wave `0.10 s/m`, attraction pull 2, and instant creak. Existing saves
+  migrate to these values in schema v9; the gradual turn `.20→.80` and camera
+  ramps remain tied to sandbox SIZE rather than campaign settings.
+
+- 2026-08-03: **Voxel collision hardening**. Falling bodies now use full AABB
+  separation against nearby solid buckets when a directional/top contact is
+  detected; chunk members split on solid overlap, and loose-body separation
+  remains prioritized over preserving flight paths. Added deterministic solid
+  and loose-body overlap probes; full suite `ALL PASS`.
+
+- 2026-08-03: **Upper Manhattan prop-accuracy scrub**. Playwright screenshots
+  swept the spawn promenade, park water, Met edge, and Upper West Side. The
+  shared bench builder had its second leg 1 m beyond the 1 m seat; moved it
+  under the seat so every park bench now has aligned supports. Trees, lamps,
+  subway railings, and vehicle frames passed the source/visual review.
 
 - 2026-08-03: **Manhattan sandbox review pass**. The physics layer audited
   clean (0 ghost fine cells, 0 floaters, validator `ALL PASS`); every finding

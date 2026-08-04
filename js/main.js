@@ -1,7 +1,7 @@
 // Boot + screen state machine + game loop glue.
 
 import { Sim } from './sim.js';
-import { VoxelSandboxSim } from './voxelsim.js';
+import { VoxelSandboxSim, sandboxSizeProgress } from './voxelsim.js';
 import { getLevel, METROS } from './levels.js';
 import { loadSave, storeSave, recordLevelResult, isLevelUnlocked } from './save.js';
 import { World3D } from './world3d.js';
@@ -138,7 +138,12 @@ function startVoxelSandbox(scene = 'gallery') {
   // The scene build blocks the main thread (~1.3 s sim + instancing for
   // Lower Manhattan) — show a loading frame first so the click never reads
   // as a frozen tab.
-  screens.showLoading(scene === 'manhattan' ? 'NYC: LOWER MANHATTAN' : 'VOXEL SANDBOX');
+  const sceneLabel = scene === 'manhattan'
+    ? 'NYC: LOWER MANHATTAN'
+    : scene === 'upper-manhattan'
+      ? 'NYC: UPPER MANHATTAN — CENTRAL PARK'
+      : 'VOXEL SANDBOX';
+  screens.showLoading(sceneLabel);
   requestAnimationFrame(() => requestAnimationFrame(() => {
     teardownWorld();
     isVoxelSandbox = true;
@@ -154,9 +159,18 @@ function startVoxelSandbox(scene = 'gallery') {
     controls = controls || new Controls(canvas);
     controls.settings = save.settings;
     controls.driveMode = true; // sandbox drives like a car: A/D steer, W/S throttle
+    controls.setSandboxSizeProgress(0);
+    cam.setSandboxSizeProgress(0);
     applyVoxTuning(); // dev sliders from the save
     resize();
-    hud.setLevel({ index: 'SANDBOX', clock: 999 }, scene === 'manhattan' ? 'LOWER MANHATTAN' : 'VOXEL PILE PHYSICS');
+    hud.setLevel(
+      { index: 'SANDBOX', clock: 999 },
+      scene === 'manhattan'
+        ? 'LOWER MANHATTAN'
+        : scene === 'upper-manhattan'
+          ? 'UPPER MANHATTAN · CENTRAL PARK'
+          : 'VOXEL PILE PHYSICS',
+    );
     hud.show();
     screens.clear();
     state = 'playing';
@@ -197,6 +211,11 @@ function frame(ts) {
 
   if (state === 'playing' && sim) {
     accumulator += realDt;
+    if (isVoxelSandbox) {
+      const sizeT = sandboxSizeProgress(sim.hole.size, sim.hole.sizeFrac);
+      controls.setSandboxSizeProgress(sizeT);
+      cam.setSandboxSizeProgress(sizeT);
+    }
     const move = controls.getMove(cam.yaw);
     const orbit = controls.consumeOrbit();
     const zoom = controls.consumeZoom();

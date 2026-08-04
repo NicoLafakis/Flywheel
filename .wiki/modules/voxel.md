@@ -3,12 +3,14 @@ covers:
   - "js/voxelsim.js"
   - "js/voxelworld.js"
   - "js/voxelscene-manhattan.js"
+  - "js/voxelscene-upper-manhattan.js"
 ---
 # Voxel Sandbox (pile physics)
 
 ## Purpose
 
-Sandbox mode (title screen → VOXEL SANDBOX, or NYC: LOWER MANHATTAN): the
+Sandbox mode (title screen → VOXEL SANDBOX, NYC: LOWER MANHATTAN, or NYC: UPPER
+MANHATTAN — CENTRAL PARK): the
 hole excavates a block-built world from underneath. The hole never decides
 whether an object fits — it removes floor support, and a deterministic
 load-path graph decides how each structure collapses: progressively,
@@ -18,10 +20,11 @@ bottom-up, along material bond strengths.
 
 | File | Purpose |
 |------|---------|
-| `js/voxelsim.js` | `VoxelSandboxSim`: support graph, stress delays, chunk + debris physics, scoring, the `gallery` scene. Pure sim (no three.js, seeded RNG via `rng.js`) |
+| `js/voxelsim.js` | `VoxelSandboxSim`: support graph, instant-default stress response, chunk + debris physics, scoring, the `gallery` scene. Pure sim (no three.js, seeded RNG via `rng.js`) |
 | `js/voxelkit.js` | The 5 object size classes (PROP 0.25 m / VEHICLE 0.5 m / SMALL_BLDG / LARGE_BLDG / MEGA) + their canonical builders (vehicles, trees, lamps, props, `tower()`). Pure sim, shared by both scenes |
 | `js/voxelscene-manhattan.js` | `buildManhattan(sim)`: the full Lower Manhattan peninsula (~25.8k blocks). Sets `bounds`/`boundsRect`, `sceneDecor`, `cameraBlockers` |
-| `js/voxelworld.js` | `VoxelWorld3D`: one `InstancedMesh` per material, per-frame matrix compose (chunk rotation, debris tumble, rim lean, stress wobble); renders `sceneDecor` (roads/parks/water) |
+| `js/voxelscene-upper-manhattan.js` | `buildUpperManhattan(sim)`: the Central Park / Upper Manhattan park district (~8.4k blocks). Sets its own bounds, landmarks, curb kit, decor, and camera blockers |
+| `js/voxelworld.js` | `VoxelWorld3D`: one `InstancedMesh` per material + brick size with per-instance paint colors, cached static transforms, and per-frame dynamic motion; renders `sceneDecor` (roads/sidewalks/parks/bike paths/markings/water) |
 
 ## Model
 
@@ -53,10 +56,11 @@ Three layers, cheapest first:
    coverage change, consumption, detachment), never per-frame.
 2. **Damage → chunks** — destruction is **rim-driven**: the crack front is
    seeded from solid (fully supported) blocks only, so the hanging rim — not
-   the void's center — lets go first (fast creak `base + 0.15 + 0.25×span`,
-   ≤`HANG_CAP`), and unsupported blocks fail on a wave that sweeps inward
-   from the circumference (`WAVE_K` 0.4 s per cell of crack-front distance,
-   ≤`FAIL_CAP` 2.5 s). Blocks accrue persistent `damage` (0..1) at `failRate`;
+   the void's center — lets go first. The shipped `sim.tune.creak = 0`
+   setting arms newly hanging/unsupported blocks at `damage = 1`, so they
+   detach on the next `sim.step` with no visible wait. A positive dev tuning
+   value restores the fast creak (`base + 0.15 + 0.25×span`, ≤`HANG_CAP`)
+   and inward wave (`WAVE_K` 0.4 s per cell, ≤`FAIL_CAP` 2.5 s). Blocks accrue persistent `damage` (0..1) at `failRate`;
    damage **does not reset when support returns** — it heals slowly (0.08/s) —
    so wiggling the hole never rescues a collapsing structure, and a fast
    drive-through leaves visible weakening behind. Detaching blocks jolt
@@ -79,7 +83,10 @@ Three layers, cheapest first:
    interpenetrates: AABB overlap tests between near-resting debris, sleeping
    debris, chunk members, and falling rain, separated along the least-
    penetration axis with bounce + friction + spin kill (2 relaxation rounds
-   per step, fine-column buckets padded 1 cell). Blocks resting on loose
+   per step, fine-column buckets padded 1 cell). Moving bodies also get full
+   AABB separation against nearby solid collision buckets when a directional
+   or top-surface probe finds contact; chunk members split on solid overlap.
+   Blocks resting on loose
    rubble treat it as support (`_restLoose`) so piles quiet bottom-up;
    sleep is committed only after the contact pass proves the block
    contact-free, so nothing freezes mid-overlap. Chunk/debris tumble is
@@ -114,7 +121,7 @@ a floor (the WTC excursion must reach ≥ SIZE 4).
 
 ## Scenes
 
-Two levels share the sim (`new VoxelSandboxSim({ scene })`, default
+Three levels share the sim (`new VoxelSandboxSim({ scene })`, default
 `'gallery'`). Scene builders run inside the constructor, may set
 `sim.bounds` (square hole clamp in m — 24 gallery) or `sim.boundsRect`
 (`{minX,maxX,minZ,maxZ}`, which overrides the scalar; off-center maps need it
@@ -147,6 +154,31 @@ blocks, one of each researched city-object kind):
 - **Elevated bridge** (S edge): 6 m span at 0.5 m density — paired steel
   bents every 4 m, full-width crossheads, 12-block concrete deck, side
   rails, 2-car train
+
+### upper-manhattan (NYC: UPPER MANHATTAN — CENTRAL PARK)
+
+~8,400 blocks across a separate Upper Manhattan park district (bounds
+`x[-54,54] z[-60,68]`):
+
+- **Central Park core**: a large green footprint with geographically placed
+  Reservoir, The Lake, Harlem Meer, Bethesda Terrace, Belvedere Castle, trees,
+  benches, and loop-path lamps
+- **Park-edge landmarks**: Belvedere Castle, the Metropolitan Museum of Art,
+  the Dakota / Upper West Side, Museum Mile buildings, and Harlem / Morningside
+  blocks
+- **Street dressing**: Central Park West and Fifth Avenue, the 59th/72nd/
+  86th/96th/102nd/110th cross streets, sidewalks, loop bike paths, striped
+  crosswalks, lane markers, oriented taxis/bus/delivery traffic, subway
+  entrances, hydrants, waste bins, traffic lights, newsstand, hot-dog cart,
+  and curbside lamps
+
+The scene is intentionally separate from Lower Manhattan: its spawn starts on
+the park promenade and the validator drives through the park to the Reservoir,
+Belvedere Castle, the Met, and the Upper West Side. Camera blockers cover the
+castle turret overhangs and every perimeter structure at least 6 m tall. The
+street bands are a placement contract: tall structures, foliage, benches, and
+other physical props stay off asphalt; every intersection reuses the same
+five-stripe zebra template and sidewalk offsets.
 
 ### manhattan (NYC: LOWER MANHATTAN)
 
@@ -184,8 +216,9 @@ Hwy, FDR; Hudson W, East River E, harbor S):
   Broadway lamps, traffic lights, hydrants, mailboxes, newsstands, hot dog
   carts, subway entrances (green globes)
 
-**Render-only decor** is a rect list (min-corner + size), drawn roads y .004 →
-parks y .006 → water y .008, so water always wins an overlap. Two consequences
+**Render-only decor** is a rect list (min-corner + size), drawn parks → sidewalks
+→ roads → bike paths → lane/crosswalk markings → water in ascending y layers,
+so water always wins an overlap and markings sit above asphalt. Two consequences
 survive as scene invariants: the harbor is deliberately *carved* into five
 rects around the two land pockets that carry structures (Castle Clinton's
 Battery point, the Whitehall ferry apron) — one big rect put a fort and a
@@ -227,7 +260,12 @@ hops.
   plus a second expansion-district sweep, per-footprint-cell camera-blocker
   coverage (every cell ≥ 6 m needs an entry with `h` ≥ its top), a SIZE ≥ 4
   progression floor, and a decor draw-order check (no park rect may sit fully
-  inside a water rect — it would never render)
+  inside a water rect — it would never render). Upper Manhattan adds the same
+  ownership/camera/decor/idle checks plus a deterministic park-to-perimeter
+  excursion (must eat ≥ 100 and reach SIZE ≥ 4). The gallery run also asserts
+  the instant-collapse default never leaves blocks in a delayed `unstable`
+  state after a simulation step, plus solid-vs-mover and loose-body overlap
+  separation probes.
 
 ## Gotchas
 
@@ -236,13 +274,15 @@ hops.
 - Chunk grouping only uses blocks detached within `FRESH_WINDOW` (0.6 s);
   settled debris (`fallT = -1`) never re-groups — prevents rest-on-ground
   split/reform loops.
-- Hole speed is `playerSpeedForRadius(radius) × SPEED_MULT` (1.4×): the
-  sandbox map is small and the campaign curve alone felt sluggish; 2× felt
-  twitchy (playtest-trimmed −30%).
-- Steel `maxSpan` is 3 (not 6) and hanging creak caps at 1.8 s: with stronger
-  values, lone pillars/facades hovered over the void long after the building
-  around them was gone — players couldn't read why. Fast drive-throughs leave
-  damage behind but rarely detach anything; lingering is what excavates.
+- Hole speed is `playerSpeedForRadius(radius) × SPEED_MULT` (1.4×) with a
+  sandbox SIZE ramp of `1 + 0.75 × sizeProgress`: unlike campaign movement,
+  the grown hole gets faster so the late ladder can cover the larger scene.
+  Drive turn sensitivity ramps from `.20` at SIZE 1 to `.80` at SIZE 12;
+  camera framing ramps from its max zoom-in multiplier (`0.7`) to max zoom-out
+  (`1.5`) across the same curve.
+- Steel `maxSpan` is 3 (not 6). The shipped creak multiplier is 0, so support
+  loss is immediate; setting Creak delay above 0 in SETTINGS restores the
+  slower, readable rim-to-center collapse for tuning experiments.
 - An earlier instant-recovery rule (unstable → static reset the stress timer
   whenever the hole moved off) made structures effectively indestructible
   while the player wiggled. Persistent damage replaced it — do not
@@ -282,7 +322,8 @@ hops.
   zero `cameraBlockers`**, so `maxBlockerH` is 0 there, the ramp never engages
   and the camera stays on the base curve (11 → 31 m) with no occlusion pull-in
   at all: the see-over rule is Manhattan-only today. The ramp is keyed to
-  radius, i.e. to SIZE, i.e. to the mass-scaled ladder — in Manhattan it is
+  radius and an explicit SIZE 1→12 camera multiplier (`0.7→1.5`), i.e. to
+  SIZE and to the mass-scaled ladder — in Manhattan it is
   fully out by SIZE 9-10, which costs 87-133% of the city's raw mass, so most
   of a session is played on the low half of the curve.
 - **Scene-building rules** (all learned from spawn-collapse bugs):
@@ -330,7 +371,7 @@ hops.
      how all nineteen original entries ended up being ≥ 9 m towers while a
      dozen 6-9 m mid-rises, the 58 m-long El viaduct among them, had none.
   10. **The placement step must equal the brick size.** `_block(x, …, 0.5)`
-     walked on a 1 m step leaves 0.5 m gaps — the Battery Park "hedge row"
+      walked on a 1 m step leaves 0.5 m gaps — the Battery Park "hedge row"
      was 13 isolated cubes for exactly this reason. Physics never complains
      (each cube is grounded), so only the eye catches it.
 - Bond semantics are "outgoing carry capacity": a wheel (`rubber`) supports

@@ -29,8 +29,13 @@ export const VOXEL_CLASSES = {
 
 // 0.5 m sedan family: car, taxi, police. Rubber wheels, steel frame/pillars,
 // panel body, glass cabin band.
-export function sedan(sim, ox, oz, bodyColor, roofColor = bodyColor) {
-  const B = (x, y, z, m, c) => sim._block(ox + x, y, oz + z, m, 0.5, c);
+export function sedan(sim, ox, oz, bodyColor, roofColor = bodyColor, axis = 'x') {
+  // Keep the canonical mesh local to +x, then rotate its footprint in the
+  // voxel grid for avenue traffic. This makes parked cars follow Manhattan's
+  // street direction without introducing render-only transform state.
+  const B = (x, y, z, m, c) => axis === 'z'
+    ? sim._block(ox + z, y, oz + x, m, 0.5, c)
+    : sim._block(ox + x, y, oz + z, m, 0.5, c);
   for (const [wx, wz] of [[0, 0], [0, 1.5], [4.5, 0], [4.5, 1.5]]) B(wx, 0, wz, 'rubber');
   for (let x = 0; x < 5; x += 0.5) {
     for (let z = 0; z < 2; z += 0.5) {
@@ -49,9 +54,11 @@ export function sedan(sim, ox, oz, bodyColor, roofColor = bodyColor) {
 }
 
 // 0.5 m city bus: 6 wheels, pillar-framed glass band.
-export function bus(sim, ox, oz, bodyColor) {
+export function bus(sim, ox, oz, bodyColor, axis = 'x') {
   const S = 0.5;
-  const B = (x, y, z, m, c) => sim._block(ox + x, y, oz + z, m, S, c);
+  const B = (x, y, z, m, c) => axis === 'z'
+    ? sim._block(ox + z, y, oz + x, m, S, c)
+    : sim._block(ox + x, y, oz + z, m, S, c);
   const pillars = new Set(['0,0', '0,1.5', '2.5,0', '2.5,1.5', '5,0', '5,1.5']);
   for (const [wx, wz] of [[0.5, 0], [0.5, 1.5], [2.5, 0], [2.5, 1.5], [4.5, 0], [4.5, 1.5]]) B(wx, 0, wz, 'rubber');
   for (let x = 0; x < 6; x += S) {
@@ -72,9 +79,11 @@ export function bus(sim, ox, oz, bodyColor) {
 }
 
 // 0.5 m box van / ambulance: cab with windshield + box body.
-export function boxVan(sim, ox, oz, len, cabColor, boxColor) {
+export function boxVan(sim, ox, oz, len, cabColor, boxColor, axis = 'x') {
   const S = 0.5;
-  const B = (x, y, z, m, c) => sim._block(ox + x, y, oz + z, m, S, c);
+  const B = (x, y, z, m, c) => axis === 'z'
+    ? sim._block(ox + z, y, oz + x, m, S, c)
+    : sim._block(ox + x, y, oz + z, m, S, c);
   for (const [wx, wz] of [[0.5, 0], [0.5, 1.5], [len - 1, 0], [len - 1, 1.5]]) B(wx, 0, wz, 'rubber');
   for (let x = 0; x < len; x += S) {
     for (let z = 0; z < 2; z += S) {
@@ -145,6 +154,15 @@ export function hydrant(sim, x, z) {
   F(sim, x - 0.25, 0.375, z + 0.125, 'panel'); F(sim, x + 0.5, 0.375, z + 0.125, 'panel');
 }
 
+// NYC sidewalk waste bin: compact dark body, overhanging lid, and a steel
+// side handle. It stays below the 2 m PROP class so it participates in the
+// same deterministic support/overlap checks as the other curb furniture.
+export function trashBin(sim, x, z, color = 0x3f4650) {
+  B25(sim, x, 0, z, 2, 3, 2, 'panel', color);
+  B25(sim, x - 0.125, 0.75, z - 0.125, 3, 1, 3, 'panel', 0x252a30);
+  F(sim, x + 0.5, 0.25, z + 0.125, 'steel');
+}
+
 // Mailbox (USPS blue): legs, box body, cap.
 export function mailbox(sim, x, z, color = 0x2a4f9a) {
   F(sim, x, 0, z + 0.125, 'steel'); F(sim, x + 0.5, 0, z + 0.125, 'steel');
@@ -154,7 +172,8 @@ export function mailbox(sim, x, z, color = 0x2a4f9a) {
 
 // Park bench: steel legs, wood seat + back slats.
 export function bench(sim, bx, bz) {
-  B25(sim, bx, 0, bz + 0.125, 1, 2, 1, 'steel'); B25(sim, bx + 1, 0, bz + 0.125, 1, 2, 1, 'steel');
+  // The seat spans bx-0.25..bx+0.75; keep both legs under its ends.
+  B25(sim, bx, 0, bz + 0.125, 1, 2, 1, 'steel'); B25(sim, bx + 0.5, 0, bz + 0.125, 1, 2, 1, 'steel');
   B25(sim, bx - 0.25, 0.5, bz, 4, 1, 2, 'wood');
   B25(sim, bx - 0.25, 0.75, bz, 4, 2, 1, 'wood');
 }

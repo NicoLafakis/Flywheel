@@ -1,6 +1,9 @@
 // Input: keyboard (desktop) + virtual joystick / touch orbit (mobile).
 // Produces a camera-relative world-space move intent and orbit deltas.
 
+const SANDBOX_TURN_SENS_START = 0.2;
+const SANDBOX_TURN_SENS_END = 0.8;
+
 export class Controls {
   constructor(canvas) {
     this.canvas = canvas;
@@ -10,6 +13,7 @@ export class Controls {
     this.moveVec = { x: 0, z: 0 }; // raw input, pre camera-rotation
     this.settings = { invertX: false, invertY: false };
     this.driveMode = false;   // sandbox: A/D steer, W/S throttle, Q/E strafe
+    this.sandboxSizeProgress = 0;
 
     // joystick state
     this.joyActive = false;
@@ -34,6 +38,10 @@ export class Controls {
     canvas.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false });
     canvas.addEventListener('touchend', (e) => this.onTouchEnd(e), { passive: false });
     canvas.addEventListener('touchcancel', (e) => this.onTouchEnd(e), { passive: false });
+  }
+
+  setSandboxSizeProgress(progress) {
+    this.sandboxSizeProgress = Math.max(0, Math.min(1, progress || 0));
   }
 
   onTouchStart(e) {
@@ -113,9 +121,12 @@ export class Controls {
 
     if (this.keys.has('KeyR')) this.zoomDelta -= 0.4;
     if (this.keys.has('KeyF')) this.zoomDelta += 0.4;
-    // turn sensitivity (settings slider) scales steering only — throttle and
-    // strafe stay raw so the slider can't break movement reach.
-    this.orbitDelta += steer * 0.045 * (this.settings.turnSens || 1);
+    // Sandbox steering sensitivity ramps gradually from .2 at SIZE 1 to
+    // .8 at SIZE 12; the regular settings slider remains a multiplier.
+    const sandboxTurnSens = SANDBOX_TURN_SENS_START +
+      (SANDBOX_TURN_SENS_END - SANDBOX_TURN_SENS_START) * this.sandboxSizeProgress;
+    const turnSens = this.driveMode ? sandboxTurnSens : (this.settings.turnSens || 1);
+    this.orbitDelta += steer * 0.045 * turnSens;
 
     if (ix === 0 && iy === 0) return { x: 0, z: 0 };
     // rotate input by camera yaw: ix along right = (cos, -sin), iy along

@@ -116,9 +116,11 @@ function voxelMoveAt(t, h) {
 function runVoxelSandbox() {
   const sim = new VoxelSandboxSim({ seed: 'validator' });
   const snap = {};
+  let maxUnstable = 0;
   const steps = 56 * 60;
   for (let i = 0; i < steps; i++) {
     sim.step(DT, voxelMoveAt(i * DT, sim.hole));
+    maxUnstable = Math.max(maxUnstable, sim.blocks.filter((b) => b.state === 'unstable').length);
     if (i === 2.5 * 60) { // sample while the hole is definitely still idling (path moves at t=3)
       snap.eaten3 = sim.hole.eatenCount;
       snap.nonStatic3 = sim.blocks.filter((b) => b.state !== 'static').length;
@@ -126,14 +128,14 @@ function runVoxelSandbox() {
     if (i === 10 * 60) snap.eaten10 = sim.hole.eatenCount;
     if (i === 20 * 60) snap.eaten20 = sim.hole.eatenCount;
   }
-  return { sim, snap };
+  return { sim, snap, maxUnstable };
 }
 
 function validateVoxelSandbox() {
   console.log('Validating voxel sandbox...');
 
   // Invariant guard: pure sim files must never use Math.random (rng.js only).
-  for (const f of ['rng', 'tiers', 'citygen', 'levels', 'sim', 'voxelsim', 'voxelscene-manhattan', 'voxelkit']) {
+  for (const f of ['rng', 'tiers', 'citygen', 'levels', 'sim', 'voxelsim', 'voxelscene-manhattan', 'voxelscene-upper-manhattan', 'voxelkit']) {
     const src = readFileSync(new URL(`../js/${f}.js`, import.meta.url), 'utf8');
     if (/Math\.random\(/.test(src)) fail(`js/${f}.js uses Math.random() — pure sim files must use rng.js`);
   }
@@ -151,6 +153,7 @@ function validateVoxelSandbox() {
   // be consumed — the structure only reacts to actual support loss
   if (a.snap.nonStatic3 !== 0) fail(`voxel sandbox: ${a.snap.nonStatic3} blocks non-static at t=3s with the hole far away (spontaneous collapse)`);
   if (a.snap.eaten3 !== 0) fail(`voxel sandbox: ${a.snap.eaten3} blocks consumed at t=3s before the hole reached anything`);
+  if (a.maxUnstable !== 0) fail(`voxel sandbox: ${a.maxUnstable} blocks remained in the unstable delay state (collapse should be immediate)`);
 
   // progressive collapse: consumption keeps growing as the hole excavates
   if (!(a.snap.eaten10 < a.snap.eaten20)) {
@@ -172,6 +175,34 @@ function validateVoxelSandbox() {
   if (a.sim.hole.eatenCount > a.sim.totalBlocks) fail(`voxel sandbox: consumed ${a.sim.hole.eatenCount} > total ${a.sim.totalBlocks}`);
 
   console.log(`  voxel sandbox: eaten=${a.sim.hole.eatenCount}/${a.sim.totalBlocks} mass=${a.sim.hole.mass.toFixed(1)} radius=${a.sim.hole.radius.toFixed(2)} (t=10s: ${a.snap.eaten10}, t=20s: ${a.snap.eaten20})`);
+}
+
+function overlaps(a, b) {
+  return Math.abs(a.x - b.x) < (a.s + b.s) / 2 &&
+    Math.abs(a.y - b.y) < (a.s + b.s) / 2 &&
+    Math.abs(a.z - b.z) < (a.s + b.s) / 2;
+}
+
+function collisionBody(id, x, y, z, s = 1) {
+  return {
+    id, state: 'falling', parentChunk: null, asleep: false, x, y, z, s,
+    vx: 0, vy: 0, vz: 0, vRotX: 0, vRotZ: 0, _inContact: false,
+  };
+}
+
+function validateVoxelCollisions() {
+  console.log('Validating voxel collision separation...');
+  const sim = new VoxelSandboxSim({ seed: 'collision-validator' });
+  const solid = sim.blocks.find((b) => b.state === 'static' && b.s === 1);
+  const mover = collisionBody(-1, solid.x, solid.y, solid.z);
+  if (!sim._resolveStaticContacts(mover) || overlaps(mover, solid)) {
+    fail('voxel collision: solid AABB separation left the mover embedded');
+  }
+  const a = collisionBody(-2, 0, 0, 0);
+  const b = collisionBody(-3, 0.5, 0, 0);
+  sim._separate(a, b, true);
+  if (overlaps(a, b)) fail('voxel collision: loose-body separation left a pair overlapping');
+  console.log('  voxel collision separation: solid and loose-body overlap probes clear');
 }
 
 // --- manhattan sandbox checks -------------------------------------------------
@@ -284,6 +315,114 @@ function validateManhattan() {
   console.log(`  manhattan district excursion: eaten=${sim2.hole.eatenCount} size=${sim2.hole.size}`);
 }
 
+// --- upper manhattan park sandbox checks ------------------------------------
+// The third voxel scene: a park-first Upper Manhattan district with a much
+// lower skyline than Lower Manhattan. Keep the same hand-authored scene
+// contracts — ownership, camera coverage, decor draw order, and readable
+// excavation from the spawn promenade.
+function validateUpperManhattan() {
+  console.log('Validating upper manhattan sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'upper-manhattan' });
+
+  let ghosts = 0;
+  for (const b of sim.blocks) {
+    for (let ix = 0; ix < b.fs; ix++) {
+      for (let iy = 0; iy < b.fs; iy++) {
+        for (let iz = 0; iz < b.fs; iz++) {
+          if (sim.grid.get(`${b.gx + ix},${b.gy + iy},${b.gz + iz}`) !== b) ghosts++;
+        }
+      }
+    }
+  }
+  if (ghosts > 0) fail(`upper manhattan: ${ghosts} fine cells owned by the wrong block (overlapping placement)`);
+
+  const tops = new Map();
+  for (const b of sim.blocks) {
+    const top = (b.gy + b.fs) * 0.25;
+    for (let cx = Math.floor(b.gx * 0.25); cx < Math.ceil((b.gx + b.fs) * 0.25); cx++) {
+      for (let cz = Math.floor(b.gz * 0.25); cz < Math.ceil((b.gz + b.fs) * 0.25); cz++) {
+        const k = `${cx},${cz}`;
+        if (!(tops.get(k) >= top)) tops.set(k, top);
+      }
+    }
+  }
+  let uncovered = 0, worstH = 0, worstCell = '';
+  for (const [k, top] of tops) {
+    if (top < 6) continue;
+    const [cx, cz] = k.split(',').map(Number);
+    const covered = sim.cameraBlockers.some((b) =>
+      cx + 1 > b.minX && cx < b.maxX && cz + 1 > b.minZ && cz < b.maxZ && b.h + 0.01 >= top);
+    if (!covered) {
+      uncovered++;
+      if (top > worstH) { worstH = top; worstCell = k; }
+    }
+  }
+  if (uncovered > 0) {
+    fail(`upper manhattan: ${uncovered} footprint cell(s) >=6 m tall have no cameraBlocker covering their height (tallest ${worstH} m at cell ${worstCell})`);
+  }
+
+  for (const p of sim.sceneDecor.parks) {
+    const buried = sim.sceneDecor.water.find((w) =>
+      p.x >= w.x && p.x + p.w <= w.x + w.w && p.z >= w.z && p.z + p.d <= w.z + w.d);
+    if (buried) fail(`upper manhattan: park rect (${p.x},${p.z} ${p.w}x${p.d}) is fully inside water rect (${buried.x},${buried.z} ${buried.w}x${buried.d})`);
+  }
+
+  // Roadway bands are a shared placement contract: physical trees, benches,
+  // curb props, and building footprints must stay out of the render-only
+  // asphalt rectangles. This catches the exact class of visual drift that is
+  // otherwise easy to miss when a landmark or prop coordinate changes.
+  let roadConflicts = 0;
+  for (const bl of sim.blocks) {
+    const isFoliageOrBench = bl.matType === 'leaf' || bl.matType === 'wood';
+    const isTallStructure = bl.s >= 1 && bl.y + bl.s / 2 >= 3;
+    if (!isFoliageOrBench && !isTallStructure) continue;
+    const minX = bl.x - bl.s / 2, maxX = bl.x + bl.s / 2;
+    const minZ = bl.z - bl.s / 2, maxZ = bl.z + bl.s / 2;
+    if (sim.sceneDecor.roads.some((r) =>
+      minX < r.x + r.w && maxX > r.x && minZ < r.z + r.d && maxZ > r.z)) roadConflicts++;
+  }
+  if (roadConflicts > 0) fail(`upper manhattan: ${roadConflicts} physical block(s) overlap roadway templates`);
+
+  for (let i = 0; i < 3 * 60; i++) sim.step(DT, { x: 0, z: 0 });
+  const nonStatic = sim.blocks.filter((b) => b.state !== 'static').length;
+  if (nonStatic !== 0) fail(`upper manhattan: ${nonStatic} blocks non-static after 3s idle at spawn`);
+  if (sim.hole.eatenCount !== 0) fail(`upper manhattan: ${sim.hole.eatenCount} blocks eaten during 3s idle at spawn`);
+
+  const WP = [
+    { until: 8, x: -6, z: 16 },   // spawn promenade benches + trees
+    { until: 16, x: 0, z: 28 },    // The Lake / Bethesda
+    { until: 24, x: -5, z: 0 },    // Reservoir rim
+    { until: 34, x: -9, z: 16 },   // Belvedere Castle
+    { until: 44, x: 32, z: 8 },    // Met / Museum Mile
+    { until: 56, x: -38, z: 28 },  // Dakota / Upper West Side
+  ];
+  const runExcursion = () => {
+    const run = new VoxelSandboxSim({ seed: 'validator', scene: 'upper-manhattan' });
+    for (let i = 0; i < 56 * 60; i++) {
+      const t = i * DT, h = run.hole;
+      let wp = WP[WP.length - 1];
+      for (const w of WP) if (t < w.until) { wp = w; break; }
+      const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
+      run.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
+    }
+    return run;
+  };
+  const a = runExcursion();
+  const b = runExcursion();
+  if (a.hole.eatenCount !== b.hole.eatenCount || a.hole.mass.toFixed(6) !== b.hole.mass.toFixed(6)) {
+    fail(`upper manhattan: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
+  }
+  if (a.hole.eatenCount < 100) fail(`upper manhattan: only ${a.hole.eatenCount} blocks eaten on the park-to-perimeter excursion (expected >=100)`);
+  if (a.hole.size < 4) fail(`upper manhattan: excursion reached only SIZE ${a.hole.size} (expected >=4)`);
+
+  let bad = 0;
+  for (const bl of a.blocks) {
+    if (!Number.isFinite(bl.x) || !Number.isFinite(bl.y) || !Number.isFinite(bl.z)) bad++;
+  }
+  if (bad > 0) fail(`upper manhattan: ${bad} non-finite block positions after excursion`);
+  console.log(`  upper manhattan sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size}`);
+}
+
 console.log(`Validating ${levelsToCheck.length} level(s)...`);
 let minMargin = Infinity, minMarginLevel = 0;
 let maxTimeToFirstEat = 0;
@@ -312,7 +451,9 @@ for (const level of levelsToCheck) {
 }
 
 validateVoxelSandbox();
+validateVoxelCollisions();
 validateManhattan();
+validateUpperManhattan();
 
 console.log('---');
 if (failures === 0) {

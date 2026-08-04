@@ -45,11 +45,13 @@ export class Screens {
     sandbox.onclick = () => this.actions.startVoxelSandbox();
     const nyc = el(`<button class="btn secondary" style="background:#2a5f9a;color:#fff">NYC: LOWER MANHATTAN</button>`);
     nyc.onclick = () => this.actions.startVoxelSandbox('manhattan');
+    const upper = el(`<button class="btn secondary" style="background:#3e8a5b;color:#fff">NYC: UPPER MANHATTAN — CENTRAL PARK</button>`);
+    upper.onclick = () => this.actions.startVoxelSandbox('upper-manhattan');
     const shop = el(`<button class="btn secondary">SHOP</button>`);
     shop.onclick = () => this.showShop();
     const settings = el(`<button class="btn secondary">SETTINGS</button>`);
     settings.onclick = () => this.showSettings(() => this.showTitle());
-    s.append(play, sandbox, nyc, shop, settings);
+    s.append(play, sandbox, nyc, upper, shop, settings);
     this.root.appendChild(s);
     this.current = 'title';
   }
@@ -275,7 +277,7 @@ export class Screens {
     };
     tune('Gravity', 'voxGravity', 26, 130, 1, (v) => `${v} · ${(v / 26).toFixed(1)}×`);
     tune('Collapse wave', 'voxWaveK', 0.05, 1, 0.05, (v) => `${v.toFixed(2)} s/m`);
-    tune('Creak delay', 'voxCreak', 0.25, 2, 0.05, (v) => `${v.toFixed(2)}×`);
+    tune('Creak delay', 'voxCreak', 0, 2, 0.05, (v) => `${v.toFixed(2)}×`);
     tune('Hole speed', 'voxSpeed', 0.7, 3, 0.1, (v) => `${v.toFixed(1)}× · ~${(7.1 * v).toFixed(1)} m/s`);
     tune('Attraction pull', 'voxAttract', 0, 20, 1, (v) => `${v}`);
 

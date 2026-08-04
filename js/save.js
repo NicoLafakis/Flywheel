@@ -2,13 +2,13 @@
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 7;
+export const CURRENT_VERSION = 9;
 
 function defaultSettings() {
   return {
     invertX: false, invertY: false, shadows: true, camDist: 1, reducedMotion: false, sfxVol: 1, turnSens: 1,
     // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
-    voxGravity: 65, voxWaveK: 0.4, voxCreak: 1, voxSpeed: 1.4, voxAttract: 8,
+    voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2,
   };
 }
 
@@ -72,6 +72,30 @@ const MIGRATIONS = {
     settings: {
       ...defaultSettings(),
       ...(s.settings || {}),
+    },
+  }),
+  // v8: sandbox collapse is immediate by default; preserve the other tuning
+  // values, but reset the old creak delay so existing saves get the new feel.
+  7: (s) => ({
+    ...s,
+    version: 8,
+    settings: {
+      ...defaultSettings(),
+      ...(s.settings || {}),
+      voxCreak: 0,
+    },
+  }),
+  // v9: final sandbox feel pass — heavier gravity, faster crack wave, and a
+  // gentler attraction pull. Turn sensitivity ramps by SIZE in controls.js.
+  8: (s) => ({
+    ...s,
+    version: 9,
+    settings: {
+      ...defaultSettings(),
+      ...(s.settings || {}),
+      voxGravity: 70,
+      voxWaveK: 0.10,
+      voxAttract: 2,
     },
   }),
 };

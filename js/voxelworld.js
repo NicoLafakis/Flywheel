@@ -1,7 +1,7 @@
 // Three.js renderer for the Voxel Sandbox pile simulation.
-// Blocks render as one InstancedMesh per material (~7 draw calls total instead
-// of one mesh per block — the sandbox hovers near the ~800 draw-call threshold
-// STATUS flags). All per-block motion (chunk rotation, debris tumble, rim
+// Blocks render as one InstancedMesh per physical material and brick size
+// (paint is per-instance color) instead of one mesh per block. All per-block
+// motion (chunk rotation, debris tumble, rim
 // tilt, stress wobble) is composed into instance matrices each frame.
 import * as THREE from 'three';
 
@@ -24,9 +24,13 @@ export class VoxelWorld3D {
   constructor(canvas, sim, skinColor = 0xb44bff) {
     this.sim = sim;
     this.time = 0;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    // The voxel scene is already flat-shaded; multisampling is expensive on
+    // software/low-power WebGL and adds little to this art style.
+    this.renderer = new THREE.WebGLRenderer({
+      canvas, antialias: false, alpha: false, powerPreference: 'high-performance',
+    });
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -39,8 +43,8 @@ export class VoxelWorld3D {
     const sun = new THREE.DirectionalLight(0xffffff, 0.8);
     sun.position.set(30, 50, 20);
     sun.castShadow = true;
-    sun.shadow.mapSize.width = 1024;
-    sun.shadow.mapSize.height = 1024;
+    sun.shadow.mapSize.width = 512;
+    sun.shadow.mapSize.height = 512;
     this.scene.add(sun);
 
     const ground = new THREE.Mesh(
@@ -51,23 +55,27 @@ export class VoxelWorld3D {
     ground.receiveShadow = true;
     this.scene.add(ground);
 
-    // Scene decor (render-only, set by the scene builder): asphalt roads,
-    // park grass, harbor water — thin planes over the ground, below the hole
-    // disc (y 0.01/0.02), no physics presence.
+    // Scene decor (render-only, set by the scene builder): roads, sidewalks,
+    // parks, bike paths, markings, and water are thin planes below the hole
+    // disc (y 0.01/0.02), with draw order expressed by their small y offsets.
     if (sim.sceneDecor) {
       const deco = (r, color, y) => {
         const p = new THREE.Mesh(
           new THREE.PlaneGeometry(r.w, r.d),
-          new THREE.MeshStandardMaterial({ color, roughness: 1 })
+          mat(color)
         );
         p.rotation.x = -Math.PI / 2;
         p.position.set(r.x + r.w / 2, y, r.z + r.d / 2);
         p.receiveShadow = true;
         this.scene.add(p);
       };
-      for (const r of sim.sceneDecor.roads || []) deco(r, 0x1c2030, 0.004);
-      for (const r of sim.sceneDecor.parks || []) deco(r, 0x2d5a33, 0.006);
-      for (const r of sim.sceneDecor.water || []) deco(r, 0x16375e, 0.008);
+      for (const r of sim.sceneDecor.parks || []) deco(r, 0x2d5a33, 0.004);
+      for (const r of sim.sceneDecor.sidewalks || []) deco(r, 0x676b72, 0.005);
+      for (const r of sim.sceneDecor.roads || []) deco(r, 0x1c2030, 0.006);
+      for (const r of sim.sceneDecor.bikePaths || []) deco(r, 0x2a8068, 0.007);
+      for (const r of sim.sceneDecor.laneMarkers || []) deco(r, 0xd6bd55, 0.0075);
+      for (const r of sim.sceneDecor.crosswalks || []) deco(r, 0xe4e5df, 0.008);
+      for (const r of sim.sceneDecor.water || []) deco(r, 0x16375e, 0.009);
     }
 
     // Hole Mesh
@@ -92,22 +100,29 @@ export class VoxelWorld3D {
     this.imMeshes = [];
     const byMat = new Map();
     for (const b of sim.blocks) {
-      const k = b.matType + ':' + b.s + ':' + b.color;
+      // Paint belongs in instanceColor; batching only by physical material
+      // and brick size keeps a detailed city from turning every paint variant
+      // into another draw call.
+      const k = b.matType + ':' + b.s;
       if (!byMat.has(k)) byMat.set(k, []);
       byMat.get(k).push(b);
     }
     const boxG = boxGeo();
     const white = new THREE.Color(1, 1, 1);
     for (const [k, list] of byMat) {
-      const im = new THREE.InstancedMesh(boxG, mat(list[0].color), list.length);
+      const im = new THREE.InstancedMesh(boxG, mat(0xffffff), list.length);
       im.castShadow = true;
       im.receiveShadow = true;
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       list.forEach((b, i) => {
         b._im = im; b._imIndex = i; b._imHidden = false; b._imTinted = false;
-        im.setColorAt(i, white);
+        b._renderMatrixReady = false;
+        b._renderDamage = -1;
+        im.setColorAt(i, new THREE.Color(b.color));
+        b._renderBaseColor = b.color;
       });
       im.instanceColor.setUsage(THREE.DynamicDrawUsage);
+      im.instanceColor.needsUpdate = true;
       this.scene.add(im);
       this.imMeshes.push(im);
     }
@@ -199,12 +214,15 @@ export class VoxelWorld3D {
       }
     }
 
+    const matrixMeshes = new Set();
+    const colorMeshes = new Set();
     for (const b of this.sim.blocks) {
       if (b.state === 'consumed') {
         if (!b._imHidden) {
           b._imHidden = true;
           this._m4.makeScale(0, 0, 0);
           b._im.setMatrixAt(b._imIndex, this._m4);
+          matrixMeshes.add(b._im);
         }
         continue;
       }
@@ -226,29 +244,46 @@ export class VoxelWorld3D {
         rz += (dx / d) * lean;
       }
       this._e.set(rx, 0, rz);
-      this._q.setFromEuler(this._e);
-      this._v.set(px, py, pz);
-      this._s.set(b.s * 0.95, b.s * 0.95, b.s * 0.95);
-      this._m4.compose(this._v, this._q, this._s);
-      b._im.setMatrixAt(b._imIndex, this._m4);
+      // Static city blocks keep their uploaded matrix. Dynamic debris,
+      // leaning rim blocks, and unstable wobble still get recomposed; this is
+      // the main CPU win for large hand-authored scenes.
+      const matrixChanged = !b._renderMatrixReady ||
+        b._renderPx !== px || b._renderPy !== py || b._renderPz !== pz ||
+        b._renderRx !== rx || b._renderRz !== rz;
+      if (matrixChanged) {
+        this._q.setFromEuler(this._e);
+        this._v.set(px, py, pz);
+        this._s.set(b.s * 0.95, b.s * 0.95, b.s * 0.95);
+        this._m4.compose(this._v, this._q, this._s);
+        b._im.setMatrixAt(b._imIndex, this._m4);
+        b._renderMatrixReady = true;
+        b._renderPx = px; b._renderPy = py; b._renderPz = pz;
+        b._renderRx = rx; b._renderRz = rz;
+        matrixMeshes.add(b._im);
+      }
 
       // damage heat: blocks glow hotter as structural damage accumulates, so
       // players can read WHERE the structure is about to fail — and see the
       // damage linger after the hole moves on
       if (b.damage > 0.03) {
         const t = Math.min(1, b.damage);
-        this._c.setRGB(1, 1 - 0.75 * t, 1 - 0.85 * t);
-        b._im.setColorAt(b._imIndex, this._c);
-        b._imTinted = true;
+        if (b._renderDamage !== b.damage || !b._imTinted) {
+          this._c.setRGB(1, 1 - 0.75 * t, 1 - 0.85 * t);
+          b._im.setColorAt(b._imIndex, this._c);
+          b._imTinted = true;
+          b._renderDamage = b.damage;
+          colorMeshes.add(b._im);
+        }
       } else if (b._imTinted) {
         b._imTinted = false;
-        b._im.setColorAt(b._imIndex, this._white);
+        this._c.setHex(b._renderBaseColor);
+        b._im.setColorAt(b._imIndex, this._c);
+        b._renderDamage = b.damage;
+        colorMeshes.add(b._im);
       }
     }
-    for (const im of this.imMeshes) {
-      im.instanceMatrix.needsUpdate = true;
-      im.instanceColor.needsUpdate = true;
-    }
+    for (const im of matrixMeshes) im.instanceMatrix.needsUpdate = true;
+    for (const im of colorMeshes) im.instanceColor.needsUpdate = true;
   }
 
   render(camera) { this.renderer.render(this.scene, camera); }
