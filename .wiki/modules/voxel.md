@@ -360,11 +360,36 @@ hops.
   settled debris (`fallT = -1`) never re-groups — prevents rest-on-ground
   split/reform loops.
 - Hole speed is `playerSpeedForRadius(radius) × SPEED_MULT` (1.4×) with a
-  sandbox SIZE ramp of `1 + 0.75 × sizeProgress`: unlike campaign movement,
-  the grown hole gets faster so the late ladder can cover the larger scene.
-  Drive turn sensitivity ramps from `.20` at SIZE 1 to `.80` at SIZE 12;
-  camera framing ramps from its max zoom-in multiplier (`0.7`) to max zoom-out
-  (`1.5`) across the same curve.
+  sandbox SIZE ramp of `1 + SANDBOX_SPEED_RAMP × sizeProgress`
+  (`SANDBOX_SPEED_RAMP = 2.72`, raised from 0.75 on 2026-08-05): unlike campaign
+  movement, the grown hole gets faster so the late ladder can cover the larger
+  scene. Measured end to end: **9.96 m/s at SIZE 1 (unchanged — the SIZE 1 feel
+  is the thing being held) and 26.12 m/s at SIZE 12, against 12.29 m/s before.**
+  Upper Manhattan's 297 m diagonal therefore takes 11.4 s instead of 24.2 s.
+  The landing number is not "constant body-lengths per second" — that rule would
+  demand ~50 m/s at SIZE 12 (9.06 radii/s × 6.6 m), which is uncontrollable in a
+  street grid and outruns what the chase camera can frame. It is set instead so
+  the longest diagonal in the game stays in single digits to low teens of
+  seconds at every size: 29.8 s → 11.4 s across the ladder, i.e. traversal gets
+  materially *faster* as you grow instead of slower in real terms. Note the ramp
+  lives in `voxelsim.js:step` and NOT in `playerSpeedForRadius` (`tiers.js`),
+  which the campaign shares — the campaign's speed curve is untouched.
+  Sandbox camera framing ramps from its max zoom-in multiplier (`0.7`) to max
+  zoom-out (`1.5`) across the same `sandboxSizeProgress` curve, and so do the
+  camera's yaw-chase rate and the manual Q/E orbit (see `.wiki/modules/render.md`).
+  The old `driveMode` turn sensitivity ramp (`.20` → `.80`) is gone with
+  `driveMode` itself.
+- **Traversal time is now frame-rate-bound at SIZE 12, not speed-bound.**
+  Measured live in Brooklyn at SIZE 12, the 263 m diagonal takes 10.02 s of SIM
+  time but 14.81 s on the wall clock, because eating a district at max size
+  drops the loop to ~13 fps and `main.js:314` clamps `realDt` at 0.1 s — every
+  frame heavier than that silently drops sim time on the floor. Upper Manhattan
+  is worse: 11.18 s sim / 19.84 s wall at ~9 fps. The speed ramp has done its
+  job (10 s of sim time against 24 s before) and the remaining gap is a
+  PERFORMANCE problem in the sandbox sim, not a movement one. Raising the ramp
+  further would not close it — it would just make the hole outrun the frame
+  rate by more. Do not tune `SANDBOX_SPEED_RAMP` against a wall-clock stopwatch
+  without checking the sim clock first.
 - Steel `maxSpan` is 3 (not 6). The shipped creak multiplier is 0, so support
   loss is immediate; setting Creak delay above 0 in SETTINGS restores the
   slower, readable rim-to-center collapse for tuning experiments.

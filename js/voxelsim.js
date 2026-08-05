@@ -61,6 +61,28 @@ const SIZE_MASS = [0, 25, 75, 180, 400, 750, 1350, 2300, 3800, 5800, 7800, 10000
 const MAX_SIZE = SIZE_MASS.length;
 const MAX_RADIUS = START_RADIUS + (MAX_SIZE - 1) * 0.5; // 6.6 m at SIZE 12
 const SPEED_MULT = 1.4;      // sandbox hole runs at 1.4× the campaign speed curve
+// Size ramp on sandbox movement. Was 0.75, and 0.75 was not enough to notice:
+// `playerSpeedForRadius` DECREASES with radius (7.12 m/s at r=1.1 down to
+// 5.19 at r=6.6), so it spent most of the ramp cancelling itself out and the
+// net was 9.96 -> 12.29 m/s, +23%, while the radius grew 6.5x. In body-lengths
+// that is 9.06 radii/s collapsing to 1.73 — the player got 5.2x slower relative
+// to their own size, which is the "you will never make it across the map"
+// complaint, and it costs 21.7 s to cross Brooklyn's 266 m diagonal and 24.2 s
+// for Upper Manhattan's 297 m. (All the SIZE 12 numbers here are at the real
+// r = 7.1 m the ladder reaches at sizeFrac 1, not the 6.6 m MAX_RADIUS above
+// quotes for sizeFrac 0 — measured by stepping the sim, not by hand.)
+//
+// 2.72 holds SIZE 1 exactly where it was (nobody complained about small) and
+// lands SIZE 12 at 26.12 m/s: 10.2 s across Brooklyn's diagonal, 11.4 s across
+// Upper Manhattan's. Deliberately NOT constant body-lengths/s, which would
+// demand ~50 m/s at max radius and is uncontrollable in a street grid — it also
+// outruns what the chase camera can frame. This leaves the decline at
+// 9.06 -> 3.68 radii/s, well under half the old slide. Linear in sizeT rather
+// than shaped, because the camera's own distance ramp (camera.js, r=2.6 -> 5.6)
+// pulls back over the middle of the same range, so apparent screen speed stays
+// far flatter than the world speed — measured 0.62 -> 0.53 rad/s of angular
+// rate at the camera across the whole ladder.
+const SANDBOX_SPEED_RAMP = 2.72;
 // Mirrors sim.js combo rules, duplicated so the sandbox stays free of the
 // sim.js → citygen.js import chain.
 const COMBO_WINDOW = 1.5;
@@ -102,6 +124,10 @@ const key = (gx, gy, gz) => `${gx},${gy},${gz}`;
 // Loose-body broad-phase cell key. Fine coordinates never leave ±8192 in any
 // shipped scene, so the pack is injective — no aliasing, no phantom pairs.
 const cellKey = (x, z) => (((x + 8192) & 0x3FFF) << 14) | ((z + 8192) & 0x3FFF);
+// Same trick at 1 m for the camera-blocker index (see _bindCameraBlockers).
+// 16x fewer entries than a fine-column index, and no shipped scene reaches
+// +/-2048 m, so it is injective for everything that exists.
+const mCellKey = (x, z) => (((x + 2048) & 0xFFF) << 12) | ((z + 2048) & 0xFFF);
 const DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
 // angle-of-repose probe offsets, flattened: the literal used to be rebuilt for
 // every grounded debris block on every step
@@ -194,6 +220,117 @@ export class VoxelSandboxSim {
     for (const b of this.blocks) this._topAdd(b);
     this._sleepers = new Map(); // fine col key -> array of debris sleeping there
     this._sleepObs = new Map(); // broad-phase cell -> settled debris (id-ordered)
+    // Camera blockers must track demolition. Bound LAST: it reads _top, which
+    // only exists as of the two lines above.
+    this._bindCameraBlockers();
+  }
+
+  // --- camera-blocker liveness -----------------------------------------------
+  // `cameraBlockers` is built once from the finished geometry, so before this
+  // existed a tower the player had EATEN kept occluding the chase cam forever —
+  // the camera hid behind a ghost. Measured on a 90 s route: the sweep placed
+  // the camera inside a blocker on 941/5400 frames (Brooklyn) and 1316/5400
+  // (Upper Manhattan), and most of that is standing inside a building that is
+  // no longer there.
+  //
+  // The signal already exists and costs nothing to reuse: `_top` is a live
+  // per-fine-column solid-surface heightmap, maintained by _topAdd/_topRemove
+  // exactly as blocks stop being solid and as debris comes to rest. A blocker's
+  // true height is the max of `_top` over its columns. Rescanning that per
+  // blocker per frame is far too expensive (a 10x10 m rect is 1600 columns), so
+  // it is maintained as a lazy max: count the columns still holding up the
+  // CURRENT height tier, decrement as they fall, and only rescan when the count
+  // reaches zero. A tower collapses wholesale, so that is a handful of rescans
+  // over its whole life, not one per frame.
+  //
+  // Heights only ever move DOWN toward the geometry, never above the value the
+  // scene shipped (`h0`). Hand-authored over-blocking in Lower Manhattan is
+  // therefore preserved, and nothing about a fresh sim changes — binding does
+  // not touch `b.h`, so the validator's coverage probe sees exactly what it
+  // always saw.
+  _bindCameraBlockers() {
+    this._blockerCell = null;
+    this._blockerDirty = null;
+    const bl = this.cameraBlockers;
+    if (!bl || !bl.length) return;
+    const m = new Map();
+    for (let i = 0; i < bl.length; i++) {
+      const b = bl[i];
+      b.h0 = b.h;
+      for (let mx = Math.floor(b.minX); mx < Math.ceil(b.maxX); mx++) {
+        for (let mz = Math.floor(b.minZ); mz < Math.ceil(b.maxZ); mz++) m.set(mCellKey(mx, mz), i);
+      }
+    }
+    this._blockerCell = m;
+    this._blockerDirty = new Set();
+    for (const b of bl) this._blockerTier(b);
+  }
+
+  // Max solid top over a blocker's fine columns, plus the count of columns
+  // holding up its current height band.
+  _blockerTier(b) {
+    const fx0 = Math.round(b.minX / FINE), fx1 = Math.round(b.maxX / FINE);
+    const fz0 = Math.round(b.minZ / FINE), fz1 = Math.round(b.maxZ / FINE);
+    const top0 = this._top;
+    let gmax = 0;
+    for (let fx = fx0; fx < fx1; fx++) {
+      for (let fz = fz0; fz < fz1; fz++) {
+        const t = top0.get(cellKey(fx, fz));
+        if (t > gmax) gmax = t;
+      }
+    }
+    // The band is measured against whichever is LOWER, the declared height or
+    // the geometry: an over-blocked rect must not be kept alive by a tier no
+    // column ever reached, and an under-blocked one must not die early.
+    b._tier = Math.max(0, Math.min(b.h, gmax) - 0.5);
+    let n = 0;
+    for (let fx = fx0; fx < fx1; fx++) {
+      for (let fz = fz0; fz < fz1; fz++) {
+        if (top0.get(cellKey(fx, fz)) > b._tier) n++;
+      }
+    }
+    b._nTop = n;
+    return gmax;
+  }
+
+  // The band emptied: drop the height to what is actually left standing.
+  _blockerRescan(b) {
+    const gmax = this._blockerTier(b);
+    const h = gmax > 0 ? Math.min(b.h0, Math.ceil(gmax * 2) / 2) : 0;
+    if (h !== b.h) { b.h = h; this._blockerTier(b); }
+  }
+
+  // One fine column's solid top moved. Called only from the two places that
+  // actually mutate `_top`, and only when the value changed — the whole point is
+  // that the common case (a block removed from under a column that stays tall)
+  // costs one Map lookup and one integer decrement.
+  _blockerColChanged(fx, fz, oldTop, newTop) {
+    const m = this._blockerCell;
+    if (!m) return;
+    // >> 2 is floor-division by FINE and stays correct for negative coords,
+    // which Math.floor(fx / 4) would also give but slower.
+    const i = m.get(mCellKey(fx >> 2, fz >> 2));
+    if (i === undefined) return;
+    const b = this.cameraBlockers[i];
+    if (b.h <= 0) return;
+    const was = oldTop > b._tier, now = newTop > b._tier;
+    if (was && !now) { if (--b._nTop <= 0) this._blockerDirty.add(i); }
+    else if (!was && now) b._nTop++;
+    if (newTop > b.h + 1e-9) this._blockerDirty.add(i);   // debris piled above it
+  }
+
+  // Bounded per step: a rescan is a full column sweep of one rect, and a big
+  // collapse can empty several bands in the same frame. Four keeps the worst
+  // step cheap; the set persists, so nothing is dropped, it just lands a frame
+  // or two later — and a blocker one frame stale is a blocker at its OLD, taller
+  // height, which is the safe direction to be wrong in.
+  _refreshBlockers(max = 4) {
+    let n = 0;
+    for (const i of this._blockerDirty) {
+      this._blockerRescan(this.cameraBlockers[i]);
+      this._blockerDirty.delete(i);
+      if (++n >= max) break;
+    }
   }
 
   // --- scene construction (hand-authored, deterministic) ---------------------
@@ -1002,7 +1139,11 @@ export class VoxelSandboxSim {
     for (let ix = 0; ix < b.fs; ix++) {
       for (let iz = 0; iz < b.fs; iz++) {
         const k = cellKey(fx + ix, fz + iz);
-        if ((this._top.get(k) || 0) < top) this._top.set(k, top);
+        const prev = this._top.get(k) || 0;
+        if (prev < top) {
+          this._top.set(k, top);
+          this._blockerColChanged(fx + ix, fz + iz, prev, top);
+        }
       }
     }
   }
@@ -1022,6 +1163,7 @@ export class VoxelSandboxSim {
             if (o && (o.state === 'static' || o.state === 'unstable')) { ny = (o.gy + o.fs) * FINE; break; }
           }
           if (ny > 0) this._top.set(k, ny); else this._top.delete(k);
+          this._blockerColChanged(fx + ix, fz + iz, bTop, ny);
         }
         const sl = this._sleepers.get(k);
         if (sl) {
@@ -1636,7 +1778,7 @@ export class VoxelSandboxSim {
     // grows: bigger holes cover the district faster instead of feeling
     // sluggish at the end of the ladder.
     const sizeT = sandboxSizeProgress(h.size, h.sizeFrac);
-    const speed = playerSpeedForRadius(h.radius) * this.tune.speed * (1 + 0.75 * sizeT);
+    const speed = playerSpeedForRadius(h.radius) * this.tune.speed * (1 + SANDBOX_SPEED_RAMP * sizeT);
     if (move && (move.x || move.z)) {
       const len = Math.hypot(move.x, move.z) || 1;
       h.x += (move.x / len) * speed * dt;
@@ -1647,6 +1789,11 @@ export class VoxelSandboxSim {
       h.x = Math.min(r ? r.maxX : this.bounds, Math.max(r ? r.minX : -this.bounds, h.x));
       h.z = Math.min(r ? r.maxZ : this.bounds, Math.max(r ? r.minZ : -this.bounds, h.z));
     }
+
+    // 0. camera blockers whose height band emptied since the last step. Done
+    // before the graph work so the camera never renders a frame against a
+    // blocker the previous step already knew was gone.
+    if (this._blockerDirty && this._blockerDirty.size) this._refreshBlockers();
 
     // 1. support graph (only when coverage/graph actually changed)
     if (this._coverageChanged() || this._graphDirty) this._recalcSupport();

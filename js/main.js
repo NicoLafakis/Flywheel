@@ -132,7 +132,7 @@ function startLevel() {
   cam.setBlockers(world.blockers);
   controls = controls || new Controls(canvas);
   controls.settings = save.settings;
-  controls.driveMode = false;
+  controls.chaseMode = false;   // campaign: live camera-relative basis, no auto-follow
   resize();
   hud.setLevel(level, METROS[level.metroIndex].name);
   hud.show();
@@ -241,9 +241,16 @@ function startVoxelSandbox(scene = 'gallery') {
     window.__world = world; // debug hook
     controls = controls || new Controls(canvas);
     controls.settings = save.settings;
-    controls.driveMode = true; // sandbox drives like a car: A/D steer, W/S throttle
-    controls.setSandboxSizeProgress(0);
+    // Third-person chase: WASD/joystick move the hole in camera-relative world
+    // directions and the camera aims ITSELF at the heading (cam.setFollowDirection
+    // above). chaseMode latches the move basis for as long as an input is held so
+    // the world direction cannot rotate under the player while the yaw slews —
+    // without it the follow is a feedback loop. Q/E and the touch drag are still
+    // there for deliberately looking around; they suspend the chase for 0.7 s.
+    controls.chaseMode = true;
     cam.setSandboxSizeProgress(0);
+    controls.setSandboxSizeProgress(0);
+    window.__controls = controls; // debug hook — the sizeT ramp has two consumers
     applyVoxTuning(); // dev sliders from the save
     resize();
     hud.setLevel({ index: 'SANDBOX', clock: 999 }, hudLabel);
@@ -316,9 +323,11 @@ function frame(ts) {
     const held = cam.introHolding();
     accumulator = held ? 0 : accumulator + realDt;
     if (isVoxelSandbox) {
+      // One signal, two consumers: the camera scales its framing, standoff and
+      // chase rates off it, Controls scales the manual orbit rate.
       const sizeT = sandboxSizeProgress(sim.hole.size, sim.hole.sizeFrac);
-      controls.setSandboxSizeProgress(sizeT);
       cam.setSandboxSizeProgress(sizeT);
+      controls.setSandboxSizeProgress(sizeT);
     }
     // Steering is dropped on the floor while held, so the key press that starts
     // the level is never also a throttle input.

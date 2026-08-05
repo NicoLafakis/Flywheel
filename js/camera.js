@@ -10,6 +10,91 @@ const SANDBOX_ZOOM_OUT = 1.5;
 const BLOCKER_EASE = 0.92;
 const CAM_FAR = 600;             // gameplay far plane; the intro stretches it and restores it
 
+// --- follow-direction chase (voxel sandbox only) -----------------------------
+// The yaw chase is a CRITICALLY DAMPED SPRING, not the old exponential lerp.
+// An exponential (`yaw += err * dt * k`) has its peak angular rate at t = 0, so
+// a 180 deg reversal starts at k*pi rad/s — at the old k = 3 that is 9.4 rad/s,
+// a whip-pan straight out of standstill. The spring accelerates into the turn
+// (0 -> the rate cap in ~30 ms at omega = 7) and decelerates out of it with no
+// overshoot, which is what makes a big swing readable instead of nauseating.
+//
+// omega = 7 rad/s settles a critically damped system to within 5% in 4.744/omega
+// = 0.68 s, which is the "small correction feels attached" number. The rate cap
+// is what governs the big swings: 3.5 rad/s = 200 deg/s, so a full 180 deg
+// reversal sweeps in ~0.9 s and a full revolution in 1.8 s. Compare the scheme
+// this replaces — A/D steering at STEER_RATE * sandboxTurnSens, 0.54 rad/s at
+// SIZE 1, i.e. 11.6 s per revolution, and only if the player held the key.
+// Both RAMP with hole size, and the two ramps are not the same shape because
+// they are not tracking the same kind of signal.
+//
+// SPATIAL rates (the target filter, the occlusion standoff filter) chase a
+// signal that moves in METRES. The sandbox hole now runs 9.96 m/s at SIZE 1 and
+// 26.12 m/s at SIZE 12, so a fixed per-second rate lags 2.6x further at the top
+// of the ladder — measured, the target filter's lag would go 0.545 m -> 1.43 m
+// and the standoff filter would spend 2.6x more metres catching up, which is
+// exactly the window in which the camera ends up inside geometry. Scaling them
+// by the traversal-speed ratio holds the lag constant in METRES, which is what
+// the framing actually cares about. See _spatialRate.
+//
+// ANGULAR rates (the chase spring) chase a signal that moves in RADIANS, and a
+// heading change is a heading change at any size. They still ramp, but far more
+// gently and for a different reason: at 2.6x the speed, the same convergence
+// time is 2.6x more DISTANCE travelled while the camera is still catching up.
+// Holding that distance constant would demand ~9.5 rad/s (545 deg/s), which is
+// a nausea machine, so the ramp is capped at what reads as fast rather than at
+// what the geometry would like — 4.2 -> 7.0 rad/s, i.e. 240 -> 400 deg/s.
+// Measured worst-case convergence to within 5 deg over 240 cases (48 headings x
+// 5 start offsets) is 0.983 s at SIZE 1 and 0.633 s at SIZE 12.
+// End-to-end measured hole speed is 9.96 m/s at SIZE 1 and 26.12 m/s at SIZE 12,
+// a ratio of 2.62. Rounded UP to 2.71 on purpose: this multiplies filter rates,
+// and a first-order filter that is marginally too fast lags slightly less than
+// asked, while one that is too slow lags more — of the two roundings only one
+// fails in the direction of the complaint this work exists to fix.
+const TRAVEL_SPEED_RATIO = 2.71;
+const FOLLOW_OMEGA = 8;            // at SIZE 1; x1.5 at SIZE 12
+const FOLLOW_OMEGA_RAMP = 1.5;
+const FOLLOW_MAX_RATE = 4.2;       // rad/s at SIZE 1
+const FOLLOW_MAX_RATE_RAMP = 1.667;
+// Clearance above a roof the camera has been forced to climb over. Matches the
+// 2.5 m floor on cy — the same "do not sit level with a surface" margin.
+const ROOF_CLEAR = 2.5;
+// Heading deadzone, in m/s of hole velocity. The sandbox hole runs 9.96 m/s at
+// SIZE 1 and 26.1 m/s at SIZE 12, so 1.5 m/s is ~15% of the slowest real speed:
+// far above the numerical noise of a parked hole (which is exactly 0 — the sim
+// only integrates when `move` is non-zero) and far below anything the player
+// can produce on purpose. Below it the yaw target simply stops updating, so a
+// stationary hole cannot jitter the camera.
+const FOLLOW_DEADZONE = 1.5;
+// The hole has no inertia — release the key and velocity is 0 on the next tick —
+// so a deadzone alone would abandon a swing the instant the player let go, and
+// leave the camera parked half-turned. Coasting the chase for 1.2 s past the
+// last motion is longer than the worst swing (0.9 s) and short enough that a
+// player who has genuinely stopped gets the camera back to look around with.
+const FOLLOW_COAST = 1.2;
+// Smoothing on the heading signal. 12/s = 83 ms, roughly half the 167 ms the
+// old code inherited from `lookAhead`. It can be this tight because the signal
+// is clean: the sim integrates a normalised direction, so hole velocity is a
+// step function, not a noisy measurement.
+const FOLLOW_VEL_RATE = 12;
+// Manual-orbit grace before the chase resumes. Was 1.5 s, which read as "the
+// camera has given up" — and in the old drive-mode scheme A/D fed orbitDelta,
+// so it was re-armed every steering frame and the chase never ran at all.
+const ORBIT_HOLD = 0.7;
+// Target smoothing, SPATIAL — scaled by _spatialRate. 14/s = 71 ms in the
+// sandbox at SIZE 1 against 8/s = 125 ms in the campaign: the sandbox hole is
+// the thing the player is directly driving, and 125 ms of positional lag is the
+// "camera lags behind where I actually am" complaint. The campaign keeps a flat
+// 8 because its look-ahead offset is already doing the leading, a tighter target
+// would fight it, and none of this size ramp exists there.
+const TARGET_RATE_FOLLOW = 14;
+const TARGET_RATE_CAMPAIGN = 8;
+// Occlusion pull-in / push-out rates (1/s), also SPATIAL. Asymmetric on purpose:
+// crossing behind a tower has to reclaim the distance gently (3.5/s = 286 ms) or
+// the camera pops, but going INTO occlusion is safety-critical, so 9/s = 111 ms
+// with a hard containment clamp and a roof lift behind it.
+const BLOCKER_T_IN = 9;
+const BLOCKER_T_OUT = 3.5;
+
 // --- level intro (see beginIntro) -------------------------------------------
 // Wide establishing lens. Widening the FOV instead of only pulling back cuts
 // the overview distance by ~27%, which keeps a tall scene inside the far plane
@@ -75,6 +160,14 @@ export class ChaseCamera {
     this._settingReduced = false;   // the in-game toggle; see the accessor below
     this.followDir = false;   // opt-in: swing the yaw behind the direction of travel
     this._orbitHold = 0;      // manual-orbit grace period that suspends followDir
+    this._followYaw = null;   // last commanded "behind the heading" yaw, or null
+    this._followCoast = 0;    // s of chase left after the hole stopped moving
+    this._yawVel = 0;         // rad/s, the chase spring's state
+    this._velX = 0;           // smoothed hole velocity, UNCLAMPED — see update()
+    this._velZ = 0;
+    this._effT = null;        // smoothed blocker standoff; null = adopt the raw one
+    this._lift = 0;           // roof-clearance floor on cy (m), eases down only
+    this._span = { enter: 0, exit: 0 };  // raySpan2D scratch; ~540 calls/frame
     this.fovBase = 50;
     this._fovKick = 0;        // temporary FOV punch (growth/milestone juice)
 
@@ -196,6 +289,15 @@ export class ChaseCamera {
   setFollowDirection(val) { this.followDir = !!val; }
   setSandboxSizeProgress(progress) {
     this.sandboxSizeProgress = Math.max(0, Math.min(1, progress || 0));
+  }
+
+  // A per-second rate that has to keep pace with how fast the hole crosses the
+  // world. Identity at SIZE 1, x TRAVEL_SPEED_RATIO at SIZE 12 — so anything
+  // measured in metres of lag stays where it was tuned instead of stretching
+  // with the speed ramp. Identity outside the sandbox: sandboxSizeProgress is 0
+  // on every campaign camera, so the campaign gets its old constants exactly.
+  _spatialRate(base) {
+    return base * (1 + (TRAVEL_SPEED_RATIO - 1) * this.sandboxSizeProgress);
   }
 
   // Brief FOV widen that eases back — used for growth/milestone moments.
@@ -490,26 +592,80 @@ export class ChaseCamera {
     this.camera.updateProjectionMatrix();
   }
 
-  // Ray (2D, XZ) vs AABB slab test; returns smallest t in (0,1] or Infinity.
-  rayHit2D(ox, oz, dx, dz, b) {
-    let tmin = 0, tmax = 1;
-    for (const [o, d, mn, mx] of [[ox, dx, b.minX, b.maxX], [oz, dz, b.minZ, b.maxZ]]) {
-      if (Math.abs(d) < 1e-8) {
-        if (o < mn || o > mx) return Infinity;
-      } else {
-        let t1 = (mn - o) / d, t2 = (mx - o) / d;
-        if (t1 > t2) [t1, t2] = [t2, t1];
-        tmin = Math.max(tmin, t1);
-        tmax = Math.min(tmax, t2);
-        if (tmin > tmax) return Infinity;
-      }
+  // Ray (2D, XZ) vs AABB slab test. Returns the ENTRY and EXIT parameters of the
+  // overlap, unclamped at the near end so a ray that starts INSIDE the box says
+  // so (entry <= 0) instead of pretending the box is not there.
+  //
+  // That distinction is the whole defect. The old test clamped tmin to 0 and
+  // then threw the result away with `tmin > 0.02 ? tmin : Infinity`, so a ray
+  // whose origin sat inside a building reported "clear" — and the origin here is
+  // the HOLE, which spends much of its life inside a footprint because eating
+  // one is the game. The camera was then placed at full standoff inside the same
+  // building with nothing telling it to move.
+  //
+  // Writes into a caller-owned scratch object; this runs once per blocker per
+  // frame against ~540 of them and must not allocate.
+  raySpan2D(ox, oz, dx, dz, b, out) {
+    let tmin = -Infinity, tmax = Infinity;
+    if (Math.abs(dx) < 1e-8) {
+      if (ox < b.minX || ox > b.maxX) return null;
+    } else {
+      let t1 = (b.minX - ox) / dx, t2 = (b.maxX - ox) / dx;
+      if (t1 > t2) { const s = t1; t1 = t2; t2 = s; }
+      if (t1 > tmin) tmin = t1;
+      if (t2 < tmax) tmax = t2;
     }
-    return tmin > 0.02 ? tmin : Infinity;
+    if (Math.abs(dz) < 1e-8) {
+      if (oz < b.minZ || oz > b.maxZ) return null;
+    } else {
+      let t1 = (b.minZ - oz) / dz, t2 = (b.maxZ - oz) / dz;
+      if (t1 > t2) { const s = t1; t1 = t2; t2 = s; }
+      if (t1 > tmin) tmin = t1;
+      if (t2 < tmax) tmax = t2;
+    }
+    if (tmin > tmax || tmax <= 0) return null;   // no overlap, or entirely behind
+    out.enter = tmin === -Infinity ? -1 : tmin;
+    out.exit = tmax === Infinity ? 1e9 : tmax;
+    return out;
+  }
+
+  // Back-compat wrapper. Same contract as before EXCEPT that containment now
+  // reports -1 rather than Infinity — callers that treat "not a positive t" as
+  // "clear" were the bug, so the value they see has to change.
+  rayHit2D(ox, oz, dx, dz, b) {
+    const s = this.raySpan2D(ox, oz, dx, dz, b, this._span);
+    if (!s) return Infinity;
+    if (s.enter <= 0.02) return -1;              // origin is inside this box
+    return s.enter <= 1 ? s.enter : Infinity;
+  }
+
+  // Tallest roof standing over this XZ point, or 0. Doubles as the containment
+  // test — a point is inside iff its Y is below the value this returns. Same
+  // "below the roof" rule the sweep uses, so the two can never disagree about
+  // what counts as an obstruction: a camera above b.h is looking over the roof,
+  // not stuck in it. b.h === 0 is a blocker the player has demolished.
+  _roofOver(x, z) {
+    let h = 0;
+    for (const b of this.blockers) {
+      if (b.h > h && x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) h = b.h;
+    }
+    return h;
+  }
+
+  _insideBlocker(x, y, z) {
+    for (const b of this.blockers) {
+      if (y < b.h && x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) return true;
+    }
+    return false;
   }
 
   update(dt, holeX, holeZ, holeRadius, orbitDelta, zoomDelta) {
     this.yaw += orbitDelta;
-    if (orbitDelta) this._orbitHold = 1.5;
+    // Manual orbit suspends the chase and DUMPS its spring velocity — carrying a
+    // half-finished swing under the player's own drag is the "camera fights me"
+    // feel, and restarting the spring from rest is what makes the hand-back at
+    // the end of ORBIT_HOLD an ease rather than a resumed lurch.
+    if (orbitDelta) { this._orbitHold = ORBIT_HOLD; this._yawVel = 0; }
     else if (this._orbitHold > 0) this._orbitHold -= dt;
     this.dist = Math.min(40, Math.max(8, this.dist + zoomDelta));
 
@@ -543,43 +699,90 @@ export class ChaseCamera {
       this.yaw += this._introOscYaw;
     }
 
-    // Smoothed velocity estimate. Campaign uses it as a look-ahead offset on
-    // the camera target; in follow-direction mode it ONLY feeds the yaw chase
-    // below — the target stays pinned on the hole, because any offset drags
-    // the view toward the OLD heading mid-turn (the "off-center" feel).
+    // Velocity estimate, and the two modes want DIFFERENT ones.
+    //
+    // Campaign: a look-ahead OFFSET on the camera target, clamped per axis to
+    // +/-4 m so a fast player cannot fling the framing off the hole.
+    //
+    // Sandbox: a HEADING, and the per-axis clamp is poison for a heading. The
+    // old code reused lookAhead (clamped to +/-1.5 m) for the yaw chase, and at
+    // 9.96 m/s the hole saturates that clamp on both axes — a heading of
+    // (4.98, 8.63) m/s clamps to (1.5, 1.5) and reads as 45 deg. Every
+    // off-axis direction collapsed onto the nearest diagonal, which is a large
+    // part of "the camera lags behind actual positioning". So the chase gets its
+    // own smoothed, UNCLAMPED velocity and the campaign path is left untouched.
     if (this.lastHoleX !== null && dt > 0) {
       const vx = (holeX - this.lastHoleX) / dt;
       const vz = (holeZ - this.lastHoleZ) / dt;
-      const lookMax = this.followDir ? 1.5 : 4;
-      const lookRate = this.followDir ? 6 : 4;
-      const targetLookX = Math.max(-lookMax, Math.min(lookMax, vx * 0.4));
-      const targetLookZ = Math.max(-lookMax, Math.min(lookMax, vz * 0.4));
-      this.lookAhead.x += (targetLookX - this.lookAhead.x) * Math.min(1, dt * lookRate);
-      this.lookAhead.z += (targetLookZ - this.lookAhead.z) * Math.min(1, dt * lookRate);
+      if (this.followDir) {
+        const k = Math.min(1, dt * FOLLOW_VEL_RATE);
+        this._velX += (vx - this._velX) * k;
+        this._velZ += (vz - this._velZ) * k;
+      } else {
+        const targetLookX = Math.max(-4, Math.min(4, vx * 0.4));
+        const targetLookZ = Math.max(-4, Math.min(4, vz * 0.4));
+        this.lookAhead.x += (targetLookX - this.lookAhead.x) * Math.min(1, dt * 4);
+        this.lookAhead.z += (targetLookZ - this.lookAhead.z) * Math.min(1, dt * 4);
+      }
     }
     this.lastHoleX = holeX;
     this.lastHoleZ = holeZ;
 
-    // Follow-direction yaw: while moving, ease the camera behind the
-    // (smoothed) travel direction so the view always faces where you're
-    // driving. Only swings when driving AWAY from the camera — following a
-    // toward-camera heading is a positive feedback loop (the move basis is
-    // camera-relative, so the flip reverses the input and the yaw spins).
-    // Manual orbit input and Reduced Motion suspend it.
-    if (this.followDir && !this.reducedMotion && this._orbitHold <= 0) {
-      const spd = Math.hypot(this.lookAhead.x, this.lookAhead.z);
-      if (spd > 0.5) {
-        // horizontal camera look direction = -(sin yaw, cos yaw)
-        const dot = (this.lookAhead.x * -Math.sin(this.yaw) + this.lookAhead.z * -Math.cos(this.yaw)) / spd;
-        if (dot > 0.05) {
-          const targetYaw = Math.atan2(this.lookAhead.x, this.lookAhead.z) + Math.PI;
-          let d = targetYaw - this.yaw;
-          d = Math.atan2(Math.sin(d), Math.cos(d)); // shortest signed angle
-          this.yaw += d * Math.min(1, dt * 3);
-          this.yaw = Math.atan2(Math.sin(this.yaw), Math.cos(this.yaw));
-        }
+    // Follow-direction yaw: ease the camera behind the travel direction so the
+    // view always faces where you're driving and the player never has to touch
+    // a camera key. Manual orbit input and Reduced Motion suspend it.
+    //
+    // THE TOWARD-CAMERA CASE. This used to be gated on `dot > 0.05` — the chase
+    // only ran when the hole moved AWAY from the camera — because the move basis
+    // is camera-relative, so chasing a reversing heading rotated the basis under
+    // a held key, which rotated the heading, which rotated the yaw further: a
+    // positive feedback loop that wound the yaw 19 rad in 3 s. That gate is gone,
+    // and the loop is broken AT ITS SOURCE instead: `controls.chaseMode` latches
+    // the move basis on the rising edge of input and holds it until every key is
+    // released (controls.js:getMove), so a held input produces one fixed
+    // world-space direction no matter what the yaw does. With the basis frozen
+    // the heading is an exogenous input to the chase, the feedback path does not
+    // exist, and following a 180 deg reversal is just a large error to settle.
+    // Latching at the source is what lets the camera be UNCONDITIONAL here;
+    // damping the chase instead would only have slowed the wind-up down.
+    //
+    // Runs on the BASE yaw. The intro adds _introOscYaw as an offset it removes
+    // and re-adds every frame, and the chase must not aim at, or bake in, a
+    // number that is about to decay to zero on its own.
+    const osc = this._introOscYaw;
+    this.yaw -= osc;
+    if (this.followDir && !this.reducedMotion) {
+      const spd = Math.hypot(this._velX, this._velZ);
+      if (spd > FOLLOW_DEADZONE) {
+        this._followYaw = Math.atan2(this._velX, this._velZ) + Math.PI;
+        this._followCoast = FOLLOW_COAST;
+      } else if (this._followCoast > 0) {
+        this._followCoast -= dt;
+      }
+      const sizeT = this.sandboxSizeProgress;
+      const omega = FOLLOW_OMEGA * (1 + (FOLLOW_OMEGA_RAMP - 1) * sizeT);
+      const maxRate = FOLLOW_MAX_RATE * (1 + (FOLLOW_MAX_RATE_RAMP - 1) * sizeT);
+      if (this._followYaw !== null && this._followCoast > 0 && this._orbitHold <= 0) {
+        let err = this._followYaw - this.yaw;
+        err = Math.atan2(Math.sin(err), Math.cos(err)); // shortest signed angle
+        // critically damped: a = w^2*err - 2*w*v, so it never overshoots and
+        // therefore can never settle into a limit cycle around the heading
+        this._yawVel += (omega * omega * err - 2 * omega * this._yawVel) * dt;
+        this._yawVel = Math.max(-maxRate, Math.min(maxRate, this._yawVel));
+        // Never step past the target in one frame. At the SIZE 12 ceiling of
+        // 400 deg/s a 0.1 s stall frame (main.js clamps realDt there) is a
+        // 40 deg step, which on a nearly-settled camera would overshoot and give
+        // the spring something to bounce off.
+        const step = this._yawVel * dt;
+        this.yaw += Math.abs(step) > Math.abs(err) ? err : step;
+        this.yaw = Math.atan2(Math.sin(this.yaw), Math.cos(this.yaw));
+      } else {
+        // Coast expired or the player took the camera: bleed the spring to rest
+        // rather than freezing it mid-swing.
+        this._yawVel -= this._yawVel * Math.min(1, dt * 2 * omega);
       }
     }
+    this.yaw += osc;
 
     this.target.set(
       holeX + (this.followDir ? 0 : this.lookAhead.x), 0,
@@ -587,7 +790,8 @@ export class ChaseCamera {
     // The intro opens on a static hole, so pin the target rather than letting
     // the overview slide in from wherever smoothTarget happened to be.
     if (this._introSnap) { this._introSnap = false; this.smoothTarget.copy(this.target); }
-    this.smoothTarget.lerp(this.target, Math.min(1, dt * 8));
+    this.smoothTarget.lerp(this.target, Math.min(1, dt * (this.followDir
+      ? this._spatialRate(TARGET_RATE_FOLLOW) : TARGET_RATE_CAMPAIGN)));
 
     // The establishing shot frames the CITY, not the hole, so the look target
     // slides from the scene centre onto the hole as the dolly comes in — which
@@ -645,23 +849,144 @@ export class ChaseCamera {
     const dirZ = Math.cos(this.yaw) * Math.cos(pitch);
     const dirY = Math.sin(pitch);
 
-    // find nearest blocker along the ray
+    // Blocker sweep. Two bounds now come out of it, not one.
+    //
+    // Along the ray, the span a box occupies is (enter, exit), and the camera is
+    // safely placed anywhere OUTSIDE the sub-span where it would also be below
+    // that box's roof. The roof is reached at t = h / (dist * dirY), so the
+    // genuinely unsafe interval for one box is (enter, min(exit, roofT)) — past
+    // either end you are in front of the wall or above it.
+    //
+    //   enter > 0  the hole is outside the box: retreat to `enter`. This is the
+    //              original behaviour and the common case, unchanged.
+    //   enter <= 0 THE HOLE IS INSIDE THE BOX. Pulling in goes deeper into the
+    //              building, which is exactly backwards, and is what the old
+    //              code did on every frame the sweep silently reported "clear".
+    //              The escape is to push OUT to the far side.
+    //
+    // Push-out along the view ray rather than along the shortest exit normal,
+    // and the reason is not taste. A lateral push moves the camera off the yaw
+    // axis, so the "sits behind the heading" invariant the whole chase is built
+    // on breaks, the framing swings, and in a dense grid the shortest exit from
+    // one building is straight into the next. Along the ray the yaw is preserved
+    // exactly, and the value is CONTINUOUS in the hole's position: the box edge
+    // is fixed in world space, so `exit` slides smoothly as the hole drives
+    // deeper. That is what lets the same standoff filter smooth it without
+    // reintroducing a snap.
     let t = 1;
+    let floorT = 0;         // push-out bound: t must be at least this
+    const invReach = 1 / Math.max(1e-6, dist * dirY);
     for (const b of this.blockers) {
-      const th = this.rayHit2D(tx, tz, dirX, dirZ, b);
-      if (th < t) {
-        // would the camera at that t be below the building top?
-        const camY = th * dist * dirY;
-        if (camY < b.h) t = th;
-      }
+      if (b.h <= 0) continue;                    // demolished, no longer occludes
+      const s = this.raySpan2D(tx, tz, dirX, dirZ, b, this._span);
+      if (!s) continue;
+      const hi = Math.min(s.exit, b.h * invReach);
+      if (hi <= s.enter) continue;               // camera clears it at every t
+      if (s.enter > 0.02) { if (s.enter < t) t = s.enter; }
+      else if (hi > floorT) floorT = hi;
     }
 
-    const effT = Math.max(0.15, t * BLOCKER_EASE);
+    // The pull-in keeps its standoff; the push-out gets a slightly larger one,
+    // for the same reason in the opposite direction — land ON the face and
+    // rounding puts you back inside it.
+    let rawT = Math.max(0.15, t * BLOCKER_EASE);
+    // Capped at 1: pushing past the nominal distance would dolly out, and if the
+    // box reaches beyond the camera there is nothing to push out to anyway. That
+    // residue is what the roof lift below exists for.
+    if (floorT > rawT) rawT = Math.min(1, floorT * 1.04);
+
+    // Smoothed standoff. `t` is a DISCONTINUOUS function of the hole's position:
+    // the moment the hole->camera ray clips a tower corner it drops from 1 to
+    // whatever that corner subtends, so at 16 m the raw value teleports the
+    // camera ~13 m in one frame — and the pitch, which rides `(1 - effT) * 0.5`,
+    // snaps with it. Following it through a first-order filter turns both into a
+    // glide. Asymmetric because the two directions are not the same problem:
+    // push-out is purely cosmetic and can afford 286 ms, pull-in is the frame
+    // where the camera would otherwise be standing in a wall.
+    //
+    // Smoothing alone cannot guarantee it stays out of the wall, so the guarantee
+    // is separate and exact: place the camera, test that point against the
+    // blocker AABBs, and if it is inside one below its roof, fall back to the raw
+    // standoff for this frame. The glide is granted whenever it is safe and
+    // withdrawn only when it is not, rather than being traded away everywhere for
+    // a case that occurs on a handful of frames.
+    //
+    // Sandbox-only. The campaign and the establishing shot keep the raw value
+    // bit-for-bit: the intro FITS its distance against BLOCKER_EASE (see
+    // _fitAt), so a standoff that lagged would un-frame the shot it was fitted
+    // for, and the far-plane term below reads effT directly.
+    let effT = rawT;
+    if (this.followDir && this.introPhase === 'off') {
+      if (this._effT === null) this._effT = rawT;
+      const rate = this._spatialRate(rawT < this._effT ? BLOCKER_T_IN : BLOCKER_T_OUT);
+      this._effT += (rawT - this._effT) * Math.min(1, dt * rate);
+      effT = this._effT;
+    } else {
+      this._effT = rawT;   // resume from the settled value, not from a stale one
+    }
+
     // raise pitch when pulled in close so we look down over the obstruction
-    const effPitch = pitch + (1 - effT) * 0.5;
-    const cx = tx + Math.sin(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.x;
-    const cz = tz + Math.cos(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.z;
-    const cy = Math.max(2.5, Math.sin(effPitch) * dist * effT + this.shakeOffset.y);
+    let effPitch = pitch + (1 - effT) * 0.5;
+    let cx = tx + Math.sin(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.x;
+    let cz = tz + Math.cos(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.z;
+    let cy = Math.max(2.5, Math.sin(effPitch) * dist * effT + this.shakeOffset.y);
+    // Tested in BOTH directions, which is not the obvious half. A smoothed
+    // standoff larger than the sweep allows is the case you expect — the camera
+    // has not finished pulling in behind the wall. But a standoff SMALLER than
+    // the sweep allows is unsafe too, because the camera's height scales with
+    // it: at t = 1 the ray may pass clean over a roof, and the same ray lagging
+    // at t = 0.3 puts the camera a third as high and inside that roof. Guarding
+    // only the pull-in direction left 38-83 frames per 90 s route standing in a
+    // building on Brooklyn and Upper Manhattan; guarding both leaves none.
+    if (this._insideBlocker(cx, cy, cz)) {
+      this._effT = effT = rawT;
+      effPitch = pitch + (1 - effT) * 0.5;
+      cx = tx + Math.sin(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.x;
+      cz = tz + Math.cos(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.z;
+      cy = Math.max(2.5, Math.sin(effPitch) * dist * effT + this.shakeOffset.y);
+    }
+
+    // LAST RESORT: climb over the roof. The sweep can be handed a position with
+    // no safe t at all — the hole inside one box while another blocks the way
+    // out, or a box that reaches past the camera so `floorT` clamped at 1. There
+    // is always sky above, so lifting Y is the one escape that cannot fail, and
+    // it is the only one that leaves cx/cz — and therefore the yaw framing the
+    // chase depends on — untouched. It is also what the code already gestures at
+    // by steepening the pitch "to look down over the obstruction"; this just
+    // makes it sufficient instead of decorative.
+    //
+    // Kept smooth on the way DOWN only. The lift is a hard constraint, so it is
+    // applied as a max and engages the instant it is needed; releasing it eases
+    // out at BLOCKER_T_OUT so leaving a building does not drop the camera. That
+    // asymmetry is the whole trick: the rise is bounded by how far the camera
+    // already was below the roof (usually a metre or two, because the push-out
+    // above has already done the coarse work) while the fall is the part a
+    // player watches, so the fall is the part that gets eased.
+    //
+    // This is the only test in the whole placement that is POSITIONAL rather
+    // than parametric, and that is why it has to be the backstop. The sweep
+    // walks a ray whose horizontal rate is cos(pitch), while the camera is
+    // actually placed at cos(effPitch) — effPitch depends on effT, which depends
+    // on the sweep, so the two cannot be reconciled without solving a fixed
+    // point every frame. During the intro the ray ORIGIN also slides toward the
+    // scene centre. Both mean a parametrically-safe t can still land the camera
+    // in a wall; measured, that was 9 frames of the intro hand-off buried 20 m
+    // inside a Brooklyn tower. _roofOver reads the placed point directly, so it
+    // cannot be wrong about it.
+    //
+    // Runs in every phase EXCEPT 'hold'. The establishing shot is fitted to
+    // frame the entire city from outside it, so there is provably no roof above
+    // the camera and the lift would be a no-op — excluding it costs nothing and
+    // keeps the held pose bit-identical by construction rather than by measurement.
+    if (this.followDir && this.introPhase !== 'hold') {
+      const roof = this._roofOver(cx, cz);
+      const need = roof > 0 ? roof + ROOF_CLEAR : 0;
+      if (need > this._lift) this._lift = need;
+      else this._lift += (need - this._lift) * Math.min(1, dt * this._spatialRate(BLOCKER_T_OUT));
+      if (this._lift > cy) cy = this._lift;
+    } else {
+      this._lift = 0;
+    }
 
     this.camera.position.set(cx, cy, cz);
     this.camera.lookAt(tx, 0, tz);

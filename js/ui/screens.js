@@ -2,7 +2,7 @@
 
 import { LEVELS, METROS, MECHANICS, LEVELS_PER_METRO, coinsForResult, starsForResult } from '../levels.js';
 import { isLevelUnlocked, storeSave } from '../save.js';
-import { STEER_RATE } from '../controls.js';
+import { ORBIT_RATE, ORBIT_RATE_RAMP } from '../controls.js';
 import { buildBlockWord } from './blockword.js';
 import { buildSprocket } from './sprocket.js';
 
@@ -298,14 +298,28 @@ export class Screens {
     };
     panel.appendChild(distRow);
 
-    // Turn rate shown to the player: STEER_RATE rad/s × sens, in degrees.
-    // Derived from the constant rather than typed as a literal so the readout
-    // cannot drift when steering is re-tuned — a hand-copied 154.7 here would
-    // keep claiming the old speed after a change in controls.js and nobody
-    // would notice, because the number still looks plausible.
+    // Manual orbit rate shown to the player: ORBIT_RATE rad/s × sens, in
+    // degrees. Derived from the constant rather than typed as a literal so the
+    // readout cannot drift when the camera is re-tuned — a hand-copied number
+    // here would keep claiming the old speed after a change in controls.js and
+    // nobody would notice, because it still looks plausible.
+    //
+    // Scoped to the sandbox in the label because that is where the multiplier
+    // applies: sandbox Q/E and touch-drag orbit run at ORBIT_RATE × turnSens ×
+    // the size ramp, where the campaign's Q/E stays at a bare 1.8 rad/s. It used
+    // to print STEER_RATE × sens, which described nothing that ran anywhere —
+    // the sandbox's A/D steering ignored this slider entirely and used its own
+    // size-ramped 0.2–0.8, so the screen advertised ~155°/s for a control that
+    // actually turned at ~31°/s.
+    //
+    // Printed as a RANGE, not a single number, because the rate is genuinely
+    // size-dependent now: quoting either end alone would be false for the whole
+    // rest of the ladder, which is the same class of lie the old readout told.
+    // Both ends come off the exported constants, so neither can drift.
     const DEG_PER_RAD = 180 / Math.PI;
-    const sensFmt = (v) => `${v.toFixed(2)} · ~${Math.round(STEER_RATE * DEG_PER_RAD * v)}°/s`;
-    const sensRow = el(`<div style="margin:8px 0">Turn sensitivity
+    const sensFmt = (v) => `${v.toFixed(2)} · ~${Math.round(ORBIT_RATE * DEG_PER_RAD * v)}` +
+      `-${Math.round(ORBIT_RATE * ORBIT_RATE_RAMP * DEG_PER_RAD * v)}°/s (SIZE 1→12)`;
+    const sensRow = el(`<div style="margin:8px 0">Sandbox camera sensitivity
       <span style="float:right"><span class="tune-val" style="font-weight:700">${sensFmt(st.turnSens !== undefined ? st.turnSens : 1)}</span>
       <input type="range" min="0.1" max="2.5" step="0.05" value="${st.turnSens !== undefined ? st.turnSens : 1}"
         style="width:100px;vertical-align:middle;margin-left:8px"></span></div>`);

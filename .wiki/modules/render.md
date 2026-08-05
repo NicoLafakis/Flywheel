@@ -30,10 +30,29 @@ mutates sim state.
 - Camera occlusion uses 2D XZ AABB tests against `world.blockers` (buildings
   with `h > 6`); eaten buildings are removed from the blocker list on the
   `eat` event — if you change building visuals, keep `blockers` in sync.
-  The voxel sandbox feeds the same camera from `sim.cameraBlockers`, which is
-  hand-written per scene instead of derived from the city objects, and is never
-  pruned as towers fall. Same `h > 6` cut applies; `tools/validate.mjs`
-  enforces it for Manhattan because nothing in the sim can.
+  The voxel sandbox feeds the same camera from `sim.cameraBlockers`, built by
+  `generateBlockers` (`voxelkit.js`) for Brooklyn/Upper Manhattan and hand-pushed
+  for Lower Manhattan. Same `h > 6` cut applies; `tools/validate.mjs` enforces it
+  for Manhattan because nothing in the sim can.
+- **`sim.cameraBlockers` now tracks demolition** (2026-08-05). It used to be
+  built once at scene start and never pruned, so a levelled tower kept a ghost
+  AABB the camera hid behind forever. `_bindCameraBlockers()` indexes each
+  blocker's 1 m footprint cells into `_blockerCell` and records `b.h0` (the
+  authored height, a permanent ceiling). Liveness rides the sim's existing
+  `_top` heightmap — the cheapest honest signal there is, since `_topAdd` /
+  `_topRemove` already maintain it — rather than a new subsystem or a per-frame
+  rescan of 540 rects. Cost is controlled by a lazy max: each blocker caches the
+  height band it is currently in (`b._tier`) and how many fine columns still
+  reach it (`b._nTop`); a removal in that band decrements the count, and only
+  when the band EMPTIES does the blocker get rescanned. A tower comes down
+  wholesale, so that is a handful of rescans over its life, capped at 4 per step
+  through a persistent `_blockerDirty` set drained as phase 0 of `step()`.
+  Heights only ever move DOWN and are clamped to `min(h0, …)`, so a fresh sim is
+  byte-identical to before and Lower Manhattan's deliberate hand-authored
+  over-blocking survives — `probeCameraBlockers` in `tools/validate.mjs` sees
+  exactly what it always saw. `b.h === 0` means demolished; the camera skips
+  those. Measured over 45 s routes: 54–65 blockers retired and 4–8 shrunk per
+  large-hole run, 0 on the pre-change build by construction.
 - All geometry/material must come from the module-level caches; per-frame
   allocation shows up fast at 1500+ objects. Exception: `gableGeo` builds a
   small BufferGeometry per building — if house counts grow, cache per
@@ -44,35 +63,168 @@ mutates sim state.
 - Movement basis in `controls.js:getMove`: camera forward on the ground is
   `(-sin(yaw), -cos(yaw))`; W must move along forward (regression history:
   flipped basis made W go backwards).
-- `setFollowDirection(true)` (voxel sandbox only) swings the yaw behind the
-  smoothed travel direction. It MUST stay gated on the hole moving away from
-  the camera (`dot > 0.05`): the move basis is camera-relative, so following
-  a toward-camera heading flips the input direction under the player and the
-  yaw spins unbounded (observed: 19 rad in 3 s). Manual orbit suspends it for
-  1.5 s (`_orbitHold`); Reduced Motion disables it entirely.
-- Sandbox input is `controls.driveMode`: A/D feed `orbitDelta` (steer the
-  heading, `STEER_RATE` (2.7 rad/s) × `settings.turnSens` × `dt` — the
-  0.1–2.5 Turn sensitivity slider; steering only, throttle/strafe stay raw),
-  W/S stay throttle along camera forward, Q/E sidestep — turn and strafe are
-  separate abilities on separate keys. Campaign keeps A/D strafe + Q/E orbit
-  (`driveMode = false`). invertX flips steer too. **Rates are per second, not
-  per frame** (fixed 2026-08-05: `controls.js`'s `getMove` used to add a fixed
-  step once per rendered frame with no `dt`, so turn rate was
-  frame-rate-dependent — `0.009 × fps` rad/s, spanning 400× between a fast
-  machine's idle and a struggling scene's crawl, and nearly unsteerable during
-  a heavy collapse). `Controls._frameDt()` measures the gap between calls
-  internally so this needed no change in `main.js`; `getMove` also accepts an
-  explicit `dt` for a caller that already has one. `dt` clamps at 0.1 s, same
-  as the sim's catch-up clamp. Every rate constant is the old per-frame step
-  × 60, so a 60 fps player feels no change: `STEER_RATE = 2.7`, Q/E orbit
-  `ORBIT_RATE = 1.8` (was 0.03/frame), R/F zoom `ZOOM_RATE = 24` (was
-  0.4/frame). Touch orbit (`onTouchMove`) was deliberately left frame-rate
-  coupled to *pixels dragged*, not time — that is already correct for a drag
-  gesture.
+- **Sandbox input is a third-person chase (`controls.chaseMode`), not a car.**
+  WASD/arrows/joystick move the hole in camera-relative world directions, Q/E
+  and the touch drag orbit by hand, and the camera aims ITSELF at the direction
+  of travel. Campaign is unchanged (`chaseMode = false`): live camera-relative
+  basis, no auto-follow. The `driveMode` scheme this replaced (A/D fed
+  `orbitDelta` at `STEER_RATE` 2.7 rad/s × a size-ramped 0.2→0.8 sensitivity)
+  is gone, and so is `STEER_RATE`: 0.54 rad/s at SIZE 1 is 11.6 s per
+  revolution, and because it routed steering through `orbitDelta` it re-armed
+  `_orbitHold` every steering frame, so `followDir` never actually ran in the
+  sandbox at all.
+- **`setFollowDirection(true)` is now unconditional in heading** — the old
+  `dot > 0.05` gate (chase only while moving AWAY from the camera) is gone. The
+  feedback loop that gate existed for is cut at its source instead:
+  `controls.chaseMode` latches the move basis on the RISING EDGE of input and
+  holds it until every input is released, so a held key resolves to one fixed
+  world direction no matter what the yaw does and the heading is exogenous to
+  the chase. Latch on the edge, **not** on every change of input direction —
+  re-anchoring to the live yaw on each change reopens the loop for analog input
+  (a thumb sweeping the stick picks up the camera's own rotation each time).
+  Measured A/B against the pre-change build, 48 headings × 5 start offsets:
+  old converged 8/240 and 0/48 reversals; new 240/240 and 48/48, worst 1.20 s.
+  Old also drifted **45° off a straight run** because the chase read `lookAhead`,
+  whose per-axis ±1.5 m clamp saturates at the hole's 9.96 m/s and collapses
+  every heading onto the nearest diagonal; the chase now has its own smoothed,
+  UNCLAMPED velocity and the campaign's `lookAhead` is untouched.
+- Chase dynamics: critically damped spring under a hard angular-rate cap, both
+  ramped on `sandboxSizeProgress` — `FOLLOW_OMEGA` 8 → 12 rad/s (`_RAMP` 1.5) and
+  `FOLLOW_MAX_RATE` 4.2 → 7.0 rad/s, i.e. 241°/s at SIZE 1 rising to 401°/s at
+  SIZE 12. Never overshoots, so it cannot limit-cycle (measured 0.0000° drift
+  over a 30 s hold). Worst-case convergence to within 5° over 240 cases
+  (48 headings × 5 start offsets) is 0.983 s at SIZE 1 and 0.633 s at SIZE 12 —
+  the ramp is deliberately *gentler* than the 2.6× speed ramp, because angular
+  rate is comfort-capped in a way linear speed is not; past ~400°/s a chase
+  camera reads as a whip-pan regardless of how fast the subject is moving.
+  Target yaw only updates above `FOLLOW_DEADZONE = 1.5 m/s`, and the chase coasts
+  `FOLLOW_COAST = 1.2 s` past the last motion — long enough to finish a swing the
+  player released mid-turn, short enough that a parked player gets the camera
+  back. Manual orbit suspends it for `ORBIT_HOLD = 0.7 s` (was 1.5) and dumps the
+  spring velocity so the hand-back eases rather than resumes. Reduced Motion
+  still disables the chase entirely.
+- The chase runs on the BASE yaw: `_introOscYaw` is subtracted before it and
+  re-added after, so the intro's decaying offset never biases the target or gets
+  baked into the base.
+- **Rates are per second, not per frame** (fixed 2026-08-05: `controls.js`'s
+  `getMove` used to add a fixed step once per rendered frame with no `dt`, so
+  turn rate was frame-rate-dependent — `0.009 × fps` rad/s, spanning 400×
+  between a fast machine's idle and a struggling scene's crawl, and nearly
+  unsteerable during a heavy collapse). `Controls._frameDt()` measures the gap
+  between calls internally so this needed no change in `main.js`; `getMove` also
+  accepts an explicit `dt` for a caller that already has one. `dt` clamps at
+  0.1 s, same as the sim's catch-up clamp: `ORBIT_RATE = 2.6` (Q/E orbit, was
+  0.03/frame), `ZOOM_RATE = 24` (R/F dolly, was 0.4/frame). Touch orbit
+  (`onTouchMove`) is deliberately coupled to *pixels dragged*, not time — correct
+  for a drag gesture. `settings.turnSens` multiplies Q/E **and** the touch drag
+  in `chaseMode` only; campaign Q/E is explicitly divided back to the bare
+  1.8 rad/s it has always run at, so moving the base constant left it untouched.
+  Manual orbit also ramps with hole size (`ORBIT_RATE_RAMP = 2`): 149°/s at
+  SIZE 1 → 298°/s at SIZE 12, against the flat 103°/s it replaced and the 31°/s
+  of the drive-mode steering before that. The ramp is not cosmetic — the camera's
+  own standoff grows from ~11 m to ~57 m over the same range (`clearDist`), so a
+  fixed rad/s drags the camera through 5× the arc length for the same input and
+  *feels* slower because the world barely turns relative to how far the camera
+  flew. The settings screen prints the whole range (`~149-298°/s (SIZE 1→12)`)
+  and is labelled "Sandbox camera sensitivity" so the number is true of
+  something — it used to print `STEER_RATE × turnSens` (~155°/s), which described
+  no control that ran anywhere, since sandbox steering ignored the slider and
+  turned at ~31°/s.
 - In follow-direction mode the camera target is pinned ON the hole (no
   velocity look-ahead offset) — an offset drags the view toward the OLD
-  heading mid-turn, which read as "turning off center". The smoothed
-  velocity is still computed, but only to drive the yaw chase above.
+  heading mid-turn, which read as "turning off center". It also tracks tighter
+  than the campaign's (`TARGET_RATE_FOLLOW = 14`/s vs 8, 71 ms vs 125 ms):
+  measured steady-state lag behind the hole fell 1.079 m → 0.545 m at SIZE 1.
+- **Spatial filter rates scale with traversal speed; angular ones do not.**
+  `_spatialRate(base)` multiplies by `1 + (TRAVEL_SPEED_RATIO - 1) × sizeT`
+  (`TRAVEL_SPEED_RATIO = 2.71`, the measured 2.62 SIZE 12 ÷ SIZE 1 speed rounded
+  deliberately up — too-fast a filter under-lags, too-slow over-lags, and only
+  one of those fails toward the complaint), and every
+  rate whose job is to hold a *distance* constant goes through it:
+  `TARGET_RATE_FOLLOW`, `BLOCKER_T_IN`, `BLOCKER_T_OUT`, the roof-lift release.
+  A first-order filter at rate `k` tracking a target moving at `v` settles to a
+  lag of `v/k` METRES, so leaving `k` flat while `v` went up 2.6× would have
+  multiplied the visible lag by 2.6 — the exact complaint the chase work was
+  meant to fix. With the ramp, measured target lag is 0.545 m at SIZE 1 and
+  0.253 m at SIZE 12 (0.50 → 0.04 hole radii), against 1.079 m / 1.331 m before.
+  Angular rates (`FOLLOW_OMEGA`, `FOLLOW_MAX_RATE`, `ORBIT_RATE`) deliberately do
+  NOT use this: they are capped by what a human can watch, not by geometry.
+- **Blocker standoff is smoothed, and clamped by an exact containment test.**
+  `t` is discontinuous in the hole's position — the frame the hole→camera ray
+  clips a tower corner it drops from 1 to whatever that corner subtends, which
+  used to teleport the camera ~13 m and snap the pitch with it. It now follows
+  through a first-order filter, asymmetric (`BLOCKER_T_IN = 9`/s vs
+  `BLOCKER_T_OUT = 3.5`/s) because push-out is cosmetic and pull-in is the frame
+  the camera would spend in a wall. Smoothing alone cannot guarantee that, so
+  `_insideBlocker(x,y,z)` tests the placed point and falls back to the raw
+  standoff when it is inside — **in both directions.** A standoff SMALLER than
+  the sweep allows is unsafe too: camera height scales with `t`, so a ray that
+  passes clean over a roof at `t = 1` puts the camera inside that roof at
+  `t = 0.3`. Guarding only the pull-in left 38–83 inside-blocker frames per 90 s
+  route; guarding both leaves 0. The filter is also what keeps the escape below
+  from reading as a snap: measured over 4×45 s real-sim routes per scene, the
+  worst standoff step (p99.9) is 2.4–30 m on the new build against 13–65 m on the
+  pre-change one, and >1 m pops run 8–68 per 10 800 frames against 30–85. The
+  residual is by design — the containment test WITHDRAWS the glide on the frames
+  where gliding would leave the camera in a wall, so those frames are a recovery,
+  not a wobble. They scale with the standoff, which is why the worst case is a
+  SIZE 12 scene where the camera sits ~57 m out. **Sandbox only** — the establishing shot fits its
+  distance against `BLOCKER_EASE` (`_fitAt`), so a lagging standoff would
+  un-frame the shot it was fitted for, and the far-plane term reads `effT`
+  directly. Verified bit-identical to the pre-change build: campaign path 1500
+  frames, campaign level intro 263 frames, sandbox establishing hold 180 frames,
+  sandbox intro hand-off 83 frames — max abs delta 0 on all four.
+- **Containment: the sweep reports it, the push-out escapes it, the roof lift
+  guarantees it** (2026-08-05). The old sweep was blind from inside a footprint —
+  `rayHit2D` returned `Infinity` from inside an AABB (the `tmin > 0.02` guard),
+  which reads as "clear", so the camera was placed at full standoff inside the
+  building the hole was eating. Three layers now:
+  1. `raySpan2D` returns the full `(enter, exit)` span, unclamped at the near
+     end, into a caller-owned scratch (it runs against ~540 rects per frame and
+     must not allocate). `enter <= 0` means the origin is INSIDE. `rayHit2D`
+     survives as a wrapper and now returns `-1` for containment, not `Infinity` —
+     callers that read "not a positive t" as "clear" were the bug, so the value
+     they see had to change.
+  2. **Push-out along the view ray.** For each box the genuinely unsafe interval
+     is `(enter, min(exit, roofT))`; outside it you are either in front of the
+     wall or above it. Containment raises a `floorT` the standoff must clear.
+     Along the RAY, not along the shortest exit normal: a lateral push moves the
+     camera off the yaw axis and breaks the "sits behind the heading" invariant
+     the whole chase is built on, and in a dense grid the shortest exit from one
+     building is straight into the next. The ray value is also CONTINUOUS in the
+     hole's position (the box edge is fixed in world space, so `exit` slides as
+     the hole drives deeper), which is what lets the same standoff filter smooth
+     it without reintroducing a snap.
+  3. **Roof lift, as the last resort and the only exact test.** Every other check
+     is parametric, and the parameterisation is knowingly inconsistent: the sweep
+     walks a ray at horizontal rate `cos(pitch)` while the camera is placed at
+     `cos(effPitch)`, and `effPitch` depends on `effT`, which depends on the
+     sweep — a fixed point nobody wants to solve per frame. During the intro the
+     ray ORIGIN also slides toward the scene centre. So a parametrically-safe `t`
+     can still land in a wall; measured, that was 9 frames of the intro hand-off
+     buried 20 m inside a Brooklyn tower. `_roofOver(cx, cz)` reads the PLACED
+     point, so it cannot be wrong about it: if a roof stands over the camera,
+     `cy` is raised to `roof + ROOF_CLEAR` (2.5 m). Y is the one escape that
+     cannot fail (there is always sky) and the only one that leaves `cx/cz` — and
+     therefore the framing — untouched. Applied as a hard max on the way up,
+     eased at `BLOCKER_T_OUT` on the way down so leaving a building does not drop
+     the camera. Runs in every intro phase EXCEPT `hold`: the establishing shot
+     is fitted to frame the whole city from outside it, so there is provably no
+     roof above the camera and excluding it keeps the held pose bit-identical by
+     construction rather than by measurement.
+
+  Verified on the REAL sim (`sim.step`, so buildings actually come down — a
+  harness that never eats cannot test any of this): 4 independent 45 s routes ×
+  {Brooklyn, Upper Manhattan, Lower Manhattan} × {SIZE 1, SIZE 12} × {with intro,
+  without} = 129 600 frames, **zero** inside-blocker frames in every one of the
+  12 cells. The pre-change build on the identical harness clips on 467–1151
+  frames per small-hole cell (worst depth 56.5 m) and still 2–17 at SIZE 12,
+  where the standoff is high enough to clear most roofs by accident. Live in the
+  game (real rAF loop, real key events, per-frame sampler): 0 of 2036 frames at
+  SIZE 1 and 0 of 804 at SIZE 12 in Brooklyn, 0 of 751 in Upper Manhattan. The
+  lift did the work on 323 of those 2036 SIZE 1 frames and 0 at SIZE 12 — the
+  large-hole camera is already above the skyline, so this is a small-hole,
+  dense-low-rise problem, which is exactly where the complaint came from.
 - `cam.fovKick(v)` adds a decaying FOV punch (growth/milestone juice);
   respects Reduced Motion, eases back at ~6/s in `update`.
 - Player settings (`save.settings`: invertX/Y, shadows, camDist, reducedMotion, perfMode) flow

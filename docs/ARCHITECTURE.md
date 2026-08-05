@@ -24,7 +24,7 @@ js/
   world3d.js               three.js scene builder: meshes for ground, roads,
                            buildings, props, water; syncs from sim state; eat anims
   camera.js                chase camera + collision (no clipping), orbit, zoom
-  controls.js              keyboard (strafe + sandbox driveMode steer) + touch
+  controls.js              keyboard (strafe + orbit, chaseMode basis latch) + touch
                            joystick + touch orbit → move/orbit intents
   ui/
     hud.js                 mass bar, timer, combo, level banner, minimap
