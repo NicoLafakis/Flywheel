@@ -1,7 +1,47 @@
-# CHANGELOG — Hole City
+# CHANGELOG — Flywheel
 
 Detailed build history, migrated from STATUS.md (which is a lean board, not a
 changelog). Newest first. Commit-level history: `git log`.
+
+- 2026-08-04: **Rebrand to Flywheel - A sprocket's story**. The game is no
+  longer "Hole City"; product name and repo name now match. The visual language
+  invented for the Brooklyn READY gate (gold slab letters with a hard ink ring,
+  two-tone extrude, staggered pop-in, orange extruded CTA pill) was extracted
+  out of that one screen into a shared brand layer: `js/ui/blockword.js` builds
+  the wordmark for both the gate and the landing screen, and `css/main.css`
+  gained `--fw-*` tokens plus `.fw-title` / `.fw-plate` / `.fw-cta` primitives
+  that both screens now draw from, so the letter treatment cannot drift between
+  them. New branded landing screen (`js/ui/sprocket.js`, `showTitle` in
+  `js/ui/screens.js`): a rotating voxel sprocket mark whose empty center is the
+  hole itself, the FLYWHEEL wordmark and tagline plate, one PLAY pill for the
+  campaign, and a grouped free-play city picker (Brooklyn first as the showcase
+  scene, then Lower Manhattan, Upper Manhattan, Sandbox) replacing the old stack
+  of seven equal-weight buttons. `.btn`, `.btn.secondary`, and `.screen`
+  headings were unified to the same brand treatment, so every other screen
+  inherits it without being rewritten. Reduced motion is honored from both the
+  in-game setting and the OS preference; the wordmark and mark are decorative
+  and the accessible name is stated once in text. **The world map and level
+  selection were deliberately left unchanged** - they are the campaign's own
+  language and are out of scope for this pass. The READY gate was verified
+  visually unchanged after the extraction: it renders the same wordmark at its
+  own font size and contributes nothing else.
+
+- 2026-08-04: **Brooklyn sandbox + performance pass**. Added
+  `js/voxelscene-brooklyn.js` (bridges to Coney Island, ~39,980 blocks), the
+  intro establishing camera (`beginIntro`/`releaseIntro`/`skipIntro`, yaw sweep
+  with a Lambertian lighting term so the pose cannot land on the unlit side of
+  an antipodal pair), and the READY gate (`js/ui/ready.js`) that holds the shot
+  until the player starts. Performance pass on top: a renderer fast path that
+  skips per-frame matrix and color work for static, undamaged, out-of-region
+  blocks (40,000 down to roughly 50-200 active blocks per frame); a cached
+  floor-block list and distance-gated anchor checks in the support-graph BFS;
+  damage, healing, and collapse timers that visit only active blocks instead of
+  scanning all 39,984; bit-packed integer spatial keys and pooled buckets that
+  remove thousands of per-frame allocations from loose-body physics; particle
+  and crumble-mesh pooling; and a user-facing Performance Mode toggle in
+  SETTINGS (save schema v10) that caps particle, crumble, and relaxation work on
+  low-resource hardware. Validator gained `validateBrooklyn()` with 12 probes;
+  ALL PASS.
 
 - 2026-08-04: **Upper Manhattan realism + graphics pass**. Repositioned the
   Reservoir, The Lake, Harlem Meer, Belvedere Castle, and Met to match the

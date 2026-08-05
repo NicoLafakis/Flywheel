@@ -1,4 +1,4 @@
-# AGENTS.md — Hole City (repo: Flywheel)
+# AGENTS.md — Flywheel
 
 Static browser game, no build step. Read `.wiki/INDEX.md` for the full wiki;
 `STATUS.md` for where things stand.

@@ -1,5 +1,23 @@
 # Glossary
 
+- **Flywheel** — the product name (rebranded 2026-08-04 from "Hole City"),
+  tagline "A sprocket's story". The core eat-everything mechanic is still
+  called "hole" throughout code, saves, and this glossary — only the product
+  identity changed, not the vocabulary.
+- **Block wordmark** — the shared gold slab-letter treatment (hard 8-direction
+  outline ring + two-tone downward extrude + per-glyph tilt/stagger/bob),
+  built once by `js/ui/blockword.js` (`buildBlockWord`) and rendered at two
+  sizes: the landing screen's `FLYWHEEL` and the level-start gate's `READY?`.
+  See `adr/0005-shared-brand-layer.md`.
+- **Sprocket mark** — the rotating toothed-wheel brand mark
+  (`js/ui/sprocket.js`, `buildSprocket`), 12 teeth, empty center. The hole in
+  its middle is deliberate: the player is a hole, a sprocket is a toothed
+  wheel with a hole in the middle, so the mark is a portrait of the
+  protagonist, not an arbitrary logo shape.
+- **Brand layer** — the unscoped `--fw-*` tokens and `.fw-*` CSS primitives in
+  `css/main.css` that carry the block wordmark, sprocket, glow, sparkles, and
+  CTA pill styling across every screen, extracted from what used to be
+  `#ready-gate`-only rules. See `conventions.md` and `adr/0005`.
 - **Tier** — one of 7 object size classes on the strict 1.35× radius ladder
   (`tiers.js`). T1 trash … T7 large building.
 - **Edibility gate** — object is edible iff `playerRadius > tierRadius *
@@ -22,7 +40,10 @@
   edible object. Levels must pass with ≥ 15% clock margin under it.
 - **Save schema v7** — current `localStorage` shape (`hole-city-save`), adds
   dev voxel-tuning (`settings.voxGravity/voxWaveK/voxCreak/voxSpeed/voxAttract`)
-  over v6; migrations v1→v7 in `save.js`.
+  over v6; migrations v1→v7 in `save.js`. The `hole-city-save` key and the
+  `hole-city-level-N` seed strings were deliberately NOT renamed in the
+  Flywheel rebrand — renaming either would orphan existing player saves and
+  re-roll every level's deterministic layout.
 - **Crack front** (voxel) — BFS distance from solid support; unsupported
   blocks fail on a wave `WAVE_K × dist`, so collapse sweeps rim → center.
 - **Hanging** (voxel) — a block supported only by a cantilever that reaches

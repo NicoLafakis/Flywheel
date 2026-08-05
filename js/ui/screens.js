@@ -2,6 +2,8 @@
 
 import { LEVELS, METROS, MECHANICS, LEVELS_PER_METRO, coinsForResult, starsForResult } from '../levels.js';
 import { isLevelUnlocked, storeSave } from '../save.js';
+import { buildBlockWord } from './blockword.js';
+import { buildSprocket } from './sprocket.js';
 
 export const SKINS = [
   { id: 'classic', name: 'Classic Void', color: 0x4be34b, css: '#4be34b', price: 0 },
@@ -14,6 +16,19 @@ export const SKINS = [
 export const ITEMS = [
   { id: 'clock5', name: '+5s Clock', desc: 'Every level gets 5 extra seconds.', price: 400 },
   { id: 'growth5', name: '+5% Growth', desc: 'Mass gained is 5% higher.', price: 500 },
+];
+
+// The free-play shelf on the landing screen. Brooklyn leads because it is the
+// showcase scene — the only one with an establishing shot and a READY gate — and
+// the generic sandbox trails because it is a physics test bed, not a place.
+// `scene` is passed straight to actions.startVoxelSandbox(); the sandbox entry
+// omits it so the undefined lands on that function's own 'gallery' default,
+// which keeps the scene id written down in exactly one place (js/main.js).
+const FREE_PLAY = [
+  { scene: 'brooklyn', name: 'BROOKLYN', sub: 'Bridges to Coney Island', tag: 'Showcase' },
+  { scene: 'manhattan', name: 'LOWER MANHATTAN', sub: 'Downtown towers' },
+  { scene: 'upper-manhattan', name: 'UPPER MANHATTAN', sub: 'Central Park' },
+  { name: 'SANDBOX', sub: 'Physics playground' },
 ];
 
 function el(html) {
@@ -35,25 +50,62 @@ export class Screens {
     this.current = null;
   }
 
+  // The landing screen. Three tiers, in this order: the mark and the name, the
+  // one campaign entry, then the free-play shelf, then the utilities. The old
+  // version stacked seven buttons of identical weight, which said nothing about
+  // which of them was the game.
   showTitle() {
     this.clear();
-    const s = el(`<div class="screen"><h1>HOLE CITY</h1>
-      <p style="margin-bottom:14px">Eat the city. Beat the clock.</p></div>`);
-    const play = el(`<button class="btn">PLAY</button>`);
+    // Two independent sources of "hold still": the in-game setting, read here,
+    // and the OS preference, handled by the prefers-reduced-motion block in
+    // main.css. Either one alone is enough to park the sprocket and the letters.
+    const still = !!(this.save.settings && this.save.settings.reducedMotion);
+    const s = el(`<div class="screen fw-landing${still ? ' fw-still' : ''}"></div>`);
+
+    // The wordmark is decorative type (aria-hidden), so the accessible name for
+    // the screen is stated once here and never read twice.
+    s.appendChild(el(`<h1 class="fw-a11y">Flywheel. A sprocket's story.</h1>`));
+
+    const hero = el(`<div class="fw-hero"></div>`);
+    hero.appendChild(buildSprocket());
+    const heroText = el(`<div class="fw-hero-text"></div>`);
+    // 8 = the letter count of FLYWHEEL, so it renders at full size and only a
+    // longer name would ever be scaled down.
+    heroText.appendChild(buildBlockWord('FLYWHEEL', { fitChars: 8 }));
+    heroText.appendChild(el(`<div class="fw-plate">A SPROCKET'S STORY</div>`));
+    hero.appendChild(heroText);
+    s.appendChild(hero);
+
+    // The campaign, wearing the same pill as the level-start GO! button.
+    const ctaWrap = el(`<div class="fw-cta-wrap"></div>`);
+    const play = el(`<button type="button" class="fw-cta">PLAY</button>`);
     play.onclick = () => this.showWorldMap();
-    const sandbox = el(`<button class="btn secondary" style="background:#b44bff;color:#fff">VOXEL SANDBOX</button>`);
-    sandbox.onclick = () => this.actions.startVoxelSandbox();
-    const nyc = el(`<button class="btn secondary" style="background:#2a5f9a;color:#fff">NYC: LOWER MANHATTAN</button>`);
-    nyc.onclick = () => this.actions.startVoxelSandbox('manhattan');
-    const upper = el(`<button class="btn secondary" style="background:#3e8a5b;color:#fff">NYC: UPPER MANHATTAN — CENTRAL PARK</button>`);
-    upper.onclick = () => this.actions.startVoxelSandbox('upper-manhattan');
-    const bklyn = el(`<button class="btn secondary" style="background:#8a4f33;color:#fff">NYC: BROOKLYN — BRIDGES TO CONEY ISLAND</button>`);
-    bklyn.onclick = () => this.actions.startVoxelSandbox('brooklyn');
-    const shop = el(`<button class="btn secondary">SHOP</button>`);
+    ctaWrap.appendChild(play);
+    s.appendChild(ctaWrap);
+
+    const group = el(`<section class="fw-group" aria-labelledby="fw-free-play"></section>`);
+    group.appendChild(el(`<div class="fw-group-label" id="fw-free-play">Free play · voxel cities</div>`));
+    const chips = el(`<div class="fw-chips"></div>`);
+    for (const sc of FREE_PLAY) {
+      const chip = el(`<button type="button" class="fw-chip">
+        <span class="fw-chip-name">${sc.name}</span>
+        <span class="fw-chip-sub">${sc.sub}</span>
+        ${sc.tag ? `<span class="fw-chip-tag">${sc.tag}</span>` : ''}
+      </button>`);
+      chip.onclick = () => this.actions.startVoxelSandbox(sc.scene);
+      chips.appendChild(chip);
+    }
+    group.appendChild(chips);
+    s.appendChild(group);
+
+    const util = el(`<div class="fw-utility"></div>`);
+    const shop = el(`<button type="button" class="btn secondary">SHOP</button>`);
     shop.onclick = () => this.showShop();
-    const settings = el(`<button class="btn secondary">SETTINGS</button>`);
+    const settings = el(`<button type="button" class="btn secondary">SETTINGS</button>`);
     settings.onclick = () => this.showSettings(() => this.showTitle());
-    s.append(play, sandbox, nyc, upper, bklyn, shop, settings);
+    util.append(shop, settings);
+    s.appendChild(util);
+
     this.root.appendChild(s);
     this.current = 'title';
   }

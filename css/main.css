@@ -3,6 +3,35 @@
   --panel: rgba(20, 24, 34, 0.85);
   --panel-light: rgba(255, 255, 255, 0.92);
   --text-dark: #1c2230;
+
+  /* ----- Flywheel brand tokens -----
+     Every value below was fitted on the level-start READY gate, which is where
+     the game found its look. They are tokens rather than literals so the gate,
+     the landing screen and the ordinary .btn stay the same object. */
+  --fw-gold: #ffd23f;          /* the wordmark, headings, every accent */
+  --fw-gold-hot: #ff8a3f;      /* punctuation and other single-glyph accents */
+  --fw-ink: #0a0e18;           /* the outline ring around type */
+  --fw-ink-2: #10141f;         /* borders on solid blocks — one step lighter so
+                                  a border next to a ring still separates */
+  --fw-extrude-1: #8e2f00;     /* first step of the downward block extrude */
+  --fw-extrude-2: #4a1900;     /* second, darker step */
+  --fw-orange-1: #ffa23f;      /* CTA pill gradient, top to bottom */
+  --fw-orange-2: #ff7a2b;
+  --fw-orange-3: #ff5a1f;
+  --fw-steel-1: #5a6a91;       /* the same pill, drained of urgency */
+  --fw-steel-2: #3b4763;
+  --fw-steel-extrude: #1b2133;
+  --fw-plate: rgba(12, 16, 28, .92); /* dark plate behind quiet gold lines */
+
+  /* 8-direction hard outline ring. This is what lets gold type sit on a bright,
+     moving city with no scrim behind it: the ring measures 19:1 against white.
+     Two sizes — 3px for display type, 2px for small uppercase lines. */
+  --fw-ring-3:
+    3px 0 0 var(--fw-ink), -3px 0 0 var(--fw-ink), 0 3px 0 var(--fw-ink), 0 -3px 0 var(--fw-ink),
+    2px 2px 0 var(--fw-ink), -2px 2px 0 var(--fw-ink), 2px -2px 0 var(--fw-ink), -2px -2px 0 var(--fw-ink);
+  --fw-ring-2:
+    2px 0 0 var(--fw-ink), -2px 0 0 var(--fw-ink), 0 2px 0 var(--fw-ink), 0 -2px 0 var(--fw-ink),
+    1px 1px 0 var(--fw-ink), -1px 1px 0 var(--fw-ink), 1px -1px 0 var(--fw-ink), -1px -1px 0 var(--fw-ink);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body, #app { width: 100%; height: 100%; overflow: hidden; }
@@ -99,16 +128,41 @@ body {
   background: rgba(10, 14, 26, 0.72); backdrop-filter: blur(4px);
   overflow-y: auto; padding: 24px;
 }
-.screen h1 { font-size: clamp(26px, 5vw, 44px); margin-bottom: 18px; text-shadow: 0 3px 0 rgba(0,0,0,.4); }
-.screen h2 { font-size: clamp(20px, 3.5vw, 30px); margin-bottom: 12px; }
-.btn {
-  background: var(--accent); color: #fff; border: none; border-radius: 26px;
-  padding: 13px 34px; font-size: clamp(15px, 2.4vw, 19px); font-weight: 800;
-  cursor: pointer; margin: 6px; box-shadow: 0 4px 0 rgba(0,0,0,.35);
+/* Headings wear the brand ring so every screen reads as one game rather than as
+   a settings panel bolted to a title card. STATIC on purpose: the pop-in and bob
+   belong to the landing screen and the READY gate, where the type IS the moment.
+   On a shop or results header the same motion only delays reading it. The 2px
+   ring (not the wordmark's 3px) because these sit at 20-44px, where a 3px ring
+   starts closing up the counters of an 'e'. */
+.screen h1, .screen h2 {
+  color: var(--fw-gold); font-weight: 900; letter-spacing: 1px;
+  text-shadow: var(--fw-ring-2), 0 4px 0 var(--fw-extrude-1), 0 8px 14px rgba(0,0,0,.55);
 }
-.btn:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,.35); }
-.btn.secondary { background: #3b4763; }
-.btn:disabled { background: #555; cursor: default; opacity: .6; }
+.screen h1 { font-size: clamp(26px, 5vw, 44px); margin-bottom: 18px; }
+.screen h2 { font-size: clamp(20px, 3.5vw, 30px); margin-bottom: 12px; }
+/* The ordinary button is the GO! pill with the volume down: same gradient, same
+   3px dark border, same hard bottom extrude and press-down, two steps smaller.
+   Padding is 11/32 against the old 13/34 because the 3px border it never had is
+   now doing that work — the box lands within a pixel of where it used to. */
+.btn {
+  font-family: inherit;
+  background: linear-gradient(180deg, var(--fw-orange-1) 0%, var(--fw-orange-2) 44%, var(--fw-orange-3) 100%);
+  color: #2b1200; border: 3px solid var(--fw-ink-2); border-radius: 999px;
+  padding: 11px 32px; font-size: clamp(15px, 2.4vw, 19px); font-weight: 900;
+  letter-spacing: 1.2px; cursor: pointer; margin: 6px;
+  box-shadow: 0 5px 0 var(--fw-extrude-1), 0 10px 18px rgba(0,0,0,.45);
+}
+.btn:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--fw-extrude-1), 0 6px 12px rgba(0,0,0,.45); }
+.btn:focus-visible { outline: 3px solid var(--fw-gold); outline-offset: 3px; }
+.btn.secondary {
+  background: linear-gradient(180deg, var(--fw-steel-1) 0%, var(--fw-steel-2) 100%);
+  color: #fff; box-shadow: 0 5px 0 var(--fw-steel-extrude), 0 10px 18px rgba(0,0,0,.45);
+}
+.btn.secondary:active { box-shadow: 0 2px 0 var(--fw-steel-extrude), 0 6px 12px rgba(0,0,0,.45); }
+.btn:disabled {
+  background: #555; color: #ddd; cursor: default; opacity: .6;
+  box-shadow: 0 5px 0 #2b2b2b, 0 10px 18px rgba(0,0,0,.45);
+}
 
 .metro-row { width: min(880px, 94vw); margin-bottom: 18px; }
 .metro-row h3 { margin: 8px 0; font-size: clamp(15px, 2.6vw, 20px); color: #ffd23f; }
@@ -155,6 +209,206 @@ body.rg-gate-up #hud { opacity: 0; }
    subtree so an invisible mute/pause button can't be clicked or tabbed to. */
 body.rg-gate-up #hud,
 body.rg-gate-up #hud * { pointer-events: none; }
+
+/* ---------- Flywheel brand layer (unscoped) ----------
+   The level-start READY gate is where this game found its voice, and until now
+   every rule that made it work was scoped to #ready-gate. They live here
+   instead: the wordmark, the orange pill, the dark plate and the hold-still
+   behaviour belong to the GAME, not to the gate, so the landing screen is
+   literally the same treatment rather than a lookalike that drifts apart on the
+   next edit. The gate section below keeps only what is genuinely about the gate
+   — its sizing against a live 3D frame, its scrim, its hint and its exit. */
+
+/* readable by a screen reader, invisible on screen */
+.fw-a11y {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+
+/* ----- the block wordmark ----- */
+/* Built by js/ui/blockword.js. Callers own the font-size and nothing else:
+   --fw-fit comes from the builder and shrinks a longer-than-design word rather
+   than letting it overflow a phone in portrait. */
+.fw-title {
+  position: relative; z-index: 0;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end;
+  gap: 0 .3em; max-width: 96vw;
+  font-weight: 900; line-height: .95; letter-spacing: .01em;
+  /* the 10px block extrude paints outside the line box — keep whatever follows
+     clear of the overhang */
+  padding-bottom: .12em;
+}
+.fw-word { display: flex; flex-wrap: nowrap; }
+.fw-ch {
+  display: inline-block; color: var(--fw-gold); transform-origin: 50% 88%;
+  text-shadow:
+    var(--fw-ring-3),
+    0 7px 0 var(--fw-extrude-1), 0 10px 0 var(--fw-extrude-2),
+    0 0 30px rgba(255,210,63,.5), 0 14px 26px rgba(0,0,0,.6);
+  animation:
+    fw-pop .56s cubic-bezier(.18,1.6,.42,1) calc(var(--i) * 58ms) both,
+    fw-bob 2.9s ease-in-out calc(760ms + var(--i) * 110ms) infinite;
+}
+.fw-ch-accent { color: var(--fw-gold-hot); }
+/* ambient gold pool so the wordmark separates from whatever is lit behind it */
+.fw-glow {
+  position: absolute; left: 50%; top: 50%; width: 132%; height: 200%;
+  transform: translate(-50%, -50%); z-index: -1; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255,210,63,.3),
+    rgba(255,138,43,.13) 52%, rgba(255,210,63,0) 78%);
+  animation: fw-glow 3.4s ease-in-out infinite;
+}
+/* sparkles live OUTSIDE the letter block so they never sit on a glyph */
+.fw-spark {
+  position: absolute; width: clamp(18px, 4.5vw, 40px); aspect-ratio: 1;
+  background: #fff; pointer-events: none;
+  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+  filter: drop-shadow(0 0 9px rgba(255,210,63,1)) drop-shadow(0 2px 3px rgba(0,0,0,.75));
+  animation: fw-twinkle 2.6s ease-in-out calc(600ms + var(--i) * 700ms) infinite;
+}
+.fw-title .fw-spark:nth-of-type(1) { left: -10%; top: -8%; }
+.fw-title .fw-spark:nth-of-type(2) { right: -10%; top: 10%; }
+.fw-title .fw-spark:nth-of-type(3) { right: 6%; top: -28%; }
+
+/* ----- the dark plate -----
+   Gold on near-black (13:1) rather than the HUD's white-on-orange, so the one
+   orange thing on any screen is the one thing to press. */
+.fw-plate {
+  background: var(--fw-plate); color: var(--fw-gold);
+  border: 2px solid rgba(255, 255, 255, .55); border-radius: 22px;
+  padding: 5px clamp(14px, 3vw, 28px); font-weight: 800;
+  letter-spacing: clamp(2px, .5vw, 4px);
+  font-size: clamp(11px, min(2.4vw, 2.2vh), 19px);
+  box-shadow: 0 3px 0 rgba(0,0,0,.5), 0 8px 20px rgba(0,0,0,.45);
+}
+
+/* ----- the primary CTA pill -----
+   Consumers set padding and font-size; everything that makes it feel like a
+   physical button is here. The wrap exists so the expanding ping ring has
+   something to sit on that is not the button's own box. */
+.fw-cta-wrap {
+  position: relative; display: inline-flex;
+  animation:
+    fw-cta-in .6s cubic-bezier(.2,1.7,.4,1) .38s both,
+    fw-cta-idle 1.7s ease-in-out 1.2s infinite;
+}
+.fw-cta-wrap::before {
+  content: ''; position: absolute; inset: -7px; border-radius: 999px;
+  border: 3px solid rgba(255,210,63,.8); pointer-events: none;
+  animation: fw-ping 1.9s ease-out .9s infinite;
+}
+.fw-cta {
+  position: relative; font-family: inherit; cursor: pointer;
+  background: linear-gradient(180deg, var(--fw-orange-1) 0%, var(--fw-orange-2) 44%, var(--fw-orange-3) 100%);
+  color: #2b1200; border: 3px solid var(--fw-ink-2); border-radius: 999px;
+  font-weight: 900; letter-spacing: 1.6px;
+  box-shadow: 0 7px 0 var(--fw-extrude-1), 0 14px 26px rgba(0,0,0,.55);
+}
+.fw-cta:active {
+  transform: translateY(4px);
+  box-shadow: 0 3px 0 var(--fw-extrude-1), 0 8px 16px rgba(0,0,0,.55);
+}
+.fw-cta:focus-visible { outline: 4px solid #fff; outline-offset: 5px; }
+
+/* ----- the mark: a voxel sprocket -----
+   Built by js/ui/sprocket.js. --fw-sp is the wheel's DIAMETER and every
+   measurement below is a fraction of it, so one clamp resizes the whole mark
+   and the tooth/rim/hub proportions can never drift apart. */
+.fw-sprocket {
+  --fw-sp: clamp(72px, min(19vw, 17vh), 132px);
+  position: relative; flex: none; width: var(--fw-sp); height: var(--fw-sp);
+  /* Grounding lives on the STATIC outer box, never on the spinning layer: a
+     filter here is applied after the child's rotation, so the extrude and the
+     cast shadow keep pointing down while the wheel turns. Put it on the teeth
+     and the light source would orbit with them. */
+  filter: drop-shadow(0 5px 0 var(--fw-extrude-1)) drop-shadow(0 12px 16px rgba(0,0,0,.55));
+}
+.fw-sprocket-spin {
+  position: absolute; inset: 0;
+  /* 20 s per revolution = 18 deg/s. Slow enough to read as mass and momentum
+     rather than as a loading spinner, fast enough that a tooth visibly moves
+     while you look at it — one 30 deg pitch every 1.7 s. */
+  animation: fw-spin 20s linear infinite;
+}
+/* Teeth are literal squares with a hard dark border and a lighter cap on the
+   outward end: flat fill plus one lit face is exactly how the 1 m voxel stock
+   the cities are cut from reads, so the mark is made of the same material the
+   player eats. Square and stubby is also what separates a sprocket from a sun —
+   the first pass ran them at 1.3:1 and 0.4 of the wheel long, and it read as a
+   flower. They span 0.70 to 0.98 of the radius, so a fifth of each tooth is
+   buried in the rim and only the working part shows. */
+.fw-tooth {
+  position: absolute; left: 50%; top: 50%;
+  width: calc(var(--fw-sp) * .14); height: calc(var(--fw-sp) * .14);
+  margin: calc(var(--fw-sp) * -.07) 0 0 calc(var(--fw-sp) * -.07);
+  background: linear-gradient(180deg, #ffe27a 0 32%, #ffb02e 32% 100%);
+  border: 2px solid var(--fw-ink-2); border-radius: 1px;
+  transform: rotate(var(--a)) translateY(calc(var(--fw-sp) * -.42));
+}
+/* The rim does NOT spin. It is radially symmetric, so rotating it would buy
+   nothing and would drag its vertical light split around with it — the teeth
+   are the motion cue and the rim is the fixed lighting. Its outer edge sits at
+   0.80 of the radius, well past the 0.70 where the teeth root, so the joins are
+   covered and the silhouette stays one solid wheel. */
+.fw-sprocket-rim {
+  position: absolute; inset: 10%; border-radius: 50%;
+  background: linear-gradient(180deg, #ffd06a 0 46%, #f2921f 46% 100%);
+  border: 3px solid var(--fw-ink-2);
+}
+/* The void, deliberately empty: it is the hole the player drives, not a badge
+   with room for a letter. The inset shadow is what sells it as depth rather
+   than a painted dot; the faint warm bounce off the bottom lip is the only
+   thing that stops it reading as a hole punched clean through the page. */
+.fw-sprocket-hub {
+  position: absolute; inset: 32%; border-radius: 50%;
+  background: #070a12; border: 3px solid var(--fw-ink-2);
+  box-shadow: inset 0 5px 9px rgba(0,0,0,.95), inset 0 -2px 6px rgba(255,178,60,.16);
+}
+
+/* ----- hold still -----
+   Applied by whichever surface owns the reduced-motion decision: ready.js reads
+   the OS setting, the landing screen reads save.settings.reducedMotion. Tilt is
+   KEPT (it is layout, not movement) so the wordmark holds its character, and
+   the sprocket parks 7.5 deg off — half a tooth pitch, so it reads as a
+   deliberate pose rather than as a wheel that snapped to a grid. */
+.fw-still .fw-glow,
+.fw-still .fw-spark,
+.fw-still .fw-cta-wrap,
+.fw-still .fw-cta-wrap::before { animation: none; }
+.fw-still .fw-ch { animation: none; transform: rotate(var(--rot)); }
+.fw-still .fw-sprocket-spin { animation: none; transform: rotate(7.5deg); }
+
+@keyframes fw-pop {
+  0% { opacity: 0; transform: translateY(40%) scale(.32) rotate(calc(var(--rot) * 2.6)); }
+  55% { opacity: 1; transform: translateY(-10%) scale(1.17) rotate(calc(var(--rot) * -.5)); }
+  78% { transform: translateY(2%) scale(.96) rotate(var(--rot)); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(var(--rot)); }
+}
+@keyframes fw-bob {
+  0%, 100% { transform: translateY(0) scale(1) rotate(var(--rot)); }
+  50% { transform: translateY(-5%) scale(1.03) rotate(calc(var(--rot) + 1.3deg)); }
+}
+@keyframes fw-glow {
+  0%, 100% { opacity: .75; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.09); }
+}
+@keyframes fw-twinkle {
+  0%, 55%, 100% { opacity: 0; transform: scale(.2) rotate(0deg); }
+  72%, 84% { opacity: 1; transform: scale(1) rotate(35deg); }
+}
+@keyframes fw-cta-in {
+  0% { opacity: 0; transform: translateY(60%) scale(.6); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes fw-cta-idle {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4%) scale(1.045); }
+}
+@keyframes fw-ping {
+  0% { opacity: .85; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(1.32); }
+}
+@keyframes fw-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* ---------- READY gate (level start, layered over LIVE gameplay) ----------
    z-index 15 sits above the HUD (10) and below the Screens takeovers (20), so
@@ -214,93 +468,20 @@ body.rg-gate-up #hud * { pointer-events: none; }
   display: flex; flex-direction: column; align-items: center;
   gap: clamp(18px, 4vh, 40px); max-width: 96vw;
 }
-/* readable by a screen reader, invisible on screen */
-#ready-gate .rg-a11y {
-  position: absolute; width: 1px; height: 1px; overflow: hidden;
-  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
-}
+/* The subtitle IS the shared .fw-plate; the gate adds only its entrance, which
+   drops the pill in from above the frame edge before the title lands. */
+#ready-gate .rg-sub { animation: rg-sub-in .5s cubic-bezier(.2,1.5,.4,1) .06s both; }
 
-/* subtitle: dark plate + gold text (13:1) rather than the HUD's white-on-orange,
-   so the one orange thing on screen is the one thing to press */
-#ready-gate .rg-sub {
-  background: rgba(12, 16, 28, .92); color: #ffd23f;
-  border: 2px solid rgba(255, 255, 255, .55); border-radius: 22px;
-  padding: 5px clamp(14px, 3vw, 28px); font-weight: 800;
-  letter-spacing: clamp(2px, .5vw, 4px);
-  font-size: clamp(11px, min(2.4vw, 2.2vh), 19px);
-  box-shadow: 0 3px 0 rgba(0,0,0,.5), 0 8px 20px rgba(0,0,0,.45);
-  animation: rg-sub-in .5s cubic-bezier(.2,1.5,.4,1) .06s both;
+/* Gate sizing for the shared wordmark and CTA. This is the only thing the gate
+   overrides on either: it is measured against a live 3D frame at arm's length,
+   so it runs far larger than the landing screen's. 20vh caps it against the
+   viewport height as well as the width, or phone landscape loses the city. */
+#ready-gate .fw-title {
+  font-size: calc(clamp(52px, min(22vw, 20vh), 148px) * var(--fw-fit, 1));
 }
-
-#ready-gate .rg-title {
-  position: relative; z-index: 0;
-  display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end;
-  gap: 0 .3em; max-width: 96vw;
-  /* --rg-fit is set by ready.js so a long word shrinks to fit instead of overflowing */
-  font-size: calc(clamp(52px, min(22vw, 20vh), 148px) * var(--rg-fit, 1));
-  font-weight: 900; line-height: .95; letter-spacing: .01em;
-  /* the 10px block extrude paints outside the line box — keep the CTA clear of it */
-  padding-bottom: .12em;
-}
-#ready-gate .rg-word { display: flex; flex-wrap: nowrap; }
-#ready-gate .rg-ch {
-  display: inline-block; color: #ffd23f; transform-origin: 50% 88%;
-  text-shadow:
-    3px 0 0 #0a0e18, -3px 0 0 #0a0e18, 0 3px 0 #0a0e18, 0 -3px 0 #0a0e18,
-    2px 2px 0 #0a0e18, -2px 2px 0 #0a0e18, 2px -2px 0 #0a0e18, -2px -2px 0 #0a0e18,
-    0 7px 0 #8e2f00, 0 10px 0 #4a1900,
-    0 0 30px rgba(255,210,63,.5), 0 14px 26px rgba(0,0,0,.6);
-  animation:
-    rg-pop .56s cubic-bezier(.18,1.6,.42,1) calc(var(--i) * 58ms) both,
-    rg-bob 2.9s ease-in-out calc(760ms + var(--i) * 110ms) infinite;
-}
-#ready-gate .rg-ch-accent { color: #ff8a3f; }
-/* ambient gold pool so the sign separates from whatever is lit behind it */
-#ready-gate .rg-glow {
-  position: absolute; left: 50%; top: 50%; width: 132%; height: 200%;
-  transform: translate(-50%, -50%); z-index: -1; pointer-events: none;
-  background: radial-gradient(closest-side, rgba(255,210,63,.3),
-    rgba(255,138,43,.13) 52%, rgba(255,210,63,0) 78%);
-  animation: rg-glow 3.4s ease-in-out infinite;
-}
-/* sparkles live OUTSIDE the letter block so they never sit on a glyph */
-#ready-gate .rg-spark {
-  position: absolute; width: clamp(18px, 4.5vw, 40px); aspect-ratio: 1;
-  background: #fff; pointer-events: none;
-  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
-  filter: drop-shadow(0 0 9px rgba(255,210,63,1)) drop-shadow(0 2px 3px rgba(0,0,0,.75));
-  animation: rg-twinkle 2.6s ease-in-out calc(600ms + var(--i) * 700ms) infinite;
-}
-#ready-gate .rg-spark:nth-of-type(1) { left: -10%; top: -8%; }
-#ready-gate .rg-spark:nth-of-type(2) { right: -10%; top: 10%; }
-#ready-gate .rg-spark:nth-of-type(3) { right: 6%; top: -28%; }
-
-#ready-gate .rg-cta-wrap {
-  position: relative; display: inline-flex;
-  animation:
-    rg-cta-in .6s cubic-bezier(.2,1.7,.4,1) .38s both,
-    rg-cta-idle 1.7s ease-in-out 1.2s infinite;
-}
-#ready-gate .rg-cta-wrap::before {
-  content: ''; position: absolute; inset: -7px; border-radius: 999px;
-  border: 3px solid rgba(255,210,63,.8); pointer-events: none;
-  animation: rg-ping 1.9s ease-out .9s infinite;
-}
-#ready-gate .rg-cta {
-  position: relative; font-family: inherit; cursor: pointer;
-  background: linear-gradient(180deg, #ffa23f 0%, #ff7a2b 44%, #ff5a1f 100%);
-  color: #2b1200; border: 3px solid #10141f; border-radius: 999px;
+#ready-gate .fw-cta {
   padding: clamp(11px, 2vh, 19px) clamp(40px, 9vw, 78px);
   font-size: clamp(20px, min(5.5vw, 3.6vh), 34px);
-  font-weight: 900; letter-spacing: 1.6px;
-  box-shadow: 0 7px 0 #8e2f00, 0 14px 26px rgba(0,0,0,.55);
-}
-#ready-gate .rg-cta:active {
-  transform: translateY(4px);
-  box-shadow: 0 3px 0 #8e2f00, 0 8px 16px rgba(0,0,0,.55);
-}
-#ready-gate .rg-cta:focus-visible {
-  outline: 4px solid #fff; outline-offset: 5px;
 }
 #ready-gate .rg-hint {
   font-size: clamp(11px, min(1.9vw, 1.9vh), 16px); font-weight: 700;
@@ -326,34 +507,31 @@ body.rg-gate-up #hud * { pointer-events: none; }
   #ready-gate .rg-stack { padding: 10px 2vw; }
   #ready-gate .rg-top,
   #ready-gate .rg-bot { gap: clamp(14px, 3.5vh, 22px); }
-  #ready-gate .rg-title { font-size: calc(clamp(40px, 21vh, 92px) * var(--rg-fit, 1)); }
-  #ready-gate .rg-spark { display: none; }
-  #ready-gate .rg-cta { padding: 9px clamp(26px, 6vw, 48px); box-shadow: 0 5px 0 #8e2f00, 0 10px 20px rgba(0,0,0,.55); }
+  #ready-gate .fw-title { font-size: calc(clamp(40px, 21vh, 92px) * var(--fw-fit, 1)); }
+  #ready-gate .fw-spark { display: none; }
+  #ready-gate .fw-cta { padding: 9px clamp(26px, 6vw, 48px); box-shadow: 0 5px 0 var(--fw-extrude-1), 0 10px 20px rgba(0,0,0,.55); }
 }
 
 /* ----- exit: the hole eats the sign while the camera dives into the circle ----- */
 #ready-gate.rg-out { pointer-events: none; }
-#ready-gate.rg-out .rg-ch {
+#ready-gate.rg-out .fw-ch {
   animation: rg-eat .42s cubic-bezier(.55,-0.25,.75,.35) calc(var(--i) * 26ms) forwards;
 }
 #ready-gate.rg-out .rg-scrim { animation: rg-fade-out .4s ease-in forwards; }
-#ready-gate.rg-out .rg-glow { animation: rg-fade-out .28s ease-in forwards; }
-#ready-gate.rg-out .rg-spark { animation: rg-fade-out .18s ease-in forwards; }
+#ready-gate.rg-out .fw-glow { animation: rg-fade-out .28s ease-in forwards; }
+#ready-gate.rg-out .fw-spark { animation: rg-fade-out .18s ease-in forwards; }
 #ready-gate.rg-out .rg-sub { animation: rg-slip-out .3s ease-in forwards; }
 #ready-gate.rg-out .rg-hint { animation: rg-fade-out .18s ease-in forwards; }
-#ready-gate.rg-out .rg-cta-wrap { animation: rg-cta-out .34s cubic-bezier(.3,-0.6,.7,.4) forwards; }
-#ready-gate.rg-out .rg-cta-wrap::before { animation: rg-fade-out .2s ease-in forwards; }
+#ready-gate.rg-out .fw-cta-wrap { animation: rg-cta-out .34s cubic-bezier(.3,-0.6,.7,.4) forwards; }
+#ready-gate.rg-out .fw-cta-wrap::before { animation: rg-fade-out .2s ease-in forwards; }
 
-/* ----- reduced motion: appear, sit still, disappear. Tilt is kept (it is
-   layout, not movement) so the sign keeps its character. ----- */
-#ready-gate.rg-still .rg-scrim,
-#ready-gate.rg-still .rg-sub,
-#ready-gate.rg-still .rg-glow,
-#ready-gate.rg-still .rg-spark,
-#ready-gate.rg-still .rg-cta-wrap,
-#ready-gate.rg-still .rg-cta-wrap::before,
-#ready-gate.rg-still .rg-hint { animation: none; }
-#ready-gate.rg-still .rg-ch { animation: none; transform: rotate(var(--rot)); }
+/* ----- reduced motion: appear, sit still, disappear. The shared .fw-still rules
+   in the brand layer already hold the wordmark, glow, sparks and CTA; these are
+   the gate's own pieces, and they need the #ready-gate prefix to outrank the
+   #ready-gate rules that armed them. ----- */
+#ready-gate.fw-still .rg-scrim,
+#ready-gate.fw-still .rg-sub,
+#ready-gate.fw-still .rg-hint { animation: none; }
 
 @keyframes rg-scrim-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rg-fade-out { to { opacity: 0; } }
@@ -362,45 +540,126 @@ body.rg-gate-up #hud * { pointer-events: none; }
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes rg-slip-out { to { opacity: 0; transform: translateY(-150%) scale(.8); } }
-@keyframes rg-pop {
-  0% { opacity: 0; transform: translateY(40%) scale(.32) rotate(calc(var(--rot) * 2.6)); }
-  55% { opacity: 1; transform: translateY(-10%) scale(1.17) rotate(calc(var(--rot) * -.5)); }
-  78% { transform: translateY(2%) scale(.96) rotate(var(--rot)); }
-  100% { opacity: 1; transform: translateY(0) scale(1) rotate(var(--rot)); }
-}
-@keyframes rg-bob {
-  0%, 100% { transform: translateY(0) scale(1) rotate(var(--rot)); }
-  50% { transform: translateY(-5%) scale(1.03) rotate(calc(var(--rot) + 1.3deg)); }
-}
 @keyframes rg-eat {
   0% { opacity: 1; transform: translate(0, 0) scale(1) rotate(var(--rot)); }
   20% { opacity: 1; transform: translate(0, -14%) scale(1.1, .9) rotate(var(--rot)); }
   100% { opacity: 0; transform: translate(var(--dx), 150%) scale(.04) rotate(calc(var(--rot) * -14)); }
-}
-@keyframes rg-glow {
-  0%, 100% { opacity: .75; transform: translate(-50%, -50%) scale(1); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.09); }
-}
-@keyframes rg-twinkle {
-  0%, 55%, 100% { opacity: 0; transform: scale(.2) rotate(0deg); }
-  72%, 84% { opacity: 1; transform: scale(1) rotate(35deg); }
-}
-@keyframes rg-cta-in {
-  0% { opacity: 0; transform: translateY(60%) scale(.6); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes rg-cta-idle {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-4%) scale(1.045); }
 }
 @keyframes rg-cta-out {
   0% { transform: scale(1); opacity: 1; }
   30% { transform: scale(1.14); opacity: 1; }
   100% { transform: scale(.2); opacity: 0; }
 }
-@keyframes rg-ping {
-  0% { opacity: .85; transform: scale(1); }
-  70%, 100% { opacity: 0; transform: scale(1.32); }
-}
 @keyframes rg-hint-in { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
 @keyframes rg-hint-idle { 0%, 100% { opacity: .78; } 50% { opacity: 1; } }
+
+/* ---------- Landing screen ----------
+   Seven identically-weighted buttons used to sit here, which told the player
+   nothing about any of them. They are three different KINDS of thing: one
+   campaign entry, four free-play scenes, two utilities. The grouping below is
+   that information, not decoration — the eye should land on the mark, then on
+   PLAY, and only then discover that there are cities to go and wander. */
+.fw-landing {
+  gap: clamp(12px, 2.2vh, 24px);
+  /* The wordmark's sparkles are absolutely positioned outside the letter block,
+     and .screen's overflow-y:auto makes the x axis compute to auto too — so
+     without this a sparkle could hand a 320px phone a horizontal scrollbar. */
+  overflow-x: hidden;
+}
+.fw-hero {
+  display: flex; flex-direction: column; align-items: center;
+  gap: clamp(6px, 1.4vh, 14px);
+}
+.fw-hero-text {
+  display: flex; flex-direction: column; align-items: center;
+  gap: clamp(6px, 1.2vh, 12px);
+}
+/* 8 letters is the design length passed to blockword.js, so FLYWHEEL renders at
+   --fw-fit 1 and the clamp alone does the sizing. Capped by 12vh as well as
+   13vw or the wordmark eats a short viewport before the landscape query fires.
+   At the 320px floor this measures ~213px against 272px of usable width. */
+.fw-landing .fw-title { font-size: clamp(38px, min(13vw, 12vh), 96px); }
+.fw-landing .fw-cta {
+  padding: clamp(11px, 1.9vh, 16px) clamp(46px, 11vw, 72px);
+  font-size: clamp(20px, min(5.5vw, 3.4vh), 30px);
+}
+
+/* The free-play group. A label plus a repeating chip is what makes four scenes
+   read as one shelf rather than as four more decisions; the chips carry no
+   per-scene colour, because the thing they have in common (they are all voxel
+   cities you can just go and eat) is the point. */
+.fw-group { width: min(660px, 100%); display: flex; flex-direction: column; gap: 8px; }
+.fw-group-label {
+  align-self: center; color: rgba(255,255,255,.7);
+  font-size: 12px; font-weight: 800; letter-spacing: 2.4px; text-transform: uppercase;
+  text-shadow: 0 2px 4px rgba(0,0,0,.7);
+}
+/* auto-fit at a 150px floor: two columns from ~330px up, one below it, and no
+   media query needed to get there. */
+.fw-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.fw-chip {
+  position: relative; overflow: hidden;
+  font-family: inherit; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--fw-plate); color: #fff;
+  border: 2px solid rgba(255,255,255,.26); border-radius: 12px;
+  padding: 9px 13px 9px 18px; /* the extra 5px on the left clears the accent bar */
+  box-shadow: 0 4px 0 rgba(0,0,0,.45);
+}
+/* The gold bar is a pseudo-element rather than a border-left so that :hover can
+   recolour the frame without also wiping the accent out. */
+.fw-chip::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+  background: var(--fw-gold);
+}
+.fw-chip:hover { border-color: var(--fw-gold); background: rgba(26, 32, 50, .95); }
+.fw-chip:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,.45); }
+.fw-chip:focus-visible { outline: 3px solid var(--fw-gold); outline-offset: 3px; }
+.fw-chip-name { font-weight: 900; letter-spacing: 1.1px; font-size: clamp(13px, 2.2vw, 15px); }
+.fw-chip-sub { font-size: clamp(11px, 1.9vw, 12.5px); font-weight: 600; opacity: .7; }
+.fw-chip-tag {
+  align-self: flex-start; margin-top: 3px;
+  background: var(--fw-gold); color: #4a3200; border-radius: 7px;
+  padding: 1px 7px; font-size: 10px; font-weight: 900; letter-spacing: 1.3px;
+}
+
+/* Shop and Settings are utilities, not offers: same pill geometry so they still
+   belong to the game, drained of fill and extrude so they sit behind the chips
+   in the reading order instead of competing with them. */
+.fw-utility { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.fw-utility .btn {
+  margin: 0; padding: 7px 22px; font-size: 14px; letter-spacing: 1.4px;
+  background: rgba(12, 16, 28, .55); color: rgba(255,255,255,.8);
+  border: 2px solid rgba(255,255,255,.24); box-shadow: none;
+}
+.fw-utility .btn:hover { color: #fff; border-color: var(--fw-gold); }
+.fw-utility .btn:active { transform: translateY(2px); box-shadow: none; }
+
+/* phone landscape: ~390px tall. The hero turns on its side — mark beside the
+   wordmark rather than above it — which is what buys back the ~140px the
+   stacked version costs, and everything else just tightens. */
+@media (orientation: landscape) and (max-height: 480px) {
+  .fw-landing { padding: 12px 18px; gap: 10px; }
+  .fw-hero { flex-direction: row; gap: clamp(10px, 2.4vw, 22px); }
+  .fw-hero-text { align-items: flex-start; }
+  .fw-landing .fw-title { justify-content: flex-start; font-size: clamp(32px, 15vh, 70px); }
+  .fw-landing .fw-spark { display: none; }
+  .fw-landing .fw-cta { padding: 9px clamp(30px, 7vw, 54px); font-size: clamp(18px, 4.4vh, 26px); }
+  .fw-chips { gap: 8px; }
+  .fw-chip { padding: 6px 11px 6px 16px; }
+  .fw-chip-tag { display: none; }
+}
+
+/* ---------- Reduced motion (OS-level) ----------
+   Mirrors the .fw-still class, which is what the in-game Reduced Motion setting
+   drives. Placed last so the #ready-gate-scoped rules here outrank the ones
+   further up that armed those animations; ready.js also stills the gate in JS,
+   so this is belt-and-braces for it and the sole mechanism everywhere else. */
+@media (prefers-reduced-motion: reduce) {
+  .fw-glow, .fw-spark, .fw-cta-wrap, .fw-cta-wrap::before { animation: none; }
+  .fw-ch { animation: none; transform: rotate(var(--rot)); }
+  .fw-sprocket-spin { animation: none; transform: rotate(7.5deg); }
+  #ready-gate .rg-scrim,
+  #ready-gate .rg-sub,
+  #ready-gate .rg-hint { animation: none; }
+}

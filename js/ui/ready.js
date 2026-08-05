@@ -6,6 +6,13 @@
 // Mounts as a sibling of #screen-root (z-index 15: above the HUD, below the
 // full-screen Screens takeovers) so the canvas keeps rendering behind it and
 // screens.clear() can never wipe it.
+//
+// The big gold type is NOT built here: it is the shared Flywheel wordmark, which
+// the landing screen renders too. See js/ui/blockword.js — the gate contributes
+// only its own font-size (#ready-gate .fw-title in main.css), because this one
+// is measured against a live 3D frame and runs far larger.
+
+import { buildBlockWord } from './blockword.js';
 
 const GATE_ID = 'ready-gate';
 const EXIT_MS = 460; // must cover the longest exit animation in main.css
@@ -71,41 +78,6 @@ function isStartKey(e) {
   }
 }
 
-// Split into words → letters so a long title wraps between words but never
-// mid-word. Each glyph carries its own stagger index (--i), hand-placed tilt
-// (--rot), and inward pull (--dx) used by the swallow animation.
-function buildTitle(text) {
-  const wrap = el(`<div class="rg-title" aria-hidden="true"><span class="rg-glow"></span></div>`);
-  const words = String(text).split(/\s+/).filter(Boolean);
-  const total = words.join('').length || 1;
-  let i = 0;
-  for (const word of words) {
-    const w = el(`<span class="rg-word"></span>`);
-    for (const ch of word) {
-      const s = el(`<span class="rg-ch"></span>`);
-      s.textContent = ch;
-      s.style.setProperty('--i', i);
-      s.style.setProperty('--rot', `${((i % 2 ? 1 : -1) * (1.6 + (i % 3) * 0.9)).toFixed(1)}deg`);
-      // edge letters converge hardest toward the middle when swallowed
-      s.style.setProperty('--dx', `${(((total - 1) / 2 - i) * 46).toFixed(0)}%`);
-      if (/[?!.…]/.test(ch)) s.classList.add('rg-ch-accent');
-      w.appendChild(s);
-      i++;
-    }
-    wrap.appendChild(w);
-  }
-  for (let k = 0; k < 3; k++) {
-    const sp = el(`<i class="rg-spark"></i>`);
-    sp.style.setProperty('--i', k);
-    wrap.appendChild(sp);
-  }
-  // 'READY?' is the design size; anything longer scales down rather than
-  // overflowing a phone in portrait.
-  const longest = words.reduce((m, w) => Math.max(m, w.length), 1);
-  wrap.style.setProperty('--rg-fit', Math.min(1, 6.5 / longest).toFixed(3));
-  return wrap;
-}
-
 /**
  * Mount the level-start gate over live gameplay.
  * @param {object} opts
@@ -124,16 +96,16 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reduc
   const still = !!reducedMotion || prefersReducedMotion();
   const label = subtitle ? `${title} ${subtitle}` : title;
 
-  const root = el(`<div id="${GATE_ID}" class="${still ? 'rg-still' : ''}" role="dialog" aria-labelledby="rg-a11y">
+  const root = el(`<div id="${GATE_ID}" class="${still ? 'fw-still' : ''}" role="dialog" aria-labelledby="rg-a11y">
     <div class="rg-scrim"></div>
     <div class="rg-stack">
-      <h2 id="rg-a11y" class="rg-a11y"></h2>
+      <h2 id="rg-a11y" class="fw-a11y"></h2>
       <div class="rg-top">
-        <div class="rg-sub" aria-hidden="true"></div>
+        <div class="rg-sub fw-plate" aria-hidden="true"></div>
       </div>
       <div class="rg-bot">
-        <div class="rg-cta-wrap">
-          <button type="button" class="rg-cta" aria-label="Go: start the level">GO!</button>
+        <div class="fw-cta-wrap">
+          <button type="button" class="fw-cta" aria-label="Go: start the level">GO!</button>
         </div>
         <div class="rg-hint">
           <span class="rg-hint-key">press any key</span>
@@ -143,16 +115,16 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reduc
     </div>
   </div>`);
 
-  root.querySelector('.rg-a11y').textContent = `${label}. Start the level.`;
+  root.querySelector('.fw-a11y').textContent = `${label}. Start the level.`;
   const subEl = root.querySelector('.rg-sub');
   if (subtitle) subEl.textContent = subtitle;
   else subEl.classList.add('hidden');
   // Title joins the subtitle in the top cluster. The stack is split top/bottom
   // rather than centred so the establishing shot shows through the middle of
   // the frame — see the .rg-stack rule in main.css for the measurement.
-  root.querySelector('.rg-top').appendChild(buildTitle(title));
+  root.querySelector('.rg-top').appendChild(buildBlockWord(title));
 
-  const cta = root.querySelector('.rg-cta');
+  const cta = root.querySelector('.fw-cta');
   const prevFocus = document.activeElement;
   let done = false;
   let exitTimer = null;

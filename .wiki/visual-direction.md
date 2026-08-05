@@ -11,6 +11,16 @@ Current state: flat solid-color boxes/cones, one directional light, no texture
 detail, coarse grid. The gap is **not** one thing — it's five stacked layers,
 in order of impact-per-effort:
 
+**Scope note (2026-08-04):** this page tracks the in-world 3D visuals (city
+geometry, textures, lighting, camera) below. Screen *chrome* — title, menus,
+the READY gate — got its own visual-language pass separately: the
+Flywheel brand layer (gold block wordmark, sprocket mark, orange CTA pill;
+`css/main.css` `.fw-*`, `js/ui/blockword.js`, `js/ui/sprocket.js`) now covers
+every screen, not just the gate. See `conventions.md` and
+`adr/0005-shared-brand-layer.md`. That work does not move any of the stages
+below — it closes the *screen-chrome* gap, not the *world-rendering* gap this
+page is about.
+
 ## Stage 1 — Shape language (biggest win)
 
 Reference buildings are *recognizable*: houses with gabled roofs, shops with

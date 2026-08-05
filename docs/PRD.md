@@ -1,4 +1,4 @@
-# PRD — "Hole City" (working title)
+# PRD — Flywheel ("A sprocket's story")
 
 A browser-based 3D city-eater game in the hole.io genre, shipped as a **fully static
 web app** (no backend, no build step). Everything below is normative.

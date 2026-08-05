@@ -1,6 +1,8 @@
-# Hole City
+# Flywheel
 
-A browser-based 3D city-eater game (hole.io-style). Fully static — no backend,
+**A sprocket's story.**
+
+A browser-based 3D city-eater game (hole.io-style). Fully static - no backend,
 no build step. Three.js loads from a CDN importmap.
 
 ## Run
@@ -13,6 +15,13 @@ python -m http.server 8000     # then http://localhost:8000/
 
 (Any static host works: GitHub Pages, Netlify, `npx serve`, etc.)
 
+## Title screen
+
+The branded landing screen: a rotating voxel sprocket mark, the FLYWHEEL
+wordmark, **PLAY** for the 100-level campaign, then a **Free play** shelf of the
+voxel cities (Brooklyn, Lower Manhattan, Upper Manhattan, Sandbox) and the shop
+and settings below it.
+
 ## Controls
 
 - **Desktop**: WASD / arrows move (camera-relative), Q/E orbit, R/F zoom, Esc pause.
@@ -24,8 +33,8 @@ python -m http.server 8000     # then http://localhost:8000/
 
 ## Voxel Sandbox
 
-From the title screen: **VOXEL SANDBOX**. A free-play physics mode — the hole
-excavates a block-built city from underneath: a tower, warehouse, house,
+From the title screen, under Free play: **SANDBOX**. A physics mode where the
+hole excavates a block-built city from underneath: a tower, warehouse, house,
 shop, church, brownstone, apartment block, parking garage, gas station,
 construction crane, elevated bridge + train, 8 vehicles, and a street-furniture
 strip (~3,800 blocks, ~30 object kinds). Blocks lose support, creak (orange
@@ -35,12 +44,18 @@ physical size and its brick density are independent (same footprint, more
 detail). Drive controls: W/S throttle, A/D turn, Q/E sidestep; the camera
 chases behind your heading.
 
-**NYC: LOWER MANHATTAN** is the second, bigger level: ~11,900 blocks of
-downtown — One WTC with its spire, the twin memorial pools, a Woolworth-style
-setback tower, a glass slab tower, the Wall St bank canyon, an elevated
-train over Pearl St, Trinity Church, City Hall, Battery Park with the
-Charging Bull, and a ferry pier on the harbor. Same physics, bigger world
-(±40 m), SIZE ladder scaled to the bigger city.
+**LOWER MANHATTAN** is the second, bigger level: ~25,800 blocks of the
+downtown peninsula — One WTC with its spire, the twin memorial pools, a
+Woolworth-style setback tower, the Wall St bank canyon, an elevated train,
+Trinity Church, City Hall, the Seaport piers and tall ship, Battery Park with
+the Charging Bull, and the ferry terminal. Same physics, bigger world, SIZE
+ladder scaled to the bigger city.
+
+**UPPER MANHATTAN** is the Central Park district (~8,400 blocks: the
+Reservoir, The Lake, Harlem Meer, Belvedere Castle, the Met, Museum Mile, the
+Upper West Side). **BROOKLYN** is the showcase scene (~39,980 blocks, the
+bridges out to Coney Island) and the only one that opens on an establishing
+shot, held by a READY gate until you start.
 
 ## Validate (beatability proof)
 

@@ -26,6 +26,27 @@
 - Shared three.js geometry/material through the caches in `world3d.js`;
   do not allocate per-frame in hot paths.
 
+## Brand layer
+
+- The gold block-letter/orange-pill visual language is unscoped, not
+  per-screen: it lives in `css/main.css`'s `--fw-*` tokens and `.fw-*`
+  primitives, plus `js/ui/blockword.js` (wordmark) and `js/ui/sprocket.js`
+  (mark). Any screen wanting the game's look consumes these — never
+  reimplement the outline-ring/extrude shadow stack locally. See
+  `adr/0005-shared-brand-layer.md`.
+- `js/ui/ready.js`'s `#ready-gate` is the visual reference; it must stay
+  byte-identical on its computed styles. If a brand-layer edit needs to look
+  different on the gate specifically, scope the override under
+  `#ready-gate`, not by forking the shared class.
+- No webfont, no CDN font, no new dependency for display type — the
+  block-letter treatment is `text-shadow`/transform on the system font
+  stack. This holds the line with the existing "no build step" architecture
+  constraint.
+- Wordmark letter tilt (`buildBlockWord`) derives from glyph index, never
+  `Math.random()` — same rule as gameplay sim, extended to this decorative
+  UI because `tools/validate.mjs` greps `js/` indiscriminately for the
+  pattern.
+
 ## Saves
 
 - Bump `CURRENT_VERSION` in `save.js` and add a `MIGRATIONS[oldV]` entry for
