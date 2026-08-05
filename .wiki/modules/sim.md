@@ -45,3 +45,9 @@ validator can prove levels beatable on the exact shipping code.
   sound/toast is player-only.
 - `growthBonus` (shop item) is applied to gain in `main.js`'s level clone —
   beatability proof assumes it's absent; keep it that way.
+- **`sim.js:164`'s speed line is dead by design, not by bug:**
+  `playerSpeedForRadius(p.radius) * (1 + this.growthBonus * 0)` — the `* 0`
+  means the shop's growth item has never affected speed (found and
+  deliberately left alone 2026-08-05; what it should actually buy is a
+  game-feel decision, not a fix). Don't "clean up" the `* 0` without checking
+  whether that decision has since been made.

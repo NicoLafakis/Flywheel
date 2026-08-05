@@ -54,3 +54,7 @@
 - **Ghost block** (voxel) — a block overwritten in the fine-cell grid by a
   later placement sharing its cells; unreachable by the support BFS, falls
   at spawn. Never place two blocks in one cell.
+- **Chroma rule** (voxel palette) — masonry must be chromatic (high
+  saturation), 21st-century cladding must be neutral (low saturation);
+  brightness is free. Separates eras by chroma, not value — see
+  `conventions.md`'s Palette section.

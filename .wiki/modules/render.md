@@ -3,6 +3,7 @@ covers:
   - "js/world3d.js"
   - "js/camera.js"
   - "js/controls.js"
+  - "js/skins.js"
 ---
 # Render & input
 
@@ -17,7 +18,8 @@ mutates sim state.
 |------|---------|
 | `js/world3d.js` | Scene build from city data, mesh caches, eat/flood anims, event sync |
 | `js/camera.js` | `ChaseCamera`: follow, orbit, zoom, building-occlusion pull-in, opt-in follow-direction yaw |
-| `js/controls.js` | Keyboard + touch joystick/orbit → camera-relative move intents |
+| `js/controls.js` | Keyboard + touch joystick/orbit + optional world-space point-to-move → camera-relative move intents |
+| `js/skins.js` | Hole skin registry (17 skins) + geometry primitives + per-frame runtime; consumed by `world3d.js`/`voxelworld.js` for the mesh and re-exported by `js/ui/screens.js` for the shop |
 
 ## Talks To
 
@@ -73,6 +75,32 @@ mutates sim state.
   revolution, and because it routed steering through `orbitDelta` it re-armed
   `_orbitHold` every steering frame, so `followDir` never actually ran in the
   sandbox at all.
+- **Point-to-move (2026-08-05), off by default via `settings.pointMove`.**
+  Drag sets a world-space direction; a short (< `TAP_MS = 350`), barely-moved
+  (< `TAP_PX = 14`) press is a tap whose destination outlives the gesture —
+  one screen→ground raycast projection serves both, so tap-to-move is the
+  same scheme with a different release rule, not a second one. A setting, not
+  a replacement: WASD/joystick are untouched when off, and keys stay live
+  even when on. On touch, point mode **replaces the left-half joystick** and
+  moves orbit to a second finger — the joystick is camera-relative and needs
+  the basis latch, point mode is world-space and must not have one, so a
+  frame with both live would have two answers to what an input means. Three
+  latent bugs this surfaced and fixed: (1) a tap whose ray missed the ground
+  used to clamp to a fallback distance — on the frame a level starts,
+  `matrixWorld` is still identity (camera at y=0, ray horizontal), so an
+  early tap could send the hole on a 396 m sprint; there is now no fallback,
+  `_groundAt` returns `null` and the gesture is ignored; (2) tap timing came
+  from `performance.now()` in the handler (measures the frame, not the
+  finger) — now taken from the event's own `timeStamp`; (3) `js/ui/ready.js`'s
+  `activate()` adds `.rg-out` (`pointer-events:none`) mid-gesture, so the
+  touchstart of the press that hit START fell through to the canvas and drove
+  the hole to a destination under the sign — defended (not cured; the
+  overlay-drops-pointer-events-mid-gesture pattern will bite the next overlay
+  that does it) with `PT_RELEASE_GRACE = 0.25 s` in `controls.js`. No mouse
+  orbit-drag in point mode (Q/E are already the mouse's manual look, and a
+  right-drag would mean suppressing the context menu canvas-wide). Drag
+  magnitude deliberately does not set speed — both sims re-normalise `move`
+  themselves, so this ships direction-only.
 - **`setFollowDirection(true)` is now unconditional in heading** — the old
   `dot > 0.05` gate (chase only while moving AWAY from the camera) is gone. The
   feedback loop that gate existed for is cut at its source instead:
@@ -100,9 +128,40 @@ mutates sim state.
   Target yaw only updates above `FOLLOW_DEADZONE = 1.5 m/s`, and the chase coasts
   `FOLLOW_COAST = 1.2 s` past the last motion — long enough to finish a swing the
   player released mid-turn, short enough that a parked player gets the camera
-  back. Manual orbit suspends it for `ORBIT_HOLD = 0.7 s` (was 1.5) and dumps the
-  spring velocity so the hand-back eases rather than resumes. Reduced Motion
-  still disables the chase entirely.
+  back. Reduced Motion still disables the chase entirely.
+- **Manual orbit re-aims the chase, it no longer suspends it (2026-08-05).**
+  The old scheme held the chase off for 0.7 s after the last orbit frame and
+  then let the spring reclaim the whole yaw error at its rate cap — measured,
+  a 1 s look gained 151.5° of framing and the spring took it all back at
+  240.6°/s (SIZE 1) or 401.2°/s (SIZE 12, over a full revolution/second): the
+  "camera fights me" report, exactly. Not fixable with a longer timeout —
+  `ORBIT_HOLD` only sets *when* the snatch starts, not how fast it runs, and
+  speed was the complaint. Manual orbit now accumulates a persistent yaw
+  `_yawOffset` and the chase targets `heading + offset`, so the spring and the
+  hand no longer write the same number — the offset absorbs the look, the
+  spring error is untouched, and there's nothing left to fight. See
+  `.wiki/adr/0007-camera-orbit-offset.md` for the full before/after and the
+  alternatives rejected. The offset eases back to zero on its own,
+  deliberately at a different rate than the spring: `ORBIT_RECENTRE_DELAY = 1.2 s` grace (the `_orbitHold` field name is
+  now a misnomer — it means "grace before unwind," not "chase suspended";
+  left unrenamed to keep the diff scoped) before a first-order decay at
+  `ORBIT_RECENTRE_RATE = 0.45`/s (tau 2.2 s) capped at `ORBIT_RECENTRE_MAX =
+  0.5 rad/s` (29°/s) — a rate *ceiling*, not a lerp, because a lerp's peak
+  rate is at t=0 and scales with the offset (a 180° look would start back at
+  81°/s). 8.4-14× slower than the reclaim it replaces. The two rates are two
+  different promises: the fast spring (4.2-7.0 rad/s) tracks the HEADING so a
+  chosen framing survives a turn and therefore size-ramps with how fast the
+  world moves; the slow unwind returns that framing to centre for an idle
+  player and deliberately does **not** size-ramp — it's a readability budget,
+  not a speed-tracking rate.
+- **The ratchet fix.** `chaseMode` latches the move basis to the live yaw on
+  the rising edge of input, so a press right after a look correctly adopts
+  the dragged yaw — but the camera still held its offset measured against the
+  heading that press just retired, so four look-then-press cycles compounded
+  to 123.8° of drift with the mitigation forced off. `ChaseCamera.recentre()`
+  (`this._yawOffset = 0; this._orbitHold = 0;`), fired from `onBasisLatch`,
+  drops the offset on exactly the frame where it's a no-op on the visible
+  camera — measured 0.0° drift with it live.
 - The chase runs on the BASE yaw: `_introOscYaw` is subtracted before it and
   re-added after, so the intro's decaying offset never biases the target or gets
   baked into the base.
@@ -227,11 +286,29 @@ mutates sim state.
   dense-low-rise problem, which is exactly where the complaint came from.
 - `cam.fovKick(v)` adds a decaying FOV punch (growth/milestone juice);
   respects Reduced Motion, eases back at ~6/s in `update`.
-- Player settings (`save.settings`: invertX/Y, shadows, camDist, reducedMotion, perfMode) flow
-  through `actions.applySettings()` → controls/camera/renderer.
+- Player settings (`save.settings`: invertX/Y, shadows, camDist, reducedMotion,
+  perfMode, pointMove) flow through `actions.applySettings()` →
+  controls/camera/renderer.
 - Renderer fast-path (`voxelworld.js`): static, fully supported, undamaged, non-consumed blocks outside the hole region bypass matrix recomposition and color updates each frame, reducing per-frame block update iterations by over 90%.
 - Performance Mode (`perfMode`): caps particle effects, crumble voxel count, and debris physics relaxation passes for smoother gameplay on lower-resource devices. **In the voxel sandbox specifically**, `VoxelWorld3D.setPerfMode(on)` was a silent no-op until 2026-08-05 — it existed only on the campaign's `World3D` (`world3d.js:429`), so `main.js:101`'s guarded call (`world.setPerfMode && …`) never reached the sandbox renderer. It now exists there too, matching `World3D`'s signature, and does two sandbox-specific things: pins device pixel ratio to 1 (a no-op on a 1× desktop panel by construction, the biggest lever on a 2×/3× screen) and freezes ambient life (gulls/pigeons/steam/ferries/surf/neon) through the same `_ambientFrozen` flag Reduced Motion uses, independently of it. Measured −35% median idle frame time on a 1× panel, −36% plus a 13× p95 collapse on a 2× panel. It does **not** cull or LOD the block field — that is a real look cost, deliberately left for a pass that can prove it rather than a toggle that silently degrades the city. Be honest about scale: this is ~0.9 ms/frame of renderer/ambient cost, not a fix for a sim-bound frame (see `.wiki/modules/voxel.md`'s structural-zones note).
 - The ground plane is **sized to the scene, not a fixed constant.** `contentExtent(sim)` (`voxelworld.js`) measures every block's footprint, every decor rect, and the hole clamp, and the plane is centred on that and grown by `GROUND_MARGIN = 600` (== `camera.js`'s `CAM_FAR`) on every side, so no camera pose can frame the plane's edge. Before 2026-08-05 the plane was a fixed `PlaneGeometry(240, 240)` at the origin — harmless for scenes that fit inside it, but Upper Manhattan's `z[-149,116]` extent left 8.5% of its blocks standing past the plane's north rim with nothing behind them. The far edge (where the plane still gets clipped by the camera's far plane) is hidden with `scene.fog` riding `camera.far` (`fog.near = far × 0.7`, `fog.far = far × 0.995`) rather than a fixed-distance band, so the fog only ever eats what was about to be clipped anyway and doesn't grey out a stretched establishing shot. The plane is segmented into ~64 m cells (not one giant quad) with `polygonOffset` pushing it away from the camera, both needed so `sceneDecor` rects (which sit 1.2-8.9 mm above it with `depthWrite: false`) don't lose the depth test at distance.
 - Blocks render at their **full cell size**, not 95% of it. Before 2026-08-05 every instance was inset by `min(0.05, s × 0.05)` to fake a mortar gap between courses — since a wall here is one block thick, that inset was a literal hole through the wall, visible as a see-through horizontal slot at any camera height that lined up with a course boundary. The course line is now painted: a shared 128×128 `DataTexture` (`mortarTexture()` in `voxelworld.js`) applied as `map` on the block material, proportional in face-UV space so a 0.25 m brick and a 1 m brick both show the same ~2.3%-of-face border. Zero extra draw calls, one 64 KB texture shared across every scene.
+- **Skins (`js/skins.js`, 2026-08-05): 17 hole skins replacing the single
+  circle**, themed on marketing/B2B without borrowing branding. A skin is a
+  registry row plus at most one small builder (the `DECOR_LAYERS` idiom from
+  `voxelworld.js` — adding one is a row, not a code change), built from four
+  shared geometry primitives (`ringPart`/`tickPart`/`barTeeth`/`worldQuads`/
+  `lidPart`) with all per-frame animation written into the CPU colour
+  attribute rather than a shader, so every skin stays one draw call on the
+  existing `MeshBasicMaterial`. Five are eat-reactive (chomper, shredder,
+  eyeballs, throat, closer), not rim decoration. Deep Funnel's resting pulse
+  measures exactly 0.0000 drift with Reduced Motion on — the reduced-motion
+  flag forces the pulse term to 0, making both the base and scaled
+  expressions byte-identical to the pre-skins expressions rather than merely
+  close. Fixed while in there: world marks (ground trails for Attribution
+  Model / Compounding events) sat at y=0.0095, underneath all 27 opaque
+  depth-writing ground planes (roads 0.03, tree pads 0.025, water/building
+  pads 0.02) — invisible over every road and building footprint. Raised to
+  0.04.
 - Visual-polish roadmap (building kit, canvas textures, lighting): see
   `.wiki/visual-direction.md`.

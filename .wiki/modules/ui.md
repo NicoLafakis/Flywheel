@@ -44,3 +44,11 @@ tying everything together.
   shelf's order/labels/tags live; `startVoxelSandbox(scene)` takes the
   `scene` id straight from it, and the sandbox's own `'gallery'` default
   covers the one entry (`SANDBOX`) that omits `scene`.
+- `screens.js` imports `SKINS` from `js/skins.js` and re-exports it — the
+  shop shelf **is** the skin registry, not a separate list, so a new skin is
+  a row in `skins.js` and nothing here changes. Geometry/animation for all 17
+  skins lives in `skins.js`; see `.wiki/modules/render.md`.
+- Settings panel has a "Tap to move" toggle (`settings.pointMove`) for the
+  optional point-to-move control scheme — off by default, WASD/joystick
+  unaffected either way. See `.wiki/modules/render.md`'s point-to-move entry
+  for the input-side detail.

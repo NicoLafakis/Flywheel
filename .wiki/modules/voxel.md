@@ -3,8 +3,11 @@ covers:
   - "js/voxelsim.js"
   - "js/voxelworld.js"
   - "js/voxelkit.js"
+  - "js/voxelsurfaces.js"
   - "js/voxelscene-manhattan.js"
   - "js/voxelscene-upper-manhattan.js"
+  - "js/voxelscene-brooklyn.js"
+  - "js/voxelscene-boston.js"
 ---
 # Voxel Sandbox (pile physics)
 
@@ -25,7 +28,10 @@ bottom-up, along material bond strengths.
 | `js/voxelkit.js` | The 5 object size classes (PROP 0.25 m / VEHICLE 0.5 m / SMALL_BLDG / LARGE_BLDG / MEGA) + their canonical builders (vehicles, trees, lamps, props, `tower()`), plus the streetscape/landmark kit (`setbackTower`, `streetWall`, `porticoFront`, `spiralRotunda`, `pathRibbon`, `stoneArch`, `basinRim`, and more — see the Upper Manhattan section below). Pure sim, shared by all three built-city scenes (Lower Manhattan, Upper Manhattan, Brooklyn) |
 | `js/voxelscene-manhattan.js` | `buildManhattan(sim)`: the full Lower Manhattan peninsula (~25.8k blocks). Sets `bounds`/`boundsRect`, `sceneDecor`, `cameraBlockers` |
 | `js/voxelscene-upper-manhattan.js` | `buildUpperManhattan(sim)`: the full Central Park + Upper Manhattan district (73,393 blocks / 86,083 mass). Sets its own bounds, landmarks, curb kit, decor, and camera blockers |
+| `js/voxelscene-brooklyn.js` | `buildBrooklyn(sim)`: bridges-to-Coney-Island sandbox, 1.35 blocks/m² |
+| `js/voxelscene-boston.js` | `buildBoston(sim)`: Seaport, Fort Point and the BCEC (82,894 blocks, 2.0 blocks/m²) — see the Boston section below |
 | `js/voxelworld.js` | `VoxelWorld3D`: one `InstancedMesh` per material + brick size with per-instance paint colors, cached static transforms, and per-frame dynamic motion; renders `sceneDecor` (roads/sidewalks/parks/bike paths/markings/water) |
+| `js/voxelsurfaces.js` | three.js binding for `voxeltiles.js`'s procedural surface registry (canvas-generated textures for `sim.sceneSurfaces`); zero cost until a scene names a surface. Owns the metals-only PMREM-probe rule — see the Boston section below |
 
 ## Model
 
@@ -150,8 +156,12 @@ reach ≥ SIZE 4; Upper Manhattan also floors `eatenCount ≥ 300`).
 
 ## Scenes
 
-Three levels share the sim (`new VoxelSandboxSim({ scene })`, default
-`'gallery'`). Scene builders run inside the constructor, may set
+Five scenes share the sim (`new VoxelSandboxSim({ scene })`, default
+`'gallery'`): `gallery`, `manhattan`, `upper-manhattan`, `brooklyn`, `boston`.
+`js/main.js`'s `AUTHORED_SCENES` table is the single source of truth for which
+scenes are real places (label text, HUD text, and whether an `intro`
+establishing shot/READY-gate framing applies) — see Talks To below. Scene
+builders run inside the constructor, may set
 `sim.bounds` (square hole clamp in m — 24 gallery) or `sim.boundsRect`
 (`{minX,maxX,minZ,maxZ}`, which overrides the scalar; off-center maps need it
 — Manhattan's peninsula is 124 × 118 m and asymmetric, so the old square ±80
@@ -305,6 +315,50 @@ hole with no pull-in when it has no entry, and `camera.js` only pulls in while
 bad as a missing one. The list is hand-written, so `tools/validate.mjs`
 enforces coverage per footprint cell rather than trusting it.
 
+### boston (BOSTON: SEAPORT AND THE CONVENTION CENTER)
+
+82,894 blocks over a 192 × 216 m map (`z[-124,92]`, midpoint −16), density 2.0
+blocks/m² — between Brooklyn's 1.35 and Manhattan's 2.26. First scene outside
+New York; `js/main.js`'s `AUTHORED_SCENES` table exists partly because the
+older four-separate-lists scheme quietly assumed that would never happen. The
+only sandbox with **zero dead ground** (Brooklyn reports 148 points, Upper
+Manhattan 1), because coverage was checked cell-by-cell rather than by the 4 m
+sampled probe, which has 8 m of reach and can walk straight past an 8 m bare
+stripe.
+
+North→south band ladder built from a real OpenStreetMap survey (42.3480 N,
+71.0450 W), uniform 1:6 in plan / 1:3.5 in height, with three declared scale
+exceptions (the BCEC roof at 1:2.5 so its 16 m barrel-vault rise reads as a
+curve at 1 m bricks; the Marine Industrial Park telescoped ~700 real m west so
+a low-density truck yard doesn't inflate the map 40%; the west edge re-seated
+so Fort Point Channel's far bank fits inside `boundsRect`):
+
+- **Boston Harbor** (open water, north edge) → **the Piers** (Fan Pier, Pier 4
+  / ICA, Commonwealth Pier, the Fish Pier's twin rows + trawler fleet, a dry
+  dock) → **Northern Avenue / the HarborWalk** (Moakley Courthouse) →
+  **Seaport Boulevard** (the Evelyn Moakley Bridge, St. Regis, 121 Seaport) →
+  **Congress Street** (Fort Point's brick warehouse grid, the Children's
+  Museum, the Hood Milk Bottle, the Tea Party brigs) → **Summer Street**
+  (elevated 28 m over the Massport Haul Road) → **the BCEC body** (68 m
+  barrel-vaulted hall, the Westin, the Omni's twin towers — spawn is here) →
+  **D Street** (the Lawn on D)
+- One channel, two centuries either side of it: 1890s load-bearing brick west
+  (Fort Point), 2010s precast and glass east (the Seaport), the BCEC over the
+  middle, a working port north/east that hasn't gentrified
+
+**Palette is measured, not eyeballed** — see `conventions.md`'s Palette
+section for the `mm()`/`sp()`/bare-hex provenance markers and the
+`PALETTE_TRANSFORM` seam. The finding that mattered: de-veiled Boston brick
+(`0xa38673`) is far lighter than the `0x8f4a3a` it was originally guessed at,
+so `brickSunlit` (183 luminance) now sits *above* `precastGrey` (167) — the
+value separation the scene was designed around is gone. What survived is
+chroma (brick 46-78 points of saturation vs. precast/roof/glass at ≤ 9,
+ashlar at 19) — see the **chroma rule** in `conventions.md`. `barrelVaultHall`
+is the one place the never-bake-a-shadow convention is knowingly bent: a
+stepped voxel vault has no curve for the renderer to shade (every cell
+carries the identical +y normal), so its lit/shade pair is authored from the
+measured roof band's two ends, not derived.
+
 Physics come from the material; paint is a per-block `color` override that
 rides in `instanceColor`, so it costs zero extra draw calls — instancing
 batches are keyed on `matType:size` only (Upper Manhattan's 299 distinct paint
@@ -320,14 +374,25 @@ hops.
 ## Talks To
 
 - **main.js** — `step(1/60, move)` + `drainEvents()` (`eat`, `crash`);
-  `hud.updateSandbox(sim)` for mass/combo/elapsed
+  `hud.updateSandbox(sim)` for mass/combo/elapsed; `AUTHORED_SCENES` (single
+  table of scene label/HUD text/`intro` establishing-shot flag, replacing four
+  independently-drifting lists) picks the scene at `startVoxelSandbox(scene)`
 - **tools/validate.mjs** — determinism (two seeded runs identical), locality
   (nothing moves while the hole is far), progressive collapse, NaN guard,
-  `Math.random` source guard for all pure-sim files (incl.
-  `voxelscene-manhattan`). Brooklyn and Upper Manhattan run the **same
+  `Math.random` source guard — **globbed** over `js/voxelscene-*.js` plus the
+  seven named pure-sim files (2026-08-05; see `conventions.md`'s hard rule
+  #1), so every scene is covered the moment it's added rather than only once
+  someone remembers to list it. Brooklyn and Upper Manhattan run the **same
   19-probe contract** through 16 shared `probe*`/`report*` helpers (a
   `--- shared voxel-scene contract probes ---` block above the scene
-  functions): fine-cell ownership (ghost/overlap guard), `boundsRect` hugging
+  functions); `validateBoston()` signs the same shared probes with Boston's
+  own tables (own vehicle/road-span/open-ground/crossing tables, own
+  `sceneAmbient` kinds) plus its own scripted excursion (a closed loop through
+  the BCEC podium and the south podium's shed — end-to-end legs, deliberately
+  not orbiting a point, so the hole never re-harvests footprint it already
+  took). No probe is re-implemented per scene: a probe that drifts per scene
+  stops being a contract. fine-cell ownership (ghost/overlap guard),
+  `boundsRect` hugging
   content within a 12 m slack, unfiltered road conflicts against the scene's
   exported vehicle + road-span tables, water never covering a road/plaza/
   cobble/sidewalk/crosswalk, no park rect fully inside water (draw-order
@@ -354,8 +419,10 @@ hops.
 
 ## Gotchas
 
-- **No `Math.random()`** — inject `this.rng` (seeded); the validator greps
-  for it. Determinism also means: no `Date.now`, fixed iteration orders.
+- **No `Math.random()`** — inject `this.rng` (seeded); the validator's guard
+  now globs `js/voxelscene-*.js` (see conventions.md #1), so any new scene
+  file is covered without an update here. Determinism also means: no
+  `Date.now`, fixed iteration orders.
 - Chunk grouping only uses blocks detached within `FRESH_WINDOW` (0.6 s);
   settled debris (`fallT = -1`) never re-groups — prevents rest-on-ground
   split/reform loops.
@@ -508,3 +575,20 @@ hops.
   membership must mark its zone in `_dirtyComps`; `_top`/`_sleepers`/
   `_collisionBuckets` are keyed by a packed integer `cellKey(x, z)` (valid for
   fine coordinates in ±8192), not the `"x,z"` strings they used before.
+- **Settled rubble retires out of `_falling` (2026-08-05).** `_falling`'s frame
+  cost is linear in its size, and `_syncFalling` only ever dropped `consumed`
+  entries — settled-but-uneaten debris stayed in the list forever, so four
+  per-step passes kept re-walking the same sleepers. Measured on a 120 s
+  Brooklyn plough: 11,853 entries, 90% asleep. Settled blocks now retire into
+  `_restIdx`, a coarse spatial index the hole sweeps each step; every wake
+  path (support loss, the hole reaching a sleeper) revives them back into
+  `_falling`. Retirement is **deferred past `FRESH_WINDOW`** on purpose:
+  `_groupChunks` seeds its flood fill from `_falling`, so a block pulled out
+  while still fresh is a seed that never fires, which would change which
+  chunks form and in what order. `_sleepObs` is now **y-banded** — it used to
+  key cells on `(x, z)` alone, so one cell of a deep pile held every sleeper
+  in that column at every height. `_assertCellKeyRange` turns a silent
+  aliasing failure loud: both cell-key packs (`cellKey`, the y-banded one)
+  mask rather than range-check, so a scene that outgrows them would otherwise
+  silently alias two far-apart columns into one bucket and present as phantom
+  collisions against nothing.
