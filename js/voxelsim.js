@@ -24,6 +24,7 @@ import { playerSpeedForRadius } from './tiers.js';
 import { buildManhattan } from './voxelscene-manhattan.js';
 import { buildUpperManhattan } from './voxelscene-upper-manhattan.js';
 import { buildBrooklyn } from './voxelscene-brooklyn.js';
+import { buildBoston } from './voxelscene-boston.js';
 import { sedan, bus, boxVan, bigTruck, motorcycle, tree, lampPost } from './voxelkit.js';
 
 // --- tuning ------------------------------------------------------------------
@@ -217,6 +218,7 @@ export class VoxelSandboxSim {
     if (scene === 'manhattan') buildManhattan(this);
     else if (scene === 'upper-manhattan') buildUpperManhattan(this);
     else if (scene === 'brooklyn') buildBrooklyn(this);
+    else if (scene === 'boston') buildBoston(this);
     else this._buildScene();
     this._assertCellKeyRange(scene);
     this._buildNeighbors();

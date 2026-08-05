@@ -116,6 +116,34 @@ function baseMaterial(spec, maxAniso, renderer) {
   // second-order cost of a stray non-zero Metallic on a dielectric: it is not
   // just wrong shading, it silently opts the surface into every code path
   // written for metal.
+  // CONSEQUENCE FOR SCENE PALETTES — read this before widening the test below.
+  //
+  // Metals-only is correct today, but it is not free: it silently pushes a
+  // calibration decision out into every scene file. A DIELECTRIC that is mostly
+  // reflection in real life — water, curtain-wall glass, polished stone — gets
+  // no probe here, so it has nothing to reflect and its BASE COLOUR has to carry
+  // the sky itself. Scene authors have already had to do that. Boston ships
+  // three values sampled straight off photographs with the atmospheric-veil
+  // correction DELIBERATELY REFUSED, precisely because the veil in those pixels
+  // is doing the job this probe would otherwise do:
+  //
+  //   C.harbourOpen   0x354d58   Boston Harbor
+  //   C.channelDeep   0x2b3d3b   Fort Point Channel
+  //   C.glassCurtain  0x91a0b6   Seaport curtain wall
+  //
+  // (js/voxelscene-boston.js, marked with the `sp()` wrapper for exactly this
+  // reason — every other measured value there goes through `mm()` and IS an
+  // albedo.)
+  //
+  // So the day someone relaxes `>= 1` and hands dielectrics an environment
+  // probe, those three DOUBLE-COUNT the sky and the harbour goes pale and
+  // washed out. That is a palette bug that will present as a lighting bug, and
+  // it will be looked for in the wrong file. The fix at that point is not to
+  // darken them by eye — it is to re-derive them from the original samples with
+  // the veil correction applied, `(linear - 0.021) / 1.182` per channel, the
+  // same transform the diffuse values already carry. The provenance is recorded
+  // in _boston-palette-deliverables/measured-to-albedo.md and Boston has a
+  // single `PALETTE_TRANSFORM` seam that exists to make that a one-shot change.
   if (spec.metal >= 1) {
     const env = surfaceEnvironment(renderer);
     if (env) {

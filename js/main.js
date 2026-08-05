@@ -178,24 +178,58 @@ function sunDirOf(w) {
   return null;
 }
 
+// Authored scenes. Four separate lists used to answer "which scenes are real
+// places" — the two label ternaries below, the derived-camera-bounds gate and
+// the ready gate — and they had already drifted apart once. One row per scene
+// instead, so the next scene is a row and not four edits. Same registry idiom
+// as DECOR_LAYERS in voxelworld.js and SKINS in skins.js.
+//
+// A scene ABSENT from this table (the generic 'gallery' sandbox) falls through
+// to the physics-test-bed labels and gets neither an establishing shot nor a
+// gate, which is correct: it is not a place.
+//
+// `intro` present == authored showcase. It gates the establishing shot and the
+// READY gate off the SAME field, so those two can no longer disagree about
+// which scenes are showcases. Manhattan and Upper Manhattan carry no `intro`,
+// which preserves today's behaviour exactly — neither gets one now.
+//
+// `fallbackR` is deliberately Brooklyn-only. It is the radius `beginIntro`
+// falls back to when the derived box is empty, and 124.3 was FITTED to Brooklyn
+// at +/-10 deg and 1280x800. Boston does not carry one because no one has
+// measured Boston's, and an inherited number dressed up as a scene constant is
+// worse than an obvious shared default: the `?? 124.3` below is at least
+// visibly a fallback. It is unreachable in practice for any authored scene —
+// it only fires when sim.blocks is empty, and Boston builds 82,894 of them.
+const AUTHORED_SCENES = {
+  'manhattan': {
+    label: 'NYC: LOWER MANHATTAN',
+    hud: 'LOWER MANHATTAN',
+  },
+  'upper-manhattan': {
+    label: 'NYC: UPPER MANHATTAN — CENTRAL PARK',
+    hud: 'UPPER MANHATTAN · CENTRAL PARK',
+  },
+  'brooklyn': {
+    label: 'NYC: BROOKLYN — BRIDGES TO CONEY ISLAND',
+    hud: 'BROOKLYN · BRIDGES TO CONEY ISLAND',
+    intro: { subtitle: 'BROOKLYN', fallbackR: 124.3 },
+  },
+  // BOSTON:, not NYC: — the first scene outside New York, and the ternary chain
+  // this table replaced quietly assumed there would never be one.
+  'boston': {
+    label: 'BOSTON: SEAPORT AND THE CONVENTION CENTER',
+    hud: 'SEAPORT · BCEC AND THE FISH PIER',
+    intro: { subtitle: 'BOSTON' },
+  },
+};
+
 function startVoxelSandbox(scene = 'gallery') {
   // The scene build blocks the main thread (~1.3 s sim + instancing for
   // Lower Manhattan) — show a loading frame first so the click never reads
   // as a frozen tab.
-  const sceneLabel = scene === 'manhattan'
-    ? 'NYC: LOWER MANHATTAN'
-    : scene === 'upper-manhattan'
-      ? 'NYC: UPPER MANHATTAN — CENTRAL PARK'
-      : scene === 'brooklyn'
-        ? 'NYC: BROOKLYN — BRIDGES TO CONEY ISLAND'
-        : 'VOXEL SANDBOX';
-  const hudLabel = scene === 'manhattan'
-    ? 'LOWER MANHATTAN'
-    : scene === 'upper-manhattan'
-      ? 'UPPER MANHATTAN · CENTRAL PARK'
-      : scene === 'brooklyn'
-        ? 'BROOKLYN · BRIDGES TO CONEY ISLAND'
-        : 'VOXEL PILE PHYSICS';
+  const authored = AUTHORED_SCENES[scene];
+  const sceneLabel = authored ? authored.label : 'VOXEL SANDBOX';
+  const hudLabel = authored ? authored.hud : 'VOXEL PILE PHYSICS';
   screens.showLoading(sceneLabel);
   requestAnimationFrame(() => requestAnimationFrame(() => {
     teardownWorld();
@@ -212,9 +246,10 @@ function startVoxelSandbox(scene = 'gallery') {
     cam.setReducedMotion(save.settings.reducedMotion);
     cam.setFollowDirection(true); // chase cam swings behind the direction of travel
     cam.setBlockers(sim.cameraBlockers); // tall towers occlude the low chase cam
-    // Establishing shot, Brooklyn only. Ordered AFTER setBlockers because
-    // beginIntro frames the blocker box — call it first and the camera fits
-    // nothing and falls back to a 30 m radius.
+    // Establishing shot, authored scenes only (an `intro` row in
+    // AUTHORED_SCENES). Ordered AFTER setBlockers because beginIntro frames the
+    // blocker box — call it first and the camera fits nothing and falls back to
+    // a 30 m radius.
     //
     // minBox is the world extent of everything that RENDERS, which is wider than
     // the blocker list: generateBlockers drops anything under 6 m, so Coney
@@ -222,8 +257,11 @@ function startVoxelSandbox(scene = 'gallery') {
     // blocker-only frame drops them off the bottom edge. Derived from the blocks
     // rather than written down, so it tracks the scene instead of going stale —
     // and passed as real bounds, not half-extents, because only the camera knows
-    // which point it ends up pivoting on.
-    if (scene === 'brooklyn') {
+    // which point it ends up pivoting on. That shape is load-bearing for Boston
+    // in particular: its content runs z[-124,92], so the midpoint is -16 and a
+    // frame built around the origin would drop the Fish Pier and Commonwealth
+    // Pier off the bottom edge.
+    if (authored && authored.intro) {
       let mnX = Infinity, mxX = -Infinity, mnZ = Infinity, mxZ = -Infinity;
       for (const b of sim.blocks) {
         const h = b.s / 2;   // blocks carry a world centre and a world size
@@ -247,7 +285,7 @@ function startVoxelSandbox(scene = 'gallery') {
       // eases rather than bouncing, and 0 still reaches a static hold.
       cam.beginIntro(mnX < mxX
         ? { minBox: { minX: mnX, maxX: mxX, minZ: mnZ, maxZ: mxZ }, orbitArc: Math.PI / 9, sun: sd }
-        : { minR: 124.3, sun: sd });
+        : { minR: authored.intro.fallbackR ?? 124.3, sun: sd });
     }
     window.__cam = cam; // debug hook
     window.__world = world; // debug hook
@@ -283,14 +321,14 @@ function startVoxelSandbox(scene = 'gallery') {
     // The handle is kept so teardownWorld() can dismiss it: dropping the node
     // alone would leave a live window keydown listener AND body.rg-gate-up set,
     // which strands the HUD invisible on the next campaign level.
-    if (scene === 'brooklyn') {
+    if (authored && authored.intro) {
       // Arrival sting: lower and longer than the sandbox-start blip above,
       // because it plays under a wide static overview rather than a cut.
       blip(196, 0.5, 'triangle', 0.06);
       blip(294, 0.42, 'sine', 0.05);
       readyGate = mountReadyGate({
         title: 'READY?',
-        subtitle: 'BROOKLYN',   // the pill is sized for one short word
+        subtitle: authored.intro.subtitle,   // the pill is sized for one short word
         reducedMotion: save.settings.reducedMotion,
         onStart: () => {
           readyGate = null;     // the gate tears itself down after onStart

@@ -20,14 +20,17 @@ export const ITEMS = [
   { id: 'growth5', name: '+5% Growth', desc: 'Mass gained is 5% higher.', price: 500 },
 ];
 
-// The free-play shelf on the landing screen. Brooklyn leads because it is the
-// showcase scene — the only one with an establishing shot and a READY gate — and
-// the generic sandbox trails because it is a physics test bed, not a place.
+// The free-play shelf on the landing screen. Brooklyn leads because it was the
+// first showcase scene; Boston is the second and carries the same establishing
+// shot and READY gate, so only Brooklyn keeps the pill — two 'Showcase' tags
+// side by side read as a bug rather than an endorsement. The generic sandbox
+// trails because it is a physics test bed, not a place.
 // `scene` is passed straight to actions.startVoxelSandbox(); the sandbox entry
 // omits it so the undefined lands on that function's own 'gallery' default,
 // which keeps the scene id written down in exactly one place (js/main.js).
 const FREE_PLAY = [
   { scene: 'brooklyn', name: 'BROOKLYN', sub: 'Bridges to Coney Island', tag: 'Showcase' },
+  { scene: 'boston', name: 'BOSTON', sub: 'Seaport and the Convention Center' },
   { scene: 'manhattan', name: 'LOWER MANHATTAN', sub: 'Downtown towers' },
   { scene: 'upper-manhattan', name: 'UPPER MANHATTAN', sub: 'Central Park' },
   { name: 'SANDBOX', sub: 'Physics playground' },

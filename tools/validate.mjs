@@ -15,7 +15,11 @@ import {
   UPPER_MANHATTAN_CROSSINGS, UPPER_MANHATTAN_OPEN_GROUND, UPPER_MANHATTAN_ROAD_SPANS,
   UPPER_MANHATTAN_STREETS, UPPER_MANHATTAN_VEHICLES, XW_LEN as UM_XW_LEN,
 } from '../js/voxelscene-upper-manhattan.js';
-import { readFileSync } from 'node:fs';
+import {
+  BOSTON_CROSSINGS, BOSTON_OPEN_GROUND, BOSTON_ROAD_SPANS, BOSTON_STREETS,
+  BOSTON_VEHICLES, XW_LEN as BOS_XW_LEN,
+} from '../js/voxelscene-boston.js';
+import { readdirSync, readFileSync } from 'node:fs';
 
 const DT = 1 / 60;
 let failures = 0;
@@ -143,7 +147,29 @@ function validateVoxelSandbox() {
   console.log('Validating voxel sandbox...');
 
   // Invariant guard: pure sim files must never use Math.random (rng.js only).
-  for (const f of ['rng', 'tiers', 'citygen', 'levels', 'sim', 'voxelsim', 'voxelscene-manhattan', 'voxelscene-upper-manhattan', 'voxelscene-brooklyn', 'voxelkit']) {
+  //
+  // The scene list is GLOBBED rather than enumerated. It used to be a hardcoded
+  // array, which meant every new scene file was unguarded from the moment it was
+  // written until someone remembered to add it — and the whole point of the
+  // guard is that a scene is deterministic, so the newest file is the one most
+  // likely to break it and the least likely to be on the list. Boston shipped
+  // and escaped the guard entirely; that is the class of bug being closed, not
+  // the instance. Anything matching js/voxelscene-*.js is now covered on sight.
+  //
+  // The glob deliberately does NOT widen to all of js/. Renderer and input code
+  // are allowed randomness and use it: js/camera.js calls Math.random() three
+  // times for screen shake, js/voxelworld.js thirty-one times for facade and
+  // debris variation. Those are per-frame presentation, they never feed sim
+  // state, and sweeping them in would replace a real invariant with noise.
+  // The regex requires the open paren so that a header comment discussing
+  // Math.random does not trip it.
+  const SIM_PURE_NAMED = ['rng', 'tiers', 'citygen', 'levels', 'sim', 'voxelsim', 'voxelkit'];
+  const sceneFiles = readdirSync(new URL('../js/', import.meta.url))
+    .filter((f) => /^voxelscene-.+\.js$/.test(f))
+    .map((f) => f.replace(/\.js$/, ''))
+    .sort();
+  if (sceneFiles.length === 0) fail('Math.random guard found no js/voxelscene-*.js — the glob is broken');
+  for (const f of [...SIM_PURE_NAMED, ...sceneFiles]) {
     const src = readFileSync(new URL(`../js/${f}.js`, import.meta.url), 'utf8');
     if (/Math\.random\(/.test(src)) fail(`js/${f}.js uses Math.random() — pure sim files must use rng.js`);
   }
@@ -767,6 +793,77 @@ function validateBrooklyn() {
   console.log(`  brooklyn sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} blockers=${sim.cameraBlockers.length}`);
 }
 
+function validateBoston() {
+  console.log('Validating boston sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'boston' });
+
+  // Same contract set as Brooklyn and Upper Manhattan, same probe bodies, signed
+  // with Boston's own tables. Nothing scene-specific is re-implemented here on
+  // purpose: a probe that drifts per scene stops being a contract.
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'boston');                                                  // 1
+  probeCameraBlockers(sim, 'boston', tops);                                           // 2
+  probeBoundsRect(sim, 'boston');                                                     // 3
+  probeRoadConflicts(sim, 'boston', BOSTON_VEHICLES, BOSTON_ROAD_SPANS);              // 4
+  probeWaterOverSurfaces(sim, 'boston');                                              // 5
+  probeParkUnderWater(sim, 'boston');
+  probeRimmedWater(sim, 'boston');                                                    // 6
+  probeBareGround(sim, 'boston', tops);                                               // 7
+  probeOpenGround(sim, 'boston', BOSTON_OPEN_GROUND);                                 // 7b
+  reportDeadGround(sim, 'boston', BOSTON_OPEN_GROUND);                                // 7c
+  probeCrosswalkStripes(sim, 'boston');                                               // 8
+  probeCrossingsOnDeclaredStreet('boston', BOSTON_CROSSINGS, BOSTON_STREETS, BOS_XW_LEN); // 8b
+  probeDecorKeyOrder(sim, 'boston');                                                  // 9
+  probeAmbient(sim, 'boston', ['gulls', 'surf', 'ferries', 'steam', 'neon', 'pigeons']); // 10
+  probeIdleStability(sim, 'boston');                                                  // 11
+
+  // 12. deterministic excursion, run twice. The route walks the BCEC podium end
+  // to end and then east through the south podium's shed. Two things about it
+  // are load-bearing and were both measured rather than guessed. It never PARKS:
+  // every stalled waypoint in the earlier drafts banked one to three blocks,
+  // because the opening was sitting on ground it had already emptied. And the
+  // legs run END TO END rather than orbiting a point, so each one drags the
+  // opening onto footprint it has not already taken. The spawn lot itself is
+  // surface car park by design, so the first leg is transit, not harvest.
+  const WP = [
+    { until: 4, x: 24, z: 14 },   // east off the spawn lot, past the jersey barriers
+    { until: 10, x: 30, z: 9 },   // in at the west podium's south-west corner
+    { until: 16, x: 30, z: 21 },  // north up the inside of the podium
+    { until: 22, x: 30, z: 33 },
+    { until: 28, x: 30, z: 45 },  // across the service slot into the north arm
+    { until: 34, x: 30, z: 57 },
+    { until: 40, x: 30, z: 68 },  // out at the podium's north end
+    { until: 47, x: 36, z: 78 },  // down into the south podium's pierShed
+    { until: 54, x: 48, z: 80 },  // east along its 3 m column grid
+    { until: 62, x: 58, z: 78 },
+  ];
+  const runExcursion = () => {
+    const run = new VoxelSandboxSim({ seed: 'validator', scene: 'boston' });
+    for (let i = 0; i < 62 * 60; i++) {
+      const t = i * DT, h = run.hole;
+      let wp = WP[WP.length - 1];
+      for (const w of WP) if (t < w.until) { wp = w; break; }
+      const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
+      run.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
+    }
+    return run;
+  };
+  const a = runExcursion();
+  const b = runExcursion();
+  if (a.hole.eatenCount !== b.hole.eatenCount || a.hole.mass.toFixed(6) !== b.hole.mass.toFixed(6)) {
+    fail(`boston: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
+  }
+  if (a.hole.eatenCount < 300) fail(`boston: only ${a.hole.eatenCount} blocks eaten on the BCEC excursion (expected >=300)`);
+  // Progression floor, held to the same >=4 as every other sandbox. Boston is
+  // the heaviest map on the ladder (141k mass puts the multiplier at its ×10
+  // cap, so the SIZE 4 gate is 1,800 combo-mass), which is exactly why it is
+  // not granted a lower bar than the scenes it was built to surpass.
+  if (a.hole.size < 4) fail(`boston: excursion reached only SIZE ${a.hole.size} (expected >=4 — mass-scaled SIZE ladder too steep?)`);
+
+  probeFinitePositions(a.blocks, 'boston', 'after excursion');
+  console.log(`  boston sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} blockers=${sim.cameraBlockers.length}`);
+}
+
 console.log(`Validating ${levelsToCheck.length} level(s)...`);
 let minMargin = Infinity, minMarginLevel = 0;
 let maxTimeToFirstEat = 0;
@@ -799,6 +896,7 @@ validateVoxelCollisions();
 validateManhattan();
 validateUpperManhattan();
 validateBrooklyn();
+validateBoston();
 
 console.log('---');
 if (failures === 0) {
