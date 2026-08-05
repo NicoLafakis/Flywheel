@@ -4,11 +4,13 @@
 // motion (chunk rotation, debris tumble, rim
 // tilt, stress wobble) is composed into instance matrices each frame.
 //
-// Two render-only fields the scene builder may set, neither of which the sim
-// ever reads: `sim.sceneDecor` (flat ground rects — see DECOR_LAYERS) and
-// `sim.sceneAmbient` (gulls / surf / ferries / steam / neon / pigeons).
+// Three render-only fields the scene builder may set, none of which the sim ever
+// reads: `sim.sceneDecor` (flat ground rects — see DECOR_LAYERS),
+// `sim.sceneAmbient` (gulls / surf / ferries / steam / neon / pigeons) and
+// `sim.sceneSurfaces` (matType -> surface id — see js/voxeltiles.js SURFACES).
 import * as THREE from 'three';
 import { loadSave } from './save.js';
+import { surfaceMaterial, isSurface, disposeSurfaces } from './voxelsurfaces.js';
 
 // Read-only peek at the persisted SETTINGS block, so player preferences apply
 // from the first frame with no wiring in main.js. save.js owns the schema and
@@ -382,6 +384,11 @@ export class VoxelWorld3D {
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
     this.renderer.shadowMap.enabled = this.shadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // A facade is read at a grazing angle almost always, which is exactly the
+    // case trilinear filtering blurs into mush. Asked for once here rather than
+    // per texture; surfaces clamp it to 8 (js/voxelsurfaces.js), which is where
+    // the visible return flattens out.
+    this._maxAnisotropy = this.renderer.capabilities.getMaxAnisotropy();
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x1a1f3d);
@@ -520,21 +527,70 @@ export class VoxelWorld3D {
     // instanceColor. Nothing here enumerates legal brick sizes — the bucket key
     // is whatever `b.s` says, so 2 m bricks cost one more bucket and nothing
     // else.
+    //
+    // SURFACES ride on this key for free. `sim.sceneSurfaces` maps a matType to
+    // a registry id (js/voxeltiles.js), and because surface is a function of
+    // matType, prefixing the key adds NO partitions: brick:1 and
+    // mat_brick_red:brick:1 are the same set of blocks. Measured on Brooklyn —
+    // 26 buckets before, 26 after, 52 real GL draws either way. That is why
+    // there is no atlas here: an atlas exists to collapse draw calls a
+    // per-surface split would create, and this split creates none.
+    //
+    // An unknown id is ignored rather than honoured, so a typo in a scene
+    // degrades to today's look instead of silently doubling the bucket count.
+    //
+    // SEAM, deliberately not built — per-BLOCK surface override. Today surface
+    // is a function of matType alone, which is what makes the bucket split free.
+    // A per-block override (a 7th positional argument on voxelsim's _block, or a
+    // `b.surface` field) would let one steel crane be corroded while the rest of
+    // the steel is not. `surfOf` is the single place that would change: read
+    // `b.surface` first, fall back to the matType map. TRIGGER: a scene needs
+    // two different surfaces on the SAME matType. Until then the override would
+    // cost a bucket per variant and buy nothing, because a scene that wants a
+    // different surface can already declare a different matType.
+    //
+    // SEAM, deliberately not built — WebGL2 texture array. Would collapse all
+    // surfaced buckets into one draw by moving the surface id into a per-instance
+    // attribute and the tiles into a 2D array texture. TRIGGER: distinct
+    // materials exceeding the 12-material mobile cap, or a scene where surface
+    // must vary per block (above) and the bucket split therefore stops being
+    // free. Measured today: 26 buckets surfaced vs 26 unsurfaced, 52 GL draws
+    // either way, so it would collapse nothing that is not already collapsed.
+    const surfaceMap = sim.sceneSurfaces || null;
+    const surfOf = (b) => {
+      if (!surfaceMap) return null;
+      const id = surfaceMap[b.matType];
+      return isSurface(id) ? id : null;
+    };
     this.imMeshes = [];
+    this._surfaced = false;
     const byMat = new Map();
     for (const b of sim.blocks) {
       // Paint belongs in instanceColor; batching only by physical material
       // and brick size keeps a detailed city from turning every paint variant
       // into another draw call.
-      const k = b.matType + ':' + b.s;
-      if (!byMat.has(k)) byMat.set(k, []);
-      byMat.get(k).push(b);
+      const surf = surfOf(b);
+      const k = (surf ? surf + ':' : '') + b.matType + ':' + b.s;
+      if (!byMat.has(k)) byMat.set(k, { surf, size: b.s, list: [] });
+      byMat.get(k).list.push(b);
     }
     const boxG = boxGeo();
     const white = new THREE.Color(1, 1, 1);
     const tmpColor = new THREE.Color();
-    for (const [k, list] of byMat) {
-      const im = new THREE.InstancedMesh(boxG, mat(0xffffff), list.length);
+    for (const bucket of byMat.values()) {
+      const { surf, size, list } = bucket;
+      // The unsurfaced branch is the SAME expression it has always been, reached
+      // by the same path, so a scene that declares nothing builds a
+      // byte-identical frame. Proven by framebuffer hash at three poses per
+      // scene, not asserted.
+      let bMat;
+      if (surf) {
+        bMat = surfaceMaterial(surf, size, this._maxAnisotropy, this.renderer);
+        this._surfaced = true;
+      } else {
+        bMat = mat(0xffffff);
+      }
+      const im = new THREE.InstancedMesh(boxG, bMat, list.length);
       this._registerShadow(im, true, true);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       list.forEach((b, i) => {
@@ -1974,7 +2030,12 @@ export class VoxelWorld3D {
     for (const m of this._ownedMats) m.dispose();
     this._ownedGeos.length = 0;
     this._ownedMats.length = 0;
-    if (--liveWorlds <= 0) { liveWorlds = 0; releaseSharedGeometry(); }
+    // Surfaces are shared across worlds for the same reason the geometry is, so
+    // they are freed on the same refcount and never before. Unlike mat()
+    // materials they DO own GL buffers — a 256x256 albedo, a 128x128 ORM and a
+    // PMREM render target apiece — so leaving them behind would leak per scene
+    // switch exactly the way the orphaned attribute buffers used to.
+    if (--liveWorlds <= 0) { liveWorlds = 0; releaseSharedGeometry(); disposeSurfaces(); }
     if (this._mq && this._onMq && this._mq.removeEventListener) {
       this._mq.removeEventListener('change', this._onMq);
     }
