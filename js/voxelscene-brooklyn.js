@@ -48,18 +48,24 @@
 //     cross a road/plaza (water draws near the top of the stack)
 //   - crosswalk stripes come from the axis-aware kit helper, never a hand roll
 //   - cameraBlockers are GENERATED from the finished geometry (see
-//     generateBlockers), because a 37k-block scene cannot keep a hand list in
-//     sync and every drift is invisible until the camera clips a roof
+//     generateBlockers in voxelkit.js — shared with Upper Manhattan), because a
+//     37k-block scene cannot keep a hand list in sync and every drift is
+//     invisible until the camera clips a roof
 
 import {
   bench, bigTruck, bikeRack, bollard, boxVan, brownstone, bus, cafeTable,
-  carousel, crateStack, ferrisWheel, fireEscape, gantryCrane, hotDogCart,
-  hydrant, lampPost, laneDashes, mailbox, marketStall, motorcycle, museumBlock,
-  newsBox, newsstand, parachuteTower, planter, refineryMass, sandwichBoard,
-  sedan, shippingContainer, signPost, signText, stadiumBowl, stoop,
-  subwayEntrance, suspensionBridge, tower, trafficLight, trashBags, trashBin,
-  tree, triumphalArch, trussViaduct, waterTower, woodCoaster, zebra,
+  carousel, ferrisWheel, crateStack, fireEscape, gantryCrane, generateBlockers,
+  hotDogCart, hydrant, lampPost, laneDashes, mailbox, marketStall, motorcycle,
+  museumBlock, newsBox, newsstand, parachuteTower, planter, refineryMass,
+  sandwichBoard, sedan, shippingContainer, signPost, signText, stadiumBowl,
+  stoop, subwayEntrance, suspensionBridge, tower, trafficLight, trashBags,
+  trashBin, tree, triumphalArch, trussViaduct, waterTower, woodCoaster, zebra,
 } from './voxelkit.js';
+
+// Footprint of a vehicle entry. The implementation is shared with every other
+// scene (js/voxelkit.js) and re-exported here because BROOKLYN_VEHICLES is what
+// the validator resolves through it.
+export { vehicleBBox } from './voxelkit.js';
 
 // Every vehicle in the scene. The scene places them from this list and
 // tools/validate.mjs imports it as the roads allowlist, so a car can never be
@@ -196,63 +202,6 @@ export const BROOKLYN_CROSSINGS = [
   [13, -36], [13, 0], [13, 36],              // Surf Ave (x -44..52)
   [14, 20], [14, 42],                        // Sixth Ave (z 12..50)
 ];
-
-// Footprint of a vehicle entry, in metres. Kept beside the list so the scene
-// and the validator can never disagree about where a car actually is.
-export function vehicleBBox(v) {
-  const along = v.kind === 'sedan' ? 5 : v.kind === 'bus' ? 6
-    : v.kind === 'boxVan' ? v.len : v.kind === 'bigTruck' ? 6 : 1.5;
-  const across = v.kind === 'motorcycle' ? 0.5 : 2;
-  return v.axis === 'z'
-    ? { minX: v.x, maxX: v.x + across, minZ: v.z, maxZ: v.z + along }
-    : { minX: v.x, maxX: v.x + along, minZ: v.z, maxZ: v.z + across };
-}
-
-// Camera blockers, generated from the finished geometry rather than typed by
-// hand. The validator checks coverage per 1 m footprint cell for everything
-// ≥ 6 m tall; at ~37k blocks a hand list would drift on every edit and the only
-// symptom is the chase cam clipping through a roof. Heights round UP to the
-// next half-metre so a merged rect always covers the tallest cell inside it.
-function generateBlockers(sim, minH = 6) {
-  const tops = new Map();
-  for (const b of sim.blocks) {
-    const top = (b.gy + b.fs) * 0.25;
-    for (let cx = Math.floor(b.gx * 0.25); cx < Math.ceil((b.gx + b.fs) * 0.25); cx++) {
-      for (let cz = Math.floor(b.gz * 0.25); cz < Math.ceil((b.gz + b.fs) * 0.25); cz++) {
-        const k = cx + ',' + cz;
-        if (!(tops.get(k) >= top)) tops.set(k, top);
-      }
-    }
-  }
-  const cells = new Map();
-  for (const [k, top] of tops) if (top >= minH) cells.set(k, Math.ceil(top * 2) / 2);
-  const keys = [...cells.keys()].sort((a, b) => {
-    const [ax, az] = a.split(',').map(Number), [bx, bz] = b.split(',').map(Number);
-    return az - bz || ax - bx;
-  });
-  const taken = new Set();
-  const out = [];
-  for (const k of keys) {
-    if (taken.has(k)) continue;
-    const [x0, z0] = k.split(',').map(Number);
-    const h = cells.get(k);
-    let w = 1;
-    while (cells.get((x0 + w) + ',' + z0) === h && !taken.has((x0 + w) + ',' + z0)) w++;
-    let d = 1;
-    for (; ;) {
-      let ok = true;
-      for (let i = 0; i < w; i++) {
-        const kk = (x0 + i) + ',' + (z0 + d);
-        if (cells.get(kk) !== h || taken.has(kk)) { ok = false; break; }
-      }
-      if (!ok) break;
-      d++;
-    }
-    for (let i = 0; i < w; i++) for (let j = 0; j < d; j++) taken.add((x0 + i) + ',' + (z0 + j));
-    out.push({ minX: x0, maxX: x0 + w, minZ: z0, maxZ: z0 + d, h });
-  }
-  return out;
-}
 
 export function buildBrooklyn(sim) {
   sim.bounds = 110;
@@ -663,13 +612,14 @@ export function buildBrooklyn(sim) {
     for (const [x, z] of [[-8, 12], [-12.5, 13], [11, 19.5]]) crateStack(sim, x, z, 3);
     trashBags(sim, -3.5, 27.5);
     // One rack, not two: the second stood inside the arch's east pier and
-    // punched seven fine cells out of a 2 m concrete block. Moving it kept the
-    // scene over its 40k ceiling once the hoops grew their proper cross bars,
-    // and the northern headings already bite at 4.3 m off the news boxes.
+    // punched seven fine cells out of a 2 m concrete block. Moving it avoided
+    // that clash once the hoops grew their proper cross bars, and the
+    // northern headings already bite at 4.3 m off the news boxes.
     bikeRack(sim, -4, 24.5, 2, 'x');
     // The oval's outer edge takes bollards rather than more furniture: at 2
-    // blocks each they buy the same "the plaza is used" read for a sixth of the
-    // cost, and the scene is against its 40k block ceiling.
+    // blocks each they buy the same "the plaza is used" read for a sixth of
+    // the block cost of full furniture (there is no 40k block ceiling — see
+    // STATUS.md's Established facts — this is purely a density choice).
     for (const [x, z] of [
       [-16.5, 13], [-16.5, 20], [16.5, 13], [16.5, 20],
       [-9, 3.5], [9, 3.5], [-9, 30.5], [9, 30.5], [17, 25], [-17, 25],

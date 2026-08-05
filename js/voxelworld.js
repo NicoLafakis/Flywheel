@@ -61,11 +61,17 @@ const glowQuadGeo = () => rampQuadGeo('glowq', 12, 12, (x, z) => smooth(1 - 2 * 
 const bandQuadGeo = () => rampQuadGeo('bandq', 14, 6, (x, z) =>
   smooth(1 - Math.abs(2 * z)) * smooth((0.5 - Math.abs(x)) / 0.14));
 
+// The block material. `map` is the painted mortar course (see mortarTexture
+// below) — it is the ONLY thing on a block that reads as a brick edge now that
+// blocks fill their cell, so it belongs here rather than at the call site.
+// Shared across worlds like matCache itself, so a scene switch never rebuilds
+// the texture or the shader program.
 const matCache = new Map();
 function mat(color) {
   if (!matCache.has(color)) {
     matCache.set(color, new THREE.MeshStandardMaterial({
       color, roughness: 0.8, metalness: 0.1, flatShading: true,
+      map: mortarTexture(),
     }));
   }
   return matCache.get(color);
@@ -234,6 +240,106 @@ function byAreaThenPos(a, b) {
   return d !== 0 ? d : (num(a.x, 0) - num(b.x, 0)) || (num(a.z, 0) - num(b.z, 0));
 }
 
+// ---------------------------------------------------------------- ground
+// The ground was a hardcoded 240 x 240 plane at the world origin, which is a
+// constant pretending to be a measurement. It broke in both directions at once:
+// Upper Manhattan is 134 x 265 m, so 6,257 blocks (8.5% of the scene) stood
+// PAST the north rim with nothing but sky behind them and the world ended in a
+// hard cut; and everywhere the plane overshot the built city, its own rim read
+// from a low camera as a slab hovering beside the level.
+//
+// Size and centre it on what the scene actually contains, then push the rim a
+// full far-plane past that. CAM_FAR is 600 m (camera.js:11), so from any camera
+// standing over the content the rim is at or beyond the frustum's back wall in
+// every direction: there is no camera pose the game can reach where the edge is
+// in frame. What the player sees at the horizon is ground meeting sky.
+// Cost is two triangles either way.
+const GROUND_MARGIN = 600;
+function contentExtent(sim) {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  const grow = (x0, x1, z0, z1) => {
+    if (x0 < minX) minX = x0;
+    if (x1 > maxX) maxX = x1;
+    if (z0 < minZ) minZ = z0;
+    if (z1 > maxZ) maxZ = z1;
+  };
+  for (const b of sim.blocks) {
+    const h = num(b.s, 1) / 2;
+    grow(b.x - h, b.x + h, b.z - h, b.z + h);
+  }
+  // Decor rects can reach past the block field (a river, a beach, a park edge
+  // with nothing built on it), and they are the surface the player reads as the
+  // world — ground has to be under all of it.
+  const decor = sim.sceneDecor;
+  if (decor) {
+    for (const [key] of DECOR_LAYERS) {
+      const list = decor[key];
+      if (!Array.isArray(list)) continue;
+      for (const r of list) {
+        if (!r) continue;
+        const x = num(r.x, 0), z = num(r.z, 0);
+        grow(x, x + rectW(r), z, z + rectD(r));
+      }
+    }
+  }
+  // Wherever the hole is allowed to go, the player will stand — even if the
+  // city stops short of it.
+  const br = sim.boundsRect;
+  if (br) grow(num(br.minX, 0), num(br.maxX, 0), num(br.minZ, 0), num(br.maxZ, 0));
+  else { const b = num(sim.bounds, 24); grow(-b, b, -b, b); }
+  if (!Number.isFinite(minX)) return { cx: 0, cz: 0, w: 240, d: 240 };
+  return { cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2, w: maxX - minX, d: maxZ - minZ };
+}
+
+// ---------------------------------------------------------------- mortar
+// Blocks used to be drawn at 95% of their cell so the 5 cm shortfall read as a
+// mortar course. That gap is a real hole through the model: a wall is one block
+// thick, so at whatever screen row the eye ray runs level it threads the gap in
+// every wall in the scene at once and the background shows through as a slot
+// spanning the whole frame (measured: rays at row 160 hit nothing at any x,
+// while rows 155 and 170 hit walls normally). It is not a scene bug — every
+// scene renders through this path.
+//
+// Blocks now fill their cell exactly, so neighbours meet and nothing sees
+// through, and the course line is PAINTED instead: a dark border in face-UV
+// space. Two touching faces each contribute their border, so the drawn line is
+// ~4.7% of a block against the 5% the gap used to be — the same look, in the
+// same place, at the same proportion for every brick size, with no hole in it.
+const MORTAR_TEX_N = 128;
+const MORTAR_BORDER = 3;   // texels per face edge -> 2.34% of a face
+const MORTAR_DARK = 0.46;  // multiplier at the outermost texel
+let mortarTex = null;
+function mortarTexture() {
+  if (mortarTex) return mortarTex;
+  const n = MORTAR_TEX_N;
+  const data = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const edge = Math.min(x, y, n - 1 - x, n - 1 - y);
+      // Ramp rather than a step: a hard 1-texel line aliases into a crawling
+      // dotted seam once the SIZE ramp pulls the camera 80 m out.
+      const f = edge >= MORTAR_BORDER
+        ? 1
+        : MORTAR_DARK + (1 - MORTAR_DARK) * (edge / MORTAR_BORDER);
+      const v = Math.round(f * 255);
+      const i = (y * n + x) * 4;
+      data[i] = v; data[i + 1] = v; data[i + 2] = v; data[i + 3] = 255;
+    }
+  }
+  mortarTex = new THREE.DataTexture(data, n, n, THREE.RGBAFormat);
+  // A multiplier, not a colour: sRGB-decoding it would drive the line far
+  // darker than the gap it replaces.
+  mortarTex.colorSpace = THREE.NoColorSpace;
+  mortarTex.wrapS = THREE.ClampToEdgeWrapping;
+  mortarTex.wrapT = THREE.ClampToEdgeWrapping;
+  mortarTex.magFilter = THREE.LinearFilter;
+  mortarTex.minFilter = THREE.LinearMipmapLinearFilter;
+  mortarTex.generateMipmaps = true;
+  mortarTex.anisotropy = 4; // the line is read at grazing angles almost always
+  mortarTex.needsUpdate = true;
+  return mortarTex;
+}
+
 export class VoxelWorld3D {
   constructor(canvas, sim, skinColor = 0xb44bff, opts = {}) {
     this.sim = sim;
@@ -249,6 +355,9 @@ export class VoxelWorld3D {
     // constructs with no options object, so the persisted value is the mechanism
     // and `setShadows` below is the live-update path.
     this.shadows = 'shadows' in opts ? !!opts.shadows : pref(saved, 'shadows', true);
+    // Performance Mode, renderer half — resolved here for the same reason, so
+    // the first frame already honours it. See setPerfMode for what it buys.
+    this.perfMode = 'perfMode' in opts ? !!opts.perfMode : pref(saved, 'perfMode', false);
     // Meshes that participate in shadows, with their INTENDED flags — ambient
     // movers are deliberately absent, so re-enabling never switches them on.
     this._shadowMeshes = [];
@@ -258,13 +367,29 @@ export class VoxelWorld3D {
     this.renderer = new THREE.WebGLRenderer({
       canvas, antialias: false, alpha: false, powerPreference: 'high-performance',
     });
+    this.renderer.setPixelRatio(this._wantPixelRatio());
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = this.shadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x1a1f3d);
+    // Sizing the ground to the scene (contentExtent) means the world no longer
+    // ends at the plane's rim — but the FAR PLANE still cuts the ground, and
+    // from a chase camera that cut lands a degree or two below the true horizon
+    // as a faint straight line with sky above it. Fog the last stretch before
+    // the clip to exactly the background colour and the cut has nothing left to
+    // show: the ground is already sky-coloured by the time it is clipped.
+    //
+    // The band is re-derived from the camera's own far plane every frame in
+    // render(), never fixed. The far plane is 600 m in play but the level intro
+    // stretches it to fit the whole city in one shot, and a fixed band would
+    // then sit in the MIDDLE of that shot and grey out half the establishing
+    // frame. Riding the far plane, the fog only ever eats what was about to be
+    // clipped anyway. Mutating near/far is a uniform update; the object itself
+    // must survive, because swapping the fog on or off recompiles every
+    // material in the scene.
+    this.scene.fog = new THREE.Fog(0x1a1f3d, 1, 2);
 
     const hemi = new THREE.HemisphereLight(0xffffff, 0x3a3f5c, 0.9);
     this.scene.add(hemi);
@@ -317,18 +442,42 @@ export class VoxelWorld3D {
       ? !!opts.reducedMotion
       : pref(saved, 'reducedMotion', false);
     this.reducedMotion = this._osReduced || this._settingReduced;
+    // Ambient life freezes for either reason; they are separate settings with
+    // the same consequence for the ambient tick.
+    this._ambientFrozen = this.reducedMotion || this.perfMode;
     this._ambientPosed = false;
 
     this._ownedGeos = [];
     this._ownedMats = [];
     this._ambientMeshes = [];
 
-    const groundGeo = new THREE.PlaneGeometry(240, 240);
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a2f4c, roughness: 0.9 });
+    // Sized and centred on the scene, not on a constant — see contentExtent.
+    const ext = contentExtent(sim);
+    this.groundExtent = ext;
+    const gw = ext.w + GROUND_MARGIN * 2, gd = ext.d + GROUND_MARGIN * 2;
+    // Segmented, not one giant quad. Depth is interpolated across a triangle
+    // from its vertices, and a single quad 1.3 km on a side has a w range wide
+    // enough that the interpolated depth in the middle of it drifts by more
+    // than the 1.2 mm the first decor layer sits above the ground — which made
+    // the park, the roads and the pavements wink out at mid distance the moment
+    // the plane got big. ~64 m cells keep the interpolation honest for a few
+    // hundred triangles, which is free.
+    const seg = (m) => Math.max(1, Math.min(48, Math.round(m / 64)));
+    const groundGeo = new THREE.PlaneGeometry(gw, gd, seg(gw), seg(gd));
+    // Belt and braces on the same problem, and a fix for the pre-existing
+    // version of it: the decor layers are decals 1.2-8.9 mm above this surface,
+    // a margin no depth buffer can resolve at 100 m. Offsetting the GROUND away
+    // from the eye means the decals win by construction at every distance
+    // instead of by luck. Blocks are unaffected — they stand above it.
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x2a2f4c, roughness: 0.9,
+      polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 4,
+    });
     this._ownedGeos.push(groundGeo);
     this._ownedMats.push(groundMat);
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
+    ground.position.set(ext.cx, 0, ext.cz);
     ground.renderOrder = GROUND_ORDER;
     this._registerShadow(ground, false, true);
     this.ground = ground;
@@ -1176,6 +1325,48 @@ export class VoxelWorld3D {
     if (next) this._followShadow(); // the box may be 200 m stale
   }
 
+  // Device pixel ratio the renderer should be running at. Capped at 1.5 in
+  // normal play (the art is flat-shaded and gains little above that); pinned to
+  // 1 in Performance Mode.
+  _wantPixelRatio() {
+    if (this.perfMode) return 1;
+    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+    return Math.min(dpr, 1.5);
+  }
+
+  // Signature matches World3D.setPerfMode (world3d.js:429) so the guarded call
+  // at main.js:101 picks it up with no wiring. Before this existed the sandbox
+  // half of that call hit nothing and Performance Mode was a renderer no-op.
+  //
+  // Be honest about what it buys and where. The sandbox's frame cost is
+  // dominated by the sim, so on a 1x desktop panel this is close to nothing —
+  // the renderer is under a millisecond of a frame that can run 300. It is
+  // aimed at the machine that actually reaches for the toggle:
+  //   * pixel ratio 1.5 -> 1. On a 2x or 3x screen that is 2.25x fewer
+  //     fragments for the entire frame, shadow pass included — by a wide margin
+  //     the biggest single GPU lever the renderer has. On a 1x panel it is a
+  //     no-op by construction, not by accident.
+  //   * ambient life (gulls, pigeons, steam, ferries, surf, neon) stops being
+  //     re-composed every frame and is posed once, through the same machinery
+  //     Reduced Motion already uses.
+  // Nothing here touches the block field: culling or LOD-ing 73k instances is a
+  // real change with a real look cost, and it belongs in a pass that can prove
+  // it, not behind a toggle that silently degrades the city.
+  setPerfMode(on) {
+    const next = !!on;
+    if (next === this.perfMode) return; // idempotent: applySettings fires often
+    this.perfMode = next;
+    const want = this._wantPixelRatio();
+    if (this.renderer.getPixelRatio() !== want) {
+      this.renderer.setPixelRatio(want);
+      const c = this.renderer.domElement;
+      // setSize with updateStyle=false re-derives the drawing buffer from the
+      // new ratio; the CSS size of the canvas is main.js's business.
+      this.renderer.setSize(c.clientWidth, c.clientHeight, false);
+    }
+    this._syncReducedMotion();
+  }
+
   // Resize the box and pull the light back to match. Only ever called with a
   // ladder rung, so the texel size is stable between calls and the snap below
   // stays valid.
@@ -1245,8 +1436,10 @@ export class VoxelWorld3D {
 
   _syncReducedMotion() {
     const next = this._osReduced || this._settingReduced;
-    if (next === this.reducedMotion) return;
+    const frozen = next || this.perfMode;
+    if (next === this.reducedMotion && frozen === this._ambientFrozen) return;
     this.reducedMotion = next;
+    this._ambientFrozen = frozen;
     this._ambientPosed = false; // re-pose (or resume) on the next update
   }
 
@@ -1550,7 +1743,7 @@ export class VoxelWorld3D {
     // Reduced Motion: pose the ambient set once at t=0 and never touch it
     // again — birds perched, ferry at its berth, signage at a steady glow.
     if (this.ambient) {
-      if (this.reducedMotion) {
+      if (this._ambientFrozen) {
         if (!this._ambientPosed) {
           this._poseAmbientStatic();
           this._ambientPosed = true;
@@ -1635,11 +1828,11 @@ export class VoxelWorld3D {
       if (matrixChanged) {
         this._q.setFromEuler(this._e);
         this._v.set(px, py, pz);
-        // Proportional 5% mortar gap, capped at 5 cm absolute: 0.25/0.5/1 m
-        // bricks are byte-identical to the old `s * 0.95`, while a 2 m brick
-        // stops showing a 10 cm seam against its neighbours.
-        const inset = b.s - Math.min(0.05, b.s * 0.05);
-        this._s.set(inset, inset, inset);
+        // Blocks fill their cell exactly. The mortar course used to be a
+        // physical 5 cm shortfall, which is a see-through slot in a wall one
+        // block thick — it is painted now (see mortarTexture), so the seam
+        // survives and the hole does not.
+        this._s.set(b.s, b.s, b.s);
         this._m4.compose(this._v, this._q, this._s);
         b._im.setMatrixAt(b._imIndex, this._m4);
         b._renderMatrixReady = true;
@@ -1727,6 +1920,15 @@ export class VoxelWorld3D {
   // READY gate, so the establishing shot is covered too.
   render(camera) {
     this._followShadow(camera);
+    // Fog band pinned to the back of the frustum — see the constructor. 0.995
+    // rather than 1.0 so the ground is fully faded a metre BEFORE the clip
+    // plane reaches it, never a metre after.
+    const fog = this.scene.fog;
+    if (fog && camera.far !== this._fogFor) {
+      this._fogFor = camera.far;
+      fog.far = camera.far * 0.995;
+      fog.near = camera.far * 0.7;
+    }
     this.renderer.render(this.scene, camera);
   }
   resize(w, h) { this.renderer.setSize(w, h, false); }

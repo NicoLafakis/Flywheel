@@ -11,6 +11,10 @@ import {
   BROOKLYN_CROSSINGS, BROOKLYN_OPEN_GROUND, BROOKLYN_ROAD_SPANS, BROOKLYN_STREETS,
   BROOKLYN_VEHICLES, vehicleBBox, XW_LEN,
 } from '../js/voxelscene-brooklyn.js';
+import {
+  UPPER_MANHATTAN_CROSSINGS, UPPER_MANHATTAN_OPEN_GROUND, UPPER_MANHATTAN_ROAD_SPANS,
+  UPPER_MANHATTAN_STREETS, UPPER_MANHATTAN_VEHICLES, XW_LEN as UM_XW_LEN,
+} from '../js/voxelscene-upper-manhattan.js';
 import { readFileSync } from 'node:fs';
 
 const DT = 1 / 60;
@@ -209,16 +213,42 @@ function validateVoxelCollisions() {
   console.log('  voxel collision separation: solid and loose-body overlap probes clear');
 }
 
-// --- manhattan sandbox checks -------------------------------------------------
-// The second voxel scene (Lower Manhattan): same engine, so we check the
-// scene-specific risks — overlapping placement (ghost blocks), spontaneous
-// collapse at spawn, and that a scripted excursion actually excavates.
-function validateManhattan() {
-  console.log('Validating manhattan sandbox...');
-  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'manhattan' });
+// --- shared voxel-scene contract probes --------------------------------------
+// Brooklyn and Upper Manhattan are authored against the same contracts, so every
+// probe below lives here ONCE and each scene calls it. Two divergent copies of a
+// contract check is exactly how a contract silently stops being enforced in one
+// place, and this file has already paid for that lesson: the roadway probe spent
+// three passes as a weakened fork in Upper Manhattan (foliage, or blocks a metre
+// wide standing three metres up) while Brooklyn tested every physical block, and
+// forty-six kerb rims stood in asphalt the entire time without a red line.
+//
+// Whatever is genuinely per-scene is a PARAMETER here — the scene's own exported
+// tables, the ambient kinds it ships, the name in the message. It is never a
+// second implementation, and a probe is never narrowed to make a scene pass.
 
-  // overlap guard: every fine cell must point back at its owner — a second
-  // block placed into an occupied cell overwrites it (ghost block)
+const rectsOverlap = (a, b) =>
+  a.x < b.x + b.w && a.x + a.w > b.x && a.z < b.z + b.d && a.z + a.d > b.z;
+const blockRect = (bl) => ({ x: bl.x - bl.s / 2, z: bl.z - bl.s / 2, w: bl.s, d: bl.s });
+
+// Highest block top (m) per 1 m footprint cell. The camera-blocker probe and the
+// bare-ground probe both key off it, so it is derived once per scene.
+function footprintTops(sim) {
+  const tops = new Map();
+  for (const b of sim.blocks) {
+    const top = (b.gy + b.fs) * 0.25;
+    for (let cx = Math.floor(b.gx * 0.25); cx < Math.ceil((b.gx + b.fs) * 0.25); cx++) {
+      for (let cz = Math.floor(b.gz * 0.25); cz < Math.ceil((b.gz + b.fs) * 0.25); cz++) {
+        const k = `${cx},${cz}`;
+        if (!(tops.get(k) >= top)) tops.set(k, top);
+      }
+    }
+  }
+  return tops;
+}
+
+// Cell ownership: a block placed into an occupied fine cell overwrites the first,
+// and the ghost is invisible to the support BFS — it falls at spawn.
+function probeCellOwnership(sim, name) {
   let ghosts = 0;
   for (const b of sim.blocks) {
     for (let ix = 0; ix < b.fs; ix++) {
@@ -229,23 +259,15 @@ function validateManhattan() {
       }
     }
   }
-  if (ghosts > 0) fail(`manhattan: ${ghosts} fine cells owned by the wrong block (overlapping placement)`);
+  if (ghosts > 0) fail(`${name}: ${ghosts} fine cells owned by the wrong block (overlapping placement)`);
+}
 
-  // camera-blocker coverage: the blocker list is hand-written per structure, so
-  // it drifts every time content lands. The chase cam's LOWEST framing is
-  // ~8.6 m high (SIZE 1), so anything under 6 m is already cleared with margin
-  // — above that, an unlisted roof occludes the hole. Scoped to manhattan: the
-  // gallery ships zero blockers by design (camera.js falls back to a flat pull).
-  const tops = new Map(); // "cx,cz" 1 m footprint cell -> highest block top (m)
-  for (const b of sim.blocks) {
-    const top = (b.gy + b.fs) * 0.25;
-    for (let cx = Math.floor(b.gx * 0.25); cx < Math.ceil((b.gx + b.fs) * 0.25); cx++) {
-      for (let cz = Math.floor(b.gz * 0.25); cz < Math.ceil((b.gz + b.fs) * 0.25); cz++) {
-        const k = `${cx},${cz}`;
-        if (!(tops.get(k) >= top)) tops.set(k, top);
-      }
-    }
-  }
+// Camera-blocker coverage, derived per footprint cell rather than trusted. The
+// chase cam's LOWEST framing is ~8.6 m high (SIZE 1), so anything under 6 m is
+// already cleared with margin — above that, an unlisted roof occludes the hole.
+// Scoped to the named scenes: the gallery ships zero blockers by design
+// (camera.js falls back to a flat pull).
+function probeCameraBlockers(sim, name, tops) {
   let uncovered = 0, worstH = 0, worstCell = '';
   for (const [k, top] of tops) {
     if (top < 6) continue;
@@ -258,23 +280,286 @@ function validateManhattan() {
     }
   }
   if (uncovered > 0) {
-    fail(`manhattan: ${uncovered} footprint cell(s) >=6 m tall have no cameraBlocker covering their height (tallest ${worstH} m at cell ${worstCell})`);
+    fail(`${name}: ${uncovered} footprint cell(s) >=6 m tall have no cameraBlocker covering their height (tallest ${worstH} m at cell ${worstCell})`);
   }
+}
 
-  // decor draw order: water renders at y .008 OVER parks at y .006, so a park
-  // rect fully inside a water rect never appears (Castle Clinton's park was
-  // exactly this bug when the harbor was one big rect).
-  for (const p of sim.sceneDecor.parks) {
-    const buried = sim.sceneDecor.water.find((w) =>
+// boundsRect must hug the content: a rect wider than the geometry lets the hole
+// drive into blank ground, and a narrower one clips the map.
+function probeBoundsRect(sim, name, slack = 12) {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const b of sim.blocks) {
+    minX = Math.min(minX, b.x - b.s / 2); maxX = Math.max(maxX, b.x + b.s / 2);
+    minZ = Math.min(minZ, b.z - b.s / 2); maxZ = Math.max(maxZ, b.z + b.s / 2);
+  }
+  const R = sim.boundsRect;
+  if (!R) { fail(`${name}: no boundsRect`); return; }
+  if (minX < R.minX || maxX > R.maxX || minZ < R.minZ || maxZ > R.maxZ) {
+    fail(`${name}: geometry x[${minX},${maxX}] z[${minZ},${maxZ}] escapes boundsRect x[${R.minX},${R.maxX}] z[${R.minZ},${R.maxZ}]`);
+  } else if (R.maxX - maxX > slack || minX - R.minX > slack || R.maxZ - maxZ > slack || minZ - R.minZ > slack) {
+    fail(`${name}: boundsRect leaves >${slack} m of blank ground around the content (x[${R.minX},${R.maxX}] vs [${minX},${maxX}], z[${R.minZ},${R.maxZ}] vs [${minZ},${maxZ}])`);
+  }
+}
+
+// ALL physical blocks vs the roadway rects — not a height or material subset,
+// which is how a 0.25 m bollard and a stoop each slipped into a roadway before.
+// The only two exemptions are POSITIONAL lists the scene itself exports: the
+// vehicles, and the overhead spans (a bridge arch, a viaduct deck). Neither can
+// wave a block through on account of being small, or tall, or made of leaves.
+function probeRoadConflicts(sim, name, vehicles, spans) {
+  const allow = vehicles.map(vehicleBBox);
+  let roadConflicts = 0, roadWorst = '';
+  for (const bl of sim.blocks) {
+    const r = blockRect(bl);
+    if (!sim.sceneDecor.roads.some((rd) => rectsOverlap(r, rd))) continue;
+    const inVehicle = allow.some((v) =>
+      r.x >= v.minX - 0.75 && r.x + r.w <= v.maxX + 0.75 && r.z >= v.minZ - 0.75 && r.z + r.d <= v.maxZ + 0.75);
+    if (inVehicle) continue;
+    const inSpan = spans.some((s) =>
+      r.x >= s.minX && r.x + r.w <= s.maxX && r.z >= s.minZ && r.z + r.d <= s.maxZ && bl.y - bl.s / 2 >= s.minY);
+    if (inSpan) continue;
+    roadConflicts++;
+    if (!roadWorst) roadWorst = `${bl.matType}/${bl.s}m at (${r.x},${bl.y},${r.z})`;
+  }
+  if (roadConflicts > 0) fail(`${name}: ${roadConflicts} physical block(s) inside a roadway rect, first ${roadWorst}`);
+}
+
+// Water draws near the top of the decor stack, so anything it covers is gone:
+// roads, plazas, cobbles, sidewalks and crossings must never sit under it.
+function probeWaterOverSurfaces(sim, name) {
+  const D = sim.sceneDecor;
+  for (const key of ['roads', 'plaza', 'cobbles', 'sidewalks', 'crosswalks']) {
+    for (const w of D.water) {
+      const hit = (D[key] || []).find((r) => rectsOverlap(r, w));
+      if (hit) fail(`${name}: ${key} rect (${hit.x},${hit.z} ${hit.w}x${hit.d}) is under water rect (${w.x},${w.z} ${w.w}x${w.d}) — water paints over it`);
+    }
+  }
+}
+
+// Decor draw order at its sharpest: water renders at y .008 OVER parks at y .006,
+// so a park rect fully inside a water rect never appears (Castle Clinton's park
+// was exactly this bug when the harbor was one big rect).
+function probeParkUnderWater(sim, name) {
+  const D = sim.sceneDecor;
+  for (const p of D.parks) {
+    const buried = D.water.find((w) =>
       p.x >= w.x && p.x + p.w <= w.x + w.w && p.z >= w.z && p.z + p.d <= w.z + w.d);
-    if (buried) fail(`manhattan: park rect (${p.x},${p.z} ${p.w}x${p.d}) is fully inside water rect (${buried.x},${buried.z} ${buried.w}x${buried.d}) — it never renders`);
+    if (buried) fail(`${name}: park rect (${p.x},${p.z} ${p.w}x${p.d}) is fully inside water rect (${buried.x},${buried.z} ${buried.w}x${buried.d}) — it never renders`);
   }
+}
 
-  // idle stability: 3 s parked at spawn — nothing may collapse or be eaten
+// Enclosed water must match its physical rim exactly: every 1 m cell of the ring
+// just outside the rect is either carrying a ground-level block or is itself
+// water. A single dry gap and the water plane visibly runs out past its bank.
+//
+// The "or is itself water" clause is the one place this probe differs from the
+// single-lobe form Brooklyn shipped with, and it is a correction, not a
+// loosening. Upper Manhattan's bodies are multi-lobed — the Lake is four rects,
+// the Meer three — so a ring cell of one lobe is routinely INSIDE a neighbouring
+// lobe: legitimately wet, and demanding a kerb block there would be demanding a
+// wall down the middle of the pond. A cell that is neither rimmed nor wet still
+// fails, which is the whole contract. Brooklyn's bodies are single rects with
+// dry rings, so this reads identically for them.
+function probeRimmedWater(sim, name) {
+  const D = sim.sceneDecor, R = sim.boundsRect;
+  const groundCells = new Set();
+  for (const b of sim.blocks) {
+    if (b.y - b.s / 2 > 0.01) continue;
+    for (let cx = Math.floor(b.x - b.s / 2); cx < Math.ceil(b.x + b.s / 2); cx++) {
+      for (let cz = Math.floor(b.z - b.s / 2); cz < Math.ceil(b.z + b.s / 2); cz++) groundCells.add(`${cx},${cz}`);
+    }
+  }
+  const wet = (x, z) => D.water.some((w) => x >= w.x && x < w.x + w.w && z >= w.z && z < w.z + w.d);
+  for (const w of D.water) {
+    const open = w.x <= R.minX || w.x + w.w >= R.maxX || w.z <= R.minZ || w.z + w.d >= R.maxZ;
+    if (open) continue;                        // river/ocean run off the map edge by design
+    let gaps = 0, firstGap = '';
+    const ring = [];
+    for (let x = w.x - 1; x < w.x + w.w + 1; x++) ring.push([x, w.z - 1], [x, w.z + w.d]);
+    for (let z = w.z; z < w.z + w.d; z++) ring.push([w.x - 1, z], [w.x + w.w, z]);
+    for (const [x, z] of ring) {
+      if (groundCells.has(`${x},${z}`) || wet(x, z)) continue;
+      gaps++;
+      if (!firstGap) firstGap = `(${x},${z})`;
+    }
+    if (gaps > 0) fail(`${name}: water rect (${w.x},${w.z} ${w.w}x${w.d}) has ${gaps} unrimmed ring cell(s), first ${firstGap}`);
+  }
+}
+
+// No bare ground, at ANY height. Every footprint cell in the scene must sit on
+// some decor layer — not just buildings. Stated this way it also enforces "curb
+// furniture lands on the sidewalk it claims": a bin or lamp post nudged half a
+// metre off the kerb ends up over the void-coloured ground plane and fails here,
+// which a >=4 m building filter would have waved through.
+function probeBareGround(sim, name, tops) {
+  const layers = Object.values(sim.sceneDecor).flat();
+  let bare = 0, bareWorst = '';
+  for (const [k, top] of tops) {
+    const [cx, cz] = k.split(',').map(Number);
+    const cell = { x: cx, z: cz, w: 1, d: 1 };
+    if (layers.some((r) => rectsOverlap(cell, r))) continue;
+    bare++;
+    if (!bareWorst) bareWorst = `(${cx},${cz}) top ${top} m`;
+  }
+  if (bare > 0) fail(`${name}: ${bare} footprint cell(s) stand on bare ground, first ${bareWorst}`);
+}
+
+// Declared-empty ground. A dead-space exclusion is only worth anything if
+// something holds it to its claim, so each declared span must be genuinely
+// block-free and must touch a boundsRect edge. Those two together are what stop
+// it widening by accident: build inside a span and it fails, so the span has to
+// shrink; and an interior void cannot be declared away at all, because "the edge
+// of the map trails off" is the only accepted rationale. Without this the
+// declaration is a comment, and a comment cannot be violated.
+function probeOpenGround(sim, name, spans) {
+  const R = sim.boundsRect;
+  let openBad = 0, openWorst = '';
+  for (const s of spans) {
+    const rect = { x: s.minX, z: s.minZ, w: s.maxX - s.minX, d: s.maxZ - s.minZ };
+    const occupied = sim.blocks.filter((bl) => rectsOverlap(blockRect(bl), rect));
+    if (occupied.length) {
+      openBad++;
+      if (!openWorst) {
+        const b0 = occupied[0];
+        openWorst = `"${s.why}" holds ${occupied.length} block(s), first ${b0.matType}/${b0.s}m at (${b0.x},${b0.z})`;
+      }
+    }
+    if (s.minX < R.minX || s.maxX > R.maxX || s.minZ < R.minZ || s.maxZ > R.maxZ) {
+      fail(`${name}: open-ground span "${s.why}" escapes boundsRect`);
+    }
+    const onEdge = s.minX <= R.minX || s.maxX >= R.maxX || s.minZ <= R.minZ || s.maxZ >= R.maxZ;
+    if (!onEdge) fail(`${name}: open-ground span "${s.why}" is interior — declare only level-edge emptiness, build the rest`);
+  }
+  if (openBad > 0) fail(`${name}: ${openBad} open-ground span(s) are not actually empty — ${openWorst}`);
+}
+
+// Dead-space census, REPORTED not gated. Same sweep the team used to find the
+// spawn void: sample the playable rect every 4 m, flag any point with no block
+// within 8 m, and discount the layers that are empty by design plus the declared
+// spans above. It is not a gate because the residual is a known, deferred
+// decision in Brooklyn (the ~110 x 12 m band at z[-16,-4] wants buildings, and
+// that spend is on hold pending the build-time work). Printing it every run is
+// the point: the number stays in front of whoever reads the validator instead of
+// living in one person's scratchpad, so nobody can mistake a declared exclusion
+// for having fixed it.
+function reportDeadGround(sim, name, spans) {
+  const D = sim.sceneDecor, R = sim.boundsRect;
+  const BY_DESIGN = ['water', 'sand', 'parks', 'boardwalk'];
+  const STEP = 4, REACH = 8;
+  const occ = new Set();
+  for (const bl of sim.blocks) occ.add(`${Math.round(bl.x / STEP)},${Math.round(bl.z / STEP)}`);
+  const rr = Math.ceil(REACH / STEP);
+  let deadTotal = 0, deadDeclared = 0, deadResidual = 0;
+  for (let x = R.minX; x < R.maxX; x += STEP) {
+    for (let z = R.minZ; z < R.maxZ; z += STEP) {
+      const cx = Math.round(x / STEP), cz = Math.round(z / STEP);
+      let near = false;
+      for (let i = -rr; i <= rr && !near; i++) for (let j = -rr; j <= rr && !near; j++) if (occ.has(`${cx + i},${cz + j}`)) near = true;
+      if (near) continue;
+      // Closed bounds deliberately: rectsOverlap is open, so a degenerate point
+      // rect would silently drop every sample sitting on a layer's own edge.
+      const inRect = (r) => x >= r.x && x <= r.x + r.w && z >= r.z && z <= r.z + r.d;
+      if (BY_DESIGN.some((k) => (D[k] || []).some(inRect))) continue;
+      deadTotal++;
+      if (spans.some((s) => x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ)) deadDeclared++;
+      else deadResidual++;
+    }
+  }
+  console.log(`  ${name} dead ground: ${deadTotal} pt(s) on built/bare ground — ${deadDeclared} declared open, ${deadResidual} undeclared (not gated)`);
+}
+
+// Crosswalk stripes: every bar inside asphalt, and no bar overlapping another —
+// the axis-aware zebra helper exists because the naive version stepped along the
+// wrong axis and stacked every stripe on the same cells.
+function probeCrosswalkStripes(sim, name) {
+  const D = sim.sceneDecor;
+  let strayStripes = 0, stackedStripes = 0;
+  for (let i = 0; i < D.crosswalks.length; i++) {
+    const s = D.crosswalks[i];
+    const inside = D.roads.some((r) => s.x >= r.x && s.x + s.w <= r.x + r.w && s.z >= r.z && s.z + s.d <= r.z + r.d);
+    if (!inside) strayStripes++;
+    for (let j = i + 1; j < D.crosswalks.length; j++) if (rectsOverlap(s, D.crosswalks[j])) stackedStripes++;
+  }
+  if (strayStripes > 0) fail(`${name}: ${strayStripes} crosswalk stripe(s) not fully inside a roadway rect`);
+  if (stackedStripes > 0) fail(`${name}: ${stackedStripes} overlapping crosswalk stripe pair(s) — zebra stepped along the wrong axis`);
+}
+
+// Each crossing must lie within the street it was DECLARED against, not merely
+// within some road. The set-membership test above cannot see the difference, and
+// that gap is not theoretical: Old Fulton St and Kent Ave are collinear segments
+// of one east-west line, so a crossing that overshot Old Fulton by 22 m landed on
+// Kent's asphalt and rendered as a perfectly ordinary crossing on the wrong
+// street — inside a legal road rect, silent to the stripe probe, and only visible
+// on an orthographic plan. Both checks stay: this one catches a crossing on the
+// wrong street, the stripe probe catches one that has drifted off asphalt.
+function probeCrossingsOnDeclaredStreet(name, crossings, streets, xwLen) {
+  let wrongStreet = 0, wrongWorst = '';
+  for (const [si, at] of crossings) {
+    const s = streets[si];
+    if (!s) { wrongStreet++; wrongWorst = wrongWorst || `street index ${si} does not exist`; continue; }
+    const lo = s.axis === 'x' ? s.x : s.z;
+    const hi = lo + (s.axis === 'x' ? s.w : s.d);
+    if (at >= lo && at + xwLen <= hi) continue;
+    wrongStreet++;
+    if (!wrongWorst) wrongWorst = `[${si}, ${at}] needs ${at}..${at + xwLen} inside ${lo}..${hi}`;
+  }
+  if (wrongStreet > 0) fail(`${name}: ${wrongStreet} crossing(s) declared outside their own street's span, first ${wrongWorst}`);
+}
+
+// Decor draw order: the renderer paints the registry in key order, so the scene
+// must hand it the keys the contract names, in that order. An empty layer keeps
+// its key rather than being dropped.
+const DECOR_ORDER = ['parks', 'sand', 'plaza', 'cobbles', 'sidewalks', 'roads', 'rail',
+  'bikePaths', 'laneMarkers', 'crosswalks', 'water', 'boardwalk'];
+function probeDecorKeyOrder(sim, name) {
+  const got = Object.keys(sim.sceneDecor);
+  if (got.join(',') !== DECOR_ORDER.join(',')) fail(`${name}: sceneDecor keys ${got.join(',')} do not match the draw order ${DECOR_ORDER.join(',')}`);
+}
+
+// Ambient life is render-only: VoxelWorld3D owns every entry and the physics grid
+// never sees one. The scene declares which kinds it ships (a park has no ferries
+// and no surf), and every declared kind must actually be there — an ambient key
+// that quietly went missing is a scene that lost its birds with no other symptom.
+function probeAmbient(sim, name, kinds) {
+  const A = sim.sceneAmbient;
+  if (!A || kinds.some((k) => !A[k])) {
+    fail(`${name}: sceneAmbient is missing one of ${kinds.join('/')}`);
+  }
+}
+
+// Idle stability at spawn: 3 s parked, nothing collapses, nothing is eaten. The
+// sim is stepped in place, so callers that reuse it get a 3 s-old world.
+function probeIdleStability(sim, name) {
   for (let i = 0; i < 3 * 60; i++) sim.step(DT, { x: 0, z: 0 });
   const nonStatic = sim.blocks.filter((b) => b.state !== 'static').length;
-  if (nonStatic !== 0) fail(`manhattan: ${nonStatic} blocks non-static after 3s idle at spawn`);
-  if (sim.hole.eatenCount !== 0) fail(`manhattan: ${sim.hole.eatenCount} blocks eaten during 3s idle at spawn`);
+  if (nonStatic !== 0) fail(`${name}: ${nonStatic} blocks non-static after 3s idle at spawn`);
+  if (sim.hole.eatenCount !== 0) fail(`${name}: ${sim.hole.eatenCount} blocks eaten during 3s idle at spawn`);
+}
+
+function probeFinitePositions(blocks, name, when) {
+  let bad = 0;
+  for (const bl of blocks) {
+    if (!Number.isFinite(bl.x) || !Number.isFinite(bl.y) || !Number.isFinite(bl.z)) bad++;
+  }
+  if (bad > 0) fail(`${name}: ${bad} non-finite block positions ${when}`);
+}
+
+// --- manhattan sandbox checks -------------------------------------------------
+// The second voxel scene (Lower Manhattan): same engine, so we check the
+// scene-specific risks — overlapping placement (ghost blocks), spontaneous
+// collapse at spawn, and that a scripted excursion actually excavates.
+function validateManhattan() {
+  console.log('Validating manhattan sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'manhattan' });
+
+  // Lower Manhattan predates the shared contract set and still runs a subset of
+  // it: ownership, camera coverage, the park-under-water draw-order trap, and
+  // idle stability. The rest of the set is not skipped on principle — this scene
+  // has never been re-authored against it — and adopting it here is its own pass.
+  probeCellOwnership(sim, 'manhattan');
+  probeCameraBlockers(sim, 'manhattan', footprintTops(sim));
+  probeParkUnderWater(sim, 'manhattan');
+  probeIdleStability(sim, 'manhattan');
 
   // scripted excursion: cross town to the WTC base, then excavate for 30 s
   const WP = [{ until: 9, x: -24, z: -20 }, { until: 39, x: -24, z: -26 }];
@@ -290,11 +575,7 @@ function validateManhattan() {
   // every level, and nothing else here asserts pacing. The excursion reaches
   // SIZE 5 today; a drop below 4 means the ladder outran the scene.
   if (sim.hole.size < 4) fail(`manhattan: WTC excursion reached only SIZE ${sim.hole.size} (expected >=4 — mass-scaled SIZE ladder too steep?)`);
-  let bad = 0;
-  for (const bl of sim.blocks) {
-    if (!Number.isFinite(bl.x) || !Number.isFinite(bl.y) || !Number.isFinite(bl.z)) bad++;
-  }
-  if (bad > 0) fail(`manhattan: ${bad} non-finite block positions after excursion`);
+  probeFinitePositions(sim.blocks, 'manhattan', 'after excursion');
   console.log(`  manhattan sandbox: blocks=${sim.totalBlocks} mass=${sim.totalMass.toFixed(0)} eaten=${sim.hole.eatenCount} size=${sim.hole.size}`);
 
   // second excursion: a moving sweep through the expansion district — Fed
@@ -320,89 +601,79 @@ function validateManhattan() {
 }
 
 // --- upper manhattan park sandbox checks ------------------------------------
-// The third voxel scene: a park-first Upper Manhattan district with a much
-// lower skyline than Lower Manhattan. Keep the same hand-authored scene
-// contracts — ownership, camera coverage, decor draw order, and readable
-// excavation from the spawn promenade.
+// The third voxel scene, and after the four-pass rebuild the largest by block
+// count: Central Park entire, with the Upper West Side, Museum Mile, the Upper
+// East Side and Harlem wrapped around it. It is held to the SAME contract set as
+// Brooklyn — same probe bodies, called from the shared block above with this
+// scene's own exported tables. It ran a weaker set for three passes; that is
+// over.
 function validateUpperManhattan() {
   console.log('Validating upper manhattan sandbox...');
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'upper-manhattan' });
 
-  let ghosts = 0;
-  for (const b of sim.blocks) {
-    for (let ix = 0; ix < b.fs; ix++) {
-      for (let iy = 0; iy < b.fs; iy++) {
-        for (let iz = 0; iz < b.fs; iz++) {
-          if (sim.grid.get(`${b.gx + ix},${b.gy + iy},${b.gz + iz}`) !== b) ghosts++;
-        }
-      }
-    }
-  }
-  if (ghosts > 0) fail(`upper manhattan: ${ghosts} fine cells owned by the wrong block (overlapping placement)`);
+  // The full shared contract set, in the same order Brooklyn runs it. Pass 4
+  // brought the last ten of these over: before that this scene ran four probes
+  // against Brooklyn's fourteen, and the gap was not academic — nine of the ten
+  // would have failed against the pre-rebuild scene (46 kerb rims in asphalt,
+  // 12 surfaces drowned under water, 946 bare footprint cells, 300 overlapping
+  // crosswalk stripes). They are ported unchanged rather than tuned to fit;
+  // narrowing a guard until it goes green is how every one of those shipped.
+  const umTops = footprintTops(sim);
+  probeCellOwnership(sim, 'upper manhattan');
+  probeCameraBlockers(sim, 'upper manhattan', umTops);
+  probeBoundsRect(sim, 'upper manhattan');
+  probeRoadConflicts(sim, 'upper manhattan', UPPER_MANHATTAN_VEHICLES, UPPER_MANHATTAN_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'upper manhattan');
+  probeParkUnderWater(sim, 'upper manhattan');
+  probeRimmedWater(sim, 'upper manhattan');
+  probeBareGround(sim, 'upper manhattan', umTops);
+  probeOpenGround(sim, 'upper manhattan', UPPER_MANHATTAN_OPEN_GROUND);
+  reportDeadGround(sim, 'upper manhattan', UPPER_MANHATTAN_OPEN_GROUND);
+  probeCrosswalkStripes(sim, 'upper manhattan');
+  probeCrossingsOnDeclaredStreet('upper manhattan', UPPER_MANHATTAN_CROSSINGS, UPPER_MANHATTAN_STREETS, UM_XW_LEN);
+  probeDecorKeyOrder(sim, 'upper manhattan');
+  // No surf and no ferries: every water body in this level is a park pond inside
+  // the green, and none of them is big enough to run a boat across.
+  probeAmbient(sim, 'upper manhattan', ['gulls', 'steam', 'neon', 'pigeons']);
+  probeIdleStability(sim, 'upper manhattan');
 
-  const tops = new Map();
-  for (const b of sim.blocks) {
-    const top = (b.gy + b.fs) * 0.25;
-    for (let cx = Math.floor(b.gx * 0.25); cx < Math.ceil((b.gx + b.fs) * 0.25); cx++) {
-      for (let cz = Math.floor(b.gz * 0.25); cz < Math.ceil((b.gz + b.fs) * 0.25); cz++) {
-        const k = `${cx},${cz}`;
-        if (!(tops.get(k) >= top)) tops.set(k, top);
-      }
-    }
-  }
-  let uncovered = 0, worstH = 0, worstCell = '';
-  for (const [k, top] of tops) {
-    if (top < 6) continue;
-    const [cx, cz] = k.split(',').map(Number);
-    const covered = sim.cameraBlockers.some((b) =>
-      cx + 1 > b.minX && cx < b.maxX && cz + 1 > b.minZ && cz < b.maxZ && b.h + 0.01 >= top);
-    if (!covered) {
-      uncovered++;
-      if (top > worstH) { worstH = top; worstCell = k; }
-    }
-  }
-  if (uncovered > 0) {
-    fail(`upper manhattan: ${uncovered} footprint cell(s) >=6 m tall have no cameraBlocker covering their height (tallest ${worstH} m at cell ${worstCell})`);
-  }
-
-  for (const p of sim.sceneDecor.parks) {
-    const buried = sim.sceneDecor.water.find((w) =>
-      p.x >= w.x && p.x + p.w <= w.x + w.w && p.z >= w.z && p.z + p.d <= w.z + w.d);
-    if (buried) fail(`upper manhattan: park rect (${p.x},${p.z} ${p.w}x${p.d}) is fully inside water rect (${buried.x},${buried.z} ${buried.w}x${buried.d})`);
-  }
-
-  // Roadway bands are a shared placement contract: physical trees, benches,
-  // curb props, and building footprints must stay out of the render-only
-  // asphalt rectangles. This catches the exact class of visual drift that is
-  // otherwise easy to miss when a landmark or prop coordinate changes.
-  let roadConflicts = 0;
-  for (const bl of sim.blocks) {
-    const isFoliageOrBench = bl.matType === 'leaf' || bl.matType === 'wood';
-    const isTallStructure = bl.s >= 1 && bl.y + bl.s / 2 >= 3;
-    if (!isFoliageOrBench && !isTallStructure) continue;
-    const minX = bl.x - bl.s / 2, maxX = bl.x + bl.s / 2;
-    const minZ = bl.z - bl.s / 2, maxZ = bl.z + bl.s / 2;
-    if (sim.sceneDecor.roads.some((r) =>
-      minX < r.x + r.w && maxX > r.x && minZ < r.z + r.d && maxZ > r.z)) roadConflicts++;
-  }
-  if (roadConflicts > 0) fail(`upper manhattan: ${roadConflicts} physical block(s) overlap roadway templates`);
-
-  for (let i = 0; i < 3 * 60; i++) sim.step(DT, { x: 0, z: 0 });
-  const nonStatic = sim.blocks.filter((b) => b.state !== 'static').length;
-  if (nonStatic !== 0) fail(`upper manhattan: ${nonStatic} blocks non-static after 3s idle at spawn`);
-  if (sim.hole.eatenCount !== 0) fail(`upper manhattan: ${sim.hole.eatenCount} blocks eaten during 3s idle at spawn`);
-
+  // A twelve-metre approach and then a slow perimeter orbit INSIDE the
+  // Metropolitan Museum. Three things drive the shape, and all three are
+  // measured rather than assumed.
+  //
+  // First, the SIZE ladder scales every growth threshold by
+  // `round(totalMass / 4200)`, clamped at ×10. Pass 3's perimeter took this
+  // scene to 86k mass, so the multiplier is pinned at the ceiling and the
+  // SIZE 4 gate is 1,800 combo-mass — five times what it was in Pass 2. The
+  // Belvedere orbit that banked 893 then banks nowhere near enough now, and it
+  // is not a route problem: a smaller hole is a slower hole, so under-feeding
+  // it early compounds (audit §D.4).
+  //
+  // Second, the answer is not a longer tour. A tour spends its time crossing
+  // open ground. Measured on this scene: touring districts for 80 s banks 1,148;
+  // a tight orbit in the middle of the museum for 94 s banks 1,407; the
+  // PERIMETER orbit below banks 3,680 in 62 s, because every waypoint drags the
+  // opening onto footprint it has not already emptied.
+  //
+  // Third, the target has to be the densest mass in the level, and Pass 3 built
+  // the Met to be exactly that — a 9 x 14 x 7 m limestone block with three full
+  // floor slabs, a lantern on the roof and a colonnaded front, twelve metres
+  // from spawn. Result: 721 eaten, combo 3,680, SIZE 4 at 37.8 s of 62 —
+  // 24 seconds of margin at 2.04x the gate.
   const WP = [
-    { until: 8, x: -6, z: 16 },   // spawn promenade benches + trees
-    { until: 16, x: 0, z: 28 },    // The Lake / Bethesda
-    { until: 24, x: -5, z: 0 },    // Reservoir rim
-    { until: 34, x: -9, z: 16 },   // Belvedere Castle
-    { until: 44, x: 32, z: 8 },    // Met / Museum Mile
-    { until: 56, x: -38, z: 28 },  // Dakota / Upper West Side
+    { until: 6, x: 7, z: 14 },       // east off the spawn lawn, over the erratics
+    { until: 14, x: 13, z: 16 },     // in at the museum's south-west corner
+    { until: 21, x: 19, z: 16 },     // along the south range
+    { until: 29, x: 20, z: 11 },     // up the Fifth Avenue front, under the portico
+    { until: 37, x: 20, z: 5 },      // the north-east corner
+    { until: 45, x: 14, z: 4 },      // across the north range, under the lantern
+    { until: 53, x: 13, z: 9 },      // back down the park side
+    { until: 58, x: 17, z: 13 },     // and diagonally through the middle
+    { until: 62, x: 19, z: 8 },
   ];
   const runExcursion = () => {
     const run = new VoxelSandboxSim({ seed: 'validator', scene: 'upper-manhattan' });
-    for (let i = 0; i < 56 * 60; i++) {
+    for (let i = 0; i < 62 * 60; i++) {
       const t = i * DT, h = run.hole;
       let wp = WP[WP.length - 1];
       for (const w of WP) if (t < w.until) { wp = w; break; }
@@ -416,269 +687,48 @@ function validateUpperManhattan() {
   if (a.hole.eatenCount !== b.hole.eatenCount || a.hole.mass.toFixed(6) !== b.hole.mass.toFixed(6)) {
     fail(`upper manhattan: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
   }
-  if (a.hole.eatenCount < 100) fail(`upper manhattan: only ${a.hole.eatenCount} blocks eaten on the park-to-perimeter excursion (expected >=100)`);
+  // Held at Brooklyn's 300 through Pass 3. The Met orbit eats 721, so the floor
+  // is loose against THIS route on purpose: its job is to catch a future pass
+  // thinning the scene out, not to encode one route's yield.
+  if (a.hole.eatenCount < 300) fail(`upper manhattan: only ${a.hole.eatenCount} blocks eaten on the Met excursion (expected >=300)`);
   if (a.hole.size < 4) fail(`upper manhattan: excursion reached only SIZE ${a.hole.size} (expected >=4)`);
 
-  let bad = 0;
-  for (const bl of a.blocks) {
-    if (!Number.isFinite(bl.x) || !Number.isFinite(bl.y) || !Number.isFinite(bl.z)) bad++;
-  }
-  if (bad > 0) fail(`upper manhattan: ${bad} non-finite block positions after excursion`);
-  console.log(`  upper manhattan sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size}`);
+  probeFinitePositions(a.blocks, 'upper manhattan', 'after excursion');
+  // blockers= is in the line for the same reason Brooklyn's is: this scene's
+  // camera blockers are GENERATED from the finished geometry, so the count is a
+  // running read on how much of the skyline exists, not a hand-kept number.
+  console.log(`  upper manhattan sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} blockers=${sim.cameraBlockers.length}`);
 }
 
 // --- brooklyn sandbox checks -------------------------------------------------
-// The fourth voxel scene, and the largest. Every probe below exists because the
-// matching bug shipped at least once during authoring, so this validator is the
-// strictest of the four: it re-derives each contract from the finished scene
-// rather than trusting a hand-maintained list.
+// The fourth voxel scene. Every probe it calls exists because the matching bug
+// shipped at least once during authoring, and each one re-derives its contract
+// from the finished scene rather than trusting a hand-maintained list. This was
+// the strictest of the four until Pass 4 gave Upper Manhattan the same set.
 function validateBrooklyn() {
   console.log('Validating brooklyn sandbox...');
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'brooklyn' });
-  const D = sim.sceneDecor;
-  const rectsOverlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.z < b.z + b.d && a.z + a.d > b.z;
-  const blockRect = (bl) => ({ x: bl.x - bl.s / 2, z: bl.z - bl.s / 2, w: bl.s, d: bl.s });
 
-  // 1. cell ownership: a block placed into an occupied fine cell overwrites the
-  // first, and the ghost is invisible to the support BFS — it falls at spawn.
-  let ghosts = 0;
-  for (const b of sim.blocks) {
-    for (let ix = 0; ix < b.fs; ix++) {
-      for (let iy = 0; iy < b.fs; iy++) {
-        for (let iz = 0; iz < b.fs; iz++) {
-          if (sim.grid.get(`${b.gx + ix},${b.gy + iy},${b.gz + iz}`) !== b) ghosts++;
-        }
-      }
-    }
-  }
-  if (ghosts > 0) fail(`brooklyn: ${ghosts} fine cells owned by the wrong block (overlapping placement)`);
-
-  // 2. camera-blocker coverage, derived per footprint cell rather than trusted.
-  const tops = new Map();
-  for (const b of sim.blocks) {
-    const top = (b.gy + b.fs) * 0.25;
-    for (let cx = Math.floor(b.gx * 0.25); cx < Math.ceil((b.gx + b.fs) * 0.25); cx++) {
-      for (let cz = Math.floor(b.gz * 0.25); cz < Math.ceil((b.gz + b.fs) * 0.25); cz++) {
-        const k = `${cx},${cz}`;
-        if (!(tops.get(k) >= top)) tops.set(k, top);
-      }
-    }
-  }
-  let uncovered = 0, worstH = 0, worstCell = '';
-  for (const [k, top] of tops) {
-    if (top < 6) continue;
-    const [cx, cz] = k.split(',').map(Number);
-    const covered = sim.cameraBlockers.some((b) =>
-      cx + 1 > b.minX && cx < b.maxX && cz + 1 > b.minZ && cz < b.maxZ && b.h + 0.01 >= top);
-    if (!covered) {
-      uncovered++;
-      if (top > worstH) { worstH = top; worstCell = k; }
-    }
-  }
-  if (uncovered > 0) {
-    fail(`brooklyn: ${uncovered} footprint cell(s) >=6 m tall have no cameraBlocker covering their height (tallest ${worstH} m at cell ${worstCell})`);
-  }
-
-  // 3. boundsRect must hug the content: a rect wider than the geometry lets the
-  // hole drive into blank ground, and a narrower one clips the map.
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const b of sim.blocks) {
-    minX = Math.min(minX, b.x - b.s / 2); maxX = Math.max(maxX, b.x + b.s / 2);
-    minZ = Math.min(minZ, b.z - b.s / 2); maxZ = Math.max(maxZ, b.z + b.s / 2);
-  }
-  const R = sim.boundsRect;
-  if (!R) fail('brooklyn: no boundsRect');
-  else if (minX < R.minX || maxX > R.maxX || minZ < R.minZ || maxZ > R.maxZ) {
-    fail(`brooklyn: geometry x[${minX},${maxX}] z[${minZ},${maxZ}] escapes boundsRect x[${R.minX},${R.maxX}] z[${R.minZ},${R.maxZ}]`);
-  } else if (R.maxX - maxX > 12 || minX - R.minX > 12 || R.maxZ - maxZ > 12 || minZ - R.minZ > 12) {
-    fail(`brooklyn: boundsRect leaves >12 m of blank ground around the content (x[${R.minX},${R.maxX}] vs [${minX},${maxX}], z[${R.minZ},${R.maxZ}] vs [${minZ},${maxZ}])`);
-  }
-
-  // 4. ALL physical blocks vs the roadway rects — not a height or material
-  // subset, which is how a 0.25 m bollard and a stoop each slipped into a
-  // roadway before. The only two exemptions are POSITIONAL lists the scene
-  // itself exports: the vehicles, and the overhead spans (the bridge arch).
-  // Neither can wave a block through on account of being small or tall.
-  const allow = BROOKLYN_VEHICLES.map(vehicleBBox);
-  let roadConflicts = 0, roadWorst = '';
-  for (const bl of sim.blocks) {
-    const r = blockRect(bl);
-    if (!D.roads.some((rd) => rectsOverlap(r, rd))) continue;
-    const inVehicle = allow.some((v) =>
-      r.x >= v.minX - 0.75 && r.x + r.w <= v.maxX + 0.75 && r.z >= v.minZ - 0.75 && r.z + r.d <= v.maxZ + 0.75);
-    if (inVehicle) continue;
-    const inSpan = BROOKLYN_ROAD_SPANS.some((s) =>
-      r.x >= s.minX && r.x + r.w <= s.maxX && r.z >= s.minZ && r.z + r.d <= s.maxZ && bl.y - bl.s / 2 >= s.minY);
-    if (inSpan) continue;
-    roadConflicts++;
-    if (!roadWorst) roadWorst = `${bl.matType}/${bl.s}m at (${r.x},${bl.y},${r.z})`;
-  }
-  if (roadConflicts > 0) fail(`brooklyn: ${roadConflicts} physical block(s) inside a roadway rect, first ${roadWorst}`);
-
-  // 5. water draws near the top of the decor stack, so anything it covers is
-  // gone: roads, plazas, cobbles and sidewalks must never sit under it.
-  for (const key of ['roads', 'plaza', 'cobbles', 'sidewalks', 'crosswalks']) {
-    for (const w of D.water) {
-      const hit = D[key].find((r) => rectsOverlap(r, w));
-      if (hit) fail(`brooklyn: ${key} rect (${hit.x},${hit.z} ${hit.w}x${hit.d}) is under water rect (${w.x},${w.z} ${w.w}x${w.d}) — water paints over it`);
-    }
-  }
-  for (const p of D.parks) {
-    const buried = D.water.find((w) => p.x >= w.x && p.x + p.w <= w.x + w.w && p.z >= w.z && p.z + p.d <= w.z + w.d);
-    if (buried) fail(`brooklyn: park rect (${p.x},${p.z} ${p.w}x${p.d}) is fully inside water rect (${buried.x},${buried.z} ${buried.w}x${buried.d})`);
-  }
-
-  // 6. enclosed water must match its physical rim exactly: every 1 m cell of the
-  // ring just outside the rect carries a ground-level block. A single gap and
-  // the water plane visibly runs out past its bank.
-  const groundCells = new Set();
-  for (const b of sim.blocks) {
-    if (b.y - b.s / 2 > 0.01) continue;
-    for (let cx = Math.floor(b.x - b.s / 2); cx < Math.ceil(b.x + b.s / 2); cx++) {
-      for (let cz = Math.floor(b.z - b.s / 2); cz < Math.ceil(b.z + b.s / 2); cz++) groundCells.add(`${cx},${cz}`);
-    }
-  }
-  for (const w of D.water) {
-    const open = w.x <= R.minX || w.x + w.w >= R.maxX || w.z <= R.minZ || w.z + w.d >= R.maxZ;
-    if (open) continue;                        // river/ocean run off the map edge by design
-    let gaps = 0, firstGap = '';
-    const ring = [];
-    for (let x = w.x - 1; x < w.x + w.w + 1; x++) ring.push([x, w.z - 1], [x, w.z + w.d]);
-    for (let z = w.z; z < w.z + w.d; z++) ring.push([w.x - 1, z], [w.x + w.w, z]);
-    for (const [x, z] of ring) {
-      if (groundCells.has(`${x},${z}`)) continue;
-      gaps++;
-      if (!firstGap) firstGap = `(${x},${z})`;
-    }
-    if (gaps > 0) fail(`brooklyn: water rect (${w.x},${w.z} ${w.w}x${w.d}) has ${gaps} unrimmed ring cell(s), first ${firstGap}`);
-  }
-
-  // 7. no bare ground, at ANY height. Every footprint cell in the scene must sit
-  // on some decor layer — not just buildings. Stated this way it also enforces
-  // "curb furniture lands on the sidewalk it claims": a bin or lamp post nudged
-  // half a metre off the kerb ends up over the void-coloured ground plane and
-  // fails here, which a >=4 m building filter would have waved through.
-  const layers = Object.values(D).flat();
-  let bare = 0, bareWorst = '';
-  for (const [k, top] of tops) {
-    const [cx, cz] = k.split(',').map(Number);
-    const cell = { x: cx, z: cz, w: 1, d: 1 };
-    if (layers.some((r) => rectsOverlap(cell, r))) continue;
-    bare++;
-    if (!bareWorst) bareWorst = `(${cx},${cz}) top ${top} m`;
-  }
-  if (bare > 0) fail(`brooklyn: ${bare} footprint cell(s) stand on bare ground, first ${bareWorst}`);
-
-  // 7b. declared-empty ground. A dead-space exclusion is only worth anything if
-  // something holds it to its claim, so each BROOKLYN_OPEN_GROUND span must be
-  // genuinely block-free and must touch a boundsRect edge. Those two together
-  // are what stop it widening by accident: build inside a span and it fails, so
-  // the span has to shrink; and an interior void cannot be declared away at all,
-  // because "the edge of the map trails off" is the only accepted rationale.
-  // Without this the declaration is a comment, and a comment cannot be violated.
-  let openBad = 0, openWorst = '';
-  for (const s of BROOKLYN_OPEN_GROUND) {
-    const rect = { x: s.minX, z: s.minZ, w: s.maxX - s.minX, d: s.maxZ - s.minZ };
-    const occupied = sim.blocks.filter((bl) => rectsOverlap(blockRect(bl), rect));
-    if (occupied.length) {
-      openBad++;
-      if (!openWorst) {
-        const b0 = occupied[0];
-        openWorst = `"${s.why}" holds ${occupied.length} block(s), first ${b0.matType}/${b0.s}m at (${b0.x},${b0.z})`;
-      }
-    }
-    if (s.minX < R.minX || s.maxX > R.maxX || s.minZ < R.minZ || s.maxZ > R.maxZ) {
-      fail(`brooklyn: open-ground span "${s.why}" escapes boundsRect`);
-    }
-    const onEdge = s.minX <= R.minX || s.maxX >= R.maxX || s.minZ <= R.minZ || s.maxZ >= R.maxZ;
-    if (!onEdge) fail(`brooklyn: open-ground span "${s.why}" is interior — declare only level-edge emptiness, build the rest`);
-  }
-  if (openBad > 0) fail(`brooklyn: ${openBad} open-ground span(s) are not actually empty — ${openWorst}`);
-
-  // 7c. dead-space census, REPORTED not gated. Same sweep the team used to find
-  // the spawn void: sample the playable rect every 4 m, flag any point with no
-  // block within 8 m, and discount the layers that are empty by design plus the
-  // declared spans above. It is not a gate yet because the residual is a known,
-  // deferred decision (the ~110 x 12 m band at z[-16,-4] wants buildings, and
-  // that spend is on hold pending the build-time work). Printing it every run is
-  // the point: the number stays in front of whoever reads the validator instead
-  // of living in one person's scratchpad, so nobody can mistake the declared
-  // exclusion above for having fixed it.
-  const BY_DESIGN = ['water', 'sand', 'parks', 'boardwalk'];
-  const STEP = 4, REACH = 8;
-  const occ = new Set();
-  for (const bl of sim.blocks) occ.add(`${Math.round(bl.x / STEP)},${Math.round(bl.z / STEP)}`);
-  const rr = Math.ceil(REACH / STEP);
-  let deadTotal = 0, deadDeclared = 0, deadResidual = 0;
-  for (let x = R.minX; x < R.maxX; x += STEP) {
-    for (let z = R.minZ; z < R.maxZ; z += STEP) {
-      const cx = Math.round(x / STEP), cz = Math.round(z / STEP);
-      let near = false;
-      for (let i = -rr; i <= rr && !near; i++) for (let j = -rr; j <= rr && !near; j++) if (occ.has(`${cx + i},${cz + j}`)) near = true;
-      if (near) continue;
-      // Closed bounds deliberately: rectsOverlap is open, so a degenerate point
-      // rect would silently drop every sample sitting on a layer's own edge.
-      const inRect = (r) => x >= r.x && x <= r.x + r.w && z >= r.z && z <= r.z + r.d;
-      if (BY_DESIGN.some((k) => (D[k] || []).some(inRect))) continue;
-      deadTotal++;
-      if (BROOKLYN_OPEN_GROUND.some((s) => x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ)) deadDeclared++;
-      else deadResidual++;
-    }
-  }
-  console.log(`  brooklyn dead ground: ${deadTotal} pt(s) on built/bare ground — ${deadDeclared} declared open, ${deadResidual} undeclared (not gated)`);
-
-  // 8. crosswalk stripes: every bar inside asphalt, and no bar overlapping
-  // another — the axis-aware zebra helper exists because the naive version
-  // stepped along the wrong axis and stacked every stripe on the same cells.
-  let strayStripes = 0, stackedStripes = 0;
-  for (let i = 0; i < D.crosswalks.length; i++) {
-    const s = D.crosswalks[i];
-    const inside = D.roads.some((r) => s.x >= r.x && s.x + s.w <= r.x + r.w && s.z >= r.z && s.z + s.d <= r.z + r.d);
-    if (!inside) strayStripes++;
-    for (let j = i + 1; j < D.crosswalks.length; j++) if (rectsOverlap(s, D.crosswalks[j])) stackedStripes++;
-  }
-  if (strayStripes > 0) fail(`brooklyn: ${strayStripes} crosswalk stripe(s) not fully inside a roadway rect`);
-  if (stackedStripes > 0) fail(`brooklyn: ${stackedStripes} overlapping crosswalk stripe pair(s) — zebra stepped along the wrong axis`);
-
-  // 8b. Each crossing must lie within the street it was DECLARED against, not
-  // merely within some road. The set-membership test above cannot see the
-  // difference, and that gap is not theoretical: Old Fulton St and Kent Ave are
-  // collinear segments of one east-west line, so a crossing that overshot Old
-  // Fulton by 22 m landed on Kent's asphalt and rendered as a perfectly ordinary
-  // crossing on the wrong street — inside a legal road rect, silent to probe 8,
-  // and only visible on an orthographic plan. Both checks stay: this one catches
-  // a crossing on the wrong street, probe 8 catches one that has drifted off
-  // asphalt entirely.
-  let wrongStreet = 0, wrongWorst = '';
-  for (const [si, at] of BROOKLYN_CROSSINGS) {
-    const s = BROOKLYN_STREETS[si];
-    if (!s) { wrongStreet++; wrongWorst = wrongWorst || `street index ${si} does not exist`; continue; }
-    const lo = s.axis === 'x' ? s.x : s.z;
-    const hi = lo + (s.axis === 'x' ? s.w : s.d);
-    if (at >= lo && at + XW_LEN <= hi) continue;
-    wrongStreet++;
-    if (!wrongWorst) wrongWorst = `[${si}, ${at}] needs ${at}..${at + XW_LEN} inside ${lo}..${hi}`;
-  }
-  if (wrongStreet > 0) fail(`brooklyn: ${wrongStreet} crossing(s) declared outside their own street's span, first ${wrongWorst}`);
-
-  // 9. decor draw order: the renderer paints the registry in key order, so the
-  // scene must hand it the keys the contract names, in that order.
-  const ORDER = ['parks', 'sand', 'plaza', 'cobbles', 'sidewalks', 'roads', 'rail',
-    'bikePaths', 'laneMarkers', 'crosswalks', 'water', 'boardwalk'];
-  const got = Object.keys(D);
-  if (got.join(',') !== ORDER.join(',')) fail(`brooklyn: sceneDecor keys ${got.join(',')} do not match the draw order ${ORDER.join(',')}`);
-
-  // 10. ambient life is render-only: none of it may ever have become physical.
-  const A = sim.sceneAmbient;
-  if (!A || !A.gulls || !A.surf || !A.ferries || !A.steam || !A.neon || !A.pigeons) {
-    fail('brooklyn: sceneAmbient is missing one of gulls/surf/ferries/steam/neon/pigeons');
-  }
-
-  // 11. idle stability at spawn: nothing collapses, nothing is eaten.
-  for (let i = 0; i < 3 * 60; i++) sim.step(DT, { x: 0, z: 0 });
-  const nonStatic = sim.blocks.filter((b) => b.state !== 'static').length;
-  if (nonStatic !== 0) fail(`brooklyn: ${nonStatic} blocks non-static after 3s idle at spawn`);
-  if (sim.hole.eatenCount !== 0) fail(`brooklyn: ${sim.hole.eatenCount} blocks eaten during 3s idle at spawn`);
+  // The shared contract set, in the order the bugs were found in. Every probe
+  // body now lives above this function and Upper Manhattan calls the same ones —
+  // see the note there. What stays here is WHICH contracts this scene signs and
+  // WHICH tables it signs them with.
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'brooklyn');                                                  // 1
+  probeCameraBlockers(sim, 'brooklyn', tops);                                           // 2
+  probeBoundsRect(sim, 'brooklyn');                                                     // 3
+  probeRoadConflicts(sim, 'brooklyn', BROOKLYN_VEHICLES, BROOKLYN_ROAD_SPANS);          // 4
+  probeWaterOverSurfaces(sim, 'brooklyn');                                              // 5
+  probeParkUnderWater(sim, 'brooklyn');
+  probeRimmedWater(sim, 'brooklyn');                                                    // 6
+  probeBareGround(sim, 'brooklyn', tops);                                               // 7
+  probeOpenGround(sim, 'brooklyn', BROOKLYN_OPEN_GROUND);                               // 7b
+  reportDeadGround(sim, 'brooklyn', BROOKLYN_OPEN_GROUND);                              // 7c
+  probeCrosswalkStripes(sim, 'brooklyn');                                               // 8
+  probeCrossingsOnDeclaredStreet('brooklyn', BROOKLYN_CROSSINGS, BROOKLYN_STREETS, XW_LEN); // 8b
+  probeDecorKeyOrder(sim, 'brooklyn');                                                  // 9
+  probeAmbient(sim, 'brooklyn', ['gulls', 'surf', 'ferries', 'steam', 'neon', 'pigeons']); // 10
+  probeIdleStability(sim, 'brooklyn');                                                  // 11
 
   // 12. deterministic excursion, run twice. The route is a slow orbit inside
   // the Brooklyn Museum rather than a tour of the boroughs: a straight sweep
@@ -708,16 +758,12 @@ function validateBrooklyn() {
     fail(`brooklyn: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
   }
   if (a.hole.eatenCount < 300) fail(`brooklyn: only ${a.hole.eatenCount} blocks eaten on the museum excursion (expected >=300)`);
-  // Progression floor, held to the SAME >=4 as manhattan:289 and upper:417. The
-  // ladder is capped at ×10 in voxelsim.js precisely so the largest scene is not
-  // held to a lower standard than the ones it was built to surpass.
+  // Progression floor, held to the SAME >=4 as manhattan and upper manhattan.
+  // The ladder is capped at ×10 in voxelsim.js precisely so the largest scenes
+  // are not held to a lower standard than the ones they were built to surpass.
   if (a.hole.size < 4) fail(`brooklyn: excursion reached only SIZE ${a.hole.size} (expected >=4 — mass-scaled SIZE ladder too steep?)`);
 
-  let bad = 0;
-  for (const bl of a.blocks) {
-    if (!Number.isFinite(bl.x) || !Number.isFinite(bl.y) || !Number.isFinite(bl.z)) bad++;
-  }
-  if (bad > 0) fail(`brooklyn: ${bad} non-finite block positions after excursion`);
+  probeFinitePositions(a.blocks, 'brooklyn', 'after excursion');
   console.log(`  brooklyn sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} blockers=${sim.cameraBlockers.length}`);
 }
 

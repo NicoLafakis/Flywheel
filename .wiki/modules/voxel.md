@@ -2,6 +2,7 @@
 covers:
   - "js/voxelsim.js"
   - "js/voxelworld.js"
+  - "js/voxelkit.js"
   - "js/voxelscene-manhattan.js"
   - "js/voxelscene-upper-manhattan.js"
 ---
@@ -21,9 +22,9 @@ bottom-up, along material bond strengths.
 | File | Purpose |
 |------|---------|
 | `js/voxelsim.js` | `VoxelSandboxSim`: support graph, instant-default stress response, chunk + debris physics, scoring, the `gallery` scene. Pure sim (no three.js, seeded RNG via `rng.js`) |
-| `js/voxelkit.js` | The 5 object size classes (PROP 0.25 m / VEHICLE 0.5 m / SMALL_BLDG / LARGE_BLDG / MEGA) + their canonical builders (vehicles, trees, lamps, props, `tower()`). Pure sim, shared by both scenes |
+| `js/voxelkit.js` | The 5 object size classes (PROP 0.25 m / VEHICLE 0.5 m / SMALL_BLDG / LARGE_BLDG / MEGA) + their canonical builders (vehicles, trees, lamps, props, `tower()`), plus the streetscape/landmark kit (`setbackTower`, `streetWall`, `porticoFront`, `spiralRotunda`, `pathRibbon`, `stoneArch`, `basinRim`, and more — see the Upper Manhattan section below). Pure sim, shared by all three built-city scenes (Lower Manhattan, Upper Manhattan, Brooklyn) |
 | `js/voxelscene-manhattan.js` | `buildManhattan(sim)`: the full Lower Manhattan peninsula (~25.8k blocks). Sets `bounds`/`boundsRect`, `sceneDecor`, `cameraBlockers` |
-| `js/voxelscene-upper-manhattan.js` | `buildUpperManhattan(sim)`: the Central Park / Upper Manhattan park district (~8.4k blocks). Sets its own bounds, landmarks, curb kit, decor, and camera blockers |
+| `js/voxelscene-upper-manhattan.js` | `buildUpperManhattan(sim)`: the full Central Park + Upper Manhattan district (73,393 blocks / 86,083 mass). Sets its own bounds, landmarks, curb kit, decor, and camera blockers |
 | `js/voxelworld.js` | `VoxelWorld3D`: one `InstancedMesh` per material + brick size with per-instance paint colors, cached static transforms, and per-frame dynamic motion; renders `sceneDecor` (roads/sidewalks/parks/bike paths/markings/water) |
 
 ## Model
@@ -56,6 +57,25 @@ Three layers, cheapest first:
    coverage change, consumption, detachment), never per-frame. Damage/healing
    likewise iterates only an explicit active set; an intact large scene has no
    per-step whole-city damage scan.
+   **Structural zones (2026-08-05):** the BFS only ever walks `neighbors`
+   edges, so it can never cross between two blocks that do not touch — the
+   scene's connectivity graph is therefore already partitioned into
+   physically separate structures, and that partition is fixed at build time
+   (`neighbors` only shrinks as blocks detach). `_recalcSupport` computes
+   these zones once (Upper Manhattan: 1,114 of them, largest 3.4% of the
+   scene) and, on each call, recomputes only the zones a moving hole can
+   provably reach — the graph-changed zones plus a small radius around the
+   hole for support-ratio/hanging changes. This is the wiki's previously
+   "not implemented" hierarchical zoning, shipped as *discovered* zones
+   rather than authored ones, so no scene file declares anything. Proved
+   byte-identical to the old whole-scene BFS three ways: `tools/validate.mjs`,
+   a full per-step state digest across 16 scripted excursions, and 50
+   randomized fuzz runs. On Upper Manhattan's 73,393 blocks this took
+   `_recalcSupport` from 48.55 ms/call (80% of frame time while driving) to
+   0.295 ms/call. The loose-debris scan (`_stepDebris`,
+   `_resolveDebrisContacts`) and the sleeping-rubble broad phase (`_sleepObs`)
+   got the same treatment — an active set (`_falling`, sorted by id) and a
+   persistent cell index instead of a full block-array walk every step.
 2. **Damage → chunks** — destruction is **rim-driven**: the crack front is
    seeded from solid (fully supported) blocks only, so the hanging rim — not
    the void's center — lets go first. The shipped `sim.tune.creak = 0`
@@ -113,14 +133,20 @@ Consumption: a block whose top sinks below `SINK_Y` (0.15) inside the
 removal zone → mass (`mat.mass × s³ × comboMult`), combo (window 1.5 s,
 mirrors `sim.js`), and SIZE progression via escalating `SIZE_MASS`
 thresholds (radius interpolates +0.5 m per level from the 1.1 start).
-The ladder scales per scene (`× max(1, round(totalMass/4200))` — gallery is
-exactly ×1, Manhattan ×10 at its 43,593 mass) so progression pacing is
-scene-relative. In absolute terms Manhattan's SIZE 8 costs 23,000 combo-mass
-(53% of the entire city at a 1× combo), SIZE 10 costs 133% and SIZE 12 costs
-230% — the top levels are reachable only on sustained combos, by design.
-Re-check this whenever scene mass changes: the ladder re-paces silently, and
-it drags the camera's SIZE-keyed zoom ramp with it. `tools/validate.mjs` pins
-a floor (the WTC excursion must reach ≥ SIZE 4).
+The ladder scales per scene (`× min(10, max(1, round(totalMass/4200)))` —
+gallery is exactly ×1, Manhattan ×10 at its 43,593 mass, Upper Manhattan ×10
+at its 86,083 mass) so progression pacing is scene-relative. The multiplier
+clamps at ×10: Upper Manhattan's raw ratio is `round(86083/4200) = 21`, so it
+is pinned at the ceiling and cannot re-pace any harder however much mass a
+future pass adds — SIZE 12 there costs **116% of the entire scene's raw
+mass**, reachable only on sustained combos. In absolute terms Manhattan's
+SIZE 8 costs 23,000 combo-mass (53% of the entire city at a 1× combo), SIZE 10
+costs 133% and SIZE 12 costs 230% — the top levels are reachable only on
+sustained combos, by design. Re-check this whenever scene mass changes: the
+ladder re-paces silently up to the ×10 ceiling, and it drags the camera's
+SIZE-keyed zoom ramp with it. `tools/validate.mjs` pins a floor per scene
+(Manhattan's WTC excursion and Upper Manhattan's perimeter excursion must each
+reach ≥ SIZE 4; Upper Manhattan also floors `eatenCount ≥ 300`).
 
 ## Scenes
 
@@ -160,28 +186,66 @@ blocks, one of each researched city-object kind):
 
 ### upper-manhattan (NYC: UPPER MANHATTAN — CENTRAL PARK)
 
-~8,400 blocks across a separate Upper Manhattan park district (bounds
-`x[-54,54] z[-60,68]`):
+73,393 blocks / 86,083 mass (the largest scene in the game by both measures),
+bounds `x[-66,68] z[-149,116]`, 538 generated camera blockers. Rebuilt
+2026-08-05 from an ~8,400-block park sketch into the full district: Central
+Park's real geography down the middle, flanked by the Upper West Side and
+Fifth Avenue / Museum Mile, with Harlem across the north edge.
 
-- **Central Park core**: a large green footprint with geographically placed
-  Reservoir, The Lake, Harlem Meer, Bethesda Terrace, Belvedere Castle, trees,
-  benches, and loop-path lamps
-- **Park-edge landmarks**: Belvedere Castle, the Metropolitan Museum of Art,
-  the Dakota / Upper West Side, Museum Mile buildings, and Harlem / Morningside
-  blocks
-- **Street dressing**: Central Park West and Fifth Avenue, the 59th/72nd/
-  86th/96th/102nd/110th cross streets, sidewalks, loop bike paths, striped
-  crosswalks, lane markers, oriented taxis/bus/delivery traffic, subway
-  entrances, hydrants, waste bins, traffic lights, newsstand, hot-dog cart,
-  and curbside lamps
+- **Central Park** (the green spine, `x[-22,22] z[-96,100]`): the Great Lawn
+  and its ball fields, Turtle Pond, Belvedere Castle (the pacing anchor, 7 m
+  from spawn), the Delacorte Theater, the Ramble's rock outcrops and rustic
+  bridges, the Lake (Bow Bridge, the Ladies Pavilion, Loeb Boathouse, five
+  rowboats), Bethesda Terrace and Fountain (arcade with a painted Minton
+  soffit, the Angel of the Waters), the Mall's corbelled elm tunnel, the
+  Naumburg Bandshell, Conservatory Water (model sailboats, Alice, Andersen),
+  Strawberry Fields, Sheep Meadow, the Central Park Zoo, the Arsenal, Wollman
+  Rink, the Carousel, Chess & Checkers House, Heckscher Playground, Tavern on
+  the Green, the Reservoir with its running track, the North Meadow, the
+  Conservatory Garden, and Summit Rock
+- **Upper West Side / Central Park West** (`x[-33,-29]` band): the twin-tower
+  rhythm — El Dorado, the Beresford, San Remo, the Majestic, the Century — the
+  Dakota as the deliberate rhythm-breaker (no towers, five mansard courses),
+  the AMNH with the Hayden Sphere (`glassSphere`), Trump International,
+  Columbus Circle (a ring of road rects around the Columbus Column), the
+  Deutsche Bank Center's twin towers (the tallest things in the level), and
+  Morningside Heights (Columbia's Low Library, the Cathedral of St John the
+  Divine with its two intentionally unfinished towers)
+- **Fifth Avenue / Museum Mile** (`x[29,33]` band, deliberately flat and
+  unjittered against CPW's jittered rhythm): the Metropolitan Museum of Art
+  (inside the park, the densest single mass in the level and the excursion
+  target), the Guggenheim (`spiralRotunda`), the Frick, Temple Emanu-El, the
+  Jewish Museum, Cooper Hewitt, Mount Sinai, and Grand Army Plaza with the
+  Pulitzer Fountain
+- **Harlem** (compressed grid across the north): Striver's Row, Abyssinian
+  Baptist, the Apollo Theater (an emissive marquee blade in
+  `sceneAmbient.neon`), the Adam Clayton Powell Jr State Office Building,
+  Marcus Garvey Park with the Mount Morris fire watchtower, four cruciform
+  public-housing towers, and the Park Avenue Metro-North viaduct
+  (`metroViaduct`, on median bents)
+- **Street dressing**: 32 declared streets (Central Park West, Fifth Avenue —
+  each re-cut around Columbus Circle / Grand Army Plaza — the four
+  transverses, the avenues, 125th Street, Harlem's cross streets), 78
+  crossings, 33 oriented vehicles, curb furniture at a 5 m pitch, six subway
+  entrances, four sidewalk sheds, and ~1,000 street trees
 
-The scene is intentionally separate from Lower Manhattan: its spawn starts on
-the park promenade and the validator drives through the park to the Reservoir,
-Belvedere Castle, the Met, and the Upper West Side. Camera blockers cover the
-castle turret overhangs and every perimeter structure at least 6 m tall. The
-street bands are a placement contract: tall structures, foliage, benches, and
-other physical props stay off asphalt; every intersection reuses the same
-five-stripe zebra template and sidewalk offsets.
+The scene is intentionally separate from Lower Manhattan. Spawn is on the
+Great Lawn; the validator's excursion is a 62 s perimeter orbit inside the
+Met (721 eaten, combo mass 3,680, SIZE 4 at 37.8 s — the discriminator that
+made this route work over five slower candidates is walking a wall's footprint
+rather than re-excavating the same crater twice). Camera blockers are
+*generated* from finished geometry (`generateBlockers`, shared with Brooklyn),
+not hand-written. The street bands are a placement contract: tall structures,
+foliage, benches, and other physical props stay off asphalt; every
+intersection reuses the same five-stripe zebra template and sidewalk offsets;
+every building lot is filtered through `roadClash` + `taken` so the generic
+street-wall runs self-align around declared streets and hand-placed
+landmarks. Fourteen kit builders shipped for this scene alone (`setbackTower`,
+`streetWall`, `towerCrown`, `porticoFront`, `spiralRotunda`, `glassSphere`,
+`naveChurch`, `metroViaduct`, `rowBlock`, and others), plus five park-surface
+builders from the first pass (`pathRibbon`, `basinRim`, `parkWall`,
+`rockMound`, `stoneArch`) — all in the shared `js/voxelkit.js`, all
+parametric, no per-building special-casing.
 
 ### manhattan (NYC: LOWER MANHATTAN)
 
@@ -241,8 +305,10 @@ hole with no pull-in when it has no entry, and `camera.js` only pulls in while
 bad as a missing one. The list is hand-written, so `tools/validate.mjs`
 enforces coverage per footprint cell rather than trusting it.
 
-Physics come from the material; paint is a per-block `color` override
-(grouped into instancing batches by `matType:size:color`). Glass must never
+Physics come from the material; paint is a per-block `color` override that
+rides in `instanceColor`, so it costs zero extra draw calls — instancing
+batches are keyed on `matType:size` only (Upper Manhattan's 299 distinct paint
+colours are 22 buckets, fewer than Brooklyn's 26). Glass must never
 have to carry load (strips between columns). Roof caps must sit on a full
 slab or have span support at their own level — a ring at y=N does NOT
 support a cap at y=N+1 above the ring's hollow interior. Keep every object
@@ -258,17 +324,33 @@ hops.
 - **tools/validate.mjs** — determinism (two seeded runs identical), locality
   (nothing moves while the hole is far), progressive collapse, NaN guard,
   `Math.random` source guard for all pure-sim files (incl.
-  `voxelscene-manhattan`). Manhattan: fine-cell ownership (ghost/overlap
-  guard), 3 s spawn-idle stability, a scripted WTC excursion (must eat ≥ 100)
-  plus a second expansion-district sweep, per-footprint-cell camera-blocker
-  coverage (every cell ≥ 6 m needs an entry with `h` ≥ its top), a SIZE ≥ 4
-  progression floor, and a decor draw-order check (no park rect may sit fully
-  inside a water rect — it would never render). Upper Manhattan adds the same
-  ownership/camera/decor/idle checks plus a deterministic park-to-perimeter
-  excursion (must eat ≥ 100 and reach SIZE ≥ 4). The gallery run also asserts
-  the instant-collapse default never leaves blocks in a delayed `unstable`
-  state after a simulation step, plus solid-vs-mover and loose-body overlap
-  separation probes.
+  `voxelscene-manhattan`). Brooklyn and Upper Manhattan run the **same
+  19-probe contract** through 16 shared `probe*`/`report*` helpers (a
+  `--- shared voxel-scene contract probes ---` block above the scene
+  functions): fine-cell ownership (ghost/overlap guard), `boundsRect` hugging
+  content within a 12 m slack, unfiltered road conflicts against the scene's
+  exported vehicle + road-span tables, water never covering a road/plaza/
+  cobble/sidewalk/crosswalk, no park rect fully inside water (draw-order
+  trap), a union-aware rimmed-water check (multi-lobed bodies don't demand a
+  kerb block where one lobe legitimately overlaps another's ring), no bare
+  ground at any height per footprint cell, declared open-ground spans that are
+  block-free and edge-touching, a dead-ground census (printed, not gated),
+  crosswalk-stripe containment and non-overlap, crossings inside their
+  declared street's span, `sceneDecor` key order matching draw order,
+  `sceneAmbient` present and render-only, 3 s spawn-idle stability, excursion
+  determinism, an excursion `eatenCount ≥ 300` floor, a SIZE ≥ 4 progression
+  floor, and a finite-position guard. Per-scene differences (exported tables,
+  which `sceneAmbient` kinds exist, the slack threshold) are always a
+  parameter to the shared probe, never a second implementation — duplicated
+  probe bodies across the file went from 19 to 0 in the 2026-08-05 refactor.
+  Manhattan (Lower Manhattan) still runs only 4 of these (ownership, camera
+  coverage, park-under-water, idle stability) — a deliberate, recorded
+  decision at its call site, not an oversight, since that scene has never
+  been re-authored against the other ten. Manhattan also keeps its own
+  scripted WTC excursion (must eat ≥ 100) plus an expansion-district sweep.
+  The gallery run also asserts the instant-collapse default never leaves
+  blocks in a delayed `unstable` state after a simulation step, plus
+  solid-vs-mover and loose-body overlap separation probes.
 
 ## Gotchas
 
@@ -381,9 +463,23 @@ hops.
   the car vertically (0.9) but shears off sideways (0.2). Don't read bonds as
   probabilities — the pre-2026-08-01 sim did per-frame dice rolls and whole
   buildings collapsed spontaneously.
-- Hierarchical zone-level simulation (spec's "structural zones" optimization)
-  is intentionally not implemented — the event-driven BFS handles the
-  Manhattan scene's ~25,800 blocks fine (sim build ~1.3 s, recalcs are
-  local). The per-frame cost is the renderer's instance matrix loop; on
-  weak GPUs that's the first place to look (bigger instancing buckets,
-  skip sleeping blocks). Revisit zoning only past ~30k blocks.
+- **Hierarchical zone-level simulation (the "structural zones" optimization)
+  shipped 2026-08-05** as automatic connected-component zones inside
+  `_recalcSupport` — see the Model section above. It was proved necessary,
+  not optional: at Upper Manhattan's 73,393 blocks the whole-scene BFS this
+  replaced was 80% of frame time while driving (48.55 ms/call), not the
+  renderer. **The sim, not the renderer, is the per-frame cost on a large
+  scene** — measured at 97% of frame time before this fix, and the renderer
+  alone (draw calls, instancing, triangles) is 1-2 ms even on Upper
+  Manhattan's 892k-triangle scene. If a future scene gets slow again, profile
+  `voxelsim.js` first; do not assume it is `voxelworld.js`.
+- `sim._floorBlocks` was removed 2026-08-05 (dead since the zone
+  decomposition replaced its one caller).
+- Internal invariants added by the zone work, worth knowing before touching
+  `voxelsim.js`: `b.bi` is the block's index in `sim.blocks` (`id - 1`);
+  `_falling` must stay sorted by id — any new transition into or out of state
+  `falling` has to preserve that; `_sleepObs` buckets must stay sorted by id,
+  membership is `asleep && !parentChunk`; any change to a block's support-graph
+  membership must mark its zone in `_dirtyComps`; `_top`/`_sleepers`/
+  `_collisionBuckets` are keyed by a packed integer `cellKey(x, z)` (valid for
+  fine coordinates in ±8192), not the `"x,z"` strings they used before.

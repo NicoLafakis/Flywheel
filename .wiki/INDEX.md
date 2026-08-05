@@ -2,7 +2,7 @@
 
 > Living documentation for **Flywheel** — "A sprocket's story" (repo:
 > `Flywheel`; the eat-everything mechanic itself is still called "hole" in
-> code and vocabulary — see [glossary.md](glossary.md)). Updated 2026-08-04.
+> code and vocabulary — see [glossary.md](glossary.md)). Updated 2026-08-05.
 
 ## What is this?
 

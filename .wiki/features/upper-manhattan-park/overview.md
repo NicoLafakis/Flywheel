@@ -11,9 +11,18 @@ excavation physics, camera rules, and material/building kit.
 The level's long-term role is to establish a reusable park-district pattern:
 large open green space and water landmarks in the middle, readable avenue
 edges, and recognizable low/mid-rise cultural buildings around the perimeter.
-Future Upper Manhattan additions (Harlem blocks, the Reservoir, and east/west
-neighborhood streets) should have clear room to grow without changing the
-scene contract.
+
+**2026-08-05: this trajectory is built.** A five-pass rebuild took the scene
+from the ~8,400-block sketch described below to 73,393 blocks / 86,083 mass —
+full Central Park geography, the Upper West Side, Fifth Avenue / Museum Mile,
+and Harlem, all sharing the same scene contract (`buildUpperManhattan(sim)`,
+`sim.boundsRect`, `sceneDecor`, `cameraBlockers`, the validator's shared
+19-probe contract). See `.wiki/modules/voxel.md`'s upper-manhattan section and
+`CHANGELOG.md`'s 2026-08-05 entry for what shipped, and `tasks.md` for the
+rebuild's own task record. The rest of this page (scope, requirements) is kept
+as the original feature's acceptance record; it still describes what shipped
+correctly at the level of user-facing behavior, just not at 2026-08-04's
+content scale.
 
 ## Scope
 

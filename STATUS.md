@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-04
+Last updated: 2026-08-05
 
 ---
 
@@ -15,17 +15,20 @@ shipped. The spaghetti audit Nico asked for did not finish before they did:
 *"Seems like you're auto-creating code spaghetti here potentially, but I can't
 tell."* It still needs doing. Specific suspicions worth checking by hand:
 
-- `js/voxelkit.js` is **shared** with both Manhattan scenes. Anything
-  Brooklyn-only added there does not belong in a shared kit.
+- `js/voxelkit.js` is **shared** across all three built-city sandbox scenes
+  now (Brooklyn, Lower Manhattan, Upper Manhattan — the Upper Manhattan
+  rebuild added 32 more builders to it). Anything Brooklyn-only added there
+  still does not belong in a shared kit.
 - Possible **two overlapping mechanisms for the same job**: the positional
   `BROOKLYN_ROAD_SPANS` allowlist vs. the declared-span approach.
 - Kit builders that nothing calls.
 - Leftovers from replaced approaches: the pre-`orbitArc` orbit implementation
   in `camera.js`; the original full-frame scrim in `css/main.css` before it
   became a local radial pool.
-- `js/voxelscene-brooklyn.js:667` and `:672` assert a "40k block ceiling"
-  **that does not exist** (see Established facts below). Both comments shipped
-  and are still there.
+- ~~`js/voxelscene-brooklyn.js:667` and `:672` assert a "40k block ceiling"~~
+  **Fixed 2026-08-05**, incidentally, while documenting the Upper Manhattan
+  rebuild: both comments rewritten to describe their real reason (a fine-cell
+  clash / a density choice) instead of the nonexistent ceiling.
 
 ### Established facts (measured, trust these)
 
@@ -37,10 +40,12 @@ tell."* It still needs doing. Specific suspicions worth checking by hand:
   1.47× where per-block cost spreads 2.27×. Cost is linear in total fine
   volume, as the code implies — `_addBlock` (`voxelsim.js:188`) writes `fs³`
   grid cells, `_buildNeighbors` (`:516`) probes `6·fs²`.
-- **There is no 40k block ceiling.** The only occurrences in the repo are those
-  two comments. `voxelworld.js:377` sizes each `InstancedMesh` to
-  `list.length`, and draw calls scale with (material × size) buckets, not block
-  count. +2,000 blocks ≈ +203 ms build, 0 extra draw calls.
+- **There is no 40k block ceiling.** The only occurrences in the repo were
+  those two comments (fixed 2026-08-05). `voxelworld.js:377` sizes each
+  `InstancedMesh` to `list.length`, and draw calls scale with (material × size)
+  buckets, not block count. +2,000 blocks ≈ +203 ms build, 0 extra draw calls.
+  Upper Manhattan proves this at 73,393 blocks: 22 buckets, 30 draw calls,
+  *fewer* than Brooklyn's 39,984-block scene (26 buckets, 34-37 calls).
 - **Perf measurement precondition:** this box showed 2.0–2.6× median/min noise
   and a 40 s outlier on a 2.5 s build while agents were live. No perf number is
   quotable until the tree is still. Min-of-N round-robin is the minimum
@@ -93,11 +98,28 @@ tell."* It still needs doing. Specific suspicions worth checking by hand:
    whether the arc endpoint eases or snaps.
 
 ### Not started
-- **Request A, still open from the prior session:** 11 Upper Manhattan defects
-  were produced and remain unfixed, awaiting his decision.
 - Brooklyn voids: SW corner (exclude via a *declared named region*, never by
   narrowing a probe until it goes green) and the central 110×12 m band at
   Z[-16,-4] (needs block headroom; runtime cost still unmeasured).
+- **Upper Manhattan, retired from Not started 2026-08-05**: the "11 Upper
+  Manhattan defects" item is gone because the scene those defects described no
+  longer exists — `js/voxelscene-upper-manhattan.js` was a full rewrite
+  (8,442 → 73,393 blocks, entirely new geography), so item-by-item carryover
+  isn't meaningful. The rebuild got its own independent, measurement-based
+  defect pass instead (screenshots + raycasts + A/B diff against the pre-pass
+  tree): 8 visual defects found (D1-D8) plus a frame-rate-dependent-steering
+  bug and a sandbox `setPerfMode` no-op. 5 fixed and verified (world-edge
+  cutoff D1, floating ground-plane rim D2, see-through mortar slits D3, the
+  steering bug, the `setPerfMode` no-op). 2 left as deliberate art/perf calls
+  (D4 shadow-map aliasing at SIZE 10-12 — fixing it adds GPU cost exactly at
+  the frame rate that was already the worst case; D5 the whole game's
+  night-lighting read, a scope call not a bug). 3 left as scene-authoring
+  notes for whoever next touches `voxelscene-upper-manhattan.js` (D6
+  Bethesda's bronze angel reads near-black — one constant, `bronze:
+  0x2c4038` → something nearer `0x4f7a68`; D7 Turtle Pond is barely findable;
+  D8 Belvedere stands against the CPW wall, inherent to the park being 44 m
+  wide at that latitude). See `CHANGELOG.md`'s 2026-08-05 entry for the full
+  list.
 
 ### Process notes
 
@@ -134,13 +156,20 @@ memorial pools, Woolworth, Wall St canyon + NYSE + Fed Reserve, Municipal
 Building + courthouse, Chinatown rows, Tribeca lofts, Brooklyn Bridge
 tower, Seaport + pier sheds + tall ship + heliport, Battery Park City +
 marina, Castle Clinton, SI Ferry Terminal + orange ferry, Custom House),
-and **Upper Manhattan** (~8,400 blocks, Central Park district).
+and **Upper Manhattan** (73,393 blocks / 86,083 mass — the largest scene in
+the game — full Central Park geography + Upper West Side + Fifth Avenue/
+Museum Mile + Harlem, rebuilt 2026-08-05 from an ~8,400-block sketch).
 5-class content kit (`js/voxelkit.js`: PROP/VEHICLE/SMALL_BLDG/LARGE_BLDG/
-MEGA). Rim-driven excavation, persistent-damage crumble, loose-body contact
-resolution (no clipping/spinning), SIZE-scaled hanging reach, SIZE-10
-camera clears the tallest building. Validator covers determinism,
-stability, a 56 s gallery tour, Manhattan overlap/idle/excursion checks
-(WTC + expansion-district sweep).
+MEGA, now 46+ builders shared across Brooklyn/Lower Manhattan/Upper
+Manhattan). Rim-driven excavation, persistent-damage crumble, loose-body
+contact resolution (no clipping/spinning), SIZE-scaled hanging reach,
+SIZE-10 camera clears the tallest building, **structural-zone support
+recalculation** (automatic connected-component zones so a moving hole only
+recomputes what it can reach — the fix that made the 73k-block Upper
+Manhattan scene playable). Validator covers determinism, stability, a 56 s
+gallery tour, a shared 19-probe contract for Brooklyn and Upper Manhattan,
+Lower Manhattan's 4-probe overlap/idle/excursion checks (WTC + expansion-
+district sweep).
 
 ## What works
 
@@ -169,19 +198,30 @@ stability, a 56 s gallery tour, Manhattan overlap/idle/excursion checks
   porticos, rooftop water tower, Trinity Church, City Hall, elevated train
   (viaduct + 3-car train), Battery Park, Charging Bull, ferry pier, street
   furniture, road/park/harbor decor planes
-- Sandbox Upper Manhattan (`js/voxelscene-upper-manhattan.js`): ~8,400-block
-  Central Park district with geographically placed Reservoir, The Lake, Harlem
-  Meer, Bethesda Terrace, Belvedere Castle, the Met, Dakota/Upper West Side,
-  Museum Mile, Harlem blocks, sidewalks, loop bike paths, lane/crosswalk
-  markings, oriented avenue traffic, hydrants, waste bins, traffic lights,
-  subway entrances, park trees, benches, lamps, newsstand, and hot-dog cart.
-  Street and prop footprints use shared templates; validator rejects physical
-  blocks in road bands or overlapping fine cells.
+- Sandbox Upper Manhattan (`js/voxelscene-upper-manhattan.js`): 73,393
+  blocks / 86,083 mass, the full district — Central Park's real geography
+  (Great Lawn, the Ramble, the Lake, Bethesda Terrace, the Mall, Conservatory
+  Water, the Reservoir, the Zoo, Wollman Rink, Belvedere Castle), the Upper
+  West Side (twin-tower rhythm, the Dakota, the AMNH + Hayden Sphere,
+  Columbus Circle), Fifth Avenue / Museum Mile (the Met, the Guggenheim, the
+  Frick, Grand Army Plaza), and Harlem (Striver's Row, the Apollo, Marcus
+  Garvey Park, the Metro-North viaduct). 538 generated camera blockers, 32
+  new parametric kit builders. Playable: driving went from a 15 fps median
+  (75-98% of frames under 30 fps) to a locked 60 after the structural-zone sim
+  fix; see `.wiki/modules/voxel.md`. Street and prop footprints use shared
+  templates; validator runs the full 19-probe shared contract (same as
+  Brooklyn).
 - Sandbox Brooklyn (`js/voxelscene-brooklyn.js`): ~39,980 blocks, bridges to
   Coney Island, with the intro establishing camera (`js/camera.js`) and the
   READY gate (`js/ui/ready.js`) holding the shot until the player starts
-- Performance Mode in SETTINGS (schema v10) plus the renderer fast path and
-  active-block-only sim scans that make the 39,984-block scene idle cheaply
+- Performance Mode in SETTINGS (schema v10): Brooklyn's renderer dirty-set
+  skip (static/undamaged/out-of-region blocks bypass per-frame matrix/color
+  updates) plus, since 2026-08-05, `VoxelWorld3D.setPerfMode` itself (device
+  pixel ratio pinned to 1, ambient life frozen — previously a silent no-op in
+  the voxel sandbox, see `.wiki/modules/render.md`). Large scenes are cheap to
+  drive, not just idle, because of the sim-side fix: structural-zone support
+  recalculation plus active-set scans for debris and sleeping rubble replace
+  the old whole-scene-every-step walks (`.wiki/modules/voxel.md`)
 - Headless proof: `node tools/validate.mjs`
 
 ## Known gaps / next up
@@ -195,12 +235,20 @@ stability, a 56 s gallery tour, Manhattan overlap/idle/excursion checks
   possibly moving traffic and living pedestrians. Driven by playtesting.
 - Audio is placeholder blips.
 - No unit tests beyond the validator; UI untested except smoke path.
+- Upper Manhattan's worst collapse (SIZE 8 into the CPW wall) still has a
+  101 ms p95 (median is a fast 16.6 ms): `main.js`'s fixed-timestep catch-up
+  loop clamps at 6 steps/frame, so a step that crosses ~16.7 ms costs roughly
+  6× itself. Lowering the clamp would trade dropped frames for brief slow
+  motion during a big collapse — a pacing call, not a bug, left unmade. Also
+  deferred: shadow-map aliasing at SIZE 10-12, and the `roads` decor color
+  (`0x1c2030`) reading as near-black gashes through the park.
 
 ## Recent history
 
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
 
+- 2026-08-05: Upper Manhattan full rebuild (8,442 → 73,393 blocks, full Central Park + UWS + Museum Mile + Harlem geography) + structural-zone sim fix (playable at 60 fps) + renderer/input fixes (ground plane, mortar seam, steering, setPerfMode) — ALL PASS
 - 2026-08-04: Rebrand to Flywheel - A sprocket's story (shared `fw-*` brand layer, branded landing screen, world map untouched)
 - 2026-08-04: Brooklyn sandbox scene + intro camera + READY gate + performance pass (schema v10) — ALL PASS
 - 2026-08-04: Upper Manhattan realism + graphics pass (park geography, streets/furniture, renderer batching) — ALL PASS

@@ -90,8 +90,22 @@ const MATERIALS = {
   brick:    { mass: 1.8, vertBond: 0.85, horizBond: 0.75, maxSpan: 2, delay: 0.20, color: 0x9a4a3a },
 };
 
+// Structural-zone bookkeeping (see _buildZones / _recalcSupport).
+const ZONE_CELL = 4;  // meters per cell of the zone lookup grid
+// A block's cantilever span can never exceed the largest material maxSpan (the
+// BFS refuses any edge that would push it past the cap), so the hanging test
+// `dist < remR + (span + 1.5) * hangScale` can never reach further than this.
+const MAX_MAT_SPAN = Math.max(...Object.values(MATERIALS).map((m) => m.maxSpan));
+const HANG_REACH = MAX_MAT_SPAN + 1.5;
+
 const key = (gx, gy, gz) => `${gx},${gy},${gz}`;
+// Loose-body broad-phase cell key. Fine coordinates never leave ±8192 in any
+// shipped scene, so the pack is injective — no aliasing, no phantom pairs.
+const cellKey = (x, z) => (((x + 8192) & 0x3FFF) << 14) | ((z + 8192) & 0x3FFF);
 const DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+// angle-of-repose probe offsets, flattened: the literal used to be rebuilt for
+// every grounded debris block on every step
+const REPOSE_DIRS = [1, 0, -1, 0, 0, 1, 0, -1];
 
 export class VoxelSandboxSim {
   constructor({ seed = 'voxel-sandbox', scene = 'gallery' } = {}) {
@@ -114,6 +128,18 @@ export class VoxelSandboxSim {
     // The vast majority of a city is healthy and static. Keep the exception
     // set explicit so idle Brooklyn does not scan all blocks for damage.
     this._damageBlocks = new Set();
+    // Same idea, for the movers: a city of 73k blocks contains a few hundred
+    // falling ones, so debris/contact/chunk passes iterate this list (kept in
+    // block-array order, which IS id order) instead of scanning every block.
+    this._falling = [];        // every block currently in state 'falling' (superset; predicates still checked)
+    this._newFalling = [];     // detached this step, merged into _falling before the physics passes
+    this._fallingRemoved = 0;  // consumed entries awaiting compaction
+    this._scStamp = 0;         // _resolveStaticContacts dedup generation
+    // Support zones: the connectivity graph splits into physically separate
+    // structures, and the support BFS never crosses between them (see
+    // _buildZones). Only zones the hole can actually perturb are recomputed.
+    this._dirtyComps = new Set(); // zones whose graph changed (a block detached / was eaten)
+    this._prevProx = [];          // zones inside the hole's influence radius on the previous recalc
     this._massMarkIdx = 0;                 // city-consumption milestones: 25/50/75/100%
     this.MAX_SIZE = MAX_SIZE;
     this.bounds = 24;          // hole movement clamp (m); scenes may widen it
@@ -129,6 +155,7 @@ export class VoxelSandboxSim {
     else if (scene === 'brooklyn') buildBrooklyn(this);
     else this._buildScene();
     this._buildNeighbors();
+    this._buildZones();
     this.totalBlocks = this.blocks.length;
     // Static collision broad phase. The fine occupancy grid is ideal for
     // support/consumption, but scanning its full y-range for every falling
@@ -138,7 +165,7 @@ export class VoxelSandboxSim {
       const minX = Math.floor(b.x - b.s / 2), maxX = Math.floor(b.x + b.s / 2);
       const minZ = Math.floor(b.z - b.s / 2), maxZ = Math.floor(b.z + b.s / 2);
       for (let x = minX; x <= maxX; x++) for (let z = minZ; z <= maxZ; z++) {
-        const k = x + ',' + z;
+        const k = cellKey(x, z);
         let bucket = this._collisionBuckets.get(k);
         if (!bucket) { bucket = []; this._collisionBuckets.set(k, bucket); }
         bucket.push(b);
@@ -166,6 +193,7 @@ export class VoxelSandboxSim {
     this._top = new Map();
     for (const b of this.blocks) this._topAdd(b);
     this._sleepers = new Map(); // fine col key -> array of debris sleeping there
+    this._sleepObs = new Map(); // broad-phase cell -> settled debris (id-ordered)
   }
 
   // --- scene construction (hand-authored, deterministic) ---------------------
@@ -192,6 +220,7 @@ export class VoxelSandboxSim {
     const s = fs * FINE;
     const b = {
       id: this._blockId++,
+      bi: this.blocks.length, // index into this.blocks; ALWAYS id - 1 (array order == id order)
       gx: fx, gy: fy, gz: fz, // fine coord of the min corner
       fs, s,
       x: (fx + fs / 2) * FINE, y: (fy + fs / 2) * FINE, z: (fz + fs / 2) * FINE,
@@ -207,6 +236,8 @@ export class VoxelSandboxSim {
       supportRatio: 1, // fraction of base footprint still on solid ground
       fallT: -1,       // sim time of detachment (drives chunk grouping window)
       asleep: false,
+      _obsFx: undefined, _obsFz: 0, // broad-phase cells held while asleep (see _sleepObsAdd)
+      _scSeen: 0,                   // per-call dedup stamp for _resolveStaticContacts
       parentChunk: null,
       neighbors: [],
     };
@@ -517,9 +548,7 @@ export class VoxelSandboxSim {
   // blocks connect wherever their faces touch (a 2 m slab borders four 1 m
   // bricks or sixteen 0.5 m bricks on the same face).
   _buildNeighbors() {
-    this._floorBlocks = [];
     for (const b of this.blocks) {
-      if (b.gy === 0) this._floorBlocks.push(b);
       const g = [b.gx, b.gy, b.gz];
       const found = new Set();
       for (const [dx, dy, dz] of DIRS) {
@@ -540,6 +569,83 @@ export class VoxelSandboxSim {
     }
   }
 
+  // STRUCTURAL ZONES. The support BFS only ever walks `neighbors` edges, so it
+  // can never cross between two blocks that do not touch: the scene's
+  // connectivity graph is already partitioned into physically separate
+  // structures (a tower, a car, a tree). Upper Manhattan is 1,114 such zones,
+  // the largest 2,517 blocks (3.4% of the scene); Brooklyn is 369, Lower
+  // Manhattan 149. Recomputing support therefore never needs to touch more
+  // than the zones the hole can actually perturb — every other zone's spans
+  // are provably unchanged, because nothing in its inputs moved.
+  //
+  // Zones are a build-time property: `neighbors` is fixed after
+  // _buildNeighbors, and state changes only remove blocks from the walk.
+  _buildZones() {
+    const blocks = this.blocks;
+    const n = blocks.length;
+    const comp = new Int32Array(n).fill(-1);
+    const compBlocks = [], compFloor = [];
+    const stack = [];
+    for (let i = 0; i < n; i++) {
+      if (comp[i] >= 0) continue;
+      const c = compBlocks.length;
+      const list = [];
+      comp[i] = c;
+      stack.push(i);
+      while (stack.length) {
+        const j = stack.pop();
+        list.push(j);
+        const nbs = blocks[j].neighbors;
+        for (let k = 0; k < nbs.length; k++) {
+          const m = nbs[k].bi;
+          if (comp[m] < 0) { comp[m] = c; stack.push(m); }
+        }
+      }
+      // block-array order inside a zone, so the per-zone passes visit blocks
+      // in exactly the order a whole-scene scan would
+      list.sort((a, b) => a - b);
+      const fl = [];
+      for (let k = 0; k < list.length; k++) if (blocks[list[k]].gy === 0) fl.push(list[k]);
+      compBlocks.push(Int32Array.from(list));
+      compFloor.push(Int32Array.from(fl));
+    }
+    const nc = compBlocks.length;
+    this._compOf = comp;
+    this._compBlocks = compBlocks;
+    this._compFloor = compFloor;
+    this._compMark = new Uint8Array(nc);
+    this._proxMark = new Uint8Array(nc);
+    // Which zones sit in which patch of ground, so "zones near the hole" is a
+    // handful of array lookups rather than a scan.
+    const zc = new Map();
+    for (let c = 0; c < nc; c++) {
+      const list = compBlocks[c];
+      const cells = new Set();
+      for (let k = 0; k < list.length; k++) {
+        const b = blocks[list[k]];
+        const x0 = Math.floor((b.x - b.s / 2) / ZONE_CELL), x1 = Math.floor((b.x + b.s / 2) / ZONE_CELL);
+        const z0 = Math.floor((b.z - b.s / 2) / ZONE_CELL), z1 = Math.floor((b.z + b.s / 2) / ZONE_CELL);
+        for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) cells.add(x + ',' + z);
+      }
+      for (const k of cells) {
+        let arr = zc.get(k);
+        if (!arr) { arr = []; zc.set(k, arr); }
+        arr.push(c);
+      }
+    }
+    this._zoneCells = zc;
+    // Per-block support scratch, replacing the per-call Maps the old whole-scene
+    // BFS allocated (which were also the bulk of the sandbox's GC churn).
+    this._spanVal = new Float64Array(n);
+    this._spanHas = new Uint8Array(n);
+    this._hang = new Uint8Array(n);
+    this._frontVal = new Float64Array(n);
+    this._frontHas = new Uint8Array(n);
+    this._dq = [];  // BFS queues, reused across calls (capacity is retained)
+    this._fq = [];
+    for (let c = 0; c < nc; c++) this._dirtyComps.add(c); // first recalc evaluates everything
+  }
+
   _watchDamage(b) {
     if (b.state === 'unstable' || (b.state === 'static' && b.damage > 0)) this._damageBlocks.add(b);
   }
@@ -551,7 +657,9 @@ export class VoxelSandboxSim {
   _coverageChanged() {
     const h = this.hole;
     const remR = h.radius * REMOVAL_FRAC;
-    const next = new Set();
+    // two sets, swapped rather than reallocated: this runs every step
+    const next = this._coverageSpare || (this._coverageSpare = new Set());
+    next.clear();
     for (let gx = Math.floor(h.x - remR); gx <= Math.floor(h.x + remR); gx++) {
       for (let gz = Math.floor(h.z - remR); gz <= Math.floor(h.z + remR); gz++) {
         const cx = gx + 0.5 - h.x, cz = gz + 0.5 - h.z;
@@ -563,120 +671,199 @@ export class VoxelSandboxSim {
       for (const c of next) if (!this._coverage.has(c)) { same = false; break; }
       if (same) return false;
     }
+    this._coverageSpare = this._coverage;
     this._coverage = next;
     return true;
   }
 
+  // ZONE SELECTION. A zone's support result can only differ from last call if
+  // one of the BFS's three inputs moved inside it:
+  //   (1) its graph changed — a block detached or was eaten (_dirtyComps);
+  //   (2) a floor anchor's supportRatio changed — only possible within
+  //       instabR of the hole;
+  //   (3) the hanging test's outcome changed — only possible within
+  //       remR + HANG_REACH * hangScale of the hole.
+  // (2) and (3) are the "influence radius". Zones that were inside it last
+  // call are re-included so blocks the hole has LEFT get reset (supportRatio
+  // back to 1, hanging cleared) exactly as a whole-scene pass would.
+  _markDirtyZones(instabR, remR, hangScale) {
+    const mark = this._compMark;
+    const list = this._dirtyList || (this._dirtyList = []);
+    list.length = 0;
+    for (const c of this._dirtyComps) { if (!mark[c]) { mark[c] = 1; list.push(c); } }
+    for (let i = 0; i < this._prevProx.length; i++) {
+      const c = this._prevProx[i];
+      if (!mark[c]) { mark[c] = 1; list.push(c); }
+    }
+    const R = Math.max(instabR, remR + HANG_REACH * hangScale);
+    const h = this.hole;
+    const proxMark = this._proxMark;
+    const prox = [];
+    const x0 = Math.floor((h.x - R) / ZONE_CELL), x1 = Math.floor((h.x + R) / ZONE_CELL);
+    const z0 = Math.floor((h.z - R) / ZONE_CELL), z1 = Math.floor((h.z + R) / ZONE_CELL);
+    for (let x = x0; x <= x1; x++) {
+      for (let z = z0; z <= z1; z++) {
+        const arr = this._zoneCells.get(x + ',' + z);
+        if (!arr) continue;
+        for (let i = 0; i < arr.length; i++) {
+          const c = arr[i];
+          if (proxMark[c]) continue;
+          proxMark[c] = 1;
+          prox.push(c);
+          if (!mark[c]) { mark[c] = 1; list.push(c); }
+        }
+      }
+    }
+    for (let i = 0; i < prox.length; i++) proxMark[prox[i]] = 0;
+    this._prevProx = prox;
+    this._dirtyComps.clear();
+    return list;
+  }
+
   _recalcSupport() {
     const h = this.hole;
+    const blocks = this.blocks;
     const remR = h.radius * REMOVAL_FRAC;
     const remR2 = remR * remR;
     const instabR = h.radius + INSTAB_ZONE + 0.6;
     const instabR2 = instabR * instabR;
-
-    // Rim support percentage: floor blocks near the rim sample their 4 base
-    // corners against the opening. <30% supported = no floor anchor anymore.
-    const floorList = this._floorBlocks || this.blocks;
-    for (const b of floorList) {
-      if (b.state === 'consumed' || b.state === 'falling') continue;
-      const dx = b.x - h.x, dz = b.z - h.z;
-      if (dx * dx + dz * dz > instabR2) { b.supportRatio = 1; continue; }
-      const o = b.s / 2 - 0.05;
-      let outside = 0;
-      for (const [sx, sz] of [[-o, -o], [o, -o], [-o, o], [o, o]]) {
-        const px = b.x + sx - h.x, pz = b.z + sz - h.z;
-        if (px * px + pz * pz > remR2) outside++;
-      }
-      b.supportRatio = outside / 4;
-    }
-
-    // 0-1 BFS from floor anchors. Vertical moves reset the cantilever span;
-    // horizontal moves grow it in METERS and fail past the entered block's
-    // maxSpan. A neighbor counts as vertical only when it sits entirely
-    // above; overlapping y-ranges are horizontal connections (mixed sizes).
-    const span = new Map();
-    const dq = [];
-    for (const b of floorList) {
-      if (b.state !== 'static' && b.state !== 'unstable') continue;
-      if (b.supportRatio < 0.3) continue; // base mostly gone — no anchor
-      span.set(b, 0);
-      dq.push(b);
-    }
-    let head = 0;
-    while (head < dq.length) {
-      const cur = dq[head++];
-      const cs = span.get(cur);
-      for (const nb of cur.neighbors) {
-        if (nb.state !== 'static' && nb.state !== 'unstable') continue;
-        if (nb.gy + nb.fs <= cur.gy) continue; // entirely below — support never flows downward
-        let ns;
-        if (nb.gy >= cur.gy + cur.fs) {
-          if (cur.mat.vertBond < BOND_CARRY) continue;
-          ns = 0;
-        } else {
-          if (cur.mat.horizBond < BOND_CARRY) continue;
-          ns = cs + (cur.s + nb.s) / 2;
-          // Floor cells over the void can only cantilever a single meter;
-          // upper structures use the material's own span limit.
-          const cap = nb.gy === 0 ? Math.min(nb.mat.maxSpan, FLOOR_CANTILEVER) : nb.mat.maxSpan;
-          if (ns > cap) continue;
-        }
-        const prev = span.get(nb);
-        if (prev !== undefined && prev <= ns) continue;
-        span.set(nb, ns);
-        dq.push(nb); // relaxation converges: spans are small bounded numbers
-      }
-    }
-
-    // Split supported blocks into solid vs hanging (cantilever reaching over
-    // the opening). The crack front is seeded from SOLID blocks only — the
-    // hanging rim is itself part of the failure zone, so measuring crack
-    // distance from it would let the void's center drop first. With solid
-    // seeds the rim lets go FIRST and failure sweeps inward from the
-    // circumference: destruction is driven by the hole's edge, not its center.
     // The reach SCALES with the hole: at SIZE 1 the creak zone hugs the
     // visible rim (~0.5 m past it) instead of pre-failing facades 4-5 m
     // away; at max radius it behaves as before (remR + span + 1.5).
     const hangScale = h.radius / MAX_RADIUS;
-    const hangingSet = new Set();
-    for (const [b, sp] of span) {
-      if (sp >= 1) {
-        const dx = b.x - h.x, dz = b.z - h.z;
-        if (Math.hypot(dx, dz) < remR + (sp + 1.5) * hangScale) hangingSet.add(b);
-      }
-    }
-    const front = new Map();
-    {
-      const fq = [];
-      for (const [b] of span) {
-        if (hangingSet.has(b)) continue;
-        front.set(b, 0);
-        fq.push(b);
-      }
-      let fh = 0;
-      while (fh < fq.length) {
-        const cur = fq[fh++];
-        const cd = front.get(cur);
-        for (const nb of cur.neighbors) {
-          if (nb.state !== 'static' && nb.state !== 'unstable') continue;
-          if (front.has(nb)) continue;
-          front.set(nb, cd + 1);
-          fq.push(nb);
-        }
-      }
-    }
-
     // Failure timing: the shipped sandbox setting is instant (creak <= 0), so
     // the player sees a block let go on the first step after support loss.
     // A positive dev tuning value restores the readable rim → center delay:
     // hanging rim blocks creak first, unsupported blocks follow the wave.
+    const instantCollapse = this.tune.creak <= 0;
+
+    const dirty = this._markDirtyZones(instabR, remR, hangScale);
+    const spanVal = this._spanVal, spanHas = this._spanHas, hang = this._hang;
+    const frontVal = this._frontVal, frontHas = this._frontHas;
+    const dq = this._dq, fq = this._fq;
+
+    for (let ci = 0; ci < dirty.length; ci++) {
+      const cbl = this._compBlocks[dirty[ci]], cfl = this._compFloor[dirty[ci]];
+
+      // Rim support percentage: floor blocks near the rim sample their 4 base
+      // corners against the opening. <30% supported = no floor anchor anymore.
+      for (let k = 0; k < cfl.length; k++) {
+        const b = blocks[cfl[k]];
+        if (b.state === 'consumed' || b.state === 'falling') continue;
+        const dx = b.x - h.x, dz = b.z - h.z;
+        if (dx * dx + dz * dz > instabR2) { b.supportRatio = 1; continue; }
+        const o = b.s / 2 - 0.05;
+        let outside = 0;
+        let px = b.x - o - h.x, pz = b.z - o - h.z;
+        if (px * px + pz * pz > remR2) outside++;
+        px = b.x + o - h.x;
+        if (px * px + pz * pz > remR2) outside++;
+        pz = b.z + o - h.z;
+        if (px * px + pz * pz > remR2) outside++;
+        px = b.x - o - h.x;
+        if (px * px + pz * pz > remR2) outside++;
+        b.supportRatio = outside / 4;
+      }
+
+      for (let k = 0; k < cbl.length; k++) { spanHas[cbl[k]] = 0; hang[cbl[k]] = 0; }
+
+      // 0-1 BFS from floor anchors. Vertical moves reset the cantilever span;
+      // horizontal moves grow it in METERS and fail past the entered block's
+      // maxSpan. A neighbor counts as vertical only when it sits entirely
+      // above; overlapping y-ranges are horizontal connections (mixed sizes).
+      dq.length = 0;
+      for (let k = 0; k < cfl.length; k++) {
+        const j = cfl[k], b = blocks[j];
+        if (b.state !== 'static' && b.state !== 'unstable') continue;
+        if (b.supportRatio < 0.3) continue; // base mostly gone — no anchor
+        spanVal[j] = 0; spanHas[j] = 1;
+        dq.push(j);
+      }
+      let head = 0;
+      while (head < dq.length) {
+        const cur = blocks[dq[head++]];
+        const cs = spanVal[cur.bi];
+        const nbs = cur.neighbors;
+        for (let q = 0; q < nbs.length; q++) {
+          const nb = nbs[q];
+          if (nb.state !== 'static' && nb.state !== 'unstable') continue;
+          if (nb.gy + nb.fs <= cur.gy) continue; // entirely below — support never flows downward
+          let ns;
+          if (nb.gy >= cur.gy + cur.fs) {
+            if (cur.mat.vertBond < BOND_CARRY) continue;
+            ns = 0;
+          } else {
+            if (cur.mat.horizBond < BOND_CARRY) continue;
+            ns = cs + (cur.s + nb.s) / 2;
+            // Floor cells over the void can only cantilever a single meter;
+            // upper structures use the material's own span limit.
+            const cap = nb.gy === 0 ? Math.min(nb.mat.maxSpan, FLOOR_CANTILEVER) : nb.mat.maxSpan;
+            if (ns > cap) continue;
+          }
+          const nj = nb.bi;
+          if (spanHas[nj] && spanVal[nj] <= ns) continue;
+          spanVal[nj] = ns; spanHas[nj] = 1;
+          dq.push(nj); // relaxation converges: spans are small bounded numbers
+        }
+      }
+
+      // Split supported blocks into solid vs hanging (cantilever reaching over
+      // the opening). The crack front is seeded from SOLID blocks only — the
+      // hanging rim is itself part of the failure zone, so measuring crack
+      // distance from it would let the void's center drop first. With solid
+      // seeds the rim lets go FIRST and failure sweeps inward from the
+      // circumference: destruction is driven by the hole's edge, not its center.
+      for (let k = 0; k < cbl.length; k++) {
+        const j = cbl[k];
+        if (!spanHas[j]) continue;
+        const sp = spanVal[j];
+        if (sp < 1) continue;
+        const b = blocks[j];
+        const dx = b.x - h.x, dz = b.z - h.z;
+        if (Math.hypot(dx, dz) < remR + (sp + 1.5) * hangScale) hang[j] = 1;
+      }
+
+      // Crack-front distance only feeds the delayed-failure timings below, so
+      // the shipped instant-collapse setting skips this whole BFS.
+      if (!instantCollapse) {
+        fq.length = 0;
+        for (let k = 0; k < cbl.length; k++) frontHas[cbl[k]] = 0;
+        for (let k = 0; k < cbl.length; k++) {
+          const j = cbl[k];
+          if (!spanHas[j] || hang[j]) continue;
+          frontVal[j] = 0; frontHas[j] = 1;
+          fq.push(j);
+        }
+        let fh = 0;
+        while (fh < fq.length) {
+          const cur = blocks[fq[fh++]];
+          const cd = frontVal[cur.bi];
+          for (const nb of cur.neighbors) {
+            if (nb.state !== 'static' && nb.state !== 'unstable') continue;
+            const nj = nb.bi;
+            if (frontHas[nj]) continue;
+            frontVal[nj] = cd + 1; frontHas[nj] = 1;
+            fq.push(nj);
+          }
+        }
+      }
+    }
+
+    // State assignment runs as one pass over the block array, filtered to the
+    // dirty zones. Blocks outside them provably keep last call's verdict, and
+    // going through the array in order keeps _damageBlocks' insertion order
+    // (which step 2 snapshots, and which is therefore load-bearing) identical
+    // to the old whole-scene loop's.
+    //
     // Damage is PERSISTENT: leaving the hole stops new stress but only heals
     // slowly, so collapse progress is never reset by wiggling.
-    const instantCollapse = this.tune.creak <= 0;
-    for (const b of this.blocks) {
+    const mark = this._compMark, compOf = this._compOf;
+    const creak = this.tune.creak, waveK = this.tune.waveK;
+    for (let i = 0; i < blocks.length; i++) {
+      if (!mark[compOf[i]]) continue;
+      const b = blocks[i];
       if (b.state !== 'static' && b.state !== 'unstable') continue;
-      const sp = span.get(b);
-      if (sp === undefined) {
+      if (!spanHas[i]) {
         b.state = 'unstable';
         if (instantCollapse) {
           b.damage = 1;
@@ -684,12 +871,12 @@ export class VoxelSandboxSim {
           this._watchDamage(b);
           continue;
         }
-        const dist = front.get(b) ?? 0; // no path to support at all = let go now
+        const dist = frontHas[i] ? frontVal[i] : 0; // no path to support at all = let go now
         // material creak scales with brick size: small bricks pop, big slabs grind
-        const failTime = Math.min(FAIL_CAP, b.mat.delay * this.tune.creak * (1 + 0.15 * b.gy * FINE) * b.s + this.tune.waveK * dist);
+        const failTime = Math.min(FAIL_CAP, b.mat.delay * creak * (1 + 0.15 * b.gy * FINE) * b.s + waveK * dist);
         b.failRate = 1 / Math.max(0.05, failTime);
         this._watchDamage(b);
-      } else if (hangingSet.has(b)) {
+      } else if (hang[i]) {
         b.state = 'unstable';
         if (instantCollapse) {
           b.damage = 1;
@@ -697,7 +884,7 @@ export class VoxelSandboxSim {
           this._watchDamage(b);
           continue;
         }
-        const failTime = Math.min(HANG_CAP, b.mat.delay * this.tune.creak * (1 + 0.15 * b.gy * FINE) * b.s + 0.15 + 0.25 * sp);
+        const failTime = Math.min(HANG_CAP, b.mat.delay * creak * (1 + 0.15 * b.gy * FINE) * b.s + 0.15 + 0.25 * spanVal[i]);
         b.failRate = 1 / failTime;
         this._watchDamage(b);
       } else if (b.state === 'unstable') {
@@ -706,6 +893,7 @@ export class VoxelSandboxSim {
         this._watchDamage(b);
       }
     }
+    for (let i = 0; i < dirty.length; i++) mark[dirty[i]] = 0;
     this._graphDirty = false;
   }
 
@@ -726,6 +914,9 @@ export class VoxelSandboxSim {
       sizeAvg: sizeSum / members.length, // drives tip sluggishness (big slabs rotate slowly)
     };
     for (const b of members) {
+      // a settled block swept into a rigid body moves again, so it leaves the
+      // resting-rubble index and goes back to being bucketed per step
+      if (b.asleep) this._sleepObsRemove(b);
       b.parentChunk = chunk;
       b.relX = b.x - cx; b.relY = b.y - cy; b.relZ = b.z - cz;
     }
@@ -733,11 +924,36 @@ export class VoxelSandboxSim {
     return chunk;
   }
 
+  // Fold this step's detachments into the ordered active list and drop the
+  // entries the hole ate. `_falling` stays sorted by id, which IS block-array
+  // order, so every pass that walks it visits blocks in exactly the order a
+  // whole-scene scan would — the pair orders in the contact solver and the
+  // chunk seed order depend on it.
+  _syncFalling() {
+    const f = this._falling;
+    if (this._fallingRemoved) {
+      let w = 0;
+      for (let i = 0; i < f.length; i++) if (f[i].state === 'falling') f[w++] = f[i];
+      f.length = w;
+      this._fallingRemoved = 0;
+    }
+    const nf = this._newFalling;
+    if (nf.length === 0) return;
+    nf.sort((a, b) => a.id - b.id);
+    const merged = [];
+    let i = 0, j = 0;
+    while (i < f.length && j < nf.length) merged.push(f[i].id <= nf[j].id ? f[i++] : nf[j++]);
+    while (i < f.length) merged.push(f[i++]);
+    while (j < nf.length) merged.push(nf[j++]);
+    nf.length = 0;
+    this._falling = merged;
+  }
+
   // Flood-fill connected freshly-fallen blocks into rigid chunks. Weak
   // interfaces (glass, panel seams) are not crossed, so structures break
   // along their material joints. Loose blocks always fall individually.
   _groupChunks() {
-    for (const b of this.blocks) {
+    for (const b of this._falling) {
       if (b.state !== 'falling' || b.parentChunk || b.matType === 'loose') continue;
       if (this.time - b.fallT > FRESH_WINDOW) continue;
       const members = [];
@@ -785,7 +1001,7 @@ export class VoxelSandboxSim {
     const top = (fy + b.fs) * FINE;
     for (let ix = 0; ix < b.fs; ix++) {
       for (let iz = 0; iz < b.fs; iz++) {
-        const k = (fx + ix) + ',' + (fz + iz);
+        const k = cellKey(fx + ix, fz + iz);
         if ((this._top.get(k) || 0) < top) this._top.set(k, top);
       }
     }
@@ -798,7 +1014,7 @@ export class VoxelSandboxSim {
     const bTop = (fy + b.fs) * FINE;
     for (let ix = 0; ix < b.fs; ix++) {
       for (let iz = 0; iz < b.fs; iz++) {
-        const k = (fx + ix) + ',' + (fz + iz);
+        const k = cellKey(fx + ix, fz + iz);
         if (this._top.get(k) === bTop) {
           let ny = 0;
           for (let cy = fy - 1; cy >= 0; cy--) {
@@ -816,6 +1032,7 @@ export class VoxelSandboxSim {
             const i = sl.indexOf(s);
             if (i >= 0) sl.splice(i, 1);
             s.asleep = false;
+            this._sleepObsRemove(s);
             this._topRemove(s); // its own column contribution re-evaluates
           }
           if (sl.length === 0) this._sleepers.delete(k);
@@ -827,10 +1044,11 @@ export class VoxelSandboxSim {
   // highest solid surface under a footprint at (x,z), 0 = bare ground
   _topAt(x, z, fs) {
     const gx0 = Math.round(x / FINE - fs / 2), gz0 = Math.round(z / FINE - fs / 2);
+    const top0 = this._top;
     let top = 0;
     for (let ix = 0; ix < fs; ix++) {
       for (let iz = 0; iz < fs; iz++) {
-        const t = this._top.get((gx0 + ix) + ',' + (gz0 + iz));
+        const t = top0.get(cellKey(gx0 + ix, gz0 + iz));
         if (t > top) top = t;
       }
     }
@@ -841,7 +1059,11 @@ export class VoxelSandboxSim {
   // falling bodies scrape walls and shatter on structures instead of
   // ghosting through them. (vx,vz) come from the body (chunk or debris).
   _contact(b, vx, vz) {
-    const [fx, fy, fz] = this._foot(b);
+    // _foot inline: this runs once per airborne body per step and the array it
+    // returns was pure garbage
+    const fx = Math.round(b.x / FINE - b.fs / 2);
+    const fy = Math.round(b.y / FINE - b.fs / 2);
+    const fz = Math.round(b.z / FINE - b.fs / 2);
     const xDominant = Math.abs(vx) > Math.abs(vz);
     const sgn = (xDominant ? vx : vz) >= 0 ? 1 : -1;
     for (let u = 0; u < b.fs; u++) {
@@ -859,11 +1081,54 @@ export class VoxelSandboxSim {
     return null;
   }
 
+  // --- resting-rubble broad phase ---------------------------------------------
+  // Settled debris is an OBSTACLE for the loose-body contact solver but never
+  // moves while it sleeps, so its broad-phase cells are stable. Bucketing every
+  // sleeper afresh each step was ~half the step cost after a few minutes of
+  // play (measured: 14.6 -> 5.6 ms p50 at minute 5 of a SIZE 10 plough), and it
+  // grows without bound as rubble piles up. Keep the buckets instead and edit
+  // them on the rare sleep/wake events.
+  //
+  // Buckets are held in ascending id order — the exact order a whole-list scan
+  // produced — because the solver applies separations in sequence and each one
+  // moves the mover, so a reordered bucket is a different simulation.
+  _sleepObsAdd(b) {
+    const [fx, , fz] = this._foot(b);
+    b._obsFx = fx; b._obsFz = fz;
+    for (let ix = -1; ix <= b.fs; ix++) {
+      for (let iz = -1; iz <= b.fs; iz++) {
+        const k = cellKey(fx + ix, fz + iz);
+        let arr = this._sleepObs.get(k);
+        if (!arr) { arr = []; this._sleepObs.set(k, arr); }
+        let lo = 0, hi = arr.length;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid].id < b.id) lo = mid + 1; else hi = mid; }
+        arr.splice(lo, 0, b);
+      }
+    }
+  }
+
+  _sleepObsRemove(b) {
+    if (b._obsFx === undefined) return;
+    const fx = b._obsFx, fz = b._obsFz;
+    b._obsFx = undefined;
+    for (let ix = -1; ix <= b.fs; ix++) {
+      for (let iz = -1; iz <= b.fs; iz++) {
+        const k = cellKey(fx + ix, fz + iz);
+        const arr = this._sleepObs.get(k);
+        if (!arr) continue;
+        const i = arr.indexOf(b);
+        if (i >= 0) arr.splice(i, 1);
+        if (arr.length === 0) this._sleepObs.delete(k);
+      }
+    }
+  }
+
   // wake a sleeping debris block: unregister it and drop its solid
   // contribution (its own support re-evaluates from the pile)
   _unsleep(b) {
     if (!b.asleep) return;
     b.asleep = false;
+    this._sleepObsRemove(b);
     const sl = this._sleepers.get(b.restCol);
     if (sl) {
       const i = sl.indexOf(b);
@@ -991,6 +1256,7 @@ export class VoxelSandboxSim {
     b.parentChunk = null;
     b.fallT = -1; // settled debris never re-groups into chunks
     b.asleep = false;
+    this._sleepObsRemove(b); // no-op unless it somehow still held resting cells
     b.vx = chunk.vx * 0.5 + this.rng.float(-1.5, 1.5) * scatter;
     b.vy = Math.max(0, -chunk.vy * 0.1) + this.rng.float(0, 1.5) * scatter;
     b.vz = chunk.vz * 0.5 + this.rng.float(-1.5, 1.5) * scatter;
@@ -1006,7 +1272,7 @@ export class VoxelSandboxSim {
     const attractR2 = attractR * attractR;
     const rimR = h.radius + INSTAB_ZONE + 0.5;
 
-    for (const b of this.blocks) {
+    for (const b of this._falling) {
       if (b.state !== 'falling' || b.parentChunk) continue;
       const dx = h.x - b.x, dz = h.z - b.z;
       const dist2 = dx * dx + dz * dz;
@@ -1093,7 +1359,8 @@ export class VoxelSandboxSim {
           // angle of repose: steep piles shed blocks toward lower columns —
           // this is what makes collapses SPILL outward instead of stacking flat
           let lowTop = support, lowX = 0, lowZ = 0;
-          for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          for (let q = 0; q < 4; q++) {
+            const nx = REPOSE_DIRS[q << 1], nz = REPOSE_DIRS[(q << 1) | 1];
             const t = this._topAt(b.x + nx * b.s, b.z + nz * b.s, b.fs);
             if (t < lowTop) { lowTop = t; lowX = nx; lowZ = nz; }
           }
@@ -1114,20 +1381,21 @@ export class VoxelSandboxSim {
     // Even inside the attraction zone — constant vacuum pressure on resting
     // blocks is what ground piles into self-clipping churn; the hole wakes
     // sleepers when it reaches them (overVoid), and support loss wakes the rest.
-    for (const b of this.blocks) {
+    for (const b of this._falling) {
       if (!b._wantSleep) continue;
       b._wantSleep = false;
       if (b.state !== 'falling' || b.parentChunk || b.asleep || b._inContact) continue;
       b.asleep = true;
       b.vx = 0; b.vy = 0; b.vz = 0; b.vRotX = 0; b.vRotZ = 0;
       const [fx, , fz] = this._foot(b);
-      const colK = (fx + (b.fs >> 1)) + ',' + (fz + (b.fs >> 1));
+      const colK = cellKey(fx + (b.fs >> 1), fz + (b.fs >> 1));
       b.restCol = colK;
       b.restTop = b._sleepSupport;
       let sl = this._sleepers.get(colK);
       if (!sl) { sl = []; this._sleepers.set(colK, sl); }
       sl.push(b);
       this._topAdd(b);
+      this._sleepObsAdd(b);
     }
   }
 
@@ -1138,7 +1406,7 @@ export class VoxelSandboxSim {
   // blocks iterate in array order, pairs dedup by id, no rng.
   _resolveDebrisContacts() {
     const awake = [];
-    for (const b of this.blocks) {
+    for (const b of this._falling) {
       if (b.state !== 'falling' || b.parentChunk || b.asleep) continue;
       // Fast bodies get the full solid-world correction in _stepDebris, but
       // are kept out of this pair relaxation. Including an entire tower's
@@ -1152,13 +1420,13 @@ export class VoxelSandboxSim {
     // buckets are padded by one fine cell all round: rounded footprints could
     // otherwise leave a ≤0.25 m sliver where two blocks overlap without ever
     // sharing a column — a gap exact AABB tests never even see
-    const keyInt = (x, z) => (((x + 8192) & 0x3FFF) << 14) | ((z + 8192) & 0x3FFF);
+    const keyInt = cellKey;
     const pool = this._bPool = this._bPool || [];
     const getB = () => (pool.length > 0 ? pool.pop() : []);
     const relB = (b) => { b.length = 0; pool.push(b); };
 
     const insertInto = (map, b) => {
-      const [fx, , fz] = this._foot(b);
+      const fx = Math.round(b.x / FINE - b.fs / 2), fz = Math.round(b.z / FINE - b.fs / 2);
       for (let ix = -1; ix <= b.fs; ix++) {
         for (let iz = -1; iz <= b.fs; iz++) {
           const k = keyInt(fx + ix, fz + iz);
@@ -1168,20 +1436,27 @@ export class VoxelSandboxSim {
         }
       }
     };
-    // obstacles (sleepers, chunk members, fast rain) don't move: bucket once
-    const occObs = new Map();
-    for (const b of this.blocks) {
+    // obstacles (sleepers, chunk members, fast rain) don't move: bucket once.
+    // Free-standing sleepers live in the persistent _sleepObs index instead;
+    // the query below walks the two in id order, which is the single order the
+    // old one-pass build produced.
+    const occObs = this._occObs || (this._occObs = new Map());
+    occObs.clear();
+    for (const b of this._falling) {
       if (b.state !== 'falling' || movable.has(b)) continue;
+      if (b.asleep && !b.parentChunk) continue;
       insertInto(occObs, b);
     }
+    const sleepObs = this._sleepObs;
     // Relaxation: compressed piles re-penetrate between passes, so resolve
     // twice per step (1 round in perfMode), re-bucketing the (moved) movers each round.
     const rounds = (this.tune && this.tune.perfMode) ? 1 : 2;
+    const occMove = this._occMove || (this._occMove = new Map());
     for (let round = 0; round < rounds; round++) {
-      const occMove = new Map();
+      occMove.clear();
       for (const b of awake) insertInto(occMove, b);
       for (const b of awake) {
-        const [fx, , fz] = this._foot(b);
+        const fx = Math.round(b.x / FINE - b.fs / 2), fz = Math.round(b.z / FINE - b.fs / 2);
         for (let ix = -1; ix <= b.fs; ix++) {
           for (let iz = -1; iz <= b.fs; iz++) {
             const k = keyInt(fx + ix, fz + iz);
@@ -1192,8 +1467,17 @@ export class VoxelSandboxSim {
                 this._separate(b, o, true);
               }
             }
-            const ob = occObs.get(k);
-            if (ob) for (const o of ob) this._separate(b, o, false);
+            const ob = occObs.get(k), sb = sleepObs.get(k);
+            if (ob && sb) {
+              let p = 0, q = 0;
+              while (p < ob.length && q < sb.length) this._separate(b, ob[p].id < sb[q].id ? ob[p++] : sb[q++], false);
+              while (p < ob.length) this._separate(b, ob[p++], false);
+              while (q < sb.length) this._separate(b, sb[q++], false);
+            } else if (ob) {
+              for (const o of ob) this._separate(b, o, false);
+            } else if (sb) {
+              for (const o of sb) this._separate(b, o, false);
+            }
           }
         }
       }
@@ -1206,26 +1490,38 @@ export class VoxelSandboxSim {
   // `_contact` probe catches leading-face crossings; this catches bodies that
   // arrive already embedded (including rotated chunk members represented by
   // their current axis-aligned bounds).
+  // The buckets are keyed on (x, z) only, so one cell of a tower holds every
+  // block in that column — hundreds of them, at every height. The dedup used to
+  // be a `new Set()` per call (45k allocations per 400 steps at collapse rates);
+  // it is now a per-call stamp on the block, which is the same set semantics
+  // (every candidate that passes the identity and state tests is marked,
+  // overlapping or not — that matters, because `b` moves inside this loop) with
+  // an integer compare instead of a hash insert. The vertical overlap is also
+  // tested first: it is by far the most selective term in a tower column, and
+  // `py <= 0` already implied `pen <= 0`.
   _resolveStaticContacts(b) {
-    const seen = new Set();
+    const stamp = ++this._scStamp;
     let hit = null;
     const minX = Math.floor((b.x - b.s / 2) / COLLISION_CELL) - 1;
     const maxX = Math.floor((b.x + b.s / 2) / COLLISION_CELL) + 1;
     const minZ = Math.floor((b.z - b.s / 2) / COLLISION_CELL) - 1;
     const maxZ = Math.floor((b.z + b.s / 2) / COLLISION_CELL) + 1;
     for (let x = minX; x <= maxX; x++) for (let z = minZ; z <= maxZ; z++) {
-      const bucket = this._collisionBuckets.get(x + ',' + z);
+      const bucket = this._collisionBuckets.get(cellKey(x, z));
       if (!bucket) continue;
-      for (const o of bucket) {
-        if (o === b || seen.has(o)) continue;
+      for (let i = 0; i < bucket.length; i++) {
+        const o = bucket[i];
+        if (o === b || o._scSeen === stamp) continue;
         if (o.state !== 'static' && o.state !== 'unstable') continue;
-        seen.add(o);
+        o._scSeen = stamp;
         const hSum = (b.s + o.s) / 2;
-        const px = hSum - Math.abs(b.x - o.x);
         const py = hSum - Math.abs(b.y - o.y);
+        if (py <= 0) continue;
+        const px = hSum - Math.abs(b.x - o.x);
+        if (px <= 0) continue;
         const pz = hSum - Math.abs(b.z - o.z);
-        const pen = Math.min(px, py, pz);
-        if (pen <= 0) continue;
+        if (pz <= 0) continue;
+        const pen = px < py ? (px < pz ? px : pz) : (py < pz ? py : pz);
         if (!hit) hit = o;
         if (pen > 0.05) b._inContact = true;
         this._separate(b, o, false);
@@ -1284,6 +1580,8 @@ export class VoxelSandboxSim {
 
   _consume(b) {
     b.state = 'consumed';
+    this._fallingRemoved++;             // stale entry in the active mover list
+    this._dirtyComps.add(this._compOf[b.bi]); // its zone's support graph shrank
     this._unsleep(b); // sleeping debris: unregister + drop solid contribution
     for (let ix = 0; ix < b.fs; ix++) {
       for (let iy = 0; iy < b.fs; iy++) {
@@ -1363,6 +1661,8 @@ export class VoxelSandboxSim {
           b.state = 'falling';
           b.fallT = this.time;
           b.asleep = false;
+          this._newFalling.push(b);                 // joins the active mover list below
+          this._dirtyComps.add(this._compOf[b.bi]); // its zone's support graph changed
           this._topRemove(b); // no longer a solid surface for others
           this._graphDirty = true;
           this._damageBlocks.delete(b);
@@ -1388,6 +1688,7 @@ export class VoxelSandboxSim {
     }
 
     // 3. group freshly detached regions into rigid chunks
+    this._syncFalling();
     this._groupChunks();
 
     // 4. physics: chunks, then individual debris

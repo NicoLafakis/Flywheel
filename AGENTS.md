@@ -7,8 +7,9 @@ Static browser game, no build step. Read `.wiki/INDEX.md` for the full wiki;
 
 - Run: `python -m http.server 8000` → `http://localhost:8000/`
 - Validate (REQUIRED before any commit touching `js/citygen.js`, `js/sim.js`,
-  `js/tiers.js`, `js/levels.js`, `js/voxelsim.js`, `js/voxelscene-manhattan.js`):
-  `node tools/validate.mjs` → must print `ALL PASS`
+  `js/tiers.js`, `js/levels.js`, `js/voxelsim.js`, `js/voxelscene-manhattan.js`,
+  `js/voxelscene-upper-manhattan.js`, `js/voxelscene-brooklyn.js`,
+  `js/voxelkit.js`): `node tools/validate.mjs` → must print `ALL PASS`
 - No package.json, no lint, no test runner — the validator IS the test suite.
 
 ## Non-negotiable invariants

@@ -3,6 +3,97 @@
 Detailed build history, migrated from STATUS.md (which is a lean board, not a
 changelog). Newest first. Commit-level history: `git log`.
 
+- 2026-08-05: **Upper Manhattan full rebuild — Central Park geography,
+  structural-zone sim optimization, renderer/input fixes.** Five sequential
+  passes replaced Upper Manhattan's ~8,400-block Central Park sketch with the
+  full district: 73,393 blocks / 86,083 mass across Central Park's real
+  geography (Great Lawn, the Ramble, the Lake, Bethesda Terrace, the Mall,
+  Conservatory Water, the Reservoir, the Zoo, Wollman Rink), the Upper West
+  Side (El Dorado, the Beresford, the Dakota, the AMNH + Hayden Sphere, San
+  Remo, Trump International, Columbus Circle), Fifth Avenue / Museum Mile (the
+  Met, the Guggenheim, the Frick, Temple Emanu-El, Mount Sinai, the Jewish
+  Museum), and Harlem (Striver's Row, the Apollo, Marcus Garvey Park,
+  Abyssinian Baptist, the Adam Clayton Powell Jr building, four cruciform
+  public-housing towers). 32 new parametric kit builders landed in the shared
+  `js/voxelkit.js` (`setbackTower`, `streetWall`, `porticoFront`,
+  `spiralRotunda`, `stoneArch`-driven bridges, `pathRibbon` for curvilinear
+  park surfaces, and more), reused across scenes rather than duplicated. The
+  validator's contract went from 9 to 19 probes for both Brooklyn and Upper
+  Manhattan, refactored onto 16 shared `probe*`/`report*` helpers so
+  duplicated probe bodies went from 19 to 0; the excursion floor rose to
+  `eatenCount ≥ 300` (matches Brooklyn), measured yield 721 eaten, combo
+  3,680, SIZE 4 at 37.8 s of 62.
+
+  The rebuild made the scene briefly unplayable: 15 fps median while driving,
+  3.3 fps in the worst collapse. The cause was `_recalcSupport` re-walking the
+  entire 73k-block connectivity graph on nearly every step while the hole
+  moved (48.55 ms/call, 80% of frame time — measured, not assumed, along with
+  a matching Node-only sim benchmark and a per-method CPU profile). The fix:
+  automatic structural zones. The support graph's connected components are
+  computed once at build time (Upper Manhattan has 1,114 of them, the largest
+  3.4% of the scene), and `_recalcSupport` now recomputes only the zones a
+  moving hole can provably reach, instead of the whole scene every call. This
+  is the "structural zones" optimization the wiki had previously recorded as
+  intentionally unimplemented — it now ships as *discovered* zones rather than
+  authored ones, so no scene file declares anything. `_recalcSupport` fell to
+  0.295 ms/call (a 165× reduction), and the sim was proved byte-identical to
+  the pre-fix version three independent ways: `tools/validate.mjs`, a full
+  per-step state digest across 16 scripted excursions (including two 3-/2-
+  minute SIZE-10 ploughs generating thousands of sleep/wake events), and 50
+  randomized fuzz runs. Companion fixes gave the loose-debris scan
+  (`_stepDebris`, `_resolveDebrisContacts`) a maintained active set instead of
+  a full block-array walk every step, and gave sleeping rubble a persistent
+  broad-phase cell index instead of a per-step rebuild (the latter alone was
+  roughly half of step time five minutes into a long collapse). Net: driving
+  p50 66.1 ms → 3.6 ms; the worst collapse's p50 300.9 ms → 16.6 ms.
+
+  Renderer and input fixes, verified by A/B screenshot diff against the
+  pre-pass tree (42 stacked comparison pairs) plus a raycast probe: the ground
+  plane is now sized and centred on the scene's actual content
+  (`contentExtent()` — every block footprint, every decor rect, the hole
+  clamp) plus a 600 m margin, replacing a fixed `PlaneGeometry(240, 240)` that
+  had left 8.5% of Upper Manhattan's blocks (the whole northern band) hanging
+  off the edge of the world with sky behind them; the far edge is now hidden
+  with distance fog riding the camera's far plane instead of showing a flat
+  cut or a floating rim. Blocks now render at their full cell size instead of
+  95% of it, closing a defect where the old 5% mortar inset became a
+  continuous see-through slot through every wall in the scene at certain
+  camera heights (confirmed by raycast: rays that hit nothing at any x across
+  a full screen row); the course line is now a shared, proportional 128×128
+  painted texture instead, at zero extra draw calls. `Controls` steering,
+  orbit, and zoom are now rate-per-second (`STEER_RATE = 2.7`,
+  `ORBIT_RATE = 1.8`, `ZOOM_RATE = 24`, each tuned to feel identical to the
+  old per-frame step at 60 fps) instead of a fixed amount added once per
+  rendered frame with no `dt` — the old code made turn rate `0.009 × fps`
+  rad/s, a 400× swing measured between a fast machine's idle and a struggling
+  scene's crawl, which made the hole nearly unsteerable exactly when driving
+  through the pre-fix Upper Manhattan collapse. `VoxelWorld3D.setPerfMode` was
+  implemented for the first time — it previously existed only on the campaign
+  renderer (`World3D.setPerfMode`), so the sandbox's Performance Mode toggle
+  was a silent no-op on the renderer (`main.js:101`'s guarded call never
+  matched). It now pins device pixel ratio to 1 and freezes ambient motion
+  (gulls/pigeons/steam/ferries/surf/neon), measured at −35% median idle frame
+  time on a 1× panel and −36% median / 13× p95 collapse on a 2× panel; it
+  deliberately does not cull or LOD the block field, which stays a real
+  renderer lever for later.
+
+  Two pre-existing "40k block ceiling" code comments in
+  `js/voxelscene-brooklyn.js` (there is no such ceiling — see `STATUS.md`'s
+  Established facts) were corrected in place while documenting this session.
+
+  Known remaining, deliberately not addressed: `main.js`'s fixed-timestep
+  catch-up loop clamps at 6 steps per frame, so a step that crosses ~16.7 ms
+  costs roughly 6× itself — this is why the worst collapse's p95 is still
+  101 ms even though its median is fast (16.6 ms). Lowering the clamp would
+  trade dropped frames for brief slow motion during a big collapse, which is a
+  pacing decision rather than a technical one, left unmade. Shadow-map
+  aliasing at the widest SIZE 10-12 camera distances and the `roads` decor
+  color (`0x1c2030`, reads as near-black) are also left as-is, along with
+  three scene-authoring notes (Bethesda's bronze angel reads near-black,
+  Turtle Pond is barely findable, Belvedere Castle stands close against the
+  CPW wall — the last one inherent to the park's 44 m width at that latitude)
+  for whoever next works in `voxelscene-upper-manhattan.js`.
+
 - 2026-08-04: **Rebrand to Flywheel - A sprocket's story**. The game is no
   longer "Hole City"; product name and repo name now match. The visual language
   invented for the Brooklyn READY gate (gold slab letters with a hard ink ring,

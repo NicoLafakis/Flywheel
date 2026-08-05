@@ -2,6 +2,7 @@
 
 import { LEVELS, METROS, MECHANICS, LEVELS_PER_METRO, coinsForResult, starsForResult } from '../levels.js';
 import { isLevelUnlocked, storeSave } from '../save.js';
+import { STEER_RATE } from '../controls.js';
 import { buildBlockWord } from './blockword.js';
 import { buildSprocket } from './sprocket.js';
 
@@ -297,8 +298,13 @@ export class Screens {
     };
     panel.appendChild(distRow);
 
-    // turn rate: 0.045 rad/frame × sens ≈ 154.7°/s at 1× (60 fps nominal)
-    const sensFmt = (v) => `${v.toFixed(2)} · ~${Math.round(154.7 * v)}°/s`;
+    // Turn rate shown to the player: STEER_RATE rad/s × sens, in degrees.
+    // Derived from the constant rather than typed as a literal so the readout
+    // cannot drift when steering is re-tuned — a hand-copied 154.7 here would
+    // keep claiming the old speed after a change in controls.js and nobody
+    // would notice, because the number still looks plausible.
+    const DEG_PER_RAD = 180 / Math.PI;
+    const sensFmt = (v) => `${v.toFixed(2)} · ~${Math.round(STEER_RATE * DEG_PER_RAD * v)}°/s`;
     const sensRow = el(`<div style="margin:8px 0">Turn sensitivity
       <span style="float:right"><span class="tune-val" style="font-weight:700">${sensFmt(st.turnSens !== undefined ? st.turnSens : 1)}</span>
       <input type="range" min="0.1" max="2.5" step="0.05" value="${st.turnSens !== undefined ? st.turnSens : 1}"
