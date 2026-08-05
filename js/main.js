@@ -54,9 +54,11 @@ function computeShopBonus() {
   };
 }
 
-function skinColor() {
+// Both renderers take the skin ID, not a colour — js/skins.js owns everything
+// downstream of the id, and a colour would be a lossy key back to a row.
+function equippedSkinId() {
   const s = SKINS.find((k) => k.id === save.equippedSkin);
-  return s ? s.color : 0x4be34b;
+  return s ? s.id : 'classic';
 }
 
 const screens = new Screens(document.getElementById('screen-root'), save, {
@@ -122,17 +124,27 @@ function startLevel() {
   const lvl = { ...level, clock: level.clock + shopBonus.clock };
   sim = new Sim(lvl, { growthBonus: shopBonus.growth });
   sim.level = { ...lvl, target: level.target }; // keep original target
-  world = new World3D(canvas, sim, skinColor(), { shadows: save.settings.shadows });
+  world = new World3D(canvas, sim, equippedSkinId(), {
+    shadows: save.settings.shadows,
+    reducedMotion: save.settings.reducedMotion,
+  });
   window.__sim = sim; // debug/validator hook
+  window.__world = world; // debug hook — the sandbox path already had one
   cam = new ChaseCamera(canvas.clientWidth / Math.max(1, canvas.clientHeight));
   cam.distScale = save.settings.camDist;
   cam.setReducedMotion(save.settings.reducedMotion);
-  // No-op on the campaign renderer, which has no such method — hence the guard.
   if (world && world.setReducedMotion) world.setReducedMotion(save.settings.reducedMotion);
   cam.setBlockers(world.blockers);
   controls = controls || new Controls(canvas);
   controls.settings = save.settings;
   controls.chaseMode = false;   // campaign: live camera-relative basis, no auto-follow
+  // Controls is a singleton across levels, so both of these are reassigned every
+  // start rather than set once: a stale camera would aim the point-to-move
+  // raycast through the previous level's projection, and a stale onBasisLatch
+  // would keep a torn-down sandbox camera alive.
+  controls.setCamera(cam.camera);
+  controls.onBasisLatch = null;   // no follow spring here, nothing to re-centre
+  window.__controls = controls;   // debug hook — parity with the sandbox path
   resize();
   hud.setLevel(level, METROS[level.metroIndex].name);
   hud.show();
@@ -190,7 +202,7 @@ function startVoxelSandbox(scene = 'gallery') {
     isVoxelSandbox = true;
     sim = new VoxelSandboxSim({ scene });
     window.__sim = sim; // debug/validator hook
-    world = new VoxelWorld3D(canvas, sim, skinColor());
+    world = new VoxelWorld3D(canvas, sim, equippedSkinId());
     // The renderer reads the persisted setting at construction, but a mid-session
     // toggle has to reach it too or the ambient layer keeps animating. Guarded
     // to match the setShadows guard in applySettings.
@@ -245,9 +257,14 @@ function startVoxelSandbox(scene = 'gallery') {
     // directions and the camera aims ITSELF at the heading (cam.setFollowDirection
     // above). chaseMode latches the move basis for as long as an input is held so
     // the world direction cannot rotate under the player while the yaw slews —
-    // without it the follow is a feedback loop. Q/E and the touch drag are still
-    // there for deliberately looking around; they suspend the chase for 0.7 s.
+    // without it the follow is a feedback loop. Q/E and the second-finger drag
+    // are still there for deliberately looking around; they no longer suspend
+    // the chase, they re-aim it — see the yaw offset in camera.js.
     controls.chaseMode = true;
+    controls.setCamera(cam.camera);
+    // A fresh press re-anchors the move basis to the live yaw, which makes the
+    // camera's manual look offset stale — see ChaseCamera.recentre().
+    controls.onBasisLatch = () => cam.recentre();
     cam.setSandboxSizeProgress(0);
     controls.setSandboxSizeProgress(0);
     window.__controls = controls; // debug hook — the sizeT ramp has two consumers
@@ -331,7 +348,13 @@ function frame(ts) {
     }
     // Steering is dropped on the floor while held, so the key press that starts
     // the level is never also a throttle input.
-    const move = held ? { x: 0, z: 0 } : controls.getMove(cam.yaw);
+    // The hole is passed so point-to-move can measure the world-space heading
+    // from it; every other scheme ignores it. A zero vector is enough to hold
+    // keys and the stick, but a tap-to-move destination outlives the frame it
+    // was made on, so it has to be cancelled rather than merely ignored.
+    if (held) controls.cancelPointer();
+    const move = held ? { x: 0, z: 0 }
+      : controls.getMove(cam.yaw, undefined, isVoxelSandbox ? sim.hole : sim.player);
     const orbit = controls.consumeOrbit();
     const zoom = controls.consumeZoom();
     while (accumulator >= FIXED_DT) {
@@ -371,7 +394,10 @@ function frame(ts) {
           hud.showToast(ev.frac >= 1 ? 'TOTAL CONSUMPTION!' : `${Math.round(ev.frac * 100)}% OF THE CITY CONSUMED`, 2200);
         }
       }
-      world.update(realDt);
+      // The sandbox used to drop the event stream on the floor here — nothing
+      // downstream of the renderer wanted it. The equipped skin does: it reacts
+      // to eats, SIZE-ups and consumption milestones.
+      world.update(realDt, events);
       const hole = sim.hole;
       cam.update(realDt, hole.x, hole.z, hole.radius, orbit, zoom);
       world.render(cam.camera);

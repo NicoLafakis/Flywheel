@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { loadSave } from './save.js';
 import { surfaceMaterial, isSurface, disposeSurfaces } from './voxelsurfaces.js';
+import { makeSkin } from './skins.js';
 
 // Read-only peek at the persisted SETTINGS block, so player preferences apply
 // from the first frame with no wiring in main.js. save.js owns the schema and
@@ -354,7 +355,10 @@ function mortarTexture() {
 }
 
 export class VoxelWorld3D {
-  constructor(canvas, sim, skinColor = 0xb44bff, opts = {}) {
+  // The third parameter is a SKIN ID, not a colour. A colour is a lossy key —
+  // two registry rows may legitimately share a rim hex, and resolving back
+  // through it would silently pick whichever came first (see js/skins.js).
+  constructor(canvas, sim, skinId = 'classic', opts = {}) {
     this.sim = sim;
     this.time = 0;
     this._disposed = false;
@@ -506,22 +510,26 @@ export class VoxelWorld3D {
     if (sim.sceneDecor) this._buildDecor(sim.sceneDecor);
 
     // Hole Mesh
+    //
+    // The void disc is unchanged and always will be: it is the gameplay-legible
+    // part, the thing the player reads as "here is where the city goes". What
+    // used to sit on top of it was one flat tinted ring; that is now whatever
+    // js/skins.js builds for the equipped id, which may be a rim, a set of
+    // teeth, or an eyelid. The skin owns everything above y=0.01 and scales
+    // itself by hole radius, so nothing here has to know which it got.
     this.holeMesh = new THREE.Group();
     const disc = new THREE.Mesh(circleGeo(), new THREE.MeshBasicMaterial({ color: 0x06060c }));
     disc.rotation.x = -Math.PI / 2;
     disc.position.y = 0.01;
-    const ring = new THREE.Mesh(ringGeo(), new THREE.MeshBasicMaterial({
-      color: skinColor,
-      depthTest: false,
-      depthWrite: false,
-    }));
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.02;
-    ring.renderOrder = 999;
-    this.holeMesh.add(disc, ring);
-    this.holeMesh.userData = { disc, ring };
-    this._ownedMats.push(disc.material, ring.material);
+    this.skin = makeSkin(skinId);
+    this.holeMesh.add(disc, this.skin.local);
+    this.holeMesh.userData = { disc };
+    this._ownedMats.push(disc.material);
     this.scene.add(this.holeMesh);
+    // Marks a skin lays on the GROUND (Attribution's touchpoints, Compounding's
+    // trail) must stay where they were laid, so they are parented to the scene
+    // and not to the hole. Empty for most skins; the group costs nothing.
+    this.scene.add(this.skin.world);
 
     // One InstancedMesh per material × block size; paint rides in
     // instanceColor. Nothing here enumerates legal brick sizes — the bucket key
@@ -618,8 +626,6 @@ export class VoxelWorld3D {
     this._s = new THREE.Vector3();
     this._c = new THREE.Color();
     this._white = white;
-    this._skinColor = new THREE.Color(skinColor);
-    this._hotWhite = new THREE.Color(0xffffff);
     this.particles = [];
     this._dirtyM = new Set();
     this._dirtyC = new Set();
@@ -1798,20 +1804,95 @@ export class VoxelWorld3D {
     mesh.instanceMatrix.needsUpdate = true;
   }
 
+  // ------------------------------------------------------------------- skins
+  //
+  // One reused state object per world — this runs 60 times a second for the
+  // life of a level and must not allocate. Everything a skin can read is
+  // gathered here so no builder ever reaches into the sim itself; that is what
+  // keeps js/skins.js portable between this renderer and the campaign's.
+  _skinFrame(dt, h, glow, events) {
+    // dispose() releases the skin's GL resources; a frame that arrives after it
+    // used to be survivable and should stay that way.
+    if (!this.skin) return;
+    const st = this._skinState || (this._skinState = {
+      t: 0, dt: 0, radius: 1, glow: 0, chain: 0, chainTimer: 0, size: 1, sizeFrac: 0,
+      progress: 0, speed: 0, heading: 0, x: 0, z: 0, camDist: 40, reduced: false,
+      sectorMass: new Float32Array(16),
+    });
+    // Neither sim tracks hole velocity, so derive it from the position delta.
+    // Only used to scale idle rotation rates, so a divide-by-zero guard and no
+    // smoothing is the right amount of machinery.
+    if (dt > 0) {
+      const dx = h.x - (this._skinPX ?? h.x), dz = h.z - (this._skinPZ ?? h.z);
+      st.speed = Math.hypot(dx, dz) / dt;
+    }
+    this._skinPX = h.x; this._skinPZ = h.z;
+    st.t = this.time; st.dt = dt;
+    st.radius = h.radius; st.glow = glow;
+    st.chain = h.chain; st.chainTimer = h.chainTimer;
+    st.size = h.size ?? 1; st.sizeFrac = h.sizeFrac ?? 0;
+    st.progress = this.sim.totalMass ? (h.rawMass ?? h.mass ?? 0) / this.sim.totalMass : 0;
+    st.x = h.x; st.z = h.z;
+    // update() runs before the first render(), so keep the last good value
+    // rather than letting an undefined reach the far-distance brightness ramp.
+    st.camDist = this._skinCamDist ?? st.camDist;
+    // The same signal the ambient set already freezes on, so a player who has
+    // asked for reduced motion gets one consistent answer across the scene.
+    st.reduced = this._ambientFrozen;
+    this._skinSectors(h, st.sectorMass);
+
+    // Events BEFORE update: a bite fired afterwards would not be drawn until the
+    // next frame, and 16 ms between the crunch and the jaw closing is visible.
+    if (events) {
+      for (const ev of events) {
+        if (ev.type === 'eat') this.skin.onEat(st, ev);
+        else if (ev.type === 'growth') this.skin.onGrowth(st, ev.size);
+        else if (ev.type === 'milestone') this.skin.onMilestone(st, ev.frac);
+      }
+    }
+    this.skin.update(st);
+  }
+
+  // Edible-ish mass per bearing sector, for the two skins that point at things
+  // (ICP Radar's blips, Eyeballs' gaze). `cameraBlockers` is the only broad
+  // phase already maintained against demolition — a building the player has
+  // eaten stops being a blocker — so this reuses it rather than adding one.
+  // Every 4th frame: both consumers damp their own response and cannot step.
+  _skinSectors(h, out) {
+    if ((this._skinSectorTick = (this._skinSectorTick || 0) + 1) % 4 !== 1) return;
+    const bl = this.sim.cameraBlockers;
+    out.fill(0);
+    if (!bl) return;
+    // Fixed floor on the range: a radar that only sees 2.9 m at SIZE 1 shows
+    // nothing at all, and "what is around me" does not shrink just because the
+    // hole is small.
+    const R = Math.max(18, h.radius * 2.6), R2 = R * R;
+    for (let i = 0; i < bl.length; i++) {
+      const b = bl[i];
+      if (b.h <= 0) continue;                       // demolished; still in the list
+      const dx = (b.minX + b.maxX) * 0.5 - h.x, dz = (b.minZ + b.maxZ) * 0.5 - h.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > R2) continue;
+      const s = ((Math.atan2(dz, dx) / (Math.PI * 2) + 1) * 16 | 0) % 16;
+      out[s] = Math.min(1, out[s] + b.h * 0.05 * (1 - d2 / R2));
+    }
+  }
+
   // ------------------------------------------------------------------ frame
-  update(dt) {
+  update(dt, events) {
     this.time += dt;
     const h = this.sim.hole;
     this.holeMesh.position.set(h.x, 0, h.z);
     this.holeMesh.userData.disc.scale.setScalar(h.radius);
-    this.holeMesh.userData.ring.scale.setScalar(h.radius);
 
     // rim glow: builds with combo intensity; blinks when the chain is about
     // to drop (urgency cue)
-    const ringMat = this.holeMesh.userData.ring.material;
     let glow = Math.min(0.6, h.chain * 0.05);
     if (h.chainTimer > 0 && h.chainTimer < 0.5 && Math.sin(this.time * 24) > 0) glow = 0.9;
-    ringMat.color.copy(this._skinColor).lerp(this._hotWhite, glow);
+    // Same number as before, one consumer further along: every skin lerps its
+    // rim toward white by it, so the combo build-up and the about-to-drop blink
+    // read identically on all seventeen rather than only on the flat ring.
+    this._skinFrame(dt, h, glow, events);
 
     // Reduced Motion: pose the ambient set once at t=0 and never touch it
     // again — birds perched, ferry at its berth, signage at a steady glow.
@@ -1993,6 +2074,11 @@ export class VoxelWorld3D {
   // READY gate, so the establishing shot is covered too.
   render(camera) {
     this._followShadow(camera);
+    // Skins fade their additive detail in as the camera pulls back, and this is
+    // the only place the camera exists. update() therefore reads the PREVIOUS
+    // frame's distance — one frame of lag on a slow brightness ramp, against
+    // threading a camera through a method that has never needed one.
+    this._skinCamDist = camera.position.distanceTo(this.holeMesh.position);
     // Fog band pinned to the back of the frustum — see the constructor. 0.995
     // rather than 1.0 so the ground is fully faded a metre BEFORE the clip
     // plane reaches it, never a metre after.
@@ -2018,6 +2104,15 @@ export class VoxelWorld3D {
     this._ambientMeshes.length = 0;
     this.ambient = null;
     if (this.decorMesh) { this.scene.remove(this.decorMesh); this.decorMesh = null; }
+    // The skin owns geometry AND materials (one pair per part) and its world
+    // group is parented to the scene, not to the hole, so it needs removing
+    // from both places — _ownedMats never saw either.
+    if (this.skin) {
+      this.holeMesh.remove(this.skin.local);
+      this.scene.remove(this.skin.world);
+      this.skin.dispose();
+      this.skin = null;
+    }
     for (const im of this.imMeshes) { this.scene.remove(im); im.dispose(); }
     this.imMeshes.length = 0;
     this._shadowMeshes.length = 0;

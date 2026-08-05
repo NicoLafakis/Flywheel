@@ -114,6 +114,10 @@ const MATERIALS = {
 
 // Structural-zone bookkeeping (see _buildZones / _recalcSupport).
 const ZONE_CELL = 4;  // meters per cell of the zone lookup grid
+// Coarse cell for the retired-rubble index (_restIdx). Only the hole's removal
+// disc ever queries it, so wide cells (few lookups, longer lists) beat narrow
+// ones; 8 m keeps a SIZE 12 disc down to ~9 cells.
+const REST_CELL = 8;
 // A block's cantilever span can never exceed the largest material maxSpan (the
 // BFS refuses any edge that would push it past the cap), so the hanging test
 // `dist < remR + (span + 1.5) * hangScale` can never reach further than this.
@@ -128,6 +132,13 @@ const cellKey = (x, z) => (((x + 8192) & 0x3FFF) << 14) | ((z + 8192) & 0x3FFF);
 // 16x fewer entries than a fine-column index, and no shipped scene reaches
 // +/-2048 m, so it is injective for everything that exists.
 const mCellKey = (x, z) => (((x + 2048) & 0xFFF) << 12) | ((z + 2048) & 0xFFF);
+// Both packs mask rather than range-check, so a scene that outgrows them does
+// not fail — it ALIASES, and two far-apart columns quietly share a bucket. That
+// surfaces as phantom collisions against nothing, which is a miserable thing to
+// debug. `_assertCellKeyRange` (run once per scene build) turns the silent
+// failure into a loud one. Limits are half-widths, in metres.
+const CELL_KEY_LIMIT_M = 8192 * FINE; // fine-column index: ±2048 m at FINE 0.25
+const MCELL_KEY_LIMIT_M = 2048;       // 1 m camera-blocker index
 const DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
 // angle-of-repose probe offsets, flattened: the literal used to be rebuilt for
 // every grounded debris block on every step
@@ -157,9 +168,36 @@ export class VoxelSandboxSim {
     // Same idea, for the movers: a city of 73k blocks contains a few hundred
     // falling ones, so debris/contact/chunk passes iterate this list (kept in
     // block-array order, which IS id order) instead of scanning every block.
-    this._falling = [];        // every block currently in state 'falling' (superset; predicates still checked)
+    this._falling = [];        // every ACTIVE block in state 'falling' (superset; predicates still checked)
     this._newFalling = [];     // detached this step, merged into _falling before the physics passes
     this._fallingRemoved = 0;  // consumed entries awaiting compaction
+    // Settled rubble is retired OUT of `_falling` (see _retireResting). It used
+    // to stay there forever — `_syncFalling` only ever dropped CONSUMED entries
+    // — so a long session walked an ever-growing list four times per step
+    // (debris, awake-build, obstacle-build, sleep-commit) to skip the same
+    // sleeping blocks again and again. Measured on a 120 s brooklyn plough:
+    // 11,853 entries, 90% of them asleep.
+    //
+    // Retired blocks are still fully simulated the moment anything disturbs
+    // them; they are simply not RESCANNED while nothing does. Two things find
+    // them again: `_restIdx`, a coarse spatial index the hole sweeps each step
+    // (so the void still swallows resting piles), and every wake path calling
+    // `_reviveResting` (support loss, chunk capture, shatter).
+    this._restIdx = new Map();  // coarse cell -> retired sleepers, id-ascending
+    this._restCount = 0;        // retired-and-indexed total, for diagnostics
+    // Retirement is DEFERRED past FRESH_WINDOW. `_groupChunks` seeds its flood
+    // fill from `_falling`, and its seed guard is `time - fallT <= FRESH_WINDOW`
+    // — so a block pulled out of the list while still fresh is a seed that never
+    // fires, which changes which chunks form and in what order. Blocks that fall
+    // asleep inside their fresh window wait here instead; once past it, the seed
+    // guard would have skipped them anyway and their absence is unobservable.
+    this._retirePend = [];
+    // Live indices into _falling for the passes that walk it while a revival
+    // can splice into it. Any such pass must use an index (never for-of) and
+    // register its cursor here, or an insert below the cursor shifts the walk
+    // backwards onto an entry it already processed.
+    this._debrisCursor = -1;    // _stepDebris
+    this._groupCursor = -1;     // _groupChunks (via _makeChunk sweeping a sleeper)
     this._scStamp = 0;         // _resolveStaticContacts dedup generation
     // Support zones: the connectivity graph splits into physically separate
     // structures, and the support BFS never crosses between them (see
@@ -180,6 +218,7 @@ export class VoxelSandboxSim {
     else if (scene === 'upper-manhattan') buildUpperManhattan(this);
     else if (scene === 'brooklyn') buildBrooklyn(this);
     else this._buildScene();
+    this._assertCellKeyRange(scene);
     this._buildNeighbors();
     this._buildZones();
     this.totalBlocks = this.blocks.length;
@@ -1052,8 +1091,11 @@ export class VoxelSandboxSim {
     };
     for (const b of members) {
       // a settled block swept into a rigid body moves again, so it leaves the
-      // resting-rubble index and goes back to being bucketed per step
-      if (b.asleep) this._sleepObsRemove(b);
+      // resting-rubble index and goes back to being bucketed per step.
+      // NB it stays `asleep` here but gains a parentChunk, which makes it a
+      // contact OBSTACLE contributed from `_falling` — so it has to be back in
+      // that list even though nothing woke it.
+      if (b.asleep) { this._sleepObsRemove(b); this._reviveResting(b); }
       b.parentChunk = chunk;
       b.relX = b.x - cx; b.relY = b.y - cy; b.relZ = b.z - cz;
     }
@@ -1090,7 +1132,11 @@ export class VoxelSandboxSim {
   // interfaces (glass, panel seams) are not crossed, so structures break
   // along their material joints. Loose blocks always fall individually.
   _groupChunks() {
-    for (const b of this._falling) {
+    // indexed walk: _makeChunk can sweep in a sleeper that fell inside
+    // FRESH_WINDOW, and reviving it splices into this same array
+    const f = this._falling;
+    for (this._groupCursor = 0; this._groupCursor < f.length; this._groupCursor++) {
+      const b = f[this._groupCursor];
       if (b.state !== 'falling' || b.parentChunk || b.matType === 'loose') continue;
       if (this.time - b.fallT > FRESH_WINDOW) continue;
       const members = [];
@@ -1114,6 +1160,42 @@ export class VoxelSandboxSim {
       }
       for (const m of members) m._mark = false;
       if (members.length >= CHUNK_MIN) this._makeChunk(members);
+    }
+    this._groupCursor = -1;
+  }
+
+  // Fail loudly if a scene outgrows either cell-key pack. Both mask instead of
+  // range-checking, so past the limit two distant columns silently share a
+  // bucket and the solver reports contacts against blocks that are not there.
+  // Runs once per scene build, so it costs nothing per frame. Checked against
+  // the block EXTENT plus the broad-phase padding (_sleepObsAdd/insertInto pad
+  // one fine cell either side of the footprint) and the hole's movement clamp,
+  // since debris travels with the hole.
+  _assertCellKeyRange(scene) {
+    let mnX = Infinity, mxX = -Infinity, mnZ = Infinity, mxZ = -Infinity;
+    for (const b of this.blocks) {
+      const r = (b.fs + 2) * FINE; // footprint + the one-cell broad-phase pad
+      if (b.x - r < mnX) mnX = b.x - r;
+      if (b.x + r > mxX) mxX = b.x + r;
+      if (b.z - r < mnZ) mnZ = b.z - r;
+      if (b.z + r > mxZ) mxZ = b.z + r;
+    }
+    if (!this.blocks.length) return;
+    const rect = this.boundsRect;
+    const reach = Math.max(
+      Math.abs(mnX), Math.abs(mxX), Math.abs(mnZ), Math.abs(mxZ),
+      rect ? Math.max(Math.abs(rect.minX), Math.abs(rect.maxX), Math.abs(rect.minZ), Math.abs(rect.maxZ)) : this.bounds,
+    );
+    if (reach >= CELL_KEY_LIMIT_M) {
+      throw new RangeError(
+        `voxelsim: scene '${scene}' reaches ${reach.toFixed(1)} m from origin, but cellKey is ` +
+        `injective only to ±${CELL_KEY_LIMIT_M} m (14 bits per axis at FINE ${FINE}). ` +
+        'Widen the pack before shipping this scene — past the limit it aliases silently.');
+    }
+    if (reach >= MCELL_KEY_LIMIT_M) {
+      throw new RangeError(
+        `voxelsim: scene '${scene}' reaches ${reach.toFixed(1)} m from origin, but mCellKey ` +
+        `(camera-blocker index) is injective only to ±${MCELL_KEY_LIMIT_M} m.`);
     }
   }
 
@@ -1174,6 +1256,7 @@ export class VoxelSandboxSim {
             const i = sl.indexOf(s);
             if (i >= 0) sl.splice(i, 1);
             s.asleep = false;
+            this._reviveResting(s); // support gone: back into the active list
             this._sleepObsRemove(s);
             this._topRemove(s); // its own column contribution re-evaluates
           }
@@ -1265,11 +1348,95 @@ export class VoxelSandboxSim {
     }
   }
 
+  // --- retired resting rubble --------------------------------------------------
+  // Settled blocks leave `_falling` and live in a coarse spatial index instead.
+  // REST_CELL is deliberately much wider than the fine broad-phase cell: this
+  // index is only ever swept by the hole's removal disc, so a handful of cells
+  // per step beats either 2,809 fine-column lookups or a linear walk of every
+  // sleeper in the world.
+  //
+  // Order discipline is the same as everywhere else in the solver: `_falling`
+  // stays id-ascending and a revived block is spliced back at its id position,
+  // so every pass still visits blocks in block-array order and a revived block
+  // is seen at exactly the point in the sequence it would have occupied had it
+  // never left. That is what keeps this bit-identical rather than merely
+  // plausible.
+  _restKey(b) { return mCellKey(Math.floor(b.x / REST_CELL), Math.floor(b.z / REST_CELL)); }
+
+  _retireResting(b) {
+    if (b._retired) return;
+    b._retired = true;
+    const k = this._restKey(b);
+    b._restIdxKey = k;
+    let arr = this._restIdx.get(k);
+    if (!arr) { arr = []; this._restIdx.set(k, arr); }
+    let lo = 0, hi = arr.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid].id < b.id) lo = mid + 1; else hi = mid; }
+    arr.splice(lo, 0, b);
+    this._restCount++;
+  }
+
+  // Put a retired block back into the active list at its id position. Safe to
+  // call mid-`_stepDebris`: the cursor is nudged when the insert lands at or
+  // before it, so the walk neither repeats an entry nor skips one — matching
+  // the old behaviour where the block was simply already there.
+  _reviveResting(b) {
+    if (!b._retired) return;
+    b._retired = false;
+    this._restCount--;
+    const arr = this._restIdx.get(b._restIdxKey);
+    if (arr) {
+      const i = arr.indexOf(b);
+      if (i >= 0) arr.splice(i, 1);
+      if (arr.length === 0) this._restIdx.delete(b._restIdxKey);
+    }
+    b._restIdxKey = undefined;
+    if (b.state !== 'falling') return; // consumed on its way out; nothing to re-run
+    const f = this._falling;
+    let lo = 0, hi = f.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (f[mid].id < b.id) lo = mid + 1; else hi = mid; }
+    if (f[lo] === b) return;
+    f.splice(lo, 0, b);
+    if (lo <= this._debrisCursor) this._debrisCursor++;
+    if (lo <= this._groupCursor) this._groupCursor++;
+  }
+
+  // The hole is the one thing that reaches retired rubble without any contact
+  // event telling us so, so sweep the index it covers and revive what it is
+  // about to swallow. Revived blocks are handed to the normal `_stepDebris`
+  // path, which applies the identical `dist2 <= remR2` test — this pre-pass
+  // only decides what gets LOOKED at, never what happens.
+  _wakeRestingUnderHole(remR) {
+    if (this._restCount === 0) return;
+    const h = this.hole;
+    const c0 = Math.floor((h.x - remR) / REST_CELL), c1 = Math.floor((h.x + remR) / REST_CELL);
+    const d0 = Math.floor((h.z - remR) / REST_CELL), d1 = Math.floor((h.z + remR) / REST_CELL);
+    const remR2 = remR * remR;
+    let found = null;
+    for (let cx = c0; cx <= c1; cx++) {
+      for (let cz = d0; cz <= d1; cz++) {
+        const arr = this._restIdx.get(mCellKey(cx, cz));
+        if (!arr) continue;
+        for (let i = 0; i < arr.length; i++) {
+          const b = arr[i];
+          const dx = h.x - b.x, dz = h.z - b.z;
+          if (dx * dx + dz * dz <= remR2) (found || (found = [])).push(b);
+        }
+      }
+    }
+    if (!found) return;
+    // id order, because _falling is id-ordered and the solver's pair sequence
+    // depends on it; a spatial walk visits cells in an arbitrary order
+    found.sort((a, b) => a.id - b.id);
+    for (let i = 0; i < found.length; i++) this._reviveResting(found[i]);
+  }
+
   // wake a sleeping debris block: unregister it and drop its solid
   // contribution (its own support re-evaluates from the pile)
   _unsleep(b) {
     if (!b.asleep) return;
     b.asleep = false;
+    this._reviveResting(b);
     this._sleepObsRemove(b);
     const sl = this._sleepers.get(b.restCol);
     if (sl) {
@@ -1398,6 +1565,7 @@ export class VoxelSandboxSim {
     b.parentChunk = null;
     b.fallT = -1; // settled debris never re-groups into chunks
     b.asleep = false;
+    this._reviveResting(b);  // shattered out of a chunk: it moves again
     this._sleepObsRemove(b); // no-op unless it somehow still held resting cells
     b.vx = chunk.vx * 0.5 + this.rng.float(-1.5, 1.5) * scatter;
     b.vy = Math.max(0, -chunk.vy * 0.1) + this.rng.float(0, 1.5) * scatter;
@@ -1414,7 +1582,17 @@ export class VoxelSandboxSim {
     const attractR2 = attractR * attractR;
     const rimR = h.radius + INSTAB_ZONE + 0.5;
 
-    for (const b of this._falling) {
+    // Retired rubble the hole has reached rejoins the active list first, at its
+    // id position, so the walk below meets it exactly where it always did.
+    this._wakeRestingUnderHole(remR);
+
+    // Indexed walk, not for-of: _unsleep -> _topRemove can wake a whole pile
+    // mid-loop and each revival splices into this very array. The cursor is
+    // adjusted by _reviveResting so an insert below it does not shift the walk
+    // backwards onto an entry already processed.
+    const f = this._falling;
+    for (this._debrisCursor = 0; this._debrisCursor < f.length; this._debrisCursor++) {
+      const b = f[this._debrisCursor];
       if (b.state !== 'falling' || b.parentChunk) continue;
       const dx = h.x - b.x, dz = h.z - b.z;
       const dist2 = dx * dx + dz * dz;
@@ -1518,12 +1696,14 @@ export class VoxelSandboxSim {
         }
       }
     }
+    this._debrisCursor = -1;
     this._resolveDebrisContacts();
     // commit sleep candidates: grounded, slow, and now provably contact-free.
     // Even inside the attraction zone — constant vacuum pressure on resting
     // blocks is what ground piles into self-clipping churn; the hole wakes
     // sleepers when it reaches them (overVoid), and support loss wakes the rest.
-    for (const b of this._falling) {
+    let retired = 0;
+    for (const b of f) {
       if (!b._wantSleep) continue;
       b._wantSleep = false;
       if (b.state !== 'falling' || b.parentChunk || b.asleep || b._inContact) continue;
@@ -1538,6 +1718,30 @@ export class VoxelSandboxSim {
       sl.push(b);
       this._topAdd(b);
       this._sleepObsAdd(b);
+      // it has settled: stop rescanning it every step from here on — but not
+      // before its chunk-seed window closes (see _retirePend)
+      if (this.time - b.fallT > FRESH_WINDOW) { this._retireResting(b); retired++; }
+      else this._retirePend.push(b);
+    }
+    // Drain the deferred queue: anything now past its fresh window and still
+    // undisturbed leaves the list. Anything woken, chunked or eaten in the
+    // meantime is simply dropped from the queue — the wake paths already put it
+    // back in play. Walked back-to-front so the swap-remove cannot skip an entry.
+    const pend = this._retirePend;
+    for (let i = pend.length - 1; i >= 0; i--) {
+      const b = pend[i];
+      const stale = b.state !== 'falling' || b.parentChunk || !b.asleep || b._retired;
+      if (!stale && this.time - b.fallT <= FRESH_WINDOW) continue;
+      pend[i] = pend[pend.length - 1];
+      pend.length--;
+      if (!stale) { this._retireResting(b); retired++; }
+    }
+    // one compaction pass, after the walk — splicing inside it would shift the
+    // iteration under itself
+    if (retired) {
+      let w = 0;
+      for (let i = 0; i < f.length; i++) if (!f[i]._retired) f[w++] = f[i];
+      f.length = w;
     }
   }
 
@@ -1599,6 +1803,18 @@ export class VoxelSandboxSim {
       for (const b of awake) insertInto(occMove, b);
       for (const b of awake) {
         const fx = Math.round(b.x / FINE - b.fs / 2), fz = Math.round(b.z / FINE - b.fs / 2);
+        // Vertical pre-reject. These buckets are keyed on (x, z) only, so one
+        // cell of a settled pile holds every block in that column at every
+        // height, and the overwhelming majority of candidates are nowhere near
+        // b vertically — measured 73,804 _separate calls per step against ~417
+        // awake bodies, of which only 1,791 produced a push (97.6% no-ops).
+        // `_separate` already discards these on `pen <= 0`; testing its most
+        // selective term here just avoids the call. The condition is a strict
+        // subset of that early-out, so the surviving set and the order in which
+        // it is processed are both unchanged — this is a pure cost cut.
+        // NB b.y is read live on every test, never hoisted: _pushAxis moves b
+        // mid-loop, and _separate's own py term sees the updated position.
+        const bhs = b.s / 2;
         for (let ix = -1; ix <= b.fs; ix++) {
           for (let iz = -1; iz <= b.fs; iz++) {
             const k = keyInt(fx + ix, fz + iz);
@@ -1606,19 +1822,41 @@ export class VoxelSandboxSim {
             if (mo) {
               for (const o of mo) {
                 if (o === b || o.id < b.id) continue; // each pair once per round
-                this._separate(b, o, true);
+                const dy = b.y - o.y;
+                if (bhs + o.s / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, true);
               }
             }
             const ob = occObs.get(k), sb = sleepObs.get(k);
+            let o = null;
             if (ob && sb) {
               let p = 0, q = 0;
-              while (p < ob.length && q < sb.length) this._separate(b, ob[p].id < sb[q].id ? ob[p++] : sb[q++], false);
-              while (p < ob.length) this._separate(b, ob[p++], false);
-              while (q < sb.length) this._separate(b, sb[q++], false);
+              while (p < ob.length && q < sb.length) {
+                o = ob[p].id < sb[q].id ? ob[p++] : sb[q++];
+                const dy = b.y - o.y;
+                if (bhs + o.s / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+              }
+              while (p < ob.length) {
+                o = ob[p++];
+                const dy = b.y - o.y;
+                if (bhs + o.s / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+              }
+              while (q < sb.length) {
+                o = sb[q++];
+                const dy = b.y - o.y;
+                if (bhs + o.s / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+              }
             } else if (ob) {
-              for (const o of ob) this._separate(b, o, false);
+              for (let p = 0; p < ob.length; p++) {
+                o = ob[p];
+                const dy = b.y - o.y;
+                if (bhs + o.s / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+              }
             } else if (sb) {
-              for (const o of sb) this._separate(b, o, false);
+              for (let q = 0; q < sb.length; q++) {
+                o = sb[q];
+                const dy = b.y - o.y;
+                if (bhs + o.s / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+              }
             }
           }
         }

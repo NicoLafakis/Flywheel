@@ -3,6 +3,8 @@
 
 import * as THREE from 'three';
 import { METROS } from './levels.js';
+import { makeSkin } from './skins.js';
+import { edibleTierUpTo } from './tiers.js';
 
 let _randSeed = 12345;
 function pseudoRand() {
@@ -267,28 +269,43 @@ function roadTexture() {
   return tex;
 }
 
-function makeHoleMesh(color) {
+// Rivals get the flat tinted ring they always had. The player gets a skin from
+// js/skins.js instead — same disc, same y-stack, but the ring is replaced by
+// whatever the equipped row builds.
+function makeHoleMesh(color, skin) {
   const group = new THREE.Group();
   const disc = new THREE.Mesh(circleGeo(), new THREE.MeshBasicMaterial({ color: 0x05060a }));
   disc.rotation.x = -Math.PI / 2;
   disc.position.y = 0.05;
-  const ring = new THREE.Mesh(ringGeo(), new THREE.MeshBasicMaterial({
-    color,
-    depthTest: false,
-    depthWrite: false,
-  }));
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.06;
-  ring.renderOrder = 999;
-  group.add(disc, ring);
+  group.add(disc);
   group.userData.disc = disc;
-  group.userData.ring = ring;
+  if (skin) {
+    // Skins are authored against the sandbox's ground stack, where the disc
+    // sits at 0.01. This one sits at 0.05, so lift the whole group by the
+    // difference rather than re-authoring every part's y — that keeps the
+    // painter order between rim, teeth, lids and throat rings intact.
+    skin.local.position.y = 0.04;
+    group.add(skin.local);
+  } else {
+    const ring = new THREE.Mesh(ringGeo(), new THREE.MeshBasicMaterial({
+      color,
+      depthTest: false,
+      depthWrite: false,
+    }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.06;
+    ring.renderOrder = 999;
+    group.add(ring);
+    group.userData.ring = ring;
+  }
   return group;
 }
 
 export class World3D {
-  constructor(canvas, sim, skinColor = 0x4be34b, options = {}) {
+  // Third parameter is a SKIN ID, not a colour — see js/voxelworld.js for why.
+  constructor(canvas, sim, skinId = 'classic', options = {}) {
     this.sim = sim;
+    this.reducedMotion = !!options.reducedMotion;
     this.city = sim.city;
     const theme = METROS[sim.level.metroIndex].theme;
     this.palette = theme.palette;
@@ -411,8 +428,11 @@ export class World3D {
     }
 
     // --- holes ---
-    this.playerMesh = makeHoleMesh(skinColor);
+    this.skin = makeSkin(skinId);
+    this.playerMesh = makeHoleMesh(0, this.skin);
     this.scene.add(this.playerMesh);
+    // Ground marks stay where they were laid, so they hang off the scene.
+    this.scene.add(this.skin.world);
     this.rivalMeshes = sim.rivals.map(() => {
       const m = makeHoleMesh(0xb44bff);
       this.scene.add(m);
@@ -423,7 +443,9 @@ export class World3D {
   syncHole(mesh, h) {
     mesh.position.set(h.x, 0, h.z);
     mesh.userData.disc.scale.setScalar(h.radius);
-    mesh.userData.ring.scale.setScalar(h.radius);
+    // The player's mesh has a skin where the ring used to be, and the skin
+    // scales itself from the state object rather than from here.
+    if (mesh.userData.ring) mesh.userData.ring.scale.setScalar(h.radius);
   }
 
   setPerfMode(on) {
@@ -531,11 +553,91 @@ export class World3D {
     this.voxelAnims.push(...voxels);
   }
 
+  // ------------------------------------------------------------------- skins
+  //
+  // The sandbox renderer's twin — see js/voxelworld.js for the reasoning. One
+  // reused state object, no allocation, and every field a skin can read
+  // gathered in one place so js/skins.js never reaches into a sim.
+  _skinFrame(dt, h) {
+    // See js/voxelworld.js: a frame after dispose() must not throw.
+    if (!this.skin) return null;
+    const st = this._skinState || (this._skinState = {
+      t: 0, dt: 0, radius: 1, glow: 0, chain: 0, chainTimer: 0, size: 1, sizeFrac: 0,
+      progress: 0, speed: 0, heading: 0, x: 0, z: 0, camDist: 40, reduced: false,
+      sectorMass: new Float32Array(16),
+    });
+    this._skinTime = (this._skinTime || 0) + dt;
+    if (dt > 0) {
+      const dx = h.x - (this._skinPX ?? h.x), dz = h.z - (this._skinPZ ?? h.z);
+      st.speed = Math.hypot(dx, dz) / dt;
+    }
+    this._skinPX = h.x; this._skinPZ = h.z;
+    // Byte-for-byte the sandbox's rim-glow curve. The campaign never had one —
+    // its ring was a flat colour — so this is the campaign GAINING the combo
+    // build-up and the about-to-drop blink, on all seventeen skins at once.
+    let glow = Math.min(0.6, h.chain * 0.05);
+    if (h.chainTimer > 0 && h.chainTimer < 0.5 && Math.sin(this._skinTime * 24) > 0) glow = 0.9;
+
+    st.t = this._skinTime; st.dt = dt;
+    st.radius = h.radius; st.glow = glow;
+    st.chain = h.chain; st.chainTimer = h.chainTimer;
+    // The campaign's "how big am I" is the edible tier, not a SIZE ladder: it is
+    // the number that decides what the player is allowed to eat next.
+    const tier = edibleTierUpTo(h.radius);
+    st.size = tier; st.sizeFrac = 0;
+    st.progress = this.sim.level && this.sim.level.target
+      ? Math.min(1, h.mass / this.sim.level.target) : 0;
+    st.x = h.x; st.z = h.z;
+    st.camDist = this._skinCamDist ?? st.camDist;
+    st.reduced = this.reducedMotion;
+    this._skinSectors(h, st.sectorMass);
+
+    // There is no `growth` event either — the campaign's radius moves
+    // continuously on every meal. Crossing into a new edible tier is the real
+    // "you got bigger" beat: a whole class of the city just became food.
+    if (this._skinTier === undefined) this._skinTier = tier;
+    else if (tier > this._skinTier) { this._skinTier = tier; this.skin.onGrowth(st, tier); }
+    return st;
+  }
+
+  // Structure mass per bearing sector, for the skins that point at things.
+  // `this.blockers` is already maintained against consumption (an eaten
+  // building is spliced out at :581), so it is the broad phase to reuse rather
+  // than one to add. Every 4th frame; both consumers damp their own response.
+  _skinSectors(h, out) {
+    if ((this._skinSectorTick = (this._skinSectorTick || 0) + 1) % 4 !== 1) return;
+    out.fill(0);
+    const bl = this.blockers;
+    if (!bl) return;
+    const R = Math.max(18, h.radius * 2.6), R2 = R * R;
+    for (let i = 0; i < bl.length; i++) {
+      const b = bl[i];
+      if (b.h <= 0) continue;
+      const dx = (b.minX + b.maxX) * 0.5 - h.x, dz = (b.minZ + b.maxZ) * 0.5 - h.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > R2) continue;
+      const s = ((Math.atan2(dz, dx) / (Math.PI * 2) + 1) * 16 | 0) % 16;
+      out[s] = Math.min(1, out[s] + b.h * 0.05 * (1 - d2 / R2));
+    }
+  }
+
+  setReducedMotion(on) { this.reducedMotion = !!on; }
+
   // Apply sim events (eats, tides, unlock) then per-frame animation.
   update(dt, events) {
     const sim = this.sim;
+    const st = this._skinFrame(dt, sim.player);
     for (const ev of events) {
       if (ev.type === 'enter' || ev.flooded) {
+        // The bite fires on `enter`, NOT on `eat`. `enter` is pushed the moment
+        // the object commits and starts descending; `eat` only lands when the
+        // swallow completes, 0.22-0.62 s later (sim.js swallowDuration). A jaw
+        // wired to `eat` would close after the building had already gone.
+        //
+        // Deliberately outside the meshById lookup below: the bite reacts to
+        // the EVENT, and an object whose mesh is untracked must not silently
+        // swallow the feedback.
+        if (st && ev.type === 'enter' && ev.hole && ev.hole.isPlayer) this.skin.onEat(st, ev);
         const g = this.meshById.get(ev.obj.id);
         if (g) {
           if (ev.type === 'enter' && ev.hole) {
@@ -570,9 +672,11 @@ export class World3D {
         if (ev.obj.kind === 'landmark' && this.shield) {
           this.scene.remove(this.shield); this.shield = null;
         }
-      } else if (ev.type === 'unlocked' && this.shield) {
-        this.scene.remove(this.shield);
-        this.shield = null;
+      } else if (ev.type === 'unlocked') {
+        // The campaign has no `milestone` event. The landmark shield dropping is
+        // its one "you have arrived" beat, so that is what the skins react to.
+        if (st) this.skin.onMilestone(st, st.progress);
+        if (this.shield) { this.scene.remove(this.shield); this.shield = null; }
       } else if (ev.type === 'tide') {
         // visually widen the water to the new bounds
         const b = ev.bounds;
@@ -677,6 +781,8 @@ export class World3D {
 
     this.syncHole(this.playerMesh, sim.player);
     sim.rivals.forEach((r, i) => this.syncHole(this.rivalMeshes[i], r));
+    // Last, so every event this frame has already been folded into `st`.
+    if (st) this.skin.update(st);
   }
 
   setShadows(on) {
@@ -685,7 +791,20 @@ export class World3D {
     this.scene.traverse((c) => { if (c.isMesh) c.material.needsUpdate = true; });
   }
 
-  render(camera) { this.renderer.render(this.scene, camera); }
+  render(camera) {
+    // Skins fade additive detail in with camera distance, and this is the only
+    // place the camera exists; update() reads the previous frame's value.
+    this._skinCamDist = camera.position.distanceTo(this.playerMesh.position);
+    this.renderer.render(this.scene, camera);
+  }
   resize(w, h) { this.renderer.setSize(w, h, false); }
-  dispose() { this.renderer.dispose(); }
+  dispose() {
+    if (this.skin) {
+      this.playerMesh.remove(this.skin.local);
+      this.scene.remove(this.skin.world);
+      this.skin.dispose();
+      this.skin = null;
+    }
+    this.renderer.dispose();
+  }
 }

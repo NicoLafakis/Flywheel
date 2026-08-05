@@ -76,10 +76,43 @@ const FOLLOW_COAST = 1.2;
 // is clean: the sim integrates a normalised direction, so hole velocity is a
 // step function, not a noisy measurement.
 const FOLLOW_VEL_RATE = 12;
-// Manual-orbit grace before the chase resumes. Was 1.5 s, which read as "the
-// camera has given up" — and in the old drive-mode scheme A/D fed orbitDelta,
-// so it was re-armed every steering frame and the chase never ran at all.
-const ORBIT_HOLD = 0.7;
+// --- manual orbit vs. the chase ---------------------------------------------
+// Manual orbit no longer SUSPENDS the chase; it re-aims it. The old scheme held
+// the chase off for ORBIT_HOLD = 0.7 s after the last orbit frame and then let
+// the spring reclaim the yaw outright, and measured that is not a nudge:
+// steering left with Q for 1 s while driving forward gained the player 146.4 deg
+// of framing, the hold expired 0.700 s after release, and the spring — by then
+// carrying a 146 deg error, so w^2*err saturates the cap instantly — took the
+// whole of it back at the full 4.2 rad/s (241 deg/s) rate cap, leaving 2.7 deg
+// of the 146.4 deg after 2.3 s. At SIZE 12 that reclaim runs at 7.0 rad/s
+// (401 deg/s). That is the "camera fights me" report, exactly.
+//
+// The fix is structural rather than a longer timeout. Manual orbit accumulates
+// a persistent yaw OFFSET and the chase targets `heading + offset`, so the two
+// systems stop writing the same number: during a drag the target moves by
+// exactly the drag, the spring error is unchanged, and there is nothing left to
+// fight. The offset then eases back to zero on its own, and the two rates are
+// deliberately different because they are two different promises:
+//
+//   FAST (the spring, 4.2-7.0 rad/s) tracks the HEADING, so the framing the
+//   player chose stays attached through a turn — steer left and the camera
+//   still swings left, holding the same relative angle.
+//   SLOW (this unwind, 0.5 rad/s = 29 deg/s ceiling, tau 2.2 s) returns that
+//   relative angle to "directly behind", so a player who does nothing still
+//   gets auto-centred and a player who looked somewhere sees the camera settle
+//   rather than get overruled. 8x slower than the reclaim it replaces.
+//
+// The delay is the window in which a deliberate look is untouched. 1.2 s
+// matches FOLLOW_COAST for the same reason that number is 1.2 s: it is longer
+// than the worst chase swing (0.9 s), so a look taken during a turn survives
+// the turn.
+const ORBIT_RECENTRE_DELAY = 1.2;
+// Unwind is a first-order decay with a rate ceiling, not a plain lerp. A lerp's
+// peak rate is at t = 0 and scales with the offset, so a 180 deg look would
+// start back at 81 deg/s — the ceiling is what makes a big look and a small one
+// return at the same readable speed.
+const ORBIT_RECENTRE_RATE = 0.45;   // 1/s, tau = 2.2 s
+const ORBIT_RECENTRE_MAX = 0.5;     // rad/s ceiling (29 deg/s)
 // Target smoothing, SPATIAL — scaled by _spatialRate. 14/s = 71 ms in the
 // sandbox at SIZE 1 against 8/s = 125 ms in the campaign: the sandbox hole is
 // the thing the player is directly driving, and 125 ms of positional lag is the
@@ -159,7 +192,8 @@ export class ChaseCamera {
     this.shakeOffset = new THREE.Vector3();
     this._settingReduced = false;   // the in-game toggle; see the accessor below
     this.followDir = false;   // opt-in: swing the yaw behind the direction of travel
-    this._orbitHold = 0;      // manual-orbit grace period that suspends followDir
+    this._orbitHold = 0;      // grace (s) before a manual look eases back to centre
+    this._yawOffset = 0;      // the player's framing choice, RELATIVE to the heading
     this._followYaw = null;   // last commanded "behind the heading" yaw, or null
     this._followCoast = 0;    // s of chase left after the hole stopped moving
     this._yawVel = 0;         // rad/s, the chase spring's state
@@ -287,6 +321,22 @@ export class ChaseCamera {
     if (this.reducedMotion && this.introPhase === 'zoom') this.skipIntro();
   }
   setFollowDirection(val) { this.followDir = !!val; }
+
+  // Drop the manual look offset because it has just become meaningless.
+  //
+  // Controls latches the move basis to the LIVE camera yaw on the rising edge of
+  // input (controls.js getMove), so on that frame "behind the new heading" is by
+  // definition the yaw the camera already has — the offset was measured against
+  // the previous heading and no longer describes anything. It is a no-op on the
+  // camera itself: zeroing it moves the chase TARGET onto the current yaw, so
+  // the error is zero and nothing swings.
+  //
+  // Leaving it in place is not merely stale, it RATCHETS. Look 60 deg right,
+  // release, press forward: the basis adopts the dragged yaw so the hole turns
+  // 60 deg, the chase then wants another 60 deg on top, and the next press turns
+  // 60 deg again. A loop that runs once per press instead of once per frame is
+  // still a loop.
+  recentre() { this._yawOffset = 0; this._orbitHold = 0; }
   setSandboxSizeProgress(progress) {
     this.sandboxSizeProgress = Math.max(0, Math.min(1, progress || 0));
   }
@@ -661,12 +711,21 @@ export class ChaseCamera {
 
   update(dt, holeX, holeZ, holeRadius, orbitDelta, zoomDelta) {
     this.yaw += orbitDelta;
-    // Manual orbit suspends the chase and DUMPS its spring velocity — carrying a
-    // half-finished swing under the player's own drag is the "camera fights me"
-    // feel, and restarting the spring from rest is what makes the hand-back at
-    // the end of ORBIT_HOLD an ease rather than a resumed lurch.
-    if (orbitDelta) { this._orbitHold = ORBIT_HOLD; this._yawVel = 0; }
-    else if (this._orbitHold > 0) this._orbitHold -= dt;
+    // Manual orbit moves the camera AND the thing the chase aims at, by the same
+    // amount, on the same frame. The spring's error is therefore untouched by
+    // the player's own drag, so it neither fights the drag nor has to be
+    // suspended for it — and the half-finished swing it may be carrying stays
+    // meaningful, because the swing is toward the heading and the drag is now
+    // measured relative to that heading. Nothing to dump, nothing to hand back.
+    //
+    // followDir-only. Outside the sandbox nothing reads _yawOffset or
+    // _orbitHold, and leaving both at their initial 0 there keeps the campaign's
+    // yaw arithmetic exactly what it was.
+    if (this.followDir && orbitDelta) {
+      this._yawOffset = Math.atan2(
+        Math.sin(this._yawOffset + orbitDelta), Math.cos(this._yawOffset + orbitDelta));
+      this._orbitHold = ORBIT_RECENTRE_DELAY;
+    } else if (this._orbitHold > 0) this._orbitHold -= dt;
     this.dist = Math.min(40, Math.max(8, this.dist + zoomDelta));
 
     // Level intro timeline (inert unless beginIntro() was called).
@@ -762,8 +821,19 @@ export class ChaseCamera {
       const sizeT = this.sandboxSizeProgress;
       const omega = FOLLOW_OMEGA * (1 + (FOLLOW_OMEGA_RAMP - 1) * sizeT);
       const maxRate = FOLLOW_MAX_RATE * (1 + (FOLLOW_MAX_RATE_RAMP - 1) * sizeT);
-      if (this._followYaw !== null && this._followCoast > 0 && this._orbitHold <= 0) {
-        let err = this._followYaw - this.yaw;
+      if (this._followYaw !== null && this._followCoast > 0) {
+        // Ease the player's framing choice back to centre, but only while there
+        // is a live heading for "centre" to mean anything: park the hole and the
+        // chase stops, so a look taken while stationary is held indefinitely
+        // rather than quietly unwound against a stale heading.
+        if (this._orbitHold <= 0 && this._yawOffset) {
+          let d = this._yawOffset * Math.min(1, dt * ORBIT_RECENTRE_RATE);
+          const cap = ORBIT_RECENTRE_MAX * dt;
+          if (d > cap) d = cap; else if (d < -cap) d = -cap;
+          this._yawOffset -= d;
+          if (Math.abs(this._yawOffset) < 1e-4) this._yawOffset = 0;
+        }
+        let err = this._followYaw + this._yawOffset - this.yaw;
         err = Math.atan2(Math.sin(err), Math.cos(err)); // shortest signed angle
         // critically damped: a = w^2*err - 2*w*v, so it never overshoots and
         // therefore can never settle into a limit cycle around the heading

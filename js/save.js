@@ -7,6 +7,12 @@ export const CURRENT_VERSION = 10;
 function defaultSettings() {
   return {
     invertX: false, invertY: false, shadows: true, camDist: 1, reducedMotion: false, sfxVol: 1, turnSens: 1, perfMode: false,
+    // Tap/drag to move (world-space pointing) instead of the virtual joystick.
+    // Deliberately NOT a schema bump: an existing v10 save simply has no key,
+    // `!undefined` is true, and the first toggle writes it — so the setting
+    // works on old saves without spending a migration or racing another agent
+    // for the next version number.
+    pointMove: false,
     // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
     voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2,
   };

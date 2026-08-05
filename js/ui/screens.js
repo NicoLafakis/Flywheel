@@ -6,14 +6,15 @@ import { ORBIT_RATE, ORBIT_RATE_RAMP } from '../controls.js';
 import { buildBlockWord } from './blockword.js';
 import { buildSprocket } from './sprocket.js';
 
-export const SKINS = [
-  { id: 'classic', name: 'Classic Void', color: 0x4be34b, css: '#4be34b', price: 0 },
-  { id: 'neon', name: 'Neon Circuit', color: 0x00f0ff, css: '#00f0ff', price: 150 },
-  { id: 'lava', name: 'Lava Core', color: 0xff5a1f, css: '#ff5a1f', price: 250 },
-  { id: 'frost', name: 'Frost Rift', color: 0x70c0ff, css: '#70c0ff', price: 350 },
-  { id: 'galaxy', name: 'Galaxy Swirl', color: 0xb44bff, css: '#b44bff', price: 500 },
-  { id: 'gold', name: 'Golden Singularity', color: 0xffd23f, css: '#ffd23f', price: 800 },
-];
+// The shop shelf is the skin registry itself — js/skins.js owns the rows, this
+// file only draws them. Re-exported rather than re-imported at the call sites so
+// nothing that already did `import { SKINS } from './ui/screens.js'` has to
+// change, and so there is exactly one list of ids and prices in the codebase.
+// (Imported AND re-exported: a bare `export ... from` would not create the
+// local binding this file's own shop renderer needs.)
+import { SKINS, bakeSkinThumbnails } from '../skins.js';
+export { SKINS };
+
 export const ITEMS = [
   { id: 'clock5', name: '+5s Clock', desc: 'Every level gets 5 extra seconds.', price: 400 },
   { id: 'growth5', name: '+5% Growth', desc: 'Mass gained is 5% higher.', price: 500 },
@@ -159,11 +160,22 @@ export class Screens {
       <div class="coins">&#128176; ${this.save.coins} coins</div>
       <div class="shop-items"></div></div>`);
     const wrap = s.querySelector('.shop-items');
+    // A flat colour swatch could describe a skin when a skin WAS a colour. It
+    // cannot show teeth, a sweep or an eyelid, so the shelf renders each row's
+    // actual geometry — baked once into data URLs, cached for the session. The
+    // fallback is the old swatch, so a machine that cannot make a GL context
+    // still gets a usable shop.
+    const shots = bakeSkinThumbnails();
     for (const skin of SKINS) {
       const owned = this.save.ownedItems.includes(skin.id) || skin.price === 0;
       const equipped = this.save.equippedSkin === skin.id;
+      const shot = shots && shots.get(skin.id);
+      const art = shot
+        ? `<img class="preview" src="${shot}" alt="">`
+        : `<div class="swatch" style="background:${skin.css}"></div>`;
       const item = el(`<div class="shop-item"><h4>${skin.name}</h4>
-        <div class="swatch" style="background:${skin.css}"></div>
+        ${art}
+        <p class="blurb">${skin.blurb || ''}</p>
         <div class="price">${owned ? (equipped ? 'EQUIPPED' : 'OWNED') : skin.price + ' coins'}</div></div>`);
       const btn = el(`<button class="btn ${owned ? 'secondary' : ''}">${equipped ? 'EQUIPPED' : owned ? 'EQUIP' : 'BUY'}</button>`);
       btn.disabled = equipped;
@@ -262,6 +274,7 @@ export class Screens {
       return row;
     };
 
+    panel.appendChild(toggle('Tap to move', 'pointMove'));
     panel.appendChild(toggle('Invert move X', 'invertX'));
     panel.appendChild(toggle('Invert move Y', 'invertY'));
     panel.appendChild(toggle('Shadows', 'shadows'));
