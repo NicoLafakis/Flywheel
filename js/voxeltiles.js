@@ -99,6 +99,23 @@ const jointRamp = (d, w) => (d >= w ? 1 : Math.max(0, d) / w);
 //   grime     downward-biased soiling, 0..1
 //   res       authored AT ship resolution. No 4K maps in 1K slots.
 //   envInt    reflection probe strength; metals only, ignored on dielectrics
+//
+// A row may also carry parameters its own tile function reads — `spec` is passed
+// to `spec.tile(n, spec)`. Only 'metre' surfaces need this so far, and only
+// because they are the two rows whose depicted feature has a real-world size (see
+// WORLD SCALE below).
+//
+// WORLD SCALE, and why it touches exactly two rows.
+// A 'metre' tile repeats once per MAP unit: voxelsurfaces.js sets
+// `repeat.set(size, size)` from b.s, and voxelworld.js:1986 scales a UNIT cube by
+// b.s. Texel density is therefore `res` texels per map unit, fixed here and
+// independent of the scene's authoring scale — and a building's size in map units
+// scales with the map unit too, so tiles-per-pixel on screen is invariant as well.
+// Changing a scene from 1:6 to 1:2 CANNOT alter aliasing. Measured, not assumed.
+//
+// What it does change is what one map unit MEANS in real metres, so a tile whose
+// feature is a real object — a plank — depicts a different-sized object at each
+// scale. That is what `boards` below exists to express.
 export const SURFACES = [
   // The identity row. Reproduces voxelworld.js mortarTexture() exactly, so a
   // surface-aware bucket that resolves to this is indistinguishable from an
@@ -126,7 +143,25 @@ export const SURFACES = [
   // contribution to match the stylised, analytic lighting the scenes use.
   { id: 'mat_metal_seam', tile: tSeam, rough: 0.55, roughVar: 0.10, metal: 1.0, uv: 'brick', edge: 0.45, grime: 0.15, res: 256, envInt: 0.35 },
 
-  { id: 'mat_timber_dock', tile: tTimber, rough: 0.88, roughVar: 0.08, metal: 0.0, uv: 'metre', edge: 0.30, grime: 0.55, res: 256 },
+  // boards 8, not the 4 this shipped with. One tile is one map unit, so the board
+  // count IS the plank width: 4 boards read as 0.50 m planks at 1:2 and 1.50 m at
+  // 1:6, against real dock decking of 0.15-0.30 m. At 8 the planks are 0.25 m at
+  // 1:2 — the scale Nico specified — and the ramp measures 4.29 texels, clear of
+  // the 3.00 floor at the shipped res 256.
+  //
+  // If the scene stays at 1:6 this becomes 0.75 m, still the best available:
+  // 24 boards would be needed for 0.25 m there and that measures 2.34 texels at
+  // res 256 AND 2.84 at res 512, so it fails the floor at any resolution worth
+  // shipping. 1:6 simply cannot show real decking; 1:2 can. Ceiling at res 256 is
+  // 10 boards (3.63); above 12 needs res 512.
+  { id: 'mat_timber_dock', tile: tTimber, boards: 8, rough: 0.88, roughVar: 0.08, metal: 0.0, uv: 'metre', edge: 0.30, grime: 0.55, res: 256 },
+
+  // Deliberately NOT scale-parameterised. Real asphalt aggregate is 5-20 mm, and
+  // 20 mm needs 100 cells per map unit at 1:2 (2.56 texels per stone) or 300 at
+  // 1:6 (0.85) — both under the 3.00 floor. Aggregate is unreachable at every
+  // scale we ship, so this field is a stylised tone break rather than a depiction
+  // of stones, and there is no scale at which a different lattice would make it
+  // more truthful. Left alone.
   { id: 'mat_asphalt', tile: tAsphalt, rough: 0.95, roughVar: 0.04, metal: 0.0, uv: 'metre', edge: 0.25, grime: 0.20, res: 256 },
   { id: 'mat_stone_ashlar', tile: tAshlar, rough: 0.82, roughVar: 0.11, metal: 0.0, uv: 'brick', edge: 0.55, grime: 0.40, res: 256 },
   { id: 'mat_corrugated_rust', tile: tCorrugated, rough: 0.62, roughVar: 0.18, metal: 1.0, uv: 'brick', edge: 0.30, grime: 0.65, res: 256, envInt: 0.50 },
@@ -240,13 +275,22 @@ function tSeam(n) {
   return out;
 }
 
-// Dock timber: 4 boards, 6-texel gap, per-board value jitter, grain stretched
-// 8:1 along the board. Grain is the one place a stretched lattice is right —
-// wood really is anisotropic.
-function tTimber(n) {
+// Dock timber: `boards` planks per map unit, per-board value jitter, grain
+// stretched 8:1 along the board. Grain is the one place a stretched lattice is
+// right — wood really is anisotropic.
+//
+// The gap is a fraction of BOARD HEIGHT, not of n. The original
+// `max(4, round(n / 42))` was blind to the board count, which is fine at 4 boards
+// and silently collapses above 8: at 24 boards it puts 12 texels of ramp inside a
+// 10.7-texel board, so the plateau never forms and the gap stops reading as a
+// gap. Anyone raising `boards` would have hit that with no signal other than the
+// ramp score sagging. 0.15 rather than 0.10 because 8 boards at 0.10 measured
+// 3.04 texels — passing, but with no margin left for the edge and grime passes.
+function tTimber(n, spec) {
   const rnd = mulberry32(hash32('timber'));
-  const boards = 4, G = Math.max(4, Math.round(n / 42));
+  const boards = spec?.boards ?? 4;
   const bh = n / boards;
+  const G = Math.max(3, Math.round(bh * 0.15));
   const tint = new Float32Array(boards);
   for (let i = 0; i < boards; i++) tint[i] = 0.80 + rnd() * 0.26;
   const grain = fbm(n, 24, 3, 3, mulberry32(hash32('grain')));
@@ -351,7 +395,10 @@ const TARGET_MEAN = 0.92;
 // rather than a quantised copy of it.
 export function assembleField(spec) {
   const n = spec.res;
-  const base = spec.tile(n);
+  // `spec` is passed so a tile can read its own row's parameters (tTimber's
+  // `boards`). Every other tile ignores the second argument, and the CONTROL in
+  // tools/shimmer.mjs does too, so this stays backward compatible.
+  const base = spec.tile(n, spec);
   const border = Math.max(3, Math.round(n * 3 / 128));
   const soil = fbm(n, 4, 4, 3, mulberry32(hash32(spec.id + '_grime')));
   const v = new Float32Array(n * n);
