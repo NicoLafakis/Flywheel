@@ -222,8 +222,9 @@ export class Controls {
     this.joyVec = { x: 0, y: 0 };
     this._joyThrow = 50;      // px, re-measured off the ring on every arm
     // Has THIS stick gesture ever been past the dead zone? Distinguishes a
-    // thumb that is steering from a finger that merely landed on the stick's
-    // half on its way to a pinch. See onPointerDown.
+    // thumb that is steering from a finger that merely landed on its way to a
+    // pinch — which is now EVERY first finger of a pinch, since the stick's
+    // home is the whole surface. See onPointerDown.
     this._joyEverLive = false;
     // The camera yaw the stick's angles are read against. Latched, never live:
     // see the long note on _latchBasis below — this is the field the feedback
@@ -356,52 +357,66 @@ export class Controls {
     // Hold the gesture even if it wanders off the canvas or off the document.
     this._capture(e);
     // Any pointer anywhere retires the first-run hint — it is teaching "touch
-    // the screen", so the first touch has by definition finished its job, even
-    // if it landed on the orbit half.
+    // the screen", so the first press has by definition finished its job.
     this._dismissHint();
-    // A stick finger that has NEVER left the dead zone was never steering — it
+    // A stick pointer that has NEVER left the dead zone was never steering — it
     // was half of a pinch that had not opened yet. Hand it back to the camera
     // pool before any role is assigned below.
     //
-    // Without this, a centred pinch is not merely ignored, it drives the
-    // machine. The stick's home is clientX < innerWidth/2, and on a 390 px
-    // phone that boundary sits at 195 px — straight through the middle, which
-    // is exactly where a player who is NOT steering puts two fingers to zoom.
-    // Measured on the staged tree from a parked dist of 24 m: fingers at x=130
-    // and x=270 converging gave dist 24 -> 24 (no zoom at all) and moved the
-    // hole 12.12 m; spreading from x=150/250 moved it 13.31 m. The left finger
-    // took the stick, the converge dragged it to full throw, and the zoom
-    // attempt read as "drive". Silently doing the wrong thing beats doing
-    // nothing only in the sense that it is louder.
+    // This path used to be a fix for one bad case (a pinch straddling the old
+    // left-half boundary). Now that the stick's home is the WHOLE surface it is
+    // load-bearing for every two-pointer gesture there is: the first pointer of
+    // a pinch always arms the stick, wherever it lands, so this release is the
+    // only thing standing between "zoom" and "zoom while driving off". It runs
+    // before any role is assigned precisely so the freed pointer is available
+    // to be re-dealt as a camera pointer in the same event.
     //
     // "Never past the dead zone" is a LATCH (_joyEverLive), not the current
     // deflection: a thumb that pushed and came back to centre is a player
     // deliberately coasting to a stop, and stealing the stick from them
-    // mid-drive would be the same class of bug pointing the other way.
+    // mid-drive would be the same class of bug pointing the other way. That
+    // asymmetry is the whole design — a pointer that HAS steered keeps the
+    // stick and the newcomer orbits, so drive-and-look works; a pointer that
+    // has NOT steered yields, so pinch-to-zoom works.
     const freed = !this.pointMove && this.joyId !== null && !this._joyEverLive &&
       this._releaseStickToCamera();
     this._touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (this.pointMove) {
       // FIRST pointer points, SECOND orbits, and the joystick is gone. Not a
-      // coexistence — a replacement, for three reasons: pointing needs the
-      // whole screen, so the left/right half split that gives the joystick its
-      // home would make half the city unreachable; the joystick steers a
-      // persistent heading while pointing drives at a world point directly, so
-      // a frame where both were live would have two different answers to "what
-      // does this input mean"; and a second pointer is the one gesture that
-      // cannot be confused with the first. Manual look survives, it just moves
-      // to the other thumb.
+      // coexistence — a replacement. The old argument for that was partly
+      // spatial (pointing needs the whole screen, the stick was fenced into
+      // half of it); the stick now claims the whole surface too, which does not
+      // weaken the case, it removes the only part of it that was ever
+      // negotiable. What is left is the part that always did the work: the
+      // stick steers a persistent heading while pointing drives at a world
+      // point directly, so a frame where both were live would have two
+      // different answers to "what does this input mean" — and now they would
+      // also be competing for the same first pointer. Manual look survives, it
+      // just moves to the second pointer.
       if (this._pt === null) this._beginPoint(e.pointerId, e.clientX, e.clientY, e.timeStamp);
       else if (this.orbitId === null) { this.orbitId = e.pointerId; this.orbitLastX = e.clientX; }
       this._rebasePinch();
       return;
     }
+    // ANYWHERE on the surface, not the left half. The half-split was a
+    // twin-stick convention — a stick fenced left because the right was
+    // reserved for orbit — imported into a one-thumb casual game where the
+    // genre (hole.io, and floating-stick guidance generally) just lets you drag
+    // from wherever your thumb already is. The fence was the thing denying
+    // "press anywhere and move from that spot".
+    //
+    // What it costs, stated plainly: one-pointer orbit is gone in this mode.
+    // A single pointer now always means DRIVE, so framing the shot needs a
+    // second pointer (which orbits by travel, or pinches by separation once the
+    // stick yields above). That is the trade — the camera is no longer reachable
+    // one-thumbed, and Q/E remain the only single-input look.
+    //
     // `!freed` blocks the pointer that TRIGGERED the release from re-arming.
-    // Not belt-and-braces: without it that pointer walks straight into the
-    // branch below and takes the stick in the freed one's place, stealing the
-    // same pinch one finger later. (Under touch events this had to hold across
-    // a whole changedTouches loop; one pointer per event now, same job.)
-    if (!freed && e.clientX < window.innerWidth * 0.5 && this.joyId === null) {
+    // Not belt-and-braces: without it that pointer walks straight into this
+    // branch and takes the stick in the freed one's place, stealing the same
+    // pinch one pointer later. It matters more now than it did behind the
+    // half-split, because every second pointer lands inside the stick's home.
+    if (!freed && this.joyId === null) {
       this.joyId = e.pointerId;
       this.joyOrigin = { x: e.clientX, y: e.clientY };
       this.joyVec = { x: 0, y: 0 };
