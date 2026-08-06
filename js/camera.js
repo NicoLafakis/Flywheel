@@ -242,6 +242,16 @@ export class ChaseCamera {
     this._yawOffset = 0;      // the player's framing choice, RELATIVE to the heading
     this._followYaw = null;   // last commanded "behind the heading" yaw, or null
     this._followCoast = 0;    // s of chase left after the hole stopped moving
+    // Yaw the chase must aim at INSTEAD of the drive heading, or null for the
+    // normal "sit behind where you are going" behaviour. See setChaseYawHold.
+    this._chaseYawHold = null;
+    // Back-reference so the module that owns the steering can reach the rig.
+    // main.js hands Controls the THREE camera (controls.setCamera(cam.camera)),
+    // not this object, and the chase-versus-stick arbitration below has to be
+    // decided by whoever knows which scheme is driving — which is Controls.
+    // Riding on userData rather than adding a plumbing argument keeps that fact
+    // between the two files it concerns.
+    this.camera.userData.rig = this;
     this._yawVel = 0;         // rad/s, the chase spring's state
     this._velX = 0;           // smoothed hole velocity, UNCLAMPED — see update()
     this._velZ = 0;
@@ -367,6 +377,35 @@ export class ChaseCamera {
     if (this.reducedMotion && this.introPhase === 'zoom') this.skipIntro();
   }
   setFollowDirection(val) { this.followDir = !!val; }
+
+  // Aim the chase at THIS yaw instead of at the drive heading, or pass null to
+  // go back to chasing the heading.
+  //
+  // Why the chase needs an off switch at all, stated where the switch is: the
+  // direction-chase is a TANK affordance. With A/D the heading is a rate the
+  // player integrates, they only ever nudge it, and swinging the view behind it
+  // is what makes a stationary spin visible at all. The TOUCH stick is not that
+  // — it names an absolute screen direction, so "down" means "come toward the
+  // camera", and a camera that immediately slews behind the new heading erases
+  // the only thing that made it down. Measured, 8 drag directions x 4 origins x
+  // 4 camera yaws: with the chase live every one of those 128 pushes settled to
+  // a screen-space travel direction of 0.0-2.0 deg (straight up-screen), and the
+  // camera's own yaw drifted by exactly the drag angle. Down went forward, and
+  // so did every other direction. Frozen, the same sweep tracks the drag to
+  // within 6.1 deg — and that residual is pure perspective foreshortening on the
+  // diagonals, 0.0 deg on all four cardinals.
+  //
+  // Held at the stick's LATCHED BASIS rather than simply frozen, which is what
+  // makes the release lurch-free: the basis is only ever written on a frame the
+  // stick is at rest (controls.js _latchBasis), and at rest it equals the live
+  // yaw — so engaging the hold at rest asks the camera for the pose it is
+  // already in, and letting go of the stick asks for nothing new either. A
+  // second finger's orbit still moves the view, because orbitDelta feeds
+  // _yawOffset by the same amount it moves this.yaw and the spring's error is
+  // untouched (see update()).
+  setChaseYawHold(y) {
+    this._chaseYawHold = Number.isFinite(y) ? y : null;
+  }
   setSandboxSizeProgress(progress) {
     this.sandboxSizeProgress = Math.max(0, Math.min(1, progress || 0));
   }
@@ -867,7 +906,15 @@ export class ChaseCamera {
     const osc = this._introOscYaw;
     this.yaw -= osc;
     if (this.followDir && !this.reducedMotion) {
-      if (driveHeading != null) {
+      // The hold outranks the heading (see setChaseYawHold): while the touch
+      // stick is the driver, "behind the heading" is the wrong place to be.
+      // It does NOT reach the velocity fallback below — that path only runs
+      // before the first move input of a level, when there is no stick driving
+      // anything and nothing to arbitrate.
+      if (this._chaseYawHold !== null) {
+        this._followYaw = this._chaseYawHold;
+        this._followCoast = FOLLOW_COAST;
+      } else if (driveHeading != null) {
         this._followYaw = driveHeading;
         this._followCoast = FOLLOW_COAST;
       } else {

@@ -230,6 +230,11 @@ export class Controls {
     // see the long note on _latchBasis below — this is the field the feedback
     // loop would run through if it were re-read while the stick is commanding.
     this._basisYaw = null;
+    // The chase camera rig (camera.js), reached through the THREE camera's
+    // userData in setCamera, and the yaw currently held on it (null = chasing
+    // the heading normally). See _setChaseHold and the direct-steer branch.
+    this._rig = null;
+    this._chaseHold = null;
     this._insets = null;      // cached safe-area insets, keyed on viewport size
     this._insetsKey = '';
     // first-run hint
@@ -307,7 +312,27 @@ export class Controls {
 
   // The camera the screen->ground raycast projects through. Set once per level
   // from main.js; null disables point-to-move rather than guessing a projection.
-  setCamera(camera) { this.camera = camera; }
+  //
+  // Also where the chase RIG is picked up. main.js hands over the THREE camera,
+  // so the rig arrives on its userData (camera.js constructor) — the alternative
+  // was a second setter main.js would have to call, and the arbitration this
+  // buys is entirely between these two files. Absent on a bare THREE camera (a
+  // headless harness), which reads as "no chase to suspend" and is correct.
+  setCamera(camera) {
+    this.camera = camera;
+    this._rig = (camera && camera.userData && camera.userData.rig) || null;
+    // Fresh level: whatever the last one left held is not this one's business.
+    this._setChaseHold(null);
+  }
+
+  // Ask the chase camera to hold a yaw, or release it back to chasing the
+  // heading. Idempotent on the value so a held stick is not re-writing the rig
+  // every frame, and silent when there is no rig (campaign, harnesses).
+  _setChaseHold(y) {
+    if (this._chaseHold === y) return;
+    this._chaseHold = y;
+    if (this._rig && this._rig.setChaseYawHold) this._rig.setChaseYawHold(y);
+  }
 
   // Is an orbit finger DOWN — as distinct from an orbit finger MOVING.
   //
@@ -795,7 +820,16 @@ export class Controls {
   // cost is bounded and self-correcting: relax the thumb to the middle for one
   // frame and the basis is current again, no lift required.
   _latchBasis(camYaw) {
-    if (Number.isFinite(camYaw)) this._basisYaw = camYaw;
+    if (!Number.isFinite(camYaw)) return;
+    this._basisYaw = camYaw;
+    // A standing chase hold travels WITH the basis, because they are the same
+    // claim: "this is the yaw the stick's angles mean". Without this the two
+    // drift apart the moment a second finger orbits between pushes — the basis
+    // re-latches to the new yaw here while the hold still names the old one,
+    // and the camera's own recentre (camera.js _yawOffset, which eases back to
+    // _followYaw once the orbit grace lapses) would quietly drag the view back
+    // to a pose the player had already dragged away from.
+    if (this._chaseHold !== null) this._setChaseHold(camYaw);
   }
 
   // Should this surface get the on-screen stick?
@@ -1134,6 +1168,12 @@ export class Controls {
       const pt = this._pointMoveVec(hole);
       this._syncMarker();
       if (pt) {
+        // Point-to-move wants the chase: the heading it writes below IS the
+        // direction the player asked to travel in, named in world space rather
+        // than against the screen, so nothing is erased by the camera swinging
+        // behind it. Releasing here also covers the setting being flipped on
+        // while a stick hold was standing.
+        this._setChaseHold(null);
         // Keep the heading honest while something else drives the hole: the
         // chase camera aims at the heading, and the first W after the target
         // retires must continue where the pointer left off, not where an old
@@ -1172,6 +1212,34 @@ export class Controls {
       // the left component is -sx, and the angle off screen-up is atan2 of the
       // two in that order.
       const target = basis + Math.atan2(-sx, -sy);
+      // Pin the chase camera to the basis for as long as the stick is driving.
+      //
+      // This is THE fix for "down still goes forward", and the reason it is not
+      // a sign flip is that the sign was never wrong. The world direction this
+      // branch produces is exact: measured over 8 drag directions x 4 stick
+      // origins x 4 camera yaws with the chase frozen, the hole's screen-space
+      // travel matched the drag to within 6.1 deg, and to 0.0 deg on all four
+      // cardinals — down went backward, from every origin. Then the camera slews
+      // behind the heading it just set (camera.js, driveHeading), at a rate that
+      // is CAPPED TO ITS OWN (see DIRECT_STEER_MAX above, which was deliberately
+      // matched to camera.js FOLLOW_MAX_RATE), so it turns in lockstep with the
+      // reversal and the reversal is never on screen. The same 128 pushes with
+      // the chase live all settled to a screen direction of 0.0-2.0 deg — up-
+      // screen — whatever was dragged.
+      //
+      // The genre answers this the same way: hole.io and its peers pair the
+      // drag-anywhere floating stick with a camera whose yaw never rotates, so
+      // the stick's angle and the screen agree permanently. Chasing the
+      // direction of travel is a TANK affordance — it earns its keep on A/D,
+      // where it is what makes a stationary spin visible — and the two schemes
+      // cannot share a camera.
+      //
+      // Held at the basis rather than "frozen wherever we are": the basis is
+      // only written on frames the stick is at rest (_latchBasis), where it
+      // equals the live yaw, so engaging costs no motion and releasing asks for
+      // no swing back. A camera that snapped behind the heading the instant a
+      // thumb lifted would be the same bug wearing a different hat.
+      this._setChaseHold(basis);
       // First input of a level. Seeded to the BASIS rather than to the target:
       // seeding to the target would snap the sprocket to face wherever the
       // first flick pointed, and the sprocket is already drawn at a heading
@@ -1214,6 +1282,14 @@ export class Controls {
     const steer = -ix;       // A (ix < 0) turns left = heading increases
     const throttle = -iy;    // W (iy < 0) drives forward
     if (steer || throttle) {
+      // A key is driving, so the tank scheme owns the camera again and the
+      // stick's hold is released. Deliberately NOT released the moment the
+      // thumb comes back to the middle: at rest the stick is still the scheme
+      // in play, the heading may be a long way off the yaw the player has been
+      // looking down, and re-engaging the chase there would swing the camera up
+      // to 180 deg for having briefly stopped steering. Last input wins, and
+      // "stopped pushing" is not an input.
+      this._setChaseHold(null);
       if (this.heading === null) {
         // First input of a level: face up-screen so W reads as "drive away".
         this.heading = Math.atan2(Math.sin(camYaw), Math.cos(camYaw));
