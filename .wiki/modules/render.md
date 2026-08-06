@@ -4,6 +4,7 @@ covers:
   - "js/camera.js"
   - "js/controls.js"
   - "js/skins.js"
+  - "js/quality.js"
 ---
 # Render & input
 
@@ -115,6 +116,44 @@ mutates sim state.
   760.88° and 1032.60°. 48-angle sweep, worst world error 0.01°.
   Magnitude past the dead zone is deliberately NOT speed — both sims
   re-normalise `move`, so a half-push would be scaled straight back to 1.0.
+  **The latch alone was not the fix (2026-08-06): "down still went forward"
+  after it shipped, because the latch fixes the STICK's math, not the
+  CAMERA's slew.** The world direction the stick produces was exact even
+  before this — measured with the chase frozen, drag angle tracked to within
+  2° from any origin, down landing at 89-90°. But the chase camera
+  simultaneously slews to sit BEHIND the newly-set heading, and that motion
+  erases the reversal in the same frame it creates it: the same sweep with
+  the chase live collapsed every direction to 0-2° (straight up-screen),
+  because the camera turns to face wherever the stick just pointed. Not a
+  control bug wearing a camera's clothes — the camera. Fixed by pinning the
+  chase to the stick's latched basis while the stick is driving:
+  `Controls._setChaseHold(y)` calls `ChaseCamera.setChaseYawHold(y)`, which
+  outranks `driveHeading` in the chase's per-frame target selection
+  (`camera.js` `update()`). Held at the BASIS, not simply frozen wherever the
+  camera happens to be — that is what makes engage/release lurch-free, since
+  the basis is only ever written on a frame the stick is at rest, where it
+  already equals the live yaw. `_latchBasis` also re-points a standing hold
+  whenever it re-latches, so the basis and the hold can't drift apart if a
+  second finger orbits between pushes. **The two input schemes cannot share a
+  camera:** direction-chase is a TANK affordance (A/D nudges a heading the
+  player integrates, and swinging the view behind it is what makes a
+  stationary spin visible at all) but is exactly wrong for direct steer,
+  where the stick already names an absolute screen angle. So a key press
+  releases the hold and hands the camera back to the tank scheme — last input
+  wins, and relaxing the thumb to centre does NOT release (a brief pause
+  would otherwise swing the view up to 180°). The rig is reached via
+  `camera.userData.rig` (set in the `ChaseCamera` constructor), because
+  `main.js` hands `Controls.setCamera()` the THREE camera object, not the rig
+  — riding on `userData` keeps the arbitration between the two files it
+  concerns rather than adding a plumbing argument through `main.js`. This is
+  also how the genre already answers the underlying question: hole.io and
+  its peers pair a drag-anywhere floating stick with a camera whose yaw never
+  rotates, so the stick's angle and the screen agree permanently — the
+  reference to start from next time a control scheme needs designing, rather
+  than deriving one from scratch.
+  Verified by A/B in one build with `setChaseYawHold` monkey-patched to a
+  no-op: live worst error 2°, 0 of 32 cases off by more than 45°; disabled
+  worst 180°, 20 of 32 off by more than 45°.
   **Pinch:** roles not counts — at most one finger is the stick (or the
   pointMove pointer) and every other finger down is a camera finger; one orbits
   by its travel, two orbit by their midpoint and zoom by their separation, so
@@ -486,5 +525,38 @@ mutates sim state.
   oscillated once with throttle off (up at +102 s, down at +119 s), so the
   anti-oscillation ratchet is not airtight. Debris physics is the next ceiling
   and wants a budget or LOD of its own; nothing in the draw path will move it.
+- **The ratchet's `_ceiling` never cleared, so one relapse cost HIGH for the
+  rest of the session (2026-08-06).** The anti-oscillation ratchet records a
+  tier that relapsed as a ceiling on `_ceiling`, set once in the
+  `QualityWatchdog` constructor and only ever raised upward. `start()` runs on
+  every level start and every quality change, and reset every other piece of
+  learned state (`_buf`, `_t`, `_cooldown`, `_sinceUp`) but not that one — so a
+  relapse recorded in one scene became a permanent ceiling in the next,
+  including a scene with half the block count, and survived pinning a tier by
+  hand and setting it back to AUTO (that path comes through the same
+  `start()`). Measured before: 40 s of unbroken 16 ms frames on the next level
+  still topped out at MEDIUM. `start()` now also clears `_ceiling`. Checked
+  this doesn't just delete the ratchet (which would trade a stuck tier for the
+  oscillation above): within a single level, 60 s of perfect frames after a
+  recorded relapse still cannot climb past the ceiling. The ratchet's
+  behaviour is intact; it simply no longer outlives the conditions it was
+  learned under.
+- **The `AUTO · <tier>` settings label lied before the first level
+  (2026-08-06).** `main.js`'s `tierName` was hardcoded `'high'` at module
+  scope and only overwritten by `startQuality()` at level start; the SETTINGS
+  row reads `tierName` to render `AUTO · <tier>` and could say `AUTO · HIGH`
+  on a device the classifier had already placed on MEDIUM (measured on a
+  390×844 coarse-pointer profile) — exactly the confusion the label exists to
+  prevent. Now seeded from `detectTier()` at module load. Nothing else reads
+  `tierName` that early.
+- **Three items the settings audit found and deliberately left unfixed
+  (2026-08-06):** the campaign `World3D` has no `setQuality`, so the tier
+  table is a renderer no-op on that path — latent only, since `showTitle()` no
+  longer routes to a campaign level; the `dpr` lever is genuinely nothing on a
+  1x panel by construction (`Math.min(devicePixelRatio, cap)`), so HIGH vs
+  MEDIUM differs there in debris/support/contact rounds, not pixels; and the
+  `AUTO · <tier>` label can go stale if the watchdog steps a tier down while
+  the settings screen is open — it does not re-render on that event. See
+  `.wiki/modules/ui.md` for the settings-screen side.
 - Visual-polish roadmap (building kit, canvas textures, lighting): see
   `.wiki/visual-direction.md`.

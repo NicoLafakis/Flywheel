@@ -52,3 +52,9 @@ tying everything together.
   optional point-to-move control scheme — off by default, WASD/joystick
   unaffected either way. See `.wiki/modules/render.md`'s point-to-move entry
   for the input-side detail.
+- The quality row's `AUTO · <tier>` label reads `main.js`'s `tierName`, seeded
+  from `detectTier()` since 2026-08-06 (previously hardcoded `'high'`, so it
+  could claim HIGH on a device the classifier had already placed on MEDIUM).
+  It still does not re-render if the watchdog steps a tier down while this
+  screen is open. See `.wiki/modules/render.md`'s watchdog entries for the
+  mechanism.
