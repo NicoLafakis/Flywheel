@@ -197,6 +197,21 @@ export class QualityWatchdog {
   // who chose a tier by hand keeps it, and a paused/menu frame must not feed it.
   start(tier, { pinned = false } = {}) {
     this.reset(tier);
+    // The ratchet records "this tier was tried HERE and did not hold". That is a
+    // claim about one scene under one set of conditions, and this module's own
+    // premise is that it cannot be a claim about the device: Boston is 2.1x
+    // Brooklyn's block count, so the same machine genuinely belongs on different
+    // tiers in different levels. Left standing across a level start it silently
+    // became the stronger claim — a relapse recorded in Boston made HIGH
+    // unreachable in Brooklyn for the rest of the page session, and survived the
+    // player pinning a tier by hand and setting it back to AUTO, since that path
+    // also comes through here. Measured before this line: after one relapse, 40 s
+    // of unbroken 16 ms frames on the next level topped out at MEDIUM.
+    //
+    // Everything else the ratchet is defending is per-window and already cleared
+    // by reset() above; this is the one piece of learned state that outlived the
+    // conditions it was learned under.
+    this._ceiling = 0;
     this.enabled = !pinned;
   }
 

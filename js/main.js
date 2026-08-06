@@ -54,7 +54,16 @@ let shopBonus = { clock: 0, growth: 0 };
 // what tracks anything that does — including the fact that Boston is 2.1x
 // Brooklyn's block count, so the right tier genuinely differs per level.
 const detected = detectTier();
-let tierName = 'high';
+// Seeded from the classifier rather than from a hardcoded 'high'. startQuality()
+// overwrites this at every level start, so the seed is only ever READ before the
+// first level — which is exactly when the SETTINGS screen asks for it to render
+// "AUTO · <tier>". Left at 'high', that row told a handheld it was on HIGH
+// before it had rendered a frame of a city (measured: a 390x844 coarse-pointer
+// profile classifies as MEDIUM and the row still said AUTO · HIGH), which is the
+// one failure the label exists to prevent — see the comment above it in
+// js/ui/screens.js. Nothing else reads tierName this early: the loop's sub-step
+// ceiling and applyQuality both require a level to have started.
+let tierName = detected.tier;
 const watchdog = new QualityWatchdog((tier, reason) => {
   tierName = tier;
   applyQuality();
