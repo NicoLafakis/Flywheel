@@ -137,13 +137,15 @@ function startLevel() {
   cam.setBlockers(world.blockers);
   controls = controls || new Controls(canvas);
   controls.settings = save.settings;
-  controls.chaseMode = false;   // campaign: live camera-relative basis, no auto-follow
-  // Controls is a singleton across levels, so both of these are reassigned every
-  // start rather than set once: a stale camera would aim the point-to-move
-  // raycast through the previous level's projection, and a stale onBasisLatch
-  // would keep a torn-down sandbox camera alive.
+  controls.chaseMode = false;   // campaign: tank steering, no auto-follow camera
+  // Controls is a singleton across levels, so these are reassigned every start
+  // rather than set once: a stale camera would aim the point-to-move raycast
+  // through the previous level's projection, and a stale heading would have the
+  // first W of the level drive off in the previous level's last direction
+  // instead of up-screen (the heading seeds from the live camera yaw on the
+  // first move input — see controls.js).
   controls.setCamera(cam.camera);
-  controls.onBasisLatch = null;   // no follow spring here, nothing to re-centre
+  controls.heading = null;
   window.__controls = controls;   // debug hook — parity with the sandbox path
   resize();
   hud.setLevel(level, METROS[level.metroIndex].name);
@@ -291,18 +293,19 @@ function startVoxelSandbox(scene = 'gallery') {
     window.__world = world; // debug hook
     controls = controls || new Controls(canvas);
     controls.settings = save.settings;
-    // Third-person chase: WASD/joystick move the hole in camera-relative world
-    // directions and the camera aims ITSELF at the heading (cam.setFollowDirection
-    // above). chaseMode latches the move basis for as long as an input is held so
-    // the world direction cannot rotate under the player while the yaw slews —
-    // without it the follow is a feedback loop. Q/E and the second-finger drag
-    // are still there for deliberately looking around; they no longer suspend
-    // the chase, they re-aim it — see the yaw offset in camera.js.
+    // Third-person chase: WASD/joystick drive the hole with tank controls —
+    // W/S are throttle along the heading, A/D rotate the heading itself — and
+    // the camera aims ITSELF at that heading (cam.setFollowDirection above +
+    // the driveHeading arg to cam.update). The heading is owned by Controls
+    // and never derived from the camera yaw, so the chase has no feedback
+    // loop to wind up. Q/E and the second-finger drag are still there for
+    // deliberately looking around; they no longer suspend the chase, they
+    // re-aim it — see the yaw offset in camera.js.
     controls.chaseMode = true;
     controls.setCamera(cam.camera);
-    // A fresh press re-anchors the move basis to the live yaw, which makes the
-    // camera's manual look offset stale — see ChaseCamera.recentre().
-    controls.onBasisLatch = () => cam.recentre();
+    // Fresh level, fresh heading: the first move input seeds it from the live
+    // camera yaw so W drives up-screen (controls.js).
+    controls.heading = null;
     cam.setSandboxSizeProgress(0);
     controls.setSandboxSizeProgress(0);
     window.__controls = controls; // debug hook — the sizeT ramp has two consumers
@@ -393,6 +396,11 @@ function frame(ts) {
     if (held) controls.cancelPointer();
     const move = held ? { x: 0, z: 0 }
       : controls.getMove(cam.yaw, undefined, isVoxelSandbox ? sim.hole : sim.player);
+    // The tank heading rides on the hole for the renderer: directional skins
+    // and bite bearings read it there (skins.js, world _skinFrame). Neither
+    // sim ever does — it is presentational state, not gameplay state.
+    const driveHole = isVoxelSandbox ? sim.hole : sim.player;
+    driveHole.heading = controls.heading ?? 0;
     const orbit = controls.consumeOrbit();
     const zoom = controls.consumeZoom();
     while (accumulator >= FIXED_DT) {
@@ -440,7 +448,7 @@ function frame(ts) {
       // orbitHeld, not just the orbit delta: a touch-drag finger that has
       // stopped moving emits no delta and would otherwise let the camera's
       // recentre grace expire underneath it. See Controls.orbitHeld.
-      cam.update(realDt, hole.x, hole.z, hole.radius, orbit, zoom, controls.orbitHeld);
+      cam.update(realDt, hole.x, hole.z, hole.radius, orbit, zoom, controls.orbitHeld, controls.heading);
       world.render(cam.camera);
       hud.updateSandbox(sim);
     } else {
@@ -463,9 +471,10 @@ function frame(ts) {
       }
       world.update(realDt, events);
       // Passed here too so both call sites hand the camera the same per-frame
-      // truth; the campaign camera provably ignores it (followDir is false, and
-      // the flag is read only inside that branch).
-      cam.update(realDt, sim.player.x, sim.player.z, sim.player.radius, orbit, zoom, controls.orbitHeld);
+      // truth; the campaign camera provably ignores them (followDir is false,
+      // and both the held flag and the heading are read only inside that
+      // branch).
+      cam.update(realDt, sim.player.x, sim.player.z, sim.player.radius, orbit, zoom, controls.orbitHeld, controls.heading);
       world.render(cam.camera);
       hud.update(sim);
       hud.drawMinimap(sim);

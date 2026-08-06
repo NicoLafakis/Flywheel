@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-05
+Last updated: 2026-08-06
 
 ---
 
@@ -183,12 +183,15 @@ district sweep).
 - Combos (×3 cap), star ratings, coins, shop (skins + clock/growth items)
 - World map with locks/stars, results screen, mechanic intro cards
 - Saves: localStorage schema v10, migrations v1→v10, quarantine
-- Desktop (WASD/QE/RF) + mobile (joystick + touch orbit) controls
+- Desktop tank controls (W/S throttle, A/D heading steering, Q/E camera orbit,
+  R/F zoom — one scheme in campaign and sandbox) + mobile (joystick steer/
+  throttle + touch orbit)
 - Chase camera with building-occlusion pull-in
 - **Voxel Sandbox** (see `.wiki/modules/voxel.md`): deterministic load-path
   support graph, instant-default support loss, persistent damage + neighbor
   shock, chunks/debris by material bond, mass-scaled fall + optional creak,
-  damage heat tint, drive-mode steering + follow camera
+  damage heat tint, tank controls (W/S throttle, A/D heading steering, spin in
+  place when parked) + heading-chase follow camera
 - Sandbox gallery: tower, warehouse, house, shop, church, brownstone,
   apartment, parking garage, gas station, crane, containers, fountain,
   statue, water tower, elevated bridge + train, 8 vehicles, 16 street-furniture
@@ -248,6 +251,7 @@ district sweep).
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
 
+- 2026-08-06: Tank controls everywhere (W/S throttle along a persistent heading, A/D steer the heading — spin in place parked), sandbox camera chases the control heading directly, basis latch + `recentre()` retired (ADR-0008)
 - 2026-08-05: Upper Manhattan full rebuild (8,442 → 73,393 blocks, full Central Park + UWS + Museum Mile + Harlem geography) + structural-zone sim fix (playable at 60 fps) + renderer/input fixes (ground plane, mortar seam, steering, setPerfMode) — ALL PASS
 - 2026-08-04: Rebrand to Flywheel - A sprocket's story (shared `fw-*` brand layer, branded landing screen, world map untouched)
 - 2026-08-04: Brooklyn sandbox scene + intro camera + READY gate + performance pass (schema v10) — ALL PASS

@@ -64,17 +64,27 @@ mutates sim state.
   stream. Keep it that way: adding RNG draws here would change every city.
 - Movement basis in `controls.js:getMove`: camera forward on the ground is
   `(-sin(yaw), -cos(yaw))`; W must move along forward (regression history:
-  flipped basis made W go backwards).
-- **Sandbox input is a third-person chase (`controls.chaseMode`), not a car.**
-  WASD/arrows/joystick move the hole in camera-relative world directions, Q/E
-  and the touch drag orbit by hand, and the camera aims ITSELF at the direction
-  of travel. Campaign is unchanged (`chaseMode = false`): live camera-relative
-  basis, no auto-follow. The `driveMode` scheme this replaced (A/D fed
-  `orbitDelta` at `STEER_RATE` 2.7 rad/s × a size-ramped 0.2→0.8 sensitivity)
-  is gone, and so is `STEER_RATE`: 0.54 rad/s at SIZE 1 is 11.6 s per
-  revolution, and because it routed steering through `orbitDelta` it re-armed
-  `_orbitHold` every steering frame, so `followDir` never actually ran in the
-  sandbox at all.
+  flipped basis made W go backwards). The same convention defines the hole's
+  heading: forward = `(-sin(heading), -cos(heading))`.
+- **Input is tank controls (2026-08-06), one scheme in both modes.** The hole
+  carries a persistent world-space heading owned by `controls.js`. W/S are
+  throttle along it, A/D rotate the heading itself at `ORBIT_RATE × turnSens ×
+  size ramp` (sandbox) — including spinning in place when stationary, so a
+  parked A-press visibly turns (the sandbox chase camera swings round; the
+  campaign shows it through the heading-welded skins). Turning therefore only
+  bends the path while also driving, car-style, but the wheel is never locked
+  when parked. The heading seeds from the live camera yaw on the first move
+  input of a level (`main.js` resets it to `null` each start), so W initially
+  drives up-screen; after that only A/D (or point-to-move, which keeps the
+  heading synced to the driven direction) ever change it — the camera cannot,
+  which is what makes the heading chase feedback-free BY CONSTRUCTION. The old
+  camera-relative strafe basis and its rising-edge latch are gone: the latch
+  existed only because the basis used to be re-read from the live yaw on every
+  press, which was the feedback path. `chaseMode` survives only as the flag
+  that turns on the size-ramped turn rates and the camera's follow yaw.
+  History: the `driveMode` scheme (A/D fed `orbitDelta` at `STEER_RATE`
+  2.7 rad/s × a size-ramped 0.2→0.8) and the camera-relative strafe that
+  replaced it are both gone; steering is now direct heading integration.
 - **Point-to-move (2026-08-05), off by default via `settings.pointMove`.**
   Drag sets a world-space direction; a short (< `TAP_MS = 350`), barely-moved
   (< `TAP_PX = 14`) press is a tap whose destination outlives the gesture —
@@ -101,21 +111,20 @@ mutates sim state.
   right-drag would mean suppressing the context menu canvas-wide). Drag
   magnitude deliberately does not set speed — both sims re-normalise `move`
   themselves, so this ships direction-only.
-- **`setFollowDirection(true)` is now unconditional in heading** — the old
-  `dot > 0.05` gate (chase only while moving AWAY from the camera) is gone. The
-  feedback loop that gate existed for is cut at its source instead:
-  `controls.chaseMode` latches the move basis on the RISING EDGE of input and
-  holds it until every input is released, so a held key resolves to one fixed
-  world direction no matter what the yaw does and the heading is exogenous to
-  the chase. Latch on the edge, **not** on every change of input direction —
-  re-anchoring to the live yaw on each change reopens the loop for analog input
-  (a thumb sweeping the stick picks up the camera's own rotation each time).
-  Measured A/B against the pre-change build, 48 headings × 5 start offsets:
-  old converged 8/240 and 0/48 reversals; new 240/240 and 48/48, worst 1.20 s.
-  Old also drifted **45° off a straight run** because the chase read `lookAhead`,
-  whose per-axis ±1.5 m clamp saturates at the hole's 9.96 m/s and collapses
-  every heading onto the nearest diagonal; the chase now has its own smoothed,
-  UNCLAMPED velocity and the campaign's `lookAhead` is untouched.
+- **`setFollowDirection(true)` chases the control heading directly.** The
+  sandbox camera's follow target is `controls.heading` itself (passed as
+  `driveHeading` to `ChaseCamera.update`), not a velocity-derived estimate:
+  the heading is exogenous input state, so there is no feedback loop to guard
+  against — the old `dot > 0.05` toward-camera gate and the basis latch that
+  replaced it are both unnecessary and gone. Chasing the heading also makes a
+  stationary A/D spin visible (a velocity target could never show one), and
+  while driving it is identical to the old velocity chase because in the tank
+  scheme velocity IS heading × throttle. The velocity-derived target survives
+  as the fallback for callers that pass no heading (old harnesses, and the
+  frames before a level's first input). The chase still has its own smoothed,
+  UNCLAMPED velocity for that fallback — the campaign's per-axis-clamped
+  `lookAhead` collapsed every heading onto the nearest diagonal at 9.96 m/s
+  and is untouched.
 - Chase dynamics: critically damped spring under a hard angular-rate cap, both
   ramped on `sandboxSizeProgress` — `FOLLOW_OMEGA` 8 → 12 rad/s (`_RAMP` 1.5) and
   `FOLLOW_MAX_RATE` 4.2 → 7.0 rad/s, i.e. 241°/s at SIZE 1 rising to 401°/s at
@@ -190,26 +199,18 @@ mutates sim state.
   *lifted* finger still unwinds at the new rate, and the grace starts at the
   **lift** rather than at the last movement (a 5 s paused drag retires its
   offset 1.17 s after release, not during the pause).
-- **`recentre()` is still load-bearing after the retune — do not delete it as
-  redundant.** The faster unwind does self-heal the ratchet, but only from a
-  re-press cadence of ~1 s onward. With `recentre()` forced off on the *new*
-  build, four look-then-press cycles still drift 216° at a 0.25 s cadence and
-  36-51° at 0.5 s; with it live, 0.0°.
-- **The ratchet fix.** `chaseMode` latches the move basis to the live yaw on
-  the rising edge of input, so a press right after a look correctly adopts
-  the dragged yaw — but the camera still held its offset measured against the
-  heading that press just retired, so four look-then-press cycles compounded
-  to large drift with the mitigation forced off. `ChaseCamera.recentre()`
-  (`this._yawOffset = 0; this._orbitHold = 0;`), fired from `onBasisLatch`,
-  drops the offset on exactly the frame where it's a no-op on the visible
-  camera — measured 0.0° drift with it live.
-  ADR-0007 quotes a single 123.8° figure for the drift-with-it-off case; that
-  exact number did **not** reproduce on re-measurement (2026-08-06) and should
-  not be treated as a fixed baseline. The drift is strongly dependent on
-  re-press cadence and *wraps* past 180°, which is the likely provenance of
-  123.8°: the same 4-cycle scenario on that same code measures 338-347° at a
-  0.25-1.0 s cadence and 62.0° at 4 s. The ADR's actual claim — large drift
-  off, 0.0° on — reproduces exactly. Quote the claim, not the number.
+- **`recentre()` is gone (2026-08-06), superseded by the tank scheme.** It
+  existed to drop the manual look offset on the frame a fresh press re-latched
+  the move basis to the live yaw — without it, look-then-press cycles
+  ratcheted (measured: four 60° cycles drifted 216° at a 0.25 s re-press
+  cadence with it forced off, 0.0° with it live). The tank heading never
+  re-adopts the camera yaw after its one-time seed, so the ratchet's
+  mechanism no longer exists and neither does the call. ADR-0007 documents the
+  old design; its drift figure caveat still applies to that history — the
+  123.8° figure did **not** reproduce on re-measurement (2026-08-06), the
+  drift is cadence-dependent and wraps past 180° (the same 4-cycle scenario
+  measures 338-347° at 0.25-1.0 s, 62.0° at 4 s). Quote the claim (large
+  drift off, 0.0° on), not the number.
 - The chase runs on the BASE yaw: `_introOscYaw` is subtracted before it and
   re-added after, so the intro's decaying offset never biases the target or gets
   baked into the base.
@@ -223,18 +224,20 @@ mutates sim state.
   0.1 s, same as the sim's catch-up clamp: `ORBIT_RATE = 2.6` (Q/E orbit, was
   0.03/frame), `ZOOM_RATE = 24` (R/F dolly, was 0.4/frame). Touch orbit
   (`onTouchMove`) is deliberately coupled to *pixels dragged*, not time — correct
-  for a drag gesture. `settings.turnSens` multiplies Q/E **and** the touch drag
-  in `chaseMode` only; campaign Q/E is explicitly divided back to the bare
-  1.8 rad/s it has always run at, so moving the base constant left it untouched.
-  Manual orbit also ramps with hole size (`ORBIT_RATE_RAMP = 2`): 149°/s at
+  for a drag gesture. `settings.turnSens` multiplies A/D steering, Q/E **and**
+  the touch drag in `chaseMode` only; campaign Q/E is explicitly divided back
+  to the bare 1.8 rad/s it has always run at, so moving the base constant left
+  it untouched, while campaign steering runs at the flat base rate
+  (`_steerSens`). Steering and manual orbit also ramp with hole size
+  (`ORBIT_RATE_RAMP = 2`): 149°/s at
   SIZE 1 → 298°/s at SIZE 12, against the flat 103°/s it replaced and the 31°/s
   of the drive-mode steering before that. The ramp is not cosmetic — the camera's
   own standoff grows from ~11 m to ~57 m over the same range (`clearDist`), so a
   fixed rad/s drags the camera through 5× the arc length for the same input and
   *feels* slower because the world barely turns relative to how far the camera
   flew. The settings screen prints the whole range (`~149-298°/s (SIZE 1→12)`)
-  and is labelled "Sandbox camera sensitivity" so the number is true of
-  something — it used to print `STEER_RATE × turnSens` (~155°/s), which described
+  under the label "Sandbox turn sensitivity", true of steering and orbit
+  alike — it used to print `STEER_RATE × turnSens` (~155°/s), which described
   no control that ran anywhere, since sandbox steering ignored the slider and
   turned at ~31°/s.
 - In follow-direction mode the camera target is pinned ON the hole (no

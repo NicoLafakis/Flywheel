@@ -1,6 +1,7 @@
 // Input: keyboard (desktop) + virtual joystick / touch orbit (mobile) + an
 // optional world-space point-to-move scheme (drag or tap, touch or mouse).
-// Produces a camera-relative world-space move intent and orbit deltas.
+// Produces a heading-relative world-space move intent (tank controls) and
+// orbit deltas.
 
 // Held-key rates are PER SECOND. They used to be per frame, which quietly made
 // the whole control scheme a function of how fast the machine ran: the same
@@ -24,11 +25,16 @@ const ZOOM_RATE = 24;     // was 0.4/frame   — R/F dolly
 // 2.6 -> 5.2 rad/s is 149 -> 298 deg/s, against the 103 deg/s flat rate this
 // replaces and the 31 deg/s of the drive-mode steering before that.
 export const ORBIT_RATE_RAMP = 2;
-// The sandbox's old A/D steering (STEER_RATE = 2.7 rad/s x a size-ramped 0.2 ->
-// 0.8 sensitivity, i.e. 0.54 rad/s and 11.6 s per revolution at SIZE 1) is gone.
-// A/D are strafe again and the camera aims itself — see chaseMode below and the
-// yaw chase in camera.js. `turnSens` survives as a multiplier on the manual Q/E
-// orbit that remains, which is the only turning the player now does by hand.
+// A/D steer the hole's HEADING directly (tank controls): W/S are throttle
+// along the heading, A/D rotate it — including in place, so a stationary
+// press of A visibly spins the hole. The steering rate is the same stack the
+// manual Q/E orbit runs at (ORBIT_RATE × turnSens × the size ramp), because
+// both reasons for that stack are steering reasons: it is the player's only
+// turn rate, and a faster hole needs a proportionally faster heading
+// correction. The heading is absolute world state owned here — never derived
+// from the camera — so the chase camera can aim itself at it with no feedback
+// loop and no basis latch (the latch existed only because the basis USED to
+// be re-read from the live camera yaw on every press).
 // Same clamp main.js puts on the sim's catch-up (main.js:308). A frame that
 // took longer than this is a stall, and integrating the whole of it would snap
 // the camera round rather than turn it.
@@ -67,14 +73,17 @@ export class Controls {
     this.zoomDelta = 0;
     this.moveVec = { x: 0, z: 0 }; // raw input, pre camera-rotation
     this.settings = { invertX: false, invertY: false };
-    // Voxel sandbox: the camera aims itself at the direction of travel, so the
-    // move basis has to be latched. See the latch in getMove().
+    // Voxel sandbox: the camera aims itself at the heading (camera.js follow
+    // yaw reads controls.heading), so orbit rates ramp with hole size here.
     this.chaseMode = false;
-    this._basisYaw = null;    // latched move basis (rad), or null when idle
-    // Fired on the frame a fresh press adopts the live camera yaw. The chase
-    // camera uses it to drop its manual look offset, which that press has just
-    // made stale — see ChaseCamera.recentre() for why leaving it ratchets.
-    this.onBasisLatch = null;
+    // The tank scheme's one piece of state: the hole's world-space heading in
+    // radians, with forward = (-sin(heading), -cos(heading)) — the same
+    // convention the camera yaw uses. null until the first move input of a
+    // level, then seeded from the live camera yaw so W initially drives
+    // up-screen. After that only A/D (and point-to-move) ever change it; the
+    // camera cannot, which is what makes the heading chase feedback-free.
+    // main.js resets it to null on every level start.
+    this.heading = null;
     this.sandboxSizeProgress = 0;
     // getMove is called once per rendered frame, so the gap between calls IS
     // the frame time. Measuring it here means the fix needs nothing from the
@@ -154,10 +163,10 @@ export class Controls {
         // FIRST finger points, SECOND finger orbits, and the joystick is gone.
         // Not a coexistence — a replacement, for three reasons: pointing needs
         // the whole screen, so the left/right half split that gives the joystick
-        // its home would make half the city unreachable; the joystick is
-        // camera-relative and needs the basis latch while pointing is
-        // world-space and must not have one, so a frame where both were live
-        // would have two different answers to "what does this input mean"; and a
+        // its home would make half the city unreachable; the joystick steers a
+        // persistent heading while pointing drives at a world point directly,
+        // so a frame where both were live would have two different answers to
+        // "what does this input mean"; and a
         // second finger is the one gesture that cannot be confused with the
         // first. Manual look survives, it just moves to the other thumb.
         if (this._pt === null) this._beginPoint(t.identifier, t.clientX, t.clientY, e.timeStamp);
@@ -448,6 +457,17 @@ export class Controls {
       (1 + (ORBIT_RATE_RAMP - 1) * this.sandboxSizeProgress);
   }
 
+  // Steering sensitivity for A/D (and the stick's x axis). Same turnSens ×
+  // size-ramp stack as the sandbox orbit — it is the same "the player's only
+  // turn rate" slider, now reaching the primary turn control — but the
+  // campaign branch differs: campaign steering runs at the flat base rate
+  // instead of the campaign orbit's legacy 1.8 rad/s.
+  _steerSens() {
+    if (!this.chaseMode) return 1;
+    return (this.settings.turnSens || 1) *
+      (1 + (ORBIT_RATE_RAMP - 1) * this.sandboxSizeProgress);
+  }
+
   // Seconds since the previous getMove call, clamped. Falls back to one 60 fps
   // frame on the first call and whenever the clock is unavailable or has jumped
   // (tab restored, level intro held for a while), so no press can ever be
@@ -461,10 +481,12 @@ export class Controls {
     return Math.min(Math.max((now - prev) / 1000, 0), MAX_INPUT_DT) || 1 / 60;
   }
 
-  // camYaw: current camera yaw so movement is camera-relative.
-  // Camera sits at yaw-offset behind the hole, so "forward" (W) is the
-  // direction the camera looks: forward = (-sin(yaw), -cos(yaw)) in XZ.
-  // A/D strafe, Q/E orbit the camera by hand, R/F dolly.
+  // camYaw: current camera yaw. Only ever SEEDS the heading (first move input
+  // of a level, while this.heading is null) — after that the heading is
+  // absolute world state and the camera cannot steer it. That one-way flow is
+  // what lets the chase camera aim at the heading with no feedback loop.
+  // W/S are throttle along the heading, A/D rotate the heading itself (spin
+  // in place when stationary), Q/E orbit the camera by hand, R/F dolly.
   // hole: {x, z, radius} — only point-to-move needs it; omit it and the scheme
   // is inert, which is what every caller that predates it does.
   getMove(camYaw, dt, hole) {
@@ -486,62 +508,49 @@ export class Controls {
     if (this.keys.has('KeyF')) this.zoomDelta += ZOOM_RATE * step;
 
     // --- point-to-move ------------------------------------------------------
-    // Resolved BEFORE the latched basis and it wins outright while a target is
+    // Resolved BEFORE the tank scheme and it wins outright while a target is
     // live, so a stray key cannot argue with a finger. Keys are not disabled by
     // the setting though: on a desktop both are reasonable, and WASD picks up
     // again the frame the pointer target retires.
     if (this.pointMove) {
       const pt = this._pointMoveVec(hole);
       this._syncMarker();
-      if (pt) { this._basisYaw = null; return pt; }
+      if (pt) {
+        // Keep the heading honest while something else drives the hole: the
+        // chase camera aims at the heading, and the first W after the target
+        // retires must continue where the pointer left off, not where an old
+        // heading points. Inverse of forward = (-sin, -cos) below.
+        if (pt.x || pt.z) this.heading = Math.atan2(-pt.x, -pt.z);
+        return pt;
+      }
     } else if (this._ptTarget || this._pt) {
       this._clearPoint();   // setting turned off mid-gesture
     }
 
-    // --- latched move basis (chaseMode) -------------------------------------
-    // The sandbox camera aims itself at the direction of travel, which closes a
-    // loop the campaign does not have: basis = camera yaw -> world direction ->
-    // yaw target -> camera yaw. Left open it winds up (measured: 19 rad in 3 s
-    // on a reversal), and the old fix was to refuse to follow any heading that
-    // pointed back at the camera, which is precisely the case the player wanted.
-    //
-    // Cut the loop here instead. The basis is latched on the RISING EDGE of
-    // input — first frame any key or the stick is live — and held until every
-    // input is released. While it is latched the camera can slew anywhere it
-    // likes and a held key still resolves to the same world-space direction, so
-    // the heading is an exogenous input to the chase and there is no loop left
-    // to wind up.
-    //
-    // Latching on the edge rather than re-anchoring whenever the input
-    // direction CHANGES matters, and the difference is not cosmetic:
-    // re-anchoring to the live yaw on every change reopens the loop for analog
-    // input, because a thumb sweeping the stick would pick up the camera's own
-    // rotation on each re-anchor and drift faster than the thumb. Holding one
-    // basis for a whole press means a change in input direction rotates the
-    // world direction by exactly that change, which is the behaviour a player
-    // predicts, and the only thing that ever moves the basis is a fresh press —
-    // by which time the camera has usually already settled behind them.
-    const idle = ix === 0 && iy === 0;
-    if (this.chaseMode && idle) this._basisYaw = null;
-    if (idle) return { x: 0, z: 0 };
-    let basis = camYaw;
-    if (this.chaseMode) {
-      if (this._basisYaw === null) {
-        this._basisYaw = camYaw;
-        // This press has just redefined "behind the heading" as the yaw the
-        // camera already has, so any manual look offset the camera is holding
-        // describes a heading that no longer exists.
-        if (this.onBasisLatch) this.onBasisLatch(camYaw);
+    // --- tank scheme ----------------------------------------------------------
+    // One piece of state: the heading. A/D integrate it ALWAYS (a stationary
+    // press spins the hole in place — the chase camera swinging round is what
+    // makes that visible); W/S translate along it. Turning therefore only
+    // changes the path while moving, exactly like a car, but the wheel is
+    // never locked when parked. steer > 0 turns left: forward = (-sin, -cos),
+    // so increasing the heading rotates forward from -z toward -x, which is
+    // screen-left for a camera sitting behind the hole (regression history:
+    // a flipped basis made W go backwards — see .wiki/modules/render.md).
+    const steer = -ix;       // A (ix < 0) turns left = heading increases
+    const throttle = -iy;    // W (iy < 0) drives forward
+    if (steer || throttle) {
+      if (this.heading === null) {
+        // First input of a level: face up-screen so W reads as "drive away".
+        this.heading = Math.atan2(Math.sin(camYaw), Math.cos(camYaw));
       }
-      basis = this._basisYaw;
+      this.heading += steer * ORBIT_RATE * this._steerSens() * step;
+      // Wrap once per call so a held key cannot grow an unbounded angle.
+      this.heading = Math.atan2(Math.sin(this.heading), Math.cos(this.heading));
     }
-
-    // rotate input by the basis yaw: ix along right = (cos, -sin), iy along
-    // -forward (screen down) = (sin, cos)
-    const cos = Math.cos(basis), sin = Math.sin(basis);
+    if (!throttle) return { x: 0, z: 0 };
     return {
-      x: ix * cos + iy * sin,
-      z: -ix * sin + iy * cos,
+      x: -Math.sin(this.heading) * throttle,
+      z: -Math.cos(this.heading) * throttle,
     };
   }
 

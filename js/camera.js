@@ -367,31 +367,6 @@ export class ChaseCamera {
     if (this.reducedMotion && this.introPhase === 'zoom') this.skipIntro();
   }
   setFollowDirection(val) { this.followDir = !!val; }
-
-  // Drop the manual look offset because it has just become meaningless.
-  //
-  // Controls latches the move basis to the LIVE camera yaw on the rising edge of
-  // input (controls.js getMove), so on that frame "behind the new heading" is by
-  // definition the yaw the camera already has — the offset was measured against
-  // the previous heading and no longer describes anything. It is a no-op on the
-  // camera itself: zeroing it moves the chase TARGET onto the current yaw, so
-  // the error is zero and nothing swings.
-  //
-  // Leaving it in place is not merely stale, it RATCHETS. Look 60 deg right,
-  // release, press forward: the basis adopts the dragged yaw so the hole turns
-  // 60 deg, the chase then wants another 60 deg on top, and the next press turns
-  // 60 deg again. A loop that runs once per press instead of once per frame is
-  // still a loop.
-  //
-  // STILL LOAD-BEARING after the recentre retune, which is not the intuition —
-  // the unwind is now fast enough that a player who pauses between cycles has
-  // already had the offset retired for them, so it is tempting to read this as
-  // redundant. It is not. Measured with this call disabled, four look-then-press
-  // cycles of 60 deg each drift 216 deg at a 0.25 s re-press cadence and
-  // 36-51 deg at 0.5 s, reaching ~0 only from a ~1 s cadence onward. A player
-  // who presses again promptly is the common case, not the edge one. With the
-  // call live: 0.000 deg at every cadence measured, at both SIZE 1 and SIZE 12.
-  recentre() { this._yawOffset = 0; this._orbitHold = 0; }
   setSandboxSizeProgress(progress) {
     this.sandboxSizeProgress = Math.max(0, Math.min(1, progress || 0));
   }
@@ -769,7 +744,11 @@ export class ChaseCamera {
   // of truth per frame and no way for it to go stale behind the camera's back.
   // Omitted by every campaign caller and by any harness that predates it, which
   // reads as false and is exactly the old behaviour.
-  update(dt, holeX, holeZ, holeRadius, orbitDelta, zoomDelta, orbitHeld) {
+  //
+  // driveHeading: the tank scheme's steering heading (controls.js), or null
+  // before the first move input of a level. When present it is the chase
+  // target outright — see the follow-yaw section below.
+  update(dt, holeX, holeZ, holeRadius, orbitDelta, zoomDelta, orbitHeld, driveHeading) {
     this.yaw += orbitDelta;
     // Manual orbit moves the camera AND the thing the chase aims at, by the same
     // amount, on the same frame. The spring's error is therefore untouched by
@@ -863,23 +842,24 @@ export class ChaseCamera {
     this.lastHoleX = holeX;
     this.lastHoleZ = holeZ;
 
-    // Follow-direction yaw: ease the camera behind the travel direction so the
-    // view always faces where you're driving and the player never has to touch
-    // a camera key. Manual orbit input and Reduced Motion suspend it.
+    // Follow-direction yaw: ease the camera behind the heading so the view
+    // always faces where you're driving and the player never has to touch a
+    // camera key. Manual orbit input and Reduced Motion suspend it.
     //
-    // THE TOWARD-CAMERA CASE. This used to be gated on `dot > 0.05` — the chase
-    // only ran when the hole moved AWAY from the camera — because the move basis
-    // is camera-relative, so chasing a reversing heading rotated the basis under
-    // a held key, which rotated the heading, which rotated the yaw further: a
-    // positive feedback loop that wound the yaw 19 rad in 3 s. That gate is gone,
-    // and the loop is broken AT ITS SOURCE instead: `controls.chaseMode` latches
-    // the move basis on the rising edge of input and holds it until every key is
-    // released (controls.js:getMove), so a held input produces one fixed
-    // world-space direction no matter what the yaw does. With the basis frozen
-    // the heading is an exogenous input to the chase, the feedback path does not
-    // exist, and following a 180 deg reversal is just a large error to settle.
-    // Latching at the source is what lets the camera be UNCONDITIONAL here;
-    // damping the chase instead would only have slowed the wind-up down.
+    // The heading arrives as `driveHeading`, the tank scheme's steering state
+    // (controls.js). It is exogenous BY CONSTRUCTION: controls owns it, only
+    // A/D (or point-to-move) change it, and nothing here can write back to it —
+    // so the historical chase feedback loop (basis read from the live yaw ->
+    // world direction -> yaw target -> yaw, measured winding 19 rad in 3 s on
+    // a reversal) has no path to exist, and no basis latch or toward-camera
+    // gate is needed anywhere. Chasing it directly rather than deriving it
+    // from velocity also fixes the parked case by definition: a stationary A/D
+    // spin rotates the heading, so the camera swings round and the spin is
+    // VISIBLE, which a velocity-derived target could never show.
+    //
+    // The velocity path below remains as the fallback for callers that pass no
+    // heading (harnesses that predate the param, and the frames before the
+    // first input of a level), and is exactly the old behaviour.
     //
     // Runs on the BASE yaw. The intro adds _introOscYaw as an offset it removes
     // and re-adds every frame, and the chase must not aim at, or bake in, a
@@ -887,21 +867,28 @@ export class ChaseCamera {
     const osc = this._introOscYaw;
     this.yaw -= osc;
     if (this.followDir && !this.reducedMotion) {
-      const spd = Math.hypot(this._velX, this._velZ);
-      if (spd > FOLLOW_DEADZONE) {
-        this._followYaw = Math.atan2(this._velX, this._velZ) + Math.PI;
+      if (driveHeading != null) {
+        this._followYaw = driveHeading;
         this._followCoast = FOLLOW_COAST;
-      } else if (this._followCoast > 0) {
-        this._followCoast -= dt;
+      } else {
+        const spd = Math.hypot(this._velX, this._velZ);
+        if (spd > FOLLOW_DEADZONE) {
+          this._followYaw = Math.atan2(this._velX, this._velZ) + Math.PI;
+          this._followCoast = FOLLOW_COAST;
+        } else if (this._followCoast > 0) {
+          this._followCoast -= dt;
+        }
       }
       const sizeT = this.sandboxSizeProgress;
       const omega = FOLLOW_OMEGA * (1 + (FOLLOW_OMEGA_RAMP - 1) * sizeT);
       const maxRate = FOLLOW_MAX_RATE * (1 + (FOLLOW_MAX_RATE_RAMP - 1) * sizeT);
       if (this._followYaw !== null && this._followCoast > 0) {
         // Ease the player's framing choice back to centre, but only while there
-        // is a live heading for "centre" to mean anything: park the hole and the
-        // chase stops, so a look taken while stationary is held indefinitely
-        // rather than quietly unwound against a stale heading.
+        // is a live heading for "centre" to mean anything. Under driveHeading
+        // the heading is always live — so a parked look unwinds home rather
+        // than holding — while on the velocity fallback parking still stops
+        // the chase and a stationary look is held indefinitely rather than
+        // quietly unwound against a stale heading.
         if (this._orbitHold <= 0 && this._yawOffset) {
           let d = this._yawOffset * Math.min(1, dt * ORBIT_RECENTRE_RATE);
           const cap = ORBIT_RECENTRE_MAX * dt;

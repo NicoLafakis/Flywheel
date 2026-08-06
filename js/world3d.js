@@ -588,6 +588,13 @@ export class World3D {
     st.progress = this.sim.level && this.sim.level.target
       ? Math.min(1, h.mass / this.sim.level.target) : 0;
     st.x = h.x; st.z = h.z;
+    // The player's steering heading, stamped onto the hole by main.js. Skins
+    // with a directional element (A/B Split's axis, the reduced-motion
+    // Impressions head, the Attribution trail) are welded to it — it is the
+    // player's own steering made visible, which is also the only on-screen
+    // feedback for a stationary A/D spin in the campaign, whose camera does
+    // not follow.
+    st.heading = h.heading || 0;
     st.camDist = this._skinCamDist ?? st.camDist;
     st.reduced = this.reducedMotion;
     this._skinSectors(h, st.sectorMass);

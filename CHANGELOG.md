@@ -3,6 +3,34 @@
 Detailed build history, migrated from STATUS.md (which is a lean board, not a
 changelog). Newest first. Commit-level history: `git log`.
 
+- 2026-08-06: **Tank controls everywhere — one scheme, campaign and sandbox.**
+  The hole now carries a persistent world-space heading owned by
+  `js/controls.js`: W/S are throttle along it, A/D rotate the heading itself
+  at `ORBIT_RATE × turnSens × size ramp` (sandbox; flat base rate in the
+  campaign) — including spinning in place when stationary, so a parked A-press
+  visibly turns. Turning only bends the path while also driving, car-style.
+  The heading seeds from the live camera yaw on the first move input of a
+  level (reset to `null` on every start), so W always starts as "drive
+  up-screen"; after that only A/D — or point-to-move, which keeps the heading
+  synced to the driven direction — ever change it. Because the camera can no
+  longer steer the input, the sandbox chase camera now chases the control
+  heading outright (`driveHeading` arg to `ChaseCamera.update`), which makes
+  parked spins visible and is identical to the old velocity chase while
+  driving (velocity = heading × throttle by construction). The velocity-
+  derived target survives as a fallback for heading-less callers. This retired
+  the whole camera-relative-basis apparatus: the rising-edge basis latch,
+  `onBasisLatch`, and `ChaseCamera.recentre()` (the ratchet mechanism ADR-0007
+  guarded against cannot occur when the input never re-adopts the camera yaw —
+  see ADR-0008). The heading also rides on the hole for the renderer:
+  directional skins (`st.heading`) and bite bearings (`biteFromEvent`'s
+  `h.heading`) are live for the first time — both fields existed but had never
+  been fed, so A/B Split's left/right axis and the reduced-motion Impressions
+  head were silently pinned north. Settings screen relabelled to match:
+  "Sandbox turn sensitivity" (the slider scales steering AND orbit, both at
+  the printed rate) and a proper tank-controls listing for both modes. The
+  sims are untouched — `sim.step` still receives a world-space move vector —
+  so determinism, the validator contract, and invariant 3 are unaffected.
+
 - 2026-08-05: **Upper Manhattan full rebuild — Central Park geography,
   structural-zone sim optimization, renderer/input fixes.** Five sequential
   passes replaced Upper Manhattan's ~8,400-block Central Park sketch with the

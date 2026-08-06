@@ -1833,6 +1833,12 @@ export class VoxelWorld3D {
     st.size = h.size ?? 1; st.sizeFrac = h.sizeFrac ?? 0;
     st.progress = this.sim.totalMass ? (h.rawMass ?? h.mass ?? 0) / this.sim.totalMass : 0;
     st.x = h.x; st.z = h.z;
+    // The player's steering heading, stamped onto the hole by main.js —
+    // directional skins (A/B Split's axis, the reduced-motion Impressions
+    // head, the Attribution trail) are welded to it. In the sandbox the chase
+    // camera follows the same heading, so skin and camera can never disagree
+    // about which way is forward.
+    st.heading = h.heading || 0;
     // update() runs before the first render(), so keep the last good value
     // rather than letting an undefined reach the far-distance brightness ramp.
     st.camDist = this._skinCamDist ?? st.camDist;

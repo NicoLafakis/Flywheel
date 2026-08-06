@@ -314,19 +314,20 @@ export class Screens {
     };
     panel.appendChild(distRow);
 
-    // Manual orbit rate shown to the player: ORBIT_RATE rad/s × sens, in
-    // degrees. Derived from the constant rather than typed as a literal so the
-    // readout cannot drift when the camera is re-tuned — a hand-copied number
-    // here would keep claiming the old speed after a change in controls.js and
+    // Turn rate shown to the player: ORBIT_RATE rad/s × sens, in degrees.
+    // Derived from the constant rather than typed as a literal so the readout
+    // cannot drift when the controls are re-tuned — a hand-copied number here
+    // would keep claiming the old speed after a change in controls.js and
     // nobody would notice, because it still looks plausible.
     //
-    // Scoped to the sandbox in the label because that is where the multiplier
-    // applies: sandbox Q/E and touch-drag orbit run at ORBIT_RATE × turnSens ×
-    // the size ramp, where the campaign's Q/E stays at a bare 1.8 rad/s. It used
-    // to print STEER_RATE × sens, which described nothing that ran anywhere —
-    // the sandbox's A/D steering ignored this slider entirely and used its own
-    // size-ramped 0.2–0.8, so the screen advertised ~155°/s for a control that
-    // actually turned at ~31°/s.
+    // One slider, two consumers, both in the sandbox: A/D steering and the
+    // Q/E / touch-drag manual orbit both run at ORBIT_RATE × turnSens × the
+    // size ramp (controls.js _steerSens/_orbitSens), so the range printed
+    // here is true for each. It used to print STEER_RATE × sens, which
+    // described nothing that ran anywhere — the sandbox's old A/D steering
+    // ignored this slider entirely and used its own size-ramped 0.2–0.8, so
+    // the screen advertised ~155°/s for a control that actually turned at
+    // ~31°/s.
     //
     // Printed as a RANGE, not a single number, because the rate is genuinely
     // size-dependent now: quoting either end alone would be false for the whole
@@ -335,7 +336,7 @@ export class Screens {
     const DEG_PER_RAD = 180 / Math.PI;
     const sensFmt = (v) => `${v.toFixed(2)} · ~${Math.round(ORBIT_RATE * DEG_PER_RAD * v)}` +
       `-${Math.round(ORBIT_RATE * ORBIT_RATE_RAMP * DEG_PER_RAD * v)}°/s (SIZE 1→12)`;
-    const sensRow = el(`<div style="margin:8px 0">Sandbox camera sensitivity
+    const sensRow = el(`<div style="margin:8px 0">Sandbox turn sensitivity
       <span style="float:right"><span class="tune-val" style="font-weight:700">${sensFmt(st.turnSens !== undefined ? st.turnSens : 1)}</span>
       <input type="range" min="0.1" max="2.5" step="0.05" value="${st.turnSens !== undefined ? st.turnSens : 1}"
         style="width:100px;vertical-align:middle;margin-left:8px"></span></div>`);
@@ -381,15 +382,17 @@ export class Screens {
       el(`<div style="clear:both;margin:4px 0">${label}
         <span style="float:right;font-weight:700">${keys}</span></div>`));
     ctlGroup('VOXEL SANDBOX');
-    ctl('Move forward', 'W / ↑');
-    ctl('Move back', 'S / ↓');
+    ctl('Drive forward', 'W / ↑');
+    ctl('Reverse', 'S / ↓');
     ctl('Turn left', 'A / ←');
     ctl('Turn right', 'D / →');
-    ctl('Move left', 'Q');
-    ctl('Move right', 'E');
+    ctl('Orbit camera', 'Q / E');
     ctl('Zoom in / out', 'R / F');
     ctlGroup('CITY LEVELS');
-    ctl('Move', 'WASD / arrows');
+    ctl('Drive forward', 'W / ↑');
+    ctl('Reverse', 'S / ↓');
+    ctl('Turn left', 'A / ←');
+    ctl('Turn right', 'D / →');
     ctl('Orbit camera', 'Q / E');
     ctl('Zoom in / out', 'R / F');
     ctlGroup('GENERAL');
