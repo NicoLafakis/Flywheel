@@ -45,6 +45,13 @@ const CAM_FAR = 600;             // gameplay far plane; the intro stretches it a
 // what the geometry would like — 4.2 -> 7.0 rad/s, i.e. 240 -> 400 deg/s.
 // Measured worst-case convergence to within 5 deg over 240 cases (48 headings x
 // 5 start offsets) is 0.983 s at SIZE 1 and 0.633 s at SIZE 12.
+// Re-measured since at 4x the heading density and against start offsets out to
+// +/-144 deg — 192 headings x 5 offsets x both sizes, 1920 cases — the worst is
+// 1.250 s at SIZE 1 and 1.017 s at SIZE 12, 1920/1920 converging and 384/384 on
+// reversals. The 0.983 s above is not wrong, it is a smaller offset set; the
+// number a big displacement actually costs is 1.25 s, and that is the one to
+// beat. The recentre retune cannot reach any of this — every case here runs
+// with _yawOffset at 0 — and measured identically before and after it.
 // End-to-end measured hole speed is 9.96 m/s at SIZE 1 and 26.12 m/s at SIZE 12,
 // a ratio of 2.62. Rounded UP to 2.71 on purpose: this multiplies filter rates,
 // and a first-order filter that is marginally too fast lags slightly less than
@@ -97,22 +104,61 @@ const FOLLOW_VEL_RATE = 12;
 //   FAST (the spring, 4.2-7.0 rad/s) tracks the HEADING, so the framing the
 //   player chose stays attached through a turn — steer left and the camera
 //   still swings left, holding the same relative angle.
-//   SLOW (this unwind, 0.5 rad/s = 29 deg/s ceiling, tau 2.2 s) returns that
-//   relative angle to "directly behind", so a player who does nothing still
-//   gets auto-centred and a player who looked somewhere sees the camera settle
-//   rather than get overruled. 8x slower than the reclaim it replaces.
+//   SLOW (this unwind, 2.2 rad/s = 126 deg/s ceiling) returns that relative
+//   angle to "directly behind", so the follow reasserts itself on its own and a
+//   player who looked somewhere sees the camera settle rather than get
+//   overruled. Still 1.91x slower than the reclaim it replaces at SIZE 1 and
+//   3.18x slower at SIZE 12 — and unlike that reclaim it is one steady rate the
+//   player can watch, not a snatch pinned to the spring's cap.
 //
-// The delay is the window in which a deliberate look is untouched. 1.2 s
-// matches FOLLOW_COAST for the same reason that number is 1.2 s: it is longer
-// than the worst chase swing (0.9 s), so a look taken during a turn survives
-// the turn.
-const ORBIT_RECENTRE_DELAY = 1.2;
+// The delay is the window in which a deliberate look is untouched, and it is
+// NOT the 1.2 s this shipped with. Matching FOLLOW_COAST there bought a look
+// that outlived the worst chase swing and cost the camera its follow entirely:
+// measured, a 90 deg look took 8.05 s to come back within 5 deg of behind the
+// heading and a 180 deg look 11.08 s, with the offset itself not fully retired
+// for 22.8 s. A camera that holds the player's last look for eight seconds is
+// an orbit camera, whatever the chase spring behind it is doing, and that is
+// the whole of the "it feels orbital" report.
+//
+// A drag is not exposed to this window at all — _orbitHold is refreshed on
+// every frame carrying a non-zero orbitDelta (measured: a 3.0 s held Q never
+// lets it fall below the full 0.15 s, and unwinds 1.1e-14 deg during the
+// press) — so all it has to cover is the gap BETWEEN input frames. 0.15 s is
+// nine frames, and deliberately longer than the 0.1 s ceiling main.js and
+// controls.js both clamp a single frame to: one stall frame between two
+// touchmove events therefore cannot start an unwind, where a 0.1 s window
+// would sit exactly on that boundary with no margin.
+const ORBIT_RECENTRE_DELAY = 0.15;
 // Unwind is a first-order decay with a rate ceiling, not a plain lerp. A lerp's
 // peak rate is at t = 0 and scales with the offset, so a 180 deg look would
-// start back at 81 deg/s — the ceiling is what makes a big look and a small one
-// return at the same readable speed.
-const ORBIT_RECENTRE_RATE = 0.45;   // 1/s, tau = 2.2 s
-const ORBIT_RECENTRE_MAX = 0.5;     // rad/s ceiling (29 deg/s)
+// start back at 81 deg/s while a 20 deg look crawled — the ceiling is what makes
+// a big look and a small one return at the same readable speed.
+//
+// The two numbers split the return between them at M/R = 0.122 rad = 7.0 deg:
+// above that the ceiling governs, below it the decay eases the last of it in.
+// tau = 56 ms is chosen so that crossover sits just ABOVE the 5 deg "back behind
+// the heading" threshold, so the whole visible return runs at ONE constant rate
+// and the decay only shapes an approach the player has stopped reading as
+// motion. The old tau of 2.2 s put the crossover at 64 deg, i.e. most of a
+// 90 deg look decayed rather than travelled, which is what made the tail crawl.
+//
+// 2.2 rad/s is the ceiling of the readability budget and is what the return time
+// is mostly made of. Measured, from release to within 5 deg of behind the
+// heading while driving: 1.233 s for a 90 deg look and 1.917 s for 180 deg at
+// SIZE 1, 1.083 s and 1.733 s at SIZE 12, at a peak of 126.0 deg/s. Deliberately
+// NOT size-ramped — this is a readability budget, not a rate tracking how fast
+// the world moves, and the measurements show it needs no help at SIZE 12, where
+// it lands SOONER because FOLLOW_OMEGA is higher (see the next paragraph).
+//
+// About 0.4 s of each of those numbers is not the unwind at all. The chase
+// spring trails a ramp input by 2*maxRate/omega = 0.55 rad, so at the moment the
+// offset reaches zero the camera is still ~31 deg out and the spring settles the
+// rest — measured, the offset is retired at 1.167 s of the 1.233 s. That floor
+// is why raising the ceiling buys far less than it looks like it should: the
+// 90 deg case lands at 1.23 s rather than the 0.82 s the ceiling alone predicts,
+// and no value of this constant inside the readability budget reaches 1.2 s.
+const ORBIT_RECENTRE_RATE = 18;     // 1/s, tau = 56 ms
+const ORBIT_RECENTRE_MAX = 2.2;     // rad/s ceiling (126 deg/s)
 // Target smoothing, SPATIAL — scaled by _spatialRate. 14/s = 71 ms in the
 // sandbox at SIZE 1 against 8/s = 125 ms in the campaign: the sandbox hole is
 // the thing the player is directly driving, and 125 ms of positional lag is the
@@ -336,6 +382,15 @@ export class ChaseCamera {
   // 60 deg, the chase then wants another 60 deg on top, and the next press turns
   // 60 deg again. A loop that runs once per press instead of once per frame is
   // still a loop.
+  //
+  // STILL LOAD-BEARING after the recentre retune, which is not the intuition —
+  // the unwind is now fast enough that a player who pauses between cycles has
+  // already had the offset retired for them, so it is tempting to read this as
+  // redundant. It is not. Measured with this call disabled, four look-then-press
+  // cycles of 60 deg each drift 216 deg at a 0.25 s re-press cadence and
+  // 36-51 deg at 0.5 s, reaching ~0 only from a ~1 s cadence onward. A player
+  // who presses again promptly is the common case, not the edge one. With the
+  // call live: 0.000 deg at every cadence measured, at both SIZE 1 and SIZE 12.
   recentre() { this._yawOffset = 0; this._orbitHold = 0; }
   setSandboxSizeProgress(progress) {
     this.sandboxSizeProgress = Math.max(0, Math.min(1, progress || 0));
@@ -709,7 +764,12 @@ export class ChaseCamera {
     return false;
   }
 
-  update(dt, holeX, holeZ, holeRadius, orbitDelta, zoomDelta) {
+  // orbitHeld: an orbit POINTER is down this frame, whether or not it moved.
+  // Passed per frame rather than pushed through a setter so there is one source
+  // of truth per frame and no way for it to go stale behind the camera's back.
+  // Omitted by every campaign caller and by any harness that predates it, which
+  // reads as false and is exactly the old behaviour.
+  update(dt, holeX, holeZ, holeRadius, orbitDelta, zoomDelta, orbitHeld) {
     this.yaw += orbitDelta;
     // Manual orbit moves the camera AND the thing the chase aims at, by the same
     // amount, on the same frame. The spring's error is therefore untouched by
@@ -724,8 +784,24 @@ export class ChaseCamera {
     if (this.followDir && orbitDelta) {
       this._yawOffset = Math.atan2(
         Math.sin(this._yawOffset + orbitDelta), Math.cos(this._yawOffset + orbitDelta));
-      this._orbitHold = ORBIT_RECENTRE_DELAY;
-    } else if (this._orbitHold > 0) this._orbitHold -= dt;
+    }
+    // The grace is refreshed by INPUT, and a drag that has stopped moving is
+    // still input. orbitDelta alone cannot say so: it is a function of pixels
+    // dragged, so a finger resting on the glass emits zero and reads identically
+    // to a finger that was lifted. Q/E do emit one every frame they are held, so
+    // for the keyboard the delta is sufficient and orbitHeld is always false —
+    // the two conditions cover different surfaces rather than overlapping.
+    //
+    // Split from the offset accumulation above deliberately: a held-still finger
+    // must refresh the timer WITHOUT running _yawOffset back through
+    // atan2(sin, cos), which is an identity in exact arithmetic and a slow drift
+    // in floating point when it runs on every frame of a long hold.
+    //
+    // followDir-gated so the campaign arithmetic is untouched by construction:
+    // with followDir false _orbitHold never leaves 0, so the decrement below is
+    // a no-op on a value that is already 0, exactly as before.
+    if (this.followDir && (orbitDelta || orbitHeld)) this._orbitHold = ORBIT_RECENTRE_DELAY;
+    else if (this._orbitHold > 0) this._orbitHold -= dt;
     this.dist = Math.min(40, Math.max(8, this.dist + zoomDelta));
 
     // Level intro timeline (inert unless beginIntro() was called).

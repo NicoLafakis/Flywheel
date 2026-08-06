@@ -131,6 +131,22 @@ export class Controls {
   // from main.js; null disables point-to-move rather than guessing a projection.
   setCamera(camera) { this.camera = camera; }
 
+  // Is an orbit finger DOWN — as distinct from an orbit finger MOVING.
+  //
+  // The chase camera's recentre grace is refreshed by a non-zero orbitDelta, and
+  // orbitDelta is deliberately a function of pixels dragged (see onTouchMove), so
+  // a finger that has stopped moving emits exactly nothing while still being a
+  // player deliberately holding a look. Measured with the grace at 0.15 s, that
+  // gap cost 12.6 deg of the look per 0.25 s of stillness and 44.1 deg per 0.5 s
+  // — the camera walking out from under a finger that never left the glass. So
+  // "the pointer is down" has to be reported separately from "the pointer moved".
+  //
+  // Touch only, and that is complete rather than partial: the mouse has no orbit
+  // drag to report (onMouseDown is point-to-move only — Q/E are the mouse's
+  // manual look), and Q/E emit an orbitDelta on every frame they are held, so
+  // the keyboard path is already covered by the delta itself.
+  get orbitHeld() { return this.orbitId !== null; }
+
   onTouchStart(e) {
     e.preventDefault();
     for (const t of e.changedTouches) {

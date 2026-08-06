@@ -142,26 +142,74 @@ mutates sim state.
   spring error is untouched, and there's nothing left to fight. See
   `.wiki/adr/0007-camera-orbit-offset.md` for the full before/after and the
   alternatives rejected. The offset eases back to zero on its own,
-  deliberately at a different rate than the spring: `ORBIT_RECENTRE_DELAY = 1.2 s` grace (the `_orbitHold` field name is
+  deliberately at a different rate than the spring: `ORBIT_RECENTRE_DELAY` grace
+  (the `_orbitHold` field name is
   now a misnomer — it means "grace before unwind," not "chase suspended";
   left unrenamed to keep the diff scoped) before a first-order decay at
-  `ORBIT_RECENTRE_RATE = 0.45`/s (tau 2.2 s) capped at `ORBIT_RECENTRE_MAX =
-  0.5 rad/s` (29°/s) — a rate *ceiling*, not a lerp, because a lerp's peak
+  `ORBIT_RECENTRE_RATE` capped at `ORBIT_RECENTRE_MAX` — a rate *ceiling*, not
+  a lerp, because a lerp's peak
   rate is at t=0 and scales with the offset (a 180° look would start back at
-  81°/s). 8.4-14× slower than the reclaim it replaces. The two rates are two
+  81°/s). The two rates are two
   different promises: the fast spring (4.2-7.0 rad/s) tracks the HEADING so a
   chosen framing survives a turn and therefore size-ramps with how fast the
   world moves; the slow unwind returns that framing to centre for an idle
   player and deliberately does **not** size-ramp — it's a readability budget,
   not a speed-tracking rate.
+- **The unwind was retuned so follow wins over orbit (2026-08-06).** The
+  structure above is unchanged; the three return-to-centre constants are not.
+  As first shipped, `ORBIT_RECENTRE_DELAY = 1.2 s` / `RATE = 0.45`/s (tau 2.2 s)
+  / `MAX = 0.5 rad/s` (29°/s) took **8.05 s** to bring a 90° look back behind
+  the heading and 11.08 s for 180°. That is long enough that the camera reads as
+  an *orbit* camera parked wherever you last looked, which is the opposite of
+  the follow cam this mode is supposed to be — Nico's report was "feels
+  orbital, I want it back to follow." Now `DELAY = 0.15 s`, `RATE = 18`/s
+  (tau 56 ms), `MAX = 2.2 rad/s` (126°/s): **1.23 s** for 90° and 1.92 s for
+  180°. Still 1.9× slower than the 240.6°/s reclaim ADR-0007 killed at SIZE 1
+  and 3.2× slower than its 401.2°/s at SIZE 12, so it buys the return without
+  buying back the snatch. `RATE = 18` makes tau (56 ms) far shorter than the
+  frame budget, so the ceiling — not the decay — is what governs the whole
+  return; that is deliberate, and it is what makes a 20° look and a 180° look
+  come back at the same readable speed. The return time has a floor the three
+  constants **cannot** reach: ~0.4 s of it is the chase spring settling its own
+  ramp-tracking lag, set by `FOLLOW_OMEGA`. Note the unwind still must not
+  size-ramp, and now the measurement says so rather than the argument alone:
+  SIZE 12 returns *sooner* than SIZE 1 (1.08 s vs 1.23 s) because
+  `FOLLOW_OMEGA` is higher there.
+- **The grace is refreshed by an orbit pointer being DOWN, not just by orbit
+  input arriving** (`Controls.orbitHeld` → `ChaseCamera.update`'s optional 7th
+  argument, passed from both `main.js` call sites). This exists because of the
+  retune above and would be pointless without it. A held Q/E emits a non-zero
+  `orbitDelta` every frame, so the keyboard refreshes the grace on its own —
+  but a **touch drag whose finger stops moving emits nothing**, and at a 1.2 s
+  grace that never mattered while at 0.15 s it is a live defect: measured
+  12.6° of look lost per 0.25 s of stationary finger, 44.1° per 0.5 s, 92.9°
+  per 1.0 s. `orbitId !== null` closes it completely — touch is the only
+  exposed surface, because the mouse deliberately has no orbit drag
+  (`controls.js` `onMouseDown`: Q/E already *are* the mouse's manual look).
+  With the bit live a paused finger loses 0.0° at every duration measured, a
+  *lifted* finger still unwinds at the new rate, and the grace starts at the
+  **lift** rather than at the last movement (a 5 s paused drag retires its
+  offset 1.17 s after release, not during the pause).
+- **`recentre()` is still load-bearing after the retune — do not delete it as
+  redundant.** The faster unwind does self-heal the ratchet, but only from a
+  re-press cadence of ~1 s onward. With `recentre()` forced off on the *new*
+  build, four look-then-press cycles still drift 216° at a 0.25 s cadence and
+  36-51° at 0.5 s; with it live, 0.0°.
 - **The ratchet fix.** `chaseMode` latches the move basis to the live yaw on
   the rising edge of input, so a press right after a look correctly adopts
   the dragged yaw — but the camera still held its offset measured against the
   heading that press just retired, so four look-then-press cycles compounded
-  to 123.8° of drift with the mitigation forced off. `ChaseCamera.recentre()`
+  to large drift with the mitigation forced off. `ChaseCamera.recentre()`
   (`this._yawOffset = 0; this._orbitHold = 0;`), fired from `onBasisLatch`,
   drops the offset on exactly the frame where it's a no-op on the visible
   camera — measured 0.0° drift with it live.
+  ADR-0007 quotes a single 123.8° figure for the drift-with-it-off case; that
+  exact number did **not** reproduce on re-measurement (2026-08-06) and should
+  not be treated as a fixed baseline. The drift is strongly dependent on
+  re-press cadence and *wraps* past 180°, which is the likely provenance of
+  123.8°: the same 4-cycle scenario on that same code measures 338-347° at a
+  0.25-1.0 s cadence and 62.0° at 4 s. The ADR's actual claim — large drift
+  off, 0.0° on — reproduces exactly. Quote the claim, not the number.
 - The chase runs on the BASE yaw: `_introOscYaw` is subtracted before it and
   re-added after, so the intro's decaying offset never biases the target or gets
   baked into the base.

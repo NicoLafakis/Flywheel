@@ -437,7 +437,10 @@ function frame(ts) {
       // to eats, SIZE-ups and consumption milestones.
       world.update(realDt, events);
       const hole = sim.hole;
-      cam.update(realDt, hole.x, hole.z, hole.radius, orbit, zoom);
+      // orbitHeld, not just the orbit delta: a touch-drag finger that has
+      // stopped moving emits no delta and would otherwise let the camera's
+      // recentre grace expire underneath it. See Controls.orbitHeld.
+      cam.update(realDt, hole.x, hole.z, hole.radius, orbit, zoom, controls.orbitHeld);
       world.render(cam.camera);
       hud.updateSandbox(sim);
     } else {
@@ -459,7 +462,10 @@ function frame(ts) {
         else if (ev.type === 'unlocked') hud.showToast('LANDMARK SHIELD DOWN!', 2500);
       }
       world.update(realDt, events);
-      cam.update(realDt, sim.player.x, sim.player.z, sim.player.radius, orbit, zoom);
+      // Passed here too so both call sites hand the camera the same per-frame
+      // truth; the campaign camera provably ignores it (followDir is false, and
+      // the flag is read only inside that branch).
+      cam.update(realDt, sim.player.x, sim.player.z, sim.player.radius, orbit, zoom, controls.orbitHeld);
       world.render(cam.camera);
       hud.update(sim);
       hud.drawMinimap(sim);
