@@ -104,6 +104,21 @@ const JOY_THROW_FRAC = 0.42;
 // inset) on top of its own radius, so a thumb landing near the bezel gets a
 // whole ring rather than a crescent.
 const JOY_EDGE_PAD = 6;
+// Widest viewport that still gets the on-screen stick when the pointer is NOT
+// coarse — i.e. a mouse in a narrow window, which is how this game is actually
+// being tested on a laptop and the case that had no control at all.
+//
+// 420 is taken from css/main.css rather than invented, but it is worth being
+// straight about the fit: that file has no width-based "this is a phone" block
+// to borrow. Its device block is `(hover: none) and (pointer: coarse)` with no
+// width at all, and its two width breakpoints (420, 700) are both about the
+// SETTINGS PANEL — 420 shrinks the slider and readout, 700 decides whether a
+// label and its value fit on one line, and that file explicitly documents them
+// as answering two different questions. 420 is the narrower of the two and the
+// only one that lines up with a phone-shaped viewport; 700 would hand a
+// joystick to anyone running a half-width window on a desktop, which is a
+// common laptop layout and would take their camera away.
+const STICK_MAX_W = 420;
 // Direct steer turns toward a TARGET angle; A/D integrate open-loop. That is
 // the whole reason it can afford a faster rate — there is nothing to
 // overshoot, the error goes to zero and the turn stops itself, so the usual
@@ -208,7 +223,7 @@ export class Controls {
     this._joyThrow = 50;      // px, re-measured off the ring on every arm
     // Has THIS stick gesture ever been past the dead zone? Distinguishes a
     // thumb that is steering from a finger that merely landed on the stick's
-    // half on its way to a pinch. See onTouchStart.
+    // half on its way to a pinch. See onPointerDown.
     this._joyEverLive = false;
     // The camera yaw the stick's angles are read against. Latched, never live:
     // see the long note on _latchBasis below — this is the field the feedback
@@ -255,17 +270,32 @@ export class Controls {
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => { this.keys.clear(); this._clearPoint(); });
 
-    canvas.addEventListener('touchstart', (e) => this.onTouchStart(e), { passive: false });
-    canvas.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false });
-    canvas.addEventListener('touchend', (e) => this.onTouchEnd(e), { passive: false });
-    canvas.addEventListener('touchcancel', (e) => this.onTouchEnd(e), { passive: false });
-    // Mouse is a separate listener set rather than Pointer Events: pointerdown
-    // ALSO fires for touch, so unifying them would double-handle every tap
-    // against the touch handlers above. move/up are on window so a drag that
-    // leaves the canvas keeps tracking and still releases.
-    canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
-    window.addEventListener('mousemove', (e) => this.onMouseMove(e));
-    window.addEventListener('mouseup', (e) => this.onMouseUp(e));
+    this._canvas = canvas;
+    // Pointer Events, NOT touch events plus a parallel mouse set.
+    //
+    // The touch listeners this replaces are the whole reason the stick was inert
+    // on a laptop: a mouse emits pointer/mouse events and never a touchstart, so
+    // nothing on the stick's path ever ran — whatever the window width, and
+    // whatever pointMove was set to. Pointer events unify mouse, touch and pen
+    // behind one pointerId that maps one-for-one onto the old touch identifier,
+    // so the role arbitration, the _touches map, _pinchPoints, the orbit-slot
+    // promotion and the _joyEverLive release all carry over unchanged.
+    //
+    // The old mouse set is DELETED rather than kept alongside. A browser fires
+    // both pointer and compatibility mouse events for the same gesture, so
+    // running the two together would double-handle every press — which is what
+    // the comment that used to sit here was guarding against. The guard was
+    // right; keeping two schemes was the wrong way to satisfy it.
+    //
+    // move/up sit on the canvas rather than on window because setPointerCapture
+    // (see _capture) retargets them here for the life of the gesture. That is
+    // the same "a drag that leaves the element keeps tracking" guarantee the
+    // window listeners bought, without the stuck-stick failure when the release
+    // lands on some other element.
+    canvas.addEventListener('pointerdown', (e) => this.onPointerDown(e), { passive: false });
+    canvas.addEventListener('pointermove', (e) => this.onPointerMove(e), { passive: false });
+    canvas.addEventListener('pointerup', (e) => this.onPointerUp(e), { passive: false });
+    canvas.addEventListener('pointercancel', (e) => this.onPointerUp(e), { passive: false });
   }
 
   // Point-to-move is a SETTING, read live off the settings object main.js
@@ -281,21 +311,23 @@ export class Controls {
   // Is an orbit finger DOWN — as distinct from an orbit finger MOVING.
   //
   // The chase camera's recentre grace is refreshed by a non-zero orbitDelta, and
-  // orbitDelta is deliberately a function of pixels dragged (see onTouchMove), so
+  // orbitDelta is deliberately a function of pixels dragged (see onPointerMove), so
   // a finger that has stopped moving emits exactly nothing while still being a
   // player deliberately holding a look. Measured with the grace at 0.15 s, that
   // gap cost 12.6 deg of the look per 0.25 s of stillness and 44.1 deg per 0.5 s
   // — the camera walking out from under a finger that never left the glass. So
   // "the pointer is down" has to be reported separately from "the pointer moved".
   //
-  // Touch only, and that is complete rather than partial: the mouse has no orbit
-  // drag to report (onMouseDown is point-to-move only — Q/E are the mouse's
-  // manual look), and Q/E emit an orbitDelta on every frame they are held, so
-  // the keyboard path is already covered by the delta itself.
+  // Pointer-driven only, and that is complete rather than partial. Above
+  // STICK_MAX_W with a fine pointer there is no orbit drag to report at all
+  // (Q/E are the mouse's manual look); below it a mouse takes the orbit slot
+  // like any other pointer and is reported here on exactly the same terms as a
+  // finger. Q/E emit an orbitDelta on every frame they are held, so the
+  // keyboard path is already covered by the delta itself.
   //
   // A two-finger pinch is a held look too — the midpoint drives the same
   // orbitDelta a single finger would. The _pinchOn clause should never be the
-  // one that fires: onTouchEnd promotes a surviving camera finger into the orbit
+  // one that fires: onPointerUp promotes a surviving camera finger into the orbit
   // slot, so orbitId is non-null whenever any camera finger is down, pinch or
   // not. It is here because the two costs are not comparable — a redundant
   // boolean against re-opening the 44 deg hole above if that invariant ever
@@ -303,9 +335,27 @@ export class Controls {
   // pinch counts as a look.
   get orbitHeld() { return this.orbitId !== null || this._pinchOn; }
 
-  onTouchStart(e) {
+  onPointerDown(e) {
+    // Wide surface with a fine pointer — a desktop. Unchanged from what the
+    // deleted onMouseDown did, primary-button test included: no stick, no orbit
+    // drag, point-to-move only if the player asked for it.
+    //
+    // The gate is the SURFACE, not e.pointerType, and that is the fix rather
+    // than an implementation detail. The broken case is a MOUSE in a phone-
+    // width window, so a device test would have kept it broken; and a coarse
+    // tablet at 900 px wants the stick, so a width test alone would have missed
+    // it too. _stickLive() asks the only question that separates them.
+    if (!this._stickLive()) {
+      if (!this.pointMove || e.button !== 0 || this._pt) return;
+      e.preventDefault();
+      this._capture(e);
+      this._beginPoint(e.pointerId, e.clientX, e.clientY, e.timeStamp);
+      return;
+    }
     e.preventDefault();
-    // Any finger anywhere retires the first-run hint — it is teaching "touch
+    // Hold the gesture even if it wanders off the canvas or off the document.
+    this._capture(e);
+    // Any pointer anywhere retires the first-run hint — it is teaching "touch
     // the screen", so the first touch has by definition finished its job, even
     // if it landed on the orbit half.
     this._dismissHint();
@@ -330,110 +380,123 @@ export class Controls {
     // mid-drive would be the same class of bug pointing the other way.
     const freed = !this.pointMove && this.joyId !== null && !this._joyEverLive &&
       this._releaseStickToCamera();
-    for (const t of e.changedTouches) {
-      this._touches.set(t.identifier, { x: t.clientX, y: t.clientY });
-      if (this.pointMove) {
-        // FIRST finger points, SECOND finger orbits, and the joystick is gone.
-        // Not a coexistence — a replacement, for three reasons: pointing needs
-        // the whole screen, so the left/right half split that gives the joystick
-        // its home would make half the city unreachable; the joystick steers a
-        // persistent heading while pointing drives at a world point directly,
-        // so a frame where both were live would have two different answers to
-        // "what does this input mean"; and a
-        // second finger is the one gesture that cannot be confused with the
-        // first. Manual look survives, it just moves to the other thumb.
-        if (this._pt === null) this._beginPoint(t.identifier, t.clientX, t.clientY, e.timeStamp);
-        else if (this.orbitId === null) { this.orbitId = t.identifier; this.orbitLastX = t.clientX; }
-        continue;
-      }
-      // `!freed` blocks re-arming for the REST of this event, and it is not
-      // belt-and-braces: release the stick and the very finger that triggered
-      // the release would walk straight into the branch below and take the
-      // stick in its place, stealing the same pinch one finger later.
-      if (!freed && t.clientX < window.innerWidth * 0.5 && this.joyId === null) {
-        this.joyId = t.identifier;
-        this.joyOrigin = { x: t.clientX, y: t.clientY };
-        this.joyVec = { x: 0, y: 0 };
-        this._joyEverLive = false;
-        this.joyActive = true;
-        this._markerMode(false);   // same node, back to thumb-rest proportions
-        this.joyEl.classList.remove('hidden');
-        this._placeRing(t.clientX, t.clientY);
-        this.knobEl.style.transform = 'translate(-50%, -50%)';
-        // A short tick on ARM only. Not on every threshold crossing: the stick
-        // is held for the whole level, so anything that fires while steering is
-        // a buzz, not a cue. No-op on iOS Safari (which has never shipped the
-        // API) and inside a touch handler on Android, which is a user gesture,
-        // so it cannot trip the "blocked, no user activation" path.
-        if (navigator.vibrate) navigator.vibrate(8);
-      } else if (this.orbitId === null) {
-        this.orbitId = t.identifier;
-        this.orbitLastX = t.clientX;
-      }
+    this._touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pointMove) {
+      // FIRST pointer points, SECOND orbits, and the joystick is gone. Not a
+      // coexistence — a replacement, for three reasons: pointing needs the
+      // whole screen, so the left/right half split that gives the joystick its
+      // home would make half the city unreachable; the joystick steers a
+      // persistent heading while pointing drives at a world point directly, so
+      // a frame where both were live would have two different answers to "what
+      // does this input mean"; and a second pointer is the one gesture that
+      // cannot be confused with the first. Manual look survives, it just moves
+      // to the other thumb.
+      if (this._pt === null) this._beginPoint(e.pointerId, e.clientX, e.clientY, e.timeStamp);
+      else if (this.orbitId === null) { this.orbitId = e.pointerId; this.orbitLastX = e.clientX; }
+      this._rebasePinch();
+      return;
+    }
+    // `!freed` blocks the pointer that TRIGGERED the release from re-arming.
+    // Not belt-and-braces: without it that pointer walks straight into the
+    // branch below and takes the stick in the freed one's place, stealing the
+    // same pinch one finger later. (Under touch events this had to hold across
+    // a whole changedTouches loop; one pointer per event now, same job.)
+    if (!freed && e.clientX < window.innerWidth * 0.5 && this.joyId === null) {
+      this.joyId = e.pointerId;
+      this.joyOrigin = { x: e.clientX, y: e.clientY };
+      this.joyVec = { x: 0, y: 0 };
+      this._joyEverLive = false;
+      this.joyActive = true;
+      this._markerMode(false);   // same node, back to thumb-rest proportions
+      this.joyEl.classList.remove('hidden');
+      this._placeRing(e.clientX, e.clientY);
+      this.knobEl.style.transform = 'translate(-50%, -50%)';
+      // A short tick on ARM only. Not on every threshold crossing: the stick
+      // is held for the whole level, so anything that fires while steering is
+      // a buzz, not a cue. No-op on iOS Safari (which has never shipped the
+      // API) and inside a pointer handler on Android, which is a user gesture,
+      // so it cannot trip the "blocked, no user activation" path.
+      if (navigator.vibrate) navigator.vibrate(8);
+    } else if (this.orbitId === null) {
+      this.orbitId = e.pointerId;
+      this.orbitLastX = e.clientX;
     }
     this._rebasePinch();
   }
 
-  onTouchMove(e) {
-    e.preventDefault();
-    for (const t of e.changedTouches) {
-      const p = this._touches.get(t.identifier);
-      if (p) { p.x = t.clientX; p.y = t.clientY; }
-      if (this._pt && t.identifier === this._pt.id) {
-        this._movePoint(t.clientX, t.clientY);
-      } else if (t.identifier === this.joyId) {
-        const dx = t.clientX - this.joyOrigin.x;
-        const dy = t.clientY - this.joyOrigin.y;
-        const len = Math.hypot(dx, dy);
-        // Measured off the ring at arm time, not a constant: the ring is sized
-        // in vmin now, so a fixed 50 px throw would be 84% of the radius on a
-        // phone and 38% on a tablet — the same thumb sweep meaning two
-        // different things depending on the panel.
-        const max = this._joyThrow;
-        const cl = Math.min(len, max);
-        const nx = len > 0 ? dx / len : 0, ny = len > 0 ? dy / len : 0;
-        this.joyVec = { x: (nx * cl) / max, y: (ny * cl) / max };
-        // Latch "this stick has actually commanded something". Tested against
-        // the same JOY_DEAD getMove uses, on the same magnitude — invert only
-        // mirrors the components, so it cannot change the length. Once true it
-        // stays true for the life of the gesture: see onTouchStart for why a
-        // thumb returning to centre must not lose the stick.
-        if (!this._joyEverLive && cl / max > JOY_DEAD) this._joyEverLive = true;
-        this.knobEl.style.transform = `translate(calc(-50% + ${nx * cl}px), calc(-50% + ${ny * cl}px))`;
-      } else if (t.identifier === this.orbitId) {
-        // Deliberately coupled to PIXELS DRAGGED, not to time — correct for a
-        // drag gesture. turnSens scales it in the sandbox for the same reason it
-        // scales Q/E: this drag is now the player's only manual camera, so the
-        // slider has to reach it or it reaches nothing on touch.
-        //
-        // The reference is refreshed even while a pinch owns the orbit, and that
-        // is not bookkeeping — it is the whole no-jump rule applied to the other
-        // end of the gesture. Freeze it during the pinch and the frame the
-        // second finger lifts would emit every pixel this finger travelled while
-        // the midpoint was driving, as one delta: a two-finger gesture that
-        // wandered 200 px across the screen would snap the camera 1.6 rad the
-        // instant it became a one-finger gesture again.
-        const dx = t.clientX - this.orbitLastX;
-        this.orbitLastX = t.clientX;
-        if (!this._pinchOn) this.orbitDelta += dx * ORBIT_PX_RATE * this._orbitSens();
-      }
+  onPointerMove(e) {
+    // A hovering mouse fires this continuously with no button down. Every
+    // branch below is keyed to a pointer that already claimed a role at
+    // pointerdown, so a hover matches nothing and costs one map lookup —
+    // but preventDefault has to move INSIDE the branches, or a bare hover
+    // would be swallowing default behaviour across the whole canvas.
+    const p = this._touches.get(e.pointerId);
+    if (p) { p.x = e.clientX; p.y = e.clientY; }
+    if (this._pt && e.pointerId === this._pt.id) {
+      e.preventDefault();
+      this._movePoint(e.clientX, e.clientY);
+    } else if (e.pointerId === this.joyId) {
+      e.preventDefault();
+      const dx = e.clientX - this.joyOrigin.x;
+      const dy = e.clientY - this.joyOrigin.y;
+      const len = Math.hypot(dx, dy);
+      // Measured off the ring at arm time, not a constant: the ring is sized
+      // in vmin now, so a fixed 50 px throw would be 84% of the radius on a
+      // phone and 38% on a tablet — the same thumb sweep meaning two
+      // different things depending on the panel.
+      const max = this._joyThrow;
+      const cl = Math.min(len, max);
+      const nx = len > 0 ? dx / len : 0, ny = len > 0 ? dy / len : 0;
+      this.joyVec = { x: (nx * cl) / max, y: (ny * cl) / max };
+      // Latch "this stick has actually commanded something". Tested against
+      // the same JOY_DEAD getMove uses, on the same magnitude — invert only
+      // mirrors the components, so it cannot change the length. Once true it
+      // stays true for the life of the gesture: see onPointerDown for why a
+      // thumb returning to centre must not lose the stick.
+      if (!this._joyEverLive && cl / max > JOY_DEAD) this._joyEverLive = true;
+      this.knobEl.style.transform = `translate(calc(-50% + ${nx * cl}px), calc(-50% + ${ny * cl}px))`;
+    } else if (e.pointerId === this.orbitId) {
+      e.preventDefault();
+      // Deliberately coupled to PIXELS DRAGGED, not to time — correct for a
+      // drag gesture. turnSens scales it in the sandbox for the same reason it
+      // scales Q/E: this drag is now the player's only manual camera, so the
+      // slider has to reach it or it reaches nothing on touch.
+      //
+      // The reference is refreshed even while a pinch owns the orbit, and that
+      // is not bookkeeping — it is the whole no-jump rule applied to the other
+      // end of the gesture. Freeze it during the pinch and the frame the
+      // second finger lifts would emit every pixel this finger travelled while
+      // the midpoint was driving, as one delta: a two-finger gesture that
+      // wandered 200 px across the screen would snap the camera 1.6 rad the
+      // instant it became a one-finger gesture again.
+      const dx = e.clientX - this.orbitLastX;
+      this.orbitLastX = e.clientX;
+      if (!this._pinchOn) this.orbitDelta += dx * ORBIT_PX_RATE * this._orbitSens();
     }
     this._updatePinch();
   }
 
-  onTouchEnd(e) {
-    for (const t of e.changedTouches) {
-      this._touches.delete(t.identifier);
-      if (this._pt && t.identifier === this._pt.id) this._endPoint(e.timeStamp);
-      if (t.identifier === this.joyId) {
-        this.joyId = null; this.joyActive = false;
-        this.joyVec = { x: 0, y: 0 };
-        this._joyEverLive = false;
-        this.joyEl.classList.add('hidden');
-        this.knobEl.style.transform = 'translate(-50%, -50%)';
-      }
-      if (t.identifier === this.orbitId) this.orbitId = null;
+  // Also the pointercancel handler. Cancel is not a rare path — the browser
+  // fires it whenever it decides a gesture became something else — and it must
+  // drop every role, which is exactly what a release does.
+  //
+  // Deliberately NOT gated on e.button. The deleted onMouseUp tested for the
+  // primary button, but pointercancel reports button -1, so carrying that test
+  // over would have leaked a stuck stick on every cancelled gesture. The cost
+  // is that releasing a second mouse button ends a point-to-move drag; the
+  // cancel leak is the worse of the two by a wide margin.
+  onPointerUp(e) {
+    this._release(e);
+    this._touches.delete(e.pointerId);
+    if (this._pt && e.pointerId === this._pt.id) this._endPoint(e.timeStamp);
+    if (e.pointerId === this.joyId) {
+      this.joyId = null; this.joyActive = false;
+      this.joyVec = { x: 0, y: 0 };
+      this._joyEverLive = false;
+      this.joyEl.classList.add('hidden');
+      this.knobEl.style.transform = 'translate(-50%, -50%)';
     }
+    if (e.pointerId === this.orbitId) this.orbitId = null;
     // A surviving camera finger inherits the orbit slot. Without this, lifting
     // the FIRST of two pinch fingers leaves the second one orbiting nothing:
     // orbitId is null, so orbitHeld goes false while a finger is still very much
@@ -492,7 +555,7 @@ export class Controls {
   // point-to-move pointer.
   //
   // Consequence worth stating rather than discovering: in point-to-move mode the
-  // FIRST finger down is unconditionally the world pointer (see onTouchStart),
+  // FIRST finger down is unconditionally the world pointer (see onPointerDown),
   // so a pinch there needs a third finger. That is not a compromise chosen here,
   // it falls out of pointing needing the whole screen; zoom is reachable in that
   // mode with three fingers and is honestly not discoverable with two. Keyboard
@@ -636,11 +699,14 @@ export class Controls {
     this._hintSettled = true;   // one shot, whatever the outcome below
     const el = document.getElementById('touch-hint');
     if (!el) return;
-    // Coarse pointer only. A desktop player has no stick to be shown and the
-    // hint would be a ghost ring sitting on their city for nine seconds.
-    const coarse = typeof matchMedia === 'function' &&
-      matchMedia('(hover: none) and (pointer: coarse)').matches;
-    if (!coarse || this.pointMove) return;
+    // Exactly when the stick is live, which is now the same test the stick
+    // itself uses rather than a second copy of the coarse query. It had drifted
+    // in the direction that matters: on its own, the coarse test hid "Drag to
+    // steer" from precisely the narrow-window mouse player who has just been
+    // given a stick and has no other way to find out it is there. A desktop
+    // player still gets nothing — the hint would be a ghost ring sitting on
+    // their city for nine seconds.
+    if (!this._stickLive() || this.pointMove) return;
     // localStorage throws outright in Safari private mode rather than
     // returning null, and a first-run hint is not worth a broken control file.
     let seen = false;
@@ -683,22 +749,44 @@ export class Controls {
     if (Number.isFinite(camYaw)) this._basisYaw = camYaw;
   }
 
-  // Mouse mirrors the first finger exactly. There is no mouse orbit drag to
-  // mirror the second finger: Q/E already are the mouse's manual look, and a
-  // right-drag would mean suppressing the context menu over the whole canvas for
-  // a control that is already bound.
-  onMouseDown(e) {
-    if (!this.pointMove || e.button !== 0 || this._pt) return;
-    e.preventDefault();
-    this._beginPoint('mouse', e.clientX, e.clientY, e.timeStamp);
+  // Should this surface get the on-screen stick?
+  //
+  // Asked of the SURFACE, never of the event, and never cached. Not cached
+  // because a desktop window is resizable and devtools' responsive mode flips
+  // both clauses live — a value latched at construction would answer for the
+  // window the page happened to open in, which is the same class of mistake as
+  // the touch-only listeners this replaces.
+  //
+  // The coarse test is the exact query css/main.css uses for its device block,
+  // so the HUD and the stick can never disagree about what a phone is. The
+  // width clause is the addition, and it is what fixes the reported bug: a mouse
+  // in a phone-width window is a fine pointer that hovers, so the coarse test
+  // alone says "desktop" and leaves the player with no control at all.
+  //
+  // Above the threshold with a fine pointer, nothing changes: no stick, and no
+  // orbit drag either, because there never was one — Q/E are the mouse's manual
+  // look. Below it a mouse now gets the whole touch scheme, orbit drag included.
+  // That IS new behaviour for a narrow desktop window rather than something
+  // being preserved, and it is the point: a player down there previously had a
+  // canvas that ignored every drag.
+  _stickLive() {
+    const coarse = typeof matchMedia === 'function' &&
+      matchMedia('(hover: none) and (pointer: coarse)').matches;
+    return coarse || window.innerWidth <= STICK_MAX_W;
   }
 
-  onMouseMove(e) {
-    if (this._pt && this._pt.id === 'mouse') this._movePoint(e.clientX, e.clientY);
+  // Capture keeps a gesture reporting to the canvas after it leaves the canvas,
+  // which is the usual source of a stick that sticks: without it, a thumb that
+  // slides onto the HUD (or a mouse that exits the window) stops sending moves
+  // and never sends the up, so the role is held forever. Wrapped because
+  // setPointerCapture throws if the pointer is already gone, and a control file
+  // must not break a gesture over a race it cannot lose meaningfully.
+  _capture(e) {
+    try { this._canvas.setPointerCapture(e.pointerId); } catch (err) { /* pointer already released */ }
   }
 
-  onMouseUp(e) {
-    if (this._pt && this._pt.id === 'mouse' && e.button === 0) this._endPoint(e.timeStamp);
+  _release(e) {
+    try { this._canvas.releasePointerCapture(e.pointerId); } catch (err) { /* already implicit */ }
   }
 
   // ------------------------------------------------------- point-to-move guts
@@ -1015,7 +1103,15 @@ export class Controls {
     // error and neither control would do what it says. Keys pick up again the
     // frame the thumb comes back to the middle, which is the only case that
     // matters in practice: a phone with a keyboard attached.
-    if (stickMag > JOY_DEAD) {
+    // `!this.pointMove` is the read-time half of an exclusivity that was only
+    // enforced at routing time. onPointerDown will not ARM the stick while
+    // pointing is on, which covers every gesture that begins in that mode — but
+    // the setting is live, read off the object the settings screen mutates, so
+    // it can flip while a stick finger is already down and holding a joyVec.
+    // Nothing in the block above zeroes it (onPointerUp does, on lift), so
+    // without this the player would be steering with a stick their mode says
+    // does not exist. Mirrors the _clearPoint() in the other direction.
+    if (!this.pointMove && stickMag > JOY_DEAD) {
       const basis = Number.isFinite(this._basisYaw) ? this._basisYaw
         : (Number.isFinite(camYaw) ? camYaw : 0);
       // Screen -> world. Screen-up is the camera's own forward, i.e. heading ==

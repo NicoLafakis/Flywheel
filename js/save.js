@@ -2,16 +2,21 @@
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 12;
+export const CURRENT_VERSION = 13;
 
 function defaultSettings() {
   return {
     invertX: false, invertY: false, shadows: true, camDist: 1, reducedMotion: false, sfxVol: 1, turnSens: 1, perfMode: false,
-    // Tap/drag to move (world-space pointing) instead of the virtual joystick.
-    // Deliberately NOT a schema bump: an existing v10 save simply has no key,
-    // `!undefined` is true, and the first toggle writes it — so the setting
-    // works on old saves without spending a migration or racing another agent
-    // for the next version number.
+    // Tap/drag to move (world-space pointing) INSTEAD of the floating joystick,
+    // which is the default touch control. Introducing this key deliberately did
+    // not spend a schema bump: an existing v10 save simply has no key, an absent
+    // boolean reads as off through `!undefined`, and the first toggle writes it.
+    //
+    // Clearing it later DID need one (v12 -> v13), and that is not a reversal of
+    // the rule stated under `quality` below — it is the other half of it. That
+    // rule is about an ABSENT key, and an absent `pointMove` was always right.
+    // v13 is about a key that is PRESENT and holds a choice nobody could have
+    // made informedly; see the migration for why.
     pointMove: false,
     // Device quality tier: 'auto' | 'high' | 'medium' | 'low' | 'potato'.
     // 'auto' means js/quality.js classifies the device at boot and a live
@@ -146,6 +151,39 @@ const MIGRATIONS = {
       ...defaultSettings(),
       ...(s.settings || {}),
       quality: 'auto',
+    },
+  }),
+  // v13: the floating joystick is the default touch control, so every pre-v13
+  // `pointMove: true` is cleared.
+  //
+  // Resetting a setting a player chose is normally the wrong thing to do, and
+  // the justification here is specific rather than a general licence. Point-to-
+  // move shipped 2026-08-05; the joystick shipped the next day. In EVERY build
+  // where the two coexisted, `pointMove: true` suppressed the joystick outright
+  // — onPointerDown treats it as a replacement, not an overlay — so a player who
+  // had it on has never had a joystick rendered on their screen. There is no
+  // such thing yet as someone who saw both and preferred pointing. The value we
+  // are clearing is not a comparison anyone made; it is the only option that
+  // existed when they made it.
+  //
+  // That is why this keys off the schema version rather than trying to date the
+  // toggle. It is exact for the question actually being asked: v13 is the first
+  // version whose builds render a joystick to a `pointMove` player, so from here
+  // on the setting is an informed choice and no migration touches it again. It
+  // is one-shot by construction — a save already at 13 never enters this branch,
+  // so turning the setting back on survives every future load.
+  //
+  // What this does NOT survive is a second re-default later; version alone could
+  // not then distinguish "chose pointing over the joystick" from "never saw the
+  // joystick". If that day comes, the honest fix is a marker written by the
+  // settings screen at the moment of the toggle, not more archaeology here.
+  12: (s) => ({
+    ...s,
+    version: 13,
+    settings: {
+      ...defaultSettings(),
+      ...(s.settings || {}),
+      pointMove: false,
     },
   }),
 };
