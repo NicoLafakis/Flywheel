@@ -11,6 +11,7 @@ import { Controls } from './controls.js';
 import { HUD } from './ui/hud.js';
 import { Screens, SKINS } from './ui/screens.js';
 import { mountReadyGate } from './ui/ready.js';
+import { TIERS, TIER_ORDER, detectTier, QualityWatchdog } from './quality.js';
 
 const canvas = document.getElementById('game-canvas');
 const hud = new HUD();
@@ -46,6 +47,79 @@ let readyGate = null; // live mountReadyGate handle, so teardown can dismiss it
 let accumulator = 0;
 let lastTs = 0;
 let shopBonus = { clock: 0, growth: 0 };
+
+// ------------------------------------------------------------------ quality tier
+// Detection runs ONCE, at boot, and its result is cached: it costs a throwaway
+// WebGL context, and the hardware does not change mid-session. The watchdog is
+// what tracks anything that does — including the fact that Boston is 2.1x
+// Brooklyn's block count, so the right tier genuinely differs per level.
+const detected = detectTier();
+let tierName = 'high';
+const watchdog = new QualityWatchdog((tier, reason) => {
+  tierName = tier;
+  applyQuality();
+  // Not a toast. A player who is already dropping frames does not need a popup
+  // built out of more DOM work telling them so, and the whole point of the
+  // ladder is that it is invisible. It goes to the console and to the debug
+  // handle, where the next person profiling this can see it.
+  if (typeof console !== 'undefined') console.info(`[quality] ${reason}`);
+});
+// Debug hook, same idiom as window.__sim / __world / __cam / __controls.
+// `force` is what a harness (and a dev on a fast machine) uses to see a tier it
+// will never be classified into; it stops the watchdog so the forced tier holds.
+window.__quality = {
+  detected, watchdog, TIERS,
+  tier: () => tierName,
+  force(t) {
+    if (!TIERS[t]) return false;
+    watchdog.enabled = false;
+    tierName = t;
+    applyQuality();
+    return true;
+  },
+  levers: () => ({
+    tier: tierName,
+    dpr: world && world.renderer ? world.renderer.getPixelRatio() : null,
+    shadows: world ? world.shadows : null,
+    ambientFrozen: world ? world._ambientFrozen : null,
+    debrisCap: sim && sim.tune ? sim.tune.debrisCap : null,
+    contactBudget: sim && sim.tune ? sim.tune.contactBudget : null,
+    maxSubSteps: (TIERS[tierName] || TIERS.high).maxSubSteps,
+    contactRounds: sim && sim.tune ? sim.tune.contactRounds : null,
+    supportEvery: sim && sim.tune ? sim.tune.supportEvery : null,
+  }),
+};
+
+// The player's setting is the authority; 'auto' delegates to the classifier.
+function wantedTier() {
+  const q = save.settings && save.settings.quality;
+  return q && q !== 'auto' && TIER_ORDER.includes(q) ? q : detected.tier;
+}
+
+// Push the current tier at both halves of the engine. Idempotent — every setter
+// it calls returns early when nothing changed — so it is safe to call from
+// applySettings, from level start, and from the watchdog.
+function applyQuality() {
+  const spec = TIERS[tierName] || TIERS.high;
+  if (world && world.setQuality) world.setQuality(spec);
+  if (sim && sim.tune) {
+    sim.tune.debrisCap = spec.debrisCap;
+    sim.tune.contactBudget = spec.contactBudget;
+    sim.tune.contactRounds = spec.contactRounds;
+    sim.tune.supportEvery = spec.supportEvery;
+  }
+}
+
+// Called at every level start: re-resolve the tier from the setting, hand it to
+// the watchdog (pinned when the player chose one by hand), and apply it.
+let qualityPref = null;   // last-seen save.settings.quality, so applySettings can tell it apart
+function startQuality() {
+  qualityPref = save.settings && save.settings.quality;
+  tierName = wantedTier();
+  const pinned = !!(qualityPref && qualityPref !== 'auto');
+  watchdog.start(tierName, { pinned });
+  applyQuality();
+}
 
 function computeShopBonus() {
   shopBonus = {
@@ -101,6 +175,11 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     // and the campaign World3D must not be called with a method it lacks.
     if (world && world.setReducedMotion) world.setReducedMotion(save.settings.reducedMotion);
     if (world && world.setPerfMode) world.setPerfMode(save.settings.perfMode);
+    // Only when the quality setting itself moved. applySettings fires on every
+    // slider drag, and restarting the watchdog there would keep clearing its
+    // window — it would never accumulate the three seconds it needs to judge
+    // anything.
+    if (save.settings.quality !== qualityPref) startQuality();
     applyVoxTuning();
   },
 });
@@ -148,6 +227,7 @@ function startLevel() {
   controls.heading = null;
   window.__controls = controls;   // debug hook — parity with the sandbox path
   resize();
+  startQuality();
   hud.setLevel(level, METROS[level.metroIndex].name);
   hud.show();
   screens.clear();
@@ -310,6 +390,10 @@ function startVoxelSandbox(scene = 'gallery') {
     controls.setSandboxSizeProgress(0);
     window.__controls = controls; // debug hook — the sizeT ramp has two consumers
     applyVoxTuning(); // dev sliders from the save
+    // After the sim and the renderer both exist, and after applyVoxTuning —
+    // which writes the whole `tune` object's dev half and would otherwise be
+    // the last word on it.
+    startQuality();
     resize();
     hud.setLevel({ index: 'SANDBOX', clock: 999 }, hudLabel);
     hud.show();
@@ -378,7 +462,8 @@ const FIXED_DT = 1 / 60;
 
 function frame(ts) {
   requestAnimationFrame(frame);
-  const realDt = Math.min(0.1, (ts - lastTs) / 1000 || 0);
+  const rawDt = (ts - lastTs) / 1000 || 0;
+  const realDt = Math.min(0.1, rawDt);
   lastTs = ts;
 
   if (state === 'playing' && sim) {
@@ -387,6 +472,17 @@ function frame(ts) {
     // accumulator here (rather than letting it fill) means the level cannot
     // lurch forward by however long the player looked at the sign.
     const held = cam.introHolding();
+    // The watchdog gets the RAW gap, not the clamped one: the clamp exists so a
+    // long frame cannot make the sim lurch, and feeding it the clamped value
+    // would cap every sample at 100 ms and hide the worst frames — precisely the
+    // ones it is looking for. It does its own stall rejection (see quality.js).
+    //
+    // Not while the READY gate holds the establishing shot: the sim is not
+    // stepping, so those frames are the cheapest in the level and a player who
+    // reads the sign for ten seconds would otherwise hand the watchdog ten
+    // seconds of evidence that the machine is fast. The scene-build hitch lands
+    // in the same window and is excluded by the same line.
+    if (!held) watchdog.sample(rawDt * 1000);
     accumulator = held ? 0 : accumulator + realDt;
     if (isVoxelSandbox) {
       // One signal, two consumers: the camera scales its framing, standoff and
@@ -411,11 +507,33 @@ function frame(ts) {
     driveHole.heading = controls.heading ?? 0;
     const orbit = controls.consumeOrbit();
     const zoom = controls.consumeZoom();
-    while (accumulator >= FIXED_DT) {
+    // Fixed-step catch-up, with a TIER-DRIVEN sub-step ceiling.
+    //
+    // This is the single nastiest failure mode on a slow device, and it is a
+    // positive feedback loop rather than a slow degradation: `realDt` is clamped
+    // to 0.1 s, so a frame may owe up to 6 sub-steps. The moment a device cannot
+    // finish ONE sub-step inside a frame it is immediately asked for six, the
+    // frame gets ~6x worse, which makes the next frame owe six again. Measured at
+    // 4x CPU throttle on Brooklyn: `sim.step` 470 ms/frame at 3.8 fps, of which a
+    // single step is ~78 ms. No quality tier fixes that, because the tier lowers
+    // the cost of one step while the loop multiplies whatever is left by six.
+    //
+    // Capping the count converts the spiral into slow motion: the world advances
+    // less game-time per second, but it stays INTERACTIVE and the input keeps
+    // responding. That is the right trade on a phone. HIGH keeps 6, which is
+    // exactly the pre-tier ceiling (0.1 / FIXED_DT), so nothing changes for a
+    // machine that was coping — and `tools/validate.mjs` never runs this loop.
+    const maxSteps = (TIERS[tierName] || TIERS.high).maxSubSteps || 6;
+    let steps = 0;
+    while (accumulator >= FIXED_DT && steps < maxSteps) {
       sim.step(FIXED_DT, move);
       accumulator -= FIXED_DT;
+      steps++;
       if (sim.over) break;
     }
+    // Drop the debt we could not afford instead of carrying it into the next
+    // frame — carrying it is what makes the spiral unrecoverable.
+    if (accumulator >= FIXED_DT) accumulator = 0;
     const events = sim.drainEvents();
     if (isVoxelSandbox) {
       for (const ev of events) {

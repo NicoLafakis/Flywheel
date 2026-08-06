@@ -2,7 +2,7 @@
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 11;
+export const CURRENT_VERSION = 12;
 
 function defaultSettings() {
   return {
@@ -13,6 +13,22 @@ function defaultSettings() {
     // works on old saves without spending a migration or racing another agent
     // for the next version number.
     pointMove: false,
+    // Device quality tier: 'auto' | 'high' | 'medium' | 'low' | 'potato'.
+    // 'auto' means js/quality.js classifies the device at boot and a live
+    // watchdog may step it down (or back up) while playing; anything else pins
+    // the tier and turns the watchdog off entirely.
+    //
+    // This one DOES get a schema bump, unlike `pointMove` above, and the
+    // difference is worth recording because it is the judgement the comment
+    // there is asking for. `pointMove` is a boolean whose absent value reads
+    // correctly as `false` through `!undefined` — the setting works on an old
+    // save with no migration. `quality` is a string, and `undefined` is not
+    // 'auto': it would fall through every comparison in main.js and leave an
+    // upgrading player with no tier at all, no auto-detection and no watchdog,
+    // which is silently worse than the build they came from. A key whose absent
+    // value is WRONG needs a migration; a key whose absent value is already the
+    // default does not.
+    quality: 'auto',
     // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
     voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2,
   };
@@ -118,6 +134,20 @@ const MIGRATIONS = {
   // retired campaign level records. Keep those records intact: they are old
   // player history, not invalid data.
   10: (s) => ({ ...s, version: 11, sandbox: s.sandbox || {} }),
+  // v12: settings.quality — the device tier. Existing players land on 'auto'
+  // (detect + watchdog), which is the behaviour they would want and cannot ask
+  // for otherwise; anyone who had already turned on Performance Mode keeps it,
+  // since the two are independent controls (perfMode caps the pixel ratio and
+  // freezes ambient life; the tier is the debris/support/shadow ladder).
+  11: (s) => ({
+    ...s,
+    version: 12,
+    settings: {
+      ...defaultSettings(),
+      ...(s.settings || {}),
+      quality: 'auto',
+    },
+  }),
 };
 
 export function loadSave() {

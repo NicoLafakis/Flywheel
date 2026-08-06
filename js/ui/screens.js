@@ -266,6 +266,40 @@ export class Screens {
     panel.appendChild(toggle('🫧 Less movement', 'reducedMotion'));
     panel.appendChild(toggle('⚡ Smoother play', 'perfMode'));
 
+    // Device quality. AUTO is the default and the only value that lets the live
+    // watchdog work — the named tiers pin it, which is the point of choosing
+    // one. Cycled by a single button rather than a <select> because every other
+    // control on this screen is a button and a native dropdown is the one widget
+    // that would look imported; five options is few enough that a cycle never
+    // feels like hunting.
+    //
+    // The label reports what AUTO actually resolved to, because the honest
+    // failure mode of an auto setting is a player who cannot tell whether it
+    // did anything. `window.__quality` is set by main.js at boot.
+    const QUALITY_ORDER = ['auto', 'high', 'medium', 'low', 'potato'];
+    const QUALITY_LABEL = { auto: 'AUTO', high: 'HIGH', medium: 'MEDIUM', low: 'LOW', potato: 'LOWEST' };
+    const qualityText = () => {
+      const cur = st.quality || 'auto';
+      if (cur !== 'auto') return QUALITY_LABEL[cur];
+      const q = typeof window !== 'undefined' && window.__quality;
+      const live = q && q.tier ? q.tier() : null;
+      return live ? `AUTO · ${QUALITY_LABEL[live] || live.toUpperCase()}` : 'AUTO';
+    };
+    const qRow = el(`<div style="margin:8px 0">🎚 Graphics detail
+      <button class="btn secondary" style="float:right;padding:4px 14px;font-size:14px;margin:0">
+      ${qualityText()}</button></div>`);
+    const qBtn = qRow.querySelector('button');
+    qBtn.onclick = () => {
+      const i = QUALITY_ORDER.indexOf(st.quality || 'auto');
+      st.quality = QUALITY_ORDER[(i + 1) % QUALITY_ORDER.length];
+      qBtn.textContent = qualityText();
+      this.actions.applySettings();
+      // Re-read AFTER applySettings: switching back to AUTO re-resolves the tier,
+      // and the label would otherwise show the previous one until the next visit.
+      qBtn.textContent = qualityText();
+    };
+    panel.appendChild(qRow);
+
     const muteRow = el(`<div style="margin:8px 0">🔊 Game sounds
       <button class="btn secondary" style="float:right;padding:4px 18px;font-size:14px;margin:0">
       ${this.save.muted ? 'OFF' : 'ON'}</button></div>`);
@@ -358,28 +392,22 @@ export class Screens {
     // Full controls listing — every ability gets its own keybind.
     const ctlTitle = el(`<h3 style="margin:18px 0 4px">CONTROLS</h3>`);
     panel.appendChild(ctlTitle);
-    const ctlGroup = (name) => panel.appendChild(
-      el(`<div style="clear:both;margin:8px 0 2px;opacity:0.7;font-size:13px;font-weight:700">${name}</div>`));
     const ctl = (label, keys) => panel.appendChild(
       el(`<div style="clear:both;margin:4px 0">${label}
         <span style="float:right;font-weight:700">${keys}</span></div>`));
-    ctlGroup('CITY PLAY');
+    // One flat list, no sub-headers. There used to be CITY PLAY / CITY LEVELS /
+    // GENERAL groups, and the first two were byte-identical — CITY LEVELS
+    // documented the campaign, which a137054 retired. showTitle() offers only
+    // sandbox scenes plus SHOP/SETTINGS now, so there is no route to a campaign
+    // level and no second scheme left to distinguish.
     ctl('Drive forward', 'W / ↑');
     ctl('Reverse', 'S / ↓');
     ctl('Turn left', 'A / ←');
     ctl('Turn right', 'D / →');
     ctl('Orbit camera', 'Q / E');
     ctl('Zoom in / out', 'R / F');
-    ctlGroup('CITY LEVELS');
-    ctl('Drive forward', 'W / ↑');
-    ctl('Reverse', 'S / ↓');
-    ctl('Turn left', 'A / ←');
-    ctl('Turn right', 'D / →');
-    ctl('Orbit camera', 'Q / E');
-    ctl('Zoom in / out', 'R / F');
-    ctlGroup('GENERAL');
     ctl('Pause', 'Esc');
-    ctl('Touch', 'left ½ joystick · right ½ orbit');
+    ctl('Touch', 'left ½ steers · right ½ looks · pinch zooms');
 
     s.appendChild(panel);
     const back = el(`<button class="btn">BACK</button>`);

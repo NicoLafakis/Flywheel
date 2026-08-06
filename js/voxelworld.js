@@ -372,6 +372,13 @@ export class VoxelWorld3D {
     // constructs with no options object, so the persisted value is the mechanism
     // and `setShadows` below is the live-update path.
     this.shadows = 'shadows' in opts ? !!opts.shadows : pref(saved, 'shadows', true);
+    // Device-tier overlay (js/quality.js). Null/true here means "no tier has
+    // spoken yet", which is exactly the pre-tier behaviour — `setQuality` is the
+    // only thing that ever narrows these.
+    this._settingShadows = this.shadows;
+    this._tierShadows = true;
+    this._tierDprCap = null;
+    this._tierAmbient = null;
     // Performance Mode, renderer half — resolved here for the same reason, so
     // the first frame already honours it. See setPerfMode for what it buys.
     this.perfMode = 'perfMode' in opts ? !!opts.perfMode : pref(saved, 'perfMode', false);
@@ -628,6 +635,9 @@ export class VoxelWorld3D {
       // the dirty span per frame instead of re-sending the whole array.
       im.userData.mLo = 0; im.userData.mHi = -1;
       im.userData.cLo = 0; im.userData.cHi = -1;
+      // The dirty indices themselves, so the flush can upload runs instead of
+      // one span from the lowest to the highest — see _flushRange.
+      im.userData.mIdx = []; im.userData.cIdx = [];
       this.scene.add(im);
       this.imMeshes.push(im);
     }
@@ -642,6 +652,11 @@ export class VoxelWorld3D {
     this.particles = [];
     this._dirtyM = new Set();
     this._dirtyC = new Set();
+    // Render active set — see the long note above update()'s block pass.
+    this._visitStamp = 0;      // per-frame dedup: the union below overlaps heavily
+    this._active = [];         // blocks that WROTE last frame (carried one more frame)
+    this._activeNext = [];     // double-buffered so neither is reallocated per frame
+    this._fullPass = true;     // frame 1 uploads every block's matrix for the first time
 
     // Ambient scratch — allocated once, reused every frame. Nothing in the
     // ambient update path may call `new`.
@@ -1393,7 +1408,16 @@ export class VoxelWorld3D {
   // construction-time read of the persisted setting is the mechanism; this is
   // the live path.
   setShadows(on) {
-    const next = !!on;
+    this._settingShadows = !!on;
+    this._applyShadows();
+  }
+
+  // Effective shadow state = what the player asked for AND what the device tier
+  // allows. Split from setShadows so a tier can veto without overwriting the
+  // player's preference — otherwise a step down to LOW followed by a step back
+  // up would silently switch shadows on for someone who had turned them off.
+  _applyShadows() {
+    const next = this._settingShadows && this._tierShadows !== false;
     if (next === this.shadows) return; // idempotent: applySettings fires often
     this.shadows = next;
     this.renderer.shadowMap.enabled = next;
@@ -1423,7 +1447,9 @@ export class VoxelWorld3D {
   _wantPixelRatio() {
     if (this.perfMode) return 1;
     const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
-    return Math.min(dpr, 1.5);
+    // The 1.5 is the no-tier default (js/quality.js's HIGH carries the same
+    // number), so a build with no quality wiring behaves exactly as before.
+    return Math.min(dpr, this._tierDprCap || 1.5);
   }
 
   // Signature matches World3D.setPerfMode (world3d.js:429) so the guarded call
@@ -1526,9 +1552,37 @@ export class VoxelWorld3D {
     this._sun.position.copy(c).add(this._sunOffset);
   }
 
+  // Device tier, renderer half (js/quality.js owns the ladder and the watchdog).
+  // Three levers, in the order the measurements rank them for a phone: pixel
+  // ratio (every fragment in the frame, shadow pass included), the shadow pass
+  // itself (a second draw of every casting bucket), and ambient life.
+  //
+  // Be honest about the last one: gulls, pigeons, ferries, steam and neon are
+  // 0.06 ms/frame — 0.4% of CPU on the Boston profile. Freezing them is a
+  // rounding error and is included only because it is free once the tier is
+  // already down, NOT because it buys anything. The wins on a low tier are the
+  // pixel ratio, the debris cap, and the support cadence.
+  setQuality(spec) {
+    if (!spec) return;
+    this._tierDprCap = spec.dpr;
+    const want = this._wantPixelRatio();
+    if (this.renderer.getPixelRatio() !== want) {
+      this.renderer.setPixelRatio(want);
+      const c = this.renderer.domElement;
+      this.renderer.setSize(c.clientWidth, c.clientHeight, false);
+    }
+    // A tier can only take shadows AWAY. The player's own "Pretty shadows"
+    // toggle is still the ceiling — a tier stepping back up must not switch on
+    // something they turned off.
+    this._tierShadows = spec.shadows;
+    this._applyShadows();
+    this._tierAmbient = spec.ambient;
+    this._syncReducedMotion();
+  }
+
   _syncReducedMotion() {
     const next = this._osReduced || this._settingReduced;
-    const frozen = next || this.perfMode;
+    const frozen = next || this.perfMode || this._tierAmbient === false;
     if (next === this.reducedMotion && frozen === this._ambientFrozen) return;
     this.reducedMotion = next;
     this._ambientFrozen = frozen;
@@ -1964,108 +2018,241 @@ export class VoxelWorld3D {
     const colorMeshes = this._dirtyC;
     matrixMeshes.clear();
     colorMeshes.clear();
-    for (const b of this.sim.blocks) {
-      if (b.state === 'consumed') {
-        if (!b._imHidden) {
-          b._imHidden = true;
-          this._m4.makeScale(0, 0, 0);
-          b._im.setMatrixAt(b._imIndex, this._m4);
-          this._dirtyMatrix(b._im, b._imIndex, matrixMeshes);
-        }
-        continue;
-      }
-      const dx = b.x - h.x, dz = b.z - h.z;
-      const nearHole = (dx * dx + dz * dz) < (h.radius + 3.0) * (h.radius + 3.0);
-      if (b._renderMatrixReady && b.state === 'static' && !b.parentChunk && b.damage <= 0.03 && b.supportRatio >= 0.7 && !b._imTinted && !b._imHidden && !nearHole) {
-        continue;
-      }
-      let px = b.x, py = b.y, pz = b.z, rx = 0, rz = 0;
-      // unstable blocks creak: subtle deterministic wobble while the stress
-      // timer counts down (render-side only, sim state untouched)
-      if (b.state === 'unstable') {
-        const w = Math.sin(this.time * 40 + b.id * 1.7) * 0.02;
-        px += w; pz += w * 0.6;
-      }
-      if (b.parentChunk) { rx = b.parentChunk.rotX; rz = b.parentChunk.rotZ; }
-      else { rx = b.rotX; rz = b.rotZ; }
-      // weakened rim blocks lean toward the opening before they let go
-      if ((b.state === 'static' || b.state === 'unstable') && b.gy === 0 && b.supportRatio < 0.7) {
-        const dx = h.x - px, dz = h.z - pz;
-        const d = Math.hypot(dx, dz) || 1;
-        const lean = (0.7 - b.supportRatio) * 0.6;
-        rx += (-dz / d) * lean;
-        rz += (dx / d) * lean;
-      }
-      this._e.set(rx, 0, rz);
-      // Static city blocks keep their uploaded matrix. Dynamic debris,
-      // leaning rim blocks, and unstable wobble still get recomposed; this is
-      // the main CPU win for large hand-authored scenes.
-      const matrixChanged = !b._renderMatrixReady ||
-        b._renderPx !== px || b._renderPy !== py || b._renderPz !== pz ||
-        b._renderRx !== rx || b._renderRz !== rz;
-      if (matrixChanged) {
-        this._q.setFromEuler(this._e);
-        this._v.set(px, py, pz);
-        // Blocks fill their cell exactly. The mortar course used to be a
-        // physical 5 cm shortfall, which is a see-through slot in a wall one
-        // block thick — it is painted now (see mortarTexture), so the seam
-        // survives and the hole does not.
-        this._s.set(b.s, b.s, b.s);
-        this._m4.compose(this._v, this._q, this._s);
-        b._im.setMatrixAt(b._imIndex, this._m4);
-        b._renderMatrixReady = true;
-        b._renderPx = px; b._renderPy = py; b._renderPz = pz;
-        b._renderRx = rx; b._renderRz = rz;
-        this._dirtyMatrix(b._im, b._imIndex, matrixMeshes);
-      }
+    this._syncBlocks(h, matrixMeshes, colorMeshes);
+    for (const im of matrixMeshes) this._flushRange(im.instanceMatrix, im.userData, 'mLo', 'mHi', 16, 'mIdx');
+    for (const im of colorMeshes) this._flushRange(im.instanceColor, im.userData, 'cLo', 'cHi', 3, 'cIdx');
+  }
 
-      // damage heat: blocks glow hotter as structural damage accumulates, so
-      // players can read WHERE the structure is about to fail — and see the
-      // damage linger after the hole moves on
-      if (b.damage > 0.03) {
-        const t = Math.min(1, b.damage);
-        if (b._renderDamage !== b.damage || !b._imTinted) {
-          this._c.setRGB(1, 1 - 0.75 * t, 1 - 0.85 * t);
-          b._im.setColorAt(b._imIndex, this._c);
-          b._imTinted = true;
-          b._renderDamage = b.damage;
-          this._dirtyColor(b._im, b._imIndex, colorMeshes);
-        }
-      } else if (b._imTinted) {
-        b._imTinted = false;
-        this._c.setHex(b._renderBaseColor);
+  // ---------------------------------------------------------- block sync pass
+  // This used to be `for (const b of this.sim.blocks)` — 82,894 iterations per
+  // frame on Boston to discover that ~108 of them (0.13%) had actually moved.
+  // Measured on an RTX 4060 Ti desktop at SIZE 5, so this was never a GPU
+  // problem: `world.update` was 4.31 ms/frame with the loop live and 0.094 ms
+  // with it swapped out (same build, A/B'd by handing it an empty block array),
+  // i.e. the walk WAS 98% of the renderer's frame. Of that, 2.1-2.6 ms was the
+  // early-out predicate alone — over half the cost was pure iteration to find
+  // out nothing had changed.
+  //
+  // The pass now visits a UNION of small sets instead. The bar it has to clear
+  // is not "visits the same blocks" — it is "produces the same
+  // setMatrixAt/setColorAt WRITES", because those are the visual output. Those
+  // two differ in exactly one direction and it is the safe one: the old
+  // `nearHole` term forced a visit for every block within `radius + 3 m`, but a
+  // pristine static block composes to the matrix it already has, so those visits
+  // wrote nothing. Dropping them is free, and it is why there is no spatial grid
+  // here — the hole's position only matters to blocks that are LEANING, and
+  // those are enumerated exactly (`sim._leanSet`).
+  //
+  // A block's rendered pose or colour is a function of exactly: x/y/z, rotX/rotZ,
+  // parentChunk's rotation, `state === 'unstable'` (the creak wobble), damage,
+  // `supportRatio < 0.7` together with the hole position (the rim lean), and
+  // consumption. Walking every write to those in voxelsim.js:
+  //   * position/rotation — only `_stepDebris`, `_stepChunks` and `_pushAxis`
+  //     write them, and all three only ever touch a member of `_falling`
+  //     (`_pushAxis` moves its second body only when `movableO`, which is only
+  //     passed for the awake movers; static and sleeping obstacles never move);
+  //   * damage — every write is immediately followed by `_watchDamage`, so a
+  //     damaged block is in `_damageBlocks` by construction;
+  //   * unstable — `_watchDamage` adds it unconditionally;
+  //   * supportRatio — written in one place, `_recalcSupport`, which maintains
+  //     `_leanSet` alongside it;
+  //   * consumption and the four other EXITS from those sets — `_renderTouch`.
+  // Hence the union below is complete. `_renderTouch` is the load-bearing part:
+  // main.js runs up to six sim steps per rendered frame, so a block can detach,
+  // land, and retire out of `_falling` between two frames — visiting only the
+  // live sets would leave it hanging at its last airborne pose.
+  //
+  // `_active` (blocks that WROTE last frame) is a second belt on those braces:
+  // any transition nobody enumerated still self-corrects one frame later,
+  // because a block whose write stops being needed composes identically, writes
+  // nothing, and drops out. That is what keeps the carry bounded — retired
+  // sleepers do not accumulate in it.
+  _syncBlocks(h, matrixMeshes, colorMeshes) {
+    const sim = this.sim;
+    const stamp = ++this._visitStamp;
+    const next = this._activeNext;
+    next.length = 0;
+
+    if (this._fullPass || sim._renderTouchOverflow) {
+      // Frame 1 (nothing has a matrix yet), or the sim ran long enough with no
+      // renderer attached to overflow its exit queue.
+      this._fullPass = false;
+      sim._renderTouchOverflow = false;
+      const bl = sim.blocks;
+      for (let i = 0; i < bl.length; i++) this._syncBlock(bl[i], h, stamp, next, matrixMeshes, colorMeshes);
+    } else {
+      const prev = this._active;
+      for (let i = 0; i < prev.length; i++) this._syncBlock(prev[i], h, stamp, next, matrixMeshes, colorMeshes);
+      const f = sim._falling;
+      for (let i = 0; i < f.length; i++) this._syncBlock(f[i], h, stamp, next, matrixMeshes, colorMeshes);
+      for (const b of sim._damageBlocks) this._syncBlock(b, h, stamp, next, matrixMeshes, colorMeshes);
+      for (const b of sim._leanSet) this._syncBlock(b, h, stamp, next, matrixMeshes, colorMeshes);
+    }
+    // Drained unconditionally, including on a full pass: leaving entries behind
+    // would hand the next frame a queue that is already stale.
+    const touch = sim._renderTouch;
+    for (let i = 0; i < touch.length; i++) this._syncBlock(touch[i], h, stamp, next, matrixMeshes, colorMeshes);
+    touch.length = 0;
+
+    this._activeNext = this._active;
+    this._active = next;
+  }
+
+  // The body below is the old per-block loop verbatim, minus the `nearHole`
+  // term. Keep it that way: any divergence here is a visual change, and the
+  // whole point of the active set is that it is lossless.
+  _syncBlock(b, h, stamp, next, matrixMeshes, colorMeshes) {
+    if (b._rvStamp === stamp) return; // the union overlaps; visit once
+    b._rvStamp = stamp;
+    if (b.state === 'consumed') {
+      if (!b._imHidden) {
+        b._imHidden = true;
+        this._m4.makeScale(0, 0, 0);
+        b._im.setMatrixAt(b._imIndex, this._m4);
+        this._dirtyMatrix(b._im, b._imIndex, matrixMeshes);
+        next.push(b);
+      }
+      return;
+    }
+    let px = b.x, py = b.y, pz = b.z, rx = 0, rz = 0;
+    // unstable blocks creak: subtle deterministic wobble while the stress
+    // timer counts down (render-side only, sim state untouched)
+    if (b.state === 'unstable') {
+      const w = Math.sin(this.time * 40 + b.id * 1.7) * 0.02;
+      px += w; pz += w * 0.6;
+    }
+    if (b.parentChunk) { rx = b.parentChunk.rotX; rz = b.parentChunk.rotZ; }
+    else { rx = b.rotX; rz = b.rotZ; }
+    // weakened rim blocks lean toward the opening before they let go
+    if ((b.state === 'static' || b.state === 'unstable') && b.gy === 0 && b.supportRatio < 0.7) {
+      const dx = h.x - px, dz = h.z - pz;
+      const d = Math.hypot(dx, dz) || 1;
+      const lean = (0.7 - b.supportRatio) * 0.6;
+      rx += (-dz / d) * lean;
+      rz += (dx / d) * lean;
+    }
+    let wrote = false;
+    this._e.set(rx, 0, rz);
+    // Static city blocks keep their uploaded matrix. Dynamic debris,
+    // leaning rim blocks, and unstable wobble still get recomposed; this is
+    // the main CPU win for large hand-authored scenes.
+    const matrixChanged = !b._renderMatrixReady ||
+      b._renderPx !== px || b._renderPy !== py || b._renderPz !== pz ||
+      b._renderRx !== rx || b._renderRz !== rz;
+    if (matrixChanged) {
+      this._q.setFromEuler(this._e);
+      this._v.set(px, py, pz);
+      // Blocks fill their cell exactly. The mortar course used to be a
+      // physical 5 cm shortfall, which is a see-through slot in a wall one
+      // block thick — it is painted now (see mortarTexture), so the seam
+      // survives and the hole does not.
+      this._s.set(b.s, b.s, b.s);
+      this._m4.compose(this._v, this._q, this._s);
+      b._im.setMatrixAt(b._imIndex, this._m4);
+      b._renderMatrixReady = true;
+      b._renderPx = px; b._renderPy = py; b._renderPz = pz;
+      b._renderRx = rx; b._renderRz = rz;
+      this._dirtyMatrix(b._im, b._imIndex, matrixMeshes);
+      wrote = true;
+    }
+
+    // damage heat: blocks glow hotter as structural damage accumulates, so
+    // players can read WHERE the structure is about to fail — and see the
+    // damage linger after the hole moves on
+    if (b.damage > 0.03) {
+      const t = Math.min(1, b.damage);
+      if (b._renderDamage !== b.damage || !b._imTinted) {
+        this._c.setRGB(1, 1 - 0.75 * t, 1 - 0.85 * t);
         b._im.setColorAt(b._imIndex, this._c);
+        b._imTinted = true;
         b._renderDamage = b.damage;
         this._dirtyColor(b._im, b._imIndex, colorMeshes);
+        wrote = true;
       }
+    } else if (b._imTinted) {
+      b._imTinted = false;
+      this._c.setHex(b._renderBaseColor);
+      b._im.setColorAt(b._imIndex, this._c);
+      b._renderDamage = b.damage;
+      this._dirtyColor(b._im, b._imIndex, colorMeshes);
+      wrote = true;
     }
-    for (const im of matrixMeshes) this._flushRange(im.instanceMatrix, im.userData, 'mLo', 'mHi', 16);
-    for (const im of colorMeshes) this._flushRange(im.instanceColor, im.userData, 'cLo', 'cHi', 3);
+    if (wrote) next.push(b);
   }
 
   _dirtyMatrix(im, i, set) {
     const u = im.userData;
     if (u.mHi < 0) { u.mLo = i; u.mHi = i; } else { if (i < u.mLo) u.mLo = i; if (i > u.mHi) u.mHi = i; }
+    u.mIdx.push(i);
     set.add(im);
   }
 
   _dirtyColor(im, i, set) {
     const u = im.userData;
     if (u.cHi < 0) { u.cLo = i; u.cHi = i; } else { if (i < u.cLo) u.cLo = i; if (i > u.cHi) u.cHi = i; }
+    u.cIdx.push(i);
     set.add(im);
   }
 
-  // Upload only the touched instance span. If ranges pile up (the mesh was not
-  // drawn, so three never consumed them) fall back to a full upload rather than
-  // growing the list without bound.
-  _flushRange(attr, u, loKey, hiKey, stride) {
+  // Upload only the touched instances — as RUNS, not as one span from the lowest
+  // dirty index to the highest.
+  //
+  // The single-span version was measured on Boston at SIZE 5 (real drive, 1131
+  // frames): 8.8 flushes/frame uploading 230,712 floats to change 2,856 of them.
+  // 80.8x amplification, 901 KB/frame of bufferSubData for 11 KB of new data,
+  // worst single span 420,528 floats. The dirty indices ARE clustered — a
+  // collapse is local — but two clusters at opposite ends of a 30k-instance
+  // bucket make the span between them the whole buffer, and it only takes one
+  // stray block to do it.
+  //
+  // So: sort, coalesce into runs, and merge the cheapest gaps back until the run
+  // count fits. Two knobs, both about the fact that a bufferSubData call is not
+  // free either — a gap narrower than MIN_GAP instances is cheaper to re-upload
+  // than to split around, and MAX_RUNS caps the call count per attribute. The
+  // sort is over ~140 indices a frame; it does not show up.
+  //
+  // The empty-updateRanges fallback is three.js's own "upload everything", which
+  // is why the pile-up guard has to stay: an attribute on a mesh that never got
+  // drawn accumulates ranges nobody consumed.
+  _flushRange(attr, u, loKey, hiKey, stride, idxKey) {
     const lo = u[loKey], hi = u[hiKey];
     u[hiKey] = -1;
-    if (hi < 0) return;
+    const idx = u[idxKey];
+    if (hi < 0) { idx.length = 0; return; }
     if (attr.updateRanges && attr.addUpdateRange) {
       if (attr.updateRanges.length > 24) attr.clearUpdateRanges();
-      else attr.addUpdateRange(lo * stride, (hi - lo + 1) * stride);
+      else if (idx.length === 0) attr.addUpdateRange(lo * stride, (hi - lo + 1) * stride);
+      else {
+        const MIN_GAP = 32;   // instances; below this, spanning the gap is cheaper than a second call
+        const MAX_RUNS = 12;
+        idx.sort((a, b) => a - b);
+        const runs = this._runsScratch || (this._runsScratch = []);
+        runs.length = 0;
+        let s = idx[0], e = idx[0];
+        for (let i = 1; i < idx.length; i++) {
+          const v = idx[i];
+          if (v === e) continue;                       // duplicate index (matrix + colour both dirty)
+          if (v - e <= MIN_GAP) { e = v; continue; }
+          runs.push(s, e);
+          s = v; e = v;
+        }
+        runs.push(s, e);
+        // Too many runs: merge across the narrowest gaps first, which is the
+        // cheapest possible extra upload per call saved.
+        while (runs.length / 2 > MAX_RUNS) {
+          let best = 1, bestGap = Infinity;
+          for (let i = 1; i * 2 < runs.length; i++) {
+            const gap = runs[i * 2] - runs[i * 2 - 1];
+            if (gap < bestGap) { bestGap = gap; best = i; }
+          }
+          runs.splice(best * 2 - 1, 2);   // drop this run's end and the next one's start
+        }
+        for (let i = 0; i * 2 < runs.length; i++) {
+          attr.addUpdateRange(runs[i * 2] * stride, (runs[i * 2 + 1] - runs[i * 2] + 1) * stride);
+        }
+      }
     }
+    idx.length = 0;
     attr.needsUpdate = true;
   }
 

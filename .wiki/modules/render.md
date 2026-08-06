@@ -423,5 +423,30 @@ mutates sim state.
   depth-writing ground planes (roads 0.03, tree pads 0.025, water/building
   pads 0.02) — invisible over every road and building footprint. Raised to
   0.04.
+- **Performance: active set, device tiers, watchdog (2026-08-06).**
+  `voxelworld.update()` used to walk every block every frame — measured at 4.31
+  ms/frame live vs 0.094 ms with the loop stubbed, i.e. **98% of `world.update`**
+  — while only ~108 matrix and ~29 colour writes actually landed. 0.13% of blocks
+  changed and 100% were visited. Replaced with an active set: median
+  `world.update` on Boston desktop 5.109 → 0.233 ms, and at 4x CPU throttle on a
+  390 px viewport 15.099 → 0.781 ms (round-robin A/B, phase-A tree vs this one,
+  median of 3). Framebuffer is byte-identical against a full legacy repair scan
+  and the determinism validator is unchanged vs HEAD.
+  `js/quality.js` adds `detectTier` (coarse pointer, cores, memory, screen px,
+  GL renderer string) and a `QualityWatchdog` that steps the tier on sustained
+  p95: down after 3 s bad, up after 8 s good. Levers per tier are `dpr`,
+  `shadows`, `ambientFrozen`, `debrisCap`, `contactRounds`, `supportEvery`.
+  **Read this before optimising the renderer further.** Under real debris load
+  the renderer is no longer the bottleneck and the active-set win stops
+  mattering: at 4x throttle with debris accumulating, `world.update` is 2.58 ms
+  against a `step` of 470 ms, of which `stepDebris` is 458 ms. Median fps goes
+  before/high 2.2 → after/high 4.3 → after/potato 30.8, so essentially the whole
+  rescue at load is `debrisCap` (Infinity/650/280/120), not the draw path. That
+  makes the WATCHDOG load-bearing rather than a nicety — a phone that detects
+  `high` and stays there gets 4 fps. Demonstrated stepping high→medium→low→potato
+  within ~8 s under 6x throttle and recovering when load drops, though it
+  oscillated once with throttle off (up at +102 s, down at +119 s), so the
+  anti-oscillation ratchet is not airtight. Debris physics is the next ceiling
+  and wants a budget or LOD of its own; nothing in the draw path will move it.
 - Visual-polish roadmap (building kit, canvas textures, lighting): see
   `.wiki/visual-direction.md`.

@@ -218,6 +218,31 @@ export class VoxelSandboxSim {
     // _buildZones). Only zones the hole can actually perturb are recomputed.
     this._dirtyComps = new Set(); // zones whose graph changed (a block detached / was eaten)
     this._prevProx = [];          // zones inside the hole's influence radius on the previous recalc
+    // --- render active set (voxelworld.js) --------------------------------------
+    // The renderer used to walk all 82,894 blocks every frame to discover that
+    // ~108 of them (0.13%) had moved. Measured on Boston at SIZE 5: 4.31 ms of a
+    // 4.40 ms `world.update`, of which 2.1-2.6 ms was the early-out predicate
+    // alone. It now reads a union of the sim's OWN active structures instead, so
+    // the cost is linear in what actually changed rather than in scene size.
+    //
+    // Three of the four sources already existed and are maintained by the sim for
+    // its own reasons: `_falling` (every mover), `_damageBlocks` (every block
+    // whose damage or unstable-wobble can change), and — added here — `_leanSet`.
+    // The invariant the renderer depends on: a block's rendered pose or colour
+    // can only change while it is in one of those three, because every write to
+    // x/y/z/rotX/rotZ happens inside `_stepDebris`/`_stepChunks`/`_pushAxis` on a
+    // member of `_falling`, every write to `damage` is followed by
+    // `_watchDamage`, and `supportRatio` is only ever written in `_recalcSupport`.
+    //
+    // `_renderTouch` closes the gap at the EXITS: a block whose pose is stale at
+    // the moment it leaves all three (retired mid-fall, eaten, lean cleared,
+    // wobble cleared, tint healed to zero) would otherwise never be re-uploaded
+    // and would hang in mid-air or keep a stale tint forever. Those five sites
+    // push here; the renderer drains it. Nothing else is allowed to assume the
+    // renderer will "notice" a change on its own.
+    this._leanSet = new Set();     // floor blocks with supportRatio < 0.7 (the rim lean, which tracks the hole)
+    this._renderTouch = [];        // blocks leaving the active sets with an unsynced pose
+    this._renderTouchOverflow = false; // nobody drained it (headless/validator) — renderer falls back to a full pass
     this._massMarkIdx = 0;                 // city-consumption milestones: 25/50/75/100%
     this.MAX_SIZE = MAX_SIZE;
     this.bounds = 24;          // hole movement clamp (m); scenes may widen it
@@ -226,7 +251,17 @@ export class VoxelSandboxSim {
     this.cameraBlockers = [];  // tall-building AABBs for the chase cam
     // Live-tunable physics (dev sliders in SETTINGS → main.js pushes values
     // from save.settings; the constants above are the defaults/validator's).
-    this.tune = { gravity: GRAVITY, waveK: WAVE_K, creak: 0, speed: SPEED_MULT, attract: ATTRACT_ACC };
+    // `debrisCap`/`contactBudget`/`contactRounds`/`supportEvery` are the
+    // DEVICE-TIER levers (js/quality.js). Their defaults are exactly the
+    // behaviour that shipped before tiers existed — Infinity / Infinity / 2 / 1 —
+    // so a fresh default-tier sim is byte-identical to the pre-tier build and
+    // `tools/validate.mjs` never sees a tier at all. Anything that changes
+    // physics has to keep that property.
+    this.tune = {
+      gravity: GRAVITY, waveK: WAVE_K, creak: 0, speed: SPEED_MULT, attract: ATTRACT_ACC,
+      debrisCap: Infinity, contactBudget: Infinity, contactRounds: 2, supportEvery: 1,
+    };
+    this._supportSkipped = 0;  // coverage-only recalcs deferred by supportEvery
 
     if (scene === 'manhattan') buildManhattan(this);
     else if (scene === 'upper-manhattan') buildUpperManhattan(this);
@@ -875,6 +910,31 @@ export class VoxelSandboxSim {
     if (b.state === 'unstable' || (b.state === 'static' && b.damage > 0)) this._damageBlocks.add(b);
   }
 
+  // "This block's rendered pose or colour is now out of date AND it is about to
+  // stop being in any set the renderer scans." See the render-active-set note in
+  // the constructor for why this is the only safe way out of the active sets.
+  //
+  // Bounded rather than unbounded: nothing drains this in Node (the validator
+  // runs the sim headless), so past 8192 entries it flips a flag the renderer
+  // reads as "do one full pass and forget it". Costs one frame's full walk in a
+  // case that cannot happen while a renderer is attached.
+  _renderDirty(b) {
+    if (this._renderTouch.length >= 8192) {
+      this._renderTouch.length = 0;
+      this._renderTouchOverflow = true;
+      return;
+    }
+    this._renderTouch.push(b);
+  }
+
+  // Leaving the lean set is an exit, so it goes through _renderDirty: the
+  // renderer has a leaning matrix uploaded for this block and nothing else will
+  // ever ask it to straighten up.
+  _clearLean(b) {
+    if (!this._leanSet.delete(b)) return;
+    this._renderDirty(b);
+  }
+
   // --- support graph -----------------------------------------------------------
 
   // Track which meter cells the opening currently covers; support is only
@@ -976,7 +1036,7 @@ export class VoxelSandboxSim {
         const b = blocks[cfl[k]];
         if (b.state === 'consumed' || b.state === 'falling') continue;
         const dx = b.x - h.x, dz = b.z - h.z;
-        if (dx * dx + dz * dz > instabR2) { b.supportRatio = 1; continue; }
+        if (dx * dx + dz * dz > instabR2) { this._clearLean(b); b.supportRatio = 1; continue; }
         const o = b.s / 2 - 0.05;
         let outside = 0;
         let px = b.x - o - h.x, pz = b.z - o - h.z;
@@ -987,7 +1047,15 @@ export class VoxelSandboxSim {
         if (px * px + pz * pz > remR2) outside++;
         px = b.x - o - h.x;
         if (px * px + pz * pz > remR2) outside++;
-        b.supportRatio = outside / 4;
+        // The renderer leans a weakened rim block TOWARD the hole, so its matrix
+        // is a function of the hole's live position as well as of this ratio —
+        // it has to be re-composed every frame while the ratio is under 0.7, and
+        // re-composed once more on the frame it recovers. `_leanSet` is that
+        // population; `_clearLean` is the "once more" (see _renderDirty).
+        const sr = outside / 4;
+        if (sr < 0.7) this._leanSet.add(b);
+        else this._clearLean(b);
+        b.supportRatio = sr;
       }
 
       for (let k = 0; k < cbl.length; k++) { spanHas[cbl[k]] = 0; hang[cbl[k]] = 0; }
@@ -1116,6 +1184,9 @@ export class VoxelSandboxSim {
         b.state = 'static'; // support returned — damage stays, heals over time
         b.failRate = 0;
         this._watchDamage(b);
+        // It was wobbling (render-side creak) and may now be leaving
+        // _damageBlocks entirely: one more visit clears the offset.
+        this._renderDirty(b);
       }
     }
     for (let i = 0; i < dirty.length; i++) mark[dirty[i]] = 0;
@@ -1415,6 +1486,11 @@ export class VoxelSandboxSim {
   _retireResting(b) {
     if (b._retired) return;
     b._retired = true;
+    // It leaves `_falling` here, and the fall that put it on the ground may have
+    // happened in a sim sub-step the renderer never saw (main.js runs up to six
+    // steps per frame). Without this the block renders at its last airborne pose
+    // forever — the exact "frozen mid-air" failure the active set has to avoid.
+    this._renderDirty(b);
     const k = this._restKey(b);
     b._restIdxKey = k;
     let arr = this._restIdx.get(k);
@@ -1746,6 +1822,7 @@ export class VoxelSandboxSim {
       }
     }
     this._debrisCursor = -1;
+    if (this.tune.debrisCap !== Infinity) this._capDebris(this.tune.debrisCap);
     this._resolveDebrisContacts();
     // commit sleep candidates: grounded, slow, and now provably contact-free.
     // Even inside the attraction zone — constant vacuum pressure on resting
@@ -1794,6 +1871,56 @@ export class VoxelSandboxSim {
     }
   }
 
+  // DEVICE-TIER LEVER, off at the default tier (`debrisCap === Infinity`, so this
+  // is never even called and the shipped sim is byte-identical).
+  //
+  // Loose debris is 47.7% of CPU on the profile this was built from (7.11 of
+  // 14.9 ms/frame, Boston at SIZE 5), and it is the one cost that grows without
+  // bound as a session runs: every mover pays `_contact` + `_topAt` +
+  // `_resolveStaticContacts` + a pair-relaxation slot, every step, until it
+  // settles. A low-end phone cannot afford 500 of them.
+  //
+  // The cap is a "settle sooner" lever, NOT a teleport and not a freeze. Only
+  // blocks that are ALREADY grounded (`_grounded` means the walk above snapped
+  // them onto their support this step) are eligible, and they are handed to the
+  // same `_wantSleep` path everything else uses — which means the contact pass
+  // still has to prove them overlap-free before they are allowed to sleep. A
+  // block frozen mid-overlap can never separate, and that invariant is not worth
+  // trading for a frame. So the visible cost is: distant rubble stops skittering
+  // and comes to rest a second or two early. Nothing vanishes, nothing sinks.
+  //
+  // Farthest-from-the-hole first, because that is what the player is not looking
+  // at; `id` breaks ties so the selection can never depend on iteration order.
+  _capDebris(cap) {
+    const f = this._falling, h = this.hole;
+    const cand = this._capBuf || (this._capBuf = []);
+    cand.length = 0;
+    let active = 0;
+    for (let i = 0; i < f.length; i++) {
+      const b = f[i];
+      if (b.state !== 'falling' || b.parentChunk || b.asleep) continue;
+      active++;
+      if (b._grounded && !b._wantSleep) cand.push(b);
+    }
+    const excess = active - cap;
+    if (excess <= 0 || cand.length === 0) return;
+    cand.sort((a, b) => {
+      const da = (a.x - h.x) * (a.x - h.x) + (a.z - h.z) * (a.z - h.z);
+      const db = (b.x - h.x) * (b.x - h.x) + (b.z - h.z) * (b.z - h.z);
+      return db - da || a.id - b.id;
+    });
+    const k = excess < cand.length ? excess : cand.length;
+    for (let i = 0; i < k; i++) {
+      const b = cand[i];
+      b.vx = 0; b.vy = 0; b.vz = 0; b.vRotX = 0; b.vRotZ = 0;
+      b._wantSleep = true;
+      // Grounded means `b.y` was snapped to `support + s/2` this step, so this is
+      // the support it is actually resting on — no probe needed, and no chance of
+      // recording a surface it is not touching.
+      b._sleepSupport = b.y - b.s / 2;
+    }
+  }
+
   // Loose-body contact resolution: grounded/slow debris must never interpenetrate
   // each other, sleeping debris, or chunk members — they separate along the
   // least-penetration axis and bounce apart. (_contact/_top only see STATIC
@@ -1810,6 +1937,41 @@ export class VoxelSandboxSim {
       awake.push(b);
     }
     if (awake.length === 0) return;
+    // Tier lever: bound the pair-relaxation POPULATION, not just the round count.
+    //
+    // Why this exists on top of `debrisCap`: measured at 4x CPU throttle on
+    // Brooklyn, a sustained session reaches ~800 loose blocks and this pass alone
+    // costs 1266 ms/frame, and `debrisCap` barely dents it. The reason is that
+    // `_capDebris` may only settle blocks that are `_grounded` — snapped onto a
+    // STATIC support this step — while the population that actually piles up here
+    // is debris resting on OTHER DEBRIS. Those are slow, so they pass the filter
+    // above, but they are not grounded, so the cap cannot touch them. Sleeping
+    // them would mean recording another loose block as their support, and when
+    // that one is eaten they hang in the sky; that is not a trade worth making.
+    //
+    // So bound the work instead of the population. Everything stays awake, keeps
+    // its velocity, and keeps being integrated by _stepDebris — only the pairwise
+    // separation is restricted to the `budget` blocks nearest the hole, which is
+    // both what the player is looking at and where new overlaps are actually being
+    // created. Distant rubble has already converged; not re-proving it each step
+    // costs nothing visible. Deterministic: distance with an `id` tiebreak, so the
+    // selection cannot depend on array order. Infinity on HIGH keeps this a no-op.
+    const budget = this.tune.contactBudget;
+    if (budget !== undefined && budget !== Infinity && awake.length > budget) {
+      const h = this.hole;
+      awake.sort((a, b) => {
+        const da = (a.x - h.x) * (a.x - h.x) + (a.z - h.z) * (a.z - h.z);
+        const db = (b.x - h.x) * (b.x - h.x) + (b.z - h.z) * (b.z - h.z);
+        return da - db || a.id - b.id;
+      });
+      // Excluded blocks keep a STALE `_inContact`, and that flag is what gates
+      // sleeping at line ~1834. A stale `false` would let one sleep while still
+      // overlapping a neighbour, and a block frozen mid-overlap can never
+      // separate. Force it true: the excluded tail simply stays awake until it
+      // is back inside the budget, which is the conservative direction.
+      for (let i = budget; i < awake.length; i++) awake[i]._inContact = true;
+      awake.length = budget;
+    }
     const movable = new Set(awake);
     for (const b of awake) b._inContact = false; // re-set on overlap below
     // buckets are padded by one fine cell all round: rounded footprints could
@@ -1845,7 +2007,9 @@ export class VoxelSandboxSim {
     const sleepObs = this._sleepObs;
     // Relaxation: compressed piles re-penetrate between passes, so resolve
     // twice per step (1 round in perfMode), re-bucketing the (moved) movers each round.
-    const rounds = (this.tune && this.tune.perfMode) ? 1 : 2;
+    // perfMode still forces 1; a device tier can ask for 1 the same way
+    // (js/quality.js sets tune.contactRounds). Default is 2, unchanged.
+    const rounds = (this.tune && this.tune.perfMode) ? 1 : ((this.tune && this.tune.contactRounds) || 2);
     const occMove = this._occMove || (this._occMove = new Map());
     for (let round = 0; round < rounds; round++) {
       occMove.clear();
@@ -2009,6 +2173,11 @@ export class VoxelSandboxSim {
 
   _consume(b) {
     b.state = 'consumed';
+    // The renderer hides consumed blocks, and `_syncFalling` drops this entry at
+    // the top of the NEXT step — which, with the fixed-timestep catch-up in
+    // main.js, can happen before the renderer ever runs again. Announce it.
+    this._renderDirty(b);
+    this._leanSet.delete(b);            // never rendered again; do not leak the entry
     this._fallingRemoved++;             // stale entry in the active mover list
     this._dirtyComps.add(this._compOf[b.bi]); // its zone's support graph shrank
     this._unsleep(b); // sleeping debris: unregister + drop solid contribution
@@ -2084,7 +2253,22 @@ export class VoxelSandboxSim {
     if (this._blockerDirty && this._blockerDirty.size) this._refreshBlockers();
 
     // 1. support graph (only when coverage/graph actually changed)
-    if (this._coverageChanged() || this._graphDirty) this._recalcSupport();
+    //
+    // DEVICE-TIER LEVER: `supportEvery > 1` amortises the COVERAGE-driven half of
+    // that trigger over several steps (1.29 ms/frame, 8.6% of CPU, on the Boston
+    // profile). A graph change — a block detached or was eaten — always recalcs
+    // immediately, because that is the one that decides whether a structure comes
+    // down and deferring it would visibly stall a collapse. Deferring the
+    // coverage half only delays the moment the rim NOTICES the hole has crept a
+    // few centimetres, and the recalc that eventually runs sees the live hole
+    // position, not the stale one. `_coverageChanged()` must still be called
+    // every step — it swaps the coverage sets. Default `supportEvery` is 1, which
+    // makes this expression identical to the single `||` it replaced.
+    const covChanged = this._coverageChanged();
+    let recalc = covChanged || this._graphDirty;
+    if (recalc && !this._graphDirty && this.tune.supportEvery > 1
+        && ++this._supportSkipped < this.tune.supportEvery) recalc = false;
+    if (recalc) { this._supportSkipped = 0; this._recalcSupport(); }
 
     // 2. damage accumulation → detach; healthy blocks slowly heal
     // Only blocks already carrying damage or waiting to fail can change here.
@@ -2097,6 +2281,7 @@ export class VoxelSandboxSim {
           b.fallT = this.time;
           b.asleep = false;
           this._newFalling.push(b);                 // joins the active mover list below
+          this._leanSet.delete(b);                  // it is a mover now; `_falling` covers it (and the lean is state-gated off)
           this._dirtyComps.add(this._compOf[b.bi]); // its zone's support graph changed
           this._topRemove(b); // no longer a solid surface for others
           this._graphDirty = true;
@@ -2116,7 +2301,9 @@ export class VoxelSandboxSim {
         }
       } else if (b.state === 'static' && b.damage > 0) {
         b.damage = Math.max(0, b.damage - 0.08 * dt);
-        if (b.damage === 0) this._damageBlocks.delete(b);
+        // Fully healed: it leaves the watch set this step, and the renderer
+        // still has the heat tint uploaded. One more visit clears it.
+        if (b.damage === 0) { this._damageBlocks.delete(b); this._renderDirty(b); }
       } else {
         this._damageBlocks.delete(b);
       }
