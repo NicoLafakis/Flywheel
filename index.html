@@ -2,7 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<!-- viewport-fit=cover is what makes env(safe-area-inset-*) report anything at
+     all: without it the page is laid out inside the safe area and every inset
+     resolves to 0, so the HUD corners, the READY gate and the joystick clamp in
+     css/main.css / js/controls.js would all be silently no-ops on a notched
+     phone. With it the page owns the full glass and each of those puts itself
+     back inboard by exactly the inset it is given. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Flywheel - A sprocket's story</title>
 <link rel="stylesheet" href="css/main.css">
 <script type="importmap">
@@ -26,6 +32,15 @@
     </div>
     <div id="minimap-wrap"><canvas id="minimap" width="150" height="150"></canvas></div>
     <div id="joystick" class="hidden"><div id="joystick-knob"></div></div>
+    <!-- First-run touch hint. Lives inside #hud on purpose: #hud is
+         pointer-events:none and is faded out under the READY gate and hidden on
+         every menu, so the hint inherits all of that and js/controls.js only has
+         to decide whether it has been earned. Shown once per device on a coarse
+         pointer, retired by the first touch. -->
+    <div id="touch-hint" class="hidden">
+      <div class="th-ring"><div class="th-knob"></div></div>
+      <div class="th-label">Drag to steer</div>
+    </div>
     <div id="toast" class="hidden"></div>
     <div id="big-pop" class="hidden"></div>
   </div>

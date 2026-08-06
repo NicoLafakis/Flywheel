@@ -32,6 +32,30 @@
   --fw-ring-2:
     2px 0 0 var(--fw-ink), -2px 0 0 var(--fw-ink), 0 2px 0 var(--fw-ink), 0 -2px 0 var(--fw-ink),
     1px 1px 0 var(--fw-ink), -1px 1px 0 var(--fw-ink), 1px -1px 0 var(--fw-ink), -1px -1px 0 var(--fw-ink);
+
+  /* ----- safe-area insets, hoisted into custom properties -----
+     env() has no JS equivalent, and js/controls.js has to know the insets to
+     keep the joystick ring off the notch and the home indicator. Naming them
+     here is the only way to hand them over: getComputedStyle on the root
+     resolves --sai-* to used pixels. The 0px fallbacks make every consumer a
+     no-op on a device without insets, so these can be used unconditionally
+     rather than behind a query. Requires viewport-fit=cover in index.html —
+     without it env() resolves to 0 everywhere and the notch is never reported. */
+  --sai-top: env(safe-area-inset-top, 0px);
+  --sai-right: env(safe-area-inset-right, 0px);
+  --sai-bottom: env(safe-area-inset-bottom, 0px);
+  --sai-left: env(safe-area-inset-left, 0px);
+
+  /* The virtual joystick's ring DIAMETER, and the single place it is decided:
+     controls.js measures the rendered element rather than carrying its own copy
+     (JOY_THROW_FRAC is a proportion of this, not a second number), and the
+     first-run hint's ghost ring reads it directly. Sized in vmin, not px: the
+     old fixed 120 px was 31% of the width of a 390 px phone — a control that
+     ate a third of the screen it was drawn on. 24vmin is 94 px there (24%) and
+     stays 24% through every phone size, capped at 120 px so a tablet does not
+     grow a dinner plate and floored at 92 px so a 320 px phone still gets a
+     ring a thumb can find. */
+  --joy-size: clamp(92px, 24vmin, 120px);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body, #app { width: 100%; height: 100%; overflow: hidden; }
@@ -46,7 +70,14 @@ body {
 
 /* ---------- HUD ---------- */
 #hud { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
-#hud-left { position: absolute; top: 12px; left: 14px; width: min(330px, 46vw); }
+/* Every fixed HUD corner adds its safe-area inset to the margin it already
+   had, so the layout is unchanged to the pixel on a device with no insets and
+   simply moves inboard of a notch, a rounded corner or a home indicator where
+   there is one. */
+#hud-left {
+  position: absolute; width: min(330px, 46vw);
+  top: calc(12px + var(--sai-top)); left: calc(14px + var(--sai-left));
+}
 #level-banner {
   background: var(--accent); border-radius: 22px; padding: 8px 18px;
   font-weight: 800; letter-spacing: 1px; font-size: clamp(13px, 2.2vw, 18px);
@@ -70,9 +101,28 @@ body {
   background: #ffd23f; color: #4a3200; font-weight: 800; border-radius: 16px;
   padding: 5px 14px; font-size: clamp(12px, 2vw, 15px);
 }
-#hud-right { position: absolute; top: 12px; right: 14px; text-align: right; pointer-events: auto; }
+/* pointer-events go on the BUTTONS, not on the block. #hud-right used to carry
+   `pointer-events: auto` for the whole box, and that box is much bigger than
+   the two things in it that are pressable: the timer pill under them is 74px
+   min-width plus padding, which stretches the block left to x=190 on a 390px
+   phone. Measured — a touch dispatched at (190, 20) hit-tested to #hud-right
+   and never reached the canvas, so it could not arm the joystick even though
+   190 is on the LEFT half of the screen. Two 44px circles is the entire
+   interactive surface here and now that is exactly what claims the touches. */
+#hud-right {
+  position: absolute; text-align: right; pointer-events: none;
+  top: calc(12px + var(--sai-top)); right: calc(14px + var(--sai-right));
+}
+#hud-right .round-btn { pointer-events: auto; }
+/* 44x44, not the 42x42 these shipped at. WCAG 2.5.5 / Apple's HIG both put the
+   floor at 44 CSS px and these are the only two things on the playing screen a
+   finger is ever asked to hit — 2 px is the whole difference between a control
+   that meets the bar and one that does not, and it costs nothing anywhere else
+   because the glyph inside is 18px either way. The 6px gutter between them is
+   left alone: it is target SPACING, which 2.5.5 measures separately, and 6px is
+   already enough that a thumb aimed at pause cannot land on mute. */
 .round-btn {
-  width: 42px; height: 42px; border-radius: 50%; border: 2px solid #fff;
+  width: 44px; height: 44px; border-radius: 50%; border: 2px solid #fff;
   background: var(--panel-light); color: var(--text-dark); font-size: 18px;
   cursor: pointer; margin-left: 6px; box-shadow: 0 3px 0 rgba(0,0,0,.3);
 }
@@ -83,10 +133,16 @@ body {
 }
 #timer.low { background: #ff4747; color: #fff; }
 #minimap-wrap {
-  position: absolute; right: 14px; bottom: 14px; border-radius: 12px;
+  position: absolute; border-radius: 12px;
   border: 3px solid rgba(255,255,255,.8); overflow: hidden; background: #06121c;
   width: 150px; height: 150px;
+  right: calc(14px + var(--sai-right)); bottom: calc(14px + var(--sai-bottom));
 }
+/* The canvas has a fixed 150x150 backing store (js/ui/hud.js draws in those
+   coordinates). #minimap-wrap is overflow:hidden, so shrinking the wrapper
+   alone would CROP the map rather than scale it — this is what makes the
+   coarse-pointer rule below a resize instead of a guillotine. */
+#minimap { display: block; width: 100%; height: 100%; }
 #toast {
   position: absolute; left: 50%; top: 18%; transform: translateX(-50%);
   background: var(--panel); border: 2px solid #fff; border-radius: 14px;
@@ -108,25 +164,105 @@ body {
   100% { opacity: 0; transform: translate(-50%, -64%) scale(1.06); }
 }
 
-/* ---------- Virtual joystick ---------- */
+/* ---------- Virtual joystick ----------
+   Dynamic origin: js/controls.js writes left/top in client pixels wherever the
+   thumb lands on the left half, clamped so the ring never renders half off the
+   glass. Everything about its SIZE lives in --joy-size (see :root) and every
+   part below is a fraction of it, so the ring, the knob and the throw radius
+   controls.js measures cannot drift apart. */
 #joystick {
-  position: absolute; width: 120px; height: 120px; border-radius: 50%;
+  position: absolute; width: var(--joy-size); height: var(--joy-size);
+  border-radius: 50%;
   border: 3px solid rgba(255,255,255,.5); background: rgba(255,255,255,.12);
   pointer-events: none; transform: translate(-50%, -50%);
 }
+/* 43% of the ring, which is where the old 52px-in-120px pair sat. Big enough to
+   read under a thumb that is covering most of it, small enough that its edge
+   still shows the deflection against the ring at the dead zone (0.15 of a
+   throw of 0.42 of the width = 6% of the width, i.e. a visible nudge). */
 #joystick-knob {
-  position: absolute; left: 50%; top: 50%; width: 52px; height: 52px;
+  position: absolute; left: 50%; top: 50%;
+  width: 43%; height: 43%;
   border-radius: 50%; background: rgba(255,255,255,.75);
   transform: translate(-50%, -50%);
 }
 
+/* ---------- First-run touch hint ----------
+   The joystick is invisible until a thumb lands on it, which is correct for a
+   returning player and tells a new one nothing at all: on a phone the playing
+   screen has a mass bar, a timer, two round buttons and no control anywhere.
+   This is a ghost of the ring, in the place the ring will appear, sweeping the
+   way a thumb would. Shown by js/controls.js on the first frame of play, on a
+   coarse pointer only, once ever per device (localStorage), and retired by the
+   first touch of any kind — plus a nine-second self-destruct in case the player
+   is watching rather than touching. pointer-events:none throughout: it must
+   never be the thing that eats the touch it is asking for. */
+#touch-hint {
+  position: absolute; left: 26%; top: 66%; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  pointer-events: none; z-index: 1;
+  animation: th-life 9s ease-in-out forwards;
+}
+#touch-hint .th-ring {
+  position: relative; width: var(--joy-size); height: var(--joy-size);
+  border-radius: 50%; border: 3px dashed rgba(255,255,255,.5);
+  background: rgba(255,255,255,.07);
+}
+#touch-hint .th-knob {
+  position: absolute; left: 50%; top: 50%; width: 43%; height: 43%;
+  border-radius: 50%; background: rgba(255,255,255,.5);
+  /* Rides at 0.84 of the ring RADIUS, which is exactly the throw controls.js
+     clamps a real thumb to (JOY_THROW_FRAC 0.42 of the diameter) — the demo
+     shows the actual travel, not a bigger one the stick would refuse. */
+  animation: th-sweep 3.2s ease-in-out infinite;
+}
+/* Same outline-ring treatment as the READY gate's hint, for the same reason:
+   this lands on a live city with no scrim under it. */
+#touch-hint .th-label {
+  font-size: clamp(11px, 3vw, 14px); font-weight: 800;
+  letter-spacing: 2px; text-transform: uppercase; color: #fff; white-space: nowrap;
+  text-shadow: var(--fw-ring-2), 0 3px 6px rgba(0,0,0,.9);
+}
+@keyframes th-life {
+  0% { opacity: 0; }
+  6%, 80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+/* Up, round through up-left to left, back to centre — one lap of the directions
+   the stick now means literally, which is the whole point of demonstrating it
+   under direct steer. translate percentages are of the KNOB, and the knob is
+   43% of the ring, so a full throw (0.42 of the ring's diameter) is
+   0.42/0.43 = 98% of the knob's own width; the diagonal splits that 98% across
+   both axes as 98/sqrt(2) = 69%, so the knob traces a circle rather than the
+   corner of a square the real clamp would never let it reach. */
+@keyframes th-sweep {
+  0%, 8% { transform: translate(-50%, -50%); }
+  26%, 34% { transform: translate(-50%, -148%); }
+  52%, 60% { transform: translate(-119%, -119%); }
+  78%, 86% { transform: translate(-148%, -50%); }
+  100% { transform: translate(-50%, -50%); }
+}
+
+/* phone landscape: ~390px tall, and the hint's ring + label stack is ~125px of
+   it. Pulled up and inboard so the stack clears the bottom edge and the label
+   does not sit on the home indicator. */
+@media (orientation: landscape) and (max-height: 480px) {
+  #touch-hint { top: 58%; left: 24%; gap: 10px; }
+}
+
 /* ---------- Screens ---------- */
 #screen-root { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+/* Padding carries the safe-area insets so a full-screen takeover (settings,
+   shop, level select) cannot put its first row under a notch or its last under
+   the home indicator. Identical to the old flat 24px wherever the insets are 0,
+   which is every desktop and every phone without a cutout. */
 .screen {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: safe center; pointer-events: auto;
   background: rgba(10, 14, 26, 0.72); backdrop-filter: blur(4px);
-  overflow-y: auto; padding: 24px;
+  overflow-y: auto;
+  padding: calc(24px + var(--sai-top)) calc(24px + var(--sai-right))
+           calc(24px + var(--sai-bottom)) calc(24px + var(--sai-left));
 }
 /* Headings wear the brand ring so every screen reads as one game rather than as
    a settings panel bolted to a title card. STATIC on purpose: the pop-in and bob
@@ -467,7 +603,14 @@ body.rg-gate-up #hud * { pointer-events: none; }
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center;
   justify-content: space-between;
-  padding: clamp(12px, 3vh, 30px) 2vw; text-align: center;
+  /* The stack pushes its two clusters to the vertical extremes, which is
+     exactly where a notch and a home indicator live — so the insets are added
+     to the padding it already had. Byte-identical computed padding on any
+     device reporting 0 insets, which is what keeps the gate's "must not drift"
+     rule (.wiki/conventions.md) honest. */
+  padding: calc(clamp(12px, 3vh, 30px) + var(--sai-top)) calc(2vw + var(--sai-right))
+           calc(clamp(12px, 3vh, 30px) + var(--sai-bottom)) calc(2vw + var(--sai-left));
+  text-align: center;
 }
 /* Each cluster keeps the rhythm the single stack used to have, so splitting it
    changes where the type sits and nothing else about how it reads. */
@@ -509,10 +652,38 @@ body.rg-gate-up #hud * { pointer-events: none; }
 @media (hover: none) and (pointer: coarse) {
   #ready-gate .rg-hint-key { display: none; }
   #ready-gate .rg-hint-tap { display: inline; }
+  /* The minimap is a 150px square pinned bottom-right, i.e. 38% of the width of
+     a 390px phone parked on the corner of the city the right-half orbit drag
+     starts from. It cannot EAT that drag (#hud is pointer-events:none and only
+     #hud-right re-enables it), but it occludes it, and a player who cannot see
+     what their finger is over will not drag there. 26vmin is 101px on that
+     phone — 26% instead of 38% — and it is capped at the authored 150 so a
+     tablet is unchanged. Campaign only in practice: hud.js hides the wrapper
+     outright in the sandbox, which has no minimap data source. */
+  #minimap-wrap { width: clamp(96px, 26vmin, 150px); height: clamp(96px, 26vmin, 150px); }
+  /* #hud-right lays out mute, pause and the timer pill as inline-blocks in a
+     shrink-to-fit absolutely-positioned box, so on a wide viewport they sit on
+     ONE row ~223px long — which on a 390px phone reaches back to x=153 and
+     lands underneath #level-banner, whose own box runs to x=193 (46vw + the
+     14px offset). Measured in a 390x844 portrait screenshot: the mute button
+     was drawn straight through the middle of "BRIDGES TO CONEY ISLAND". A
+     max-width forces the timer onto its own second row, which is what the
+     margin-top on #timer was always drawn for, and pulls the button row's left
+     edge out to x=276 — 83px clear of the banner. Deliberately vw and not a
+     pixel breakpoint: at 42vw the cap only bites once the viewport is narrow
+     enough for the collision to exist (a 768px coarse-pointer tablet gets
+     322px, more than the row needs, and is unchanged). */
+  #hud-right { max-width: 42vw; }
 }
 /* phone landscape: ~390px tall, so tighten everything and drop the sparkles */
 @media (orientation: landscape) and (max-height: 480px) {
-  #ready-gate .rg-stack { padding: 10px 2vw; }
+  /* Keeps the inset terms — a phone in landscape is the case where the notch is
+     on a SIDE, so dropping them here would be dropping them where they matter
+     most. */
+  #ready-gate .rg-stack {
+    padding: calc(10px + var(--sai-top)) calc(2vw + var(--sai-right))
+             calc(10px + var(--sai-bottom)) calc(2vw + var(--sai-left));
+  }
   #ready-gate .rg-top,
   #ready-gate .rg-bot { gap: clamp(14px, 3.5vh, 22px); }
   #ready-gate .fw-title { font-size: calc(clamp(40px, 21vh, 92px) * var(--fw-fit, 1)); }
@@ -670,4 +841,12 @@ body.rg-gate-up #hud * { pointer-events: none; }
   #ready-gate .rg-scrim,
   #ready-gate .rg-sub,
   #ready-gate .rg-hint { animation: none; }
+  /* The hint's knob sweep goes; its fade-in and self-destruct do NOT. The sweep
+     is decoration (the label already says what to do), but th-life is the only
+     thing that ever takes the hint off the screen when the player is reading
+     rather than touching — killing it would leave a permanent ghost ring on the
+     city, which is a worse outcome than the motion it was avoiding. It parks
+     off-centre, up and to the left, so the ring still reads as a stick that has
+     been pushed somewhere rather than as an empty target. */
+  #touch-hint .th-knob { animation: none; transform: translate(-119%, -119%); }
 }

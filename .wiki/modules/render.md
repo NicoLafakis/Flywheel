@@ -66,7 +66,14 @@ mutates sim state.
   `(-sin(yaw), -cos(yaw))`; W must move along forward (regression history:
   flipped basis made W go backwards). The same convention defines the hole's
   heading: forward = `(-sin(heading), -cos(heading))`.
-- **Input is tank controls (2026-08-06), one scheme in both modes.** The hole
+- **Input is TWO schemes split by device (2026-08-06), not by setting.** The
+  keyboard is tank (below); the touch stick is direct steer (next bullet). A key
+  is a rate control — it carries one bit and a duration, so integrating it is
+  the only thing it can mean — while a thumb on a stick is a position control
+  that already carries an absolute angle, and throwing that angle away to
+  re-derive it from left/right presses is what made touch steering feel like
+  driving a tank on a phone. Both write the same `controls.heading`.
+- **Keyboard: tank controls.** The hole
   carries a persistent world-space heading owned by `controls.js`. W/S are
   throttle along it, A/D rotate the heading itself at `ORBIT_RATE × turnSens ×
   size ramp` (sandbox) — including spinning in place when stationary, so a
@@ -85,6 +92,61 @@ mutates sim state.
   History: the `driveMode` scheme (A/D fed `orbitDelta` at `STEER_RATE`
   2.7 rad/s × a size-ramped 0.2→0.8) and the camera-relative strafe that
   replaced it are both gone; steering is now direct heading integration.
+- **Touch: direct steer + pinch zoom (2026-08-06).** The stick's ANGLE names a
+  direction on screen; the heading turns toward it at a capped rate and stops
+  itself when the error reaches zero. Screen→world is
+  `target = basisYaw + atan2(-sx, -sy)` (client `sy` runs down, so screen-up is
+  `-sy`; screen-left is `heading + π/2`, matching `forward = (-sin h, -cos h)`).
+  Because it converges rather than integrating open-loop it can afford
+  `DIRECT_STEER_BOOST` 1.6× — 238°/s at SIZE 1 — under a ceiling mirroring
+  `camera.js`'s own follow rate, since a heading that outruns the camera reads
+  as the world sliding sideways, not as a faster turn.
+  **The feedback loop and how it is cut:** direct steer is inherently
+  camera-relative, and the chase camera is simultaneously slewing to sit behind
+  that same heading. Re-read the live yaw every frame and the pair has no fixed
+  point except dead ahead (`target = yaw + φ`, `yaw` chases `heading`, so the
+  heading advances by φ forever and a held stick drives in a circle) — a steady
+  state, not a tuning bug. So the basis is **latched**: `_latchBasis` is only
+  called on frames where the stick is NOT commanding (inside the dead zone, or
+  lifted), so no frame both reads and writes it and there is no path from yaw
+  back to heading. Held for the life of a push, which is what makes a held stick
+  draw a straight line; relax the thumb for one frame and the basis is current
+  again. Measured: latched drift 0.00° at all four φ, guard forced off winds up
+  760.88° and 1032.60°. 48-angle sweep, worst world error 0.01°.
+  Magnitude past the dead zone is deliberately NOT speed — both sims
+  re-normalise `move`, so a half-push would be scaled straight back to 1.0.
+  **Pinch:** roles not counts — at most one finger is the stick (or the
+  pointMove pointer) and every other finger down is a camera finger; one orbits
+  by its travel, two orbit by their midpoint and zoom by their separation, so
+  the gestures never contend. `PINCH_SIGN` = spread zooms OUT (deliberately
+  inverted vs. the maps norm, Nico's call; one character to flip). `PINCH_GAIN`
+  96 m per screen-diagonal of separation, normalised so portrait and landscape
+  feel identical. Feeds the existing `zoomDelta`→`cam.dist` path; 8–40 m stays
+  the camera's clamp, `ZOOM_ACC_MAX` 32 bounds only the accumulator. When the
+  orbit finger lifts, a surviving camera finger **inherits the orbit slot** —
+  without it `orbitHeld` went false with a finger still on the glass, which is
+  exactly the 44°/0.5 s hole that getter exists to close.
+  In `pointMove` mode finger 1 is unconditionally the pointer, so pinch needs
+  fingers 2–3; not discoverable, but it regresses nothing.
+  **The stick yields a finger it never used (`_joyEverLive`).** The stick's home
+  is `clientX < innerWidth/2`, which on a 390 px phone puts the boundary at
+  195 px — straight through the middle, exactly where a player who is *not*
+  steering puts two fingers to zoom. Left alone the left finger takes the stick,
+  the pinch is then excluded from `_pinchPoints`, and the zoom attempt reads as
+  a drive command: measured on the staged tree from a parked 24 m, a centred
+  converge gave dist 24→24 and moved the hole **12.12 m**, a centred spread
+  **13.31 m**, both with zero zoom. So on touchstart, a stick finger that has
+  never left the dead zone is handed back to the camera pool before roles are
+  assigned, and `freed` blocks re-arming for the rest of that event — otherwise
+  the very finger that triggered the release walks into the branch below and
+  steals the same pinch one finger later. The test is a LATCH, not the live
+  deflection: a thumb that pushed and coasted back to centre is a player
+  stopping deliberately, and taking the stick from them mid-drive would be the
+  same bug pointing the other way. After the fix, centred converge 24→8 and
+  centred spread 24→35.3, both with the hole moving **0.00 m**; a steering thumb
+  keeps the stick across an arriving finger even after coasting back; the
+  three-finger case is unchanged (16→38.9 while driving 18.3 m). Direct steer
+  re-swept at 36 angles after the change: worst heading error 0.43°.
 - **Point-to-move (2026-08-05), off by default via `settings.pointMove`.**
   Drag sets a world-space direction; a short (< `TAP_MS = 350`), barely-moved
   (< `TAP_PX = 14`) press is a tap whose destination outlives the gesture —
