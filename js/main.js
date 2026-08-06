@@ -3,7 +3,7 @@
 import { Sim } from './sim.js';
 import { VoxelSandboxSim, sandboxSizeProgress } from './voxelsim.js';
 import { getLevel, METROS } from './levels.js';
-import { loadSave, storeSave, recordLevelResult, isLevelUnlocked } from './save.js';
+import { loadSave, storeSave, recordLevelResult, recordSandboxResult, isLevelUnlocked } from './save.js';
 import { World3D } from './world3d.js';
 import { VoxelWorld3D } from './voxelworld.js';
 import { ChaseCamera } from './camera.js';
@@ -205,11 +205,11 @@ function sunDirOf(w) {
 const AUTHORED_SCENES = {
   'manhattan': {
     label: 'NYC: LOWER MANHATTAN',
-    hud: 'LOWER MANHATTAN',
+    hud: 'LOWER MANHATTAN', intro: { subtitle: 'LOWER MANHATTAN' },
   },
   'upper-manhattan': {
     label: 'NYC: UPPER MANHATTAN — CENTRAL PARK',
-    hud: 'UPPER MANHATTAN · CENTRAL PARK',
+    hud: 'UPPER MANHATTAN · CENTRAL PARK', intro: { subtitle: 'CENTRAL PARK' },
   },
   'brooklyn': {
     label: 'NYC: BROOKLYN — BRIDGES TO CONEY ISLAND',
@@ -230,8 +230,8 @@ function startVoxelSandbox(scene = 'gallery') {
   // Lower Manhattan) — show a loading frame first so the click never reads
   // as a frozen tab.
   const authored = AUTHORED_SCENES[scene];
-  const sceneLabel = authored ? authored.label : 'VOXEL SANDBOX';
-  const hudLabel = authored ? authored.hud : 'VOXEL PILE PHYSICS';
+  const sceneLabel = authored ? authored.label : 'THE COLLECTION';
+  const hudLabel = authored ? authored.hud : 'THE COLLECTION';
   screens.showLoading(sceneLabel);
   requestAnimationFrame(() => requestAnimationFrame(() => {
     teardownWorld();
@@ -339,6 +339,14 @@ function startVoxelSandbox(scene = 'gallery') {
           cam.releaseIntro();
         },
       });
+    } else {
+      // The gallery is a real goal level too. Its compact pile has no skyline
+      // bounds to frame, so use its movement bounds for the same zoom-in beat.
+      cam.beginIntro({ minR: sim.bounds, sun: sunDirOf(world) });
+      readyGate = mountReadyGate({
+        title: 'READY?', subtitle: 'COLLECTION', reducedMotion: save.settings.reducedMotion,
+        onStart: () => { readyGate = null; blip(880, 0.14, 'triangle', 0.07); cam.releaseIntro(); },
+      });
     }
   }));
 }
@@ -414,7 +422,7 @@ function frame(ts) {
         if (ev.type === 'eat') {
           // eat pitch rises with mass AND combo chain; every 10th chain pops
           blip(280 + Math.min(500, (ev.gained || 1) * 30) + Math.min(240, (ev.chain || 1) * 8), 0.04, 'square', 0.02);
-          if (ev.chain && ev.chain % 10 === 0) {
+          if (ev.chain && ev.chain % 25 === 0) {
             blip(660, 0.09, 'triangle', 0.06);
             blip(880, 0.14, 'triangle', 0.05);
             world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius, 0xffd23f);
@@ -438,6 +446,12 @@ function frame(ts) {
           cam.fovKick(8);
           world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * 1.5, 0xffffff);
           hud.showToast(ev.frac >= 1 ? 'TOTAL CONSUMPTION!' : `${Math.round(ev.frac * 100)}% OF THE CITY CONSUMED`, 2200);
+        } else if (ev.type === 'coin') {
+          blip(1040, 0.08, 'triangle', 0.06);
+          hud.showToast(`COIN! +${ev.value}`, 700);
+        } else if (ev.type === 'goal') {
+          blip(523, 0.12, 'triangle', 0.09); blip(784, 0.18, 'triangle', 0.08);
+          hud.showBigPop('GOAL COMPLETE!');
         }
       }
       // The sandbox used to drop the event stream on the floor here — nothing
@@ -451,6 +465,7 @@ function frame(ts) {
       cam.update(realDt, hole.x, hole.z, hole.radius, orbit, zoom, controls.orbitHeld, controls.heading);
       world.render(cam.camera);
       hud.updateSandbox(sim);
+      if (sim.over) endSandbox();
     } else {
       for (const ev of events) {
         if (ev.type === 'eat') {
@@ -484,6 +499,17 @@ function frame(ts) {
     world.update(0, []);
     world.render(cam.camera);
   }
+}
+
+function endSandbox() {
+  if (state === 'results') return;
+  state = 'results'; hud.hide();
+  const finished = sim;
+  screens.showSandboxResults(finished, (toCities, coins) => {
+    recordSandboxResult(save, finished.scene, { coinsEarned: coins, size: finished.hole.size, elapsed: finished.time });
+    if (toCities) { teardownWorld(); state = 'menu'; screens.showTitle(); }
+    else startVoxelSandbox(finished.scene);
+  });
 }
 
 function resize() {

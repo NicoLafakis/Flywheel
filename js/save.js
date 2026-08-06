@@ -2,7 +2,7 @@
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 10;
+export const CURRENT_VERSION = 11;
 
 function defaultSettings() {
   return {
@@ -114,6 +114,10 @@ const MIGRATIONS = {
       perfMode: s.settings && 'perfMode' in s.settings ? !!s.settings.perfMode : false,
     },
   }),
+  // v11: sandbox goals can be completed repeatedly, independently of the
+  // retired campaign level records. Keep those records intact: they are old
+  // player history, not invalid data.
+  10: (s) => ({ ...s, version: 11, sandbox: s.sandbox || {} }),
 };
 
 export function loadSave() {
@@ -169,6 +173,17 @@ export function recordLevelResult(save, levelIndex, { stars, mass, bestCombo, wo
     bestMass: Math.max(prev.bestMass, Math.floor(mass)),
     bestCombo: Math.max(prev.bestCombo, bestCombo),
     won: prev.won || won,
+  };
+  save.coins += coinsEarned;
+  storeSave(save);
+}
+
+export function recordSandboxResult(save, scene, { coinsEarned, size, elapsed }) {
+  const prev = save.sandbox[scene] || { completions: 0, bestSize: 0, bestTime: null };
+  save.sandbox[scene] = {
+    completions: prev.completions + 1,
+    bestSize: Math.max(prev.bestSize, size),
+    bestTime: prev.bestTime === null ? elapsed : Math.min(prev.bestTime, elapsed),
   };
   save.coins += coinsEarned;
   storeSave(save);

@@ -81,15 +81,15 @@ export class Screens {
     hero.appendChild(heroText);
     s.appendChild(hero);
 
-    // The campaign, wearing the same pill as the level-start GO! button.
+    // Sandboxes are the game now: Brooklyn is the first city, not a campaign map.
     const ctaWrap = el(`<div class="fw-cta-wrap"></div>`);
-    const play = el(`<button type="button" class="fw-cta">PLAY</button>`);
-    play.onclick = () => this.showWorldMap();
+    const play = el(`<button type="button" class="fw-cta">PLAY A CITY</button>`);
+    play.onclick = () => this.actions.startVoxelSandbox('brooklyn');
     ctaWrap.appendChild(play);
     s.appendChild(ctaWrap);
 
     const group = el(`<section class="fw-group" aria-labelledby="fw-free-play"></section>`);
-    group.appendChild(el(`<div class="fw-group-label" id="fw-free-play">Free play · voxel cities</div>`));
+    group.appendChild(el(`<div class="fw-group-label" id="fw-free-play">Choose a city · collect coins · grow big</div>`));
     const chips = el(`<div class="fw-chips"></div>`);
     for (const sc of FREE_PLAY) {
       const chip = el(`<button type="button" class="fw-chip">
@@ -124,37 +124,19 @@ export class Screens {
   }
 
   showWorldMap() {
+    this.showTitle();
+  }
+
+  showSandboxResults(sim, onContinue) {
     this.clear();
-    const s = el(`<div class="screen"><h2>WORLD MAP</h2>
-      <div class="coins">&#128176; ${this.save.coins} coins</div></div>`);
-    LEVELS.forEach((lvl, i) => {
-      if (i % LEVELS_PER_METRO !== 0) return;
-      const metro = METROS[lvl.metroIndex];
-      const row = el(`<div class="metro-row"><h3>${metro.name}</h3><div class="level-cards"></div></div>`);
-      const cards = row.querySelector('.level-cards');
-      for (let j = i; j < i + LEVELS_PER_METRO; j++) {
-        const L = LEVELS[j];
-        const rec = this.save.levels[L.index];
-        const unlocked = isLevelUnlocked(this.save, L.index);
-        const stars = rec ? rec.stars : 0;
-        const mech = L.introduces ? MECHANICS[L.introduces].icon : '';
-        const card = el(`<div class="level-card ${unlocked ? '' : 'locked'}">
-          <div>${L.index}</div><div class="stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
-          <div class="mech">${mech}</div></div>`);
-        if (unlocked) card.onclick = () => this.actions.play(L);
-        cards.appendChild(card);
-      }
-      s.appendChild(row);
-    });
-    const back = el(`<button class="btn secondary">BACK</button>`);
-    back.onclick = () => this.showTitle();
-    const shop = el(`<button class="btn secondary">SHOP</button>`);
-    shop.onclick = () => this.showShop();
-    const btnRow = el(`<div></div>`);
-    btnRow.append(shop, back);
-    s.appendChild(btnRow);
-    this.root.appendChild(s);
-    this.current = 'map';
+    const coins = sim.coinsCollected * 2 + 35;
+    const s = el(`<div class="screen"><h2>GOAL COMPLETE</h2><div class="results-stats">
+      <div>${sim.goal.name}</div><div>City cleared <b>${Math.round(sim.hole.rawMass / sim.totalMass * 100)}%</b></div>
+      <div>Coins found <b>${sim.coinsCollected}/${sim.coins.length}</b></div>
+      <div>Finish bonus <b>+35</b></div><div>Coins earned <b>+${coins}</b></div></div></div>`);
+    const again = el(`<button class="btn">PLAY AGAIN</button>`); again.onclick = () => onContinue(false, coins);
+    const cities = el(`<button class="btn secondary">CITIES</button>`); cities.onclick = () => onContinue(true, coins);
+    s.append(again, cities); this.root.appendChild(s); this.current = 'results';
   }
 
   showShop() {
@@ -277,14 +259,14 @@ export class Screens {
       return row;
     };
 
-    panel.appendChild(toggle('Tap to move', 'pointMove'));
-    panel.appendChild(toggle('Invert move X', 'invertX'));
-    panel.appendChild(toggle('Invert move Y', 'invertY'));
-    panel.appendChild(toggle('Shadows', 'shadows'));
-    panel.appendChild(toggle('Reduced Motion', 'reducedMotion'));
-    panel.appendChild(toggle('Performance Mode', 'perfMode'));
+    panel.appendChild(toggle('👆 Tap to steer', 'pointMove'));
+    panel.appendChild(toggle('↔ Flip left and right', 'invertX'));
+    panel.appendChild(toggle('↕ Flip up and down', 'invertY'));
+    panel.appendChild(toggle('🌤 Pretty shadows', 'shadows'));
+    panel.appendChild(toggle('🫧 Less movement', 'reducedMotion'));
+    panel.appendChild(toggle('⚡ Smoother play', 'perfMode'));
 
-    const muteRow = el(`<div style="margin:8px 0">Sound
+    const muteRow = el(`<div style="margin:8px 0">🔊 Game sounds
       <button class="btn secondary" style="float:right;padding:4px 18px;font-size:14px;margin:0">
       ${this.save.muted ? 'OFF' : 'ON'}</button></div>`);
     const muteBtn = muteRow.querySelector('button');
@@ -294,7 +276,7 @@ export class Screens {
     };
     panel.appendChild(muteRow);
 
-    const volRow = el(`<div style="margin:8px 0">SFX volume
+    const volRow = el(`<div style="margin:8px 0">🔊 Sound volume
       <input type="range" min="0" max="1" step="0.05" value="${st.sfxVol !== undefined ? st.sfxVol : 1}"
         style="float:right;width:140px"></div>`);
     const volSlider = volRow.querySelector('input');
@@ -304,7 +286,7 @@ export class Screens {
     };
     panel.appendChild(volRow);
 
-    const distRow = el(`<div style="margin:8px 0">Camera distance
+    const distRow = el(`<div style="margin:8px 0">📷 Camera view (closer ↔ farther)
       <input type="range" min="0.7" max="1.5" step="0.05" value="${st.camDist}"
         style="float:right;width:140px"></div>`);
     const slider = distRow.querySelector('input');
@@ -351,7 +333,7 @@ export class Screens {
 
     // Dev voxel-physics tuning — live-applied to the running sandbox via
     // actions.applySettings(). Shipped with the game while in development.
-    const tuneTitle = el(`<h3 style="clear:both;margin:16px 0 4px">DEV TUNING — VOXEL SANDBOX</h3>`);
+    const tuneTitle = el(`<h3 style="clear:both;margin:16px 0 4px">CITY FEEL</h3>`);
     panel.appendChild(tuneTitle);
     const tune = (label, key, min, max, step, fmt) => {
       const row = el(`<div style="clear:both;margin:6px 0">${label}
@@ -381,7 +363,7 @@ export class Screens {
     const ctl = (label, keys) => panel.appendChild(
       el(`<div style="clear:both;margin:4px 0">${label}
         <span style="float:right;font-weight:700">${keys}</span></div>`));
-    ctlGroup('VOXEL SANDBOX');
+    ctlGroup('CITY PLAY');
     ctl('Drive forward', 'W / ↑');
     ctl('Reverse', 'S / ↓');
     ctl('Turn left', 'A / ←');

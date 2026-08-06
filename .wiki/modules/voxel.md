@@ -13,6 +13,15 @@ covers:
 
 ## Purpose
 
+## Goal runs and rewards
+
+Every sandbox is a complete replayable level. `VoxelSandboxSim` owns the
+authored SIZE goal and deterministic coin scatter, collects coins during
+`step()`, and emits coin/goal events. The renderer only mirrors those events.
+Each run has 60 visible coins worth 2 coins each, plus a 35-coin goal bonus;
+the save-side `recordSandboxResult()` persists completion history and rewards.
+All five sandboxes use the READY establishing-shot path in `main.js`.
+
 Sandbox mode (title screen → VOXEL SANDBOX, NYC: LOWER MANHATTAN, or NYC: UPPER
 MANHATTAN — CENTRAL PARK): the
 hole excavates a block-built world from underneath. The hole never decides

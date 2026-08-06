@@ -1,5 +1,7 @@
 // HUD: mass bar, timer, combo, level banner, minimap, toasts.
 
+import { SANDBOX_COIN_VALUE } from '../voxelsim.js';
+
 export class HUD {
   constructor() {
     this.root = document.getElementById('hud');
@@ -39,7 +41,7 @@ export class HUD {
   hide() { this.root.classList.add('hidden'); this._showMinimap(false); }
 
   setLevel(level, metroName) {
-    this.banner.textContent = `LEVEL ${level.index} - ${metroName}`;
+    this.banner.textContent = level.index === 'SANDBOX' ? `✦ ${metroName}` : `LEVEL ${level.index} - ${metroName}`;
   }
 
   showToast(text, ms = 2200) {
@@ -82,18 +84,20 @@ export class HUD {
   updateSandbox(sim) {
     this._showMinimap(false);
     const h = sim.hole;
-    this.massBar.style.width = `${(h.sizeFrac * 100).toFixed(1)}%`;
     this.massBar.style.background = '#ffd23f';
-    this.massLabel.textContent = h.size >= sim.MAX_SIZE && h.sizeFrac >= 1
-      ? `SIZE ${h.size} MAX · ${h.eatenCount} voxels · ${Math.floor(h.rawMass)} mass`
-      : `SIZE ${h.size} → SIZE ${h.size + 1} · ${Math.round(h.sizeFrac * 100)}% · ${h.eatenCount} voxels`;
-    this.timer.textContent = Math.floor(sim.time);
+    const cleared = Math.min(1, h.rawMass / sim.totalMass);
+    this.massLabel.textContent = cleared >= sim.goal.targetFraction
+      ? `${sim.goal.name} · GOAL REACHED`
+      : `GOAL: CLEAR 50% · ${sim.goal.name}`;
+    this.massBar.style.width = `${(cleared * 100).toFixed(1)}%`;
+    this.timer.textContent = `${sim.coinsCollected}/${sim.coins.length} · ${SANDBOX_COIN_VALUE}`;
+    this.timer.textContent = `🪙 ${sim.coinsCollected}/${sim.coins.length} · +${SANDBOX_COIN_VALUE}`;
     this.timer.classList.remove('low');
     if (h.chain >= 2) {
       this.comboLabel.classList.remove('hidden');
-      this.comboLabel.textContent = `COMBO x${h.chain > 99 ? '99+' : h.chain}`;
+      this.comboLabel.textContent = `⚡ COMBO x${Math.floor((h.chain - 1) / 25) + 1}`;
       // escalate color/size with combo tier so big chains feel big
-      const tier = h.chain >= 50 ? 3 : h.chain >= 25 ? 2 : h.chain >= 10 ? 1 : 0;
+      const tier = h.chain >= 75 ? 3 : h.chain >= 50 ? 2 : h.chain >= 25 ? 1 : 0;
       this.comboLabel.style.color = ['#ffffff', '#ffd23f', '#ff9a3f', '#ff5a1f'][tier];
       this.comboLabel.style.fontSize = ['', '18px', '20px', '22px'][tier];
     } else {

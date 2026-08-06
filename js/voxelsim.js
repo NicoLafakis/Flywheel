@@ -87,7 +87,19 @@ const SANDBOX_SPEED_RAMP = 2.72;
 // Mirrors sim.js combo rules, duplicated so the sandbox stays free of the
 // sim.js → citygen.js import chain.
 const COMBO_WINDOW = 1.5;
-const comboMult = (chain) => Math.min(3, 1 + 0.1 * Math.max(0, chain - 1));
+// A combo level is earned for every 25 blocks, not every tiny brick. This keeps
+// the counter readable and makes a chain feel like an achievement.
+const comboMult = (chain) => Math.min(3, 1 + 0.1 * Math.floor(Math.max(0, chain - 1) / 25));
+const GOALS = {
+  gallery: { name: 'CLEAR THE COLLECTION', targetFraction: 0.5 },
+  manhattan: { name: 'OPEN THE FINANCIAL DISTRICT', targetFraction: 0.5 },
+  'upper-manhattan': { name: 'RECLAIM CENTRAL PARK', targetFraction: 0.5 },
+  brooklyn: { name: 'CONNECT THE BOROUGHS', targetFraction: 0.5 },
+  boston: { name: 'SWALLOW THE SEAPORT', targetFraction: 0.5 },
+};
+export const SANDBOX_COIN_COUNT = 60;
+export const SANDBOX_COIN_VALUE = 2;
+export const SANDBOX_GOAL_BONUS = 35;
 
 // Shared progression curve for sandbox movement/camera feel. SIZE 1 is 0;
 // SIZE 12 (including its final fraction) is 1.
@@ -155,6 +167,7 @@ export class VoxelSandboxSim {
     };
     this.time = 0;
     this.over = false;
+    this.won = false;
     this.events = [];
     this.blocks = [];
     this.grid = new Map(); // every occupied fine cell -> owning block
@@ -220,6 +233,10 @@ export class VoxelSandboxSim {
     else if (scene === 'brooklyn') buildBrooklyn(this);
     else if (scene === 'boston') buildBoston(this);
     else this._buildScene();
+    this.scene = scene;
+    this.goal = GOALS[scene] || GOALS.gallery;
+    this.coins = this._placeCoins();
+    this.coinsCollected = 0;
     this._assertCellKeyRange(scene);
     this._buildNeighbors();
     this._buildZones();
@@ -252,7 +269,10 @@ export class VoxelSandboxSim {
     // sublinear curve: Gallery (×1), Upper Manhattan (×3) and Lower Manhattan
     // (×10) all land below it and are byte-identical, so no shipped scene is
     // silently re-paced by this.
-    this._sizeLadder = SIZE_MASS.map((m) => m * Math.min(10, Math.max(1, Math.round(this.totalMass / 4200))));
+    // Combos now advance in memorable 25-block steps. Keep growth lively by
+    // lowering the mass gates to match that gentler multiplier; map completion
+    // itself is raw-mass based, so this never shortens a city goal.
+    this._sizeLadder = SIZE_MASS.map((m) => m * 0.3 * Math.min(10, Math.max(1, Math.round(this.totalMass / 4200))));
     // Solid-surface heightmap: per fine column, the highest SOLID top
     // (static blocks + sleeping debris). Falling bodies collide with THIS
     // instead of a flat ground plane — blocks land on roofs and stack into
@@ -264,6 +284,33 @@ export class VoxelSandboxSim {
     // Camera blockers must track demolition. Bound LAST: it reads _top, which
     // only exists as of the two lines above.
     this._bindCameraBlockers();
+  }
+
+  _placeCoins() {
+    const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
+    const out = [];
+    // A seeded scatter makes every run fair and replayable while keeping coins
+    // out of the very edge where the clamp can make a pickup frustrating.
+    for (let i = 0; i < SANDBOX_COIN_COUNT; i++) {
+      out.push({
+        id: i,
+        x: r.minX + (r.maxX - r.minX) * (0.08 + this.rng.next() * 0.84),
+        z: r.minZ + (r.maxZ - r.minZ) * (0.08 + this.rng.next() * 0.84),
+        collected: false,
+      });
+    }
+    return out;
+  }
+
+  _collectCoins() {
+    const h = this.hole;
+    const reach = h.radius + 0.7;
+    for (const coin of this.coins) {
+      if (coin.collected || Math.hypot(coin.x - h.x, coin.z - h.z) > reach) continue;
+      coin.collected = true;
+      this.coinsCollected++;
+      this.events.push({ type: 'coin', coin, value: SANDBOX_COIN_VALUE, hole: h });
+    }
   }
 
   // --- camera-blocker liveness -----------------------------------------------
@@ -2029,6 +2076,7 @@ export class VoxelSandboxSim {
       h.x = Math.min(r ? r.maxX : this.bounds, Math.max(r ? r.minX : -this.bounds, h.x));
       h.z = Math.min(r ? r.maxZ : this.bounds, Math.max(r ? r.minZ : -this.bounds, h.z));
     }
+    this._collectCoins();
 
     // 0. camera blockers whose height band emptied since the last step. Done
     // before the graph work so the camera never renders a frame against a
@@ -2081,6 +2129,11 @@ export class VoxelSandboxSim {
     // 4. physics: chunks, then individual debris
     this._stepChunks(dt);
     this._stepDebris(dt);
+    if (!this.won && h.rawMass >= this.totalMass * this.goal.targetFraction) {
+      this.won = true;
+      this.over = true;
+      this.events.push({ type: 'goal', goal: this.goal, hole: h });
+    }
   }
 
   drainEvents() {

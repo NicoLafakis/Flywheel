@@ -526,6 +526,19 @@ export class VoxelWorld3D {
     this.holeMesh.userData = { disc };
     this._ownedMats.push(disc.material);
     this.scene.add(this.holeMesh);
+    // Coins are gameplay objects owned by the pure sim; this tiny render layer
+    // only mirrors their collected flag. Flat gold discs stay legible from the
+    // high establishing shot without adding a texture or a draw-call per coin.
+    this.coinMeshes = new Map();
+    const coinGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.12, 12);
+    const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd23f, emissive: 0x6b4700, emissiveIntensity: 0.35, roughness: 0.32 });
+    this._ownedGeos.push(coinGeo); this._ownedMats.push(coinMat);
+    for (const coin of sim.coins || []) {
+      const mesh = new THREE.Mesh(coinGeo, coinMat);
+      mesh.position.set(coin.x, 0.16, coin.z);
+      mesh.castShadow = false; mesh.receiveShadow = false;
+      this.coinMeshes.set(coin.id, mesh); this.scene.add(mesh);
+    }
     // Marks a skin lays on the GROUND (Attribution's touchpoints, Compounding's
     // trail) must stay where they were laid, so they are parented to the scene
     // and not to the hole. Empty for most skins; the group costs nothing.
@@ -1890,6 +1903,11 @@ export class VoxelWorld3D {
     const h = this.sim.hole;
     this.holeMesh.position.set(h.x, 0, h.z);
     this.holeMesh.userData.disc.scale.setScalar(h.radius);
+    for (const ev of events || []) {
+      if (ev.type !== 'coin') continue;
+      const mesh = this.coinMeshes.get(ev.coin.id);
+      if (mesh) { this.scene.remove(mesh); this.coinMeshes.delete(ev.coin.id); }
+    }
 
     // rim glow: builds with combo intensity; blinks when the chain is about
     // to drop (urgency cue)
@@ -2110,6 +2128,8 @@ export class VoxelWorld3D {
     this._ambientMeshes.length = 0;
     this.ambient = null;
     if (this.decorMesh) { this.scene.remove(this.decorMesh); this.decorMesh = null; }
+    for (const mesh of this.coinMeshes.values()) this.scene.remove(mesh);
+    this.coinMeshes.clear();
     // The skin owns geometry AND materials (one pair per part) and its world
     // group is parented to the scene, not to the hole, so it needs removing
     // from both places — _ownedMats never saw either.

@@ -142,9 +142,12 @@ from one shared brand layer (`js/ui/blockword.js`, `--fw-*` tokens in
 `css/main.css`). The world map and level selection are deliberately still on
 the old treatment.
 
-**Campaign**: playable v1, mechanically complete. All 100 levels validated
-`ALL PASS` (worst bot margin 46%). Level 1 visually close to reference
-(verified by screenshot); other levels share the code but are unreviewed.
+**Progression**: the retired campaign is no longer reachable from the game.
+The five city sandboxes are replayable goal runs: each starts with the shared
+establishing overview/READY zoom, ends after clearing 50% of that map, and contains
+60 deterministic collectible coins. A run pays 2 coins per pickup plus a 35
+coin completion bonus; this intentionally makes the skin shelf a long-term
+goal rather than a one-session unlock.
 
 **Voxel Sandbox**: physics complete and playtest-tuned, four scenes: the
 city gallery (~3,800 blocks, ~30 object kinds in 7 districts), **Brooklyn**
@@ -182,7 +185,7 @@ district sweep).
   L21, tide L41, landmark L20 + finales + L91–100)
 - Combos (×3 cap), star ratings, coins, shop (skins + clock/growth items)
 - World map with locks/stars, results screen, mechanic intro cards
-- Saves: localStorage schema v10, migrations v1→v10, quarantine
+- Saves: localStorage schema v11, migrations v1→v11, quarantine
 - Desktop tank controls (W/S throttle, A/D heading steering, Q/E camera orbit,
   R/F zoom — one scheme in campaign and sandbox) + mobile (joystick steer/
   throttle + touch orbit)
