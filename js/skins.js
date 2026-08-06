@@ -520,7 +520,19 @@ export const SKINS = [
   // every id is namespaced `partner-*` because save data keys off `id` and a
   // collision with the first 17 would silently swap a player's skin.
   { id: 'partner-supered', name: 'Supered', price: 750, color: 0xe5097f, accent: 0x252a4a,
-    css: 'linear-gradient(90deg,#e5097f 50%,#252a4a 50%)', family: 'partner', logo: 'supered',
+    css: 'linear-gradient(90deg,#e5097f 50%,#252a4a 50%)', family: 'partner',
+    // First row on the raster path. `logoTex` wins over `logo` when both are
+    // present, so moving a partner across is a one-line row edit and the seven
+    // still on `logo` are untouched by it.
+    // Supered's OWN app icon: the bolt knocked out of a magenta rounded square.
+    // Not the wide lockup — the brand's answer to "there is no room for the
+    // lockup" is already this mark, and an icon survives being small.
+    // `fullBleed` because the ink runs to the edge, and `additive: false` because
+    // the file carries its own alpha and so needs neither the black-key trick nor
+    // the grey pedestal it drags in. Two flags, each naming one concern; see
+    // logoTexPart for the measurements behind both.
+    logo: 'supered', logoFit: { fullBleed: true, additive: false },
+    logoTex: 'assets/skins/partners/supered/supered-logo-large.webp',
     blurb: 'Guidance built into the tool itself. Adoption stops being a hope.', build: buildPartner },
   { id: 'partner-newbreed', name: 'New Breed', price: 750, color: 0x733bf6, accent: 0x3ad531,
     css: 'linear-gradient(90deg,#733bf6 50%,#3ad531 50%)', family: 'partner', logo: 'newbreed',
@@ -1502,6 +1514,208 @@ function logoPart(rec, opts = {}) {
   return m;
 }
 
+// A raster mark, and the reason there is a second path here at all.
+//
+// The traced-vector path above renders nothing in game. Rather than keep
+// chasing it, a mark can now arrive as an IMAGE: the wordmark in its brand
+// colour on PURE BLACK. Nothing is keyed out and there is no alpha channel --
+// under AdditiveBlending black contributes exactly zero, so the background
+// disappears for free and only the ink lands on the ground. That is the same
+// bargain every additive part in this file already makes.
+//
+// The image is measured, not trusted. Two different generated wordmarks will
+// not sit in the same place inside their 1024 box, and a plane sized to the
+// FILE instead of to the INK would put half a logo's worth of empty black
+// between the mark and the rim and blow the 2.0-rim-radii fit that the traced
+// path was tuned to. So the decoded pixels are scanned once for their ink
+// bounding box, the texture is cropped to it with offset/repeat, and the plane
+// is sized from that box under logoPart's own maxW/maxH ladder. A row supplies
+// a path; it does not have to supply a hand-measured bounding box that would
+// rot the moment the art is regenerated.
+//
+// THE SCAN ONLY MAKES SENSE AGAINST A DARK SURROUND, so a row that hands over a
+// FULL-BLEED asset — a brand's own app icon, ink running to the edge — says so
+// with `fullBleed` and the scan is skipped outright. Left ungated it would
+// still have "worked": every pixel of a magenta tile is above the ink
+// threshold, so the box comes back as the whole image. That is the right answer
+// arrived at by luck, and it would turn into the wrong one the first time an
+// asset had a dark corner or a drop shadow in it. The flag makes the intent the
+// reason.
+//
+// Alpha is ink's other edge. A transparent corner is not black, it is nothing,
+// and a scan that read only luminance would have counted the RGB left behind
+// under a zero alpha as part of the mark.
+//
+// Async, and deliberately not awaited: the badge is `visible = false` until the
+// image decodes, and a missing or slow file leaves the skin as its rim. A
+// texture is not worth a frame of stall, let alone a throw.
+const LOGO_TEX_PAD = 2;      // texels of black kept around the ink, so the mip
+                             // chain has something to fade into at the crop edge
+const LOGO_TEX_INK = 0.06;   // luminance above which a JPEG pixel is ink and not
+                             // the compressor's ringing around the letterforms
+const LOGO_TEX_ALPHA = 8;    // and below which a texel is not there at all, so a
+                             // cut-out corner cannot widen the box
+
+// The raster badge's own brightness ladder, and the reason it is not the traced
+// one. A traced mark carries its hue in the vertex colours, so 0.36 is the
+// ceiling that keeps it off white. A raster mark carries its hue in the TEXTURE
+// at the brand's exact hex, and multiplying that by anything below 1 is just
+// dimming the one thing the asset exists to get right. So: 1.0 at rest, exactly
+// the art.
+//
+// The ceiling is not a taste call. Under normal blending a vertex colour above 1
+// clips channel by channel, and the brand magenta's linear red is 0.787, so it
+// starts losing hue at b = 1/0.787 = 1.27. LOGO_TEX_MAX sits below that with
+// room to spare, and the eat reaction is sized so its PEAK — lift pinned at its
+// 1.3 clamp, glow at 1, which is where the player actually lives — stays inside
+// it. Tuned against the peak, because the peak is the resting state.
+const LOGO_TEX_BASE = 1.0;
+const LOGO_TEX_LIFT = 0.10;
+const LOGO_TEX_GLOW = 0.05;
+const LOGO_TEX_MAX = 1.13;   // peak = 1.13 * 1.05 = 1.187, clear of 1.27
+
+// Decoded marks, measured once and shared by URL.
+//
+// This cache is not an optimisation, it is what makes the SHOP work. The shelf
+// bakes its tiles through bakeSkinThumbnails(), which builds, poses and renders
+// every row FULLY SYNCHRONOUSLY — an Image().onload cannot fire inside a
+// synchronous loop, so a badge that waits on one bakes as a bare rim. Nico's
+// partner would have opened the shop and found a blank tile with their name on
+// it, which is the exact failure the traced path was wrongly accused of.
+//
+// Once a URL is in here, logoTexPart applies it on the spot and the mesh is
+// visible before it is returned, so the baker needs no await and keeps its
+// signature. preloadLogoTextures() at the bottom of this file is what fills it.
+//
+// Sharing the THREE.Texture is the other half: a bake constructs all 25 skins,
+// and a per-call texture would have been 25 uploads of the same 1024x1024 image
+// with nothing disposing them (skin.dispose() releases geometry and material,
+// and three's Material.dispose does not touch maps).
+const LOGO_TEX_CACHE = new Map();
+
+// Measure the ink box and build the shared texture. Returns null for an image
+// with nothing in it, which is the honest outcome — a plane sized off an empty
+// box would be a divide by zero.
+function logoTexRecord(img, fullBleed) {
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d', { willReadFrequently: false });
+  ctx.drawImage(img, 0, 0);
+  let x0 = 0, y0 = 0, x1 = W - 1, y1 = H - 1;
+  if (!fullBleed) {
+    const d = ctx.getImageData(0, 0, W, H).data;
+    x0 = W; y0 = H; x1 = -1; y1 = -1;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const p = (y * W + x) << 2;
+        if (d[p + 3] < LOGO_TEX_ALPHA) continue;
+        const lum = (d[p] * 0.299 + d[p + 1] * 0.587 + d[p + 2] * 0.114) / 255;
+        if (lum <= LOGO_TEX_INK) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+    if (x1 < x0 || y1 < y0) return null;
+    x0 = Math.max(0, x0 - LOGO_TEX_PAD); y0 = Math.max(0, y0 - LOGO_TEX_PAD);
+    x1 = Math.min(W - 1, x1 + LOGO_TEX_PAD); y1 = Math.min(H - 1, y1 + LOGO_TEX_PAD);
+  }
+  const pw = x1 - x0 + 1, ph = y1 - y0 + 1;
+  const tex = new THREE.Texture(img);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.repeat.set(pw / W, ph / H);
+  // Texture V runs up from the image's BOTTOM edge; the scan counted rows down
+  // from the top.
+  tex.offset.set(x0 / W, (H - y1 - 1) / H);
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return { tex, pw, ph };
+}
+
+// Size the quad from the measured box and show it. Same fit as a traced mark:
+// longer side normalised to 1, then the lesser of the two limits, so a wordmark
+// takes the width and a square mark takes the height and the two carry the same
+// visual weight.
+function applyLogoTex(m, rec, maxW, maxH) {
+  m.material.map = rec.tex;
+  m.material.needsUpdate = true;
+  const long = Math.max(rec.pw, rec.ph);
+  const w = rec.pw / long, h = rec.ph / long;
+  const k = Math.min(maxW / w, maxH / h);
+  m.scale.set(w * k, 1, h * k);
+  const half = h * k / 2;
+  m.position.z = -(1.01 + 0.16 + half);
+  m.userData.outer = 1.01 + 0.16 + half * 2;
+  m.visible = true;
+}
+
+function logoTexPart(url, opts = {}) {
+  const maxW = opts.maxW ?? 2.0, maxH = opts.maxH ?? 1.05;
+  // A unit quad on XY rotated onto the ground, which lands the image's +y at -z:
+  // the same up-screen convention logoPart writes by hand as (p.x, 0, -p.y).
+  const g = new THREE.PlaneGeometry(1, 1);
+  g.rotateX(-Math.PI / 2);
+  // Brightness rides in the vertex colours, exactly as it does for a traced mark.
+  // material.color belongs to farBoost (makeSkin drives every additive material
+  // through it), so writing brightness there would be a second writer on one
+  // channel and the far boost would win or lose at random.
+  const col = new Float32Array(12).fill(1);
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  // Additive is the right bargain ONLY for a black-background asset, where it is
+  // what makes the surround disappear for free. It is the wrong one for an asset
+  // with a real alpha channel, and MEASURED that way: additive over the lit
+  // street lays the ground's own grey under every channel as a pedestal, so the
+  // badge read (224, 83, 161) against a brand #e5097f of (229, 9, 127). Red was
+  // already almost right; the green was the STREET showing through. Brightness
+  // cannot remove it — b scales the texture and not the pedestal — and a sweep
+  // from 0.36 to 1.4 confirmed it, red clipping by 0.6 while every further step
+  // went into blue and the mark drifted pinker, never more magenta. An alpha
+  // asset does not need the black-key trick and should not pay its cost, so it
+  // blends normally and the texel that leaves the file is the pixel on screen.
+  const m = new THREE.Mesh(g, partMaterial(0xffffff, opts.opacity ?? 1, opts.additive ?? true));
+  m.visible = false;
+  m.position.y = opts.y ?? 0.021;
+  m.renderOrder = opts.order ?? 1003;
+  // Until the image lands, the group must still scale to something finite —
+  // buildPartner divides by this every frame.
+  m.userData.outer = 1.01 + 0.16 + 0.5;
+  m.userData.count = 1;
+  // White, so buildPartner's push-to-white mix is a no-op: the hue is IN the
+  // texture and there is nothing here to tint toward the brand colour.
+  m.userData.colors = [[1, 1, 1]];
+  m.userData.set = (_i, r, gr, b) => {
+    for (let v = 0; v < 4; v++) { const q = v * 3; col[q] = r; col[q + 1] = gr; col[q + 2] = b; }
+  };
+  m.userData.flush = () => { g.attributes.color.needsUpdate = true; };
+
+  // Warm cache: apply now, and the mesh is visible by the time it is returned.
+  // This is the branch a synchronous bake takes, and the only one it can.
+  const warm = LOGO_TEX_CACHE.get(url);
+  if (warm) { applyLogoTex(m, warm, maxW, maxH); return m; }
+
+  // Cold: decode in the background and land the mark whenever it arrives. Still
+  // deliberately not awaited — a missing or slow file leaves the skin as its rim
+  // rather than costing a frame of stall, let alone a throw.
+  const img = new Image();
+  img.onload = () => {
+    try {
+      const rec = logoTexRecord(img, opts.fullBleed);
+      if (!rec) return;
+      LOGO_TEX_CACHE.set(url, rec);
+      applyLogoTex(m, rec, maxW, maxH);
+    } catch (e) {
+      // A tainted or unreadable canvas costs the badge, never the run.
+      console.warn('skins: logo texture unreadable', url, e);
+    }
+  };
+  img.onerror = () => console.warn('skins: logo texture failed to load', url);
+  img.src = url;
+  return m;
+}
+
 // ONE builder for the whole shelf. The mark is the identity now, so what varies
 // between these eight rows is data — `logo`, `color`, `accent` — and a ninth
 // partner is a registry row plus a traced entry, with no code at all. Same
@@ -1515,9 +1729,11 @@ function buildPartner(row) {
   const alt = mixc(acc, c, 0.45);
   const rim = ringPart(N, [0.86, 1.01], [1, 1], { y: 0.02, order: 1000 });
   const face = new THREE.Group();
-  const badge = logoPart(PARTNER_LOGOS[row.logo], row.logoFit);
+  const raster = !!row.logoTex;
+  const badge = raster
+    ? logoTexPart(row.logoTex, row.logoFit)
+    : logoPart(PARTNER_LOGOS[row.logo], row.logoFit);
   face.add(badge);
-  const shrink = 1 / badge.userData.outer;
   let lift = 0, lastB = -1, lastM = -1;
   return {
     parts: [rim, face],
@@ -1532,7 +1748,12 @@ function buildPartner(row) {
       // 30 m of logo painted down the street at SIZE 12 while the camera only
       // pulled back by 2x. reach() draws the whole group in, offset and mark
       // together, because both of them live inside it.
-      face.scale.setScalar(reach(badge.userData.outer, st.radius) * shrink);
+      // `outer` is read fresh every frame rather than cached at build. A traced
+      // mark's is fixed the moment it is built, but a raster one is a placeholder
+      // until the image decodes and then jumps to the measured ink box — a shrink
+      // captured in the closure would have divided by 1.67 forever and left the
+      // badge mis-scaled by however far the real fit landed from the guess.
+      face.scale.setScalar(reach(badge.userData.outer, st.radius) / badge.userData.outer);
       // A LOGO IS NOT A GLOW. These four constants were set off measured pixels,
       // not by eye: at (0.60 + lift * 0.55) * (1 + glow * 0.28) the peak was
       // 1.68x with a 34% push to white, and since the player is eating almost
@@ -1541,8 +1762,18 @@ function buildPartner(row) {
       // Stone is meant to be white; Six & Flow's disc is meant to be #00a1db and
       // was rendering rgb(230,244,250). The ceiling here is 0.87, which lands
       // that disc near its own hex over the 0x232838 ground.
-      const b = (0.36 + lift * 0.30) * (1 + st.glow * 0.16);
-      const mix = lift * 0.12;
+      // Two marks, two ladders, and the constants below are NOT interchangeable.
+      // The traced one keeps 0.36 exactly as measured — it is what stopped the
+      // white-silhouette bug and it stays put. The raster one sits at its art's
+      // own value; see LOGO_TEX_BASE.
+      const b = raster
+        ? Math.min(LOGO_TEX_MAX, LOGO_TEX_BASE + lift * LOGO_TEX_LIFT) * (1 + st.glow * LOGO_TEX_GLOW)
+        : (0.36 + lift * 0.30) * (1 + st.glow * 0.16);
+      // A push to white is how a traced mark reacts, because its hue is in the
+      // vertex colours and that is the only channel it has. A raster mark's
+      // colours are already [1,1,1] — the mix would be a no-op — and washing the
+      // brand hex toward white is the exact defect this path exists to avoid.
+      const mix = raster ? 0 : lift * 0.12;
       // Every shape of a mark shares b and mix, so when neither has moved the
       // colour buffer is already correct. Salted Stone is 367 vertices — 4.4 KB
       // of upload a frame to say nothing, and at rest that is every frame.
@@ -1616,8 +1847,61 @@ export function makeSkin(id) {
 const THUMBS = new Map();
 let thumbsFailed = false;
 
+// Every raster mark this shelf needs, decoded and measured before anything asks
+// for one. `img.decode()` rather than an onload handler, because it is the one
+// that promises the pixels are ready to draw and not merely downloaded.
+//
+// It cannot reject and it cannot hang: a failed image is warned about and
+// skipped, and the whole thing is capped, after which the badge simply falls
+// back to the cold path it used before. The worst case is exactly today's
+// behaviour, arriving late.
+const LOGO_TEX_WAIT = 2000;
+
+export function preloadLogoTextures(ms = LOGO_TEX_WAIT) {
+  if (typeof document === 'undefined') return Promise.resolve(false);
+  const jobs = [];
+  for (const row of SKINS) {
+    if (!row.logoTex || LOGO_TEX_CACHE.has(row.logoTex)) continue;
+    jobs.push((async () => {
+      const img = new Image();
+      img.src = row.logoTex;
+      await img.decode();
+      const rec = logoTexRecord(img, row.logoFit && row.logoFit.fullBleed);
+      if (rec) LOGO_TEX_CACHE.set(row.logoTex, rec);
+    })().catch((e) => console.warn('skins: logo texture preload failed', row.logoTex, e)));
+  }
+  if (!jobs.length) return Promise.resolve(true);
+  let timer = null;
+  return Promise.race([
+    Promise.all(jobs).then(() => { if (timer) clearTimeout(timer); return true; }),
+    new Promise((res) => { timer = setTimeout(() => res(false), ms); }),
+  ]);
+}
+
+// TOP-LEVEL AWAIT, and the reason is the shop rather than the game.
+//
+// bakeSkinThumbnails() is synchronous and has two callers that both use its
+// return value inline — the shop shelf at js/ui/screens.js and tools/skinsheet.
+// Making it async would have meant changing both, and the tool is not mine to
+// edit. Holding the module's own evaluation instead means every importer, in
+// every order, sees a skins.js whose textures are already decoded, with no
+// signature changed and no caller touched.
+//
+// The cost is real and bounded: boot waits on same-origin images, capped at
+// LOGO_TEX_WAIT, after which it proceeds regardless. Measured on the shipped
+// asset it is single-digit milliseconds. If that ever stops being true, delete
+// this line — everything below still works, the shop just goes back to baking
+// the first tile before its mark lands.
+await preloadLogoTextures();
+
 export function bakeSkinThumbnails(size = 192) {
   if (THUMBS.size) return THUMBS;
+  // A tile baked before its mark decoded is wrong, and THUMBS is a
+  // session-lifetime cache — memoising that would freeze a blank Supered into
+  // the shelf until reload. So an incomplete bake is handed over once and NOT
+  // kept, and the next time the shop opens it is rebuilt with whatever has
+  // landed since.
+  const incomplete = SKINS.some((r) => r.logoTex && !LOGO_TEX_CACHE.has(r.logoTex));
   if (thumbsFailed || typeof document === 'undefined') return null;
   let renderer = null;
   try {
@@ -1674,6 +1958,7 @@ export function bakeSkinThumbnails(size = 192) {
       skin.dispose();
     }
     plateGeo.dispose(); discGeo.dispose(); plateMat.dispose(); discMat.dispose();
+    if (incomplete) { const once = new Map(THUMBS); THUMBS.clear(); return once; }
     return THUMBS;
   } catch (e) {
     // No GL, a lost context, a blocked toDataURL — none of it is worth an
