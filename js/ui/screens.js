@@ -244,12 +244,16 @@ export class Screens {
     this.clear();
     const st = this.save.settings;
     const s = el(`<div class="screen"><h2>SETTINGS</h2></div>`);
-    const panel = el(`<div class="results-stats" style="float:none"></div>`);
+    // `set-panel` widens the panel and trims its padding at phone width; every
+    // row below uses the `set-row` flex layout instead of a floated value. See
+    // the block comment in css/main.css — the short version is that a floated
+    // value wraps invisibly, so neither the eye nor a script could tell a
+    // one-line row from a two-line one.
+    const panel = el(`<div class="results-stats set-panel" style="float:none"></div>`);
 
     const toggle = (label, key) => {
-      const row = el(`<div style="margin:8px 0">${label}
-        <button class="btn secondary" style="float:right;padding:4px 18px;font-size:14px;margin:0">
-        ${st[key] ? 'ON' : 'OFF'}</button></div>`);
+      const row = el(`<div class="set-row"><span class="set-label">${label}</span>
+        <span class="set-val"><button class="btn secondary">${st[key] ? 'ON' : 'OFF'}</button></span></div>`);
       const btn = row.querySelector('button');
       btn.onclick = () => {
         st[key] = !st[key];
@@ -285,9 +289,8 @@ export class Screens {
       const live = q && q.tier ? q.tier() : null;
       return live ? `AUTO · ${QUALITY_LABEL[live] || live.toUpperCase()}` : 'AUTO';
     };
-    const qRow = el(`<div style="margin:8px 0">🎚 Graphics detail
-      <button class="btn secondary" style="float:right;padding:4px 14px;font-size:14px;margin:0">
-      ${qualityText()}</button></div>`);
+    const qRow = el(`<div class="set-row"><span class="set-label">🎚 Graphics detail</span>
+      <span class="set-val"><button class="btn secondary">${qualityText()}</button></span></div>`);
     const qBtn = qRow.querySelector('button');
     qBtn.onclick = () => {
       const i = QUALITY_ORDER.indexOf(st.quality || 'auto');
@@ -300,9 +303,8 @@ export class Screens {
     };
     panel.appendChild(qRow);
 
-    const muteRow = el(`<div style="margin:8px 0">🔊 Game sounds
-      <button class="btn secondary" style="float:right;padding:4px 18px;font-size:14px;margin:0">
-      ${this.save.muted ? 'OFF' : 'ON'}</button></div>`);
+    const muteRow = el(`<div class="set-row"><span class="set-label">🔊 Game sounds</span>
+      <span class="set-val"><button class="btn secondary">${this.save.muted ? 'OFF' : 'ON'}</button></span></div>`);
     const muteBtn = muteRow.querySelector('button');
     muteBtn.onclick = () => {
       this.actions.toggleMute();
@@ -310,9 +312,9 @@ export class Screens {
     };
     panel.appendChild(muteRow);
 
-    const volRow = el(`<div style="margin:8px 0">🔊 Sound volume
-      <input type="range" min="0" max="1" step="0.05" value="${st.sfxVol !== undefined ? st.sfxVol : 1}"
-        style="float:right;width:140px"></div>`);
+    const volRow = el(`<div class="set-row"><span class="set-label">🔊 Sound volume</span>
+      <span class="set-val"><input type="range" min="0" max="1" step="0.05"
+        value="${st.sfxVol !== undefined ? st.sfxVol : 1}"></span></div>`);
     const volSlider = volRow.querySelector('input');
     volSlider.oninput = () => {
       st.sfxVol = parseFloat(volSlider.value);
@@ -320,9 +322,10 @@ export class Screens {
     };
     panel.appendChild(volRow);
 
-    const distRow = el(`<div style="margin:8px 0">📷 Camera view (closer ↔ farther)
-      <input type="range" min="0.7" max="1.5" step="0.05" value="${st.camDist}"
-        style="float:right;width:140px"></div>`);
+    // Stacked: measured at 320px this label alone is 240px of a 276px row, so it
+    // cannot share a line with a slider at any slider width worth dragging.
+    const distRow = el(`<div class="set-row set-row--stack"><span class="set-label">📷 Camera view (closer ↔ farther)</span>
+      <span class="set-val"><input type="range" min="0.7" max="1.5" step="0.05" value="${st.camDist}"></span></div>`);
     const slider = distRow.querySelector('input');
     slider.oninput = () => {
       st.camDist = parseFloat(slider.value);
@@ -352,10 +355,13 @@ export class Screens {
     const DEG_PER_RAD = 180 / Math.PI;
     const sensFmt = (v) => `${v.toFixed(2)} · ~${Math.round(ORBIT_RATE * DEG_PER_RAD * v)}` +
       `-${Math.round(ORBIT_RATE * ORBIT_RATE_RAMP * DEG_PER_RAD * v)}°/s (SIZE 1→12)`;
-    const sensRow = el(`<div style="margin:8px 0">Sandbox turn sensitivity
-      <span style="float:right"><span class="tune-val" style="font-weight:700">${sensFmt(st.turnSens !== undefined ? st.turnSens : 1)}</span>
-      <input type="range" min="0.1" max="2.5" step="0.05" value="${st.turnSens !== undefined ? st.turnSens : 1}"
-        style="width:100px;vertical-align:middle;margin-left:8px"></span></div>`);
+    // Stacked for the same reason as the camera row, and more so: the readout is
+    // deliberately a full range with a SIZE annotation (see above), which is
+    // 223px on its own at 320px. Shortening it to fit would re-introduce exactly
+    // the lie the comment above exists to prevent.
+    const sensRow = el(`<div class="set-row set-row--stack"><span class="set-label">Sandbox turn sensitivity</span>
+      <span class="set-val"><span class="tune-val">${sensFmt(st.turnSens !== undefined ? st.turnSens : 1)}</span>
+      <input type="range" min="0.1" max="2.5" step="0.05" value="${st.turnSens !== undefined ? st.turnSens : 1}"></span></div>`);
     const sensSlider = sensRow.querySelector('input');
     const sensVal = sensRow.querySelector('.tune-val');
     sensSlider.oninput = () => {
@@ -370,10 +376,9 @@ export class Screens {
     const tuneTitle = el(`<h3 style="clear:both;margin:16px 0 4px">CITY FEEL</h3>`);
     panel.appendChild(tuneTitle);
     const tune = (label, key, min, max, step, fmt) => {
-      const row = el(`<div style="clear:both;margin:6px 0">${label}
-        <span style="float:right"><span class="tune-val" style="font-weight:700">${fmt(st[key])}</span>
-        <input type="range" min="${min}" max="${max}" step="${step}" value="${st[key]}"
-          style="width:120px;vertical-align:middle;margin-left:8px"></span></div>`);
+      const row = el(`<div class="set-row"><span class="set-label">${label}</span>
+        <span class="set-val"><span class="tune-val">${fmt(st[key])}</span>
+        <input type="range" min="${min}" max="${max}" step="${step}" value="${st[key]}"></span></div>`);
       const input = row.querySelector('input');
       const val = row.querySelector('.tune-val');
       input.oninput = () => {
@@ -393,8 +398,8 @@ export class Screens {
     const ctlTitle = el(`<h3 style="margin:18px 0 4px">CONTROLS</h3>`);
     panel.appendChild(ctlTitle);
     const ctl = (label, keys) => panel.appendChild(
-      el(`<div style="clear:both;margin:4px 0">${label}
-        <span style="float:right;font-weight:700">${keys}</span></div>`));
+      el(`<div class="set-row"><span class="set-label">${label}</span>
+        <span class="set-val">${keys}</span></div>`));
     // One flat list, no sub-headers. There used to be CITY PLAY / CITY LEVELS /
     // GENERAL groups, and the first two were byte-identical — CITY LEVELS
     // documented the campaign, which a137054 retired. showTitle() offers only
@@ -407,7 +412,16 @@ export class Screens {
     ctl('Orbit camera', 'Q / E');
     ctl('Zoom in / out', 'R / F');
     ctl('Pause', 'Esc');
-    ctl('Touch', 'left ½ steers · right ½ looks · pinch zooms');
+    // Touch is three separate bindings, so it gets three rows. It was one row
+    // reading 'left ½ steers · right ½ looks · pinch zooms', which was ~300px of
+    // value on a 276px row at 320px — no layout saves that, and trimming the
+    // wording until it happened to fit would break again on the next edit.
+    // Splitting also matches how every other line here reads: action, then
+    // binding. Left half is direct steer (the drag names a screen direction and
+    // the hole turns to face it), not a heading nudge.
+    ctl('Steer (touch)', 'drag left ½');
+    ctl('Look around (touch)', 'drag right ½');
+    ctl('Zoom (touch)', 'pinch two fingers');
 
     s.appendChild(panel);
     const back = el(`<button class="btn">BACK</button>`);

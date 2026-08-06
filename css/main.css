@@ -335,6 +335,72 @@ body {
 .results-stars { font-size: clamp(34px, 8vw, 60px); color: #ffd23f; letter-spacing: 8px; margin: 10px 0; }
 .results-stats { background: var(--panel); border-radius: 14px; padding: 16px 26px; margin: 10px 0; line-height: 1.8; min-width: min(360px, 86vw); }
 .results-stats b { color: #ffd23f; float: right; margin-left: 40px; }
+/* SETTINGS rows. Every row used to be `LABEL <span style="float:right">VALUE`,
+   which is the pattern that wraps the moment label + value exceed the width —
+   and it wraps INVISIBLY to script, because a floated value is out of flow, so
+   the row's own height stays one line while the value renders below it. Measured
+   at 320px: the Touch row reported height 29px (one line) while visibly
+   occupying two. Any assertion about row height against the float layout is
+   therefore meaningless, which is half the reason this moved to flex.
+
+   Flex fixes both: the value keeps its own line because it never wraps, the
+   label absorbs the remaining space, and the row's height is now the truth.
+
+   The other half of the fix is width. `.results-stats` is padded 16px/26px for
+   the results screen, and at a 320px viewport that plus `min-width: min(360px,
+   86vw)` left only 223px of content for rows that needed up to 390px. The
+   settings panel gets its own class so the results screen keeps its padding. */
+/* 584px is the panel's natural flex width, and it is 26px wider than the 558px
+   the floated layout produced. That 26px is the honest cost of rows that no
+   longer overlap: the widest row (turn sensitivity) needs 516px including the
+   flex gap, and capping the panel back to 560px leaves only 508px, which wraps
+   it. A 26px wider panel is the smaller of the two visible changes. */
+.set-panel { min-width: 0; max-width: min(584px, 94vw); }
+.set-row {
+  display: flex; align-items: center; gap: 10px;
+  margin: 8px 0; clear: both;
+}
+.set-label { flex: 1 1 auto; min-width: 0; }
+/* nowrap is what actually guarantees one line: without it the value is free to
+   break internally and the flex row grows instead of the value overflowing. */
+.set-val { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; white-space: nowrap; font-weight: 700; }
+.set-val input[type="range"] { width: 120px; vertical-align: middle; margin: 0; }
+.set-val .btn { margin: 0; padding: 4px 18px; font-size: 14px; }
+
+/* Phone width ONLY. Everything below is inside the query on purpose: at 768px
+   and up there are ~508px of row width, every row already fits on one line, and
+   the desktop/tablet layout must not move. Recover the pixels the desktop
+   padding can spare, then shrink the two widest row parts — the slider and the
+   numeric readout — neither of which needs desktop size to be usable. */
+@media (max-width: 420px) {
+  .set-panel { width: 94vw; padding: 14px 12px; }
+  .set-row { gap: 8px; margin: 6px 0; }
+  .set-val { font-size: 13px; }
+  .set-val input[type="range"] { width: 78px; }
+  .set-val .btn { padding: 4px 12px; font-size: 13px; }
+
+}
+
+/* Two rows whose label and value cannot share a line until the panel is quite
+   wide — measured, not assumed: at 320px the camera label alone is 240px of a
+   277px row, and the turn-sensitivity row needs 516px of content, which the
+   panel only reaches at about a 604px viewport. Stacking is DELIBERATE: the
+   value takes its own full-width line, right-aligned, so it reads as a designed
+   two-line row rather than an accidental wrap.
+
+   This breakpoint is 700px and NOT 420px like the block above, because those are
+   two different questions. 420px is "shrink the slider and readout"; 700px is
+   "does this row fit at all". Tying them together left a dead band where the row
+   had already stopped stacking but had not yet grown enough to fit, and it
+   wrapped for the whole of it. 620px was still inside that band — measured, the
+   panel only reaches its full 584px (532px of content) at about a 660px
+   viewport, and the row needs between 521px and 532px. */
+@media (max-width: 700px) {
+  .set-row--stack { flex-wrap: wrap; }
+  .set-row--stack .set-label { flex: 1 0 100%; }
+  .set-row--stack .set-val { flex: 1 0 100%; justify-content: flex-end; }
+}
+
 .mechanic-intro {
   background: var(--panel); border: 2px solid #ffd23f; border-radius: 14px;
   padding: 14px 22px; margin: 12px 0; max-width: min(520px, 90vw); text-align: center;
