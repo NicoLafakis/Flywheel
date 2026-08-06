@@ -499,6 +499,53 @@ export const SKINS = [
   { id: 'closer', name: 'The Closer', price: 900, color: 0xb8c4d4, css: '#b8c4d4',
     family: 'creature',
     blurb: 'It only ever opens in order to close.', build: buildCloser },
+
+  // ---- the partner shelf: tributes to HubSpot solutions partners ----------
+  //
+  // Eight agencies, each wearing its OWN REAL LOGO — traced offline from the
+  // vector file its site serves and baked into PARTNER_LOGOS as static point
+  // data, never fetched. Four more were dropped for want of a vector original
+  // rather than approximated by hand; the evidence for each is recorded with
+  // the trace, in THE PARTNER SHELF further down.
+  //
+  // `color` is the rim, `accent` its alternating second tone, `logo` the key
+  // into the traced data, and every one of the three is data — the eight rows
+  // share ONE builder, so a ninth partner is a row and a trace, not code.
+  //
+  // `family: 'partner'` is the cheap seam: the shop iterates SKINS flat today,
+  // and the tag is what lets it grow a Partners section later without anyone
+  // having to work out after the fact which rows belong together.
+  //
+  // Uniform 750 above the previous top row so the shelf reads as one set, and
+  // every id is namespaced `partner-*` because save data keys off `id` and a
+  // collision with the first 17 would silently swap a player's skin.
+  { id: 'partner-supered', name: 'Supered', price: 750, color: 0xe5097f, accent: 0x252a4a,
+    css: 'linear-gradient(90deg,#e5097f 50%,#252a4a 50%)', family: 'partner', logo: 'supered',
+    blurb: 'Guidance built into the tool itself. Adoption stops being a hope.', build: buildPartner },
+  { id: 'partner-newbreed', name: 'New Breed', price: 750, color: 0x733bf6, accent: 0x3ad531,
+    css: 'linear-gradient(90deg,#733bf6 50%,#3ad531 50%)', family: 'partner', logo: 'newbreed',
+    blurb: 'Demand and RevOps in one motion. The handoff never drops.', build: buildPartner },
+  { id: 'partner-impulse', name: 'Impulse Creative', price: 750, color: 0xf3961f, accent: 0xeb004f,
+    css: 'linear-gradient(90deg,#f3961f 50%,#eb004f 50%)', family: 'partner', logo: 'impulse',
+    blurb: 'Brand, story and system on one idea. It travels well.', build: buildPartner },
+  { id: 'partner-sixandflow', name: 'Six & Flow', price: 750, color: 0x019fd6, accent: 0xea7765,
+    css: 'linear-gradient(90deg,#019fd6 50%,#ea7765 50%)', family: 'partner', logo: 'sixandflow',
+    blurb: 'Sprints run in flow. The pipeline keeps its rhythm.', build: buildPartner },
+  { id: 'partner-kuno', name: 'Kuno Creative', price: 750, color: 0x6842d3, accent: 0x82edf7,
+    css: 'linear-gradient(90deg,#6842d3 50%,#82edf7 50%)', family: 'partner', logo: 'kuno',
+    blurb: 'Inbound from before it had a name. Still compounding.', build: buildPartner },
+  { id: 'partner-saltedstone', name: 'Salted Stone', price: 750, color: 0x007297, accent: 0xd68231,
+    css: 'linear-gradient(90deg,#007297 50%,#d68231 50%)', family: 'partner', logo: 'saltedstone',
+    blurb: 'Global implementations, cut clean and set solid.', build: buildPartner },
+  // The primary here really is #002d56, and a rim in it is invisible against a
+  // 0x232838 ground. The row carries the lavender the mark is drawn in and the
+  // navy stays in the swatch, the same trade buildABTest makes with its `color`.
+  { id: 'partner-mediajunction', name: 'Media Junction', price: 750, color: 0xc191f8, accent: 0x4cdeba,
+    css: 'linear-gradient(90deg,#002d56 50%,#c191f8 50%)', family: 'partner', logo: 'mediajunction',
+    blurb: 'Where the site, the CRM and the content finally meet.', build: buildPartner },
+  { id: 'partner-huble', name: 'Huble', price: 750, color: 0xff4d56, accent: 0x1f3042,
+    css: 'linear-gradient(90deg,#ff4d56 50%,#1f3042 50%)', family: 'partner', logo: 'huble',
+    blurb: 'One hub, many time zones. The diagram survives the audit.', build: buildPartner },
 ];
 
 export const SKIN_BY_ID = new Map(SKINS.map((s) => [s.id, s]));
@@ -1254,6 +1301,261 @@ function buildChomper(row) {
         fangs.userData.setRows(i, rowsF, fc[0] * fb, fc[1] * fb, fc[2] * fb);
         setRim(rim, i, mixc(bar, WHITE, st.glow + flash * 0.5), 0.7 + c * 0.35);
       }
+    },
+  };
+}
+
+// =========================================================================
+// THE PARTNER SHELF
+// =========================================================================
+// Eight tributes, and the mark on each one is the agency's REAL logo rather
+// than a nod to it. Every path was traced OFFLINE from the vector file the
+// agency's own site serves: the browser's SVG engine walked each subpath with
+// getTotalLength()/getPointAtLength(), transform chains were flattened against
+// the root CTM, the samples were split into subpaths on the sampling jump and
+// decimated to a 0.0016 perpendicular-distance tolerance, then baked into
+// PARTNER_LOGOS below. Nothing is fetched at runtime — a network call would end
+// offline play, and the assets sit on someone else's origin behind their CORS.
+//
+// FOUR AGENCIES WERE DROPPED rather than approximated, because a wrong logo is
+// worse than no logo. Aptitude 8, hapily and HarvestROI serve PNG lockups and
+// PNG/JPG favicons, with no vector mark anywhere on the page — every .svg they
+// do serve is a UI icon or an illustration. SmartBug Media's
+// `smartbug-logo-black.svg` is a 94 KB `<rect fill="url(#pattern0)">` wrapping
+// an embedded bitmap, which is a raster wearing an SVG's clothes. Tracing any
+// of the four would have meant drawing by hand and calling it a trace.
+//
+// Three traced marks are near-black in their source file (Kuno #122b4b, Salted
+// Stone #191e25, Media Junction #002d56). Additive blending cannot darken, so
+// over the 0x232838 ground those would render as precisely nothing. Each is
+// substituted for a colour the agency itself uses — Kuno's brand purple, Salted
+// Stone's own white-on-dark treatment of that wordmark, Media Junction's
+// lavender — and the substitution happens at bake time so the trace stays
+// faithful to the file it came from.
+//
+// Cost, contour + holes, one vertex per traced point: supered 59, newbreed 160,
+// impulse 45, sixandflow 130, kuno 63, saltedstone 367, mediajunction 37,
+// huble 167. The heaviest row is Salted Stone at 367 plus a 128-vertex rim,
+// under buildTAM's 560 — the budget this file already lives with. Two draw
+// calls each: the rim, and the whole mark however many colours it has.
+
+// Two base64 characters per coordinate over a 4096-step grid. That is 1/4096 of
+// the unit box, fifteen times finer than the decimation tolerance that produced
+// the points, so the encoding loses nothing the trace kept — at a third of the
+// source size the equivalent number literals would cost.
+const LOGO_A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const LOGO_I = new Uint8Array(128);
+for (let i = 0; i < 64; i++) LOGO_I[LOGO_A.charCodeAt(i)] = i;
+
+function logoPoly(s) {
+  const n = s.length >> 2, out = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const o = i << 2;
+    out[i] = new THREE.Vector2(
+      (((LOGO_I[s.charCodeAt(o)] << 6) | LOGO_I[s.charCodeAt(o + 1)]) / 4095) - 0.5,
+      (((LOGO_I[s.charCodeAt(o + 2)] << 6) | LOGO_I[s.charCodeAt(o + 3)]) / 4095) - 0.5);
+  }
+  return out;
+}
+
+// One row per mark. `w`/`h` are the traced bounding box normalised so its longer
+// side is 1.0; `s` is one entry per filled shape, [fill, contour, ...holes].
+// The holes are real holes. New Breed's source paints its letter counters as
+// separate BLACK shapes on top of the white letters — identical on a white page,
+// and under additive blending every bowl would have filled in solid and the
+// wordmark would have rendered as a row of blobs. Those were re-detected as
+// knockouts at trace time by containment and folded in as holes.
+const PARTNER_LOGOS = {
+  supered: { w: 1.000, h: 1.000, s: [
+    [0xe5097f, 'Kq//2L/94T/k6U+w8H9j9p8A+k6p/T5F/x3c/+1z//KX/rIF+3F69nD97+CU6mBZ5DAr3eAO11AAKVAAIDAVF4BID/CWCWD/BaFWAsG5ANIjAAKMAG2zAj4sBS6aCX8CDr9YFM+eG8/UIz/1',
+     'QRddQEc/QLceQkcCRHbzdBbyYGJQYTIkY+IGZ2IEanIgwBi8wCjYv2jyvBkQjJkQoD2uoA3Pnt3qnM38mm4BmB34li3i'],
+    [0xffffff, 'QRddQEc/QLceQkcCRHbzdBbyYGJQYTIkY+IGZ2IEanIgwBi8wCjYv2jyvBkQjJkQoD2uoA3Pnt3qnM38mm4BmB34li3i'],
+  ] },
+  newbreed: { w: 1.000, h: 0.132, s: [
+    [0xffffff, 'F6bxELb1BvhRBtb3ABbxAAkOBvkKEMeuENkHEQkOF5kO'],
+    [0xffffff, 'LEfbIafaIadLLidLLgbxGvbxGskNLjkMLcizIaiuIbgzLEgx'],
+    [0xffffff, 'SQe6TEkNUskOTQbyTIbxRhbzQiguPkbxN1b1MWkMODkLO2e9P1kORRkL'],
+    [0xffffff, 'Xcb5XekOawkLbmj8cNjgcpivcvhjcbgubwgJclfdc4eUckc4bucEakbxXcbx',
+     'ZJfcZJdNZRdLavdTbGdxbLeWbAfFasfY',
+     'ZPgsabgva5hFbChqa+iQavinaViyZJiy'],
+    [0xffffff, 'gNe3fXezfXb1dqbydskOhakGiUjni1i5jEh5i8gtipgCh4fOjVbyhdb1',
+     'fXgSg1gZhOg1hXhjhPiSg9iogjiyfXizfXga'],
+    [0xffffff, 'oefbl0fal0dLo8dLo6bxkKbxkHkNo9kMo2izl0iul1gzoegx'],
+    [0xffffff, 'uMfbrifaridLuqdLuobxp3bxp0kNurkMukizriiurjgzuMgx'],
+    [0xffffff, 'vdb6vgkOyLkNzkjt0IjN0nid04hn09gk0zeD0ddOz5cizScHycb1vdbx',
+     'xLizxOdLyZdSy9dwzOewzQgszKhuy2iZyNiw'],
+    [0xffffff, '35hB6khC6xhZ60kE7EkO8jkN8yj380hM9DhB/3g8//gs//fW/vfC87e98yet8xcC8abz7Fbz6ycG6te53pfI3kgw'],
+  ] },
+  impulse: { w: 0.890, h: 1.000, s: [
+    [0xffffff, '8eji78pA6YuS3zzJ0O3kv17Mq/9ylu/agE//aa/cVJ92QS7RL43qIRzRFruaEEpJDhjfEFd1FsYkISTuL5PUQULuVLJJacHkf6HBc1AAjoC7qQGqv7Ky0dPI3+T16iZJ7/eP',
+     'SPsPUpl4rXl5ttsP',
+     'VVj/XwdooRdpqmj3',
+     'Ydbqa3VSlEVSngbm'],
+    [0xfc8612, 'SPsPUpl4rXl5ttsP'],
+    [0xfc8612, 'VVj/XwdooRdpqmj3'],
+    [0xfc8612, 'Ydbqa3VSlEVSngbm'],
+  ] },
+  sixandflow: { w: 1.000, h: 1.000, s: [
+    [0x00a1db, 'gA//cz/1Zu/YWt+nTx9kQ+8POO6mLu4vJW2mHN0OFWxtDwvDCbsPBYpTAomSAKjOAAgBAKc0AnZvBXWuCaTzDvQ/FVOUHLL0JUJbLsHROLFaQ7DxTvCcWqBYZrAocwAKf9AAjKAKmOAnpQBXsLCau/DuxqFU0KHK2jJT4tLr6kOK8OQ69jTu+mWp/XZq/0cv//f7/1jI/YmN+ppO9msK8Ru+6sxp420J2t2i0V4sx26jvG8NsT9ipX+mmX/XjS/0',
+     'hhOhhbN9hGNZgmM+gEMzbcMxa0M+aTNXZ+N8Z3OfZ3XcZ9YGaOYlatZCbVZQf8ZRgkZFhFYrhbYHhhXj',
+     'vNebvGd4uxdUuRc5tvcumMcxladQk/d/k7hjlBiHlVisl2jHmXjTt6jRupi2vIiE',
+     'xMuDxFtgwvs8wOsjvrsYjPsWimsNiDr2hrrUhiqrhhePhKdYgUcyP2cwPDdQOod+OkhjO6inPZjDP6jRYTjVZBjkZkkFZ4lDZ4xfaPyWbEy8vzzAwoykxHxy'],
+  ] },
+  kuno: { w: 0.868, h: 1.000, s: [
+    [0x6842d3, 'XC/zEd/zEO/kEOiCWziCXCiS'],
+    [0x6842d3, 'XCcZEicZEOcOEOAPEdAAW9AA'],
+    [0x6842d3, 'uvcZcPcZcdakdEXydxVhe1S4g3PIjrLUnBH9qbFZulDGylBm2vAp7dAQ7uAd7uSf5bSw3JTW1aUIzbVbyBWswiYivYan'],
+    [0x6842d3, 'cCiAuHiAuZiNu+khv7msxQoqy6qY01rx29s05Ptd7nts7xuB7q//4W/01h/Yyw+twD9xtd8mq+7Noo5lmF3cjx1CiAyzgNwAe5ted0q1c/oGcalT'],
+  ] },
+  saltedstone: { w: 1.000, h: 0.289, s: [
+    [0xe8eef5, '/Rgh98fH8yed7meU7Seg7Ee77Df597iH+7jd/Ika+/lX+ml998mQ8/mS8KmE7flk7Ak46fjZ5+gi54fU6AeX5ud25Tdn4mds4VeN4Tfb4xjR4mkN4Kkx3mk/2wk+2Ekt1akL1Pkz0hkp0Ni3yfhXyXimx8jVxEjsv3jlu1i+uIh2tugVtLc/szb+r5bBqoaoqJa8p9b4qogbrrgssfhOtIiGtfjNsxjDsciSr8hwrZhgqzherdlaqSlNpOfAohd4nXc2nXdsnJeYkrhNkZiPlAj7ldkVmCkfmnkVm5j8m9iEoQiWoUjroHknnYlZmMlkk6lPj/kejPi1jOhZjpgqlveUmEdrmIdElgaXlEZpkdZQj3ZOjXZjjKaPjLbNkybBk9btkHbujVcAh+bph4aMiEZIijYdjVYJkxYQl6Y7mpaBnQb/pCdvo0cTo1bFpGaSppZ1qmZtrqZ6smadtfbXt5a7ulasviavwVbBxDbrxmcvyYgq0EiBzBbn0Hbx1Zig10jg2fj/3Mj73kjU3liP3Kff3IeR3adP4Dcs4pcn5Wcv59dJ6bds7DdX7xdT8ude9od1+5ew//gD',
+     'w+fAwYciv9b8vbbru1btuccJuWc/uhebu8grvzgPwlgNwogrvtg7vShgveiLwIisw2iqxPiFxQg/',
+     '7Shj7zkC8alF9ElW9plM97kr9+j89tjR9Fii7PhK'],
+    [0xe8eef5, 'jEfWigftiBewhBeXgfemgOfQgRgdhrpPgio8f+lefKlreMlldblPc1kocLjFbXe7akd4ZHcyYMceXgcnXKdGXGeDZkf/agg7bFiHbFjUapkKZxkhYckYXijyXDjGWriFV+eJVpdHU8cIT6bhTGbqSqcfStddTWhSUehnVRiLV0i9WOkGVhj+VHjHUlinTjiXULmSTAmERWcKQxbHQQazPxayPNbNPGcRQklmPZlWNwbjNQadMaaCL7aDLoaQLabLMZhoLdhbLJgqKohKJ8hWJHhLIZguHnfhG4dGGLcHFcbeFKdDCxfyCggVCdg7Cvh+DGinDji/EJjHEti7E9ihE9guGPg9GRi3GAjiFekAEpkNDkkGCljpB7i8BVhnBNgiBnfaEBcjELb2D/ahDSYeCwX+CLX1BtX6BYYQBPZ0C1ZoDAaVCKaWBZaoAFaWAAYNAPXhAoXEBTWyCQWwDFW9DzXZEpYkFTaoG3cIGraVG4ZJHiYeIvYVJ3YuKvZsLEZVLoZHM8ZPNoZuOPaoO2Z/P6Z2RDaQRzbLSNazSyanUVayVSbUWLcRWdb4W+blXsbfYibnaCcYbidycGc9dHcpehc8fdd4gZddhedgiaeCjJfS',
+     'dgdndCdtcseMcugAdfjrd7kZekktfKknfckOfciTevevePd7',
+     'KZcnJ3aRJeZpI+ZVIQZXH5Z0HzaqH9b/IqfTJFgCJlgWKTgTKrftKseo',
+     'XVfxX3iRYdjTZHjjZsjZZ9i3aAiJZvheZHgvXRfW'],
+  ] },
+  mediajunction: { w: 1.000, h: 0.998, s: [
+    [0xc191f8, 'H7gANBnQGfqQAAfrHEVuNBYw'],
+    [0xc191f8, '35gAy6Ys47Vn//f/49qYy8nT'],
+    [0xc191f8, 'f6IAYqNGVqGkgPAFqMHJnKNG'],
+    [0xc191f8, 'f63/nKy5qM42gP/6Vq5bYqy5'],
+    [0x0093bd, 'kqbQxVC69AOk'],
+    [0x0093bd, 'bKkvOf9FC0xa'],
+    [0x0093bd, 'VZP8bIbOC3OiOhC4'],
+    [0x0093bd, 'kqkv9AxbxV9F'],
+  ] },
+  huble: { w: 1.000, h: 0.285, s: [
+    [0xff4d56, 'KsiyJ/jXI+j5G+kREukACxjGCxpCAApBAAXACuW/CyeODDfkDogiEUhIFXhjGghpHahiIPhLI4giJPftJZekJZXDMEW/MLXHMIfjLrhT'],
+    [0xff4d56, 'YodSYhcKYPbSXvaiXCZ9WMZnVEZgT8ZqTIaFSca+SJcESGkDSAkLPVkIPbbPQGZURTX9S7XJVMW4W+XMYsYGYuW/bZXDbZkDbTkLYokI'],
+    [0xff4d56, 'o4jcm9kJk7kQjKj1hmi6hko+hfpIeypGe4W/hYW/hfYQivXfkCXClYW3mvW9o4Xup0YYqmZMrVaVr4b1sFdar/exrkgTq8hhqEijo+jY',
+     'jghPlBhrmmhhn/gxo0fspReLpJcXoea7nRZ6l+ZhkYZnjJaKiFbVhlc2hpepiQgHjahM',
+     'lafdmIfTmve5nKeSnTdjnKc1mvcOmIbzlabqksbzkEcOjqc1jhdjjqeSkEe5ksfT'],
+    [0xff4d56, 'xBpIuSpIuPo9uPW/w9W/xBXK'],
+    [0xff4d56, '//dl/6eu/mgD/BhS+WiN9VjH8Wjs7RkE57kR4ykO3dj72NjX1Tis0hh2z0gszbfnzLeRzLc6zbbkz8aT0tZL1sYP23Xi4JXF5gW47UW99EXf+aYV/WZg9tbV8xaW7kZt6OZe4pZq30aB27av2Sbr2Ecf/3cf',
+     '8/e42Ke42De+2Yf13Og44Nhd5jht64hf74g98qgI9Le4'],
+    [0xff4d56, 'lafdmIfTmve5nKeSnTdjnKc1mvcOmIbzlabqksbzkEcOjqc1jhdjjqeSkEe5ksfT'],
+  ] },
+};
+
+// A traced mark as one flat mesh on the ground plane, up-screen of the rim.
+//
+// three's ShapeGeometry would almost do this, but it routes the points through
+// CurvePath.getPoints(), which silently drops consecutive duplicates — and the
+// per-shape colour ranges below are counted off the point list, so one dropped
+// vertex would shift every colour after it and there would be nothing to see
+// except a logo in the wrong colours. ShapeUtils.triangulateShape is the same
+// earcut underneath with none of the curve machinery in between.
+// Fitted into 2.0 rim-radii wide by 1.05 tall. A wordmark takes the width and a
+// square mark takes the height, so New Breed's 7.7:1 lockup and Six & Flow's
+// disc end up the same visual weight. 2.0 is not arbitrary: at 2.9 the traced
+// "NEW BREED +" measured 390 px on a 390 px viewport and ran off both edges.
+function logoPart(rec, opts = {}) {
+  const k = Math.min((opts.maxW ?? 2.0) / rec.w, (opts.maxH ?? 1.05) / rec.h);
+  const pos = [], idx = [], colors = [], ranges = [];
+  let base = 0;
+  for (const shape of rec.s) {
+    const contour = logoPoly(shape[1]);
+    const holes = [];
+    for (let h = 2; h < shape.length; h++) holes.push(logoPoly(shape[h]));
+    // Triangulate FIRST. It may pop a duplicate end point, and the vertex list
+    // has to be built from what it left behind, not from what went in.
+    const tris = THREE.ShapeUtils.triangulateShape(contour, holes);
+    const all = contour.concat(...holes);
+    // Shape XY -> world XZ, with the mark's +y up-screen, which is -z. The chase
+    // camera parks at hole + dist * (sin heading, cos heading) (camera.js), so a
+    // group at rotation.y = +heading holds the camera at local +z. MEASURED in
+    // game across eight headings rather than derived: azimuth minus heading held
+    // constant to 0.01 rad while azimuth plus heading swung through 2.3. The
+    // thumbnail bake poses at heading 0 with its camera at +z, so the shop plate
+    // is the same frame and the mark cannot read one way there and mirrored here.
+    for (const p of all) pos.push(p.x * k, 0, -p.y * k);
+    for (const f of tris) idx.push(base + f[0], base + f[1], base + f[2]);
+    ranges.push(base, base + all.length);
+    colors.push(rgb(shape[0]));
+    base += all.length;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  const col = new Float32Array(pos.length);
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setIndex(idx);
+  const m = new THREE.Mesh(g, partMaterial(0xffffff, opts.opacity ?? 1, true));
+  m.position.y = opts.y ?? 0.021;
+  // Clear of the rim by a fixed margin, measured from the mark's own half-height,
+  // so a 7.7:1 wordmark tucks in close and only a square mark is pushed out.
+  const half = rec.h * k / 2;
+  m.position.z = -(1.01 + 0.16 + half);
+  m.renderOrder = opts.order ?? 1003;
+  m.userData.count = colors.length;
+  m.userData.colors = colors;
+  m.userData.outer = 1.01 + 0.16 + half * 2;
+  m.userData.set = (i, r, gr, b) => {
+    for (let v = ranges[i * 2], e = ranges[i * 2 + 1]; v < e; v++) {
+      const q = v * 3; col[q] = r; col[q + 1] = gr; col[q + 2] = b;
+    }
+  };
+  // Unlike the other primitives the flush is separate, because every shape of a
+  // mark is written in one pass and one upload is enough for all of them.
+  m.userData.flush = () => { g.attributes.color.needsUpdate = true; };
+  return m;
+}
+
+// ONE builder for the whole shelf. The mark is the identity now, so what varies
+// between these eight rows is data — `logo`, `color`, `accent` — and a ninth
+// partner is a registry row plus a traced entry, with no code at all. Same
+// DECOR_LAYERS bargain the rest of this file is built on.
+function buildPartner(row) {
+  const N = 16;
+  const c = rgb(row.color), acc = rgb(row.accent ?? row.color);
+  // Several of these palettes' second colour is a near-black navy. Pulling it
+  // most of the way to the primary keeps the alternating rim reading as two
+  // tones of one brand rather than as a ring with holes punched out of it.
+  const alt = mixc(acc, c, 0.45);
+  const rim = ringPart(N, [0.86, 1.01], [1, 1], { y: 0.02, order: 1000 });
+  const face = new THREE.Group();
+  const badge = logoPart(PARTNER_LOGOS[row.logo], row.logoFit);
+  face.add(badge);
+  const shrink = 1 / badge.userData.outer;
+  let lift = 0, lastB = -1, lastM = -1;
+  return {
+    parts: [rim, face],
+    onEat(st, e) { lift = Math.min(1.3, lift + 0.32 + e.size * 0.45); },
+    update(st) {
+      lift *= Math.max(0, 1 - st.dt * 2.1);
+      // Welded to the heading. That is not autonomous motion, it is the player's
+      // own steering made visible, so it survives reduced motion untouched —
+      // same reasoning the A/B Split axis is held on.
+      face.rotation.y = st.heading;
+      // Angular constancy: uncompensated, a badge 2.6 rim-radii across would be
+      // 30 m of logo painted down the street at SIZE 12 while the camera only
+      // pulled back by 2x. reach() draws the whole group in, offset and mark
+      // together, because both of them live inside it.
+      face.scale.setScalar(reach(badge.userData.outer, st.radius) * shrink);
+      // A LOGO IS NOT A GLOW. These four constants were set off measured pixels,
+      // not by eye: at (0.60 + lift * 0.55) * (1 + glow * 0.28) the peak was
+      // 1.68x with a 34% push to white, and since the player is eating almost
+      // continuously that peak was the RESTING state -- all eight marks
+      // screenshotted as white silhouettes with the brand colour gone. Salted
+      // Stone is meant to be white; Six & Flow's disc is meant to be #00a1db and
+      // was rendering rgb(230,244,250). The ceiling here is 0.87, which lands
+      // that disc near its own hex over the 0x232838 ground.
+      const b = (0.36 + lift * 0.30) * (1 + st.glow * 0.16);
+      const mix = lift * 0.12;
+      // Every shape of a mark shares b and mix, so when neither has moved the
+      // colour buffer is already correct. Salted Stone is 367 vertices — 4.4 KB
+      // of upload a frame to say nothing, and at rest that is every frame.
+      if (Math.abs(b - lastB) > 1e-4 || Math.abs(mix - lastM) > 1e-4) {
+        for (let i = 0; i < badge.userData.count; i++) {
+          const k = mixc(badge.userData.colors[i], WHITE, mix);
+          badge.userData.set(i, k[0] * b, k[1] * b, k[2] * b);
+        }
+        badge.userData.flush();
+        lastB = b; lastM = mix;
+      }
+      for (let i = 0; i < N; i++)
+        setRim(rim, i, mixc(i % 2 === 0 ? c : alt, WHITE, st.glow * 0.45 + lift * 0.2), i % 2 === 0 ? 1 : 0.6);
     },
   };
 }
