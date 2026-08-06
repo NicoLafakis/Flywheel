@@ -251,8 +251,12 @@ export class Screens {
     // one-line row from a two-line one.
     const panel = el(`<div class="results-stats set-panel" style="float:none"></div>`);
 
-    const toggle = (label, key) => {
-      const row = el(`<div class="set-row"><span class="set-label">${label}</span>
+    // `hint` is optional and renders as a second line under the label. Used
+    // where the label alone does not say what the setting COSTS you — a toggle
+    // named for what it turns on reads like the default, which is how "Tap to
+    // steer" hid the fact that switching it on removes the joystick entirely.
+    const toggle = (label, key, hint) => {
+      const row = el(`<div class="set-row"><span class="set-label">${label}${hint ? `<small class="set-hint">${hint}</small>` : ''}</span>
         <span class="set-val"><button class="btn secondary">${st[key] ? 'ON' : 'OFF'}</button></span></div>`);
       const btn = row.querySelector('button');
       btn.onclick = () => {
@@ -263,7 +267,7 @@ export class Screens {
       return row;
     };
 
-    panel.appendChild(toggle('👆 Tap to steer', 'pointMove'));
+    panel.appendChild(toggle('👆 Tap to move', 'pointMove', 'Replaces the on-screen joystick'));
     panel.appendChild(toggle('↔ Flip left and right', 'invertX'));
     panel.appendChild(toggle('↕ Flip up and down', 'invertY'));
     panel.appendChild(toggle('🌤 Pretty shadows', 'shadows'));

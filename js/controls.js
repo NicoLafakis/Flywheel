@@ -423,15 +423,21 @@ export class Controls {
       this._joyEverLive = false;
       this.joyActive = true;
       this._markerMode(false);   // same node, back to thumb-rest proportions
+      // Armed but LATENT: laid out and measurable, not yet drawn. The reveal
+      // waits for the dead-zone crossing in onPointerMove — see _revealRing.
+      //
+      // Why two classes instead of just holding `hidden` back: `.hidden` is
+      // `display:none`, and _placeRing measures the ring with
+      // getBoundingClientRect to derive _joyThrow. Measured while hidden that
+      // rect is 0 and the code falls back to w=120, but --joy-size is
+      // `clamp(92px, 24vmin, 120px)` — 93.6px on a 390px phone. The stick would
+      // silently arm with a 50px throw instead of 39px, a 28% wider deflection
+      // for the same thumb sweep, on the device it matters most on. Opacity
+      // keeps the element in layout so the measurement stays honest.
       this.joyEl.classList.remove('hidden');
+      this.joyEl.classList.add('latent');
       this._placeRing(e.clientX, e.clientY);
       this.knobEl.style.transform = 'translate(-50%, -50%)';
-      // A short tick on ARM only. Not on every threshold crossing: the stick
-      // is held for the whole level, so anything that fires while steering is
-      // a buzz, not a cue. No-op on iOS Safari (which has never shipped the
-      // API) and inside a pointer handler on Android, which is a user gesture,
-      // so it cannot trip the "blocked, no user activation" path.
-      if (navigator.vibrate) navigator.vibrate(8);
     } else if (this.orbitId === null) {
       this.orbitId = e.pointerId;
       this.orbitLastX = e.clientX;
@@ -468,7 +474,7 @@ export class Controls {
       // mirrors the components, so it cannot change the length. Once true it
       // stays true for the life of the gesture: see onPointerDown for why a
       // thumb returning to centre must not lose the stick.
-      if (!this._joyEverLive && cl / max > JOY_DEAD) this._joyEverLive = true;
+      if (!this._joyEverLive && cl / max > JOY_DEAD) { this._joyEverLive = true; this._revealRing(); }
       this.knobEl.style.transform = `translate(calc(-50% + ${nx * cl}px), calc(-50% + ${ny * cl}px))`;
     } else if (e.pointerId === this.orbitId) {
       e.preventDefault();
@@ -509,6 +515,7 @@ export class Controls {
       this.joyVec = { x: 0, y: 0 };
       this._joyEverLive = false;
       this.joyEl.classList.add('hidden');
+      this.joyEl.classList.remove('latent');
       this.knobEl.style.transform = 'translate(-50%, -50%)';
     }
     if (e.pointerId === this.orbitId) this.orbitId = null;
@@ -552,7 +559,7 @@ export class Controls {
     this.joyActive = false;
     this.joyVec = { x: 0, y: 0 };
     this._joyEverLive = false;
-    if (this.joyEl) this.joyEl.classList.add('hidden');
+    if (this.joyEl) { this.joyEl.classList.add('hidden'); this.joyEl.classList.remove('latent'); }
     if (this.knobEl) this.knobEl.style.transform = 'translate(-50%, -50%)';
     const p = this._touches.get(id);
     if (this.orbitId === null && p) { this.orbitId = id; this.orbitLastX = p.x; }
@@ -679,6 +686,33 @@ export class Controls {
     const y = hi.y < lo.y ? window.innerHeight * 0.5 : Math.min(Math.max(cy, lo.y), hi.y);
     this.joyEl.style.left = `${x}px`;
     this.joyEl.style.top = `${y}px`;
+  }
+
+  // Draw the ring, once, on the frame the stick first leaves the dead zone.
+  //
+  // This is TOUCH SLOP: a gesture is not committed to an interpretation until
+  // movement exceeds a threshold. The dead zone already IS that threshold, so
+  // there is no new constant to get wrong — which is the reason to key off it
+  // rather than off a hold-back timer. A timer would be a race against how fast
+  // a particular human lands two fingers, and it fails for everyone slower than
+  // whatever number we picked.
+  //
+  // What it buys: the stick's home is now the whole surface, so the first
+  // pointer of every two-finger zoom arms the stick. Revealing on pointerdown
+  // made every pinch flash a ring for as long as it took the second finger to
+  // land. A pinch's fingers do not travel before the pair forms, so a gesture
+  // that never crosses the dead zone never draws anything.
+  //
+  // The haptic moved here from arm for the same reason: a buzz on a gesture
+  // that turns out to be a zoom is a phantom cue. It stays a one-shot per
+  // gesture — _joyEverLive latches, so a thumb crossing back and forth over the
+  // dead zone cannot make it stutter.
+  _revealRing() {
+    if (this.joyEl) this.joyEl.classList.remove('latent');
+    // No-op on iOS Safari (which has never shipped the API), and this runs
+    // inside a pointer handler on Android, which is a user gesture, so it
+    // cannot trip the "blocked, no user activation" path.
+    if (navigator.vibrate) navigator.vibrate(8);
   }
 
   // Safe-area insets in px, read off the four --sai-* custom properties
@@ -967,7 +1001,9 @@ export class Controls {
     const s = this._screenAt(t.x, t.z);
     if (!s) { this._hideMarker(); return; }
     this._markerMode(true);
-    this.joyEl.classList.remove('hidden');
+    // `latent` belongs to the stick's arm-then-reveal path; the destination pip
+    // shares this node and must never inherit it.
+    this.joyEl.classList.remove('hidden', 'latent');
     this.joyEl.style.left = `${s.x}px`;
     this.joyEl.style.top = `${s.y}px`;
   }

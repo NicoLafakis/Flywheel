@@ -176,6 +176,14 @@ body {
   border: 3px solid rgba(255,255,255,.5); background: rgba(255,255,255,.12);
   pointer-events: none; transform: translate(-50%, -50%);
 }
+/* Armed but not yet drawn — the stick has a pointer but has not passed the dead
+   zone, so it may still turn out to be the first finger of a pinch. Opacity and
+   NOT `display:none`, deliberately: js/controls.js measures this element with
+   getBoundingClientRect to derive the stick's throw, and a display:none ring
+   measures 0 and silently falls back to a 120px assumption that is wrong on
+   every phone. Kept out of the layout-affecting properties so the measurement
+   taken while latent is the same one the visible ring would give. */
+#joystick.latent { opacity: 0; }
 /* 43% of the ring, which is where the old 52px-in-120px pair sat. Big enough to
    read under a thumb that is covering most of it, small enough that its edge
    still shows the deflection against the ring at the dead zone (0.15 of a
@@ -361,6 +369,11 @@ body {
   margin: 8px 0; clear: both;
 }
 .set-label { flex: 1 1 auto; min-width: 0; }
+/* Second line under a setting's name, for the ones whose label does not say
+   what turning them on costs. Block so it takes its own line inside the label
+   rather than competing with the ON/OFF value for the row's single line, and
+   deliberately quiet: it is a consequence, not a second label. */
+.set-hint { display: block; font-size: 12px; font-weight: 400; opacity: .62; line-height: 1.3; margin-top: 2px; }
 /* nowrap is what actually guarantees one line: without it the value is free to
    break internally and the flex row grows instead of the value overflowing. */
 .set-val { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; white-space: nowrap; font-weight: 700; }
