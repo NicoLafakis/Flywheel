@@ -19,6 +19,7 @@ import {
   BOSTON_CROSSINGS, BOSTON_OPEN_GROUND, BOSTON_ROAD_SPANS, BOSTON_STREETS,
   BOSTON_VEHICLES, XW_LEN as BOS_XW_LEN,
 } from '../js/voxelscene-boston.js';
+import { CURRENT_VERSION, __freshSave, __MIGRATIONS } from '../js/save.js';
 import { readdirSync, readFileSync } from 'node:fs';
 
 const DT = 1 / 60;
@@ -864,6 +865,62 @@ function validateBoston() {
   console.log(`  boston sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} blockers=${sim.cameraBlockers.length}`);
 }
 
+// --- save schema guard --------------------------------------------------------
+// freshSave() and the MIGRATIONS chain are two independent descriptions of the
+// same object, and only one of them gets exercised while developing: whoever adds
+// a key adds it to the migration, tests by reloading their own (older) save, and
+// sees it work. A brand-new player never runs any migration — loadSave only walks
+// the chain for a save OLDER than CURRENT_VERSION — so they get whatever
+// freshSave() alone remembered to build.
+//
+// `sandbox` drifted exactly that way. Migration 10 created it, freshSave() never
+// did, and for three schema versions every save born fresh had no `sandbox`
+// object. `recordSandboxResult` reads `save.sandbox[scene]` as the first
+// statement of the sandbox results callback, so it threw before any navigation
+// ran and BOTH buttons on that screen were inert — a dead-end with no symptom
+// but a console TypeError.
+//
+// The check therefore runs in two directions rather than one:
+//   (a) per migration, no key may appear that freshSave() does not carry — this
+//       localizes the blame to the migration that introduced the drift, and it
+//       holds even for keys an early migration adds and a later one removes;
+//   (b) at the end of the full chain, the key sets must be EQUAL, top level and
+//       inside `settings`, so a key freshSave() invented and no migration ever
+//       delivers is caught too (an upgrading player would be missing it).
+// Plus the chain's own integrity: every version below CURRENT_VERSION has a
+// migration, and each one hands back exactly the next version. A gap there sends
+// loadSave down its quarantine path, which silently discards a real save.
+function validateSaveSchema() {
+  console.log('Validating save schema (freshSave vs migration chain)...');
+  const fresh = __freshSave();
+  const freshKeys = new Set(Object.keys(fresh));
+  const freshSettingKeys = new Set(Object.keys(fresh.settings));
+
+  // The one seed we can build honestly: the v1 legacy shape loadSave() accepts.
+  // Historical freshSave() bodies are gone, so v1 is the only true entry point,
+  // and check (a) below covers every later version anyway by inspecting each
+  // migration's own output rather than trusting one lineage.
+  let s = { version: 1, coins: 0, stars: { 1: 3 } };
+  for (let v = 1; v < CURRENT_VERSION; v++) {
+    const fn = __MIGRATIONS[v];
+    if (!fn) { fail(`save schema: no migration from v${v} — loadSave quarantines any save at that version`); return; }
+    s = fn(s);
+    if (s.version !== v + 1) { fail(`save schema: migration ${v} produced version ${s.version}, expected ${v + 1}`); return; }
+    const extra = Object.keys(s).filter((k) => !freshKeys.has(k));
+    if (extra.length) fail(`save schema: migration ${v}->${v + 1} adds top-level key(s) [${extra.join(', ')}] that freshSave() does not create — a save born at v${CURRENT_VERSION} will never have them`);
+    const extraSet = Object.keys(s.settings || {}).filter((k) => !freshSettingKeys.has(k));
+    if (extraSet.length) fail(`save schema: migration ${v}->${v + 1} adds settings key(s) [${extraSet.join(', ')}] that defaultSettings() does not create`);
+  }
+  if (s.version !== CURRENT_VERSION) fail(`save schema: chain ended at v${s.version}, expected v${CURRENT_VERSION}`);
+
+  const missing = [...freshKeys].filter((k) => !(k in s));
+  if (missing.length) fail(`save schema: migrated save is missing top-level key(s) [${missing.join(', ')}] that freshSave() creates — an upgrading player never gets them`);
+  const missingSet = [...freshSettingKeys].filter((k) => !(k in (s.settings || {})));
+  if (missingSet.length) fail(`save schema: migrated save.settings is missing key(s) [${missingSet.join(', ')}] that defaultSettings() creates`);
+
+  console.log(`  save schema: v1->v${CURRENT_VERSION} chain and freshSave() agree on ${freshKeys.size} top-level key(s) and ${freshSettingKeys.size} setting(s)`);
+}
+
 console.log(`Validating ${levelsToCheck.length} level(s)...`);
 let minMargin = Infinity, minMarginLevel = 0;
 let maxTimeToFirstEat = 0;
@@ -891,6 +948,7 @@ for (const level of levelsToCheck) {
   }
 }
 
+validateSaveSchema();
 validateVoxelSandbox();
 validateVoxelCollisions();
 validateManhattan();

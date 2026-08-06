@@ -39,12 +39,29 @@ function defaultSettings() {
   };
 }
 
+// The shape a brand-new player starts on. It is NOT the union of what the
+// migration chain produces — it has to be checked against it, because the two
+// drift silently and only the migrated path gets exercised during development.
+//
+// That drift is not hypothetical: `sandbox` was added by migration 10 and never
+// added here, so every save born at v11 or later had no `sandbox` object at all
+// (migrations only run for saves OLDER than CURRENT_VERSION, so a fresh save
+// skips the one line that would have created it). `recordSandboxResult` then
+// threw on `save.sandbox[scene]` — the first statement in the results-screen
+// callback — and BOTH buttons on the sandbox results screen went dead with no
+// symptom other than a console TypeError. The player was stuck on the screen.
+//
+// `tools/validate.mjs` now asserts this function's key set against the chain's,
+// top level and inside `settings`, from every reachable start version. Add a key
+// in a migration without adding it here and the validator says so.
 function freshSave() {
   return {
     version: CURRENT_VERSION,
     coins: 0,
     // levelIndex (1-based) -> { stars, bestMass, bestCombo, won }
     levels: {},
+    // scene id -> { completions, bestSize, bestTime }; added by migration 10
+    sandbox: {},
     ownedItems: [],       // shop item ids
     equippedSkin: 'classic',
     muted: false,
@@ -234,7 +251,16 @@ export function storeSave(save) {
   try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* storage full/blocked */ }
 }
 
+// Both recorders run as the FIRST statement of a results-screen callback, before
+// any navigation happens, so a throw in either one strands the player on a screen
+// whose buttons then do nothing at all. That is why each re-establishes its own
+// container instead of trusting the save it was handed: the correct model is
+// freshSave() carrying the key (and the validator holding it there), and this is
+// the seatbelt for a save that reached us down some path neither of those covers
+// — a hand-edited localStorage entry, a partial write, a future migration bug.
+// Costing one `||` to guarantee the screen can always be left is a good trade.
 export function recordLevelResult(save, levelIndex, { stars, mass, bestCombo, won, coinsEarned }) {
+  if (!save.levels) save.levels = {};
   const prev = save.levels[levelIndex] || { stars: 0, bestMass: 0, bestCombo: 0, won: false };
   save.levels[levelIndex] = {
     stars: Math.max(prev.stars, stars),
@@ -247,6 +273,7 @@ export function recordLevelResult(save, levelIndex, { stars, mass, bestCombo, wo
 }
 
 export function recordSandboxResult(save, scene, { coinsEarned, size, elapsed }) {
+  if (!save.sandbox) save.sandbox = {};
   const prev = save.sandbox[scene] || { completions: 0, bestSize: 0, bestTime: null };
   save.sandbox[scene] = {
     completions: prev.completions + 1,
@@ -256,6 +283,11 @@ export function recordSandboxResult(save, scene, { coinsEarned, size, elapsed })
   save.coins += coinsEarned;
   storeSave(save);
 }
+
+// Exported for the schema guard in tools/validate.mjs, which has to build both
+// shapes to compare them. Nothing in the game imports either; the underscores
+// mark them as belonging to the guard rather than to gameplay.
+export { freshSave as __freshSave, MIGRATIONS as __MIGRATIONS };
 
 export function isLevelUnlocked(save, levelIndex) {
   if (levelIndex <= 1) return true;
