@@ -406,23 +406,61 @@ mutates sim state.
 - Performance Mode (`perfMode`): caps particle effects, crumble voxel count, and debris physics relaxation passes for smoother gameplay on lower-resource devices. **In the voxel sandbox specifically**, `VoxelWorld3D.setPerfMode(on)` was a silent no-op until 2026-08-05 — it existed only on the campaign's `World3D` (`world3d.js:429`), so `main.js:101`'s guarded call (`world.setPerfMode && …`) never reached the sandbox renderer. It now exists there too, matching `World3D`'s signature, and does two sandbox-specific things: pins device pixel ratio to 1 (a no-op on a 1× desktop panel by construction, the biggest lever on a 2×/3× screen) and freezes ambient life (gulls/pigeons/steam/ferries/surf/neon) through the same `_ambientFrozen` flag Reduced Motion uses, independently of it. Measured −35% median idle frame time on a 1× panel, −36% plus a 13× p95 collapse on a 2× panel. It does **not** cull or LOD the block field — that is a real look cost, deliberately left for a pass that can prove it rather than a toggle that silently degrades the city. Be honest about scale: this is ~0.9 ms/frame of renderer/ambient cost, not a fix for a sim-bound frame (see `.wiki/modules/voxel.md`'s structural-zones note).
 - The ground plane is **sized to the scene, not a fixed constant.** `contentExtent(sim)` (`voxelworld.js`) measures every block's footprint, every decor rect, and the hole clamp, and the plane is centred on that and grown by `GROUND_MARGIN = 600` (== `camera.js`'s `CAM_FAR`) on every side, so no camera pose can frame the plane's edge. Before 2026-08-05 the plane was a fixed `PlaneGeometry(240, 240)` at the origin — harmless for scenes that fit inside it, but Upper Manhattan's `z[-149,116]` extent left 8.5% of its blocks standing past the plane's north rim with nothing behind them. The far edge (where the plane still gets clipped by the camera's far plane) is hidden with `scene.fog` riding `camera.far` (`fog.near = far × 0.7`, `fog.far = far × 0.995`) rather than a fixed-distance band, so the fog only ever eats what was about to be clipped anyway and doesn't grey out a stretched establishing shot. The plane is segmented into ~64 m cells (not one giant quad) with `polygonOffset` pushing it away from the camera, both needed so `sceneDecor` rects (which sit 1.2-8.9 mm above it with `depthWrite: false`) don't lose the depth test at distance.
 - Blocks render at their **full cell size**, not 95% of it. Before 2026-08-05 every instance was inset by `min(0.05, s × 0.05)` to fake a mortar gap between courses — since a wall here is one block thick, that inset was a literal hole through the wall, visible as a see-through horizontal slot at any camera height that lined up with a course boundary. The course line is now painted: a shared 128×128 `DataTexture` (`mortarTexture()` in `voxelworld.js`) applied as `map` on the block material, proportional in face-UV space so a 0.25 m brick and a 1 m brick both show the same ~2.3%-of-face border. Zero extra draw calls, one 64 KB texture shared across every scene.
-- **Skins (`js/skins.js`, 2026-08-05): 17 hole skins replacing the single
-  circle**, themed on marketing/B2B without borrowing branding. A skin is a
-  registry row plus at most one small builder (the `DECOR_LAYERS` idiom from
-  `voxelworld.js` — adding one is a row, not a code change), built from four
-  shared geometry primitives (`ringPart`/`tickPart`/`barTeeth`/`worldQuads`/
-  `lidPart`) with all per-frame animation written into the CPU colour
-  attribute rather than a shader, so every skin stays one draw call on the
-  existing `MeshBasicMaterial`. Five are eat-reactive (chomper, shredder,
-  eyeballs, throat, closer), not rim decoration. Deep Funnel's resting pulse
-  measures exactly 0.0000 drift with Reduced Motion on — the reduced-motion
-  flag forces the pulse term to 0, making both the base and scaled
-  expressions byte-identical to the pre-skins expressions rather than merely
-  close. Fixed while in there: world marks (ground trails for Attribution
-  Model / Compounding events) sat at y=0.0095, underneath all 27 opaque
-  depth-writing ground planes (roads 0.03, tree pads 0.025, water/building
-  pads 0.02) — invisible over every road and building footprint. Raised to
-  0.04.
+- **Skins (`js/skins.js`, 2026-08-05): 25 hole skins replacing the single
+  circle** — 12 core, 5 creature, 8 partner (agency) skins — themed on
+  marketing/B2B without borrowing branding. A skin is a registry row plus at
+  most one small builder (the `DECOR_LAYERS` idiom from `voxelworld.js` —
+  adding one is a row, not a code change), built from four shared geometry
+  primitives (`ringPart`/`tickPart`/`barTeeth`/`worldQuads`/`lidPart`) with
+  all per-frame animation written into the CPU colour attribute rather than a
+  shader, so every skin stays one draw call on the existing
+  `MeshBasicMaterial`. Five are eat-reactive (chomper, shredder, eyeballs,
+  throat, closer), not rim decoration. Deep Funnel's resting pulse measures
+  exactly 0.0000 drift with Reduced Motion on — the reduced-motion flag
+  forces the pulse term to 0, making both the base and scaled expressions
+  byte-identical to the pre-skins expressions rather than merely close.
+  Fixed while in there: world marks (ground trails for Attribution Model /
+  Compounding events) sat at y=0.0095, underneath all 27 opaque depth-writing
+  ground planes (roads 0.03, tree pads 0.025, water/building pads 0.02) —
+  invisible over every road and building footprint. Raised to 0.04.
+- **Partner marks have two paths, and a second one landed 2026-08-06:
+  `logoTex` (raster) beside the original `logo` (traced vertex-colour
+  points).** `logoTex` wins over `logo` when a row carries both. Source
+  priority for a new partner mark is the agency's OWN square app icon
+  (`link[rel~=apple-touch-icon]` or the W3C manifest's `icons[]]`, generation
+  as a last resort) — it is exact, theirs, and already designed to survive
+  being small, which a wide horizontal lockup is not. `logoTexPart()` (the
+  render-side half of the path) measures the mark's ink bounding box by
+  luminance and crops the texture to it; a row sets `logoFit.fullBleed: true`
+  to skip that scan when the art already runs to the edge (the scan assumes a
+  mark sits on a dark surround, so a full-bleed field would otherwise be
+  measured as its own ink box and cropped to nothing useful). A mark made
+  *of* black cannot render on this path at all — the same "pure black is free
+  under additive blending" property that makes black a good background makes
+  it unrenderable as ink.
+  **Two brightness ladders, not interchangeable.** Traced (`logo`) marks
+  carry hue in vertex colours and stay at the 0.36 ceiling that stopped the
+  white-silhouette bug. Raster (`logoTex`) marks carry hue in the texture at
+  the brand's exact hex, so multiplying by 0.36 washes out the one thing the
+  asset exists to get right — the raster ladder sits at 1.0 at rest, exactly
+  the art. Its ceiling (`LOGO_TEX_MAX = 1.13`) is derived, not chosen: under
+  additive blending a vertex colour above 1 clips channel-by-channel, and
+  Supered's magenta clips its linear red at `1/0.787 = 1.27`, so the ceiling
+  is tuned so the eat-reaction's PEAK (lift pinned at its 1.3 clamp, glow at
+  1, landing at 1.187) stays clear of that — tuned against the peak, not the
+  base, because the player eats almost continuously and `lift` never decays
+  to base.
+  `bakeSkinThumbnails()` (used by both the shop tile and
+  `tools/skinsheet.mjs`) runs fully synchronously, so raster marks are
+  decoded once up front via `img.decode()` + a module-level top-level-await
+  cache rather than making the baker async — an `Image().onload` cannot fire
+  inside a synchronous build/pose/render loop, which is why Supered's first
+  bake shipped as a bare rim with no mark. The decode wait is capped at 2 s
+  and then proceeds regardless, so a slow or missing asset costs the mark,
+  never the boot.
+  Supered (`partner-supered`) is the first row on this path:
+  `assets/skins/partners/supered/`. The remaining 7 partner skins are still
+  on the traced `logo` path.
 - **Performance: active set, device tiers, watchdog (2026-08-06).**
   `voxelworld.update()` used to walk every block every frame — measured at 4.31
   ms/frame live vs 0.094 ms with the loop stubbed, i.e. **98% of `world.update`**

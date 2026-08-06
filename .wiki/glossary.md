@@ -58,3 +58,11 @@
   saturation), 21st-century cladding must be neutral (low saturation);
   brightness is free. Separates eras by chroma, not value — see
   `conventions.md`'s Palette section.
+- **`logoTex`** — the raster partner-mark path in `js/skins.js` (a photo/PNG
+  asset, brand hue baked into the texture), as opposed to the original
+  `logo` traced-vertex-colour path. Wins over `logo` when a row has both.
+  See `modules/render.md`.
+- **`fullBleed`** — flag on a partner skin row saying its `logoTex` art runs
+  to the edge, so `logoTexPart`'s ink-bounding-box scan (which assumes a mark
+  on a dark surround) is skipped rather than misapplied. See
+  `modules/render.md`.

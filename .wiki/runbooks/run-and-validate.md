@@ -29,6 +29,43 @@ ship to static hosting.
    - `not progressive` / `< 20 consumed` → support/failure-model regression
    - `non-finite positions` → physics NaN (usually a divide-by-zero)
 
+## Other tools (`tools/`)
+
+- **`node tools/skinsheet.mjs [url] [size]`** — renders every row in
+  `js/skins.js`'s `SKINS` to `docs/skins/<id>.png` plus an `index.html`
+  contact sheet grouped by family (core/creature/partner), with name, id,
+  price, blurb and rim/accent hexes per tile. It calls the shop's own
+  `bakeSkinThumbnails()` and writes the bytes rather than posing its own
+  render, so the sheet shows exactly what the shop shelf shows — a bespoke
+  render could disagree with the shop and hide a defect instead of surfacing
+  one. Idempotent (clears `docs/skins/` first). Guards on a sha256 of all
+  PNGs being distinct, which is how it caught `partner-supered` baking as a
+  bare rim (see `modules/render.md`'s `logoTex` entry) — a row whose
+  `logoTex` mark isn't decoded in time gets flagged with an amber border on
+  the tile rather than failing the run silently.
+- **`node tools/gen-partner-logo.mjs --name "Agency" --site agency.com [--file path] [--generate]`**
+  — the mechanical half of adding a partner skin. Discovers the agency's own
+  square app icon (`link[rel~=apple-touch-icon]`, then the W3C manifest's
+  `icons[]`, then `og:image`, then `--generate` via Leonardo as a last
+  resort), computes `fullBleed` from real pixels (the same ink-box predicate
+  as `logoTexPart` in `js/skins.js`: alpha ≥ 8 and luminance > 0.06; empty box
+  is a hard failure so a badge can't silently never appear), extracts two
+  brand hexes, verifies the asset 404s clean over a real static server (not
+  `existsSync`, which passes a case mismatch the server then 404s on), and
+  prints a pasteable `SKINS` row. Rejects marks made of black ink (dark ink
+  above 35% of opaque pixels — see `modules/render.md`) and writes nothing
+  into `assets/` for a rejected asset. `LEONARDO_API_KEY` is read from
+  `process.env` at call time only and is never written to any file — this
+  repo has no build step and no server, so anything under it is served
+  verbatim to every browser. What stays manual, deliberately: looking at the
+  discovered image before shipping it. `link rel=icon` is the weakest signal
+  and real sites point it at unrelated art; no heuristic tells a logomark
+  from a nice square graphic, and a wrong logo shipped confidently is worse
+  than a slow one. The shop-blurb copy also stays manual — brand voice, not
+  data.
+- `tools/validate.mjs` also proves `freshSave()` and `save.js`'s `MIGRATIONS`
+  chain describe the same object — see `conventions.md` hard rule 6.
+
 ## Deploy
 
 Static files only — copy repo root (minus `.wiki/`, `docs/`, `tools/` if you

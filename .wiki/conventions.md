@@ -27,6 +27,19 @@
    Never set coordinates directly (exceptions: the landmark's documented
    eviction path, and the snack ring's candidate-offset walk, which still
    goes through `place()`).
+6. **`freshSave()` and `MIGRATIONS` in `save.js` must agree** — they are two
+   independent descriptions of the same save object, and they drifted:
+   migration 10 added `sandbox`, `freshSave()` never did, so every save born
+   at v11+ (i.e. every *new* player, never an upgrading one) lacked it and
+   `recordSandboxResult` threw on the first sandbox completion, killing both
+   buttons on the results screen. If you add a key in a `MIGRATIONS[oldV]`
+   entry, add it to `freshSave()` too. `tools/validate.mjs` enforces this in
+   both directions: per migration, no key may appear that `freshSave()`
+   lacks; and at the end of the chain the key sets (top level and inside
+   `settings`) must be exactly equal, catching a key `freshSave()` invents
+   that no migration ever delivers to an upgrading player. It also asserts
+   every version below `CURRENT_VERSION` has a migration returning exactly
+   the next version, so a gap can't silently quarantine a real save.
 
 ## Style
 
@@ -105,6 +118,8 @@
 - Bump `CURRENT_VERSION` in `save.js` and add a `MIGRATIONS[oldV]` entry for
   every save-shape change. Never mutate old saves silently; quarantine on
   unparseable/future-version data.
+- See hard rule 6 above: also add the same key to `freshSave()`, or
+  `tools/validate.mjs` fails the build.
 
 ## Wiki & status hygiene
 
