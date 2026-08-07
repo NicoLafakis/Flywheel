@@ -3,3 +3,5 @@ node_modules/
 Thumbs.db
 *.log
 playtests/
+# Agent verification output: screenshots, probe scripts, measurement reports.
+_*-deliverables/

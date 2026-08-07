@@ -1,6 +1,6 @@
 // Turn "this agency wants to be featured" into a pasteable SKINS row in one run.
 //
-//   node tools/gen-partner-logo.mjs --name "SmartBug Media" --site smartbug.com
+//   node tools/gen-partner-logo.mjs --name "SmartBug Media" --site smartbugmedia.com
 //   node tools/gen-partner-logo.mjs --name "Acme" --file ./mark.png
 //   node tools/gen-partner-logo.mjs --name "Acme" --site acme.com --generate
 //
@@ -333,12 +333,23 @@ if (info.empty) {
 // an asset that is mostly black ink silently ships as whatever fraction of
 // itself happens to be bright, cropped to that fraction's bounding box.
 //
-// This is not hypothetical. SmartBug Media's own 180px app icon is a black beetle
-// beside a green "B": 85.6% of its opaque pixels are below the threshold, the
-// scan crops to a 36x79 box around the "B" alone, and the row would have shipped
-// a lone green letter as "the SmartBug logo" — with every other check green.
+// This is not hypothetical. Measured against the 180px app icon on smartbug.com —
+// a black beetle beside a green "B" — 85.6% of the opaque pixels are below the
+// threshold, the scan crops to a 36x79 box around the "B" alone, and the row would
+// have shipped a lone green letter as "the logo", with every other check green.
 // That is exactly the failure mode this tool exists to prevent, so it is a hard
 // stop, not a note.
+//
+// Two corrections to what that measurement was, because both were wrong here and
+// the next person to re-run it deserves better. `smartbug.com` is NOT SmartBug
+// Media: it is an unrelated East Texas company (its footer carries a BBB seal for
+// "Smart Bug Corporation"). The HubSpot agency is `smartbugmedia.com`. And the
+// agency's brand is black + olive green, not orange, so there is no orange
+// variant to fall back to. Their one logo asset,
+// hubfs/SmartBug_2023/smartbug-logo-black.svg, is a single <rect> filled with a
+// pattern wrapping an embedded bitmap — a raster in SVG clothing — which is why
+// they stay traced. The 85.6% figure above is a real measurement of a real black
+// mark and is kept as the cautionary example; it is simply a different company's.
 const darkFrac = info.opaque ? info.darkInk / info.opaque : 0;
 log(`opaque texels: ${info.opaque}  (${(darkFrac * 100).toFixed(1)}% below the ink threshold — additive blending cannot show those)`);
 if (darkFrac > 0.35) {
