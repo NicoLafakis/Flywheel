@@ -247,6 +247,7 @@ export class VoxelSandboxSim {
     this.MAX_SIZE = MAX_SIZE;
     this.bounds = 24;          // hole movement clamp (m); scenes may widen it
     this.boundsRect = null;    // optional {minX,maxX,minZ,maxZ}; overrides `bounds` for off-center maps
+    this.coinAnchors = null;   // optional [{x, z, ...}]; scene-declared coin placement (see _placeCoins)
     this.sceneDecor = null;    // render-only roads/parks/water (VoxelWorld3D)
     this.cameraBlockers = [];  // tall-building AABBs for the chase cam
     // Live-tunable physics (dev sliders in SETTINGS → main.js pushes values
@@ -322,6 +323,20 @@ export class VoxelSandboxSim {
   }
 
   _placeCoins() {
+    // A scene may declare `coinAnchors` — an array of at least {x, z} — to put
+    // coins where its design wants them. A uniform scatter cannot express
+    // "bridge this gap" or "mark this thing", and on a kilometre-scale map it
+    // puts a coin every ~100,000 m², which is a rumour rather than a
+    // collectible. Any other fields an anchor carries ride along onto the coin,
+    // so a scene can tag or annotate a placement without another engine change.
+    //
+    // ADR-0003: this returns BEFORE the scatter's draws, it does not skip or
+    // replace them. A scene that declares no anchors therefore takes exactly
+    // today's draws in today's order, and the shared sim stream stays where it
+    // was for everything downstream that draws from it (_splitChunk's scatter).
+    if (this.coinAnchors && this.coinAnchors.length) {
+      return this.coinAnchors.map((a, i) => ({ ...a, id: i, collected: false }));
+    }
     const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
     const out = [];
     // A seeded scatter makes every run fair and replayable while keeping coins
@@ -344,6 +359,21 @@ export class VoxelSandboxSim {
       if (coin.collected || Math.hypot(coin.x - h.x, coin.z - h.z) > reach) continue;
       coin.collected = true;
       this.coinsCollected++;
+      // A coin SUSTAINS a chain; it is never a link in one. The asymmetry is
+      // the point: refreshing the window buys the player another COMBO_WINDOW
+      // to reach the next eatable, which is what makes a coin able to bridge a
+      // sparse stretch, while leaving `chain` — and therefore `comboMult`,
+      // `bestCombo` and the `longest_chain` metric behind the Unbroken Chain
+      // belt — strictly block-denominated. A coin that incremented `chain`
+      // would make the biggest, coin-richest map the cheapest place to farm a
+      // chain belt, which is a cross-city fairness bug. `_consume` stays the
+      // only place `chain` moves.
+      //
+      // Only while a chain is actually live: with `chain` at 0 there is nothing
+      // to sustain (the expiry in `step` would be a no-op), but a timer running
+      // down from nothing would still fire the sub-0.5 s "combo about to lapse"
+      // flash in the renderer with no combo on screen.
+      if (h.chain > 0) h.chainTimer = COMBO_WINDOW;
       this.events.push({ type: 'coin', coin, value: SANDBOX_COIN_VALUE, hole: h });
     }
   }
