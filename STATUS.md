@@ -108,8 +108,11 @@ Building it is blocked on three things only Nico can do:
 centred on HubSpot's real Cambridge, MA HQ (2 Canal Park + the Davenport) for
 UNBOUND, and the debut of a new anisotropic voxel-primitive vocabulary
 (ADR-0013, status: proposed, awaiting Nico) that widens a block from a cube to
-an axis-aligned box. See `.wiki/architecture.md`'s matching "planned, not
-built" note and `.wiki/modules/voxel.md`.
+an axis-aligned box. The vocabulary page carries the owner's **scale rule**
+(2026-08-07): piece size follows building size — a landmark tower is solid
+columns + per-bay slabs + curtain panels, hundreds of blocks and never 20,000
+cubes, same look, no toy models. See `.wiki/architecture.md`'s matching
+"planned, not built" note and `.wiki/modules/voxel.md`.
 
 ### Awaiting Nico — three decisions, none answered
 

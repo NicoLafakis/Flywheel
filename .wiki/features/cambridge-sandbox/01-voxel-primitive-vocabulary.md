@@ -500,6 +500,46 @@ Design premises, each grounded above:
   vocabulary exists to serve.
 - **All extents are multiples of 0.25 m**, so ADR-0006's determinism proof
   survives (§3.1).
+- **Piece size follows BUILDING size.** The ask is not "more complex
+  buildings," it is *larger buildings that are not made of 20,000 cubes* —
+  see the scale rule immediately below, stated as strongly as the two-hand
+  rule because the owner keeps coming back to it.
+
+### The scale rule — *the bigger the building, the bigger the pieces*
+
+The owner's framing, 2026-08-07: *"It shouldn't be that the Empire State
+Building is made out of 20,000 voxels. The floors are solid pieces, the
+columns are solid pieces — the same look, just not made up of as many
+individual parts."*
+
+Three clauses:
+
+1. **The vocabulary matters MOST where the building is BIG.** A brownstone of
+   0.5 m bricks costs hundreds of blocks; a tower of them costs tens of
+   thousands — and reads worse. So the larger the structure, the harder an
+   author leans on structural members: solid columns, per-bay floor slabs,
+   curtain panels on mullions, cornice runs. A 60 m tower is hundreds of
+   blocks, not twenty thousand — the *Empire State test*: no landmark in
+   Cambridge may cost a small scene's entire budget in one footprint.
+2. **Same look, fewer parts.** Consolidation is invisible from gameplay
+   distance or it is wrong. The silhouette, the surface grain, and the
+   collapse read all survive; only the part count changes. The one trap is
+   §3.6's: a very large *plain* plate reads as one enormous brick — a big
+   piece carries a surface or a paint break, exactly as a big real member
+   carries joints and shadow lines.
+3. **The failure this prevents is the toy model.** A large building piled
+   from small cubes reads as a miniature of a building — the Mickey Mouse
+   read — and burns a whole district's budget doing it. This is the third
+   named failure mode, beside the two-hand rule's expensive solid lump and
+   empty diorama: those two come from consolidating wrongly or stopping
+   early; this one comes from not consolidating at all.
+
+The one deliberate refinement, and it is gameplay's, not a dilution of the
+ask: "each floor one solid piece" lands as **one slab per structural bay**
+(§4.2 clause 2), so a 20 × 20 m tower floor is 9-16 pieces rather than 1 —
+a 25-40× reduction from the ~400 cubes it is today, with every bite still
+legible. Floors *are* solid pieces; columns *are* solid pillars. The bay cap
+just keeps the collapse readable while they are.
 
 ### The two-hand rule — *skin, not fill* · *spend it back*
 
