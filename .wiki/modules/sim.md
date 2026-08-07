@@ -51,3 +51,12 @@ validator can prove levels beatable on the exact shipping code.
   deliberately left alone 2026-08-05; what it should actually buy is a
   game-feel decision, not a fix). Don't "clean up" the `* 0` without checking
   whether that decision has since been made.
+
+**Planned, not built:** the online-Flywheel package
+(`.wiki/features/online-flywheel/`) proposes replaying this module
+server-side to validate every leaderboard score before it's trusted, which
+makes cross-engine float determinism (browser vs. Node) a security property
+rather than just a validator nicety. See
+[04-netcode-design.md](../features/online-flywheel/04-netcode-design.md) and
+[ADR-0012](../adr/0012-replay-validated-leaderboard-trust.md). Nothing here
+has changed yet.

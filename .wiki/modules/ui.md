@@ -58,3 +58,10 @@ tying everything together.
   It still does not re-render if the watchdog steps a tier down while this
   screen is open. See `.wiki/modules/render.md`'s watchdog entries for the
   mechanism.
+
+**Planned, not built:** the online-Flywheel package
+(`.wiki/features/online-flywheel/`) proposes new sign-in, leaderboard, and
+trophy-room screens on top of this module. See
+[05-identity-and-accounts.md](../features/online-flywheel/05-identity-and-accounts.md)
+and [06-belts-and-achievements.md](../features/online-flywheel/06-belts-and-achievements.md).
+None of these screens exist yet.

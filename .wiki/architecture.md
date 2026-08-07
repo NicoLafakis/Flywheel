@@ -36,10 +36,20 @@ voxelsim.js ──► voxelworld.js        (voxel sandbox: same split,
 - **Glue** (`main.js`): boot, screen state machine, fixed-timestep loop,
   audio blips.
 
+**Planned, not built:** a fourth **net** ring outside these three boundaries,
+proposed in [features/online-flywheel/03-technical-design.md](features/online-flywheel/03-technical-design.md).
+No code for it exists yet. When it lands, its invariants are: the net layer
+never writes sim state outside `sim.step()`, it never imports three.js, a
+client's score is never the record (the server replays the pure sim before
+anything reaches a leaderboard), and the network is optional at every point.
+
 ## Key decisions
 
 See `adr/`: 0002 sim/render split, 0003 deterministic seeded generation,
-0004 formula-driven levels with validator-enforced margins.
+0004 formula-driven levels with validator-enforced margins. Planned (not yet
+implemented): 0009 Supabase backend, 0010 host-authoritative arena, 0011
+guest-first identity with deferred claim, 0012 replay-validated leaderboard
+trust — see [features/online-flywheel/](features/online-flywheel/README.md).
 
 ## Performance notes
 

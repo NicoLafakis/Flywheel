@@ -75,6 +75,32 @@ tell."* It still needs doing. Specific suspicions worth checking by hand:
   Now fixed by construction, with a Lambertian term validated at r = 0.851
   against measured city luma over all 48 poses.
 
+### Online Flywheel — planning package landed, nothing built
+
+`.wiki/features/online-flywheel/` (16 docs) plus ADRs 0009-0012 landed
+2026-08-06. This is **paperwork only** — no code changed, nothing described in
+it exists in the game yet. It plans accounts, achievements, a live shared
+arena, and a four-scope leaderboard with a multi-belt championship system, for
+the UNBOUND conference. See `.wiki/architecture.md`'s planned "net" ring for
+where it would attach.
+
+Building it is blocked on three things only Nico can do:
+
+1. **Credential handover** — Supabase project, Vercel deploy, and optionally
+   Google/HubSpot sign-in, per
+   `.wiki/features/online-flywheel/SETUP-FOR-NICO.md`. Nothing gets built
+   until at minimum the Supabase and Vercel steps (marked BLOCKING in that
+   doc) are done.
+2. **Supabase plan choice** — Pro is $25/month, confirmed higher than the
+   $10/month figure from an earlier conversation (the $10 was one line item
+   inside the real total, not the total itself). The free plan risks the
+   project sleeping mid-conference. `SETUP-FOR-NICO.md` recommends Pro; Nico
+   still needs to actually pick and pay for it.
+3. **UNBOUND show dates and booth duration** — several capacity/traffic
+   figures in the planning docs (see `08-rollout-and-runbook.md` and
+   `11-risk-register.md`) depend on how long the booth runs and haven't been
+   pinned to real dates yet.
+
 ### Awaiting Nico — three decisions, none answered
 
 1. **Construction vocabulary.** His actual request, and **nothing has been

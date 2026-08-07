@@ -83,7 +83,7 @@ medium buildings → large buildings.
 - **World map**: metro → 20 level cards each, showing stars earned, lock state
   (level N unlocks when N−1 is won), and the mechanic introduced.
 - **Persistence**: `localStorage`, key `hole-city-save`, **schema-versioned**
-  (current v3) with explicit migrations v1→v2→v3. Corrupt or unversioned saves are
+  (current v13) with an explicit migration for every step v1→v13. Corrupt or unversioned saves are
   quarantined, not crashed on.
 
 ## 6. Controls & camera

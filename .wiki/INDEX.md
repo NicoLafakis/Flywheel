@@ -4,7 +4,8 @@
 > `Flywheel`; the eat-everything mechanic itself is still called "hole" in
 > code and vocabulary — see [glossary.md](glossary.md)). Updated 2026-08-06
 > (save-schema drift guard, partner `logoTex` path, `tools/skinsheet.mjs` and
-> `tools/gen-partner-logo.mjs`).
+> `tools/gen-partner-logo.mjs`; online Flywheel planning package indexed —
+> documentation only, nothing built yet).
 
 ## What is this?
 
@@ -39,6 +40,17 @@ this wiki is the engineering companion.
 | [modules/](modules/) | Per-module docs with `covers:` globs: [campaign](modules/campaign.md), [citygen](modules/citygen.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
 | [adr/](adr/) | Architecture Decision Records |
 | [runbooks/](runbooks/) | Run/validate/deploy playbooks |
+| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (planning only — accounts, live shared arena, leaderboards; nothing built yet) |
+
+## Feature planning packages
+
+- [features/online-flywheel/](features/online-flywheel/README.md) — the plan
+  to take Flywheel from a single-player static toy to a networked product
+  (accounts, achievements, a live shared arena, four leaderboard scopes) for
+  the UNBOUND conference. **Documentation only — no code exists yet.** Start
+  at the [README](features/online-flywheel/README.md), which points
+  implementers at [00-objective-overview.md](features/online-flywheel/00-objective-overview.md)
+  and Nico at [SETUP-FOR-NICO.md](features/online-flywheel/SETUP-FOR-NICO.md).
 
 ## External references
 
