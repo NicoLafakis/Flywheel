@@ -471,21 +471,26 @@ mutates sim state.
   Compounding events) sat at y=0.0095, underneath all 27 opaque depth-writing
   ground planes (roads 0.03, tree pads 0.025, water/building pads 0.02) —
   invisible over every road and building footprint. Raised to 0.04.
-- **Partner marks have two paths, and a second one landed 2026-08-06:
-  `logoTex` (raster) beside the original `logo` (traced vertex-colour
-  points).** `logoTex` wins over `logo` when a row carries both. Source
-  priority for a new partner mark is the agency's OWN square app icon
-  (`link[rel~=apple-touch-icon]` or the W3C manifest's `icons[]]`, generation
-  as a last resort) — it is exact, theirs, and already designed to survive
-  being small, which a wide horizontal lockup is not. `logoTexPart()` (the
-  render-side half of the path) measures the mark's ink bounding box by
-  luminance and crops the texture to it; a row sets `logoFit.fullBleed: true`
-  to skip that scan when the art already runs to the edge (the scan assumes a
-  mark sits on a dark surround, so a full-bleed field would otherwise be
-  measured as its own ink box and cropped to nothing useful). A mark made
-  *of* black cannot render on this path at all — the same "pure black is free
-  under additive blending" property that makes black a good background makes
-  it unrenderable as ink.
+- **Partner marks have two paths: `logoTex` (raster) beside the original
+  `logo` (traced vertex-colour points).** `logoTex` wins over `logo` when a
+  row carries both. Source priority for a new partner mark is the agency's
+  OWN square app icon (`link[rel~=apple-touch-icon]` or the W3C manifest's
+  `icons[]]`, generation as a last resort) — it is exact, theirs, and already
+  designed to survive being small, which a wide horizontal lockup is not.
+  `logoTexPart()` (the render-side half of the path) measures the mark's ink
+  bounding box by luminance and crops the texture to it; a row sets
+  `logoFit.fullBleed: true` to skip that scan when the art already runs to
+  the edge (the scan assumes a mark sits on a dark surround, so a full-bleed
+  field would otherwise be measured as its own ink box and cropped to
+  nothing useful). A mark made *of* black cannot render on this path at all
+  — the same "pure black is free under additive blending" property that
+  makes black a good background makes it unrenderable as ink.
+  **As of 2026-08-07, seven of the eight partner rows are raster**
+  (`supered`, `huble`, `sixandflow`, `mediajunction`, `saltedstone`,
+  `impulse`, `newbreed`), each a purely additive `logoTex:` swap onto its
+  asset at `assets/skins/partners/<name>/<name>-logo-large.png` (or `.webp`
+  for `supered`). **Kuno alone stays traced**, by measurement: 4.30x traced
+  beats the 3.10x best raster attempt.
   **Two brightness ladders, not interchangeable.** Traced (`logo`) marks
   carry hue in vertex colours and stay at the 0.36 ceiling that stopped the
   white-silhouette bug. Raster (`logoTex`) marks carry hue in the texture at
@@ -506,9 +511,36 @@ mutates sim state.
   bake shipped as a bare rim with no mark. The decode wait is capped at 2 s
   and then proceeds regardless, so a slow or missing asset costs the mark,
   never the boot.
-  Supered (`partner-supered`) is the first row on this path:
-  `assets/skins/partners/supered/`. The remaining 7 partner skins are still
-  on the traced `logo` path.
+- **`nameText:` puts an agency's name on the mouth plate (2026-08-07).** Five
+  previously icon-only rows (`newbreed`, `impulse`, `sixandflow`, `kuno`,
+  `mediajunction`) now also carry `nameText:` — a canvas-texture label
+  rendered under the mark via `namePart()`, gated the same way as the badge
+  (`shut >= 0.55`, `name.visible = badge.visible && !!name.material.map`).
+  Icon-only-ness is a property of the ART, not the row: a `logoTex` landing
+  on a row can silently make it anonymous again if the new asset carries no
+  wordmark, so `nameTexRecord()`'s list at the top of the file must be
+  re-read whenever a `logoTex` lands (code comment near `js/skins.js:630`).
+- **`class Maw` (2026-08-07) drives the hole's two lids and their meshing
+  teeth on every bite — the closed mouth, not the open one, is the
+  identity silhouette (Pac-Man's law: shut is the plain disc that goes on
+  the cabinet).** It replaces `Chomp`'s depth-damping trade with a
+  time-damping one: depth is always full and repeat bites while already shut
+  EXTEND the hold (`MAW_HOLD_MAX = 0.40s`) instead of restacking it, with a
+  guaranteed floor of open daylight after (`MAW_MIN_OPEN = 0.20s`) so the
+  shut duty cycle cannot reach 100% however fast eat events arrive — measured
+  shut duty 5.2-17% across full runs, zero per-frame allocation, ~0.003ms of
+  frame cost. The partner brand mark (badge + `nameText`) is gated on
+  `shut >= 0.55`; the rim only picks up a small brightening off the same shut
+  value.
+- **The mouth plate under the mark holds constant Rec.709 linear luminance
+  (2026-08-07), not a constant fraction of brand colour.** `PLATE_L =
+  0.02253` (`== rgb(0xf3961f) * 0.055`, the row that measured right) with a
+  per-channel ceiling `PLATE_CH = 0.10` (binds on blue-dominant brands, e.g.
+  New Breed, whose target blue channel would otherwise overshoot). A
+  constant *fraction* made darker brands get darker plates on top of already
+  darker ink (Kuno 29.2, New Breed 31.4 mean tile luminance vs Impulse
+  60.1) — normalising to a constant floor instead: Kuno 29.2 → 43.6, New
+  Breed 31.4 → 40.0, Supered 37.7 → 43.1.
 - **Performance: active set, device tiers, watchdog (2026-08-06).**
   `voxelworld.update()` used to walk every block every frame — measured at 4.31
   ms/frame live vs 0.094 ms with the loop stubbed, i.e. **98% of `world.update`**

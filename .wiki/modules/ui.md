@@ -46,7 +46,7 @@ tying everything together.
   covers the one entry (`SANDBOX`) that omits `scene`.
 - `screens.js` imports `SKINS` from `js/skins.js` and re-exports it — the
   shop shelf **is** the skin registry, not a separate list, so a new skin is
-  a row in `skins.js` and nothing here changes. Geometry/animation for all 17
+  a row in `skins.js` and nothing here changes. Geometry/animation for all 25
   skins lives in `skins.js`; see `.wiki/modules/render.md`.
 - Pause-screen buttons that discard the run (RESTART, CITIES) use a two-step
   inline confirm (`armable` in `showPause`): first click arms red, second
