@@ -121,12 +121,14 @@ function applyQuality() {
 }
 
 // Called at every level start: re-resolve the tier from the setting, hand it to
-// the watchdog (pinned when the player chose one by hand), and apply it.
+// the watchdog (pinned when the player chose one by hand — or when the machine
+// is desktop-class: the ladder exists for phones, and a desktop on AUTO gets
+// HIGH and keeps it, see detectTier's header note), and apply it.
 let qualityPref = null;   // last-seen save.settings.quality, so applySettings can tell it apart
 function startQuality() {
   qualityPref = save.settings && save.settings.quality;
   tierName = wantedTier();
-  const pinned = !!(qualityPref && qualityPref !== 'auto');
+  const pinned = !!(qualityPref && qualityPref !== 'auto') || detected.desktopClass === true;
   watchdog.start(tierName, { pinned });
   applyQuality();
 }

@@ -599,5 +599,17 @@ mutates sim state.
   `AUTO · <tier>` label can go stale if the watchdog steps a tier down while
   the settings screen is open — it does not re-render on that event. See
   `.wiki/modules/ui.md` for the settings-screen side.
+- **Desktop-class machines pin HIGH, watchdog off (2026-08-07).** The tier
+  ladder exists for phones — every lever in `TIERS` is a CPU lever a phone
+  feels — but `detectTier` applied its core-count/memory demotions to
+  desktops too, and the watchdog could then walk a desktop down to LOW/POTATO
+  (shadows and ambient life off) on a boot hitch or a big monitor. Player
+  report: laptop showed the full game, desktop lost it. Now anything that is
+  not a handheld (no mobile GPU, no coarse+small panel) and not a software
+  renderer classifies HIGH with `desktopClass: true`, and `startQuality()`
+  passes `pinned` for it so the watchdog never runs. Handheld classification
+  is unchanged. Escape hatch for a genuinely weak desktop: the settings
+  quality row. Check any machine's classification live via
+  `window.__quality.detected` in the console.
 - Visual-polish roadmap (building kit, canvas textures, lighting): see
   `.wiki/visual-direction.md`.

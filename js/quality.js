@@ -88,11 +88,21 @@ export function unmaskedRenderer(gl) {
   }
 }
 
-// Boot-time classification. Deliberately conservative in one direction only:
-// guessing too LOW costs some pixels and some rubble, guessing too HIGH costs a
-// slideshow on the device class most players are on. The watchdog can walk a
-// wrong guess down within a few seconds; it cannot un-annoy someone whose first
-// ten seconds ran at 12 fps.
+// Boot-time classification. Conservative in one direction only, and ONLY for
+// handhelds: guessing too LOW costs some pixels and some rubble, guessing too
+// HIGH costs a slideshow on the device class most mobile players are on. The
+// watchdog can walk a wrong guess down within a few seconds; it cannot
+// un-annoy someone whose first ten seconds ran at 12 fps.
+//
+// Desktops are the opposite call, and deliberately so: the tier ladder exists
+// for phones (every measured lever above is a CPU lever a phone feels). A
+// mouse-and-keyboard machine classifies HIGH, full stop — no core-count or
+// memory demotions — and main.js pins it there (watchdog off). A desktop that
+// genuinely cannot hold HIGH still has the settings quality row as the escape
+// hatch; a desktop that CAN hold it must never wake up on MEDIUM because a
+// browser bucketed its RAM or a frame hitched during boot. The one exception
+// that stays is the software renderer: a machine rasterising WebGL on its CPU
+// cannot run the default sim at any tier but POTATO.
 export function detectTier(env = {}) {
   const nav = env.navigator || (typeof navigator !== 'undefined' ? navigator : {});
   const cores = typeof nav.hardwareConcurrency === 'number' ? nav.hardwareConcurrency : 0;
@@ -112,20 +122,27 @@ export function detectTier(env = {}) {
   // to agree before this counts.
   const handheld = mobileGpu || (coarse && px > 0 && px <= 1280 * 800);
 
-  let idx = 0; // start at HIGH and demote on evidence
-  if (handheld) { idx = 1; why.push(mobileGpu ? `mobile GPU (${renderer || 'unknown'})` : 'coarse pointer + small panel'); }
+  // Desktop-class machines pin HIGH: no core-count or memory demotions (see the
+  // header note). `desktopClass` is what main.js uses to switch the watchdog
+  // off; the classifier's own answer is already HIGH by construction here.
+  if (!handheld) {
+    const why = [`desktop-class (${cores || '?'} cores${renderer ? `, ${renderer}` : ''})`];
+    return { tier: 'high', why, renderer, cores, mem, coarse, screenPx: px, desktopClass: true };
+  }
+
+  let idx = 1; // handhelds start at MEDIUM and demote on evidence
+  why.push(mobileGpu ? `mobile GPU (${renderer || 'unknown'})` : 'coarse pointer + small panel');
   // hardwareConcurrency is the only CPU signal a browser gives, and the sandbox
   // is CPU-bound, so it carries real weight here. It is also the signal most
   // likely to be clamped for privacy — hence "0 means unknown, do not demote".
-  if (cores > 0 && cores <= 4) { idx = Math.max(idx, handheld ? 2 : 1); why.push(`${cores} logical cores`); }
-  if (cores > 0 && cores <= 2) { idx = Math.max(idx, 3); why.push('2 or fewer cores'); }
+  if (cores > 0 && cores <= 4) { idx = 2; why.push(`${cores} logical cores`); }
+  if (cores > 0 && cores <= 2) { idx = 3; why.push('2 or fewer cores'); }
   // deviceMemory is Chromium-only and bucketed (0.25/0.5/1/2/4/8). 4 GB is the
   // common phone bucket and is not on its own a reason to go below MEDIUM.
-  if (mem > 0 && mem <= 4) { idx = Math.max(idx, handheld ? 2 : 1); why.push(`${mem} GB device memory`); }
-  if (mem > 0 && mem <= 2) { idx = Math.max(idx, 3); why.push('2 GB or less device memory'); }
-  if (!handheld && cores >= 8 && (mem === 0 || mem >= 8)) why.push(`desktop-class (${cores} cores)`);
+  if (mem > 0 && mem <= 4) { idx = Math.max(idx, 2); why.push(`${mem} GB device memory`); }
+  if (mem > 0 && mem <= 2) { idx = 3; why.push('2 GB or less device memory'); }
 
-  return { tier: TIER_ORDER[Math.min(idx, TIER_ORDER.length - 1)], why, renderer, cores, mem, coarse, screenPx: px };
+  return { tier: TIER_ORDER[Math.min(idx, TIER_ORDER.length - 1)], why, renderer, cores, mem, coarse, screenPx: px, desktopClass: false };
 }
 
 function matchesCoarsePointer() {
