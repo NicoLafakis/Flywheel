@@ -5,6 +5,8 @@ covers:
   - "js/voxelsim.js"
   - "js/voxelworld.js"
   - "tools/validate.mjs"
+  - "js/main.js"
+  - "js/ui/screens.js"
 ---
 # Cambridge sandbox — the build tasks
 
@@ -98,9 +100,10 @@ here; re-run the digest.
 
 ## Phase 3 — The primitive layer and the shared gate probes
 
-Independent of Phase 4; both can run in parallel once Phase 2 lands. The gate
-tasks are listed first-class per the package brief — a scene should never be
-authored against a probe that does not exist yet.
+Mostly independent of Phase 4 — the one join point is P4.3, which needs P3.4's
+density probe to exist first; otherwise both can run in parallel once Phase 2
+lands. The gate tasks are listed first-class per the package brief — a scene
+should never be authored against a probe that does not exist yet.
 
 | ID | Done when | Files / surfaces | Deps | Size |
 |---|---|---|---|---|
@@ -119,7 +122,8 @@ scenes (no districts/hero-AABB declared → vacuous pass), documented in
 ## Phase 4 — The coin-anchor and chain-economy engine change
 
 Small, general, and — per the prerequisites section above — load-bearing for
-everything in Phase 7. Independent of Phase 3; both can run in parallel.
+everything in Phase 7. Mostly independent of Phase 3 — P4.3 is the exception,
+gated on P3.4's density probe — otherwise both can run in parallel.
 
 | ID | Done when | Files / surfaces | Deps | Size |
 |---|---|---|---|---|
@@ -180,8 +184,9 @@ first thing `probeHeroIdentity` needs real geometry to check.
 | P6.7 | **District 7 — North Point & Cambridge Crossing.** | `js/voxelscene-cambridge.js` | P6.1 | M |
 | P6.8 | **District 8 — The Charles Shore.** | `js/voxelscene-cambridge.js` | P6.1 | M |
 | P6.9 | **District 9 — The Landmark Shelf.** Stata Center (`03` §5.2, watch the grade-clause clarification on plinth-run sizing), Great Dome + Killian Court, Longfellow, Zakim, Bunker Hill, MIT Green Building, Kendall/MIT, NECCO water tower. | `js/voxelscene-cambridge.js` | P6.1 | L |
-| P6.10 | **District 10 — Street life, kerb kit & the four edge marks.** Two of four edge-mark slots reserved for `04`'s catalogue — coordinate with P7.3 rather than filling all four here. | `js/voxelscene-cambridge.js` | P6.2–P6.9 | S |
+| P6.10 | **District 10 — Street life, kerb kit & the edge-band gallery.** All five gallery items belong to `04`'s catalogue (`03` §8.3, reconciled 2026-08-07) — coordinate with P7.3 rather than authoring them here. | `js/voxelscene-cambridge.js` | P6.2–P6.9 | S |
 | P6.11 | `generateBlockers(sim)` run over the finished geometry; camera blockers never hand-written. | `js/voxelscene-cambridge.js` | P6.2–P6.10 | S |
+| P6.12 | Scene registered so it is reachable: a `cambridge` entry added to `AUTHORED_SCENES` in `js/main.js` (label/hud/intro subtitle, matching the existing entries' shape) and a `cambridge` row added to `FREE_PLAY` in `js/ui/screens.js`. Without this the finished scene has no way to load from the landing screen's free-play picker. | `js/main.js`, `js/ui/screens.js` | P6.11 | S |
 
 **Gate, per district:** `probeCellOwnership`, P3.2 (grade diagonal), P3.3
 (placement step) clean; that district's own `gapFloor` from `03` §8.2 met.
@@ -209,9 +214,11 @@ the phase's main parallelization opportunity, noted again below.
 |---|---|---|---|---|
 | P7.1 | `discoveries` field added to the metrics registry (per-scene bitmask, 128 bits) per `04` §3.1; `discovery_defs` content table (append-only bit indices); validator probe asserting every referenced bit exists, every declared bit is set by some code path, no achievement is unreachable. **Touches the online-Flywheel metrics registry** (`../online-flywheel/06-belts-and-achievements.md` §7) — coordinate with that package rather than forking a second registry. | `js/meta/rules.js`, `js/voxelscene-cambridge.js`, `tools/validate.mjs` | P6.* (at least one district) | M |
 | P7.2 | `route_mask` field added (districts entered during the run, per-scene bitmask) — same registry, same probe coverage. Feeds achievement 80 ("Out of MIT") and doubles as the input P3.4's density probe already wants. | `js/meta/rules.js`, `js/voxelscene-cambridge.js` | P7.1 | S |
+| P7.2b | `belt_taken` field added to the metrics registry (has the player earned the named belt this run) — same registry, same probe coverage as P7.1/P7.2. The only metric achievement 94 ("Home Field") needs that the registry does not already carry (`04` §3.4). | `js/meta/rules.js` | P7.2 | S |
 | P7.3 | The glyph gallery (`04` §1): G1 sprocket, G2 Partner Alley (slot-list, not hardcoded — extensibility note in `04`), G3 ghost sprocket, G4 Founders' Line, G5 "UNBOUND", G6 anamorph (prototype the resolving camera pose before committing — `04` flags this as the one glyph with real risk), G7 NECCO reveal, G8 spreadsheet, G9 food court, G10 canal flywheel, G11 edge-band remainder. | `js/voxelscene-cambridge.js` | P6.2, P6.9, P7.1 | M |
 | P7.4 | The egg catalogue (`04` §2, E1–E44), authored per district as that district lands — see parallelization note. | `js/voxelscene-cambridge.js` | per-egg district task in P6.* | L |
-| P7.5 | Achievement rows 59–96 (`04` §3.3) added as `achievement_defs` content, per `06` §7's data model. **Blocked on the same online-Flywheel backend prerequisites `STATUS.md` already tracks** (Supabase credential handover, plan choice) — this is not a new blocker, it is inheriting one that exists regardless of Cambridge. | content table (`03-technical-design.md`'s schema, online-Flywheel) | P7.1, online-Flywheel backend | M |
+| P7.4b | `CAMBRIDGE_COIN_ANCHORS` authored per `04` §4.3's six categories (18 bridging, 14 egg-beacon, 10 vertical, 8 edge-band, 6 efficiency, 4 true-hide; 60 total). The bridging coins are placed by running the scripted excursion and dropping one in every inter-eatable gap over 15 m, so this needs the districts it measures against substantially finished. The third of the three Cambridge-specific tables `03` §9.3 requires — `CAMBRIDGE_OFFSETS` and `CAMBRIDGE_DISTRICTS` are P6.1's. | `js/voxelscene-cambridge.js` | P3.4, P4.1, P6.* (bridging coins need finished district geometry to measure gaps against) | M |
+| P7.5 | Achievement rows 59–96 (`04` §3.3) added as `achievement_defs` content, per `06` §7's data model. **Blocked on the same online-Flywheel backend prerequisites `STATUS.md` already tracks** (Supabase credential handover, plan choice) — this is not a new blocker, it is inheriting one that exists regardless of Cambridge. | content table (`03-technical-design.md`'s schema, online-Flywheel) | P7.1, P7.2b, online-Flywheel backend | M |
 | P7.6 | "The Deep Cut" belt (`04` §3.5) taken to the belt-roster owner as a yes/no — an all-cities, UNBOUND-scoped belt over `discoveries` count, legal under `06`'s validator rule, not decided by this package. Achievement 95 ships either way at zero roster cost as the fallback. | decision only | P7.1 | XS |
 | P7.7 | Cambridge added as a fifth Sprint Strap scope (`06` §2.2/§3) — one row, no design. Live UNBOUND belt count moves from 12 to 13. | content table, online-Flywheel | P6.* complete | XS |
 
@@ -243,8 +250,9 @@ P0.1 (ADR-0013 accepted) → P2.1 → P2.2 → P2.4 → P2.1–P2.7 complete →
 (voxelforms exists) → P3.2–P3.4 (gate probes exist) → P5.1–P5.6 (District 2
 proves the vocabulary and ships as the first real district) → P6.1 (map
 scaffolding) → P6.2 (hero district) → P6.3, P6.5–P6.9 (remaining districts,
-order among these is flexible) → P6.10–P6.11 (glue + blockers) → P7.1–P7.2
-(registry fields) → P7.3–P7.4 (hidden content) → P8.1–P8.5 (sign-off).
+order among these is flexible) → P6.10–P6.12 (glue, blockers & scene
+registration) → P7.1–P7.2b (registry fields) → P7.3–P7.4b (hidden content) →
+P8.1–P8.5 (sign-off).
 
 **The single longest pole is Phase 2** (the engine change) — it is the widest
 change the sandbox has taken since ADR-0006, gated on a decision (P0.1) this
@@ -257,8 +265,9 @@ authoring effort, which scales with people; P2 does not.
 - **P1.* runs the entire time, independent of everything else.** It has no
   downstream dependents inside this package except P5.4/P5.6/P8's measurement
   tasks, which need the tool (P1.1) but not the bucket-key change itself.
-- **P3.* and P4.* are independent of each other** and can run side by side
-  once P2 lands.
+- **P3.* and P4.* are mostly independent** and can run side by side once P2
+  lands — the one join point is P4.3, which needs P3.4's density probe to
+  exist before it can wire the coin-exclusion clause into it.
 - **Districts in P6.3, P6.5–P6.9 have no dependency on one another**, only on
   P6.1 (scaffolding). With enough authors, six districts can be in progress
   at once.
@@ -268,6 +277,11 @@ authoring effort, which scales with people; P2 does not.
   to formally start. The only hard sequencing is P7.1 (the `discoveries`
   field) needs to exist before any egg's discovery bit can be wired up — land
   P7.1 early, against whichever district finishes first, not last.
+- **P7.4b (coin anchors) does not parallelize the same way.** Its bridging
+  coins are placed by measuring real gaps along the scripted route, so unlike
+  P7.4 it needs the districts it measures substantially finished, not just
+  started — plan it near the end of Phase 6/7, not alongside the first
+  district to land.
 - **P7.5 and P7.7 (achievement/belt content rows) are blocked on the
   online-Flywheel backend**, not on any Cambridge task — they can be written
   and reviewed as content whenever, but cannot ship live until that package's

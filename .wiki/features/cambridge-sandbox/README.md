@@ -36,6 +36,27 @@ minimal note was added at achievement #35 in
 makes it a five-of-six-cities achievement by name, deliberately left
 unrenumbered.
 
+**Second reconciliation pass, 2026-08-07.** A follow-up sweep against this
+first pass's own edits found further drift, now fixed: `03` §6.4/§9.4 gained
+an explicit colour-key exception (`HERO_SIGNAGE_GHOST`) so G3's ghost sprocket
+doesn't trip `probeHeroIdentity`; the district budget table (`03` §4) grew
+from 72,000 to **74,060 blocks** — 1,850 for six previously-unbudgeted
+glyph/egg reserve items, plus a further 210 once `03` §8.3 was rewritten from
+a four-mark placeholder to describe `04`'s actual five-item, ~930-piece
+edge-band gallery — with `03` §8.2's density-floor figures recalculated to
+match (2.28→2.34 median, 1.14→1.17 floor); `03` §9.2's `probeCellOwnership`
+row was corrected to match `01` §5's actual claim (larger pieces make
+overlaps easier to author but **no more expensive to detect**, not "no
+cheaper"); seven achievement-number citations in `04` §1.3's glyph catalogue
+were brought in line with `04` §3.3's table (G1→A68, G2→A91/A92, G3→A67,
+G4→A80, G6→A90, G7→A79, G8→A77); and `05` gained three tasks the phase list
+was missing — P6.12 (scene registration in `AUTHORED_SCENES`/`FREE_PLAY`,
+without which the finished scene has no way to load), P7.2b (the `belt_taken`
+registry field achievement 94 needs), and P7.4b (`CAMBRIDGE_COIN_ANCHORS`
+authoring) — plus a softened Phase 3/Phase 4 independence claim, now
+consistent between the section headers and the parallelization notes, that
+names their one real join point (P4.3 depends on P3.4).
+
 ## The two sentences that govern everything else
 
 **Skin, not fill.** A solid piece replaces a *surface*, never an *interior* — a

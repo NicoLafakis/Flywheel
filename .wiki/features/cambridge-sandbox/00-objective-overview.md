@@ -161,7 +161,7 @@ what a scene can afford**, and the doors it opens are worth naming now so that
   (`spiralRotunda`, `halfDomeShell`, `stoneArch`, the BCEC vault) all get better
   at no extra cost, and it is why the Stata Center is finally buildable.
 - **Signage and marks become one-piece objects.** A letter stroke is a `panel`.
-  This is what makes the four edge marks in `03` affordable, and it is a
+  This is what makes the edge-band gallery in `03` affordable, and it is a
   general capability: every scene can carry ground-plane graphics for the cost
   of a park bench.
 - **The detail budget rises everywhere, permanently.** This is the real

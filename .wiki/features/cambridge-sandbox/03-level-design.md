@@ -35,7 +35,7 @@ here.
 | **`sim.boundsRect`** | `{ minX: −120, maxX: 132, minZ: −112, maxZ: 116 }` |
 | **`sim.bounds`** | `132` (scalar fallback; `boundsRect` overrides it, as in Brooklyn and Boston) |
 | **Playable extent** | **252 × 228 m**, area **57,456 m²**, diagonal **340 m** |
-| **Total block budget** | **72,000** (§4) — 1.25 blocks/m² |
+| **Total block budget** | **74,060** (§4) — 1.29 blocks/m² |
 | **Goal** | `{ name: 'SWALLOW THE SPROCKET', targetFraction: 0.5 }` (same 50% as every other scene) |
 | **Spawn** | fixed by the sim at `(0, 16)` — see §1.4 |
 
@@ -161,9 +161,9 @@ adds nothing new:
 - **`sceneDecor.water` carries the Charles and the canal**, so the south and
   southeast edges terminate in water rather than in a cut. The far bank is *not*
   built: Boston is a landmark shelf here, not a shore.
-- **The four edge marks (§8.3)** occupy the four corner quadrants that would
-  otherwise be the emptiest ground on the map. This is not decoration bolted on
-  — it is the answer to the dead-ground census in the corners, and it is the
+- **The edge-band gallery (§8.3)** occupies the outer ground that would
+  otherwise be the emptiest on the map. This is not decoration bolted on
+  — it is the answer to the dead-ground census at the edges, and it is the
   answer to the owner's "familiar symbols and logos near the edges."
 
 ### 1.5 Declared Ring A exceptions
@@ -289,27 +289,41 @@ places (§6.5) so that it stays an event.
 
 ## 4. Districts
 
-Ten, summing to **72,000 blocks**. Each is a declared entry in a
+Ten, summing to **74,060 blocks**. Each is a declared entry in a
 `CAMBRIDGE_DISTRICTS` table — an exported array of `{ id, name, rect, budget,
 gapFloor }` — because the density probe (§9.4) iterates it and because a
 district that only exists as a comment cannot be tested.
 
 | # | District | Scene rect (approx) | Budget | Dominant primitives | Palette bank | Role in play |
 |---|---|---|---|---|---|---|
-| 1 | **Canal Park — the Hero Block** | x[−46,+40] z[−36,+24] | **10,400** | slab · column · pier · panel · mullion · cornice · plinth | mill brick + cast stone, glass entry court | Spawn, the front-door ring, and the climax target |
+| 1 | **Canal Park — the Hero Block** | x[−46,+40] z[−36,+24] | **11,270** | slab · column · pier · panel · mullion · cornice · plinth | mill brick + cast stone, glass entry court | Spawn, the front-door ring, and the climax target |
 | 2 | **First Street & The Davenport** | x[−72,−26] z[−12,+26] | **9,800** | panel · beam · column · slab · cornice | mill brick, timber | The densest, most texturally rich district; the validator's excursion |
 | 3 | **Lechmere & the Viaduct** | x[−40,+40] z[−80,−36] | **5,000** | pier · beam · slab · panel · tread | concrete + transit green | The first thing you drive to; the local-recognition beat |
 | 4 | **Cambridge Street & the Portuguese Seam** | x[−120,−58] z[−28,+30] | **8,600** | panel · tread · slab · small props | mill brick, painted timber, awning chroma | The human-scale, high-object-count, low-block-per-object district |
-| 5 | **Thorndike Civic** | x[−108,−26] z[+16,+56] | **6,600** | plinth · pier · slab · panel · mullion | cast stone, concrete, new glass | The tall-slab landmark; the mid-game growth engine |
-| 6 | **The Canal & CambridgeSide** | x[+20,+90] z[+14,+116] | **7,400** | plinth · panel · slab · drum · tread | water, precast, glass podium | Water, the fountain basin, the south gateway |
-| 7 | **North Point & Cambridge Crossing** | x[+60,+132] z[−90,+16] | **7,200** | slab · column · mullion · panel · cornice | low-chroma glass, precast | The tall glass ring; the late-game height |
-| 8 | **The Charles Shore** | x[+20,+132] z[+20,+116] | **7,600** | pier · beam · slab · tread · drum | concrete, granite, water | The long horizontal infrastructure showcase |
-| 9 | **The Landmark Shelf** | the Ring B annulus, all edges | **8,400** | whatever the landmark is: mostly slab · pier · drum · corbel-arch | per landmark | The horizon, the recognition payoff, the endgame drive |
-| 10 | **Street life, kerb kit & the four edge marks** | scene-wide | **1,000** | panel (marks) · props (kit reuse) | — | Density glue; the ≤15 m insurance |
+| 5 | **Thorndike Civic** | x[−108,−26] z[+16,+56] | **6,800** | plinth · pier · slab · panel · mullion | cast stone, concrete, new glass | The tall-slab landmark; the mid-game growth engine |
+| 6 | **The Canal & CambridgeSide** | x[+20,+90] z[+14,+116] | **7,600** | plinth · panel · slab · drum · tread | water, precast, glass podium | Water, the fountain basin, the south gateway |
+| 7 | **North Point & Cambridge Crossing** | x[+60,+132] z[−90,+16] | **7,400** | slab · column · mullion · panel · cornice | low-chroma glass, precast | The tall glass ring; the late-game height |
+| 8 | **The Charles Shore** | x[+20,+132] z[+20,+116] | **7,800** | pier · beam · slab · tread · drum | concrete, granite, water | The long horizontal infrastructure showcase |
+| 9 | **The Landmark Shelf** | the Ring B annulus, all edges | **8,580** | whatever the landmark is: mostly slab · pier · drum · corbel-arch | per landmark | The horizon, the recognition payoff, the endgame drive |
+| 10 | **Street life, kerb kit & the edge-band gallery** | scene-wide | **1,210** | panel (marks) · props (kit reuse) | — | Density glue; the ≤15 m insurance |
 
-**Sum: 72,000.** Within `01` §4.4's 40–80k band, at 1.25 blocks/m².
+**Sum: 74,060.** Within `01` §4.4's 40–80k band, at 1.29 blocks/m².
 
-> **On blocks/m².** Cambridge's 1.25 sits below Brooklyn's 1.35 and well below
+> **Budget reconciliation note, 2026-08-07.** These ten totals were closed
+> before `04-easter-eggs-and-achievements.md`'s glyph gallery and egg catalogue
+> were fully priced. Most of that content is small props riding on buildings
+> already itemized below and needs no separate line. Six items do not — the
+> Cutaway (E36–E38), G1, G2, G5, G6, and G9+G10 — because they are either large
+> or free-standing, with no existing line item to absorb them. Each now carries
+> an explicit **glyph/egg reserve** row in its district's item table, below,
+> adding 1,850 blocks. A second correction the same day: §8.3's edge-band
+> gallery (District 10) was specified as four ~180-block marks (~720) before
+> `04` actually authored it as a five-item, ~930-piece gallery; District 10's
+> line item is revised to 1,210 accordingly. Combined, the scene total moves
+> from 72,000 to **74,060**. See `04` §2.8 for the corresponding note on the
+> egg side.
+
+> **On blocks/m².** Cambridge's 1.29 sits below Brooklyn's 1.35 and well below
 > Boston's 2.0, and that is **expected and correct** — under this vocabulary a
 > block covers more surface, so blocks per m² stops measuring apparent density.
 > The metrics that do measure it are `01` §7.2's *distinct identifiable objects
@@ -317,7 +331,7 @@ district that only exists as a comment cannot be tested.
 > against a brick-built control, not down. §7 turns that into a per-district
 > floor.
 
-### 4.1 District 1 — Canal Park, the Hero Block · 10,400
+### 4.1 District 1 — Canal Park, the Hero Block · 11,270
 
 **Real identity.** 2 Canal Park (Confirmed HQ address of record, entire building
 HubSpot-occupied on the 2021 lease), 1 Canal Park 40 m west (Confirmed **ex**-
@@ -339,6 +353,7 @@ Thomas Graves Landing, both 8 storeys (Confirmed OSM).
 | **Thomas Graves Landing** (8 storeys, on the canal) | 1,450 | |
 | **Loading dock, service yard, parking ramp, plant** | 700 | Hand-2 spend: the stuff a brick-built version could not afford |
 | **Trees, lamps, benches, hydrants, vehicles, signage** | 700 | |
+| **Glyph/egg reserve — the Cutaway (E36–E38) + G6 anamorph** | 870 | `04`'s six-room interior set piece (~750) and the anamorph glyph resolving from Lechmere (~120); reconciliation added 2026-08-07, see the note at the top of §4 |
 
 **Role.** This is where the player starts, where the ≤15 m rule is strictest,
 and where the run ends. It carries the finest grain in the scene by a wide
@@ -425,7 +440,7 @@ therefore the scene's density reservoir: it holds the mean inter-piece gap down
 in the map's west half without a single large mass. It is also the emotional
 counterweight to the lab towers, and `04`'s richest seam.
 
-### 4.5 District 5 — Thorndike Civic · 6,600
+### 4.5 District 5 — Thorndike Civic · 6,800
 
 **Real identity.** 40 Thorndike Street, the former Edward J. Sullivan
 Courthouse: originally a Brutalist concrete courthouse and jail, vacant for
@@ -443,6 +458,7 @@ and the First Street Garage — 123 × 75 m of blank-walled parking deck.
 | **Middlesex South Registry of Deeds** | 900 | 89 × 50 m of civic masonry |
 | **Old Middlesex County Courthouse** | 700 | 32 × 49 m |
 | **Thorndike/Otis/Spring street grid, kerbs, crossings** | 900 | |
+| **Glyph reserve — G1 sprocket + centre disc** | 200 | On the First Street Garage's top deck (`04` G1); reconciliation added 2026-08-07 |
 
 **Role.** The tall thing to the west. `02` notes 40 Thorndike is 288 m from
 HubSpot's front door and *"locals will look for it"*, and that it is the tallest
@@ -453,7 +469,7 @@ thing in East Cambridge proper. In play it is the mid-game growth engine: a
 contested still-litigated local history. Build the building; no jokes, no bars,
 no prisoner props. `04` is bound by the same line.
 
-### 4.6 District 6 — The Canal & CambridgeSide · 7,400
+### 4.6 District 6 — The Canal & CambridgeSide · 7,600
 
 **Real identity.** The Lechmere Canal — a short dead-end basin with a circular
 pool and a fountain, cut inland from the Charles, and the reason 2 Canal Park
@@ -473,6 +489,7 @@ of lab in the former Sears, with retail still operating on the lower levels
 | **20 CambridgeSide** (10 storeys) | 2,100 | Big glassy podium block, retail base, lab floors above |
 | **100 CambridgeSide** | 1,200 | |
 | **Land Boulevard's diagonal, kerbs, crossings** | 670 | The 25.9° diagonal, as decor plus stepped kerbs (§2.2) |
+| **Glyph reserve — G9 food court ghost + G10 canal flywheel** | 200 | Roof paving pattern + park arcs (`04` G9/G10); reconciliation added 2026-08-07 |
 
 **Role.** Water, the south gateway, and the district that gives the map a
 non-orthogonal edge. `02`'s designer note applies directly: anyone who worked in
@@ -480,7 +497,7 @@ the building before ~2020 remembers a mall with a food court; anyone after
 remembers lab buildings. Both memories are in the room. The podium is authored as
 now, with a mall-era nod reserved for `04`.
 
-### 4.7 District 7 — North Point & Cambridge Crossing · 7,200
+### 4.7 District 7 — North Point & Cambridge Crossing · 7,400
 
 **Real identity.** The ring of new towers immediately east and northeast, all
 Confirmed from OSM `building:levels`: Archstone Northpoint (22), Twenty|20 at
@@ -497,6 +514,7 @@ Glassworks Avenue, a real street 400 m out.
 | **AVA East, AVA West, Avalon Lofts** (6/6/6) | 1,050 | |
 | **The Glass Factory** (8) | 600 | |
 | **The Common at CX, Viaduct Courts, Glassworks Avenue** | 500 | |
+| **Glyph reserve — G2 Partner Alley, North Point half** | 200 | Half the partner-mark run on the container stacks (`04` G2); reconciliation added 2026-08-07 |
 
 **Role.** `02`'s reading of the skyline is the design brief for this district and
 should be quoted verbatim in the scene file: *"the hero building is one of the
@@ -505,7 +523,7 @@ in a bowl between them. That is the honest silhouette and it is more interesting
 than a hero tower would be."* The player's sense of scale comes from here: you
 grow until these stop being tall.
 
-### 4.8 District 8 — The Charles Shore · 7,600
+### 4.8 District 8 — The Charles Shore · 7,800
 
 **Real identity.** Cambridge Parkway and its park strip, the Royal Sonesta
 (11 storeys), 55 Cambridge Parkway (9), the MDC Boathouse, the Charlesgate Yacht
@@ -523,6 +541,7 @@ foot in Cambridge (all Confirmed).
 | **North Point Park + the curving footbridge** | 900 | `archBridge` reused |
 | **Cambridge Parkway, park strip, boathouses, seawall** | 1,000 | |
 | **Duck Boat ramp, rowing shells, geese** | 400 | `02`: Duck Tours launch **at the Museum of Science**, Confirmed. Geese are universally observed and Unverified as a citation — *"nobody will fact-check a goose."* Both go in `sceneAmbient` |
+| **Glyph reserve — G2 Partner Alley, Cambridge Parkway half** | 200 | Half the partner-mark run on the river frontage (`04` G2); reconciliation added 2026-08-07 |
 
 **Role.** The long horizontal showcase, and the district that most obviously
 could not have existed at Boston's grain. Note `02`'s correction, which the
@@ -530,18 +549,19 @@ scene must honour: the **dinghy fleet is upstream of the Longfellow**, not here.
 Off Cambridge Parkway you get rowing shells, Duck Boats and lock traffic. A
 sailboat scatter would be the postcard, not the place.
 
-### 4.9 District 9 — The Landmark Shelf · 8,400
+### 4.9 District 9 — The Landmark Shelf · 8,580
 
 Ring B. Detailed in §5. Budget split there.
 
-### 4.10 District 10 — Street life, kerb kit & the four edge marks · 1,000
+### 4.10 District 10 — Street life, kerb kit & the edge-band gallery · 1,210
 
 Scene-wide glue: the shared curb-furniture pitch, oriented vehicles on
-grid-aligned streets, the crossing template, and the **four edge marks** (§8.3)
-at roughly 180 blocks each. This district exists as a line item because the
-density probe needs somewhere to attribute the scene's connective tissue, and
-because `01`'s hand 2 is easiest to drop precisely on the things nobody thinks
-to budget.
+grid-aligned streets, the crossing template, and the **edge-band gallery**
+(§8.3, reconciled 2026-08-07 to `04`'s actual ~930-piece gallery — up from the
+~720 this line item originally assumed for four ~180-block marks). This
+district exists as a line item because the density probe needs somewhere to
+attribute the scene's connective tissue, and because `01`'s hand 2 is easiest
+to drop precisely on the things nobody thinks to budget.
 
 ### 4.11 The north edge
 
@@ -550,7 +570,7 @@ but it carries a `boundsRect` obligation. The **Michael Capuano Inner Belt
 Carhouse** and the **MBTA Green Line Transportation Office** (both Confirmed,
 OSM) are pulled radially in to z ≈ −100…−108 under the §1.5 exception so the
 scene's content reaches within the 12 m slack of `minZ: −112`. They cost ~600
-blocks, drawn from district 3's 5,000 and district 7's 7,200.
+blocks, drawn from district 3's 5,000 and district 7's 7,400.
 
 ---
 
@@ -582,7 +602,9 @@ offset table.
 
 Shelf budget: 1,700 + 2,000 + 1,900 + 1,300 + 420 + 700 + 380 + 260 + 340 =
 **9,000**, less 600 reattributed to districts 6 and 8 where a landmark sits
-inside another district's rect → **8,400**, as budgeted.
+inside another district's rect, plus **180** reserved for `04`'s "UNBOUND"
+ground glyph on the Killian Court lawn (G5; reconciliation added 2026-08-07,
+see the note at the top of §4) → **8,580**, as budgeted.
 
 ### 5.2 The Stata Center — the vocabulary's showpiece
 
@@ -898,6 +920,12 @@ Five guards, in descending order of how much they would survive a careless edit:
    every block emitted by the signage builder lies inside the hero AABB, and that
    **zero** blocks inside the not-hero AABB carry the HubSpot orange colour key.
    This is the guard that cannot be forgotten, because it fails the build.
+   **One deliberate exception, resolved 2026-08-07:** `04`'s G3 "Ghost Sprocket"
+   egg puts a faded mark on 1 Canal Park's facade — inside the not-hero AABB, by
+   design. It is authored with its own `HERO_SIGNAGE_GHOST` colour constant, a
+   desaturated, weathered version of the live orange, never the live constant
+   itself, so it never trips this probe's colour-key check. The ghost builder
+   must not import `HERO_SIGNAGE`'s colour — see `04`'s G3 entry.
 2. **One signage builder, one call site.** The mark is emitted by
    `sprocketPanel()` and it is called exactly once, from one place, with the
    hero's own origin. There is no second way to draw it.
@@ -1131,9 +1159,9 @@ paper over a real dead zone with currency instead of content.
 
 ### 8.2 Per-district floors
 
-Scene median, from §4's budget over ~31,600 m² of built footprint: **~2.28 eatable
+Scene median, from §4's budget over ~31,600 m² of built footprint: **~2.34 eatable
 pieces per m² of built footprint.** `01` §7.5's probe 6 sets the floor at half the
-scene median → **1.14/m²**, and the gap ceiling at 15 m. Districts declared tighter
+scene median → **1.17/m²**, and the gap ceiling at 15 m. Districts declared tighter
 than the floor where the design demands it:
 
 | District | Risk | Mean-gap target | Pieces/m² floor | The mitigation, named |
@@ -1146,36 +1174,55 @@ than the floor where the design demands it:
 | 6 Canal & CambridgeSide | **Medium** | ≤ 13 m | 1.4 | Water is excluded from the built footprint, but the *route around it* is not. **Mitigation: a continuous canal-edge kerb, rim, bollard and seating run** all the way round the basin, plus the park's path furniture |
 | 7 North Point | **HIGH** | ≤ 14 m | 1.3 | Tower-and-plaza is the classic dead-zone geometry: 1,700 blocks in one 22-storey slab and nothing between it and the next. **Mitigation: podium retail at grade on every tower, a continuous kerb and street-tree pitch, and the Common at CX's furniture.** The towers are tall, not wide — the ground plane does the density work |
 | 8 Charles Shore | **HIGH** | ≤ 15 m | 1.2 | Water, park and one very long building. **Mitigation: the seawall, the park path furniture, the boathouse cluster, the Duck Boat ramp and the parkway's kerb line form one continuous eatable spine** along the whole shore. A player driving the shore never leaves the spine |
-| 9 Landmark Shelf | **HIGHEST** | ≤ 15 m | 1.2 | Bold masses with hundreds of scene-metres between them is what a shelf *is*. **Mitigation: the shelf is not free-standing.** Each landmark sits on an authored block — a plinth, a lawn edge, a kerb, a fence run, a row of parked vehicles — and the shelf items are placed so that consecutive ones are ≤ 40 m apart along the map's edge, with the edge marks (§8.3) and the kerb line closing the remaining gaps. If the probe still fails, the answer is more ground furniture, never a wider probe |
+| 9 Landmark Shelf | **HIGHEST** | ≤ 15 m | 1.2 | Bold masses with hundreds of scene-metres between them is what a shelf *is*. **Mitigation: the shelf is not free-standing.** Each landmark sits on an authored block — a plinth, a lawn edge, a kerb, a fence run, a row of parked vehicles — and the shelf items are placed so that consecutive ones are ≤ 40 m apart along the map's edge, with the edge-band gallery (§8.3) and the kerb line closing the remaining gaps. If the probe still fails, the answer is more ground furniture, never a wider probe |
 | 10 Street life | n/a | — | — | This district *is* the mitigation for the other nine |
 
 **The rule this generates, and it belongs in the scene file's header:** *in a
 district built from large primitives, the ground plane carries the density.* A
 tower can be four slabs. The 30 m of pavement in front of it cannot be empty.
 
-### 8.3 The four edge marks
+### 8.3 The edge-band gallery
 
 The owner asked for *"familiar symbols and logos created near the edges."* The
-design turns that into a mechanism rather than a decoration:
+design turns that into a mechanism rather than a decoration: reserve the outer
+~10% of the map — water, rail yard, highway interchange, mudflat — as the
+ground the architecture does not reach, and put content there instead of
+leaving it as the dead-ground census's worst offender.
 
-**Four ground-plane voxel mosaics, one per corner quadrant, ~180 blocks each,
-laid flat at 0.25 m.** They sit in the four quadrants that the dead-ground census
-would otherwise flag, they are legible from the SIZE-10+ camera height and from
-the establishing shot, and they are eatable (0.25 m pieces at grade are removable
-from SIZE 1, so a mark comes apart properly rather than sitting there as scenery).
+**Reconciled with `04`'s actual gallery, 2026-08-07.** This section originally
+specified exactly four ~180-block marks, one per corner quadrant, all eatable,
+with one slot reserved for HubSpot's sprocket and one for Flywheel's own mark.
+`04` §1.3's G11 built a broader five-item gallery instead — the Flywheel
+sprocket (~230, Inner Belt rail yard north), Partner Alley (~400, river
+frontage/North Point, G2), "UNBOUND" (~180, Killian Court, G5), a rowing-eight
+wake pattern (~50, Charles south edge, inert scenery — not eatable), and the
+rotated-grid compass rose (~70, NE mudflat) — roughly 930 pieces total, not
+four ~180-block marks. **HubSpot's own sprocket (G1) is not in the edge band
+at all**; it lives on the First Street Garage roof in District 5 (`03` §4.5),
+so the "HubSpot sprocket" slot this section originally reserved is filled by
+G1 elsewhere on the map, not by anything in the edge band. The description
+below now matches what `04` built; District 10's budget (§4.10) is revised
+accordingly.
 
-Rules that bind them, all of which trace to existing contracts:
+Rules that bind the gallery, all of which trace to existing contracts:
 
-- Flat, ground-plane, 0.25 m, inside a declared `CAMBRIDGE_OPEN_GROUND` span or
-  on an authored apron — **never** inside a `roads`, `water` or `parks` rect
-  (the road-conflict and water-over-surfaces probes would catch it, but the rule
-  is stated so nobody has to discover it).
+- Flat, ground-plane, laid at each item's own declared raster pitch, inside a
+  declared `CAMBRIDGE_OPEN_GROUND` span or on an authored apron — **never**
+  inside a `roads`, `water` or `parks` rect (the road-conflict and
+  water-over-surfaces probes would catch it, but the rule is stated so nobody
+  has to discover it).
 - **No third-party trademarks.** `02` §7 is the line: HubSpot's own mark is the
   point; a competitor's would read as a jab; a small local business did not ask
   to be in a game.
-- One slot is reserved for HubSpot's sprocket and one for Flywheel's own mark.
-  **The remaining two slots, and what goes in them, belong to `04`** — that
-  document owns the catalogue and the achievement each mark unlocks.
+- **Eatable by default** — the dead-ground-census reason still holds: a mark
+  should come apart properly rather than sit there as scenery. `04`'s
+  rowing-eight wake is the one deliberate exception in the current catalogue;
+  since it sits on the Charles south edge, it does not count toward District
+  8's eatable-pieces-per-m² floor (§8.2), one of the two already-HIGH-risk
+  districts.
+- **The gallery's contents and the achievement each mark unlocks belong to
+  `04`** — this section states the placement principle, `04` §1.3 owns the
+  catalogue.
 
 ---
 
@@ -1198,7 +1245,7 @@ drifts per scene stops being a contract.*
 
 | Probe | What Cambridge must supply |
 |---|---|
-| `probeCellOwnership` | Nothing — but **run it first and often**. `01` §5 warns that larger pieces make overlaps far easier to author and no cheaper to detect. A 4 m slab clashes with far more than a 1 m cube |
+| `probeCellOwnership` | Nothing — but **run it first and often**. `01` §5 notes that larger pieces make overlaps far easier to author but no more expensive to catch — the probe cost is per fine cell regardless of piece size. A 4 m slab clashes with far more than a 1 m cube |
 | `probeCameraBlockers` | `sim.cameraBlockers = generateBlockers(sim)` — **generated, never hand-written** (`01` §6.3). Every structure ≥ 6 m, with `h` at its true top including the water tanks, the Zakim's masts and the radar drum |
 | `probeBoundsRect` | Content within the 12 m slack of `x[−120,132] z[−112,116]` — which is what forces §4.11's north-edge content |
 | `probeRoadConflicts` | `CAMBRIDGE_VEHICLES` (exported, the validator's allowlist) + `CAMBRIDGE_ROAD_SPANS` (the Lechmere viaduct crosses North First Street; the Land Boulevard diagonal passes under the ramp) |
@@ -1265,7 +1312,10 @@ Cambridge-specific.
    `CAMBRIDGE_NOT_HERO_AABB`. Scene-specific because the mistake is
    scene-specific — but it takes a table parameter, so if a future scene ever has
    a "do not confuse these two buildings" problem, the probe generalises without
-   a second implementation.
+   a second implementation. The check is keyed on the live `HERO_SIGNAGE` colour
+   constant specifically, so `04`'s G3 ghost mark (its own, distinct
+   `HERO_SIGNAGE_GHOST` constant) sits inside `CAMBRIDGE_NOT_HERO_AABB` on
+   purpose without failing it.
 
 **A fifth, worth considering and not proposed:** a spawn-heading probe. `STATUS.md`
 records Brooklyn at "0 of 32 spawn headings dead" but that came from a scratch
@@ -1391,7 +1441,8 @@ already exists and is already validated:
   Monument, **`halfDomeShell`** for the Great Dome *and* the salt-and-pepper
   tower caps, **`archBridge`** for North Point Park's curving footbridge,
   **`tieredFountain`** for the canal basin's fountain, **`stoneArch`** for the
-  lock channel, **`mosaicDisc`** as the pattern the four edge marks follow.
+  lock channel, **`mosaicDisc`** as the pattern the edge-band gallery's marks
+  follow.
 
 That is roughly sixty existing builders doing real work in Cambridge, which is
 the strongest available argument that the kit *is* a kit and not just a pile.

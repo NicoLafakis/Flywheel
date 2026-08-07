@@ -142,7 +142,7 @@ at 0.25 m thickness (a glyph is paint, not a plinth; hand 1, *skin not fill*).
 - **Cost.** ~150–190 pieces (annulus + teeth ink at ~45% coverage) plus ~36 for
   the removable centre disc.
 - **Eatable?** Yes, and being eatable in a *specific order* is the whole point.
-- **Reward.** Achievement **A67 "A Sprocket's Story"** (secret, Main Event) fires
+- **Reward.** Achievement **A68 "A Sprocket's Story"** (secret, Main Event) fires
   only if the centre is gone and ≥ 90% of the teeth ring survives. Also a
   camera beat: `fovKick` (`camera.js:423`) on completion.
 - **Rights.** HubSpot's own mark, shown to HubSpot, at their invitation. Fine.
@@ -167,7 +167,7 @@ at 0.25 m thickness (a glyph is paint, not a plinth; hand 1, *skin not fill*).
   cells, inside the grain law with room.
 - **Cost.** ~40–70 pieces each, **~400 total**.
 - **Eatable?** Yes. Eating your own agency's logo is a better feature than not.
-- **Reward.** **A88 "Partner Alley"** (find them all) and **A89 "Represent,
+- **Reward.** **A91 "Partner Alley"** (find them all) and **A92 "Represent,
   Locally"** — a *secret* that fires when the player eats the mark matching the
   partner skin they are currently wearing. `js/skins.js` already knows which
   skin is equipped; this is a one-line comparison and it is the best individual
@@ -196,7 +196,14 @@ at 0.25 m thickness (a glyph is paint, not a plinth; hand 1, *skin not fill*).
   authored, not faked: kill the mullion and the panels drop).
 - **Cost.** ~60 pieces of ghost + the cladding that hides it, which the building
   needs anyway.
-- **Reward.** **A66 "Wrong Canal Park"** (secret, Midcard).
+- **Reward.** **A67 "Wrong Canal Park"** (secret, Midcard).
+- **Colour key, resolved 2026-08-07.** `03` §6.4/§9.4's `probeHeroIdentity` fails
+  the build on any HubSpot-orange block inside `CAMBRIDGE_NOT_HERO_AABB` — which
+  is exactly where this egg lives. The ghost is authored with its own
+  `HERO_SIGNAGE_GHOST` colour constant (a desaturated, weathered version of the
+  live orange, never the live constant itself), so the probe's live-key check
+  passes by construction rather than by luck. The ghost builder must not import
+  `HERO_SIGNAGE`'s colour — that is the one rule this egg cannot break.
 - **Rights.** HubSpot's own mark on a building HubSpot demonstrably occupied
   (`02` §0, Confirmed). It reads as fondness for a former office, which is what
   it is. **One check:** the current owner's building is being depicted with a
@@ -215,7 +222,7 @@ at 0.25 m thickness (a glyph is paint, not a plinth; hand 1, *skin not fill*).
   buildings, and the penny drops.
 - **Cost.** ~150 dashes, 1 piece each, laid into road surfaces already being
   built. Effectively free.
-- **Reward.** **A79 "Out of MIT"** — drive it end to end in one run, Killian
+- **Reward.** **A80 "Out of MIT"** — drive it end to end in one run, Killian
   Court to Two Canal Park. Legend, visible. This is the marquee achievement of
   the level because it is the company's own sentence turned into a route.
 - **Rights.** Quoting HubSpot's own public copy back at HubSpot. Fine.
@@ -249,7 +256,7 @@ at 0.25 m thickness (a glyph is paint, not a plinth; hand 1, *skin not fill*).
 - **Size.** ~50 m of ground, resolving to a ~20 m apparent mark.
 - **Cost.** ~120 pieces. Authoring is a projection, done once in the scene
   builder — pure geometry, no engine change.
-- **Reward.** **A87 "Southbound Platform"** (Legend, secret). Fires on the
+- **Reward.** **A90 "Southbound Platform"** (Legend, secret). Fires on the
   camera pose, not on eating: the player has to *stand there*.
 - **Risk, stated.** The chase camera's pitch is fixed and its yaw is player-led,
   so the resolving pose is reachable but not guaranteed to be comfortable.
@@ -265,7 +272,7 @@ at 0.25 m thickness (a glyph is paint, not a plinth; hand 1, *skin not fill*).
   Eat the helix and Kendall Square's whole history changes hands in one bite.
 - **Cost.** Helix ~40 pieces (a twisted pair of `drum` facets, `01` §4.1); the
   wafer roll is paint on the drum beneath, ~0 extra.
-- **Reward.** **A78 "Sweet Then, Sweeter Now"** (Main Event, secret).
+- **Reward.** **A79 "Sweet Then, Sweeter Now"** (Main Event, secret).
 - **Placement caveat, resolved.** 2,054 m WSW — outside Tier 1/2 range, so this
   depended on `03`'s map extent. `03` §1.3 and §5.1 confirm the NECCO water tower
   is in scope, in Ring B at scene (−120, +83), budgeted 340 blocks. Stays an egg.
@@ -285,7 +292,7 @@ at 0.25 m thickness (a glyph is paint, not a plinth; hand 1, *skin not fill*).
   address where it was invented, four hundred metres from their desk.
 - **Size.** ~40 × 28 m at 2 m cells. ~280 pieces (mostly grid lines — author as
   long thin `slab` runs, not cell-by-cell, and it drops to ~40).
-- **Reward.** **A76 "Recalculate"** — eat exactly the highlighted cell. Midcard,
+- **Reward.** **A77 "Recalculate"** — eat exactly the highlighted cell. Midcard,
   secret.
 - **Rights.** A grid is not a trademark. IBM/Lotus wordmarks: **do not**
   (`02` §7). The abstraction is not a compromise here, it is funnier.
@@ -329,6 +336,17 @@ Fill it with:
 Roughly **930 pieces** for the whole gallery. Against `01` §4.4's 40–80k budget
 that is ~1.5%, and hand 2 (*spend it back*) says this is precisely the kind of
 thing the consolidated floor plates paid for.
+
+**Reconciled with `03` §8.3, 2026-08-07.** `03`'s edge-mark mechanism
+originally specified four ~180-block corner marks and reserved one of those
+slots for HubSpot's sprocket; it now describes this five-item, ~930-piece
+gallery exactly, including the rowing-eight wake's scenery (non-eatable)
+status. HubSpot's sprocket (G1) is not part of the edge band — it sits on the
+First Street Garage roof in District 5 (`03` §4.5) — so all five gallery slots
+here are filled by Flywheel's mark and the four items above. `03`'s District
+10 budget is revised from 1,000 to 1,210 to cover the difference between the
+gallery's real ~930-piece cost and the ~720 the original four-mark estimate
+assumed.
 
 ### 1.4 Glyph budget rollup
 
@@ -474,9 +492,17 @@ silhouette is better.
 ~44 items. Most are one prop (2–30 pieces); the Cutaway (E36–E38) is the
 expensive one at ~600–900 pieces of interior. Call the whole catalog
 **~1,500–1,800 pieces**, i.e. about the same again as the glyphs. Combined with
-§1.4 that is **~3,500 pieces, ~5–8% of a 40–80k scene** — which is exactly the
-size of the "spend it back" budget `01` §4.4 says the primitive vocabulary is
-supposed to release.
+§1.4 that is **~3,500 pieces, ~5–8% of a 40–80k scene**.
+
+**Reconciliation, 2026-08-07.** Most of that ~3,500 genuinely is "spend it back"
+money — small props riding on buildings `03` already budgets. Six items are not:
+the Cutaway and five glyphs (G1, G2, G5, G6, G9+G10, ~1,850 pieces combined) sit
+on ground or roof with no existing line item to absorb them. `03` §4 now carries
+an explicit glyph/egg reserve row per affected district, and the scene total
+moved from 72,000 to **74,060** in total — 1,850 for this reserve, plus a
+further 210 from a separate correction to the edge-band gallery's real cost
+(`03` §8.3) — see the reconciliation note at the top of `03` §4. The remaining
+~1,650 pieces of this catalog are still genuinely free.
 
 ---
 
