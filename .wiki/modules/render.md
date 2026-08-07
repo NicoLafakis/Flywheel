@@ -67,32 +67,34 @@ mutates sim state.
   `(-sin(yaw), -cos(yaw))`; W must move along forward (regression history:
   flipped basis made W go backwards). The same convention defines the hole's
   heading: forward = `(-sin(heading), -cos(heading))`.
-- **Input is TWO schemes split by device (2026-08-06), not by setting.** The
-  keyboard is tank (below); the touch stick is direct steer (next bullet). A key
-  is a rate control — it carries one bit and a duration, so integrating it is
-  the only thing it can mean — while a thumb on a stick is a position control
-  that already carries an absolute angle, and throwing that angle away to
-  re-derive it from left/right presses is what made touch steering feel like
-  driving a tank on a phone. Both write the same `controls.heading`.
-- **Keyboard: tank controls.** The hole
-  carries a persistent world-space heading owned by `controls.js`. W/S are
-  throttle along it, A/D rotate the heading itself at `ORBIT_RATE × turnSens ×
-  size ramp` (sandbox) — including spinning in place when stationary, so a
-  parked A-press visibly turns (the sandbox chase camera swings round; the
-  campaign shows it through the heading-welded skins). Turning therefore only
-  bends the path while also driving, car-style, but the wheel is never locked
-  when parked. The heading seeds from the live camera yaw on the first move
-  input of a level (`main.js` resets it to `null` each start), so W initially
-  drives up-screen; after that only A/D (or point-to-move, which keeps the
-  heading synced to the driven direction) ever change it — the camera cannot,
-  which is what makes the heading chase feedback-free BY CONSTRUCTION. The old
-  camera-relative strafe basis and its rising-edge latch are gone: the latch
-  existed only because the basis used to be re-read from the live yaw on every
-  press, which was the feedback path. `chaseMode` survives only as the flag
-  that turns on the size-ramped turn rates and the camera's follow yaw.
-  History: the `driveMode` scheme (A/D fed `orbitDelta` at `STEER_RATE`
-  2.7 rad/s × a size-ramped 0.2→0.8) and the camera-relative strafe that
-  replaced it are both gone; steering is now direct heading integration.
+- **Input is ONE direct-steer scheme for every directional device
+  (2026-08-07), not two split by device.** Keyboard and touch stick both name
+  a SCREEN direction against the latched camera basis; the heading chases the
+  target through the wrapped shortest arc at the capped direct-steer rate
+  (`ORBIT_RATE × turnSens × size ramp × DIRECT_STEER_BOOST`, ceiling
+  `DIRECT_STEER_MAX` mirroring the camera's own follow rate). WASD are the
+  eight-position stick: `target = basisYaw + atan2(-ix, -iy)`, so W is
+  up-screen and D is screen-right — including after a W+A hold, where the
+  turn is at most a 180° shortest-arc swing. Both devices write the same
+  `controls.heading`, and the heading seeds from the latched basis on the
+  first move input of a level (`main.js` resets it to `null` each start), so
+  W initially drives up-screen. After that only the direct-steer targets (or
+  point-to-move, which keeps the heading synced to the driven direction) ever
+  change it — the camera cannot, which is what makes the heading chase
+  feedback-free BY CONSTRUCTION. `chaseMode` survives only as the flag that
+  turns on the size-ramped turn rates and the camera's follow yaw.
+- **The keyboard was tank for one day (c3579da, 2026-08-06; reverted as a
+  scheme 2026-08-07).** A/D integrated the heading open-loop, so a W+A hold
+  wound the heading ~150°/s past the view, and a later D only reversed the
+  ROTATION — the heading had to unwind every wound degree back through
+  straight-ahead before the hole even faced up-screen, while W kept driving
+  it along the stale heading. Player report: the hole "runs off the opposite
+  way" and has to "come back around" to go right. Open-loop integration has
+  no wind-up ceiling, so no rate retune could fix it; converging on a target
+  angle cannot wind up by construction. History: the `driveMode` scheme (A/D
+  fed `orbitDelta` at `STEER_RATE` 2.7 rad/s × a size-ramped 0.2→0.8), the
+  camera-relative strafe that replaced it, and the tank scheme that replaced
+  THAT are all gone. ADR-0008 documents the tank design as shipped.
 - **Touch: direct steer + pinch zoom (2026-08-06).** The stick's ANGLE names a
   direction on screen; the heading turns toward it at a capped rate and stops
   itself when the error reaches zero. Screen→world is
@@ -134,14 +136,16 @@ mutates sim state.
   the basis is only ever written on a frame the stick is at rest, where it
   already equals the live yaw. `_latchBasis` also re-points a standing hold
   whenever it re-latches, so the basis and the hold can't drift apart if a
-  second finger orbits between pushes. **The two input schemes cannot share a
-  camera:** direction-chase is a TANK affordance (A/D nudges a heading the
-  player integrates, and swinging the view behind it is what makes a
-  stationary spin visible at all) but is exactly wrong for direct steer,
-  where the stick already names an absolute screen angle. So a key press
-  releases the hold and hands the camera back to the tank scheme — last input
-  wins, and relaxing the thumb to centre does NOT release (a brief pause
-  would otherwise swing the view up to 180°). The rig is reached via
+  second finger orbits between pushes. **No surviving scheme wants the
+  direction-chase:** it is a TANK affordance (swinging the view behind a
+  heading the player integrates is what made the one-day tank scheme's
+  stationary spin visible) and the keyboard is direct now too — both schemes
+  name an absolute screen angle. So the hold is the standing contract
+  whenever anything is steering: a held key takes the same hold the stick
+  takes, and nothing releases it mid-level except point-to-move (last input
+  wins, and relaxing the input to centre does NOT release — a brief pause
+  would otherwise swing the view up to 180°). At rest heading == target ==
+  basis, so a standing hold costs nothing. The rig is reached via
   `camera.userData.rig` (set in the `ChaseCamera` constructor), because
   `main.js` hands `Controls.setCamera()` the THREE camera object, not the rig
   — riding on `userData` keeps the arbitration between the two files it
@@ -212,20 +216,20 @@ mutates sim state.
   right-drag would mean suppressing the context menu canvas-wide). Drag
   magnitude deliberately does not set speed — both sims re-normalise `move`
   themselves, so this ships direction-only.
-- **`setFollowDirection(true)` chases the control heading directly.** The
-  sandbox camera's follow target is `controls.heading` itself (passed as
-  `driveHeading` to `ChaseCamera.update`), not a velocity-derived estimate:
-  the heading is exogenous input state, so there is no feedback loop to guard
-  against — the old `dot > 0.05` toward-camera gate and the basis latch that
-  replaced it are both unnecessary and gone. Chasing the heading also makes a
-  stationary A/D spin visible (a velocity target could never show one), and
-  while driving it is identical to the old velocity chase because in the tank
-  scheme velocity IS heading × throttle. The velocity-derived target survives
-  as the fallback for callers that pass no heading (old harnesses, and the
-  frames before a level's first input). The chase still has its own smoothed,
-  UNCLAMPED velocity for that fallback — the campaign's per-axis-clamped
-  `lookAhead` collapsed every heading onto the nearest diagonal at 9.96 m/s
-  and is untouched.
+- **`setFollowDirection(true)` chases the control heading directly — unless
+  held.** The sandbox camera's follow target is `controls.heading` itself
+  (passed as `driveHeading` to `ChaseCamera.update`), not a velocity-derived
+  estimate: the heading is exogenous input state, so there is no feedback loop
+  to guard against — the old `dot > 0.05` toward-camera gate and the basis
+  latch that replaced it are both unnecessary and gone. While anything is
+  steering, the chase-yaw HOLD outranks the heading (both surviving schemes
+  name screen directions; slewing behind the heading mid-turn would erase
+  them — see the direct-steer bullets above). The velocity-derived target
+  survives as the fallback for callers that pass no heading (old harnesses,
+  and the frames before a level's first input). The chase still has its own
+  smoothed, UNCLAMPED velocity for that fallback — the campaign's
+  per-axis-clamped `lookAhead` collapsed every heading onto the nearest
+  diagonal at 9.96 m/s and is untouched.
 - Chase dynamics: critically damped spring under a hard angular-rate cap, both
   ramped on `sandboxSizeProgress` — `FOLLOW_OMEGA` 8 → 12 rad/s (`_RAMP` 1.5) and
   `FOLLOW_MAX_RATE` 4.2 → 7.0 rad/s, i.e. 241°/s at SIZE 1 rising to 401°/s at
@@ -300,18 +304,20 @@ mutates sim state.
   *lifted* finger still unwinds at the new rate, and the grace starts at the
   **lift** rather than at the last movement (a 5 s paused drag retires its
   offset 1.17 s after release, not during the pause).
-- **`recentre()` is gone (2026-08-06), superseded by the tank scheme.** It
-  existed to drop the manual look offset on the frame a fresh press re-latched
-  the move basis to the live yaw — without it, look-then-press cycles
-  ratcheted (measured: four 60° cycles drifted 216° at a 0.25 s re-press
-  cadence with it forced off, 0.0° with it live). The tank heading never
-  re-adopts the camera yaw after its one-time seed, so the ratchet's
-  mechanism no longer exists and neither does the call. ADR-0007 documents the
-  old design; its drift figure caveat still applies to that history — the
-  123.8° figure did **not** reproduce on re-measurement (2026-08-06), the
-  drift is cadence-dependent and wraps past 180° (the same 4-cycle scenario
-  measures 338-347° at 0.25-1.0 s, 62.0° at 4 s). Quote the claim (large
-  drift off, 0.0° on), not the number.
+- **`recentre()` is gone (2026-08-06), superseded when the heading stopped
+  re-adopting the camera yaw.** It existed to drop the manual look offset on
+  the frame a fresh press re-latched the move basis to the live yaw — without
+  it, look-then-press cycles ratcheted (measured: four 60° cycles drifted
+  216° at a 0.25 s re-press cadence with it forced off, 0.0° with it live).
+  The steering heading never re-adopts the camera yaw after its one-time
+  seed, and the basis the keys/stick read moves WITH the standing chase hold
+  (`_latchBasis` re-points it), so the ratchet's mechanism no longer exists
+  and neither does the call. ADR-0007 documents the old design; its drift
+  figure caveat still applies to that history — the 123.8° figure did **not**
+  reproduce on re-measurement (2026-08-06), the drift is cadence-dependent
+  and wraps past 180° (the same 4-cycle scenario measures 338-347° at
+  0.25-1.0 s, 62.0° at 4 s). Quote the claim (large drift off, 0.0° on), not
+  the number.
 - The chase runs on the BASE yaw: `_introOscYaw` is subtracted before it and
   re-added after, so the intro's decaying offset never biases the target or gets
   baked into the base.

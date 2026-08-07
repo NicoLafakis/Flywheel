@@ -222,15 +222,15 @@ district sweep).
 - Combos (×3 cap), star ratings, coins, shop (skins + clock/growth items)
 - World map with locks/stars, results screen, mechanic intro cards
 - Saves: localStorage schema v11, migrations v1→v11, quarantine
-- Desktop tank controls (W/S throttle, A/D heading steering, Q/E camera orbit,
-  R/F zoom — one scheme in campaign and sandbox) + mobile (joystick steer/
-  throttle + touch orbit)
+- Desktop direct-steer controls (WASD name a screen direction, heading chases
+  it; Q/E camera orbit, R/F zoom — one scheme in campaign and sandbox) +
+  mobile (joystick direct steer + touch orbit)
 - Chase camera with building-occlusion pull-in
 - **Voxel Sandbox** (see `.wiki/modules/voxel.md`): deterministic load-path
   support graph, instant-default support loss, persistent damage + neighbor
   shock, chunks/debris by material bond, mass-scaled fall + optional creak,
-  damage heat tint, tank controls (W/S throttle, A/D heading steering, spin in
-  place when parked) + heading-chase follow camera
+  damage heat tint, direct-steer controls (WASD/stick name a screen
+  direction, the heading chases it) + basis-holding follow camera
 - Sandbox gallery: tower, warehouse, house, shop, church, brownstone,
   apartment, parking garage, gas station, crane, containers, fountain,
   statue, water tower, elevated bridge + train, 8 vehicles, 16 street-furniture
@@ -290,6 +290,7 @@ district sweep).
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
 
+- 2026-08-07: Keyboard steering goes direct (WASD = eight screen directions, heading chases the shortest arc, camera holds the latched basis) — kills the tank scheme's wind-up, where D after a W+A hold looped the long way round
 - 2026-08-07: Desktop-class machines classify quality HIGH and pin it (watchdog off) — the tier ladder is for phones; a desktop no longer loses shadows/ambient life to a boot hitch or a bucketed RAM report
 - 2026-08-06: Persona playtest remediation (5-agent UX audit → 21 findings): numeric goal bar + SIZE on the sandbox HUD, dimmed coin pill, combo gated at x2, CSS pause glyph, pause CITIES label + two-step RESTART/quit confirms + sandbox RESTART fixed, READY-gate control cheat-sheet, CONTROLS above the fold in SETTINGS, PLAY BROOKLYN CTA + START HERE tag, title coin bank + per-city cleared/best records, ADVANCED fold + reset for physics sliders, sticky settings BACK, boot splash, intro-dive pitch bump (no more wall frames after GO!) — ALL PASS
 - 2026-08-06: Tank controls everywhere (W/S throttle along a persistent heading, A/D steer the heading — spin in place parked), sandbox camera chases the control heading directly, basis latch + `recentre()` retired (ADR-0008)

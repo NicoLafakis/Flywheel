@@ -234,7 +234,7 @@ function startLevel() {
   cam.setBlockers(world.blockers);
   controls = controls || new Controls(canvas);
   controls.settings = save.settings;
-  controls.chaseMode = false;   // campaign: tank steering, no auto-follow camera
+  controls.chaseMode = false;   // campaign: direct steering, no auto-follow camera
   // Controls is a singleton across levels, so these are reassigned every start
   // rather than set once: a stale camera would aim the point-to-move raycast
   // through the previous level's projection, and a stale heading would have the
@@ -398,14 +398,15 @@ function startVoxelSandbox(scene = 'gallery') {
     window.__world = world; // debug hook
     controls = controls || new Controls(canvas);
     controls.settings = save.settings;
-    // Third-person chase: WASD/joystick drive the hole with tank controls —
-    // W/S are throttle along the heading, A/D rotate the heading itself — and
-    // the camera aims ITSELF at that heading (cam.setFollowDirection above +
-    // the driveHeading arg to cam.update). The heading is owned by Controls
-    // and never derived from the camera yaw, so the chase has no feedback
-    // loop to wind up. Q/E and the second-finger drag are still there for
-    // deliberately looking around; they no longer suspend the chase, they
-    // re-aim it — see the yaw offset in camera.js.
+    // Third-person chase: WASD/joystick name a screen direction (direct
+    // steer), the heading chases it through the wrapped shortest arc, and
+    // while anything is steering the camera holds the latched basis yaw
+    // (controls.js _setChaseHold) so a reversal happens on screen instead of
+    // underneath a slewing camera. The heading is owned by Controls and never
+    // derived from the camera yaw, so there is no feedback loop to wind up.
+    // Q/E and the second-finger drag are still there for deliberately looking
+    // around — they re-aim the basis itself (see _latchBasis and the yaw
+    // offset in camera.js).
     controls.chaseMode = true;
     controls.setCamera(cam.camera);
     // Fresh level, fresh heading: the first move input seeds it from the live
@@ -525,9 +526,9 @@ function frame(ts) {
     if (held) controls.cancelPointer();
     const move = held ? { x: 0, z: 0 }
       : controls.getMove(cam.yaw, undefined, isVoxelSandbox ? sim.hole : sim.player);
-    // The tank heading rides on the hole for the renderer: directional skins
-    // and bite bearings read it there (skins.js, world _skinFrame). Neither
-    // sim ever does — it is presentational state, not gameplay state.
+    // The steering heading rides on the hole for the renderer: directional
+    // skins and bite bearings read it there (skins.js, world _skinFrame).
+    // Neither sim ever does — it is presentational state, not gameplay state.
     const driveHole = isVoxelSandbox ? sim.hole : sim.player;
     driveHole.heading = controls.heading ?? 0;
     const orbit = controls.consumeOrbit();

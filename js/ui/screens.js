@@ -420,10 +420,12 @@ export class Screens {
     // would keep claiming the old speed after a change in controls.js and
     // nobody would notice, because it still looks plausible.
     //
-    // One slider, two consumers, both in the sandbox: A/D steering and the
-    // Q/E / touch-drag manual orbit both run at ORBIT_RATE × turnSens × the
-    // size ramp (controls.js _steerSens/_orbitSens), so the range printed
-    // here is true for each. It used to print STEER_RATE × sens, which
+    // One slider, two consumers, both in the sandbox: direct-steer
+    // convergence (keys and stick) and the Q/E / touch-drag manual orbit both
+    // run at ORBIT_RATE × turnSens × the size ramp (controls.js
+    // _steerSens/_orbitSens; steering then multiplies by DIRECT_STEER_BOOST
+    // under the DIRECT_STEER_MAX cap), so the range printed here is the base
+    // each is built from. It used to print STEER_RATE × sens, which
     // described nothing that ran anywhere — the sandbox's old A/D steering
     // ignored this slider entirely and used its own size-ramped 0.2–0.8, so
     // the screen advertised ~155°/s for a control that actually turned at

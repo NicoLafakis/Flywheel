@@ -112,7 +112,7 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reduc
           <span class="rg-hint-tap">tap anywhere</span>
         </div>
         <div class="rg-controls">
-          <span class="rg-controls-key">W/S drive · A/D turn · Q/E orbit · R/F zoom · Esc pause</span>
+          <span class="rg-controls-key">WASD drive · Q/E orbit · R/F zoom · Esc pause</span>
           <span class="rg-controls-tap">drag left ½ steer · right ½ look · pinch zoom</span>
         </div>
         <div class="rg-rule">eat what's smaller than you to grow</div>

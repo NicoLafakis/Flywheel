@@ -592,7 +592,7 @@ export class World3D {
     // with a directional element (A/B Split's axis, the reduced-motion
     // Impressions head, the Attribution trail) are welded to it — it is the
     // player's own steering made visible, which is also the only on-screen
-    // feedback for a stationary A/D spin in the campaign, whose camera does
+    // feedback for the heading mid-turn in the campaign, whose camera does
     // not follow.
     st.heading = h.heading || 0;
     st.camDist = this._skinCamDist ?? st.camDist;
