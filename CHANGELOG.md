@@ -3,6 +3,43 @@
 Detailed build history, migrated from STATUS.md (which is a lean board, not a
 changelog). Newest first. Commit-level history: `git log`.
 
+- 2026-08-06: **Persona playtest remediation.** A five-agent UX playtest
+  (ux-tester-personas suite, findings in
+  `playtests/2026-08-06-persona-campaign/`, gitignored) scored the shipped
+  game at "explains itself ~60%" across 21 findings; this pass fixes 15 of
+  them and deliberately defers the rest. Sandbox HUD: the goal readout is now
+  live (`CLEARED x% / 50% OF THE CITY · SIZE n`) and visually dominant while
+  the coin pill shrinks and loses its unexplained `+2` (`body.mode-sandbox`
+  scopes the CSS so the campaign countdown is untouched); the combo pill is
+  gated at chain ≥ 26 so "COMBO x1" never renders. Pause: WORLD MAP renamed
+  CITIES (no map exists; `showWorldMap()` is a `showTitle()` alias), RESTART
+  works in the sandbox via `lastSandboxScene` (it was campaign-gated dead
+  UI), and both run-discarding buttons got a two-step inline confirm.
+  Onboarding: the READY gate carries a control cheat-sheet (key/tap split),
+  SETTINGS shows CONTROLS directly under the first toggles, the CTA reads
+  PLAY BROOKLYN, and Brooklyn's tag is START HERE. Persistence: the landing
+  screen shows the coin bank (hidden at zero) and per-city `CLEARED ×n · BEST
+  SIZE n` records from the existing `save.sandbox` data — no schema change.
+  Settings hygiene: dev physics sliders folded into `ADVANCED — CITY FEEL`
+  with RESET TO DEFAULTS driven by the newly exported `VOX_DEFAULTS` (spread
+  into `defaultSettings()`, so reset and fresh-save defaults share one
+  source), and BACK is sticky-bottom in the scrolling panel. Loading: a
+  static `#boot-splash` in `index.html` covers the module/CDN load until
+  `main.js` removes it; the pause button's ❙❙ text glyph became CSS-drawn
+  bars. Camera: a `_introK(1-_introK)` pitch bump keeps the intro dive above
+  the roofline mid-zoom — the playtest caught ~1 s of blank wall after GO!
+  (zero at hold and settled, so neither end pose changes). A verification
+  re-run of two personas scored the build at ~85% (from ~55-60%) and closed
+  the last residuals the same day: the READY gate now also states the tier
+  rule in one sentence ("EAT WHAT'S SMALLER THAN YOU TO GROW"), the sandbox
+  results screen shows the projected coin Bank, and the gallery scene is
+  'SANDBOX' on every surface (was 'THE COLLECTION' in three places).
+  Deferred by decision: campaign resurrection (retired in a137054), sandbox
+  coin minimap, per-prop edibility tint, pacing verdicts (headless
+  SwiftShader ran the sim at 5-11% speed; needs a real-GPU pass). Validator
+  ALL PASS; browser smoke of every new flow in
+  `playtests/.../scripts/smoke-fixes.cjs`.
+
 - 2026-08-06: **Tank controls everywhere — one scheme, campaign and sandbox.**
   The hole now carries a persistent world-space heading owned by
   `js/controls.js`: W/S are throttle along it, A/D rotate the heading itself

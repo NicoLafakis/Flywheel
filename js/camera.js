@@ -1106,7 +1106,16 @@ export class ChaseCamera {
     }
 
     // raise pitch when pulled in close so we look down over the obstruction
-    let effPitch = pitch + (1 - effT) * 0.5;
+    // +
+    // a dive-only bump, _introK(1-_introK): ZERO at both ends (hold K=1, off
+    // K=0, so neither the fitted establishing shot nor the settled chase pose
+    // moves), peaking +0.35 rad mid-zoom. The geometric dist lerp crosses the
+    // city low over the rooftops around K=0.5, and the playtest caught exactly
+    // that: ~1 s of blank wall after GO! when the path clipped a building near
+    // the spawn. Steepening the middle of the dive keeps it above the roofline
+    // until the camera is nearly home.
+    const diveBump = this._introK * (1 - this._introK) * 1.4;
+    let effPitch = pitch + (1 - effT) * 0.5 + diveBump;
     let cx = tx + Math.sin(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.x;
     let cz = tz + Math.cos(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.z;
     let cy = Math.max(2.5, Math.sin(effPitch) * dist * effT + this.shakeOffset.y);
@@ -1120,7 +1129,7 @@ export class ChaseCamera {
     // building on Brooklyn and Upper Manhattan; guarding both leaves none.
     if (this._insideBlocker(cx, cy, cz)) {
       this._effT = effT = rawT;
-      effPitch = pitch + (1 - effT) * 0.5;
+      effPitch = pitch + (1 - effT) * 0.5 + diveBump;
       cx = tx + Math.sin(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.x;
       cz = tz + Math.cos(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.z;
       cy = Math.max(2.5, Math.sin(effPitch) * dist * effT + this.shakeOffset.y);

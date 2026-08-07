@@ -132,6 +132,22 @@ body {
   border-radius: 18px; padding: 6px 16px; min-width: 74px; text-align: center;
 }
 #timer.low { background: #ff4747; color: #fff; }
+/* Pause icon: two drawn bars replacing the ❙❙ text glyph (index.html). */
+.pause-glyph { display: inline-flex; gap: 4px; align-items: center; justify-content: center; }
+.pause-glyph span { width: 5px; height: 16px; border-radius: 2px; background: var(--text-dark); }
+/* Sandbox HUD hierarchy: the goal bar is the win condition, the coin pill is a
+   side currency. The first playtest showed the loud "0/60" pill pulling players
+   into coin-hunting while CLEAR 50% sat at 0.5% — so in the sandbox the pill
+   shrinks and dims, and the goal readout grows. Scoped by body.mode-sandbox so
+   the campaign HUD (which uses #timer as the countdown) is untouched. */
+body.mode-sandbox #timer {
+  font-size: clamp(12px, 1.8vw, 15px); font-weight: 700; opacity: .75;
+  min-width: 0; padding: 4px 12px;
+}
+body.mode-sandbox #mass-label {
+  font-size: clamp(14px, 2.4vw, 18px); padding: 6px 16px;
+}
+body.mode-sandbox #mass-bar-wrap { height: 20px; }
 #minimap-wrap {
   position: absolute; border-radius: 12px;
   border: 3px solid rgba(255,255,255,.8); overflow: hidden; background: #06121c;
@@ -272,6 +288,15 @@ body {
   padding: calc(24px + var(--sai-top)) calc(24px + var(--sai-right))
            calc(24px + var(--sai-bottom)) calc(24px + var(--sai-left));
 }
+/* Boot splash (index.html): covers the app until main.js removes it, so a slow
+   module/CDN load shows intent instead of a black page. No JS required. */
+#boot-splash {
+  position: absolute; inset: 0; z-index: 100; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+  background: #0a0e1a; color: var(--fw-gold, #ffd23f);
+  font-weight: 900; letter-spacing: 4px; font-size: clamp(22px, 6vw, 40px);
+}
+#boot-splash span { font-size: clamp(12px, 2.4vw, 16px); letter-spacing: 2px; opacity: .7; }
 /* Headings wear the brand ring so every screen reads as one game rather than as
    a settings panel bolted to a title card. STATIC on purpose: the pop-in and bob
    belong to the landing screen and the READY gate, where the type IS the moment.
@@ -306,6 +331,11 @@ body {
 .btn:disabled {
   background: #555; color: #ddd; cursor: default; opacity: .6;
   box-shadow: 0 5px 0 #2b2b2b, 0 10px 18px rgba(0,0,0,.45);
+}
+/* Armed two-step confirm (pause RESTART/CITIES in screens.js showPause). */
+.btn.danger {
+  background: linear-gradient(180deg, #ff6b5f 0%, #e0382b 100%);
+  color: #fff; box-shadow: 0 5px 0 #7a1408, 0 10px 18px rgba(0,0,0,.45);
 }
 
 .metro-row { width: min(880px, 94vw); margin-bottom: 18px; }
@@ -379,6 +409,18 @@ body {
 .set-val { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; white-space: nowrap; font-weight: 700; }
 .set-val input[type="range"] { width: 120px; vertical-align: middle; margin: 0; }
 .set-val .btn { margin: 0; padding: 4px 18px; font-size: 14px; }
+/* ADVANCED fold for the dev physics sliders (screens.js showSettings). */
+.set-details { clear: both; margin-top: 14px; }
+.set-details summary {
+  cursor: pointer; font-weight: 900; letter-spacing: 1.2px; font-size: 14px;
+  opacity: .8; margin-bottom: 6px;
+}
+/* BACK pinned to the viewport bottom of the scrolling settings screen: the
+   panel outgrows a phone viewport and the button used to land below the fold
+   (playtest finding — measured at y≈1303 in a 900px viewport). */
+.set-back {
+  position: sticky; bottom: calc(12px + var(--sai-bottom)); z-index: 5;
+}
 
 /* Phone width ONLY. Everything below is inside the query on purpose: at 768px
    and up there are ~508px of row width, every row already fits on one line, and
@@ -728,9 +770,37 @@ body.rg-gate-up #hud * { pointer-events: none; }
     rg-hint-idle 2.6s ease-in-out 1.4s infinite;
 }
 #ready-gate .rg-hint-tap { display: none; }
+/* Control cheat-sheet on the gate (playtest finding: the key map lived only at
+   the bottom of SETTINGS, and A/D TURN rather than strafe was discovered by
+   driving in circles). Same key/tap split as rg-hint; quieter, no idle pulse. */
+#ready-gate .rg-controls {
+  font-size: clamp(10px, min(1.6vw, 1.6vh), 14px); font-weight: 700;
+  letter-spacing: 1.2px; text-transform: uppercase; color: #fff; opacity: .85;
+  text-shadow:
+    2px 0 0 #0a0e18, -2px 0 0 #0a0e18, 0 2px 0 #0a0e18, 0 -2px 0 #0a0e18,
+    0 3px 6px rgba(0,0,0,.9);
+  animation: rg-hint-in .5s ease-out .72s both;
+}
+#ready-gate .rg-controls-tap { display: none; }
+/* The tier rule in one plain sentence (remediation re-run residual: SIZE was
+   on the HUD but "eat what's smaller than you" was never said out loud). */
+#ready-gate .rg-rule {
+  font-size: clamp(11px, min(1.8vw, 1.8vh), 15px); font-weight: 800;
+  letter-spacing: 1.6px; text-transform: uppercase; color: var(--fw-gold, #ffd23f);
+  text-shadow:
+    2px 0 0 #0a0e18, -2px 0 0 #0a0e18, 0 2px 0 #0a0e18, 0 -2px 0 #0a0e18,
+    0 3px 6px rgba(0,0,0,.9);
+  animation: rg-hint-in .5s ease-out .78s both;
+}
+#ready-gate.rg-out .rg-rule { animation: rg-fade-out .18s ease-in forwards; }
+#ready-gate.fw-still .rg-rule { animation: none; }
+#ready-gate.rg-out .rg-controls { animation: rg-fade-out .18s ease-in forwards; }
+#ready-gate.fw-still .rg-controls { animation: none; }
 @media (hover: none) and (pointer: coarse) {
   #ready-gate .rg-hint-key { display: none; }
   #ready-gate .rg-hint-tap { display: inline; }
+  #ready-gate .rg-controls-key { display: none; }
+  #ready-gate .rg-controls-tap { display: inline; }
   /* The minimap is a 150px square pinned bottom-right, i.e. 38% of the width of
      a 390px phone parked on the corner of the city the right-half orbit drag
      starts from. It cannot EAT that drag (#hud is pointer-events:none and only
@@ -875,6 +945,15 @@ body.rg-gate-up #hud * { pointer-events: none; }
 .fw-chip:focus-visible { outline: 3px solid var(--fw-gold); outline-offset: 3px; }
 .fw-chip-name { font-weight: 900; letter-spacing: 1.1px; font-size: clamp(13px, 2.2vw, 15px); }
 .fw-chip-sub { font-size: clamp(11px, 1.9vw, 12.5px); font-weight: 600; opacity: .7; }
+/* Returning-player record on a city chip (screens.js showTitle). Gold-tinted
+   like the tag but quieter: it is a fact, not a recommendation. */
+.fw-chip-progress { font-size: clamp(10px, 1.7vw, 11.5px); font-weight: 800; letter-spacing: .8px; color: var(--fw-gold); }
+/* Coin bank on the landing screen — save-state recognition at the front door. */
+.fw-bank {
+  margin-top: 10px; background: var(--fw-gold); color: #4a3200;
+  border-radius: 999px; padding: 4px 16px; font-weight: 900;
+  font-size: clamp(13px, 2vw, 16px); box-shadow: 0 3px 0 rgba(0,0,0,.35);
+}
 .fw-chip-tag {
   align-self: flex-start; margin-top: 3px;
   background: var(--fw-gold); color: #4a3200; border-radius: 7px;
@@ -919,6 +998,8 @@ body.rg-gate-up #hud * { pointer-events: none; }
   .fw-sprocket-spin { animation: none; transform: rotate(7.5deg); }
   #ready-gate .rg-scrim,
   #ready-gate .rg-sub,
+  #ready-gate .rg-controls,
+  #ready-gate .rg-rule,
   #ready-gate .rg-hint { animation: none; }
   /* The hint's knob sweep goes; its fade-in and self-destruct do NOT. The sweep
      is decoration (the label already says what to do), but th-life is the only

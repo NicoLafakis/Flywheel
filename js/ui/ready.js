@@ -105,17 +105,22 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reduc
       </div>
       <div class="rg-bot">
         <div class="fw-cta-wrap">
-          <button type="button" class="fw-cta" aria-label="Go: start the level">GO!</button>
+          <button type="button" class="fw-cta" aria-label="Go: start the city">GO!</button>
         </div>
         <div class="rg-hint">
           <span class="rg-hint-key">press any key</span>
           <span class="rg-hint-tap">tap anywhere</span>
         </div>
+        <div class="rg-controls">
+          <span class="rg-controls-key">W/S drive · A/D turn · Q/E orbit · R/F zoom · Esc pause</span>
+          <span class="rg-controls-tap">drag left ½ steer · right ½ look · pinch zoom</span>
+        </div>
+        <div class="rg-rule">eat what's smaller than you to grow</div>
       </div>
     </div>
   </div>`);
 
-  root.querySelector('.fw-a11y').textContent = `${label}. Start the level.`;
+  root.querySelector('.fw-a11y').textContent = `${label}. Start the city.`;
   const subEl = root.querySelector('.rg-sub');
   if (subtitle) subEl.textContent = subtitle;
   else subEl.classList.add('hidden');

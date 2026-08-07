@@ -280,6 +280,7 @@ district sweep).
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
 
+- 2026-08-06: Persona playtest remediation (5-agent UX audit → 21 findings): numeric goal bar + SIZE on the sandbox HUD, dimmed coin pill, combo gated at x2, CSS pause glyph, pause CITIES label + two-step RESTART/quit confirms + sandbox RESTART fixed, READY-gate control cheat-sheet, CONTROLS above the fold in SETTINGS, PLAY BROOKLYN CTA + START HERE tag, title coin bank + per-city cleared/best records, ADVANCED fold + reset for physics sliders, sticky settings BACK, boot splash, intro-dive pitch bump (no more wall frames after GO!) — ALL PASS
 - 2026-08-06: Tank controls everywhere (W/S throttle along a persistent heading, A/D steer the heading — spin in place parked), sandbox camera chases the control heading directly, basis latch + `recentre()` retired (ADR-0008)
 - 2026-08-05: Upper Manhattan full rebuild (8,442 → 73,393 blocks, full Central Park + UWS + Museum Mile + Harlem geography) + structural-zone sim fix (playable at 60 fps) + renderer/input fixes (ground plane, mortar seam, steering, setPerfMode) — ALL PASS
 - 2026-08-04: Rebrand to Flywheel - A sprocket's story (shared `fw-*` brand layer, branded landing screen, world map untouched)

@@ -424,6 +424,15 @@ mutates sim state.
      roof above the camera and excluding it keeps the held pose bit-identical by
      construction rather than by measurement.
 
+  4. **Dive pitch bump (2026-08-06, persona-playtest fix).** The guards above
+     keep the camera out of walls, but the intro ZOOM's geometric dist lerp
+     still crossed the city low over the rooftops around `_introK ≈ 0.5`,
+     which the playtest caught as ~1 s of blank wall right after GO!. The fix
+     adds `diveBump = _introK(1 - _introK) × 1.4` to `effPitch` — zero during
+     `hold` (K=1) and `off` (K=0), so neither the fitted establishing shot nor
+     the settled chase pose moves — peaking +0.35 rad mid-dive, which keeps
+     the crossing above the roofline until the camera is nearly home.
+
   Verified on the REAL sim (`sim.step`, so buildings actually come down — a
   harness that never eats cannot test any of this): 4 independent 45 s routes ×
   {Brooklyn, Upper Manhattan, Lower Manhattan} × {SIZE 1, SIZE 12} × {with intro,

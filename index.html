@@ -17,6 +17,10 @@
 </head>
 <body>
 <div id="app">
+  <!-- Boot splash: pure HTML/CSS, no JS dependency, so a slow module/CDN load
+       never reads as a crashed tab (playtest finding — 10-15 s of black on cold
+       load). main.js removes it right before the first screen mounts. -->
+  <div id="boot-splash">FLYWHEEL<span>LOADING…</span></div>
   <canvas id="game-canvas"></canvas>
   <div id="hud" class="hidden">
     <div id="hud-left">
@@ -27,7 +31,9 @@
     </div>
     <div id="hud-right">
       <button id="btn-mute" class="round-btn" title="Sound">&#128266;</button>
-      <button id="btn-pause" class="round-btn" title="Pause">&#10073;&#10073;</button>
+      <!-- CSS-drawn bars, not a text glyph: ❙❙ fell back to a missing-glyph
+           box on systems without that codepoint (playtest finding). -->
+      <button id="btn-pause" class="round-btn" title="Pause"><span class="pause-glyph"><span></span><span></span></span></button>
       <div id="timer">75</div>
     </div>
     <div id="minimap-wrap"><canvas id="minimap" width="150" height="150"></canvas></div>

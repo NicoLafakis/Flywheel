@@ -1,7 +1,7 @@
 // Full-screen UI: title, world map, shop, results, pause, mechanic intro.
 
 import { LEVELS, METROS, MECHANICS, LEVELS_PER_METRO, coinsForResult, starsForResult } from '../levels.js';
-import { isLevelUnlocked, storeSave } from '../save.js';
+import { isLevelUnlocked, storeSave, VOX_DEFAULTS } from '../save.js';
 import { ORBIT_RATE, ORBIT_RATE_RAMP } from '../controls.js';
 import { buildBlockWord } from './blockword.js';
 import { buildSprocket } from './sprocket.js';
@@ -22,14 +22,15 @@ export const ITEMS = [
 
 // The free-play shelf on the landing screen. Brooklyn leads because it was the
 // first showcase scene; Boston is the second and carries the same establishing
-// shot and READY gate, so only Brooklyn keeps the pill — two 'Showcase' tags
-// side by side read as a bug rather than an endorsement. The generic sandbox
-// trails because it is a physics test bed, not a place.
+// shot and READY gate, so only Brooklyn keeps the pill — two tags side by side
+// read as a bug rather than an endorsement. The pill says START HERE because
+// 'Showcase' answered no question a player was asking (playtest finding). The
+// generic sandbox trails because it is a physics test bed, not a place.
 // `scene` is passed straight to actions.startVoxelSandbox(); the sandbox entry
 // omits it so the undefined lands on that function's own 'gallery' default,
 // which keeps the scene id written down in exactly one place (js/main.js).
 const FREE_PLAY = [
-  { scene: 'brooklyn', name: 'BROOKLYN', sub: 'Bridges to Coney Island', tag: 'Showcase' },
+  { scene: 'brooklyn', name: 'BROOKLYN', sub: 'Bridges to Coney Island', tag: 'START HERE' },
   { scene: 'boston', name: 'BOSTON', sub: 'Seaport and the Convention Center' },
   { scene: 'manhattan', name: 'LOWER MANHATTAN', sub: 'Downtown towers' },
   { scene: 'upper-manhattan', name: 'UPPER MANHATTAN', sub: 'Central Park' },
@@ -82,19 +83,35 @@ export class Screens {
     s.appendChild(hero);
 
     // Sandboxes are the game now: Brooklyn is the first city, not a campaign map.
+    // The CTA names the city because it hard-launches Brooklyn — 'PLAY A CITY'
+    // promised a choice it never offered (playtest finding).
     const ctaWrap = el(`<div class="fw-cta-wrap"></div>`);
-    const play = el(`<button type="button" class="fw-cta">PLAY A CITY</button>`);
+    const play = el(`<button type="button" class="fw-cta">PLAY BROOKLYN</button>`);
     play.onclick = () => this.actions.startVoxelSandbox('brooklyn');
     ctaWrap.appendChild(play);
     s.appendChild(ctaWrap);
+
+    // Returning-player recognition (playtest finding: a seeded save rendered
+    // byte-identical to a first visit). The bank belongs on the front door, not
+    // three screens deep in SHOP. Hidden at zero — a first-run player has no
+    // bank to recognize and the pill would be pure noise.
+    if (this.save.coins > 0) {
+      s.appendChild(el(`<div class="fw-bank">🪙 ${this.save.coins}</div>`));
+    }
 
     const group = el(`<section class="fw-group" aria-labelledby="fw-free-play"></section>`);
     group.appendChild(el(`<div class="fw-group-label" id="fw-free-play">Choose a city · collect coins · grow big</div>`));
     const chips = el(`<div class="fw-chips"></div>`);
     for (const sc of FREE_PLAY) {
+      // The SANDBOX entry carries no scene id; 'gallery' is startVoxelSandbox's
+      // own default and the key recordSandboxResult writes under.
+      const rec = (this.save.sandbox || {})[sc.scene || 'gallery'];
+      const progress = rec && rec.completions > 0
+        ? `<span class="fw-chip-progress">CLEARED ×${rec.completions} · BEST SIZE ${rec.bestSize}</span>` : '';
       const chip = el(`<button type="button" class="fw-chip">
         <span class="fw-chip-name">${sc.name}</span>
         <span class="fw-chip-sub">${sc.sub}</span>
+        ${progress}
         ${sc.tag ? `<span class="fw-chip-tag">${sc.tag}</span>` : ''}
       </button>`);
       chip.onclick = () => this.actions.startVoxelSandbox(sc.scene);
@@ -130,10 +147,13 @@ export class Screens {
   showSandboxResults(sim, onContinue) {
     this.clear();
     const coins = sim.coinsCollected * 2 + 35;
+    // Bank line projects the post-award total: recordSandboxResult runs in the
+    // continue callback, so at render time save.coins is still pre-award.
     const s = el(`<div class="screen"><h2>GOAL COMPLETE</h2><div class="results-stats">
       <div>${sim.goal.name}</div><div>City cleared <b>${Math.round(sim.hole.rawMass / sim.totalMass * 100)}%</b></div>
       <div>Coins found <b>${sim.coinsCollected}/${sim.coins.length}</b></div>
-      <div>Finish bonus <b>+35</b></div><div>Coins earned <b>+${coins}</b></div></div></div>`);
+      <div>Finish bonus <b>+35</b></div><div>Coins earned <b>+${coins}</b></div>
+      <div>Bank <b>🪙 ${this.save.coins + coins}</b></div></div></div>`);
     const again = el(`<button class="btn">PLAY AGAIN</button>`); again.onclick = () => onContinue(false, coins);
     const cities = el(`<button class="btn secondary">CITIES</button>`); cities.onclick = () => onContinue(true, coins);
     s.append(again, cities); this.root.appendChild(s); this.current = 'results';
@@ -217,7 +237,7 @@ export class Screens {
       </div></div>`);
     const cont = el(`<button class="btn">${sim.won ? 'CONTINUE' : 'RETRY'}</button>`);
     cont.onclick = () => onContinue(stars, coins);
-    const map = el(`<button class="btn secondary">WORLD MAP</button>`);
+    const map = el(`<button class="btn secondary">CITIES</button>`);
     map.onclick = () => { onContinue(stars, coins, true); };
     s.append(cont, map);
     this.root.appendChild(s);
@@ -231,10 +251,34 @@ export class Screens {
     resume.onclick = () => this.actions.resume();
     const settings = el(`<button class="btn secondary">SETTINGS</button>`);
     settings.onclick = () => this.showSettings(() => this.showPause());
-    const restart = el(`<button class="btn secondary">RESTART</button>`);
-    restart.onclick = () => this.actions.restart();
-    const quit = el(`<button class="btn secondary">WORLD MAP</button>`);
-    quit.onclick = () => this.actions.quitToMap();
+    // RESTART and CITIES both discard the run, and pause is only reachable
+    // mid-run — so both ask once before throwing the run away (playtest
+    // finding: silent mid-run progress loss). Two-step inline confirm, not a
+    // modal: the pause screen deliberately has no dialogs. First click arms
+    // the button, second acts, clicking anywhere else disarms it.
+    const armable = (label, act) => {
+      const btn = el(`<button class="btn secondary">${label}</button>`);
+      btn.onclick = () => {
+        if (btn.dataset.armed) { act(); return; }
+        btn.dataset.armed = '1';
+        btn.textContent = `${label} — SURE?`;
+        btn.classList.add('danger');
+        const disarm = (e) => {
+          if (e.target === btn) return;
+          delete btn.dataset.armed;
+          btn.textContent = label;
+          btn.classList.remove('danger');
+          s.removeEventListener('pointerdown', disarm, true);
+        };
+        s.addEventListener('pointerdown', disarm, true);
+      };
+      return btn;
+    };
+    const restart = armable('RESTART', () => this.actions.restart());
+    // CITIES, not WORLD MAP: the button has always landed on the title/city
+    // shelf and no map exists (showWorldMap is an alias for showTitle). The
+    // old label promised a reorientation hub and delivered the front door.
+    const quit = armable('CITIES', () => this.actions.quitToMap());
     s.append(resume, settings, restart, quit);
     this.root.appendChild(s);
     this.current = 'pause';
@@ -273,6 +317,39 @@ export class Screens {
     panel.appendChild(toggle('🌤 Pretty shadows', 'shadows'));
     panel.appendChild(toggle('🫧 Less movement', 'reducedMotion'));
     panel.appendChild(toggle('⚡ Smoother play', 'perfMode'));
+
+    // Full controls listing — every ability gets its own keybind. FIRST in the
+    // panel, above the fold: the playtest showed nobody opens SETTINGS before
+    // playing, so the one place the scheme is written down has to be the first
+    // thing seen when anyone does (and the READY gate now carries the short
+    // version at point of play).
+    const ctlTitle = el(`<h3 style="margin:18px 0 4px">CONTROLS</h3>`);
+    panel.appendChild(ctlTitle);
+    const ctl = (label, keys) => panel.appendChild(
+      el(`<div class="set-row"><span class="set-label">${label}</span>
+        <span class="set-val">${keys}</span></div>`));
+    // One flat list, no sub-headers. There used to be CITY PLAY / CITY LEVELS /
+    // GENERAL groups, and the first two were byte-identical — CITY LEVELS
+    // documented the campaign, which a137054 retired. showTitle() offers only
+    // sandbox scenes plus SHOP/SETTINGS now, so there is no route to a campaign
+    // level and no second scheme left to distinguish.
+    ctl('Drive forward', 'W / ↑');
+    ctl('Reverse', 'S / ↓');
+    ctl('Turn left', 'A / ←');
+    ctl('Turn right', 'D / →');
+    ctl('Orbit camera', 'Q / E');
+    ctl('Zoom in / out', 'R / F');
+    ctl('Pause', 'Esc');
+    // Touch is three separate bindings, so it gets three rows. It was one row
+    // reading 'left ½ steers · right ½ looks · pinch zooms', which was ~300px of
+    // value on a 276px row at 320px — no layout saves that, and trimming the
+    // wording until it happened to fit would break again on the next edit.
+    // Splitting also matches how every other line here reads: action, then
+    // binding. Left half is direct steer (the drag names a screen direction and
+    // the hole turns to face it), not a heading nudge.
+    ctl('Steer (touch)', 'drag left ½');
+    ctl('Look around (touch)', 'drag right ½');
+    ctl('Zoom (touch)', 'pinch two fingers');
 
     // Device quality. AUTO is the default and the only value that lets the live
     // watchdog work — the named tiers pin it, which is the point of choosing
@@ -376,9 +453,13 @@ export class Screens {
     panel.appendChild(sensRow);
 
     // Dev voxel-physics tuning — live-applied to the running sandbox via
-    // actions.applySettings(). Shipped with the game while in development.
-    const tuneTitle = el(`<h3 style="clear:both;margin:16px 0 4px">CITY FEEL</h3>`);
-    panel.appendChild(tuneTitle);
+    // actions.applySettings(). Folded behind an ADVANCED disclosure (playtest
+    // finding: engineering-unit sliders sat in the player-facing list), with a
+    // reset because there was no way back to the shipped feel once moved.
+    // Values come from VOX_DEFAULTS so the reset can never drift from the
+    // defaults a fresh save starts on.
+    const fold = el(`<details class="set-details"><summary>ADVANCED — CITY FEEL</summary></details>`);
+    panel.appendChild(fold);
     const tune = (label, key, min, max, step, fmt) => {
       const row = el(`<div class="set-row"><span class="set-label">${label}</span>
         <span class="set-val"><span class="tune-val">${fmt(st[key])}</span>
@@ -390,45 +471,23 @@ export class Screens {
         val.textContent = fmt(st[key]);
         this.actions.applySettings();
       };
-      panel.appendChild(row);
+      fold.appendChild(row);
     };
     tune('Gravity', 'voxGravity', 26, 130, 1, (v) => `${v} · ${(v / 26).toFixed(1)}×`);
     tune('Collapse wave', 'voxWaveK', 0.05, 1, 0.05, (v) => `${v.toFixed(2)} s/m`);
     tune('Creak delay', 'voxCreak', 0, 2, 0.05, (v) => `${v.toFixed(2)}×`);
     tune('Hole speed', 'voxSpeed', 0.7, 3, 0.1, (v) => `${v.toFixed(1)}× · ~${(7.1 * v).toFixed(1)} m/s`);
     tune('Attraction pull', 'voxAttract', 0, 20, 1, (v) => `${v}`);
-
-    // Full controls listing — every ability gets its own keybind.
-    const ctlTitle = el(`<h3 style="margin:18px 0 4px">CONTROLS</h3>`);
-    panel.appendChild(ctlTitle);
-    const ctl = (label, keys) => panel.appendChild(
-      el(`<div class="set-row"><span class="set-label">${label}</span>
-        <span class="set-val">${keys}</span></div>`));
-    // One flat list, no sub-headers. There used to be CITY PLAY / CITY LEVELS /
-    // GENERAL groups, and the first two were byte-identical — CITY LEVELS
-    // documented the campaign, which a137054 retired. showTitle() offers only
-    // sandbox scenes plus SHOP/SETTINGS now, so there is no route to a campaign
-    // level and no second scheme left to distinguish.
-    ctl('Drive forward', 'W / ↑');
-    ctl('Reverse', 'S / ↓');
-    ctl('Turn left', 'A / ←');
-    ctl('Turn right', 'D / →');
-    ctl('Orbit camera', 'Q / E');
-    ctl('Zoom in / out', 'R / F');
-    ctl('Pause', 'Esc');
-    // Touch is three separate bindings, so it gets three rows. It was one row
-    // reading 'left ½ steers · right ½ looks · pinch zooms', which was ~300px of
-    // value on a 276px row at 320px — no layout saves that, and trimming the
-    // wording until it happened to fit would break again on the next edit.
-    // Splitting also matches how every other line here reads: action, then
-    // binding. Left half is direct steer (the drag names a screen direction and
-    // the hole turns to face it), not a heading nudge.
-    ctl('Steer (touch)', 'drag left ½');
-    ctl('Look around (touch)', 'drag right ½');
-    ctl('Zoom (touch)', 'pinch two fingers');
+    const reset = el(`<button class="btn secondary">RESET TO DEFAULTS</button>`);
+    reset.onclick = () => {
+      Object.assign(st, VOX_DEFAULTS);
+      this.actions.applySettings();
+      this.showSettings(onBack);
+    };
+    fold.appendChild(reset);
 
     s.appendChild(panel);
-    const back = el(`<button class="btn">BACK</button>`);
+    const back = el(`<button class="btn set-back">BACK</button>`);
     back.onclick = onBack;
     s.appendChild(back);
     this.root.appendChild(s);

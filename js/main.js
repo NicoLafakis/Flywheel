@@ -44,6 +44,7 @@ let world = null;
 let cam = null;
 let controls = null;
 let readyGate = null; // live mountReadyGate handle, so teardown can dismiss it
+let lastSandboxScene = 'gallery'; // for pause-menu RESTART in the sandbox
 let accumulator = 0;
 let lastTs = 0;
 let shopBonus = { clock: 0, growth: 0 };
@@ -157,7 +158,12 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
   },
   startVoxelSandbox(scene) { startVoxelSandbox(scene); },
   resume() { if (state === 'paused') { state = 'playing'; screens.clear(); } },
-  restart() { if (level) startLevel(); },
+  // Sandbox-aware: the old `if (level)` guard made RESTART a dead button in
+  // the sandbox (playtest finding — campaign ghost UI on the pause path).
+  restart() {
+    if (isVoxelSandbox) startVoxelSandbox(lastSandboxScene);
+    else if (level) startLevel();
+  },
   quitToMap() { teardownWorld(); state = 'menu'; hud.hide(); screens.showWorldMap(); },
   buy(id, price) {
     if (save.coins < price || save.ownedItems.includes(id)) return false;
@@ -208,6 +214,7 @@ function applyVoxTuning() {
 function startLevel() {
   teardownWorld();
   isVoxelSandbox = false;
+  document.body.classList.remove('mode-sandbox');
   computeShopBonus();
   const lvl = { ...level, clock: level.clock + shopBonus.clock };
   sim = new Sim(lvl, { growthBonus: shopBonus.growth });
@@ -315,16 +322,23 @@ const AUTHORED_SCENES = {
 };
 
 function startVoxelSandbox(scene = 'gallery') {
+  lastSandboxScene = scene;
   // The scene build blocks the main thread (~1.3 s sim + instancing for
   // Lower Manhattan) — show a loading frame first so the click never reads
   // as a frozen tab.
   const authored = AUTHORED_SCENES[scene];
-  const sceneLabel = authored ? authored.label : 'THE COLLECTION';
-  const hudLabel = authored ? authored.hud : 'THE COLLECTION';
+  // 'SANDBOX' everywhere for the gallery: the chip, the loading frame, the
+  // gate and the HUD used to split between 'SANDBOX' and 'THE COLLECTION' —
+  // two names for one door (remediation re-run residual).
+  const sceneLabel = authored ? authored.label : 'SANDBOX';
+  const hudLabel = authored ? authored.hud : 'SANDBOX';
   screens.showLoading(sceneLabel);
   requestAnimationFrame(() => requestAnimationFrame(() => {
     teardownWorld();
     isVoxelSandbox = true;
+    // Scopes the sandbox HUD hierarchy rules in main.css (coin pill dimmed,
+    // goal readout loud) without touching the campaign countdown styling.
+    document.body.classList.add('mode-sandbox');
     sim = new VoxelSandboxSim({ scene });
     window.__sim = sim; // debug/validator hook
     world = new VoxelWorld3D(canvas, sim, equippedSkinId());
@@ -437,7 +451,7 @@ function startVoxelSandbox(scene = 'gallery') {
       // bounds to frame, so use its movement bounds for the same zoom-in beat.
       cam.beginIntro({ minR: sim.bounds, sun: sunDirOf(world) });
       readyGate = mountReadyGate({
-        title: 'READY?', subtitle: 'COLLECTION', reducedMotion: save.settings.reducedMotion,
+        title: 'READY?', subtitle: 'SANDBOX', reducedMotion: save.settings.reducedMotion,
         onStart: () => { readyGate = null; blip(880, 0.14, 'triangle', 0.07); cam.releaseIntro(); },
       });
     }
@@ -659,6 +673,10 @@ window.addEventListener('keydown', (e) => {
   else if (e.code === 'Escape' && state === 'paused') { state = 'playing'; screens.clear(); }
 });
 
+// The boot splash (index.html) has done its job the moment the first screen
+// can mount — remove it before the title draws over it.
+const bootSplash = document.getElementById('boot-splash');
+if (bootSplash) bootSplash.remove();
 screens.showTitle();
 resize();
 requestAnimationFrame((ts) => { lastTs = ts; requestAnimationFrame(frame); });

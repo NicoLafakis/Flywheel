@@ -1,7 +1,5 @@
 // HUD: mass bar, timer, combo, level banner, minimap, toasts.
 
-import { SANDBOX_COIN_VALUE } from '../voxelsim.js';
-
 export class HUD {
   constructor() {
     this.root = document.getElementById('hud');
@@ -86,14 +84,22 @@ export class HUD {
     const h = sim.hole;
     this.massBar.style.background = '#ffd23f';
     const cleared = Math.min(1, h.rawMass / sim.totalMass);
+    // Live numeric progress, not a static banner: "GOAL: CLEAR 50%" never told
+    // the player whether they were at 0.1% or 10% (playtest finding — the bar
+    // was the only progress channel and it had no scale). SIZE rides the same
+    // line so the grow ladder is visible between size-up pops.
+    const goalPct = Math.round(sim.goal.targetFraction * 100);
     this.massLabel.textContent = cleared >= sim.goal.targetFraction
-      ? `${sim.goal.name} · GOAL REACHED`
-      : `GOAL: CLEAR 50% · ${sim.goal.name}`;
+      ? `${sim.goal.name} · GOAL REACHED · SIZE ${h.size}`
+      : `CLEARED ${Math.floor(cleared * 100)}% / ${goalPct}% OF THE CITY · SIZE ${h.size}`;
     this.massBar.style.width = `${(cleared * 100).toFixed(1)}%`;
-    this.timer.textContent = `${sim.coinsCollected}/${sim.coins.length} · ${SANDBOX_COIN_VALUE}`;
-    this.timer.textContent = `🪙 ${sim.coinsCollected}/${sim.coins.length} · +${SANDBOX_COIN_VALUE}`;
+    // No "+2" suffix: the per-coin value read as an unexplained orphan on the
+    // HUD; the payout is explained on the results screen where the math lives.
+    this.timer.textContent = `🪙 ${sim.coinsCollected}/${sim.coins.length}`;
     this.timer.classList.remove('low');
-    if (h.chain >= 2) {
+    // Gated at the first chain that yields a REAL multiplier (x2 at 26): a
+    // "COMBO x1" pill is a non-event that reads as HUD noise (playtest finding).
+    if (h.chain >= 26) {
       this.comboLabel.classList.remove('hidden');
       this.comboLabel.textContent = `⚡ COMBO x${Math.floor((h.chain - 1) / 25) + 1}`;
       // escalate color/size with combo tier so big chains feel big

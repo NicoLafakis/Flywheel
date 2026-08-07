@@ -4,6 +4,9 @@ const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
 export const CURRENT_VERSION = 13;
 
+// dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
+export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2 };
+
 function defaultSettings() {
   return {
     invertX: false, invertY: false, shadows: true, camDist: 1, reducedMotion: false, sfxVol: 1, turnSens: 1, perfMode: false,
@@ -35,7 +38,7 @@ function defaultSettings() {
     // default does not.
     quality: 'auto',
     // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
-    voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2,
+    ...VOX_DEFAULTS,
   };
 }
 

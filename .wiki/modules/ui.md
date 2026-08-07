@@ -17,8 +17,8 @@ tying everything together.
 | File | Purpose |
 |------|---------|
 | `js/main.js` | Boot, state machine (menu/intro/playing/paused/results), loop, audio; branches campaign vs voxel sandbox (`isVoxelSandbox`) |
-| `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, toasts, `#big-pop` celebrations; `updateSandbox()` variant for the voxel mode (SIZE level + progress bar, elapsed clock, tiered combo) |
-| `js/ui/screens.js` | Title (branded landing: sprocket + `FLYWHEEL` wordmark + tagline plate, PLAY CTA, `FREE_PLAY`-driven voxel-scene chip shelf, quiet SHOP/SETTINGS), world map, shop, results, pause, mechanic intro |
+| `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, toasts, `#big-pop` celebrations; `updateSandbox()` variant for the voxel mode (live `CLEARED x% / 50% · SIZE n` readout, dimmed coin pill via `body.mode-sandbox`, combo pill gated at a real x2) |
+| `js/ui/screens.js` | Title (branded landing: sprocket + `FLYWHEEL` wordmark + tagline plate, PLAY BROOKLYN CTA, coin bank, `FREE_PLAY`-driven voxel-scene chip shelf with per-city cleared/best records, quiet SHOP/SETTINGS), shop, results, pause (two-step confirms for run-discarding buttons), mechanic intro |
 | `js/ui/ready.js` | Level-start "READY?" gate overlay (`mountReadyGate`) — the visual reference for the brand layer; renders the shared wordmark at gate scale over the live 3D establishing shot |
 | `js/ui/blockword.js` | Shared block-wordmark builder (`buildBlockWord`) — per-character gold slab letters with outline ring, extrude, deterministic index-derived tilt/stagger/bob. Used by both `screens.js` (`FLYWHEEL`) and `ready.js` (`READY?`) so the two never drift apart. See `.wiki/adr/0005-shared-brand-layer.md` |
 | `js/ui/sprocket.js` | Brand mark builder (`buildSprocket`) — rotating 12-tooth wheel with an empty center (the hole/protagonist), used on the landing screen |
@@ -48,6 +48,21 @@ tying everything together.
   shop shelf **is** the skin registry, not a separate list, so a new skin is
   a row in `skins.js` and nothing here changes. Geometry/animation for all 17
   skins lives in `skins.js`; see `.wiki/modules/render.md`.
+- Pause-screen buttons that discard the run (RESTART, CITIES) use a two-step
+  inline confirm (`armable` in `showPause`): first click arms red, second
+  acts, any other click disarms. No modals — the pause style is dialog-free.
+  `actions.restart` is sandbox-aware via `main.js`'s `lastSandboxScene`.
+- Dev voxel-physics sliders live in a collapsed `ADVANCED — CITY FEEL`
+  `<details>` with RESET TO DEFAULTS driven by `VOX_DEFAULTS` (exported from
+  `save.js` and spread into `defaultSettings()`, so reset and fresh-save
+  defaults cannot drift).
+- The READY gate carries a control cheat-sheet (`.rg-controls`, key/tap split
+  like `.rg-hint`) plus the tier rule in one sentence (`.rg-rule`) — the short
+  version of the SETTINGS CONTROLS list, which itself sits directly under the
+  first toggles, above the fold.
+- `index.html` has a static `#boot-splash` that `main.js` removes before the
+  first screen mounts; `#btn-pause` uses CSS-drawn bars (`.pause-glyph`), not
+  a text glyph (❙❙ fell back to a missing-glyph box on some systems).
 - Settings panel has a "Tap to move" toggle (`settings.pointMove`) for the
   optional point-to-move control scheme — off by default, WASD/joystick
   unaffected either way. See `.wiki/modules/render.md`'s point-to-move entry
