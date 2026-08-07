@@ -1,0 +1,3197 @@
+{
+  "meta": {
+    "version": 1,
+    "generatedAt": "2026-08-07T16:14:23+00:00",
+    "engine": "tree-sitter-language-pack+ast",
+    "root": "C:\\programming\\nico-apps\\Flywheel",
+    "counts": {
+      "files": 30,
+      "symbols": 359,
+      "edges": 68,
+      "modules": 2,
+      "reusedFromCache": 0
+    }
+  },
+  "files": {
+    "js/camera.js": {
+      "lang": "javascript",
+      "hash": "e4dad7a8fa9d15f3d261fb21bce066d4c3eaee5adc718accaab9965189a859ed",
+      "loc": 1205,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "ChaseCamera",
+          "kind": "class",
+          "line": 223,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "three",
+          "resolved": null,
+          "external": true
+        }
+      ]
+    },
+    "js/citygen.js": {
+      "lang": "javascript",
+      "hash": "d83b7ad5660adab30a3320752a17e7b6adeae50f9ceca63f329bde3beca6a68e",
+      "loc": 478,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "SpatialHash",
+          "kind": "class",
+          "line": 15,
+          "exported": true
+        },
+        {
+          "name": "overlapsAny",
+          "kind": "function",
+          "line": 53,
+          "exported": false
+        },
+        {
+          "name": "tryPlace",
+          "kind": "function",
+          "line": 64,
+          "exported": false
+        },
+        {
+          "name": "TileGrid",
+          "kind": "class",
+          "line": 80,
+          "exported": false
+        },
+        {
+          "name": "snap",
+          "kind": "function",
+          "line": 129,
+          "exported": false
+        },
+        {
+          "name": "generateCity",
+          "kind": "function",
+          "line": 137,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "./rng.js",
+          "resolved": "js/rng.js",
+          "external": false
+        },
+        {
+          "raw": "./tiers.js",
+          "resolved": "js/tiers.js",
+          "external": false
+        }
+      ]
+    },
+    "js/controls.js": {
+      "lang": "javascript",
+      "hash": "d3c0c7ea8c2808bb03abacba607266d139bbf83bced83604d02768adf3f3fcc2",
+      "loc": 1310,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "Controls",
+          "kind": "class",
+          "line": 192,
+          "exported": true
+        }
+      ],
+      "imports": []
+    },
+    "js/levels.js": {
+      "lang": "javascript",
+      "hash": "d6444317e779dd53eb8d3548a27892a041c85503100e70b0dbdf2e5c966318f0",
+      "loc": 90,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "levelDef",
+          "kind": "function",
+          "line": 21,
+          "exported": false
+        },
+        {
+          "name": "getLevel",
+          "kind": "function",
+          "line": 76,
+          "exported": true
+        },
+        {
+          "name": "starsForResult",
+          "kind": "function",
+          "line": 79,
+          "exported": true
+        },
+        {
+          "name": "coinsForResult",
+          "kind": "function",
+          "line": 87,
+          "exported": true
+        }
+      ],
+      "imports": []
+    },
+    "js/main.js": {
+      "lang": "javascript",
+      "hash": "d613b005146553dcb4c7c74941ba35f3fbd19552a9f3d26ac39204aa6e916a1d",
+      "loc": 682,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "blip",
+          "kind": "function",
+          "line": 22,
+          "exported": false
+        },
+        {
+          "name": "wantedTier",
+          "kind": "function",
+          "line": 104,
+          "exported": false
+        },
+        {
+          "name": "applyQuality",
+          "kind": "function",
+          "line": 112,
+          "exported": false
+        },
+        {
+          "name": "startQuality",
+          "kind": "function",
+          "line": 126,
+          "exported": false
+        },
+        {
+          "name": "computeShopBonus",
+          "kind": "function",
+          "line": 134,
+          "exported": false
+        },
+        {
+          "name": "equippedSkinId",
+          "kind": "function",
+          "line": 143,
+          "exported": false
+        },
+        {
+          "name": "applyVoxTuning",
+          "kind": "function",
+          "line": 203,
+          "exported": false
+        },
+        {
+          "name": "startLevel",
+          "kind": "function",
+          "line": 214,
+          "exported": false
+        },
+        {
+          "name": "sunDirOf",
+          "kind": "function",
+          "line": 261,
+          "exported": false
+        },
+        {
+          "name": "startVoxelSandbox",
+          "kind": "function",
+          "line": 324,
+          "exported": false
+        },
+        {
+          "name": "teardownWorld",
+          "kind": "function",
+          "line": 461,
+          "exported": false
+        },
+        {
+          "name": "endLevel",
+          "kind": "function",
+          "line": 467,
+          "exported": false
+        },
+        {
+          "name": "frame",
+          "kind": "function",
+          "line": 486,
+          "exported": false
+        },
+        {
+          "name": "endSandbox",
+          "kind": "function",
+          "line": 645,
+          "exported": false
+        },
+        {
+          "name": "resize",
+          "kind": "function",
+          "line": 656,
+          "exported": false
+        }
+      ],
+      "imports": [
+        {
+          "raw": "./camera.js",
+          "resolved": "js/camera.js",
+          "external": false
+        },
+        {
+          "raw": "./controls.js",
+          "resolved": "js/controls.js",
+          "external": false
+        },
+        {
+          "raw": "./levels.js",
+          "resolved": "js/levels.js",
+          "external": false
+        },
+        {
+          "raw": "./quality.js",
+          "resolved": "js/quality.js",
+          "external": false
+        },
+        {
+          "raw": "./save.js",
+          "resolved": "js/save.js",
+          "external": false
+        },
+        {
+          "raw": "./sim.js",
+          "resolved": "js/sim.js",
+          "external": false
+        },
+        {
+          "raw": "./ui/hud.js",
+          "resolved": "js/ui/hud.js",
+          "external": false
+        },
+        {
+          "raw": "./ui/ready.js",
+          "resolved": "js/ui/ready.js",
+          "external": false
+        },
+        {
+          "raw": "./ui/screens.js",
+          "resolved": "js/ui/screens.js",
+          "external": false
+        },
+        {
+          "raw": "./voxelsim.js",
+          "resolved": "js/voxelsim.js",
+          "external": false
+        },
+        {
+          "raw": "./voxelworld.js",
+          "resolved": "js/voxelworld.js",
+          "external": false
+        },
+        {
+          "raw": "./world3d.js",
+          "resolved": "js/world3d.js",
+          "external": false
+        }
+      ]
+    },
+    "js/quality.js": {
+      "lang": "javascript",
+      "hash": "3de7b575cce57882e40f3a8d461fbf59dbf17b3e07c921820d883b74d3a43566",
+      "loc": 294,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "unmaskedRenderer",
+          "kind": "function",
+          "line": 67,
+          "exported": true
+        },
+        {
+          "name": "detectTier",
+          "kind": "function",
+          "line": 96,
+          "exported": true
+        },
+        {
+          "name": "matchesCoarsePointer",
+          "kind": "function",
+          "line": 131,
+          "exported": false
+        },
+        {
+          "name": "screenPixels",
+          "kind": "function",
+          "line": 138,
+          "exported": false
+        },
+        {
+          "name": "QualityWatchdog",
+          "kind": "class",
+          "line": 186,
+          "exported": true
+        }
+      ],
+      "imports": []
+    },
+    "js/rng.js": {
+      "lang": "javascript",
+      "hash": "e46cae3fa88c332dc71897565b9b8ec2e12326094b904c86a2896316063ac30b",
+      "loc": 37,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "hashString",
+          "kind": "function",
+          "line": 3,
+          "exported": true
+        },
+        {
+          "name": "mulberry32",
+          "kind": "function",
+          "line": 12,
+          "exported": true
+        },
+        {
+          "name": "RNG",
+          "kind": "class",
+          "line": 22,
+          "exported": true
+        }
+      ],
+      "imports": []
+    },
+    "js/save.js": {
+      "lang": "javascript",
+      "hash": "50ff8a2c5847a56ee78cc87cf335fd68c8b1588e4ada9906328ae0705de9facc",
+      "loc": 299,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "defaultSettings",
+          "kind": "function",
+          "line": 10,
+          "exported": false
+        },
+        {
+          "name": "freshSave",
+          "kind": "function",
+          "line": 60,
+          "exported": false
+        },
+        {
+          "name": "loadSave",
+          "kind": "function",
+          "line": 211,
+          "exported": true
+        },
+        {
+          "name": "quarantine",
+          "kind": "function",
+          "line": 248,
+          "exported": false
+        },
+        {
+          "name": "storeSave",
+          "kind": "function",
+          "line": 252,
+          "exported": true
+        },
+        {
+          "name": "recordLevelResult",
+          "kind": "function",
+          "line": 265,
+          "exported": true
+        },
+        {
+          "name": "recordSandboxResult",
+          "kind": "function",
+          "line": 278,
+          "exported": true
+        },
+        {
+          "name": "isLevelUnlocked",
+          "kind": "function",
+          "line": 295,
+          "exported": true
+        }
+      ],
+      "imports": []
+    },
+    "js/sim.js": {
+      "lang": "javascript",
+      "hash": "6c99f91307a18cb27e4c6855c2f883385b8abe7b74a47fd2ed555feb087840ec",
+      "loc": 281,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "comboMultiplier",
+          "kind": "function",
+          "line": 11,
+          "exported": true
+        },
+        {
+          "name": "makeHole",
+          "kind": "function",
+          "line": 15,
+          "exported": false
+        },
+        {
+          "name": "holeRadius",
+          "kind": "function",
+          "line": 23,
+          "exported": false
+        },
+        {
+          "name": "swallowDuration",
+          "kind": "function",
+          "line": 30,
+          "exported": false
+        },
+        {
+          "name": "inMouth",
+          "kind": "function",
+          "line": 34,
+          "exported": false
+        },
+        {
+          "name": "contactAndProcess",
+          "kind": "function",
+          "line": 40,
+          "exported": false
+        },
+        {
+          "name": "completeEat",
+          "kind": "function",
+          "line": 78,
+          "exported": false
+        },
+        {
+          "name": "Sim",
+          "kind": "class",
+          "line": 90,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "./citygen.js",
+          "resolved": "js/citygen.js",
+          "external": false
+        },
+        {
+          "raw": "./rng.js",
+          "resolved": "js/rng.js",
+          "external": false
+        },
+        {
+          "raw": "./tiers.js",
+          "resolved": "js/tiers.js",
+          "external": false
+        }
+      ]
+    },
+    "js/skins.js": {
+      "lang": "javascript",
+      "hash": "4751830bf765d08d678d4d24d7f783ae53bc4f4d3728e5a82dbbfa285533c122",
+      "loc": 2321,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "clamp01",
+          "kind": "function",
+          "line": 57,
+          "exported": false
+        },
+        {
+          "name": "smooth",
+          "kind": "function",
+          "line": 58,
+          "exported": false
+        },
+        {
+          "name": "partMaterial",
+          "kind": "function",
+          "line": 63,
+          "exported": false
+        },
+        {
+          "name": "finishPart",
+          "kind": "function",
+          "line": 81,
+          "exported": false
+        },
+        {
+          "name": "reveal",
+          "kind": "function",
+          "line": 127,
+          "exported": false
+        },
+        {
+          "name": "ringPart",
+          "kind": "function",
+          "line": 139,
+          "exported": false
+        },
+        {
+          "name": "tickPart",
+          "kind": "function",
+          "line": 171,
+          "exported": false
+        },
+        {
+          "name": "barTeeth",
+          "kind": "function",
+          "line": 198,
+          "exported": false
+        },
+        {
+          "name": "lidPart",
+          "kind": "function",
+          "line": 222,
+          "exported": false
+        },
+        {
+          "name": "worldQuads",
+          "kind": "function",
+          "line": 275,
+          "exported": false
+        },
+        {
+          "name": "s2l",
+          "kind": "function",
+          "line": 335,
+          "exported": false
+        },
+        {
+          "name": "rgb",
+          "kind": "function",
+          "line": 336,
+          "exported": false
+        },
+        {
+          "name": "mixc",
+          "kind": "function",
+          "line": 337,
+          "exported": false
+        },
+        {
+          "name": "safeb",
+          "kind": "function",
+          "line": 347,
+          "exported": false
+        },
+        {
+          "name": "setRim",
+          "kind": "function",
+          "line": 349,
+          "exported": false
+        },
+        {
+          "name": "reach",
+          "kind": "function",
+          "line": 360,
+          "exported": false
+        },
+        {
+          "name": "farBoost",
+          "kind": "function",
+          "line": 367,
+          "exported": false
+        },
+        {
+          "name": "biteFromEvent",
+          "kind": "function",
+          "line": 384,
+          "exported": true
+        },
+        {
+          "name": "Chomp",
+          "kind": "class",
+          "line": 429,
+          "exported": false
+        },
+        {
+          "name": "Maw",
+          "kind": "class",
+          "line": 488,
+          "exported": false
+        },
+        {
+          "name": "buildBaseline",
+          "kind": "function",
+          "line": 681,
+          "exported": false
+        },
+        {
+          "name": "buildFunnel",
+          "kind": "function",
+          "line": 695,
+          "exported": false
+        },
+        {
+          "name": "buildImpressions",
+          "kind": "function",
+          "line": 727,
+          "exported": false
+        },
+        {
+          "name": "buildSprocket",
+          "kind": "function",
+          "line": 751,
+          "exported": false
+        },
+        {
+          "name": "buildBurnRate",
+          "kind": "function",
+          "line": 782,
+          "exported": false
+        },
+        {
+          "name": "buildPipeline",
+          "kind": "function",
+          "line": 809,
+          "exported": false
+        },
+        {
+          "name": "buildColdOutreach",
+          "kind": "function",
+          "line": 855,
+          "exported": false
+        },
+        {
+          "name": "buildRadar",
+          "kind": "function",
+          "line": 890,
+          "exported": false
+        },
+        {
+          "name": "buildTAM",
+          "kind": "function",
+          "line": 935,
+          "exported": false
+        },
+        {
+          "name": "buildABTest",
+          "kind": "function",
+          "line": 974,
+          "exported": false
+        },
+        {
+          "name": "buildAttribution",
+          "kind": "function",
+          "line": 1017,
+          "exported": false
+        },
+        {
+          "name": "buildCompounding",
+          "kind": "function",
+          "line": 1082,
+          "exported": false
+        },
+        {
+          "name": "buildShredder",
+          "kind": "function",
+          "line": 1156,
+          "exported": false
+        },
+        {
+          "name": "buildCloser",
+          "kind": "function",
+          "line": 1212,
+          "exported": false
+        },
+        {
+          "name": "buildEyeballs",
+          "kind": "function",
+          "line": 1251,
+          "exported": false
+        },
+        {
+          "name": "buildThroat",
+          "kind": "function",
+          "line": 1312,
+          "exported": false
+        },
+        {
+          "name": "buildChomper",
+          "kind": "function",
+          "line": 1379,
+          "exported": false
+        },
+        {
+          "name": "logoPoly",
+          "kind": "function",
+          "line": 1471,
+          "exported": false
+        },
+        {
+          "name": "logoPart",
+          "kind": "function",
+          "line": 1575,
+          "exported": false
+        },
+        {
+          "name": "logoTexRecord",
+          "kind": "function",
+          "line": 1718,
+          "exported": false
+        },
+        {
+          "name": "applyLogoTex",
+          "kind": "function",
+          "line": 1761,
+          "exported": false
+        },
+        {
+          "name": "logoTexPart",
+          "kind": "function",
+          "line": 1776,
+          "exported": false
+        },
+        {
+          "name": "nameTexRecord",
+          "kind": "function",
+          "line": 1861,
+          "exported": false
+        },
+        {
+          "name": "namePart",
+          "kind": "function",
+          "line": 1915,
+          "exported": false
+        },
+        {
+          "name": "buildPartner",
+          "kind": "function",
+          "line": 1951,
+          "exported": false
+        },
+        {
+          "name": "makeSkin",
+          "kind": "function",
+          "line": 2125,
+          "exported": true
+        },
+        {
+          "name": "preloadLogoTextures",
+          "kind": "function",
+          "line": 2184,
+          "exported": true
+        },
+        {
+          "name": "bakeSkinThumbnails",
+          "kind": "function",
+          "line": 2221,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "three",
+          "resolved": null,
+          "external": true
+        }
+      ]
+    },
+    "js/tiers.js": {
+      "lang": "javascript",
+      "hash": "e40e7cc4ba69e4d6517818dca72e6ebb3ddc9983bc1cacc91b0ec10cde8385a0",
+      "loc": 52,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "radiusForTier",
+          "kind": "function",
+          "line": 7,
+          "exported": true
+        },
+        {
+          "name": "playerRadiusForMass",
+          "kind": "function",
+          "line": 27,
+          "exported": true
+        },
+        {
+          "name": "isEdible",
+          "kind": "function",
+          "line": 37,
+          "exported": true
+        },
+        {
+          "name": "edibleTierUpTo",
+          "kind": "function",
+          "line": 41,
+          "exported": true
+        },
+        {
+          "name": "playerSpeedForRadius",
+          "kind": "function",
+          "line": 50,
+          "exported": true
+        }
+      ],
+      "imports": []
+    },
+    "js/ui/blockword.js": {
+      "lang": "javascript",
+      "hash": "9b77c4d0274ef04104564dc5dbf3db6fda3882752d46d5713c920794019b9f91",
+      "loc": 75,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "buildBlockWord",
+          "kind": "function",
+          "line": 23,
+          "exported": true
+        }
+      ],
+      "imports": []
+    },
+    "js/ui/hud.js": {
+      "lang": "javascript",
+      "hash": "74e3a5d8d78ae4b70cb5789eecbf37ce86b1775ee2e65919431083bdb1374c8a",
+      "loc": 149,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "HUD",
+          "kind": "class",
+          "line": 3,
+          "exported": true
+        }
+      ],
+      "imports": []
+    },
+    "js/ui/ready.js": {
+      "lang": "javascript",
+      "hash": "61786273001fee37b84fad5ea1c24aba198916cd034f0201d76f0117ac9143cd",
+      "loc": 200,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "hudMute",
+          "kind": "function",
+          "line": 29,
+          "exported": false
+        },
+        {
+          "name": "hudRestore",
+          "kind": "function",
+          "line": 38,
+          "exported": false
+        },
+        {
+          "name": "el",
+          "kind": "function",
+          "line": 57,
+          "exported": false
+        },
+        {
+          "name": "prefersReducedMotion",
+          "kind": "function",
+          "line": 63,
+          "exported": false
+        },
+        {
+          "name": "isStartKey",
+          "kind": "function",
+          "line": 70,
+          "exported": false
+        },
+        {
+          "name": "mountReadyGate",
+          "kind": "function",
+          "line": 90,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "./blockword.js",
+          "resolved": "js/ui/blockword.js",
+          "external": false
+        }
+      ]
+    },
+    "js/ui/screens.js": {
+      "lang": "javascript",
+      "hash": "c9a9b24487b4a0382d1a9aed91f4d26d9a7e3b1fc715dfc7b557196cd96e526b",
+      "loc": 496,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "el",
+          "kind": "function",
+          "line": 40,
+          "exported": false
+        },
+        {
+          "name": "Screens",
+          "kind": "class",
+          "line": 46,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "../controls.js",
+          "resolved": "js/controls.js",
+          "external": false
+        },
+        {
+          "raw": "../levels.js",
+          "resolved": "js/levels.js",
+          "external": false
+        },
+        {
+          "raw": "../save.js",
+          "resolved": "js/save.js",
+          "external": false
+        },
+        {
+          "raw": "../skins.js",
+          "resolved": "js/skins.js",
+          "external": false
+        },
+        {
+          "raw": "./blockword.js",
+          "resolved": "js/ui/blockword.js",
+          "external": false
+        },
+        {
+          "raw": "./sprocket.js",
+          "resolved": "js/ui/sprocket.js",
+          "external": false
+        }
+      ]
+    },
+    "js/ui/sprocket.js": {
+      "lang": "javascript",
+      "hash": "aea41f521678f8e7a3f35a2e495f6415aea00de964c207e7b6d5d961225945f9",
+      "loc": 46,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "buildSprocket",
+          "kind": "function",
+          "line": 20,
+          "exported": true
+        }
+      ],
+      "imports": []
+    },
+    "js/voxelkit.js": {
+      "lang": "javascript",
+      "hash": "2a780d6dea870d956e249f7c3dca3e050fa723850b9d9ef25ba171e8c7d7f226",
+      "loc": 2771,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "sedan",
+          "kind": "function",
+          "line": 39,
+          "exported": true
+        },
+        {
+          "name": "bus",
+          "kind": "function",
+          "line": 64,
+          "exported": true
+        },
+        {
+          "name": "boxVan",
+          "kind": "function",
+          "line": 89,
+          "exported": true
+        },
+        {
+          "name": "bigTruck",
+          "kind": "function",
+          "line": 116,
+          "exported": true
+        },
+        {
+          "name": "motorcycle",
+          "kind": "function",
+          "line": 127,
+          "exported": true
+        },
+        {
+          "name": "tree",
+          "kind": "function",
+          "line": 135,
+          "exported": true
+        },
+        {
+          "name": "F",
+          "kind": "function",
+          "line": 147,
+          "exported": false
+        },
+        {
+          "name": "B25",
+          "kind": "function",
+          "line": 148,
+          "exported": false
+        },
+        {
+          "name": "lampPost",
+          "kind": "function",
+          "line": 152,
+          "exported": true
+        },
+        {
+          "name": "hydrant",
+          "kind": "function",
+          "line": 159,
+          "exported": true
+        },
+        {
+          "name": "trashBin",
+          "kind": "function",
+          "line": 168,
+          "exported": true
+        },
+        {
+          "name": "mailbox",
+          "kind": "function",
+          "line": 175,
+          "exported": true
+        },
+        {
+          "name": "bench",
+          "kind": "function",
+          "line": 182,
+          "exported": true
+        },
+        {
+          "name": "trafficLight",
+          "kind": "function",
+          "line": 190,
+          "exported": true
+        },
+        {
+          "name": "newsstand",
+          "kind": "function",
+          "line": 199,
+          "exported": true
+        },
+        {
+          "name": "hotDogCart",
+          "kind": "function",
+          "line": 205,
+          "exported": true
+        },
+        {
+          "name": "subwayEntrance",
+          "kind": "function",
+          "line": 214,
+          "exported": true
+        },
+        {
+          "name": "tower",
+          "kind": "function",
+          "line": 230,
+          "exported": true
+        },
+        {
+          "name": "megaShell",
+          "kind": "function",
+          "line": 285,
+          "exported": true
+        },
+        {
+          "name": "suspensionBridge",
+          "kind": "function",
+          "line": 311,
+          "exported": true
+        },
+        {
+          "name": "stadiumBowl",
+          "kind": "function",
+          "line": 412,
+          "exported": true
+        },
+        {
+          "name": "refineryMass",
+          "kind": "function",
+          "line": 469,
+          "exported": true
+        },
+        {
+          "name": "museumBlock",
+          "kind": "function",
+          "line": 512,
+          "exported": true
+        },
+        {
+          "name": "triumphalArch",
+          "kind": "function",
+          "line": 538,
+          "exported": true
+        },
+        {
+          "name": "trussViaduct",
+          "kind": "function",
+          "line": 576,
+          "exported": true
+        },
+        {
+          "name": "parachuteTower",
+          "kind": "function",
+          "line": 605,
+          "exported": true
+        },
+        {
+          "name": "zebra",
+          "kind": "function",
+          "line": 660,
+          "exported": true
+        },
+        {
+          "name": "laneDashes",
+          "kind": "function",
+          "line": 677,
+          "exported": true
+        },
+        {
+          "name": "pathRibbon",
+          "kind": "function",
+          "line": 701,
+          "exported": true
+        },
+        {
+          "name": "vehicleBBox",
+          "kind": "function",
+          "line": 728,
+          "exported": true
+        },
+        {
+          "name": "generateBlockers",
+          "kind": "function",
+          "line": 742,
+          "exported": true
+        },
+        {
+          "name": "crateStack",
+          "kind": "function",
+          "line": 796,
+          "exported": true
+        },
+        {
+          "name": "bikeRack",
+          "kind": "function",
+          "line": 815,
+          "exported": true
+        },
+        {
+          "name": "cafeTable",
+          "kind": "function",
+          "line": 830,
+          "exported": true
+        },
+        {
+          "name": "newsBox",
+          "kind": "function",
+          "line": 847,
+          "exported": true
+        },
+        {
+          "name": "trashBags",
+          "kind": "function",
+          "line": 856,
+          "exported": true
+        },
+        {
+          "name": "bollard",
+          "kind": "function",
+          "line": 865,
+          "exported": true
+        },
+        {
+          "name": "planter",
+          "kind": "function",
+          "line": 871,
+          "exported": true
+        },
+        {
+          "name": "signPost",
+          "kind": "function",
+          "line": 884,
+          "exported": true
+        },
+        {
+          "name": "signText",
+          "kind": "function",
+          "line": 921,
+          "exported": true
+        },
+        {
+          "name": "sandwichBoard",
+          "kind": "function",
+          "line": 961,
+          "exported": true
+        },
+        {
+          "name": "waterTower",
+          "kind": "function",
+          "line": 971,
+          "exported": true
+        },
+        {
+          "name": "stoop",
+          "kind": "function",
+          "line": 987,
+          "exported": true
+        },
+        {
+          "name": "fireEscape",
+          "kind": "function",
+          "line": 1007,
+          "exported": true
+        },
+        {
+          "name": "brownstone",
+          "kind": "function",
+          "line": 1028,
+          "exported": true
+        },
+        {
+          "name": "shippingContainer",
+          "kind": "function",
+          "line": 1058,
+          "exported": true
+        },
+        {
+          "name": "marketStall",
+          "kind": "function",
+          "line": 1069,
+          "exported": true
+        },
+        {
+          "name": "ferrisWheel",
+          "kind": "function",
+          "line": 1093,
+          "exported": true
+        },
+        {
+          "name": "woodCoaster",
+          "kind": "function",
+          "line": 1161,
+          "exported": true
+        },
+        {
+          "name": "carousel",
+          "kind": "function",
+          "line": 1198,
+          "exported": true
+        },
+        {
+          "name": "gantryCrane",
+          "kind": "function",
+          "line": 1233,
+          "exported": true
+        },
+        {
+          "name": "basinRim",
+          "kind": "function",
+          "line": 1274,
+          "exported": true
+        },
+        {
+          "name": "parkWall",
+          "kind": "function",
+          "line": 1302,
+          "exported": true
+        },
+        {
+          "name": "fenceRun",
+          "kind": "function",
+          "line": 1322,
+          "exported": true
+        },
+        {
+          "name": "rockMound",
+          "kind": "function",
+          "line": 1344,
+          "exported": true
+        },
+        {
+          "name": "stoneArch",
+          "kind": "function",
+          "line": 1369,
+          "exported": true
+        },
+        {
+          "name": "pergola",
+          "kind": "function",
+          "line": 1405,
+          "exported": true
+        },
+        {
+          "name": "pavilion",
+          "kind": "function",
+          "line": 1433,
+          "exported": true
+        },
+        {
+          "name": "statue",
+          "kind": "function",
+          "line": 1458,
+          "exported": true
+        },
+        {
+          "name": "treeGrove",
+          "kind": "function",
+          "line": 1481,
+          "exported": true
+        },
+        {
+          "name": "crenellation",
+          "kind": "function",
+          "line": 1509,
+          "exported": true
+        },
+        {
+          "name": "castleFolly",
+          "kind": "function",
+          "line": 1532,
+          "exported": true
+        },
+        {
+          "name": "amphitheater",
+          "kind": "function",
+          "line": 1590,
+          "exported": true
+        },
+        {
+          "name": "obelisk",
+          "kind": "function",
+          "line": 1627,
+          "exported": true
+        },
+        {
+          "name": "grandStair",
+          "kind": "function",
+          "line": 1659,
+          "exported": true
+        },
+        {
+          "name": "balustrade",
+          "kind": "function",
+          "line": 1683,
+          "exported": true
+        },
+        {
+          "name": "archBridge",
+          "kind": "function",
+          "line": 1709,
+          "exported": true
+        },
+        {
+          "name": "tieredFountain",
+          "kind": "function",
+          "line": 1741,
+          "exported": true
+        },
+        {
+          "name": "halfDomeShell",
+          "kind": "function",
+          "line": 1774,
+          "exported": true
+        },
+        {
+          "name": "elmTunnel",
+          "kind": "function",
+          "line": 1809,
+          "exported": true
+        },
+        {
+          "name": "roundHouse",
+          "kind": "function",
+          "line": 1851,
+          "exported": true
+        },
+        {
+          "name": "gazebo",
+          "kind": "function",
+          "line": 1894,
+          "exported": true
+        },
+        {
+          "name": "lightMast",
+          "kind": "function",
+          "line": 1922,
+          "exported": true
+        },
+        {
+          "name": "rowBoat",
+          "kind": "function",
+          "line": 1934,
+          "exported": true
+        },
+        {
+          "name": "sailBoat",
+          "kind": "function",
+          "line": 1947,
+          "exported": true
+        },
+        {
+          "name": "playgroundSet",
+          "kind": "function",
+          "line": 1957,
+          "exported": true
+        },
+        {
+          "name": "drinkingFountain",
+          "kind": "function",
+          "line": 1992,
+          "exported": true
+        },
+        {
+          "name": "equestrian",
+          "kind": "function",
+          "line": 2002,
+          "exported": true
+        },
+        {
+          "name": "mosaicDisc",
+          "kind": "function",
+          "line": 2025,
+          "exported": true
+        },
+        {
+          "name": "hash2",
+          "kind": "function",
+          "line": 2056,
+          "exported": false
+        },
+        {
+          "name": "setbackTower",
+          "kind": "function",
+          "line": 2074,
+          "exported": true
+        },
+        {
+          "name": "streetWall",
+          "kind": "function",
+          "line": 2144,
+          "exported": true
+        },
+        {
+          "name": "towerCrown",
+          "kind": "function",
+          "line": 2189,
+          "exported": true
+        },
+        {
+          "name": "crownedTower",
+          "kind": "function",
+          "line": 2250,
+          "exported": true
+        },
+        {
+          "name": "twinTowerBlock",
+          "kind": "function",
+          "line": 2265,
+          "exported": true
+        },
+        {
+          "name": "mansardRoof",
+          "kind": "function",
+          "line": 2290,
+          "exported": true
+        },
+        {
+          "name": "porticoFront",
+          "kind": "function",
+          "line": 2338,
+          "exported": true
+        },
+        {
+          "name": "spiralRotunda",
+          "kind": "function",
+          "line": 2383,
+          "exported": true
+        },
+        {
+          "name": "glassSphere",
+          "kind": "function",
+          "line": 2418,
+          "exported": true
+        },
+        {
+          "name": "naveChurch",
+          "kind": "function",
+          "line": 2466,
+          "exported": true
+        },
+        {
+          "name": "metroViaduct",
+          "kind": "function",
+          "line": 2610,
+          "exported": true
+        },
+        {
+          "name": "latticeTower",
+          "kind": "function",
+          "line": 2645,
+          "exported": true
+        },
+        {
+          "name": "marqueeSign",
+          "kind": "function",
+          "line": 2690,
+          "exported": true
+        },
+        {
+          "name": "rowBlock",
+          "kind": "function",
+          "line": 2728,
+          "exported": true
+        },
+        {
+          "name": "scaffoldShed",
+          "kind": "function",
+          "line": 2757,
+          "exported": true
+        }
+      ],
+      "imports": []
+    },
+    "js/voxelscene-boston.js": {
+      "lang": "javascript",
+      "hash": "18cc6987bb06bb70b60dfe229823858f05ab6a120749e8aff0c080f5891b72ff",
+      "loc": 2219,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "mm",
+          "kind": "function",
+          "line": 221,
+          "exported": false
+        },
+        {
+          "name": "sp",
+          "kind": "function",
+          "line": 227,
+          "exported": false
+        },
+        {
+          "name": "barrelVaultHall",
+          "kind": "function",
+          "line": 500,
+          "exported": false
+        },
+        {
+          "name": "lensCanopy",
+          "kind": "function",
+          "line": 594,
+          "exported": false
+        },
+        {
+          "name": "cantileverBox",
+          "kind": "function",
+          "line": 659,
+          "exported": false
+        },
+        {
+          "name": "pierShed",
+          "kind": "function",
+          "line": 708,
+          "exported": false
+        },
+        {
+          "name": "fishingTrawler",
+          "kind": "function",
+          "line": 753,
+          "exported": false
+        },
+        {
+          "name": "roadViaduct",
+          "kind": "function",
+          "line": 793,
+          "exported": false
+        },
+        {
+          "name": "dryDock",
+          "kind": "function",
+          "line": 820,
+          "exported": false
+        },
+        {
+          "name": "ringSwing",
+          "kind": "function",
+          "line": 843,
+          "exported": false
+        },
+        {
+          "name": "harborFerry",
+          "kind": "function",
+          "line": 863,
+          "exported": false
+        },
+        {
+          "name": "movableBridge",
+          "kind": "function",
+          "line": 890,
+          "exported": false
+        },
+        {
+          "name": "tallShip",
+          "kind": "function",
+          "line": 937,
+          "exported": false
+        },
+        {
+          "name": "conoidWall",
+          "kind": "function",
+          "line": 969,
+          "exported": false
+        },
+        {
+          "name": "parkingStalls",
+          "kind": "function",
+          "line": 992,
+          "exported": false
+        },
+        {
+          "name": "foodTruck",
+          "kind": "function",
+          "line": 1006,
+          "exported": false
+        },
+        {
+          "name": "buildBoston",
+          "kind": "function",
+          "line": 1030,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "./voxelkit.js",
+          "resolved": "js/voxelkit.js",
+          "external": false
+        },
+        {
+          "raw": "./voxelkit.js",
+          "resolved": "js/voxelkit.js",
+          "external": false
+        }
+      ]
+    },
+    "js/voxelscene-brooklyn.js": {
+      "lang": "javascript",
+      "hash": "f5ae1a803bd8daf206e2ec2997b83c0ce61caf9f0f80d62af37588ffbe34e718",
+      "loc": 911,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "buildBrooklyn",
+          "kind": "function",
+          "line": 206,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "./voxelkit.js",
+          "resolved": "js/voxelkit.js",
+          "external": false
+        },
+        {
+          "raw": "./voxelkit.js",
+          "resolved": "js/voxelkit.js",
+          "external": false
+        }
+      ]
+    },
+    "js/voxelscene-manhattan.js": {
+      "lang": "javascript",
+      "hash": "9a299006fe3fa9ae878ee8044e2c5866053173126b78c2137bfe979b59ae7e9e",
+      "loc": 531,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "buildManhattan",
+          "kind": "function",
+          "line": 31,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "./voxelkit.js",
+          "resolved": "js/voxelkit.js",
+          "external": false
+        }
+      ]
+    },
+    "js/voxelscene-upper-manhattan.js": {
+      "lang": "javascript",
+      "hash": "5b554e97ea4d5973de28287611e1a0091c6a1f081ff6cd339beb692393cf8cca",
+      "loc": 2590,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "buildUpperManhattan",
+          "kind": "function",
+          "line": 253,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "./voxelkit.js",
+          "resolved": "js/voxelkit.js",
+          "external": false
+        },
+        {
+          "raw": "./voxelkit.js",
+          "resolved": "js/voxelkit.js",
+          "external": false
+        }
+      ]
+    },
+    "js/voxelsim.js": {
+      "lang": "javascript",
+      "hash": "a8cd6f80402d31d2fd46e6cb978f78f13c0fb4d1587671b6f31aa7804f728bca",
+      "loc": 2331,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "comboMult",
+          "kind": "function",
+          "line": 92,
+          "exported": false
+        },
+        {
+          "name": "sandboxSizeProgress",
+          "kind": "function",
+          "line": 106,
+          "exported": true
+        },
+        {
+          "name": "key",
+          "kind": "function",
+          "line": 140,
+          "exported": false
+        },
+        {
+          "name": "cellKey",
+          "kind": "function",
+          "line": 143,
+          "exported": false
+        },
+        {
+          "name": "mCellKey",
+          "kind": "function",
+          "line": 147,
+          "exported": false
+        },
+        {
+          "name": "VoxelSandboxSim",
+          "kind": "class",
+          "line": 160,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "./rng.js",
+          "resolved": "js/rng.js",
+          "external": false
+        },
+        {
+          "raw": "./tiers.js",
+          "resolved": "js/tiers.js",
+          "external": false
+        },
+        {
+          "raw": "./voxelkit.js",
+          "resolved": "js/voxelkit.js",
+          "external": false
+        },
+        {
+          "raw": "./voxelscene-boston.js",
+          "resolved": "js/voxelscene-boston.js",
+          "external": false
+        },
+        {
+          "raw": "./voxelscene-brooklyn.js",
+          "resolved": "js/voxelscene-brooklyn.js",
+          "external": false
+        },
+        {
+          "raw": "./voxelscene-manhattan.js",
+          "resolved": "js/voxelscene-manhattan.js",
+          "external": false
+        },
+        {
+          "raw": "./voxelscene-upper-manhattan.js",
+          "resolved": "js/voxelscene-upper-manhattan.js",
+          "external": false
+        }
+      ]
+    },
+    "js/voxelsurfaces.js": {
+      "lang": "javascript",
+      "hash": "54e6f60375d5970e0419d37cf9c318e275e24a5f57286e5b5cdbab11b3962878",
+      "loc": 216,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "albedoTexture",
+          "kind": "function",
+          "line": 26,
+          "exported": false
+        },
+        {
+          "name": "ormTexture",
+          "kind": "function",
+          "line": 43,
+          "exported": false
+        },
+        {
+          "name": "surfaceEnvironment",
+          "kind": "function",
+          "line": 68,
+          "exported": false
+        },
+        {
+          "name": "baseMaterial",
+          "kind": "function",
+          "line": 96,
+          "exported": false
+        },
+        {
+          "name": "surfaceMaterial",
+          "kind": "function",
+          "line": 167,
+          "exported": true
+        },
+        {
+          "name": "isSurface",
+          "kind": "function",
+          "line": 198,
+          "exported": true
+        },
+        {
+          "name": "disposeSurfaces",
+          "kind": "function",
+          "line": 204,
+          "exported": true
+        },
+        {
+          "name": "surfaceCacheSize",
+          "kind": "function",
+          "line": 216,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "./voxeltiles.js",
+          "resolved": "js/voxeltiles.js",
+          "external": false
+        },
+        {
+          "raw": "three",
+          "resolved": null,
+          "external": true
+        }
+      ]
+    },
+    "js/voxeltiles.js": {
+      "lang": "javascript",
+      "hash": "27f1e81731c7bfe8a2e1edafbaf0dbe779375fc01bc7c727a2e391a843843dfa",
+      "loc": 470,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "mulberry32",
+          "kind": "function",
+          "line": 25,
+          "exported": true
+        },
+        {
+          "name": "hash32",
+          "kind": "function",
+          "line": 34,
+          "exported": true
+        },
+        {
+          "name": "smooth",
+          "kind": "function",
+          "line": 39,
+          "exported": false
+        },
+        {
+          "name": "lerp",
+          "kind": "function",
+          "line": 40,
+          "exported": false
+        },
+        {
+          "name": "valueNoise",
+          "kind": "function",
+          "line": 44,
+          "exported": false
+        },
+        {
+          "name": "fbm",
+          "kind": "function",
+          "line": 63,
+          "exported": false
+        },
+        {
+          "name": "jointRamp",
+          "kind": "function",
+          "line": 81,
+          "exported": false
+        },
+        {
+          "name": "tMortar",
+          "kind": "function",
+          "line": 178,
+          "exported": false
+        },
+        {
+          "name": "tBrick",
+          "kind": "function",
+          "line": 191,
+          "exported": false
+        },
+        {
+          "name": "tCurtain",
+          "kind": "function",
+          "line": 217,
+          "exported": false
+        },
+        {
+          "name": "tPrecast",
+          "kind": "function",
+          "line": 244,
+          "exported": false
+        },
+        {
+          "name": "tSeam",
+          "kind": "function",
+          "line": 263,
+          "exported": false
+        },
+        {
+          "name": "tTimber",
+          "kind": "function",
+          "line": 289,
+          "exported": false
+        },
+        {
+          "name": "tAsphalt",
+          "kind": "function",
+          "line": 314,
+          "exported": false
+        },
+        {
+          "name": "tAshlar",
+          "kind": "function",
+          "line": 324,
+          "exported": false
+        },
+        {
+          "name": "tCorrugated",
+          "kind": "function",
+          "line": 361,
+          "exported": false
+        },
+        {
+          "name": "assembleField",
+          "kind": "function",
+          "line": 396,
+          "exported": true
+        },
+        {
+          "name": "buildTilePixels",
+          "kind": "function",
+          "line": 431,
+          "exported": true
+        },
+        {
+          "name": "buildOrmPixels",
+          "kind": "function",
+          "line": 454,
+          "exported": true
+        }
+      ],
+      "imports": []
+    },
+    "js/voxelworld.js": {
+      "lang": "javascript",
+      "hash": "066b4d57f1660609d582aa77e12f256134bb6d979baff4efe749545b29db076b",
+      "loc": 2355,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "savedSettings",
+          "kind": "function",
+          "line": 20,
+          "exported": false
+        },
+        {
+          "name": "pref",
+          "kind": "function",
+          "line": 23,
+          "exported": false
+        },
+        {
+          "name": "releaseSharedGeometry",
+          "kind": "function",
+          "line": 34,
+          "exported": false
+        },
+        {
+          "name": "boxGeo",
+          "kind": "function",
+          "line": 38,
+          "exported": false
+        },
+        {
+          "name": "circleGeo",
+          "kind": "function",
+          "line": 39,
+          "exported": false
+        },
+        {
+          "name": "ringGeo",
+          "kind": "function",
+          "line": 40,
+          "exported": false
+        },
+        {
+          "name": "smooth",
+          "kind": "function",
+          "line": 41,
+          "exported": false
+        },
+        {
+          "name": "rampQuadGeo",
+          "kind": "function",
+          "line": 46,
+          "exported": false
+        },
+        {
+          "name": "glowQuadGeo",
+          "kind": "function",
+          "line": 62,
+          "exported": false
+        },
+        {
+          "name": "bandQuadGeo",
+          "kind": "function",
+          "line": 64,
+          "exported": false
+        },
+        {
+          "name": "mat",
+          "kind": "function",
+          "line": 84,
+          "exported": false
+        },
+        {
+          "name": "shadowDistFor",
+          "kind": "function",
+          "line": 158,
+          "exported": false
+        },
+        {
+          "name": "buildWings",
+          "kind": "function",
+          "line": 181,
+          "exported": false
+        },
+        {
+          "name": "clampInt",
+          "kind": "function",
+          "line": 195,
+          "exported": false
+        },
+        {
+          "name": "num",
+          "kind": "function",
+          "line": 199,
+          "exported": false
+        },
+        {
+          "name": "hash32",
+          "kind": "function",
+          "line": 212,
+          "exported": false
+        },
+        {
+          "name": "mulberry32",
+          "kind": "function",
+          "line": 220,
+          "exported": false
+        },
+        {
+          "name": "rectW",
+          "kind": "function",
+          "line": 229,
+          "exported": false
+        },
+        {
+          "name": "rectD",
+          "kind": "function",
+          "line": 230,
+          "exported": false
+        },
+        {
+          "name": "rectArea",
+          "kind": "function",
+          "line": 231,
+          "exported": false
+        },
+        {
+          "name": "rectCX",
+          "kind": "function",
+          "line": 234,
+          "exported": false
+        },
+        {
+          "name": "rectCZ",
+          "kind": "function",
+          "line": 235,
+          "exported": false
+        },
+        {
+          "name": "rectKey",
+          "kind": "function",
+          "line": 236,
+          "exported": false
+        },
+        {
+          "name": "overlap1d",
+          "kind": "function",
+          "line": 239,
+          "exported": false
+        },
+        {
+          "name": "rectsFrom",
+          "kind": "function",
+          "line": 240,
+          "exported": false
+        },
+        {
+          "name": "byAreaThenPos",
+          "kind": "function",
+          "line": 252,
+          "exported": false
+        },
+        {
+          "name": "contentExtent",
+          "kind": "function",
+          "line": 272,
+          "exported": false
+        },
+        {
+          "name": "mortarTexture",
+          "kind": "function",
+          "line": 326,
+          "exported": false
+        },
+        {
+          "name": "VoxelWorld3D",
+          "kind": "class",
+          "line": 357,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "./save.js",
+          "resolved": "js/save.js",
+          "external": false
+        },
+        {
+          "raw": "./skins.js",
+          "resolved": "js/skins.js",
+          "external": false
+        },
+        {
+          "raw": "./voxelsurfaces.js",
+          "resolved": "js/voxelsurfaces.js",
+          "external": false
+        },
+        {
+          "raw": "three",
+          "resolved": null,
+          "external": true
+        }
+      ]
+    },
+    "js/world3d.js": {
+      "lang": "javascript",
+      "hash": "1f9d85e8063ed6e89f3bea7a51b34a025ffba5b168bbc33eeeb76d32ded315f7",
+      "loc": 817,
+      "module": "js",
+      "symbols": [
+        {
+          "name": "pseudoRand",
+          "kind": "function",
+          "line": 10,
+          "exported": false
+        },
+        {
+          "name": "boxGeo",
+          "kind": "function",
+          "line": 16,
+          "exported": false
+        },
+        {
+          "name": "cylGeo",
+          "kind": "function",
+          "line": 17,
+          "exported": false
+        },
+        {
+          "name": "coneGeo",
+          "kind": "function",
+          "line": 18,
+          "exported": false
+        },
+        {
+          "name": "sphereGeo",
+          "kind": "function",
+          "line": 19,
+          "exported": false
+        },
+        {
+          "name": "circleGeo",
+          "kind": "function",
+          "line": 20,
+          "exported": false
+        },
+        {
+          "name": "ringGeo",
+          "kind": "function",
+          "line": 21,
+          "exported": false
+        },
+        {
+          "name": "mat",
+          "kind": "function",
+          "line": 24,
+          "exported": false
+        },
+        {
+          "name": "gableGeo",
+          "kind": "function",
+          "line": 40,
+          "exported": false
+        },
+        {
+          "name": "facadeTexture",
+          "kind": "function",
+          "line": 55,
+          "exported": false
+        },
+        {
+          "name": "facadeMat",
+          "kind": "function",
+          "line": 80,
+          "exported": false
+        },
+        {
+          "name": "buildingBoxMats",
+          "kind": "function",
+          "line": 93,
+          "exported": false
+        },
+        {
+          "name": "addBox",
+          "kind": "function",
+          "line": 99,
+          "exported": false
+        },
+        {
+          "name": "makeBuildingMesh",
+          "kind": "function",
+          "line": 112,
+          "exported": false
+        },
+        {
+          "name": "makePropMesh",
+          "kind": "function",
+          "line": 184,
+          "exported": false
+        },
+        {
+          "name": "roadTexture",
+          "kind": "function",
+          "line": 249,
+          "exported": false
+        },
+        {
+          "name": "makeHoleMesh",
+          "kind": "function",
+          "line": 275,
+          "exported": false
+        },
+        {
+          "name": "World3D",
+          "kind": "class",
+          "line": 304,
+          "exported": true
+        }
+      ],
+      "imports": [
+        {
+          "raw": "./levels.js",
+          "resolved": "js/levels.js",
+          "external": false
+        },
+        {
+          "raw": "./skins.js",
+          "resolved": "js/skins.js",
+          "external": false
+        },
+        {
+          "raw": "./tiers.js",
+          "resolved": "js/tiers.js",
+          "external": false
+        },
+        {
+          "raw": "three",
+          "resolved": null,
+          "external": true
+        }
+      ]
+    },
+    "tools/gen-partner-logo.mjs": {
+      "lang": "javascript",
+      "hash": "6b067ed5c1ff831561171cb99a90ad7886016920ce27bfbc87eb4ca46daed941",
+      "loc": 431,
+      "module": "tools",
+      "symbols": [
+        {
+          "name": "arg",
+          "kind": "function",
+          "line": 62,
+          "exported": false
+        },
+        {
+          "name": "log",
+          "kind": "function",
+          "line": 80,
+          "exported": false
+        },
+        {
+          "name": "fail",
+          "kind": "function",
+          "line": 82,
+          "exported": false
+        },
+        {
+          "name": "discoverIcons",
+          "kind": "function",
+          "line": 92,
+          "exported": false
+        },
+        {
+          "name": "generate",
+          "kind": "function",
+          "line": 144,
+          "exported": false
+        },
+        {
+          "name": "analyse",
+          "kind": "function",
+          "line": 194,
+          "exported": false
+        }
+      ],
+      "imports": [
+        {
+          "raw": "node:fs",
+          "resolved": null,
+          "external": true
+        },
+        {
+          "raw": "node:path",
+          "resolved": null,
+          "external": true
+        },
+        {
+          "raw": "node:url",
+          "resolved": null,
+          "external": true
+        }
+      ]
+    },
+    "tools/shimmer.mjs": {
+      "lang": "javascript",
+      "hash": "800c58561d5ffa15ef0e8fe74beb673c00c19b1562503247c75342317668a245",
+      "loc": 295,
+      "module": "tools",
+      "symbols": [
+        {
+          "name": "fail",
+          "kind": "function",
+          "line": 55,
+          "exported": false
+        },
+        {
+          "name": "rampWidth",
+          "kind": "function",
+          "line": 77,
+          "exported": false
+        },
+        {
+          "name": "checkRegistryRow",
+          "kind": "function",
+          "line": 118,
+          "exported": false
+        },
+        {
+          "name": "checkDeterminism",
+          "kind": "function",
+          "line": 153,
+          "exported": false
+        },
+        {
+          "name": "checkOrm",
+          "kind": "function",
+          "line": 167,
+          "exported": false
+        },
+        {
+          "name": "checkTextureSetup",
+          "kind": "function",
+          "line": 190,
+          "exported": false
+        }
+      ],
+      "imports": [
+        {
+          "raw": "../js/voxeltiles.js",
+          "resolved": "js/voxeltiles.js",
+          "external": false
+        },
+        {
+          "raw": "node:fs",
+          "resolved": null,
+          "external": true
+        },
+        {
+          "raw": "node:path",
+          "resolved": null,
+          "external": true
+        },
+        {
+          "raw": "node:url",
+          "resolved": null,
+          "external": true
+        }
+      ]
+    },
+    "tools/skinsheet.mjs": {
+      "lang": "javascript",
+      "hash": "84f8eacc519c0c4ddbde16495fd7d9dae417ce9a58a67dd1145359e1bb4ece78",
+      "loc": 194,
+      "module": "tools",
+      "symbols": [
+        {
+          "name": "problem",
+          "kind": "function",
+          "line": 109,
+          "exported": false
+        },
+        {
+          "name": "esc",
+          "kind": "function",
+          "line": 133,
+          "exported": false
+        },
+        {
+          "name": "section",
+          "kind": "function",
+          "line": 137,
+          "exported": false
+        }
+      ],
+      "imports": [
+        {
+          "raw": "node:crypto",
+          "resolved": null,
+          "external": true
+        },
+        {
+          "raw": "node:fs",
+          "resolved": null,
+          "external": true
+        },
+        {
+          "raw": "node:path",
+          "resolved": null,
+          "external": true
+        },
+        {
+          "raw": "node:url",
+          "resolved": null,
+          "external": true
+        }
+      ]
+    },
+    "tools/validate.mjs": {
+      "lang": "javascript",
+      "hash": "e544b012ac4500ef9055413cffba69bb7b2d31c1bdf2998d3f64d86e984f2585",
+      "loc": 965,
+      "module": "tools",
+      "symbols": [
+        {
+          "name": "fail",
+          "kind": "function",
+          "line": 27,
+          "exported": false
+        },
+        {
+          "name": "checkOverlap",
+          "kind": "function",
+          "line": 29,
+          "exported": false
+        },
+        {
+          "name": "checkSnackRing",
+          "kind": "function",
+          "line": 46,
+          "exported": false
+        },
+        {
+          "name": "runBot",
+          "kind": "function",
+          "line": 57,
+          "exported": false
+        },
+        {
+          "name": "voxelMoveAt",
+          "kind": "function",
+          "line": 121,
+          "exported": false
+        },
+        {
+          "name": "runVoxelSandbox",
+          "kind": "function",
+          "line": 129,
+          "exported": false
+        },
+        {
+          "name": "validateVoxelSandbox",
+          "kind": "function",
+          "line": 147,
+          "exported": false
+        },
+        {
+          "name": "overlaps",
+          "kind": "function",
+          "line": 215,
+          "exported": false
+        },
+        {
+          "name": "collisionBody",
+          "kind": "function",
+          "line": 221,
+          "exported": false
+        },
+        {
+          "name": "validateVoxelCollisions",
+          "kind": "function",
+          "line": 228,
+          "exported": false
+        },
+        {
+          "name": "rectsOverlap",
+          "kind": "function",
+          "line": 256,
+          "exported": false
+        },
+        {
+          "name": "blockRect",
+          "kind": "function",
+          "line": 258,
+          "exported": false
+        },
+        {
+          "name": "footprintTops",
+          "kind": "function",
+          "line": 262,
+          "exported": false
+        },
+        {
+          "name": "probeCellOwnership",
+          "kind": "function",
+          "line": 278,
+          "exported": false
+        },
+        {
+          "name": "probeCameraBlockers",
+          "kind": "function",
+          "line": 297,
+          "exported": false
+        },
+        {
+          "name": "probeBoundsRect",
+          "kind": "function",
+          "line": 316,
+          "exported": false
+        },
+        {
+          "name": "probeRoadConflicts",
+          "kind": "function",
+          "line": 336,
+          "exported": false
+        },
+        {
+          "name": "probeWaterOverSurfaces",
+          "kind": "function",
+          "line": 356,
+          "exported": false
+        },
+        {
+          "name": "probeParkUnderWater",
+          "kind": "function",
+          "line": 369,
+          "exported": false
+        },
+        {
+          "name": "probeRimmedWater",
+          "kind": "function",
+          "line": 390,
+          "exported": false
+        },
+        {
+          "name": "probeBareGround",
+          "kind": "function",
+          "line": 421,
+          "exported": false
+        },
+        {
+          "name": "probeOpenGround",
+          "kind": "function",
+          "line": 441,
+          "exported": false
+        },
+        {
+          "name": "reportDeadGround",
+          "kind": "function",
+          "line": 472,
+          "exported": false
+        },
+        {
+          "name": "probeCrosswalkStripes",
+          "kind": "function",
+          "line": 501,
+          "exported": false
+        },
+        {
+          "name": "probeCrossingsOnDeclaredStreet",
+          "kind": "function",
+          "line": 522,
+          "exported": false
+        },
+        {
+          "name": "probeDecorKeyOrder",
+          "kind": "function",
+          "line": 541,
+          "exported": false
+        },
+        {
+          "name": "probeAmbient",
+          "kind": "function",
+          "line": 550,
+          "exported": false
+        },
+        {
+          "name": "probeIdleStability",
+          "kind": "function",
+          "line": 559,
+          "exported": false
+        },
+        {
+          "name": "probeFinitePositions",
+          "kind": "function",
+          "line": 566,
+          "exported": false
+        },
+        {
+          "name": "validateManhattan",
+          "kind": "function",
+          "line": 578,
+          "exported": false
+        },
+        {
+          "name": "validateUpperManhattan",
+          "kind": "function",
+          "line": 637,
+          "exported": false
+        },
+        {
+          "name": "validateBrooklyn",
+          "kind": "function",
+          "line": 735,
+          "exported": false
+        },
+        {
+          "name": "validateBoston",
+          "kind": "function",
+          "line": 797,
+          "exported": false
+        },
+        {
+          "name": "validateSaveSchema",
+          "kind": "function",
+          "line": 893,
+          "exported": false
+        }
+      ],
+      "imports": [
+        {
+          "raw": "../js/citygen.js",
+          "resolved": "js/citygen.js",
+          "external": false
+        },
+        {
+          "raw": "../js/levels.js",
+          "resolved": "js/levels.js",
+          "external": false
+        },
+        {
+          "raw": "../js/save.js",
+          "resolved": "js/save.js",
+          "external": false
+        },
+        {
+          "raw": "../js/sim.js",
+          "resolved": "js/sim.js",
+          "external": false
+        },
+        {
+          "raw": "../js/tiers.js",
+          "resolved": "js/tiers.js",
+          "external": false
+        },
+        {
+          "raw": "../js/voxelscene-boston.js",
+          "resolved": "js/voxelscene-boston.js",
+          "external": false
+        },
+        {
+          "raw": "../js/voxelscene-brooklyn.js",
+          "resolved": "js/voxelscene-brooklyn.js",
+          "external": false
+        },
+        {
+          "raw": "../js/voxelscene-upper-manhattan.js",
+          "resolved": "js/voxelscene-upper-manhattan.js",
+          "external": false
+        },
+        {
+          "raw": "../js/voxelsim.js",
+          "resolved": "js/voxelsim.js",
+          "external": false
+        },
+        {
+          "raw": "node:fs",
+          "resolved": null,
+          "external": true
+        }
+      ]
+    }
+  },
+  "edges": [
+    {
+      "from": "js/camera.js",
+      "to": "ext:three",
+      "kind": "imports"
+    },
+    {
+      "from": "js/citygen.js",
+      "to": "js/rng.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/citygen.js",
+      "to": "js/tiers.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/main.js",
+      "to": "js/camera.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/main.js",
+      "to": "js/controls.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/main.js",
+      "to": "js/levels.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/main.js",
+      "to": "js/quality.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/main.js",
+      "to": "js/save.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/main.js",
+      "to": "js/sim.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/main.js",
+      "to": "js/ui/hud.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/main.js",
+      "to": "js/ui/ready.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/main.js",
+      "to": "js/ui/screens.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/main.js",
+      "to": "js/voxelsim.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/main.js",
+      "to": "js/voxelworld.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/main.js",
+      "to": "js/world3d.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/sim.js",
+      "to": "js/citygen.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/sim.js",
+      "to": "js/rng.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/sim.js",
+      "to": "js/tiers.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/skins.js",
+      "to": "ext:three",
+      "kind": "imports"
+    },
+    {
+      "from": "js/ui/ready.js",
+      "to": "js/ui/blockword.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/ui/screens.js",
+      "to": "js/controls.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/ui/screens.js",
+      "to": "js/levels.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/ui/screens.js",
+      "to": "js/save.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/ui/screens.js",
+      "to": "js/skins.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/ui/screens.js",
+      "to": "js/ui/blockword.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/ui/screens.js",
+      "to": "js/ui/sprocket.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelscene-boston.js",
+      "to": "js/voxelkit.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelscene-brooklyn.js",
+      "to": "js/voxelkit.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelscene-manhattan.js",
+      "to": "js/voxelkit.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelscene-upper-manhattan.js",
+      "to": "js/voxelkit.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelsim.js",
+      "to": "js/rng.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelsim.js",
+      "to": "js/tiers.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelsim.js",
+      "to": "js/voxelkit.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelsim.js",
+      "to": "js/voxelscene-boston.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelsim.js",
+      "to": "js/voxelscene-brooklyn.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelsim.js",
+      "to": "js/voxelscene-manhattan.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelsim.js",
+      "to": "js/voxelscene-upper-manhattan.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelsurfaces.js",
+      "to": "ext:three",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelsurfaces.js",
+      "to": "js/voxeltiles.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelworld.js",
+      "to": "ext:three",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelworld.js",
+      "to": "js/save.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelworld.js",
+      "to": "js/skins.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/voxelworld.js",
+      "to": "js/voxelsurfaces.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/world3d.js",
+      "to": "ext:three",
+      "kind": "imports"
+    },
+    {
+      "from": "js/world3d.js",
+      "to": "js/levels.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/world3d.js",
+      "to": "js/skins.js",
+      "kind": "imports"
+    },
+    {
+      "from": "js/world3d.js",
+      "to": "js/tiers.js",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/gen-partner-logo.mjs",
+      "to": "ext:node:fs",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/gen-partner-logo.mjs",
+      "to": "ext:node:path",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/gen-partner-logo.mjs",
+      "to": "ext:node:url",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/shimmer.mjs",
+      "to": "ext:node:fs",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/shimmer.mjs",
+      "to": "ext:node:path",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/shimmer.mjs",
+      "to": "ext:node:url",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/shimmer.mjs",
+      "to": "js/voxeltiles.js",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/skinsheet.mjs",
+      "to": "ext:node:crypto",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/skinsheet.mjs",
+      "to": "ext:node:fs",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/skinsheet.mjs",
+      "to": "ext:node:path",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/skinsheet.mjs",
+      "to": "ext:node:url",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/validate.mjs",
+      "to": "ext:node:fs",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/validate.mjs",
+      "to": "js/citygen.js",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/validate.mjs",
+      "to": "js/levels.js",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/validate.mjs",
+      "to": "js/save.js",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/validate.mjs",
+      "to": "js/sim.js",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/validate.mjs",
+      "to": "js/tiers.js",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/validate.mjs",
+      "to": "js/voxelscene-boston.js",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/validate.mjs",
+      "to": "js/voxelscene-brooklyn.js",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/validate.mjs",
+      "to": "js/voxelscene-upper-manhattan.js",
+      "kind": "imports"
+    },
+    {
+      "from": "tools/validate.mjs",
+      "to": "js/voxelsim.js",
+      "kind": "imports"
+    }
+  ],
+  "modules": {
+    "js": {
+      "files": [
+        "js/camera.js",
+        "js/citygen.js",
+        "js/controls.js",
+        "js/levels.js",
+        "js/main.js",
+        "js/quality.js",
+        "js/rng.js",
+        "js/save.js",
+        "js/sim.js",
+        "js/skins.js",
+        "js/tiers.js",
+        "js/ui/blockword.js",
+        "js/ui/hud.js",
+        "js/ui/ready.js",
+        "js/ui/screens.js",
+        "js/ui/sprocket.js",
+        "js/voxelkit.js",
+        "js/voxelscene-boston.js",
+        "js/voxelscene-brooklyn.js",
+        "js/voxelscene-manhattan.js",
+        "js/voxelscene-upper-manhattan.js",
+        "js/voxelsim.js",
+        "js/voxelsurfaces.js",
+        "js/voxeltiles.js",
+        "js/voxelworld.js",
+        "js/world3d.js"
+      ]
+    },
+    "tools": {
+      "files": [
+        "tools/gen-partner-logo.mjs",
+        "tools/shimmer.mjs",
+        "tools/skinsheet.mjs",
+        "tools/validate.mjs"
+      ]
+    }
+  }
+}
