@@ -232,16 +232,30 @@ function lidPart(cols, opts = {}) {
   m.position.y = opts.y ?? 0.026;
   m.renderOrder = opts.order ?? 1005;
   m.frustumCulled = false;
+  // SQUARE TEETH on the leading edge, which is what turns a lid into a JAW. The
+  // amplitude is in R units and `parity` picks which columns stand proud, so two
+  // lids built with opposite parity MESH rather than collide — the same bargain
+  // buildCloser's counter-twist makes with its two sets of six teeth.
+  //
+  // The amplitude ramps in over the first quarter of the sweep. A constant one
+  // would leave a crenellated sliver of lid parked just inside the rim at k = 0,
+  // and law 1 says the resting pose keeps the void. Eyeballs passes neither
+  // option and gets the smooth lid it has always had.
+  const teeth = opts.teeth ?? 0, parity = opts.parity ?? 0;
   // k 0..1 is how far this lid has swept in from its own rim; sign picks which
   // side it comes from. Two lids at k = blink/2 meet exactly in the middle.
   m.userData.sweep = (k, sign, R, r, gr, b) => {
-    const edge = R * (1 - 2 * clamp01(k));
+    const kk = clamp01(k);
+    const edge = R * (1 - 2 * kk);
+    // Smaller edge = more coverage, so a PROUD tooth subtracts.
+    const amp = teeth * R * Math.min(1, kk * 4);
     for (let i = 0; i < cols; i++) {
+      const e = edge - (i % 2 === parity ? amp : -amp);
       const x0 = -R + (i / cols) * 2 * R, x1 = -R + ((i + 1) / cols) * 2 * R;
       const h0 = Math.sqrt(Math.max(0, R * R - x0 * x0));
       const h1 = Math.sqrt(Math.max(0, R * R - x1 * x1));
-      const a0 = Math.min(h0, Math.max(edge, -h0));
-      const a1 = Math.min(h1, Math.max(edge, -h1));
+      const a0 = Math.min(h0, Math.max(e, -h0));
+      const a1 = Math.min(h1, Math.max(e, -h1));
       const q = i * 12;
       const put = (o, x, z) => {
         pos[q + o] = x; pos[q + o + 1] = 0; pos[q + o + 2] = z * sign;
@@ -440,6 +454,62 @@ class Chomp {
   }
 }
 
+// The other jaw, and it is deliberately NOT a Chomp.
+//
+// GENRE REFERENCE — Pac-Man (Namco, 1980). Its chomp cycle starts CLOSED, opens,
+// and closes again (frame breakdown: https://pacmancode.com/animate-pacman), so
+// the mouth is shut for roughly half of every cycle while eating, continuously,
+// and nobody has ever called that blinding. More to the point, the CLOSED pose is
+// the identity: Pac-Man shut is a plain yellow disc, and that disc — not the open
+// wedge — is what went on every cabinet and cartridge. A closed mouth is where a
+// character's brand lives. That is this class' entire job.
+//
+// Chomp damps CHATTER INTO DEPTH: a machine-gun chain degrades to fast shallow
+// nibbles. That is right for fangs, which read at any depth, and wrong for a
+// logo, which is either legible or absent. So a Maw inverts the trade — depth is
+// always full and the chatter goes into TIME:
+//
+//   * a bite that lands while the jaw is already shut EXTENDS the hold instead of
+//     restacking it, so a plough through parked cars is one long chew and not a
+//     stutter (and nothing is allocated per bite either way);
+//   * the hold is capped, and a minimum of daylight is guaranteed after it, so the
+//     duty cycle cannot reach 100% however fast the eat events arrive. 0.52 over
+//     0.52 + 0.14 is 79% — visibly strobing, which reads as chewing, and it is the
+//     concession law 1 is owed for covering the void at all.
+//
+// The two numbers were set off a MEASURED duty cycle in Brooklyn at SIZE 1, not
+// by eye: 0.52/0.14 put the mark up in 79% of frames and both peak screenshots
+// landed on a shut mouth, which is a hole that has stopped reading as a hole.
+// 0.40/0.20 is the version that measured as chewing. See the probe in
+// _jaws-deliverables.
+const MAW_HOLD_MAX = 0.40;   // s, longest the jaw may stay shut across extensions
+const MAW_MIN_OPEN = 0.20;   // s of guaranteed daylight before it may shut again
+
+class Maw {
+  constructor() { this.age = 9; this.dur = 0.3; }
+  fire(t, bite) {
+    // Same source as Chomp's: sim.js ships the object's real swallow duration, so
+    // the jaw holds for exactly as long as the thing is visibly going down.
+    const d = Number.isFinite(bite.dur)
+      ? Math.min(0.62, Math.max(0.18, bite.dur))
+      : 0.22 + bite.size * 0.30;
+    if (this.age < this.dur) {
+      this.dur = Math.min(MAW_HOLD_MAX, Math.max(this.dur, this.age + d * 0.75));
+      return;
+    }
+    if (this.age - this.dur < MAW_MIN_OPEN) return;   // absorbed; keep the daylight
+    this.dur = d; this.age = 0;
+  }
+  // 0 = open, 1 = shut. Snap closed, hold most of the window — the hold is what
+  // the mark is read during — then ease open.
+  value(dt) {
+    this.age += dt;
+    const k = this.age / this.dur;
+    if (k >= 1) return 0;
+    return k < 0.13 ? smooth(k / 0.13) : k < 0.62 ? 1 : 1 - smooth((k - 0.62) / 0.38);
+  }
+}
+
 // ------------------------------------------------------------------- registry
 //
 // One row per skin, in the DECOR_LAYERS idiom: `id`, `name` and `price` are the
@@ -535,28 +605,67 @@ export const SKINS = [
     logoTex: 'assets/skins/partners/supered/supered-logo-large.webp',
     blurb: 'Guidance built into the tool itself. Adoption stops being a hope.', build: buildPartner },
   { id: 'partner-newbreed', name: 'New Breed', price: 750, color: 0x733bf6, accent: 0x3ad531,
-    css: 'linear-gradient(90deg,#733bf6 50%,#3ad531 50%)', family: 'partner', logo: 'newbreed',
+    css: 'linear-gradient(90deg,#733bf6 50%,#3ad531 50%)', family: 'partner',
+    // WHITE ink on transparency — their plus, from their own vector. No fit
+    // override: the 512 sits on transparency with margin, so the default inset
+    // measures it correctly. (The earlier 64px favicon needed `fullBleed`; that
+    // asset is gone.)
+    logoTex: 'assets/skins/partners/newbreed/newbreed-logo-large.png',
+    // Named because the conversion took the name away. The traced mark was the
+    // wordmark NEW BREED +; the vector asset is the plus alone, which made this
+    // a fifth icon-only row. Same reasoning as the four below.
+    nameText: 'NEW BREED',
     blurb: 'Demand and RevOps in one motion. The handoff never drops.', build: buildPartner },
+  // `nameText` — five rows carry ICON-ONLY marks: New Breed above, and the four
+  // below. A speech bubble, an F-mark, a monogram and a pinwheel — worn on the
+  // hole they say nothing about WHO the agency is, and beside-the-hole there was
+  // never room to say it. The closed mouth is a far bigger canvas than the old
+  // nameplate, so a row may now name itself and the reveal renders the name under
+  // the mark. Optional by design: the wordmark partners already say their own
+  // name in their ink and a second copy of it would just be noise.
+  //
+  // Which rows are icon-only is a property of the ART, not of the row, so it can
+  // change under you: New Breed's traced mark WAS the wordmark `NEW BREED +` and
+  // the switch to their own vector — the plus alone — silently made it anonymous.
+  // Re-read this list whenever a `logoTex` lands. See nameTexRecord().
   { id: 'partner-impulse', name: 'Impulse Creative', price: 750, color: 0xf3961f, accent: 0xeb004f,
-    css: 'linear-gradient(90deg,#f3961f 50%,#eb004f 50%)', family: 'partner', logo: 'impulse',
+    css: 'linear-gradient(90deg,#f3961f 50%,#eb004f 50%)', family: 'partner',
+    // Their official REVERSE lockup: a white speech-bubble disc with the orange
+    // funnel bars on it. 86% of the opaque texels are white, so it is only
+    // legible on a dark surface — which is exactly what the closed mouth is, and
+    // is why it could not have shipped as a nameplate beside the hole.
+    logoTex: 'assets/skins/partners/impulse/impulse-logo-large.png',
+    nameText: 'IMPULSE CREATIVE',
     blurb: 'Brand, story and system on one idea. It travels well.', build: buildPartner },
   { id: 'partner-sixandflow', name: 'Six & Flow', price: 750, color: 0x019fd6, accent: 0xea7765,
-    css: 'linear-gradient(90deg,#019fd6 50%,#ea7765 50%)', family: 'partner', logo: 'sixandflow',
+    css: 'linear-gradient(90deg,#019fd6 50%,#ea7765 50%)', family: 'partner',
+    logoTex: 'assets/skins/partners/sixandflow/sixandflow-logo-large.png',
+    nameText: 'SIX & FLOW',
     blurb: 'Sprints run in flow. The pipeline keeps its rhythm.', build: buildPartner },
   { id: 'partner-kuno', name: 'Kuno Creative', price: 750, color: 0x6842d3, accent: 0x82edf7,
     css: 'linear-gradient(90deg,#6842d3 50%,#82edf7 50%)', family: 'partner', logo: 'kuno',
+    nameText: 'KUNO CREATIVE',
     blurb: 'Inbound from before it had a name. Still compounding.', build: buildPartner },
   { id: 'partner-saltedstone', name: 'Salted Stone', price: 750, color: 0x007297, accent: 0xd68231,
-    css: 'linear-gradient(90deg,#007297 50%,#d68231 50%)', family: 'partner', logo: 'saltedstone',
+    css: 'linear-gradient(90deg,#007297 50%,#d68231 50%)', family: 'partner',
+    // The only one of the four whose ink runs to the edge of its file — it is the
+    // 152px apple-touch-icon, an orange square with the S² cut out of it, so the
+    // art IS the tile. MarkForge measured the other three at margin and they stay
+    // on the default inset fit.
+    logoTex: 'assets/skins/partners/saltedstone/saltedstone-logo-large.png',
+    logoFit: { fullBleed: true },
     blurb: 'Global implementations, cut clean and set solid.', build: buildPartner },
   // The primary here really is #002d56, and a rim in it is invisible against a
   // 0x232838 ground. The row carries the lavender the mark is drawn in and the
   // navy stays in the swatch, the same trade buildABTest makes with its `color`.
   { id: 'partner-mediajunction', name: 'Media Junction', price: 750, color: 0xc191f8, accent: 0x4cdeba,
-    css: 'linear-gradient(90deg,#002d56 50%,#c191f8 50%)', family: 'partner', logo: 'mediajunction',
+    css: 'linear-gradient(90deg,#002d56 50%,#c191f8 50%)', family: 'partner',
+    logoTex: 'assets/skins/partners/mediajunction/mediajunction-logo-large.png',
+    nameText: 'MEDIA JUNCTION',
     blurb: 'Where the site, the CRM and the content finally meet.', build: buildPartner },
   { id: 'partner-huble', name: 'Huble', price: 750, color: 0xff4d56, accent: 0x1f3042,
-    css: 'linear-gradient(90deg,#ff4d56 50%,#1f3042 50%)', family: 'partner', logo: 'huble',
+    css: 'linear-gradient(90deg,#ff4d56 50%,#1f3042 50%)', family: 'partner',
+    logoTex: 'assets/skins/partners/huble/huble-logo-large.png',
     blurb: 'One hub, many time zones. The diagram survives the audit.', build: buildPartner },
 ];
 
@@ -1498,11 +1607,21 @@ function logoPart(rec, opts = {}) {
   // Clear of the rim by a fixed margin, measured from the mark's own half-height,
   // so a 7.7:1 wordmark tucks in close and only a square mark is pushed out.
   const half = rec.h * k / 2;
-  m.position.z = -(1.01 + 0.16 + half);
+  // TWO HOMES, and `inset` picks. Beside the hole is where the nameplate lived;
+  // INSIDE the hole's own unit circle is where the reveal puts it, and that is
+  // the genre's settled answer rather than a preference — .io games clip a
+  // player's mark to the round body they steer (agar.io custom skins are prepared
+  // with a crop-CIRCLE tool and fill the cell), they do not park it alongside.
+  //
+  // `outer` is then exactly 1, which matters more than it looks: reach(1, r) === 1
+  // for every radius, so the angular-constancy compensation the beside-the-hole
+  // badge needed stops applying by construction. A mark bound to the hole scales
+  // with the hole, the same deal the rim has always had.
+  m.position.z = opts.inset ? (opts.z ?? 0) : -(1.01 + 0.16 + half);
   m.renderOrder = opts.order ?? 1003;
   m.userData.count = colors.length;
   m.userData.colors = colors;
-  m.userData.outer = 1.01 + 0.16 + half * 2;
+  m.userData.outer = opts.inset ? 1 : 1.01 + 0.16 + half * 2;
   m.userData.set = (i, r, gr, b) => {
     for (let v = ranges[i * 2], e = ranges[i * 2 + 1]; v < e; v++) {
       const q = v * 3; col[q] = r; col[q + 1] = gr; col[q + 2] = b;
@@ -1639,21 +1758,22 @@ function logoTexRecord(img, fullBleed) {
 // longer side normalised to 1, then the lesser of the two limits, so a wordmark
 // takes the width and a square mark takes the height and the two carry the same
 // visual weight.
-function applyLogoTex(m, rec, maxW, maxH) {
+function applyLogoTex(m, rec, opts) {
   m.material.map = rec.tex;
   m.material.needsUpdate = true;
   const long = Math.max(rec.pw, rec.ph);
   const w = rec.pw / long, h = rec.ph / long;
-  const k = Math.min(maxW / w, maxH / h);
+  const k = Math.min((opts.maxW ?? 2.0) / w, (opts.maxH ?? 1.05) / h);
   m.scale.set(w * k, 1, h * k);
   const half = h * k / 2;
-  m.position.z = -(1.01 + 0.16 + half);
-  m.userData.outer = 1.01 + 0.16 + half * 2;
+  // Same two homes as a traced mark; see logoPart for why `inset` is the genre's
+  // answer and not a taste call.
+  m.position.z = opts.inset ? (opts.z ?? 0) : -(1.01 + 0.16 + half);
+  m.userData.outer = opts.inset ? 1 : 1.01 + 0.16 + half * 2;
   m.visible = true;
 }
 
 function logoTexPart(url, opts = {}) {
-  const maxW = opts.maxW ?? 2.0, maxH = opts.maxH ?? 1.05;
   // A unit quad on XY rotated onto the ground, which lands the image's +y at -z:
   // the same up-screen convention logoPart writes by hand as (p.x, 0, -p.y).
   const g = new THREE.PlaneGeometry(1, 1);
@@ -1681,7 +1801,7 @@ function logoTexPart(url, opts = {}) {
   m.renderOrder = opts.order ?? 1003;
   // Until the image lands, the group must still scale to something finite —
   // buildPartner divides by this every frame.
-  m.userData.outer = 1.01 + 0.16 + 0.5;
+  m.userData.outer = opts.inset ? 1 : 1.01 + 0.16 + 0.5;
   m.userData.count = 1;
   // White, so buildPartner's push-to-white mix is a no-op: the hue is IN the
   // texture and there is nothing here to tint toward the brand colour.
@@ -1694,7 +1814,7 @@ function logoTexPart(url, opts = {}) {
   // Warm cache: apply now, and the mesh is visible by the time it is returned.
   // This is the branch a synchronous bake takes, and the only one it can.
   const warm = LOGO_TEX_CACHE.get(url);
-  if (warm) { applyLogoTex(m, warm, maxW, maxH); return m; }
+  if (warm) { applyLogoTex(m, warm, opts); return m; }
 
   // Cold: decode in the background and land the mark whenever it arrives. Still
   // deliberately not awaited — a missing or slow file leaves the skin as its rim
@@ -1705,7 +1825,7 @@ function logoTexPart(url, opts = {}) {
       const rec = logoTexRecord(img, opts.fullBleed);
       if (!rec) return;
       LOGO_TEX_CACHE.set(url, rec);
-      applyLogoTex(m, rec, maxW, maxH);
+      applyLogoTex(m, rec, opts);
     } catch (e) {
       // A tainted or unreadable canvas costs the badge, never the run.
       console.warn('skins: logo texture unreadable', url, e);
@@ -1715,6 +1835,114 @@ function logoTexPart(url, opts = {}) {
   img.src = url;
   return m;
 }
+
+// ---- the agency's NAME, generated rather than shipped -----------------------
+//
+// Four of these eight marks are icon-only — a glyph, a hexagon, a monogram, a
+// lozenge — and worn on the hole they never say WHO the agency is. Beside the
+// hole there was no room to say it. The closed mouth is a much bigger canvas, so
+// a row may now carry `nameText` and the reveal renders it under the mark.
+//
+// No font file and no network: canvas draws it with a system-UI stack. The one
+// property that actually matters is that this is SYNCHRONOUS —
+// bakeSkinThumbnails() is a synchronous loop with two callers using its return
+// inline, and a name that had to decode would bake blank exactly the way an
+// un-preloaded logo does. So it does not go through LOGO_TEX_CACHE and
+// preloadLogoTextures(): there is nothing to await, and a Map keyed by
+// text-and-hex is the whole of what it needs. One canvas per distinct name, once.
+//
+// The ink is the BRAND HEX on pure black — the same bargain the raster logo path
+// makes, where additive blending drops the surround for free. Never white: white
+// on additive is the white-silhouette bug wearing a different hat.
+const NAME_TEX_PX = 128;
+const NAME_TEX_FONT = `700 ${NAME_TEX_PX}px "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif`;
+const NAME_TEX_CACHE = new Map();
+
+function nameTexRecord(text, hex) {
+  const key = `${text}|${hex}`;
+  if (NAME_TEX_CACHE.has(key)) return NAME_TEX_CACHE.get(key);
+  let rec = null;
+  try {
+    const probe = document.createElement('canvas').getContext('2d');
+    probe.font = NAME_TEX_FONT;
+    const tm = probe.measureText(text);
+    // No pixel scan here, unlike logoTexRecord. That one measures ink because a
+    // supplied image's contents are unknown; this one DREW the ink, and
+    // actualBoundingBox* already is the box. Same LOGO_TEX_PAD of black around it
+    // so the mip chain has something to fade into at the crop edge.
+    const l = tm.actualBoundingBoxLeft ?? 0;
+    const r = tm.actualBoundingBoxRight ?? tm.width;
+    const a = tm.actualBoundingBoxAscent ?? NAME_TEX_PX * 0.72;
+    const d = tm.actualBoundingBoxDescent ?? NAME_TEX_PX * 0.24;
+    const W = Math.max(2, Math.ceil(l + r) + LOGO_TEX_PAD * 2);
+    const H = Math.max(2, Math.ceil(a + d) + LOGO_TEX_PAD * 2);
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    ctx.font = NAME_TEX_FONT;          // sizing the canvas resets every ctx field
+    ctx.fillStyle = `#${(hex >>> 0).toString(16).padStart(6, '0')}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(text, LOGO_TEX_PAD + l, LOGO_TEX_PAD + a);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.anisotropy = 4;
+    tex.needsUpdate = true;
+    rec = { tex, pw: W, ph: H };
+  } catch (e) {
+    // A missing 2D context costs the name, never the run — same contract as a
+    // logo texture that will not decode.
+    console.warn('skins: name texture failed', text, e);
+  }
+  NAME_TEX_CACHE.set(key, rec);
+  return rec;
+}
+
+// Shaped like a raster badge so buildPartner can drive both the same way, with
+// ONE difference that is not cosmetic: brightness goes through safeb().
+//
+// LOGO_TEX_MAX is 1.13 because that is where MAGENTA's red channel starts to
+// clip (linear 1.27, see LOGO_TEX_BASE). It is a ceiling derived from one hex,
+// and a brand whose brightest channel is 255 — Huble's #ff4d56, Impulse's
+// #f3961f — sits at linear 1.0 and clips at 1.0, well before 1.13. Applying the
+// magenta ceiling to those would push exactly the hue drift toward white that
+// the two-ladder split exists to prevent. safeb() is already the file's answer to
+// "scale all three channels so the brightest one just fits"; this reuses it
+// rather than inventing a third ladder.
+function namePart(text, hex, opts = {}) {
+  const g = new THREE.PlaneGeometry(1, 1);
+  g.rotateX(-Math.PI / 2);
+  const col = new Float32Array(12).fill(1);
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const m = new THREE.Mesh(g, partMaterial(0xffffff, opts.opacity ?? 1, true));
+  m.visible = false;
+  m.position.y = opts.y ?? 0.021;
+  m.renderOrder = opts.order ?? 1003;
+  m.userData.outer = 1;
+  const hue = rgb(hex);
+  let lastB = -1;
+  m.userData.brightness = (b) => {
+    const k = safeb(hue, b);
+    if (Math.abs(k - lastB) < 1e-4) return;
+    lastB = k;
+    for (let v = 0; v < 4; v++) { const q = v * 3; col[q] = col[q + 1] = col[q + 2] = k; }
+    g.attributes.color.needsUpdate = true;
+  };
+  const rec = nameTexRecord(text, hex);
+  if (rec) applyLogoTex(m, rec, opts);
+  return m;
+}
+
+// The mouth's layout, in hole-radius units, and every corner of it is inscribed
+// in the unit circle with room to spare: the mark's corner with a name under it
+// is (0.68, -0.51), r = 0.85; the name's is (0.65, 0.56), r = 0.86. A mark on its
+// own recentres and takes the whole face.
+const MOUTH_MARK = { maxW: 1.36, maxH: 0.62, z: -0.20 };
+const MOUTH_SOLO = { maxW: 1.60, maxH: 0.86, z: 0 };
+const MOUTH_NAME = { maxW: 1.30, maxH: 0.20, z: 0.46 };
 
 // ONE builder for the whole shelf. The mark is the identity now, so what varies
 // between these eight rows is data — `logo`, `color`, `accent` — and a ninth
@@ -1730,30 +1958,107 @@ function buildPartner(row) {
   const rim = ringPart(N, [0.86, 1.01], [1, 1], { y: 0.02, order: 1000 });
   const face = new THREE.Group();
   const raster = !!row.logoTex;
+  const named = !!row.nameText;
+  // Inside the mouth now, not beside the hole. The row's own logoFit is applied
+  // LAST so a future row can still override a limit; nothing today does.
+  const fit = { inset: true, y: 0.027, order: 1008, ...(named ? MOUTH_MARK : MOUTH_SOLO), ...(row.logoFit || {}) };
   const badge = raster
-    ? logoTexPart(row.logoTex, row.logoFit)
-    : logoPart(PARTNER_LOGOS[row.logo], row.logoFit);
-  face.add(badge);
+    ? logoTexPart(row.logoTex, fit)
+    : logoPart(PARTNER_LOGOS[row.logo], fit);
+  const name = named
+    ? namePart(row.nameText, row.color, { inset: true, y: 0.027, order: 1008, ...MOUTH_NAME })
+    : null;
+
+  // THE JAWS. Two lids clipped to the hole's own circle, sweeping in from
+  // opposite sides and meeting in the middle — the Eyeballs primitive, now with
+  // square teeth that mesh because the two are built with opposite parity. They
+  // live inside `face`, so the seam is welded to the heading exactly as the mark
+  // is and the teeth always cut across the screen the same way instead of
+  // rotating through the logo as the player steers.
+  //
+  // Opaque, and this is the first thing in the file to actually spend law 2's
+  // allowance for transient cover. The justification is the genre's, not mine:
+  // Pac-Man's mouth is shut for about half of every chomp cycle, continuously,
+  // and its closed pose is the identity everyone recognises. See Maw.
+  const lidA = lidPart(16, { teeth: 0.055, parity: 0, y: 0.026, order: 1006 });
+  const lidB = lidPart(16, { teeth: 0.055, parity: 1, y: 0.026, order: 1006 });
+  face.add(lidA, lidB, badge);
+  if (name) face.add(name);
+
+  // The plate the mark is read against. Near-black, so an ADDITIVE traced mark
+  // lands on it the same way it landed on the void and neither brightness ladder
+  // has to move — but not black, because the void it is covering is 0x06060c
+  // (~0.0018 linear, the bake's own disc colour) and a jaw in that colour is a
+  // jaw nobody sees shut.
+  //
+  // 0.13 was the first guess and it was wrong ON SCREEN in a way it was not on
+  // paper: over Brooklyn's lit street an opaque 0.13-of-#f3961f plate reads as a
+  // solid tan coaster laid on the tarmac, not as a mouth, and it drags the eye
+  // off the ink it exists to carry. 0.055 of #f3961f is ~30x the void — still
+  // unmistakably shut — and about a seventh of a traced mark's 0.36, so the mark
+  // clearly wins its own plate instead of merely beating it.
+  //
+  // But a constant FRACTION is the wrong law, because the eight brands are not
+  // equally bright. Measured mean tile luminance over the shop shelf: Impulse
+  // 60.1, Supered 37.7, Huble 38.0, and then Kuno 29.2 and New Breed 31.4 — the
+  // two darkest brands, dim in a way nobody chose. `brand * 0.055` inherits the
+  // brand's own luminance, so a dark brand gets a dark mouth on top of dark ink.
+  // What the plate is FOR is constant across rows (a floor the mark is read
+  // against), so it is normalised to a constant luminance instead: the one
+  // Impulse already lands on, which is the row that measured right.
+  const PLATE_L = 0.02253;      // Rec.709 linear, == rgb(0xf3961f) * 0.055
+  const PLATE_CH = 0.10;        // per-channel ceiling; see below
+  // The clamp is not belt-and-braces, it binds on two real rows. Luminance
+  // weights blue at 0.0722, so a blue-dominant brand needs a huge blue channel
+  // to hit the same L — New Breed's would reach 0.155, well past the 0.117 that
+  // read as a coaster when 0.13 was tried. Capped, Kuno lands at 79% of target
+  // and New Breed at 65%, both still ~2-3x their old plate. Six rows hit target
+  // exactly.
+  const bl = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  const ps = Math.min(PLATE_L / Math.max(bl, 1e-4), PLATE_CH / Math.max(c[0], c[1], c[2], 1e-4));
+  const plate = [c[0] * ps, c[1] * ps, c[2] * ps];
+  const jaw = new Maw();
   let lift = 0, lastB = -1, lastM = -1;
   return {
     parts: [rim, face],
-    onEat(st, e) { lift = Math.min(1.3, lift + 0.32 + e.size * 0.45); },
+    onEat(st, e) {
+      lift = Math.min(1.3, lift + 0.32 + e.size * 0.45);
+      jaw.fire(st.t, e);
+    },
+    // A SIZE up is the biggest thing that happens to a hole and it deserves the
+    // mark. Synthesised rather than forwarded because onGrowth carries no bite.
+    onGrowth(st) { jaw.fire(st.t, { size: 1, dur: 0.5 }); },
     update(st) {
       lift *= Math.max(0, 1 - st.dt * 2.1);
+      // NOT damped under reduced motion, unlike Eyeballs' involuntary blink. That
+      // blink is autonomous idle motion and is the right thing to switch off; this
+      // is the response to the player's own action and it is the entire feature.
+      // A half-closed jaw would leave the mark hovering over open void, which is
+      // worse than either extreme.
+      const shut = jaw.value(st.dt);
       // Welded to the heading. That is not autonomous motion, it is the player's
       // own steering made visible, so it survives reduced motion untouched —
       // same reasoning the A/B Split axis is held on.
       face.rotation.y = st.heading;
-      // Angular constancy: uncompensated, a badge 2.6 rim-radii across would be
-      // 30 m of logo painted down the street at SIZE 12 while the camera only
-      // pulled back by 2x. reach() draws the whole group in, offset and mark
-      // together, because both of them live inside it.
-      // `outer` is read fresh every frame rather than cached at build. A traced
-      // mark's is fixed the moment it is built, but a raster one is a placeholder
-      // until the image decodes and then jumps to the measured ink box — a shrink
-      // captured in the closure would have divided by 1.67 forever and left the
-      // badge mis-scaled by however far the real fit landed from the guess.
-      face.scale.setScalar(reach(badge.userData.outer, st.radius) / badge.userData.outer);
+      // No reach() compensation any more, and its absence is load-bearing rather
+      // than an omission: every part in here is inset, so `outer` is 1 and
+      // reach(1, r) === 1 for every radius. A mark bound to the hole scales with
+      // the hole, exactly as the rim always has. The beside-the-hole badge needed
+      // the correction because it reached PAST the rim; nothing here does.
+      const k = smooth(shut) * 0.5;
+      lidA.visible = lidB.visible = shut > 0.004;
+      if (lidA.visible) {
+        // 0.995 for Eyeballs' reason: the lid stays inside the rim, never on the
+        // tarmac.
+        lidA.userData.sweep(k, 1, 0.995, plate[0], plate[1], plate[2]);
+        lidB.userData.sweep(k, -1, 0.995, plate[0], plate[1], plate[2]);
+      }
+      // The two lids meet at the CENTRE last, and the centre is where the mark is.
+      // Anything shown before they get there is a logo floating in an open hole,
+      // so below 0.55 the mark is absent rather than dim.
+      const on = smooth((shut - 0.55) / 0.40);
+      const ready = raster ? !!badge.material.map : true;
+      badge.visible = ready && on > 0.004;
       // A LOGO IS NOT A GLOW. These four constants were set off measured pixels,
       // not by eye: at (0.60 + lift * 0.55) * (1 + glow * 0.28) the peak was
       // 1.68x with a 34% push to white, and since the player is eating almost
@@ -1766,9 +2071,14 @@ function buildPartner(row) {
       // The traced one keeps 0.36 exactly as measured — it is what stopped the
       // white-silhouette bug and it stays put. The raster one sits at its art's
       // own value; see LOGO_TEX_BASE.
-      const b = raster
+      //
+      // Both ladders are multiplied by `on` and by nothing else. That is a short
+      // ramp over the last 40% of the closure, not a permanent dimming: `on`
+      // reaches 1 while the jaw is still in its hold, which is the whole window
+      // the mark is actually read in. Neither ceiling moves.
+      const b = (raster
         ? Math.min(LOGO_TEX_MAX, LOGO_TEX_BASE + lift * LOGO_TEX_LIFT) * (1 + st.glow * LOGO_TEX_GLOW)
-        : (0.36 + lift * 0.30) * (1 + st.glow * 0.16);
+        : (0.36 + lift * 0.30) * (1 + st.glow * 0.16)) * on;
       // A push to white is how a traced mark reacts, because its hue is in the
       // vertex colours and that is the only channel it has. A raster mark's
       // colours are already [1,1,1] — the mix would be a no-op — and washing the
@@ -1785,8 +2095,22 @@ function buildPartner(row) {
         badge.userData.flush();
         lastB = b; lastM = mix;
       }
+      // The name is generated art, so it is always on the raster ladder — with
+      // safeb() over the top, because LOGO_TEX_MAX was derived off magenta and
+      // these hexes are not magenta. See namePart.
+      if (name) {
+        name.visible = badge.visible && !!name.material.map;
+        if (name.visible) {
+          name.userData.brightness(
+            Math.min(LOGO_TEX_MAX, LOGO_TEX_BASE + lift * LOGO_TEX_LIFT) * (1 + st.glow * LOGO_TEX_GLOW) * on);
+        }
+      }
+      // The rim picks up a little of the closure too. At 84 m the jaw is a few
+      // dozen pixels of dark-on-dark and the rim flashing with it is what makes
+      // the chomp readable from the far end of the camera's range.
       for (let i = 0; i < N; i++)
-        setRim(rim, i, mixc(i % 2 === 0 ? c : alt, WHITE, st.glow * 0.45 + lift * 0.2), i % 2 === 0 ? 1 : 0.6);
+        setRim(rim, i, mixc(i % 2 === 0 ? c : alt, WHITE, st.glow * 0.45 + lift * 0.2),
+          (i % 2 === 0 ? 1 : 0.6) * (1 + shut * 0.18));
     },
   };
 }
@@ -1948,6 +2272,27 @@ export function bakeSkinThumbnails(size = 192) {
         ev.obj.x = st.x + 1.2; ev.obj.z = st.z + 0.6;
         if (f % 8 === 0) skin.onEat(st, ev);
         skin.update(st);
+      }
+      // The partner shelf's identity is a TRANSIENT — the mark lives on the CLOSED
+      // mouth (buildPartner) and the wind-forward above stops five frames after
+      // its last bite, with the jaw most of the way open and the tile showing a
+      // bare rim. So those rows are posed mid-chomp instead.
+      //
+      // Only those rows. Every other skin's identity IS its resting pose, and
+      // Eyeballs in particular treats a golden bite as a reason to blink — posed
+      // here it would bake as a shut eyelid, the opposite of the point.
+      //
+      // IDLE FIRST, then bite. Firing straight away only EXTENDED the chomp still
+      // in flight, and the pose then landed wherever that half-finished curve
+      // happened to be — measured: 0.958 shut, which is a hair short of the two
+      // lids meeting and baked nine tiles with the void showing through the teeth.
+      // Idling past the refractory buys a FRESH close, so the pose sits on Maw's
+      // own hold (k = 0.51 of 0.13-0.62) with margin on both sides rather than on
+      // an arithmetic coincidence.
+      if (row.family === 'partner') {
+        for (let f = 0; f < 24; f++) { st.t += st.dt; skin.update(st); }   // 0.80 s: jaw open, refractory clear
+        skin.onEat(st, { type: 'eat', chain: 5, gained: 120, hole: st, obj: { tier: 7, golden: true } });
+        for (let f = 0; f < 8; f++) { st.t += st.dt; skin.update(st); }    // 0.27 s: mid-hold, fully shut
       }
       // Ground marks were laid along the fake run; slide them back under the
       // camera so the trail is visible in a square 192 px frame.
