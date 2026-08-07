@@ -1,6 +1,7 @@
 // Three.js renderer for the Voxel Sandbox pile simulation.
-// Blocks render as one InstancedMesh per physical material and brick size
-// (paint is per-instance color) instead of one mesh per block. All per-block
+// Blocks render as one InstancedMesh per physical material — and per brick size
+// too, but only where a scene declares a surface (paint is per-instance color)
+// — instead of one mesh per block. All per-block
 // motion (chunk rotation, debris tumble, rim
 // tilt, stress wobble) is composed into instance matrices each frame.
 //
@@ -584,24 +585,27 @@ export class VoxelWorld3D {
     // and not to the hole. Empty for most skins; the group costs nothing.
     this.scene.add(this.skin.world);
 
-    // One InstancedMesh per material × block size; paint rides in
-    // instanceColor. Nothing here enumerates legal brick sizes — the bucket key
-    // is whatever `b.s` says, so 2 m bricks cost one more bucket and nothing
-    // else.
+    // One InstancedMesh per material — times block size, but ONLY where a
+    // surface is declared; paint rides in instanceColor. Nothing here
+    // enumerates legal brick sizes.
     //
-    // SURFACES ride on this key for free. `sim.sceneSurfaces` maps a matType to
-    // a registry id (js/voxeltiles.js), and because surface is a function of
-    // matType, prefixing the key adds NO partitions: brick:1 and
-    // mat_brick_red:brick:1 are the same set of blocks. Measured on Brooklyn —
-    // 26 buckets before, 26 after, 52 real GL draws either way. That is why
-    // there is no atlas here: an atlas exists to collapse draw calls a
-    // per-surface split would create, and this split creates none.
+    // SURFACES are what put `b.s` in the key, and they are no longer free.
+    // `sim.sceneSurfaces` maps a matType to a registry id (js/voxeltiles.js);
+    // surface is a function of matType, so the surface prefix itself still adds
+    // no partitions. The size term does: surfacing a matType costs one bucket
+    // per distinct brick size it uses, where unsurfaced it costs exactly one.
+    // Measured — Boston is the only scene that declares surfaces, and its six
+    // surfaced matTypes take it from 8 buckets to 23 (+15); Brooklyn, if it
+    // ever declares them, would go 8 → 26. That is the real price of a surface
+    // pass, and it is the trigger condition the texture-array seam below is
+    // waiting for.
     //
     // An unknown id is ignored rather than honoured, so a typo in a scene
     // degrades to today's look instead of silently doubling the bucket count.
     //
     // SEAM, deliberately not built — per-BLOCK surface override. Today surface
-    // is a function of matType alone, which is what makes the bucket split free.
+    // is a function of matType alone, which is what keeps the surface PREFIX
+    // from partitioning anything (the size term is what costs, see above).
     // A per-block override (a 7th positional argument on voxelsim's _block, or a
     // `b.surface` field) would let one steel crane be corroded while the rest of
     // the steel is not. `surfOf` is the single place that would change: read
@@ -614,9 +618,11 @@ export class VoxelWorld3D {
     // surfaced buckets into one draw by moving the surface id into a per-instance
     // attribute and the tiles into a 2D array texture. TRIGGER: distinct
     // materials exceeding the 12-material mobile cap, or a scene where surface
-    // must vary per block (above) and the bucket split therefore stops being
-    // free. Measured today: 26 buckets surfaced vs 26 unsurfaced, 52 GL draws
-    // either way, so it would collapse nothing that is not already collapsed.
+    // must vary per block (above). Measured today: Boston pays 23 buckets where
+    // its unsurfaced twin pays 8, so unlike before this WOULD now collapse
+    // something real — 15 buckets on the one scene that uses surfaces. Still
+    // not built, because 23 is a long way inside budget; it becomes worth
+    // building when a second, larger scene declares surfaces.
     const surfaceMap = sim.sceneSurfaces || null;
     const surfOf = (b) => {
       if (!surfaceMap) return null;
@@ -628,11 +634,22 @@ export class VoxelWorld3D {
     const byMat = new Map();
     for (const b of sim.blocks) {
       // Paint belongs in instanceColor; batching only by physical material
-      // and brick size keeps a detailed city from turning every paint variant
-      // into another draw call.
+      // keeps a detailed city from turning every paint variant into another
+      // draw call.
+      //
+      // `b.s` joins the key only when the bucket is surfaced, because that is
+      // the only case where it partitions anything real — surfaceMaterial()
+      // bakes the tile repeat per metre, so a 2 m brick genuinely needs its own
+      // material. Unsurfaced, every bucket resolves to the SAME cached
+      // mat(0xffffff) over the same unit boxGeo(), and size rides in the
+      // per-instance scale matrix (`this._s.set(b.s, b.s, b.s)` in update), so
+      // splitting on it bought a second InstancedMesh drawing identical
+      // material and geometry. Across the five shipped scenes that was 116
+      // block draw calls where 56 do the same work. Reproduce:
+      // `node tools/probe-buildcost2.mjs --n=9`.
       const surf = surfOf(b);
-      const k = (surf ? surf + ':' : '') + b.matType + ':' + b.s;
-      if (!byMat.has(k)) byMat.set(k, { surf, size: b.s, list: [] });
+      const k = surf ? surf + ':' + b.matType + ':' + b.s : b.matType;
+      if (!byMat.has(k)) byMat.set(k, { surf, size: surf ? b.s : null, list: [] });
       byMat.get(k).list.push(b);
     }
     const boxG = boxGeo();
@@ -640,10 +657,19 @@ export class VoxelWorld3D {
     const tmpColor = new THREE.Color();
     for (const bucket of byMat.values()) {
       const { surf, size, list } = bucket;
-      // The unsurfaced branch is the SAME expression it has always been, reached
-      // by the same path, so a scene that declares nothing builds a
-      // byte-identical frame. Proven by framebuffer hash at three poses per
-      // scene, not asserted.
+      // The unsurfaced branch is the SAME expression it has always been and is
+      // reached by the same path, so declaring no surface still costs a scene
+      // nothing. It no longer produces a byte-identical FRAME, though, and that
+      // is the bucket key's doing rather than this line's: merging the size
+      // split changed the order coincident block faces are drawn in, and
+      // depthFunc is LessEqual, so an exact depth tie between two touching
+      // faces now resolves to the other one. Measured against the pre-P1.2 tree
+      // at 1280x720, Math.random seeded, three poses per scene: 0 differing
+      // pixels on gallery, worst case 600 of 921,600 (0.065%) on Brooklyn, all
+      // of it 1-4 px specks and thin seam lines, no blob wider than a face
+      // join. Which face won that tie was always arbitrary — it followed Map
+      // insertion order over sim.blocks — so this is a re-roll of an undefined
+      // result, not a regression of a defined one.
       let bMat;
       if (surf) {
         bMat = surfaceMaterial(surf, size, this._maxAnisotropy, this.renderer);
