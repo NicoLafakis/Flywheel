@@ -1,6 +1,6 @@
 # ADR-0013: Anisotropic voxel primitives — a block is a box, not a cube
 
-- **Status:** proposed (awaiting Nico; supersedes nothing until accepted)
+- **Status:** accepted (2026-08-07, Nico)
 - **Date:** 2026-08-06
 - **Deciders:** Nico, Claude Opus 5
 
