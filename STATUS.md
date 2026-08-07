@@ -290,6 +290,7 @@ district sweep).
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
 
+- 2026-08-07: Steering A/B rig: the keyboard scheme is a runtime switch — `?steer=direct|tank|strafe|mouse` at boot or keys 1-4 live, with an on-screen badge (doubles as the stale-build check). Tank kept as the control group; strafe = zero turn lag; mouse = Agar-style cursor follow. Awaits the player's pick, then the rig leaves
 - 2026-08-07: Voxel physics: `_capDebris` stops sleeping blocks onto loose supports (no more mid-air hangs), contact-budget-excluded debris parks instead of sinking into itself (no more re-entry fountain / rim knocking bricks sky-high)
 - 2026-08-07: Keyboard steering goes direct (WASD = eight screen directions, heading chases the shortest arc, camera holds the latched basis) — kills the tank scheme's wind-up, where D after a W+A hold looped the long way round
 - 2026-08-07: Desktop-class machines classify quality HIGH and pin it (watchdog off) — the tier ladder is for phones; a desktop no longer loses shadows/ambient life to a boot hitch or a bucketed RAM report

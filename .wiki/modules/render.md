@@ -95,6 +95,20 @@ mutates sim state.
   fed `orbitDelta` at `STEER_RATE` 2.7 rad/s × a size-ramped 0.2→0.8), the
   camera-relative strafe that replaced it, and the tank scheme that replaced
   THAT are all gone. ADR-0008 documents the tank design as shipped.
+- **Steering A/B rig (2026-08-07), temporary.** The reversal report survived
+  the direct-steer ship, so the keyboard scheme is a runtime switch until the
+  player picks one: `controls.steerMode` ∈ `direct | tank | strafe | mouse`,
+  set from `?steer=` at boot or keys 1–4 live (`main.js` steering rig, with a
+  fixed bottom badge naming the active scheme — which doubles as the
+  stale-cache check: no badge, old build). `tank` is the one-day scheme kept
+  as the control group; `strafe` snaps the move vector and heading to the key
+  direction with zero turn lag; `mouse` is Agar-style cursor-follow (hover
+  tracked in `onPointerMove`, raycast via the point-to-move `_groundAt`,
+  cursor-inside-the-hole stops on the point-to-move ring). A headless smoke
+  harness drives all four: after a 1 s W+A wind, W+D reaches screen-right in
+  1202 ms on tank vs 301 ms on direct and 0 on strafe. When the player picks,
+  the rig (badge, key handler, unused branches) comes out and this bullet
+  becomes one line in the scheme's history.
 - **Touch: direct steer + pinch zoom (2026-08-06).** The stick's ANGLE names a
   direction on screen; the heading turns toward it at a capped rate and stops
   itself when the error reaches zero. Screen→world is

@@ -270,6 +270,16 @@ export class Controls {
     this._ptArrived = false;
     this._ptBlockUntil = 0;   // ms; presses before this are the tail of a dismissal
 
+    // Steering scheme under A/B test (2026-08-07) — see the keyboard branch of
+    // getMove. main.js sets it from ?steer= at boot and the 1-4 keys live.
+    // 'direct' is the shipped answer; the other three exist to settle which
+    // scheme the player actually wants.
+    this.steerMode = 'direct';
+    // Last known cursor position, tracked even on hover (no button): the
+    // 'mouse' steer mode raycasts it every frame.
+    this._mouseX = null;
+    this._mouseY = null;
+
     this.joyEl = document.getElementById('joystick');
     this.knobEl = document.getElementById('joystick-knob');
 
@@ -480,6 +490,9 @@ export class Controls {
     // pointerdown, so a hover matches nothing and costs one map lookup —
     // but preventDefault has to move INSIDE the branches, or a bare hover
     // would be swallowing default behaviour across the whole canvas.
+    // The one thing a hover DOES feed is the mouse-steer test mode, which
+    // raycasts the last known cursor position every frame.
+    if (e.pointerType === 'mouse') { this._mouseX = e.clientX; this._mouseY = e.clientY; }
     const p = this._touches.get(e.pointerId);
     if (p) { p.x = e.clientX; p.y = e.clientY; }
     if (this._pt && e.pointerId === this._pt.id) {
@@ -1109,6 +1122,17 @@ export class Controls {
       (1 + (ORBIT_RATE_RAMP - 1) * this.sandboxSizeProgress);
   }
 
+  // The direct-steer convergence rate: the ORBIT_RATE stack times the boost,
+  // under the ceiling the chase camera imposes (see DIRECT_STEER_MAX). One
+  // helper because every converging scheme — stick, keys, mouse-follow —
+  // turns at exactly this rate.
+  _directSteerRate() {
+    return Math.min(
+      ORBIT_RATE * this._steerSens() * DIRECT_STEER_BOOST,
+      DIRECT_STEER_MAX * (1 + (DIRECT_STEER_MAX_RAMP - 1) * this.sandboxSizeProgress),
+    );
+  }
+
   // Seconds since the previous getMove call, clamped. Falls back to one 60 fps
   // frame on the first call and whenever the clock is unavailable or has jumped
   // (tab restored, level intro held for a while), so no press can ever be
@@ -1254,10 +1278,7 @@ export class Controls {
       // from a heading of 3.10 reads as 6.20 rad of error and the hole takes
       // the long way round through a full turn to reach a point 5 deg away.
       const err = Math.atan2(Math.sin(target - this.heading), Math.cos(target - this.heading));
-      const rate = Math.min(
-        ORBIT_RATE * this._steerSens() * DIRECT_STEER_BOOST,
-        DIRECT_STEER_MAX * (1 + (DIRECT_STEER_MAX_RAMP - 1) * this.sandboxSizeProgress),
-      );
+      const rate = this._directSteerRate();
       const maxStep = rate * step;
       this.heading += Math.abs(err) <= maxStep ? err : Math.sign(err) * maxStep;
       this.heading = Math.atan2(Math.sin(this.heading), Math.cos(this.heading));
@@ -1273,36 +1294,101 @@ export class Controls {
     // _latchBasis for why this line's POSITION is the whole feedback argument.
     this._latchBasis(camYaw);
 
-    // --- direct steer (keyboard) --------------------------------------------
-    // The keys are the stick with eight positions: (ix, iy) names a screen
-    // direction against the same latched basis, the heading chases it through
-    // the same wrapped shortest arc at the same capped rate, and the intent is
-    // full-throw along the heading. W is up-screen, D is screen-right — and
-    // pressed after a W+A hold it turns there DIRECTLY (at most a 180 deg
-    // shortest-arc swing), where the tank scheme this replaced had to unwind
-    // every degree A had wound in first, while W kept driving: the hole looped
-    // the long way round to go right. Screen-LEFT is heading + pi/2 (see the
-    // stick branch above), so with iy negative for W the angle off screen-up
-    // is atan2(-ix, -iy), matching the stick's atan2(-sx, -sy).
+    // --- keyboard: FOUR schemes under A/B test (2026-08-07) -------------------
+    // The reversal "roundabout" report survived two days of scheme fixes, so
+    // the keyboard scheme is a runtime switch until the player picks a winner.
+    // main.js sets `steerMode` from ?steer=direct|tank|strafe|mouse at boot and
+    // the 1-4 keys live, with an on-screen badge naming the active scheme.
+    //
+    //   1 direct — WASD name a screen direction against the latched basis; the
+    //      heading chases it through the wrapped shortest arc at the capped
+    //      direct-steer rate; the chase camera holds the basis while driving.
+    //      The shipped scheme, and the default.
+    //   2 tank — the one-day scheme (c3579da), kept as the control group: W/S
+    //      throttle along the heading, A/D integrate the heading open-loop,
+    //      the chase camera follows the heading so a parked spin is visible.
+    //      The "Zoolander" roundabout lives here: wind up ~150 deg past the
+    //      view with W+A, and D has to unwind every degree before you face
+    //      right.
+    //   3 strafe — zero turn lag: the move vector snaps to the key direction
+    //      instantly and the heading snaps with it (skins/camera still get a
+    //      true heading). Tests whether the convergence RATE is the complaint.
+    //   4 mouse — Agar.io style: the hole chases the live cursor's ground
+    //      point, keys ignored. Tests whether keys are the problem at all.
+    const mode = this.steerMode || 'direct';
+    const kbasis = Number.isFinite(this._basisYaw) ? this._basisYaw
+      : (Number.isFinite(camYaw) ? camYaw : 0);
+
+    if (mode === 'tank') {
+      const steer = -ix;       // A (ix < 0) turns left = heading increases
+      const throttle = -iy;    // W (iy < 0) drives forward
+      if (steer || throttle) {
+        // The chase follows the heading here — swinging round IS what makes a
+        // stationary spin visible — so the basis hold is released.
+        this._setChaseHold(null);
+        if (this.heading === null) this.heading = Math.atan2(Math.sin(kbasis), Math.cos(kbasis));
+        this.heading += steer * ORBIT_RATE * this._steerSens() * step;
+        this.heading = Math.atan2(Math.sin(this.heading), Math.cos(this.heading));
+      }
+      if (!throttle) return { x: 0, z: 0 };
+      return {
+        x: -Math.sin(this.heading) * throttle,
+        z: -Math.cos(this.heading) * throttle,
+      };
+    }
+
+    if (mode === 'strafe') {
+      if (!ix && !iy) return { x: 0, z: 0 };
+      this._setChaseHold(kbasis);
+      // Screen -> world with no arc at all: forward = (-sin b, -cos b) and
+      // screen-left = forward(b + pi/2) = (-cos b, sin b). W: up=1, left=0.
+      const up = -iy, left = -ix;
+      const mx = -Math.sin(kbasis) * up - Math.cos(kbasis) * left;
+      const mz = -Math.cos(kbasis) * up + Math.sin(kbasis) * left;
+      this.heading = Math.atan2(-mx, -mz); // snap — inverse of forward = (-sin, -cos)
+      return { x: mx, z: mz };
+    }
+
+    if (mode === 'mouse') {
+      this._setChaseHold(kbasis);
+      const hit = (hole && this._mouseX !== null) ? this._groundAt(this._mouseX, this._mouseY) : null;
+      if (!hit) return { x: 0, z: 0 };
+      const dx = hit.x - hole.x, dz = hit.z - hole.z;
+      const d = Math.hypot(dx, dz) || 0.001;
+      // Cursor inside the hole means stop, same ring point-to-move uses.
+      if (d <= Math.max(0.6, (hole.radius || 1) * 0.5)) return { x: 0, z: 0 };
+      // World-fixed direction (like point-to-move): no basis in the math, so
+      // a slewing camera cannot change what the cursor asked for.
+      const target = Math.atan2(-dx / d, -dz / d);
+      if (this.heading === null) this.heading = Math.atan2(Math.sin(kbasis), Math.cos(kbasis));
+      const err = Math.atan2(Math.sin(target - this.heading), Math.cos(target - this.heading));
+      const maxStep = this._directSteerRate() * step;
+      this.heading += Math.abs(err) <= maxStep ? err : Math.sign(err) * maxStep;
+      this.heading = Math.atan2(Math.sin(this.heading), Math.cos(this.heading));
+      return { x: -Math.sin(this.heading), z: -Math.cos(this.heading) };
+    }
+
+    // direct (default). The keys are the stick with eight positions: (ix, iy)
+    // names a screen direction against the latched basis, the heading chases
+    // it through the wrapped shortest arc, and the intent is full-throw along
+    // the heading. W is up-screen, D is screen-right — pressed after a W+A
+    // hold it turns there DIRECTLY (at most a 180 deg shortest-arc swing).
+    // Screen-LEFT is heading + pi/2 (see the stick branch above), so with iy
+    // negative for W the angle off screen-up is atan2(-ix, -iy), matching the
+    // stick's atan2(-sx, -sy).
     if (ix || iy) {
-      const basis = Number.isFinite(this._basisYaw) ? this._basisYaw
-        : (Number.isFinite(camYaw) ? camYaw : 0);
-      const target = basis + Math.atan2(-ix, -iy);
+      const target = kbasis + Math.atan2(-ix, -iy);
       // Same camera contract as the stick (the long note above): hold the
       // chase at the basis while a key is driving, so a reversal happens on
       // screen instead of underneath a slewing camera. The campaign camera
       // ignores the hold (followDir is false there).
-      this._setChaseHold(basis);
+      this._setChaseHold(kbasis);
       if (this.heading === null) {
         // First input of a level: face up-screen so W reads as "drive away".
-        this.heading = Math.atan2(Math.sin(basis), Math.cos(basis));
+        this.heading = Math.atan2(Math.sin(kbasis), Math.cos(kbasis));
       }
       const err = Math.atan2(Math.sin(target - this.heading), Math.cos(target - this.heading));
-      const rate = Math.min(
-        ORBIT_RATE * this._steerSens() * DIRECT_STEER_BOOST,
-        DIRECT_STEER_MAX * (1 + (DIRECT_STEER_MAX_RAMP - 1) * this.sandboxSizeProgress),
-      );
-      const maxStep = rate * step;
+      const maxStep = this._directSteerRate() * step;
       this.heading += Math.abs(err) <= maxStep ? err : Math.sign(err) * maxStep;
       this.heading = Math.atan2(Math.sin(this.heading), Math.cos(this.heading));
       // Full throw, always — both sims re-normalise `move` themselves (same

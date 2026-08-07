@@ -100,6 +100,43 @@ window.__quality = {
   }),
 };
 
+// ------------------------------------------------------- steering A/B rig
+// 2026-08-07: the reversal "roundabout" report survived two days of scheme
+// fixes, so the keyboard scheme is a runtime switch until the player picks a
+// winner. Boot with ?steer=direct|tank|strafe|mouse, or press 1-4 live. The
+// badge doubles as the build check: no badge on screen = a stale cached build,
+// which is the first thing to rule out when "the fix isn't there".
+// Inline-styled and self-contained on purpose: it is a test rig, not game UI,
+// and it leaves with the decision.
+const STEER_MODES = ['direct', 'tank', 'strafe', 'mouse'];
+const STEER_LABELS = {
+  direct: '1 DIRECT · WASD = screen direction, shortest-arc turn',
+  tank: '2 TANK · W/S throttle, A/D rotate (the Zoolander one)',
+  strafe: '3 STRAFE · WASD instant, zero turn lag',
+  mouse: '4 MOUSE · hole follows the cursor, keys off',
+};
+let steerMode = (() => {
+  const q = new URLSearchParams(location.search).get('steer');
+  return STEER_MODES.includes(q) ? q : 'direct';
+})();
+const steerBadge = document.createElement('div');
+steerBadge.style.cssText = 'position:fixed;left:50%;bottom:10px;transform:translateX(-50%);' +
+  'z-index:9999;pointer-events:none;background:rgba(10,12,20,.85);color:#9fe8ff;' +
+  'font:12px/1.4 monospace;padding:4px 12px;border-radius:8px;border:1px solid rgba(159,232,255,.4);' +
+  'white-space:nowrap;';
+document.body.appendChild(steerBadge);
+function setSteerMode(m) {
+  if (!STEER_MODES.includes(m)) return;
+  steerMode = m;
+  if (controls) controls.steerMode = m;
+  steerBadge.textContent = `STEER ${STEER_LABELS[m]} — keys 1-4 switch`;
+}
+window.addEventListener('keydown', (e) => {
+  const i = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(e.code);
+  if (i >= 0) setSteerMode(STEER_MODES[i]);
+});
+setSteerMode(steerMode);
+
 // The player's setting is the authority; 'auto' delegates to the classifier.
 function wantedTier() {
   const q = save.settings && save.settings.quality;
@@ -234,6 +271,7 @@ function startLevel() {
   cam.setBlockers(world.blockers);
   controls = controls || new Controls(canvas);
   controls.settings = save.settings;
+  controls.steerMode = steerMode;   // steering A/B rig — see the boot section
   controls.chaseMode = false;   // campaign: direct steering, no auto-follow camera
   // Controls is a singleton across levels, so these are reassigned every start
   // rather than set once: a stale camera would aim the point-to-move raycast
@@ -398,6 +436,7 @@ function startVoxelSandbox(scene = 'gallery') {
     window.__world = world; // debug hook
     controls = controls || new Controls(canvas);
     controls.settings = save.settings;
+    controls.steerMode = steerMode;   // steering A/B rig — see the boot section
     // Third-person chase: WASD/joystick name a screen direction (direct
     // steer), the heading chases it through the wrapped shortest arc, and
     // while anything is steering the camera holds the latched basis yaw
