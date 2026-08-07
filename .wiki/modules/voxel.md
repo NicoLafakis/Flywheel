@@ -380,6 +380,17 @@ mind the hanging threshold — remR + (span + 1.5) × radius/6.6, ≈ 1.6 m at
 the 1.1 start radius — for anything whose support path includes horizontal
 hops.
 
+**Planned, not built:** [ADR-0013](../adr/0013-anisotropic-voxel-primitives.md)
+proposes widening a block from a cube to an axis-aligned box (independent
+`sx/sy/sz`), authored through a new `js/voxelforms.js` layer below
+`js/voxelkit.js`, with `js/voxelscene-cambridge.js` as its debut scene. See
+[features/cambridge-sandbox/](../features/cambridge-sandbox/README.md),
+especially
+[01-voxel-primitive-vocabulary.md](../features/cambridge-sandbox/01-voxel-primitive-vocabulary.md)
+(the capability audit against this file's cost model) and
+[00-objective-overview.md](../features/cambridge-sandbox/00-objective-overview.md).
+Nothing in `voxelsim.js`, `voxelworld.js` or `voxelkit.js` has changed yet.
+
 ## Talks To
 
 - **main.js** — `step(1/60, move)` + `drainEvents()` (`eat`, `crash`);

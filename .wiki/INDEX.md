@@ -2,10 +2,10 @@
 
 > Living documentation for **Flywheel** — "A sprocket's story" (repo:
 > `Flywheel`; the eat-everything mechanic itself is still called "hole" in
-> code and vocabulary — see [glossary.md](glossary.md)). Updated 2026-08-06
+> code and vocabulary — see [glossary.md](glossary.md)). Updated 2026-08-07
 > (save-schema drift guard, partner `logoTex` path, `tools/skinsheet.mjs` and
-> `tools/gen-partner-logo.mjs`; online Flywheel planning package indexed —
-> documentation only, nothing built yet).
+> `tools/gen-partner-logo.mjs`; online Flywheel and Cambridge sandbox planning
+> packages indexed — documentation only, nothing built yet).
 
 ## What is this?
 
@@ -40,7 +40,7 @@ this wiki is the engineering companion.
 | [modules/](modules/) | Per-module docs with `covers:` globs: [campaign](modules/campaign.md), [citygen](modules/citygen.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
 | [adr/](adr/) | Architecture Decision Records |
 | [runbooks/](runbooks/) | Run/validate/deploy playbooks |
-| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (planning only — accounts, live shared arena, leaderboards; nothing built yet) |
+| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (planning only — accounts, live shared arena, leaderboards; nothing built yet), [cambridge-sandbox](features/cambridge-sandbox/README.md) (planning only — sixth voxel scene + anisotropic voxel-primitive vocabulary; nothing built yet) |
 
 ## Feature planning packages
 
@@ -51,6 +51,13 @@ this wiki is the engineering companion.
   at the [README](features/online-flywheel/README.md), which points
   implementers at [00-objective-overview.md](features/online-flywheel/00-objective-overview.md)
   and Nico at [SETUP-FOR-NICO.md](features/online-flywheel/SETUP-FOR-NICO.md).
+- [features/cambridge-sandbox/](features/cambridge-sandbox/README.md) — the
+  plan for a sixth voxel sandbox scene centred on HubSpot's real Cambridge, MA
+  HQ (2 Canal Park + the Davenport), and the debut vehicle for a new
+  anisotropic voxel-primitive vocabulary ([ADR-0013](adr/0013-anisotropic-voxel-primitives.md)).
+  **Documentation only — no code exists yet.** Start at the
+  [README](features/cambridge-sandbox/README.md), which points at
+  [00-objective-overview.md](features/cambridge-sandbox/00-objective-overview.md).
 
 ## External references
 

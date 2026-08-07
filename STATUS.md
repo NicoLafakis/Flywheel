@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-06
+Last updated: 2026-08-07
 
 ---
 
@@ -100,6 +100,16 @@ Building it is blocked on three things only Nico can do:
    figures in the planning docs (see `08-rollout-and-runbook.md` and
    `11-risk-register.md`) depend on how long the booth runs and haven't been
    pinned to real dates yet.
+
+### Cambridge sandbox — planning package landed, nothing built
+
+`.wiki/features/cambridge-sandbox/` (6 docs) plus ADR-0013 landed 2026-08-06/07.
+**Paperwork only** — no code changed. It plans a sixth voxel sandbox scene
+centred on HubSpot's real Cambridge, MA HQ (2 Canal Park + the Davenport) for
+UNBOUND, and the debut of a new anisotropic voxel-primitive vocabulary
+(ADR-0013, status: proposed, awaiting Nico) that widens a block from a cube to
+an axis-aligned box. See `.wiki/architecture.md`'s matching "planned, not
+built" note and `.wiki/modules/voxel.md`.
 
 ### Awaiting Nico — three decisions, none answered
 

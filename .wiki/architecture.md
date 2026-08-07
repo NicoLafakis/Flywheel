@@ -43,13 +43,26 @@ never writes sim state outside `sim.step()`, it never imports three.js, a
 client's score is never the record (the server replays the pure sim before
 anything reaches a leaderboard), and the network is optional at every point.
 
+**Also planned, not built:** [ADR-0013](adr/0013-anisotropic-voxel-primitives.md)
+proposes widening a voxel block from a cube (`fs`/`s`) to an axis-aligned box
+with independent per-axis extents (`fsx/fsy/fsz`, `sx/sy/sz`), plus a new
+`js/voxelforms.js` authoring layer sitting below `js/voxelkit.js`. It stays
+inside the existing pure-sim/render boundary — the extents are pure-sim data
+and `voxelworld.js` reads them the way it reads `b.s` today — and every
+shipped scene must stay byte-identical. See
+[features/cambridge-sandbox/](features/cambridge-sandbox/README.md), the
+sixth voxel scene proposed as its debut vehicle. No code for either exists
+yet.
+
 ## Key decisions
 
 See `adr/`: 0002 sim/render split, 0003 deterministic seeded generation,
 0004 formula-driven levels with validator-enforced margins. Planned (not yet
 implemented): 0009 Supabase backend, 0010 host-authoritative arena, 0011
 guest-first identity with deferred claim, 0012 replay-validated leaderboard
-trust — see [features/online-flywheel/](features/online-flywheel/README.md).
+trust — see [features/online-flywheel/](features/online-flywheel/README.md);
+0013 anisotropic voxel primitives — see
+[features/cambridge-sandbox/](features/cambridge-sandbox/README.md).
 
 ## Performance notes
 

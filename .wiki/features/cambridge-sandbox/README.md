@@ -1,0 +1,48 @@
+---
+covers:
+  - "js/voxelscene-*.js"
+---
+# Cambridge sandbox — the package index
+
+A sixth voxel sandbox scene, centred on **2 Canal Park** — the building HubSpot
+leases in East Cambridge — and the debut vehicle for a new voxel authoring
+vocabulary. It is being made for an audience that works in the building and will
+play it at UNBOUND, which is why the research is separated from the design and
+why every factual claim carries a confidence marker.
+
+**Status: paperwork only.** Nothing in this package is built. No code has
+changed.
+
+| Doc | What it is | Why you'd open it |
+|---|---|---|
+| [00-objective-overview.md](00-objective-overview.md) | The spine. What the level actually serves, what the vocabulary unlocks, what it forecloses, and whether the two ship together. | Read this first if you are deciding *whether* and *in what order*, not *what*. |
+| [01-voxel-primitive-vocabulary.md](01-voxel-primitive-vocabulary.md) | The capability audit and the toolkit: twelve named primitives, the cost model traced line by line, the two-hand rule, the ~9.7 m grade ceiling, the one-bite hazard, and the measurement plan. **Final.** | Every "can a block do that?" question is answered here, with a file and a line. |
+| [02-cambridge-reference.md](02-cambridge-reference.md) | The verified reference brief: the two HubSpot buildings, the measured street bearings, a 25-row scale/offset table, neighbouring buildings, landmarks ranked by recognizability, palette, easter-egg seeds, sensitivities, and a list of what could **not** be established. **Final.** | Before you place anything real, check it here. If it says Unverified, it stays unverified. |
+| [03-level-design.md](03-level-design.md) | The level design proper: map extent, the scale law, ten districts with block budgets, the two hero buildings member by member, the landmark shelf, the play route, the ≤15 m density floors, validator compliance, and the authoring plan. | This is the build spec. It is the long one. |
+| [04-easter-eggs-and-achievements.md](04-easter-eggs-and-achievements.md) | The catalogue of hidden things: what is hidden, where, what it rewards, and how it is found. *Owned by another author, written concurrently.* | 03 reserves the slots and states the placement principle; 04 fills them. |
+| [05-build-tasks.md](05-build-tasks.md) | The dependency-ordered task list an implementer works from: nine phases from the ADR-0013 decision gate through engine change, primitive layer, district-by-district authoring, hidden content, to validator sign-off. **New.** | When the design is signed off and the question becomes "what do I do on Monday". |
+| [../../adr/0013-anisotropic-voxel-primitives.md](../../adr/0013-anisotropic-voxel-primitives.md) | **ADR-0013** — a block becomes an axis-aligned *box*, not a cube, and nothing else. The decision, its four behavioural consequences, and the four alternatives that were refused. | The one file to read if you only read one, and the one to argue with if you disagree. |
+
+**Reconciliation pass, 2026-08-07.** Coin placement (`sim.coinAnchors`) was
+filed as a pen in `00` while `04`'s hidden-content design depended on it
+throughout; it is now a prerequisite in `00`, `03` and `04` alike, with the
+RNG-sequence and coin/chain constraints stated once and cross-referenced. A
+counting error in `04`'s secret-achievement tally, an unclosed cross-doc flag
+on the NECCO reveal, an arithmetic gap in the Davenport's block count, and an
+unchecked grade-ceiling assumption on the Stata Center's base masses were also
+found and fixed — see `05` §Phase 5/6 and the docs themselves for detail. A
+minimal note was added at achievement #35 in
+`../online-flywheel/06-belts-and-achievements.md` recording that Cambridge
+makes it a five-of-six-cities achievement by name, deliberately left
+unrenumbered.
+
+## The two sentences that govern everything else
+
+**Skin, not fill.** A solid piece replaces a *surface*, never an *interior* — a
+floor is a 0.25 m plate, not a 1 m solid cube — because fine-cell cost is linear
+in occupied volume, not in block count.
+
+**Spend it back.** Every block a primitive frees is budget owed back to the
+scene, not banked. Cambridge lands in the same block neighbourhood as the
+existing authored scenes and reads as *more* place for it. A falling block count
+is a warning sign, not a result.

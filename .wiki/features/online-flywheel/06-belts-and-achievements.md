@@ -422,10 +422,21 @@ Structure:
 | 32 | **Open the Financial District** | Complete Lower Manhattan's goal. | Opener | Visible |
 | 33 | **Reclaim Central Park** | Complete Upper Manhattan's goal. | Opener | Visible |
 | 34 | **Clear the Collection** | Complete the sandbox gallery's goal. | Opener | Visible |
-| 35 | **Road Warriors** | Complete all five city goals. | Main Event | Visible |
+| 35 | **Road Warriors** | Complete all five city goals. ⚠ see note | Main Event | Visible |
 | 36 | **Bridge and Tunnel** | Eat both Brooklyn bridges in one run. | Midcard | **Secret** |
 | 37 | **Landscaper** | Clear Central Park's greenery entirely in Upper Manhattan. | Midcard | **Secret** |
 | 38 | **Harbormaster** | Complete Boston's goal without crossing inland of the waterfront. | Legend | **Secret** |
+
+> **⚠ #35 note, added 2026-08-07.** Cambridge
+> (`.wiki/features/cambridge-sandbox/`) is a sixth voxel sandbox city, which
+> makes "all five city goals" describe a smaller feat than the name implies
+> once it ships. Decision, made in that package rather than here: **#35 is not
+> renumbered, not rescoped, and not rewritten** — the five cities it names and
+> the players who already hold it are unchanged. Cambridge instead gets its own
+> city achievement (**#59 "Home Sweet Home"**) and the six-city achievement is a
+> new, additive one (**#60 "The Whole Map"**). See
+> `../cambridge-sandbox/04-easter-eggs-and-achievements.md` §3.2 for the full
+> reasoning.
 
 ### 6.6 Coins, shop, and the wardrobe
 
