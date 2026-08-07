@@ -129,6 +129,31 @@ Three layers, cheapest first:
    sleep is committed only after the contact pass proves the block
    contact-free, so nothing freezes mid-overlap. Chunk/debris tumble is
    capped (~0.6–0.7 rad): slabs lean, they don't pirouette.
+5. **The tier levers got two correctness fixes (2026-08-07), and the
+   one-step separation contract survived a challenge.** `_capDebris` must
+   never sleep a block resting on awake loose
+   debris: it now skips `_looseSup` blocks. Sleeping one registered it in
+   `_top`/`_sleepers` with the loose block's top as its support, and when
+   that support was eaten no wake path fired (awake blocks live in neither
+   index), so the block — and whatever piled onto it — hung in the air until
+   the hole passed directly underneath (player report: blocks "don't fall
+   unless you position yourself under them"; the fountain and the hang are
+   both visible in `../screenshots/flywheel-block-issues.jpg`). The walk's own sleep path
+   already knew (the `looseSup` branch never sets `_wantSleep`); the cap
+   simply failed to check. And `contactBudget`-excluded blocks are now
+   PARKED (`_budgetHold`, `_stepDebris` skips their integration) instead of
+   being integrated without a contact pass: their support probe cannot see
+   the awake pile they rest on, so gravity sank them into each other a
+   little per step, and the step the hole brought them back inside the
+   budget the solver found up to a full block of penetration and shoved them
+   straight up — the block fountain, and the rim "knocking bricks" sky-high.
+   A 0.3 m clamp on `_pushAxis`'s positional correction was tried for the
+   same symptom and REVERTED: full-pen one-step separation is the
+   anti-tunnelling contract the validator probes (a mover coincident with a
+   solid must be fully ejected by one call), the clamp broke it and shifted
+   HIGH-tier eat counts, and with the wad source parked the launches no
+   longer have a population to compound from. HIGH is untouched by the two
+   lever fixes (both levers are Infinity there).
 
 **Block-vs-block collision** (the solid-surface heightmap): per fine column,
 `_top` tracks the highest SOLID top (static blocks + sleeping debris).

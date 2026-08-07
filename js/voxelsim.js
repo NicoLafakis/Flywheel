@@ -1216,6 +1216,7 @@ export class VoxelSandboxSim {
       // contact OBSTACLE contributed from `_falling` — so it has to be back in
       // that list even though nothing woke it.
       if (b.asleep) { this._sleepObsRemove(b); this._reviveResting(b); }
+      b._budgetHold = false; // chunk membership supersedes a contact-budget park
       b.parentChunk = chunk;
       b.relX = b.x - cx; b.relY = b.y - cy; b.relZ = b.z - cz;
     }
@@ -1690,6 +1691,10 @@ export class VoxelSandboxSim {
     b.parentChunk = null;
     b.fallT = -1; // settled debris never re-groups into chunks
     b.asleep = false;
+    // Fresh loose body, re-evaluated from scratch: no stale budget park or
+    // support claim may ride along from its chunk life.
+    b._budgetHold = false;
+    b._looseSup = false;
     this._reviveResting(b);  // shattered out of a chunk: it moves again
     this._sleepObsRemove(b); // no-op unless it somehow still held resting cells
     b.vx = chunk.vx * 0.5 + this.rng.float(-1.5, 1.5) * scatter;
@@ -1729,6 +1734,16 @@ export class VoxelSandboxSim {
         if (!overVoid) continue;
         this._unsleep(b);
       }
+      // Held out of this tier's contact budget by _resolveDebrisContacts:
+      // park it. A budget-excluded block must NOT be integrated — its support
+      // probe cannot see the awake pile it rests on (loose bodies are only in
+      // `_top` once they sleep, and `_restLoose` is only re-set by the contact
+      // pass it was excluded from), so gravity walked it down INTO the pile a
+      // little more each step, and the day it re-entered the budget the
+      // separation solver found a full block of penetration and launched it.
+      // Parking freezes the fringe pile as it was; the hole coming within
+      // budget range (or the void opening under it) hands it back to physics.
+      if (b._budgetHold && !overVoid) continue;
       if (dist2 < attractR2 && !b._grounded) {
         const dist = Math.sqrt(dist2) || 0.001;
         const a = this.tune.attract * (1 - dist / attractR);
@@ -1779,8 +1794,10 @@ export class VoxelSandboxSim {
       }
       const rest = support + b.s / 2;
       b._grounded = false; // vacuum only acts on airborne/sliding bodies
+      b._looseSup = false; // re-stamped each grounded step — _capDebris reads it
       if (b.y <= rest) {
         b._grounded = true;
+        b._looseSup = looseSup;
         b.y = rest;
         if (b.vy < 0) b.vy = b.vy < -2 ? -b.vy * 0.25 : 0;
         b.vx *= 1 - 3 * dt; b.vz *= 1 - 3 * dt;
@@ -1882,12 +1899,22 @@ export class VoxelSandboxSim {
   //
   // The cap is a "settle sooner" lever, NOT a teleport and not a freeze. Only
   // blocks that are ALREADY grounded (`_grounded` means the walk above snapped
-  // them onto their support this step) are eligible, and they are handed to the
-  // same `_wantSleep` path everything else uses — which means the contact pass
-  // still has to prove them overlap-free before they are allowed to sleep. A
-  // block frozen mid-overlap can never separate, and that invariant is not worth
-  // trading for a frame. So the visible cost is: distant rubble stops skittering
-  // and comes to rest a second or two early. Nothing vanishes, nothing sinks.
+  // them onto their support this step) ON A STATIC SUPPORT are eligible:
+  // a block grounded on awake loose debris (`_looseSup`) must never be slept
+  // here — sleeping registers it in `_top`/`_sleepers` with the loose block's
+  // top as its recorded support, and when that support is later eaten or rolls
+  // away NO wake path fires (awake blocks live in neither index, so
+  // `_consume`/`_unsleep`/`_topRemove` all miss it), leaving the sleeper — and
+  // whatever piled onto it via `_top` — hanging in the air until the hole
+  // passes directly underneath (`_wakeRestingUnderHole` is the only remaining
+  // wake). The walk's own sleep path knew this (the `looseSup` branch never
+  // sets `_wantSleep`); the cap simply failed to check. Eligible blocks are
+  // handed to the same `_wantSleep` path everything else uses — which means
+  // the contact pass still has to prove them overlap-free before they are
+  // allowed to sleep. A block frozen mid-overlap can never separate, and that
+  // invariant is not worth trading for a frame. So the visible cost is:
+  // distant rubble stops skittering and comes to rest a second or two early.
+  // Nothing vanishes, nothing sinks, nothing hangs.
   //
   // Farthest-from-the-hole first, because that is what the player is not looking
   // at; `id` breaks ties so the selection can never depend on iteration order.
@@ -1900,7 +1927,7 @@ export class VoxelSandboxSim {
       const b = f[i];
       if (b.state !== 'falling' || b.parentChunk || b.asleep) continue;
       active++;
-      if (b._grounded && !b._wantSleep) cand.push(b);
+      if (b._grounded && !b._wantSleep && !b._looseSup) cand.push(b);
     }
     const excess = active - cap;
     if (excess <= 0 || cand.length === 0) return;
@@ -1934,6 +1961,7 @@ export class VoxelSandboxSim {
       // are kept out of this pair relaxation. Including an entire tower's
       // airborne rain here creates an unnecessary O(n²) pile broad phase.
       if (!b._grounded && b.vx * b.vx + b.vy * b.vy + b.vz * b.vz > 1) continue;
+      b._budgetHold = false; // re-set below if this step's budget excludes it
       awake.push(b);
     }
     if (awake.length === 0) return;
@@ -1941,21 +1969,28 @@ export class VoxelSandboxSim {
     //
     // Why this exists on top of `debrisCap`: measured at 4x CPU throttle on
     // Brooklyn, a sustained session reaches ~800 loose blocks and this pass alone
-    // costs 1266 ms/frame, and `debrisCap` barely dents it. The reason is that
-    // `_capDebris` may only settle blocks that are `_grounded` — snapped onto a
-    // STATIC support this step — while the population that actually piles up here
-    // is debris resting on OTHER DEBRIS. Those are slow, so they pass the filter
-    // above, but they are not grounded, so the cap cannot touch them. Sleeping
-    // them would mean recording another loose block as their support, and when
-    // that one is eaten they hang in the sky; that is not a trade worth making.
+    // costs 1266 ms/frame, and `debrisCap` barely dents it. The population that
+    // piles up here is debris resting on OTHER DEBRIS: slow, so it passes the
+    // filter above, but the walk never marks it `_wantSleep` (its support can
+    // roll away or be eaten, and a sleeper recorded on a loose support hangs in
+    // the sky when that support vanishes — `_capDebris` now skips it for the
+    // same reason via `_looseSup`). So the cap cannot retire it; bound the WORK
+    // instead of the population.
     //
-    // So bound the work instead of the population. Everything stays awake, keeps
-    // its velocity, and keeps being integrated by _stepDebris — only the pairwise
-    // separation is restricted to the `budget` blocks nearest the hole, which is
-    // both what the player is looking at and where new overlaps are actually being
-    // created. Distant rubble has already converged; not re-proving it each step
-    // costs nothing visible. Deterministic: distance with an `id` tiebreak, so the
-    // selection cannot depend on array order. Infinity on HIGH keeps this a no-op.
+    // Pairwise separation is restricted to the `budget` blocks nearest the hole
+    // — what the player is looking at, and where new overlaps are being created.
+    // The excluded tail is PARKED (`_budgetHold`): `_stepDebris` skips its
+    // integration entirely. It must not keep falling — its support probe cannot
+    // see the awake pile it rests on (loose bodies enter `_top` only when they
+    // sleep, and `_restLoose` is only re-set by the contact pass it was excluded
+    // from), so gravity walked it down into its neighbours a little more each
+    // step, and the step it re-entered the budget the solver found up to a full
+    // block of penetration and shoved it straight up (measured symptom: hundreds
+    // of blocks fountain metres into the air near the hole). `_inContact` is
+    // forced true as before — a stale `false` could sleep one mid-overlap, and a
+    // block frozen mid-overlap can never separate. Deterministic: distance with
+    // an `id` tiebreak, so the selection cannot depend on array order. Infinity
+    // on HIGH keeps this a no-op.
     const budget = this.tune.contactBudget;
     if (budget !== undefined && budget !== Infinity && awake.length > budget) {
       const h = this.hole;
@@ -1964,12 +1999,10 @@ export class VoxelSandboxSim {
         const db = (b.x - h.x) * (b.x - h.x) + (b.z - h.z) * (b.z - h.z);
         return da - db || a.id - b.id;
       });
-      // Excluded blocks keep a STALE `_inContact`, and that flag is what gates
-      // sleeping at line ~1834. A stale `false` would let one sleep while still
-      // overlapping a neighbour, and a block frozen mid-overlap can never
-      // separate. Force it true: the excluded tail simply stays awake until it
-      // is back inside the budget, which is the conservative direction.
-      for (let i = budget; i < awake.length; i++) awake[i]._inContact = true;
+      for (let i = budget; i < awake.length; i++) {
+        awake[i]._inContact = true;
+        awake[i]._budgetHold = true;
+      }
       awake.length = budget;
     }
     const movable = new Set(awake);
@@ -2146,6 +2179,15 @@ export class VoxelSandboxSim {
 
   _pushAxis(b, o, axis, sign, pen, movableO) {
     const REST = 0.25; // restitution, matching the ground bounce
+    // Full-pen correction in ONE step, however deep the overlap: this is the
+    // anti-tunnelling contract, and the validator probes it (a mover placed
+    // coincident with a solid must be fully ejected by one call). A 0.3 m
+    // clamp was tried (2026-08-07) to gentle the compounding shoves that
+    // launched piles sky-high; it broke the contract and shifted HIGH-tier
+    // eat counts, and the launches turned out to have a single source —
+    // budget-excluded debris sinking into itself (fixed by parking, see
+    // _resolveDebrisContacts) — not the separator. Deep chunk-birth overlaps
+    // resolve here as they always have.
     pen *= 1.02;       // separation skin — visibly touching, never interpenetrating
     b[axis] += sign * pen * (movableO ? 0.5 : 1);
     if (movableO) o[axis] -= sign * pen * 0.5;

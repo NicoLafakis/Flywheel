@@ -25,8 +25,10 @@ export const TIER_ORDER = ['high', 'medium', 'low', 'potato'];
 //                    Brooklyn, a sustained run reaches ~800 loose blocks costing
 //                    1266 ms/frame in that pass, and `debrisCap` alone barely
 //                    dents it because most of that pile is debris resting on other
-//                    DEBRIS, which is not `_grounded` and so is not eligible to be
-//                    settled. See the long note in _resolveDebrisContacts.
+//                    DEBRIS, which must not be slept onto a support that can
+//                    vanish (it hangs in the sky) — `_capDebris` skips it via
+//                    `_looseSup`. Excluded blocks are parked, not integrated:
+//                    see the long note in _resolveDebrisContacts.
 //   contactRounds  — `_resolveDebrisContacts` is 24.9% of CPU on its own; the
 //                    second relaxation round is roughly half of that.
 //   supportEvery   — `_recalcSupport` is 8.6%; this amortises the coverage-driven
