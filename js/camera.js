@@ -382,15 +382,13 @@ export class ChaseCamera {
   // go back to chasing the heading.
   //
   // Why the chase needs an off switch at all, stated where the switch is: the
-  // direction-chase is a TANK affordance, and no surviving steering scheme is
-  // tank. Both the touch stick and the keyboard name an absolute screen
-  // direction — "down" means "come toward the camera" — and a camera that
-  // immediately slews behind the new heading erases the only thing that made
-  // it down. (The keyboard was tank for one day, c3579da: A/D integrated the
-  // heading open-loop, the chase swinging round was what made a stationary
-  // spin visible, and a reversal had to unwind every wound-up degree. Direct
-  // steer made the hold the standing contract for keys too.) Measured, 8 drag
-  // directions x 4 origins x
+  // direction-chase is a TANK affordance, and the keyboard IS tank — A/D
+  // integrate a heading the player steers, and the view swinging behind it is
+  // part of how a turn reads (the on-hole heading pointer is the other part).
+  // The TOUCH stick is not that — it names an absolute screen direction, so
+  // "down" means "come toward the camera", and a camera that immediately
+  // slews behind the new heading erases the only thing that made it down.
+  // Measured, 8 drag directions x 4 origins x
   // 4 camera yaws: with the chase live every one of those 128 pushes settled to
   // a screen-space travel direction of 0.0-2.0 deg (straight up-screen), and the
   // camera's own yaw drifted by exactly the drag angle. Down went forward, and
@@ -888,16 +886,20 @@ export class ChaseCamera {
     // always faces where you're driving and the player never has to touch a
     // camera key. Manual orbit input and Reduced Motion suspend it.
     //
-    // The heading arrives as `driveHeading`, the steering state owned by
-    // controls.js. It is exogenous BY CONSTRUCTION: controls owns it, only
-    // the direct-steer targets (keys/stick) or point-to-move change it, and
+    // The heading arrives as `driveHeading`, the tank scheme's steering state
+    // (controls.js). It is exogenous BY CONSTRUCTION: controls owns it, only
+    // A/D (or point-to-move, or the touch stick's direct steer) change it, and
     // nothing here can write back to it — so the historical chase feedback
     // loop (basis read from the live yaw -> world direction -> yaw target ->
     // yaw, measured winding 19 rad in 3 s on a reversal) has no path to
     // exist, and no basis latch or toward-camera gate is needed anywhere.
-    // While anything is steering, the chase-yaw HOLD outranks the heading
-    // (see setChaseYawHold): both remaining schemes name screen directions,
-    // and slewing behind the heading mid-turn would erase them.
+    // Chasing it directly rather than deriving it from velocity also fixes
+    // the parked case by definition: a stationary A/D spin rotates the
+    // heading, so the camera swings round and the spin is VISIBLE (backing up
+    // the on-hole heading pointer), which a velocity-derived target could
+    // never show. The one override is the chase-yaw HOLD (setChaseYawHold),
+    // which the touch stick sets while it drives — the stick names an
+    // absolute screen direction a slewing camera would erase.
     //
     // The velocity path below remains as the fallback for callers that pass no
     // heading (harnesses that predate the param, and the frames before the

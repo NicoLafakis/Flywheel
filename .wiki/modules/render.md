@@ -67,48 +67,40 @@ mutates sim state.
   `(-sin(yaw), -cos(yaw))`; W must move along forward (regression history:
   flipped basis made W go backwards). The same convention defines the hole's
   heading: forward = `(-sin(heading), -cos(heading))`.
-- **Input is ONE direct-steer scheme for every directional device
-  (2026-08-07), not two split by device.** Keyboard and touch stick both name
-  a SCREEN direction against the latched camera basis; the heading chases the
-  target through the wrapped shortest arc at the capped direct-steer rate
-  (`ORBIT_RATE × turnSens × size ramp × DIRECT_STEER_BOOST`, ceiling
-  `DIRECT_STEER_MAX` mirroring the camera's own follow rate). WASD are the
-  eight-position stick: `target = basisYaw + atan2(-ix, -iy)`, so W is
-  up-screen and D is screen-right — including after a W+A hold, where the
-  turn is at most a 180° shortest-arc swing. Both devices write the same
-  `controls.heading`, and the heading seeds from the latched basis on the
-  first move input of a level (`main.js` resets it to `null` each start), so
-  W initially drives up-screen. After that only the direct-steer targets (or
-  point-to-move, which keeps the heading synced to the driven direction) ever
-  change it — the camera cannot, which is what makes the heading chase
-  feedback-free BY CONSTRUCTION. `chaseMode` survives only as the flag that
-  turns on the size-ramped turn rates and the camera's follow yaw.
-- **The keyboard was tank for one day (c3579da, 2026-08-06; reverted as a
-  scheme 2026-08-07).** A/D integrated the heading open-loop, so a W+A hold
-  wound the heading ~150°/s past the view, and a later D only reversed the
-  ROTATION — the heading had to unwind every wound degree back through
-  straight-ahead before the hole even faced up-screen, while W kept driving
-  it along the stale heading. Player report: the hole "runs off the opposite
-  way" and has to "come back around" to go right. Open-loop integration has
-  no wind-up ceiling, so no rate retune could fix it; converging on a target
-  angle cannot wind up by construction. History: the `driveMode` scheme (A/D
-  fed `orbitDelta` at `STEER_RATE` 2.7 rad/s × a size-ramped 0.2→0.8), the
-  camera-relative strafe that replaced it, and the tank scheme that replaced
-  THAT are all gone. ADR-0008 documents the tank design as shipped.
-- **Steering A/B rig (2026-08-07), temporary.** The reversal report survived
-  the direct-steer ship, so the keyboard scheme is a runtime switch until the
-  player picks one: `controls.steerMode` ∈ `direct | tank | strafe | mouse`,
-  set from `?steer=` at boot or keys 1–4 live (`main.js` steering rig, with a
-  fixed bottom badge naming the active scheme — which doubles as the
-  stale-cache check: no badge, old build). `tank` is the one-day scheme kept
-  as the control group; `strafe` snaps the move vector and heading to the key
-  direction with zero turn lag; `mouse` is Agar-style cursor-follow (hover
-  tracked in `onPointerMove`, raycast via the point-to-move `_groundAt`,
-  cursor-inside-the-hole stops on the point-to-move ring). A headless smoke
-  harness drives all four: after a 1 s W+A wind, W+D reaches screen-right in
-  1202 ms on tank vs 301 ms on direct and 0 on strafe. When the player picks,
-  the rig (badge, key handler, unused branches) comes out and this bullet
-  becomes one line in the scheme's history.
+- **Input is TWO schemes split by device (final, 2026-08-07).** The keyboard
+  is TANK (next bullet); the touch stick is direct steer (further below).
+  Both write the same `controls.heading`.
+- **Keyboard: tank controls, now with a visible heading.** The hole carries a
+  persistent world-space heading owned by `controls.js`. W/S are throttle
+  along it, A/D rotate the heading itself at `ORBIT_RATE × turnSens × size
+  ramp` (sandbox) — including spinning in place when stationary. The heading
+  seeds from the live camera yaw on the first move input of a level (`main.js`
+  resets it to `null` each start), so W initially drives up-screen; after that
+  only A/D (or point-to-move, which keeps the heading synced to the driven
+  direction) ever change it — the camera cannot, which is what makes the
+  heading chase feedback-free BY CONSTRUCTION. `chaseMode` survives only as
+  the flag that turns on the size-ramped turn rates and the camera's follow
+  yaw. History: the `driveMode` scheme (A/D fed `orbitDelta` at `STEER_RATE`
+  2.7 rad/s × a size-ramped 0.2→0.8) and the camera-relative strafe that
+  replaced it are both gone; ADR-0008 documents the tank design.
+- **The tank wind-up, the one-day direct detour, and the heading pointer
+  (2026-08-07).** Tank's known flaw: A/D integrate the heading open-loop, so
+  a W+A hold winds the heading ~150°/s past the view, and a later D only
+  reverses the ROTATION — the heading unwinds every wound degree back through
+  straight-ahead while W keeps driving along the stale heading. Player report:
+  the hole "runs off the opposite way" and has to "come back around" to go
+  right. The keyboard was switched to direct steer (WASD name screen
+  directions, shortest-arc chase, basis hold) for one day, then A/B-tested
+  live (a `?steer=` rig, keys 1–4: direct / tank / strafe-snap / mouse-follow;
+  headless harness numbers: reversal-to-screen-right 1202 ms tank, 301 ms
+  direct, 0 strafe). The player picked TANK — the roundabout was never the
+  scheme, it was that an unmarked circle never shows the heading, so the
+  wind-up was invisible. The fix is the **heading pointer** in
+  `voxelworld.js`: a paper-plane arrow (dark outline plate + brand-orange
+  face, depth test off like the hole ring) welded to `controls.heading`,
+  scaling with the hole radius, identical on every skin — gameplay
+  legibility, deliberately not part of `skins.js`. The rig was removed in the
+  same pass.
 - **Touch: direct steer + pinch zoom (2026-08-06).** The stick's ANGLE names a
   direction on screen; the heading turns toward it at a capped rate and stops
   itself when the error reaches zero. Screen→world is
@@ -150,16 +142,11 @@ mutates sim state.
   the basis is only ever written on a frame the stick is at rest, where it
   already equals the live yaw. `_latchBasis` also re-points a standing hold
   whenever it re-latches, so the basis and the hold can't drift apart if a
-  second finger orbits between pushes. **No surviving scheme wants the
-  direction-chase:** it is a TANK affordance (swinging the view behind a
-  heading the player integrates is what made the one-day tank scheme's
-  stationary spin visible) and the keyboard is direct now too — both schemes
-  name an absolute screen angle. So the hold is the standing contract
-  whenever anything is steering: a held key takes the same hold the stick
-  takes, and nothing releases it mid-level except point-to-move (last input
-  wins, and relaxing the input to centre does NOT release — a brief pause
-  would otherwise swing the view up to 180°). At rest heading == target ==
-  basis, so a standing hold costs nothing. The rig is reached via
+  second finger orbits between pushes. **The hold belongs to the stick
+  alone:** direction-chase is a TANK affordance and the keyboard IS tank — a
+  key press releases the hold and hands the camera back to the heading chase
+  (last input wins, and relaxing the thumb to centre does NOT release — a
+  brief pause would otherwise swing the view up to 180°). The rig is reached via
   `camera.userData.rig` (set in the `ChaseCamera` constructor), because
   `main.js` hands `Controls.setCamera()` the THREE camera object, not the rig
   — riding on `userData` keeps the arbitration between the two files it
@@ -230,20 +217,22 @@ mutates sim state.
   right-drag would mean suppressing the context menu canvas-wide). Drag
   magnitude deliberately does not set speed — both sims re-normalise `move`
   themselves, so this ships direction-only.
-- **`setFollowDirection(true)` chases the control heading directly — unless
-  held.** The sandbox camera's follow target is `controls.heading` itself
-  (passed as `driveHeading` to `ChaseCamera.update`), not a velocity-derived
-  estimate: the heading is exogenous input state, so there is no feedback loop
-  to guard against — the old `dot > 0.05` toward-camera gate and the basis
-  latch that replaced it are both unnecessary and gone. While anything is
-  steering, the chase-yaw HOLD outranks the heading (both surviving schemes
-  name screen directions; slewing behind the heading mid-turn would erase
-  them — see the direct-steer bullets above). The velocity-derived target
-  survives as the fallback for callers that pass no heading (old harnesses,
-  and the frames before a level's first input). The chase still has its own
-  smoothed, UNCLAMPED velocity for that fallback — the campaign's
-  per-axis-clamped `lookAhead` collapsed every heading onto the nearest
-  diagonal at 9.96 m/s and is untouched.
+- **`setFollowDirection(true)` chases the control heading directly.** The
+  sandbox camera's follow target is `controls.heading` itself (passed as
+  `driveHeading` to `ChaseCamera.update`), not a velocity-derived estimate:
+  the heading is exogenous input state, so there is no feedback loop to guard
+  against — the old `dot > 0.05` toward-camera gate and the basis latch that
+  replaced it are both unnecessary and gone. Chasing the heading also makes a
+  stationary A/D spin visible (a velocity target could never show one), and
+  while driving it is identical to the old velocity chase because in the tank
+  scheme velocity IS heading × throttle. The one override is the touch
+  stick's chase-yaw HOLD (the direct-steer bullet above): the stick names an
+  absolute screen direction a slewing camera would erase. The velocity-derived target survives
+  as the fallback for callers that pass no heading (old harnesses, and the
+  frames before a level's first input). The chase still has its own smoothed,
+  UNCLAMPED velocity for that fallback — the campaign's per-axis-clamped
+  `lookAhead` collapsed every heading onto the nearest diagonal at 9.96 m/s
+  and is untouched.
 - Chase dynamics: critically damped spring under a hard angular-rate cap, both
   ramped on `sandboxSizeProgress` — `FOLLOW_OMEGA` 8 → 12 rad/s (`_RAMP` 1.5) and
   `FOLLOW_MAX_RATE` 4.2 → 7.0 rad/s, i.e. 241°/s at SIZE 1 rising to 401°/s at

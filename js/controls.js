@@ -2,17 +2,16 @@
 // optional world-space point-to-move scheme (drag or tap, touch or mouse).
 // Produces a heading-relative world-space move intent and orbit deltas.
 //
-// ONE steering scheme for everything directional: DIRECT. The touch stick's
-// angle names a direction on screen; the keys name one of eight (WASD as
-// screen up/left/down/right and the diagonals). Either way the heading turns
-// toward that target through the wrapped shortest arc at a capped rate, and
-// the move intent is full-throw along the heading. (History: the keyboard was
-// TANK for one day — c3579da made A/D integrate the heading open-loop, and a
-// W+A hold wound the heading ~150 deg past the view, so a later D had to
-// unwind all of it while W kept driving: the hole looped the long way round
-// to go right. The camera-relative strafes before that had no heading at all
-// for the chase camera to aim at. Direct-with-a-heading is the union that
-// works: D means screen-right NOW, and the heading stays real.)
+// TWO steering schemes, split by input device. The keyboard is TANK: W/S
+// throttle along the heading, A/D rotate the heading itself — and a heading
+// pointer welded to the hole (voxelworld.js, 2026-08-07) shows where it
+// points, which is what makes the scheme playable: an unmarked circle gives
+// no hint which way is forward, and that missing feedback — not the scheme —
+// is what read as "it loops the long way round". The touch stick is DIRECT:
+// its angle names a direction on screen and the heading turns toward it at a
+// capped rate. (History in one breath: keyboard went camera-relative strafe →
+// tank (c3579da) → direct for a day → back to tank by player choice once the
+// heading was visible. The stick's direct scheme was never touched.)
 //
 // Fingers are assigned by ROLE, not by count, and the roles are exclusive: at
 // most one finger is the stick (or, in point-to-move, the world pointer), and
@@ -44,19 +43,20 @@ const ZOOM_RATE = 24;     // was 0.4/frame   — R/F dolly
 // 2.6 -> 5.2 rad/s is 149 -> 298 deg/s, against the 103 deg/s flat rate this
 // replaces and the 31 deg/s of the drive-mode steering before that.
 export const ORBIT_RATE_RAMP = 2;
-// WASD name a screen direction (W up, A left, S down, D right, diagonals
-// between) read against the latched camera basis, and the heading chases that
-// target through the wrapped shortest arc. The chase rate is the same stack
-// the manual Q/E orbit runs at (ORBIT_RATE × turnSens × the size ramp) times
-// the direct-steer boost, capped where the chase camera caps (see
-// DIRECT_STEER_MAX below): it is the player's only turn rate, a faster hole
-// needs a proportionally faster heading correction, and a heading that
-// outturns the camera reads as the world sliding sideways. The heading is
-// absolute world state owned here — never derived from the camera — so the
-// chase camera can aim itself at it with no feedback loop. The basis DOES
-// come from the camera, latched at rest (the tank scheme needed no basis
-// because it integrated A/D open-loop; that is precisely the wind-up that
-// made reversals take the long way round) — see _latchBasis.
+// A/D steer the hole's HEADING directly (tank controls): W/S are throttle
+// along the heading, A/D rotate it — including in place, so a stationary
+// press of A visibly spins the hole (the on-hole heading pointer, and the
+// chase camera swinging round, are what make that readable). The steering
+// rate is the same stack the
+// manual Q/E orbit runs at (ORBIT_RATE × turnSens × the size ramp), because
+// both reasons for that stack are steering reasons: it is the player's only
+// turn rate, and a faster hole needs a proportionally faster heading
+// correction. The heading is absolute world state owned here — never derived
+// from the camera — so the chase camera can aim itself at it with no feedback
+// loop. A/D need no basis at all (they integrate a rate; the basis latch
+// belongs to the direct schemes that name an angle against the screen); the
+// TOUCH stick does need one, because an angle on a stick is meaningless
+// without a screen, and it takes the latch — see _latchBasis.
 // Same clamp main.js puts on the sim's catch-up (main.js:308). A frame that
 // took longer than this is a stall, and integrating the whole of it would snap
 // the camera round rather than turn it.
@@ -121,9 +121,8 @@ const JOY_EDGE_PAD = 6;
 // common laptop layout and would take their camera away.
 const STICK_MAX_W = 420;
 // Direct steer turns toward a TARGET angle rather than integrating a rate
-// open-loop (the one-day tank scheme did the latter with A/D, and a held key
-// wound the heading past the view — the wind-up reversals had to unwind).
-// That is the whole reason it can afford a faster rate — there is nothing to
+// open-loop the way the keyboard's tank scheme does with A/D. That is the
+// whole reason the stick can afford a faster rate — there is nothing to
 // overshoot, the error goes to zero and the turn stops itself, so the usual
 // argument for keeping a turn rate low (an unrecoverable spin) does not apply.
 // It NEEDS one, too: at the bare ORBIT_RATE a 180 deg reversal is 1.21 s of
@@ -269,16 +268,6 @@ export class Controls {
     this._ptTarget = null;    // {x, z} world destination, or null
     this._ptArrived = false;
     this._ptBlockUntil = 0;   // ms; presses before this are the tail of a dismissal
-
-    // Steering scheme under A/B test (2026-08-07) — see the keyboard branch of
-    // getMove. main.js sets it from ?steer= at boot and the 1-4 keys live.
-    // 'direct' is the shipped answer; the other three exist to settle which
-    // scheme the player actually wants.
-    this.steerMode = 'direct';
-    // Last known cursor position, tracked even on hover (no button): the
-    // 'mouse' steer mode raycasts it every frame.
-    this._mouseX = null;
-    this._mouseY = null;
 
     this.joyEl = document.getElementById('joystick');
     this.knobEl = document.getElementById('joystick-knob');
@@ -490,9 +479,6 @@ export class Controls {
     // pointerdown, so a hover matches nothing and costs one map lookup —
     // but preventDefault has to move INSIDE the branches, or a bare hover
     // would be swallowing default behaviour across the whole canvas.
-    // The one thing a hover DOES feed is the mouse-steer test mode, which
-    // raycasts the last known cursor position every frame.
-    if (e.pointerType === 'mouse') { this._mouseX = e.clientX; this._mouseY = e.clientY; }
     const p = this._touches.get(e.pointerId);
     if (p) { p.x = e.clientX; p.y = e.clientY; }
     if (this._pt && e.pointerId === this._pt.id) {
@@ -1123,9 +1109,9 @@ export class Controls {
   }
 
   // The direct-steer convergence rate: the ORBIT_RATE stack times the boost,
-  // under the ceiling the chase camera imposes (see DIRECT_STEER_MAX). One
-  // helper because every converging scheme — stick, keys, mouse-follow —
-  // turns at exactly this rate.
+  // under the ceiling the chase camera imposes (see DIRECT_STEER_MAX). The
+  // touch stick converges at this rate; the keyboard's tank scheme integrates
+  // instead and uses the bare _steerSens() stack.
   _directSteerRate() {
     return Math.min(
       ORBIT_RATE * this._steerSens() * DIRECT_STEER_BOOST,
@@ -1148,17 +1134,18 @@ export class Controls {
 
   // camYaw: current camera yaw. Two consumers, both one-way. It SEEDS the
   // heading on the first move input of a level (while this.heading is null),
-  // and it is LATCHED into the screen basis on frames where neither the stick
-  // nor the keys are commanding anything (_latchBasis). Neither is a read on a
-  // frame that also writes a heading from it, which is what keeps the chase
-  // camera's aim free of a feedback loop — the heading remains absolute world
-  // state that the camera cannot steer.
-  // WASD name a screen direction against that basis, Q/E orbit the camera by
-  // hand, R/F dolly. The touch stick names an angle directly — same scheme,
-  // finer quantization. The touch CAMERA never reaches here at all: one finger
-  // orbits and two pinch-zoom straight into orbitDelta/zoomDelta from the
-  // event handlers, on the pixels dragged rather than on a per-frame rate, so
-  // there is nothing for a frame to integrate.
+  // and it is LATCHED into the stick's screen basis on frames where the stick
+  // is not commanding anything (_latchBasis). Neither is a read on a frame that
+  // also writes a heading from it, which is what keeps the chase camera's aim
+  // free of a feedback loop — the heading remains absolute world state that the
+  // camera cannot steer.
+  // W/S are throttle along the heading, A/D rotate the heading itself (spin
+  // in place when stationary), Q/E orbit the camera by hand, R/F dolly. The
+  // touch stick bypasses all of that and names an angle directly. The touch
+  // CAMERA never reaches here at all: one finger orbits and two pinch-zoom
+  // straight into orbitDelta/zoomDelta from the event handlers, on the pixels
+  // dragged rather than on a per-frame rate, so there is nothing for a frame
+  // to integrate.
   // hole: {x, z, radius} — only point-to-move needs it; omit it and the scheme
   // is inert, which is what every caller that predates it does.
   getMove(camYaw, dt, hole) {
@@ -1294,108 +1281,47 @@ export class Controls {
     // _latchBasis for why this line's POSITION is the whole feedback argument.
     this._latchBasis(camYaw);
 
-    // --- keyboard: FOUR schemes under A/B test (2026-08-07) -------------------
-    // The reversal "roundabout" report survived two days of scheme fixes, so
-    // the keyboard scheme is a runtime switch until the player picks a winner.
-    // main.js sets `steerMode` from ?steer=direct|tank|strafe|mouse at boot and
-    // the 1-4 keys live, with an on-screen badge naming the active scheme.
+    // --- tank scheme (keyboard) -----------------------------------------------
+    // One piece of state: the heading. A/D integrate it ALWAYS (a stationary
+    // press spins the hole in place — the on-hole heading pointer shows the
+    // heading directly, and the chase camera swinging round backs it up);
+    // W/S translate along it. Turning therefore only changes the path while
+    // moving, exactly like a car, but the wheel is never locked when parked.
+    // steer > 0 turns left: forward = (-sin, -cos), so increasing the heading
+    // rotates forward from -z toward -x, which is screen-left for a camera
+    // sitting behind the hole (regression history: a flipped basis made W go
+    // backwards — see .wiki/modules/render.md).
     //
-    //   1 direct — WASD name a screen direction against the latched basis; the
-    //      heading chases it through the wrapped shortest arc at the capped
-    //      direct-steer rate; the chase camera holds the basis while driving.
-    //      The shipped scheme, and the default.
-    //   2 tank — the one-day scheme (c3579da), kept as the control group: W/S
-    //      throttle along the heading, A/D integrate the heading open-loop,
-    //      the chase camera follows the heading so a parked spin is visible.
-    //      The "Zoolander" roundabout lives here: wind up ~150 deg past the
-    //      view with W+A, and D has to unwind every degree before you face
-    //      right.
-    //   3 strafe — zero turn lag: the move vector snaps to the key direction
-    //      instantly and the heading snaps with it (skins/camera still get a
-    //      true heading). Tests whether the convergence RATE is the complaint.
-    //   4 mouse — Agar.io style: the hole chases the live cursor's ground
-    //      point, keys ignored. Tests whether keys are the problem at all.
-    const mode = this.steerMode || 'direct';
-    const kbasis = Number.isFinite(this._basisYaw) ? this._basisYaw
-      : (Number.isFinite(camYaw) ? camYaw : 0);
-
-    if (mode === 'tank') {
-      const steer = -ix;       // A (ix < 0) turns left = heading increases
-      const throttle = -iy;    // W (iy < 0) drives forward
-      if (steer || throttle) {
-        // The chase follows the heading here — swinging round IS what makes a
-        // stationary spin visible — so the basis hold is released.
-        this._setChaseHold(null);
-        if (this.heading === null) this.heading = Math.atan2(Math.sin(kbasis), Math.cos(kbasis));
-        this.heading += steer * ORBIT_RATE * this._steerSens() * step;
-        this.heading = Math.atan2(Math.sin(this.heading), Math.cos(this.heading));
-      }
-      if (!throttle) return { x: 0, z: 0 };
-      return {
-        x: -Math.sin(this.heading) * throttle,
-        z: -Math.cos(this.heading) * throttle,
-      };
-    }
-
-    if (mode === 'strafe') {
-      if (!ix && !iy) return { x: 0, z: 0 };
-      this._setChaseHold(kbasis);
-      // Screen -> world with no arc at all: forward = (-sin b, -cos b) and
-      // screen-left = forward(b + pi/2) = (-cos b, sin b). W: up=1, left=0.
-      const up = -iy, left = -ix;
-      const mx = -Math.sin(kbasis) * up - Math.cos(kbasis) * left;
-      const mz = -Math.cos(kbasis) * up + Math.sin(kbasis) * left;
-      this.heading = Math.atan2(-mx, -mz); // snap — inverse of forward = (-sin, -cos)
-      return { x: mx, z: mz };
-    }
-
-    if (mode === 'mouse') {
-      this._setChaseHold(kbasis);
-      const hit = (hole && this._mouseX !== null) ? this._groundAt(this._mouseX, this._mouseY) : null;
-      if (!hit) return { x: 0, z: 0 };
-      const dx = hit.x - hole.x, dz = hit.z - hole.z;
-      const d = Math.hypot(dx, dz) || 0.001;
-      // Cursor inside the hole means stop, same ring point-to-move uses.
-      if (d <= Math.max(0.6, (hole.radius || 1) * 0.5)) return { x: 0, z: 0 };
-      // World-fixed direction (like point-to-move): no basis in the math, so
-      // a slewing camera cannot change what the cursor asked for.
-      const target = Math.atan2(-dx / d, -dz / d);
-      if (this.heading === null) this.heading = Math.atan2(Math.sin(kbasis), Math.cos(kbasis));
-      const err = Math.atan2(Math.sin(target - this.heading), Math.cos(target - this.heading));
-      const maxStep = this._directSteerRate() * step;
-      this.heading += Math.abs(err) <= maxStep ? err : Math.sign(err) * maxStep;
-      this.heading = Math.atan2(Math.sin(this.heading), Math.cos(this.heading));
-      return { x: -Math.sin(this.heading), z: -Math.cos(this.heading) };
-    }
-
-    // direct (default). The keys are the stick with eight positions: (ix, iy)
-    // names a screen direction against the latched basis, the heading chases
-    // it through the wrapped shortest arc, and the intent is full-throw along
-    // the heading. W is up-screen, D is screen-right — pressed after a W+A
-    // hold it turns there DIRECTLY (at most a 180 deg shortest-arc swing).
-    // Screen-LEFT is heading + pi/2 (see the stick branch above), so with iy
-    // negative for W the angle off screen-up is atan2(-ix, -iy), matching the
-    // stick's atan2(-sx, -sy).
-    if (ix || iy) {
-      const target = kbasis + Math.atan2(-ix, -iy);
-      // Same camera contract as the stick (the long note above): hold the
-      // chase at the basis while a key is driving, so a reversal happens on
-      // screen instead of underneath a slewing camera. The campaign camera
-      // ignores the hold (followDir is false there).
-      this._setChaseHold(kbasis);
+    // This scheme was reverted for a day (2026-08-07) because a W+A hold winds
+    // the heading past the view and a later D has to unwind it — the
+    // "roundabout". The player A/B-tested four schemes and picked THIS one;
+    // the actual flaw was that an unmarked circle never showed the heading, so
+    // the wind-up was invisible. The heading pointer in voxelworld.js is the
+    // fix; the wind-up is now something you can SEE happening.
+    const steer = -ix;       // A (ix < 0) turns left = heading increases
+    const throttle = -iy;    // W (iy < 0) drives forward
+    if (steer || throttle) {
+      // A key is driving, so the tank scheme owns the camera again and the
+      // stick's hold is released. Deliberately NOT released the moment the
+      // thumb comes back to the middle: at rest the stick is still the scheme
+      // in play, the heading may be a long way off the yaw the player has been
+      // looking down, and re-engaging the chase there would swing the camera up
+      // to 180 deg for having briefly stopped steering. Last input wins, and
+      // "stopped pushing" is not an input.
+      this._setChaseHold(null);
       if (this.heading === null) {
         // First input of a level: face up-screen so W reads as "drive away".
-        this.heading = Math.atan2(Math.sin(kbasis), Math.cos(kbasis));
+        this.heading = Math.atan2(Math.sin(camYaw), Math.cos(camYaw));
       }
-      const err = Math.atan2(Math.sin(target - this.heading), Math.cos(target - this.heading));
-      const maxStep = this._directSteerRate() * step;
-      this.heading += Math.abs(err) <= maxStep ? err : Math.sign(err) * maxStep;
+      this.heading += steer * ORBIT_RATE * this._steerSens() * step;
+      // Wrap once per call so a held key cannot grow an unbounded angle.
       this.heading = Math.atan2(Math.sin(this.heading), Math.cos(this.heading));
-      // Full throw, always — both sims re-normalise `move` themselves (same
-      // NOTE as the stick branch and _pointMoveVec).
-      return { x: -Math.sin(this.heading), z: -Math.cos(this.heading) };
     }
-    return { x: 0, z: 0 };
+    if (!throttle) return { x: 0, z: 0 };
+    return {
+      x: -Math.sin(this.heading) * throttle,
+      z: -Math.cos(this.heading) * throttle,
+    };
   }
 
   consumeOrbit() { const d = this.orbitDelta; this.orbitDelta = 0; return d; }

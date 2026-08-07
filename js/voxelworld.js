@@ -533,6 +533,39 @@ export class VoxelWorld3D {
     this.holeMesh.userData = { disc };
     this._ownedMats.push(disc.material);
     this.scene.add(this.holeMesh);
+    // The heading pointer: a paper-plane arrow welded to controls.heading,
+    // dark outline plate under a brand-orange face, floating just above the
+    // void. Tank steering is only playable when the heading is VISIBLE — the
+    // one-day revert happened because an unmarked circle never shows which
+    // way you will drive, so the wind-up into a reversal read as the hole
+    // looping the long way round. It lives here rather than in skins.js
+    // because it is gameplay legibility, not decoration: identical on every
+    // skin, including the flat ones that carry no directionality of their
+    // own. Depth test off (same trick as the hole ring) so a collapsing
+    // facade can never hide it; scale and rotation are set per frame in
+    // update(). Local -z is the heading direction (rotation.y = +heading
+    // holds local +z AT the camera — see skins.js's measured note).
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 1.0);        // tip
+    arrowShape.lineTo(0.55, -0.55);   // right wing
+    arrowShape.lineTo(0, -0.22);      // tail notch
+    arrowShape.lineTo(-0.55, -0.55);  // left wing
+    arrowShape.closePath();
+    const arrowGeo = new THREE.ShapeGeometry(arrowShape);
+    const arrowBack = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0x0b0d14, depthTest: false }));
+    arrowBack.rotation.x = -Math.PI / 2;
+    arrowBack.position.y = 0.045;
+    arrowBack.scale.setScalar(1.24);  // the outline: a slightly larger dark plate
+    arrowBack.renderOrder = 998;
+    const arrowFace = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xff5a1f, depthTest: false }));
+    arrowFace.rotation.x = -Math.PI / 2;
+    arrowFace.position.y = 0.05;
+    arrowFace.renderOrder = 999;
+    this.headingArrow = new THREE.Group();
+    this.headingArrow.add(arrowBack, arrowFace);
+    this.holeMesh.add(this.headingArrow);
+    this._ownedGeos.push(arrowGeo);
+    this._ownedMats.push(arrowBack.material, arrowFace.material);
     // Coins are gameplay objects owned by the pure sim; this tiny render layer
     // only mirrors their collected flag. Flat gold discs stay legible from the
     // high establishing shot without adding a texture or a draw-call per coin.
@@ -1957,6 +1990,11 @@ export class VoxelWorld3D {
     const h = this.sim.hole;
     this.holeMesh.position.set(h.x, 0, h.z);
     this.holeMesh.userData.disc.scale.setScalar(h.radius);
+    // The tank scheme's heading made visible: the pointer turns with the
+    // player's heading and grows with the hole, tip reaching just past the
+    // rim so it points at what you are about to drive into.
+    this.headingArrow.rotation.y = h.heading || 0;
+    this.headingArrow.scale.setScalar(Math.max(0.001, h.radius * 1.15));
     for (const ev of events || []) {
       if (ev.type !== 'coin') continue;
       const mesh = this.coinMeshes.get(ev.coin.id);
