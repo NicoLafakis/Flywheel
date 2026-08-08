@@ -293,6 +293,7 @@ district sweep).
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
 
+- 2026-08-08: Quality settings collapsed to a strict HIGH/LOW binary, player-chosen only — device auto-detection and the live frame-time watchdog are gone (`js/quality.js` 314 → 58 lines); save schema v13 → v14 remaps every legacy tier value
 - 2026-08-07: Tank controls stay, now readable: player A/B-tested four keyboard schemes live (direct / tank / strafe-snap / mouse-follow) and picked tank — the "roundabout" was an INVISIBLE heading, not the scheme. New heading pointer welded to the hole (paper-plane arrow, brand orange, all skins); rig removed same pass
 - 2026-08-07: Voxel physics: `_capDebris` stops sleeping blocks onto loose supports (no more mid-air hangs), contact-budget-excluded debris parks instead of sinking into itself (no more re-entry fountain / rim knocking bricks sky-high)
 - 2026-08-07: Desktop-class machines classify quality HIGH and pin it (watchdog off) — the tier ladder is for phones; a desktop no longer loses shadows/ambient life to a boot hitch or a bucketed RAM report

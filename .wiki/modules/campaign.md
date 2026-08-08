@@ -16,7 +16,7 @@ beatable headlessly.
 | File | Purpose |
 |------|---------|
 | `js/levels.js` | `METROS`, `MECHANICS`, `levelDef(i)` formulas, stars/coins |
-| `js/save.js` | localStorage schema v4 (+settings), migrations v1→v4, quarantine |
+| `js/save.js` | localStorage schema v14 (+settings), migrations v1→v14, quarantine |
 | `tools/validate.mjs` | Overlap + snack-ring + greedy-bot margin proof |
 
 ## Talks To

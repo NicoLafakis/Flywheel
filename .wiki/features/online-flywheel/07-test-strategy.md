@@ -127,31 +127,36 @@ the Node validator, the browser, and the Supabase Edge Function all import the
   be identical to full precision (the existing excursion probes compare
   `mass.toFixed(6)` — hold the new one to the same bar).
 - **Tick-indexed, not time-indexed.** This is the subtle one and it is a real
-  hazard in this codebase. `js/quality.js` gives POTATO `maxSubSteps: 1` and
-  HIGH `maxSubSteps: 6`, and `js/main.js` *drops* unaffordable accumulator debt
-  (`if (accumulator >= FIXED_DT) accumulator = 0`). A slow device therefore
-  advances **fewer sim ticks per wall-second** than a fast one. If the input
-  trace records wall time, a run recorded on a phone will not replay on the
-  server, every phone player will be flagged as a cheat, and the failure will
-  look like an anti-cheat bug rather than a clock bug.
+  hazard in this codebase. `js/quality.js` gives LOW `maxSubSteps: 2` and
+  HIGH `maxSubSteps: 6` — a strict player-chosen binary, no classifier and no
+  watchdog since commit `b9af8bf` (2026-08-08) — and `js/main.js` *drops*
+  unaffordable accumulator debt (`if (accumulator >= FIXED_DT) accumulator =
+  0`). A player on LOW therefore advances **fewer sim ticks per wall-second**
+  than one on HIGH. If the input trace records wall time, a run recorded on
+  LOW will not replay against a HIGH-recorded expectation, that player will be
+  flagged as a cheat, and the failure will look like an anti-cheat bug rather
+  than a clock bug.
 
-  **Since commit `85a1ff0` a uniformly slow device is no longer the hard case.**
-  The quality watchdog used to ratchet a tier down for the whole session; it now
-  moves **both directions mid-run**, so `maxSubSteps` — and with it the tick
-  rate — can change several times inside one run on one machine. The test must
-  cover that, not just a slow-but-steady device.
+  **A uniformly slow-tick device is not the hard case; a change mid-run is.**
+  There is no watchdog anymore to step a tier under load, but a player can
+  still open SETTINGS mid-match and flip HIGH/LOW by hand, so `maxSubSteps` —
+  and with it the tick rate — can change inside one run on one machine. The
+  test must cover that, not just a steady-but-slow device.
 
   Test, two parts, both required:
   1. **Uniform rates.** Replay the same trace with the harness stepping 1, 2, 4,
-     and 6 ticks per simulated frame; assert an identical result from all four.
-  2. **A tier change mid-run.** Replay the same trace with the step budget
-     *changing partway through* — at minimum 6 → 1 → 6 and 1 → 6 → 1, with the
-     transitions landing mid-trace rather than on a tick boundary the codec
-     happens to like — and assert the result is identical to (1). A regression
-     here is a run that scores differently depending on when a laptop got warm.
+     and 6 ticks per simulated frame (today's real values are 2 and 6; keep 1
+     and 4 in the matrix so the codec and scoring path don't silently assume
+     exactly two tiers) and assert an identical result from all four.
+  2. **A quality flip mid-run.** Replay the same trace with the step budget
+     *changing partway through* — at minimum 6 → 2 → 6 and 2 → 6 → 2 (today's
+     only two real values), with the transitions landing mid-trace rather than
+     on a tick boundary the codec happens to like — and assert the result is
+     identical to (1). A regression here is a run that scores differently
+     depending on when a player toggled the settings row mid-match.
 
   **These tests are the reason to record traces in ticks**, and part 2 is the
-  reason that reason is no longer theoretical. See
+  reason that reason is not theoretical. See
   [09](09-threat-model.md) §3.5, which owns the rule.
 - **Codec round-trip.** `decode(encode(trace))` is identical to `trace` for a
   fixture set including: an empty trace, a single-tick trace, a maximum-length

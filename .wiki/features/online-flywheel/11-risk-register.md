@@ -149,10 +149,10 @@ by score.
 | **Likelihood** | Medium |
 | **Impact** | Medium — a visibly janky game is a bad demo even if nothing is "broken" |
 | **Why** | The sandbox is **CPU-bound** ([`js/quality.js`](../../../js/quality.js) header: `world.render` 0.60 ms against 7.11 ms of debris physics, measured on an RTX 4060 Ti). A kiosk laptop, warm, on battery-saver, after four hours, is a different machine than the one those numbers came from. Debris cost also grows without bound during a session, and a booth session is effectively continuous. |
-| **Early-warning signal** | Quality-tier demotions during the Phase 2 rehearsal on the actual hardware; the watchdog's ratchet pinning a machine at LOW. |
-| **Mitigation** | The tier system and watchdog already exist and already handle this — the new work is (a) not spending the frame budget on netcode (§1 of [10](10-observability-and-nfr.md)) and (b) pinning booth kiosks to a known-good tier by hand rather than letting the classifier guess. Kiosks plugged in, power profile set to performance, reload every ~10 players (already in the runbook). |
+| **Early-warning signal** | Visibly poor frame rate during the Phase 2 rehearsal on the actual hardware — there is no classifier or watchdog anymore to demote a tier automatically and log the event, so this has to be caught by eye or by the diagnostics overlay, not by an automatic signal. |
+| **Mitigation** | `js/quality.js` is now a player-chosen HIGH/LOW binary with no classifier and no watchdog (commit `b9af8bf`, 2026-08-08) — the old mitigation of "let the tier system already handle this" no longer applies. The new work is (a) not spending the frame budget on netcode (§1 of [10](10-observability-and-nfr.md)) and (b) setting booth kiosks to LOW by hand before the event, since nothing will do it automatically if a kiosk struggles mid-session. Kiosks plugged in, power profile set to performance, reload every ~10 players (already in the runbook). |
 | **Owner** | Lead · Booth lead (the reload habit) |
-| **Contingency trigger** | Rehearsal on booth hardware shows demotions below MEDIUM ⇒ pin the tier and default the booth to a lighter scene. That last part is a product-visible trade and goes to Nico with a measured number attached. |
+| **Contingency trigger** | Rehearsal on booth hardware is visibly janky on HIGH ⇒ default the booth build to LOW and default the booth to a lighter scene. That is a product-visible trade and goes to Nico with a measured number attached. |
 
 ### R10 — The CDN is blocked or slow on the venue network
 

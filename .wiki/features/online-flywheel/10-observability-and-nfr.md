@@ -60,7 +60,7 @@ slack to lend.
 |---|---|---|
 | `arena` flag off | **exactly 0** — the code is not imported | Import-graph guard, [07](07-test-strategy.md) §2.4 |
 | Arena on, HIGH tier | ≤ **1.0 ms** p95, target ≤ 0.3 ms median | `performance.now()` spans around the net tick, reported by the diagnostics overlay |
-| Arena on, LOW / POTATO | ≤ **0.5 ms** p95 | same |
+| Arena on, LOW tier | ≤ **0.5 ms** p95 | same |
 | Any tier, per-frame heap allocation by the net layer | **zero** | conventions: "do not allocate per-frame in hot paths" |
 
 ### 1.3 Three structural rules that make the budget achievable
@@ -70,7 +70,7 @@ something already in this codebase.
 
 1. **Net work never runs inside `sim.step()`, and never inside the catch-up
    `while` loop.** `js/main.js` may run up to `maxSubSteps` sim steps in one
-   frame — 6 on HIGH, 1 on POTATO. Anything placed inside that loop is
+   frame — 6 on HIGH, 2 on LOW. Anything placed inside that loop is
    multiplied by up to six on exactly the device that could least afford it. The
    loop's own comment documents this as "the single nastiest failure mode on a
    slow device… a positive feedback loop rather than a slow degradation."
@@ -87,19 +87,26 @@ something already in this codebase.
    steering bug (fixed 2026-08-05, `STATUS.md`), and the same class of mistake
    in netcode desynchronises a match.
 
-### 1.4 Interaction with the quality tiers
+### 1.4 Interaction with the quality setting
 
-`js/quality.js`'s watchdog samples the **raw** rAF gap and demotes on a p95 over
-42 ms in a 3 s window. Net-layer cost is inside that sample, which is correct —
-a net layer heavy enough to hurt should cost the player pixels before it costs
-them frames. Two additions:
+`js/quality.js` is a strict player-chosen HIGH/LOW binary as of commit
+`b9af8bf` (2026-08-08) — there is no live sampler and no automatic demotion
+anymore, so net-layer cost cannot get folded into a watchdog decision the way
+this section originally assumed. That removes an automatic mitigation, so the
+budget in §1.2 has to hold on its own merits rather than leaning on a
+watchdog catching an overrun after the fact. Two additions, revised:
 
-- Add `arena` state to the diagnostics `levers()` output so a demotion during a
-  match can be attributed rather than guessed at.
-- Consider the arena a **quality lever of last resort**: if a client sits at
-  POTATO and is still missing the frame budget, degrade the arena (drop to
-  spectating peers at a lower interpolation rate) before degrading the sim
-  further. Playing solo at 60 fps beats playing together at 12.
+- Add `arena` state to the diagnostics `levers()` output regardless, so a
+  player's frame-time complaint during a match can be attributed to net cost
+  rather than guessed at (there is no demotion event to log it against
+  anymore — this is now the only record).
+- Consider the arena a **quality lever of last resort**: if a client is on
+  LOW and still missing the frame budget, degrade the arena (drop
+  spectating peers to a lower interpolation rate) before degrading the sim
+  further. Playing solo at 60 fps beats playing together at 12. There is no
+  tier below LOW to fall back to automatically anymore, so unlike the
+  original design this can no longer chain into a further tier demotion —
+  the arena degradation is the last lever, full stop.
 
 ---
 
@@ -431,10 +438,11 @@ enough for a two-day event.
   stops the attendant from clearing the cache and destroying them (§5.3 of the
   runbook explicitly warns against this; the indicator is what makes the warning
   land).
-- **A diagnostics overlay behind `?diag=1`**: current tier and why
-  (`quality.js` already computes and exposes this), net-layer frame cost,
-  snapshot age, queue depth, resolved flags. Not shown to players; the thing a
-  developer opens instead of guessing.
+- **A diagnostics overlay behind `?diag=1`**: current tier (`window.__quality`
+  already exposes this — there is no "why" to show anymore, since the tier is
+  whatever the player picked in SETTINGS, not a classifier's verdict),
+  net-layer frame cost, snapshot age, queue depth, resolved flags. Not shown
+  to players; the thing a developer opens instead of guessing.
 - **Big-screen "last updated"** timestamp. A stalled board that says so is a
   known state; a stalled board that looks live is a wrong answer displayed with
   confidence.

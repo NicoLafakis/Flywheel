@@ -67,12 +67,14 @@ tying everything together.
   optional point-to-move control scheme — off by default, WASD/joystick
   unaffected either way. See `.wiki/modules/render.md`'s point-to-move entry
   for the input-side detail.
-- The quality row's `AUTO · <tier>` label reads `main.js`'s `tierName`, seeded
-  from `detectTier()` since 2026-08-06 (previously hardcoded `'high'`, so it
-  could claim HIGH on a device the classifier had already placed on MEDIUM).
-  It still does not re-render if the watchdog steps a tier down while this
-  screen is open. See `.wiki/modules/render.md`'s watchdog entries for the
-  mechanism.
+- The quality row (`🎚 Graphics detail`) is a two-state HIGH/LOW toggle
+  button, not a `<select>` — every other control on this screen is a button,
+  and two options make the cycle a straight flip (`js/ui/screens.js`). It
+  reads and writes `st.quality` directly; there is no `AUTO` state, no device
+  classifier, and nothing adjusts it while the screen is open (2026-08-08 —
+  the prior `AUTO · <tier>` label and its live-watchdog staleness bug are
+  gone along with the classifier). See `.wiki/modules/render.md`'s quality
+  entries for the `TIERS` lever values and the removed system's history.
 
 **Planned, not built:** the online-Flywheel package
 (`.wiki/features/online-flywheel/`) proposes new sign-in, leaderboard, and

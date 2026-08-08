@@ -550,75 +550,54 @@ mutates sim state.
   darker ink (Kuno 29.2, New Breed 31.4 mean tile luminance vs Impulse
   60.1) — normalising to a constant floor instead: Kuno 29.2 → 43.6, New
   Breed 31.4 → 40.0, Supered 37.7 → 43.1.
-- **Performance: active set, device tiers, watchdog (2026-08-06).**
-  `voxelworld.update()` used to walk every block every frame — measured at 4.31
-  ms/frame live vs 0.094 ms with the loop stubbed, i.e. **98% of `world.update`**
-  — while only ~108 matrix and ~29 colour writes actually landed. 0.13% of blocks
-  changed and 100% were visited. Replaced with an active set: median
-  `world.update` on Boston desktop 5.109 → 0.233 ms, and at 4x CPU throttle on a
-  390 px viewport 15.099 → 0.781 ms (round-robin A/B, phase-A tree vs this one,
-  median of 3). Framebuffer is byte-identical against a full legacy repair scan
-  and the determinism validator is unchanged vs HEAD.
-  `js/quality.js` adds `detectTier` (coarse pointer, cores, memory, screen px,
-  GL renderer string) and a `QualityWatchdog` that steps the tier on sustained
-  p95: down after 3 s bad, up after 8 s good. Levers per tier are `dpr`,
-  `shadows`, `ambientFrozen`, `debrisCap`, `contactRounds`, `supportEvery`.
-  **Read this before optimising the renderer further.** Under real debris load
-  the renderer is no longer the bottleneck and the active-set win stops
-  mattering: at 4x throttle with debris accumulating, `world.update` is 2.58 ms
-  against a `step` of 470 ms, of which `stepDebris` is 458 ms. Median fps goes
-  before/high 2.2 → after/high 4.3 → after/potato 30.8, so essentially the whole
-  rescue at load is `debrisCap` (Infinity/650/280/120), not the draw path. That
-  makes the WATCHDOG load-bearing rather than a nicety — a phone that detects
-  `high` and stays there gets 4 fps. Demonstrated stepping high→medium→low→potato
-  within ~8 s under 6x throttle and recovering when load drops, though it
-  oscillated once with throttle off (up at +102 s, down at +119 s), so the
-  anti-oscillation ratchet is not airtight. Debris physics is the next ceiling
-  and wants a budget or LOD of its own; nothing in the draw path will move it.
-- **The ratchet's `_ceiling` never cleared, so one relapse cost HIGH for the
-  rest of the session (2026-08-06).** The anti-oscillation ratchet records a
-  tier that relapsed as a ceiling on `_ceiling`, set once in the
-  `QualityWatchdog` constructor and only ever raised upward. `start()` runs on
-  every level start and every quality change, and reset every other piece of
-  learned state (`_buf`, `_t`, `_cooldown`, `_sinceUp`) but not that one — so a
-  relapse recorded in one scene became a permanent ceiling in the next,
-  including a scene with half the block count, and survived pinning a tier by
-  hand and setting it back to AUTO (that path comes through the same
-  `start()`). Measured before: 40 s of unbroken 16 ms frames on the next level
-  still topped out at MEDIUM. `start()` now also clears `_ceiling`. Checked
-  this doesn't just delete the ratchet (which would trade a stuck tier for the
-  oscillation above): within a single level, 60 s of perfect frames after a
-  recorded relapse still cannot climb past the ceiling. The ratchet's
-  behaviour is intact; it simply no longer outlives the conditions it was
-  learned under.
-- **The `AUTO · <tier>` settings label lied before the first level
-  (2026-08-06).** `main.js`'s `tierName` was hardcoded `'high'` at module
-  scope and only overwritten by `startQuality()` at level start; the SETTINGS
-  row reads `tierName` to render `AUTO · <tier>` and could say `AUTO · HIGH`
-  on a device the classifier had already placed on MEDIUM (measured on a
-  390×844 coarse-pointer profile) — exactly the confusion the label exists to
-  prevent. Now seeded from `detectTier()` at module load. Nothing else reads
-  `tierName` that early.
-- **Three items the settings audit found and deliberately left unfixed
-  (2026-08-06):** the campaign `World3D` has no `setQuality`, so the tier
-  table is a renderer no-op on that path — latent only, since `showTitle()` no
-  longer routes to a campaign level; the `dpr` lever is genuinely nothing on a
-  1x panel by construction (`Math.min(devicePixelRatio, cap)`), so HIGH vs
-  MEDIUM differs there in debris/support/contact rounds, not pixels; and the
-  `AUTO · <tier>` label can go stale if the watchdog steps a tier down while
-  the settings screen is open — it does not re-render on that event. See
-  `.wiki/modules/ui.md` for the settings-screen side.
-- **Desktop-class machines pin HIGH, watchdog off (2026-08-07).** The tier
-  ladder exists for phones — every lever in `TIERS` is a CPU lever a phone
-  feels — but `detectTier` applied its core-count/memory demotions to
-  desktops too, and the watchdog could then walk a desktop down to LOW/POTATO
-  (shadows and ambient life off) on a boot hitch or a big monitor. Player
-  report: laptop showed the full game, desktop lost it. Now anything that is
-  not a handheld (no mobile GPU, no coarse+small panel) and not a software
-  renderer classifies HIGH with `desktopClass: true`, and `startQuality()`
-  passes `pinned` for it so the watchdog never runs. Handheld classification
-  is unchanged. Escape hatch for a genuinely weak desktop: the settings
-  quality row. Check any machine's classification live via
-  `window.__quality.detected` in the console.
+- **Quality is a strict High/Low binary, player-chosen only — no
+  auto-detection, no live adjustment (2026-08-08).** Nico: "no inbetween or
+  auto-choice or auto-selection anymore." `js/quality.js` is now 58 lines (was
+  314): `TIER_ORDER = ['high', 'low']` and a `TIERS` table are all that
+  remain. `main.js`'s `wantedTier()` reads `save.settings.quality` directly
+  (`'low'` only if explicitly set, otherwise `'high'`) and there is no
+  per-frame sampling in the game loop, no `tierName`/`AUTO · <tier>` label,
+  and no device classifier. HIGH is exactly the pre-tier build byte for byte
+  (`dpr: 1.5, shadows: true, ambient: true, debrisCap: Infinity,
+  contactBudget: Infinity, contactRounds: 2, supportEvery: 1, maxSubSteps:
+  6`) and is the default for a fresh save; LOW is the old floor (`dpr: 1,
+  shadows: false, ambient: false, debrisCap: 280, contactBudget: 200,
+  contactRounds: 1, supportEvery: 2, maxSubSteps: 2`). `save.js`
+  `CURRENT_VERSION` 13 → 14 migrates every legacy value (`low`/`potato` →
+  `low`, everything else including `medium`/`auto` → `high`), since those
+  tier names no longer exist. See `.wiki/modules/ui.md` for the settings-row
+  toggle. Two findings from the removed system still hold, because they are
+  about the levers, not the mechanism that picked them: the campaign
+  `World3D` has no `setQuality` (only `VoxelWorld` does, `js/voxelworld.js`),
+  so the tier table is still a no-op on that path; and `dpr` is still
+  genuinely nothing on a 1x panel by construction, so HIGH vs LOW differs
+  there in debris/support/contact rounds, not pixels.
+- **History: the auto-detect + watchdog system this replaced (built
+  2026-08-06/07, removed 2026-08-08).** The prior design classified device
+  tier at boot (`detectTier`: coarse pointer, cores, memory, screen px, GL
+  renderer string) across five tiers (auto/high/medium/low/potato), then ran
+  `QualityWatchdog`, a live frame-time sampler that stepped the tier up/down
+  mid-session (down after 3 s bad p95, up after 8 s good). The performance
+  investigation behind it is still the load-bearing finding, independent of
+  who picks the tier: under real debris load the renderer is not the
+  bottleneck — at 4x throttle with debris accumulating, `world.update` was
+  2.58 ms against a `step` of 470 ms, of which `stepDebris` was 458 ms.
+  Median fps went before/high 2.2 → after/high 4.3 → after/potato 30.8, i.e.
+  essentially the whole rescue at load was `debrisCap`, not the draw path
+  (the active-set rewrite of `voxelworld.update()`, 5.109 → 0.233 ms median,
+  stops mattering once debris piles up). Debris physics remains the next
+  ceiling and still wants a budget or LOD of its own. The watchdog shipped
+  two bugs before it was removed, both now moot since there is no watchdog
+  left to have them: an anti-oscillation ceiling (`_ceiling`) that never
+  cleared on level start, so one relapse in one scene permanently capped the
+  next scene's tier until `start()` was fixed to clear it; and a `tierName`
+  seed bug that let the SETTINGS row claim `AUTO · HIGH` before the
+  classifier had run for the first time. A later pass also found the
+  classifier was demoting desktops (core-count/memory checks meant for
+  phones) so a big monitor or boot hitch could walk a desktop down to
+  LOW/POTATO — fixed by pinning any non-handheld, non-software-renderer
+  machine to HIGH with the watchdog disabled for it. None of this mechanism
+  exists anymore; it is recorded here because the debris-budget finding
+  drove the binary system's lever values and would otherwise be lost.
 - Visual-polish roadmap (building kit, canvas textures, lighting): see
   `.wiki/visual-direction.md`.

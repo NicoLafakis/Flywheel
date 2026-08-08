@@ -747,14 +747,17 @@ rejected, neutrally, with the run retained for inspection.
 - **Satisfies:** GWT-503, GWT-508, GWT-X07
 - **Size:** M
 - **Note:** the sub-step test is the reason to record traces in ticks.
-  `js/quality.js` gives POTATO `maxSubSteps: 1` and HIGH `6`, and `js/main.js`
-  *drops* unaffordable accumulator debt — so a slow device advances fewer sim
-  ticks per wall-second. A wall-clock trace would flag every phone player as a
-  cheat, and the failure would look like an anti-cheat bug rather than a clock
-  bug. **Commit `85a1ff0` removed the session-long tier ratchet**, so the tier
-  now moves both directions *inside* a run and the mid-run-change case above is
-  the one that will actually occur on a warm booth laptop. See
-  [07](07-test-strategy.md) §2.2 and [09](09-threat-model.md) §3.5.
+  `js/quality.js` gives LOW `maxSubSteps: 2` and HIGH `6` — a strict
+  player-chosen binary, no classifier, no watchdog (commit `b9af8bf`,
+  2026-08-08) — and `js/main.js` *drops* unaffordable accumulator debt, so a
+  LOW-tier device advances fewer sim ticks per wall-second than a HIGH-tier
+  one. A wall-clock trace would flag those players as cheats, and the failure
+  would look like an anti-cheat bug rather than a clock bug. There is no
+  watchdog to move the tier automatically anymore, but a player flipping
+  SETTINGS mid-match still produces the mid-run-change case above, and that is
+  the one to expect on a warm booth laptop where the operator drops it to LOW
+  by hand. See [07](07-test-strategy.md) §2.2 and [09](09-threat-model.md)
+  §3.5.
 
 ### T-305 — Measure a Boston sandbox replay in Deno ⚠ ◆
 

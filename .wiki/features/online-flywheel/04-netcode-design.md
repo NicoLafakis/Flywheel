@@ -317,16 +317,20 @@ Design properties that make this survivable:
   which looks like a bug and inflates their score if the wall happens to be
   edible.
 
-### 6.1 A peer's quality tier changing mid-match is now a normal event
+### 6.1 A peer's tick rate depends on a manual quality choice, and can still change mid-match
 
-As of commit `85a1ff0`, `js/quality.js` no longer keeps a session-long ceiling
-on a device's tier: the watchdog steps **down and back up** freely inside a
-single run. Tier selects `maxSubSteps` (HIGH 6, MEDIUM 4, LOW 2, POTATO 1) and
-`js/main.js` drops unaffordable accumulator debt, so **the same device can
-advance a different number of sim ticks per wall-second at minute two than it
-did at minute one.** This used to be a device property fixed at boot; it is now
-a per-minute property of a warm laptop on battery saver, which is exactly what
-a booth machine becomes. Treat it as routine, not exotic.
+As of commit `b9af8bf` (2026-08-08), `js/quality.js` is a strict two-value
+HIGH/LOW binary, player-chosen only — there is no device classifier and no
+live watchdog stepping a tier under load. Tier selects `maxSubSteps` (HIGH 6,
+LOW 2) and `js/main.js` still drops unaffordable accumulator debt, so **two
+peers can simply be ticking at different rates from the first frame of a
+match**, because they picked different SETTINGS, not because either device is
+struggling. The mid-run case still exists too, just voluntary rather than
+automatic: nothing stops a peer opening SETTINGS during a match and flipping
+HIGH/LOW, and `main.js` applies the new `maxSubSteps` immediately — so **the
+same device can advance a different number of sim ticks per wall-second at
+minute two than it did at minute one**, at the player's own hand rather than a
+watchdog's. Treat both as routine, not exotic.
 
 Nothing in this design needs to change, and that is the point — but the reasons
 are worth naming, because each is a place a later "optimisation" could break it:

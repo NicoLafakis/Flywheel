@@ -256,16 +256,18 @@ time submits a trace of exactly `clock × 60` ticks, and the replay runs it in
 milliseconds and returns exactly what those inputs produce.
 
 **Tick-indexing is the rule, and this document owns it.** A trace records tick
-indices, never timestamps, and the Edge Function replays by tick. Commit
-`85a1ff0` promoted that from prudent to load-bearing: `js/quality.js` used to
-ratchet a device's quality tier down for the whole session, so the tier — and
-with it `maxSubSteps` (HIGH 6 … POTATO 1) — was effectively fixed once a run
-started. It now moves **both directions mid-run**, and `js/main.js` drops
-accumulator debt it cannot afford, so **a single run can advance sim ticks at
-several different rates per wall-second while the player never notices.** A
-wall-clock-indexed trace would now be non-replayable for an ordinary player on
-an ordinary warm laptop, and the resulting rejections would look like an
-anti-cheat bug rather than a clock bug. Test coverage:
+indices, never timestamps, and the Edge Function replays by tick. This is
+load-bearing, not just prudent, because of how `js/quality.js` works:
+`maxSubSteps` is HIGH 6 or LOW 2, a strict player-chosen binary with no
+classifier and no watchdog (commit `b9af8bf`, 2026-08-08 — the live
+frame-time auto-adjuster that used to move a device's tier under load is
+gone). That removes the *automatic* mid-run change, but not the mid-run
+hazard: a player can still open SETTINGS during a run and flip HIGH/LOW by
+hand, and `js/main.js` drops accumulator debt it cannot afford, so **a single
+run can advance sim ticks at two different rates per wall-second if the
+player toggles quality mid-match.** A wall-clock-indexed trace would be
+non-replayable for that ordinary player, and the resulting rejection would
+look like an anti-cheat bug rather than a clock bug. Test coverage:
 [07](07-test-strategy.md) §2.2.
 
 *Residual:*
@@ -277,11 +279,13 @@ anti-cheat bug rather than a clock bug. Test coverage:
   timestamps submission start/end and the Edge Function compares wall-clock
   elapsed against `clock`; wildly inflated wall time is a **flag**, not a
   rejection, because a legitimate player on a bad laptop or a backgrounded tab
-  will trip it. Since `85a1ff0` that flag has to be *loose*: a quality tier that
-  steps down mid-run cuts the tick rate legitimately, so honest wall-clock
-  elapsed can be several times the game clock on exactly the warm booth laptop
-  we expect. Set the threshold from measured booth runs, not from `clock` × a
-  small factor. Accept the residual; a booth PC has no incentive to do this.
+  will trip it. That flag has to be *loose*: a player who flips SETTINGS from
+  HIGH to LOW mid-run (or was already on LOW) cuts the tick rate legitimately,
+  so honest wall-clock elapsed can be several times the game clock on exactly
+  the warm booth laptop we expect — no watchdog is doing this automatically
+  anymore, but the manual path produces the same shape of legitimate outlier.
+  Set the threshold from measured booth runs, not from `clock` × a small
+  factor. Accept the residual; a booth PC has no incentive to do this.
 - Note the inverse is *not* a problem: fast-forwarding gains nothing, since
   tick count is fixed.
 

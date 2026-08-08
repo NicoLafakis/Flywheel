@@ -1618,7 +1618,7 @@ export class VoxelWorld3D {
     this._sun.position.copy(c).add(this._sunOffset);
   }
 
-  // Device tier, renderer half (js/quality.js owns the ladder and the watchdog).
+  // Device tier, renderer half (js/quality.js owns the high/low tier table).
   // Three levers, in the order the measurements rank them for a phone: pixel
   // ratio (every fragment in the frame, shadow pass included), the shadow pass
   // itself (a second draw of every casting bucket), and ambient life.
