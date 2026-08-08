@@ -138,6 +138,7 @@ import {
   crateStack, trashBags, newsBox, tree, shippingContainer, fireEscape,
   cafeTable, sandwichBoard, marketStall, lightMast,
   hotDogCart, mailbox, drinkingFountain, fenceRun, bus,
+  naveChurch, playgroundSet,
 } from './voxelkit.js';
 
 // See the palette note in the header: authored, unmeasured. `sp()` marks the two
@@ -252,6 +253,67 @@ const C = {
   carhouseRoof: 0x565c63,
   officeBrick: 0x8a7a68,
   officeBand: 0xa9a294,
+
+  // --- DISTRICT 4, CAMBRIDGE STREET & THE PORTUGUESE SEAM ---------------
+  // `03` §4's palette bank for this district is "mill brick, painted timber,
+  // awning chroma", and it is the only district in the scene whose dominant
+  // material is PAINTED WOOD rather than masonry. That changes how the ramp
+  // is built. Brick tones separate on saturation (`02` §7's chroma rule);
+  // painted clapboard separates on HUE, because a street of triple-deckers is
+  // twenty-two owners each picking a colour from the same hardware shop.
+  //
+  // SIX CLAPBOARD TONES, ROTATING ON A THREE-CYCLE AGAINST THREE WIDTHS. Not
+  // decoration, and not the seven-brick-tones argument repeated: it is what
+  // keeps `probePlacementStep` off this district's back. A row of identical
+  // houses on a fixed pitch is twenty-two identical front-wall panels at a
+  // fixed spacing, which is the exact defect that probe exists to catch. Two
+  // consecutive houses therefore never share both a width and a tone, so no
+  // two collinear front walls are ever in the same group.
+  clapCream: 0xd6cdb6,
+  clapSage: 0x9aa88f,
+  clapSlate: 0x8c9aa6,
+  clapOchre: 0xc4a468,
+  clapRose: 0xb98d84,
+  clapDove: 0xb4b0a6,
+  // Trim, porch and roof. One trim white for the whole street: the corner
+  // boards, sills and porch rails are what read as a SHARED vernacular, and
+  // varying them too would turn a neighbourhood into a paint chart.
+  seamTrim: 0xe8e4d8,
+  porchDeck: 0x8a7f6e,
+  shopDeck: 0x7a6f5f,
+  porchPost: 0xe8e4d8,
+  seamRoof: 0x4e4a45,
+  seamPlinth: 0x8d8880,
+  houseGlass: sp(0x53616b),
+  doorRed: 0x7a3b34,
+  chimney: 0x7e6a5c,
+  // The Cambridge Street storefront row. `02` §7 is binding here: EVOKE, DO
+  // NOT NAME. The awnings carry the identity and they carry it in colour
+  // alone — a fish market, a bakery, a coffee counter — with no `signText`
+  // anywhere in this district. `04` owns the specifics.
+  shopBrick: 0xa86b52,
+  shopBrickAlt: 0x96604c,
+  awningRed: 0xa8342c,
+  awningGreen: 0x2f6b4a,
+  awningBlue: 0x2a5f8a,
+  awningYellow: 0xc9a227,
+  shopSill: 0xd8d3c6,
+  shopGlass: sp(0x46545c),
+  // The two civic anchors at the west end. Both are LOW chroma against the
+  // painted street, which is the whole point of a civic building in a
+  // residential fabric: it is the thing made of stone.
+  bankStone: 0xc6bfae,
+  bankBase: 0xa79f8e,
+  bankTrim: 0xdcd6c6,
+  bankRoof: 0x6a655c,
+  churchStone: 0xcdc6b4,
+  churchRoof: 0x6f6a62,
+  churchGlass: sp(0x3f5a6a),
+  // The parks. Named on the ground plane (`03` §4.4) and fenced, which is how
+  // a small city park in this neighbourhood actually reads.
+  parkFence: 0x37503f,
+  parkPath: 0xa89f8e,
+  benchWood: 0x7d6a52,
 };
 
 // --- THE MAP -----------------------------------------------------------------
@@ -392,6 +454,44 @@ export const CAMBRIDGE_OFFSETS = [
     conf: 'Position: Confirmed. Dimensions: est. (tower +12 above the building)' },
   { id: 25, name: 'Citgo sign', plan: [18, 18], height: 30, E: -1578, N: -2372,
     conf: 'UNVERIFIED position AND visibility from East Cambridge. `03` §1.3 leaves it OUT — no backdrop plane exists to demote it to. Carried here so nobody re-derives it as missing data' },
+  // ROWS 26-33 ADDED AT P6.4, NOT AT P6.1. Every one of `03` §4.4's named line
+  // items has a Confirmed offset in `02` §2.4/§2.5 and none of them was
+  // transcribed, so District 4 had no derivable position for a single thing it
+  // was asked to build. They land here rather than in a scaffolding task for the
+  // reason `03` §1.2 gives: the table is the only thing that lets anyone check
+  // the layout later, so a row without geometry is a claim nobody has tested.
+  // Heights follow `02` §6's own method note 4 — storeys × 4.3 for civic and
+  // residential, × 3.5 for mill and industrial — and are marked (est.) as that
+  // note instructs, never promoted to measurements.
+  //
+  // `03` §1.3 MISCLASSIFIES FIVE OF THESE AS RING A. Its prose list puts Costa
+  // Lopez, Silva and Toomey parks, the Chang Shing Tofu Factory and American
+  // Twine under "In, at Ring A (true position, 1:3 plan)" and only the savings
+  // bank under Ring B. Their real radii are 402.0, 418.2, 541.4, 494.1 and
+  // 473.9 m, every one of them past §1.2's own 340 m seam, so `sceneOffset`
+  // (which implements §1.2, not §1.3) returns Ring B seats for all five. The law
+  // and this table agree; §1.3's list is the thing that is wrong, and it is
+  // wrong in the direction that matters. Ring A would seat Silva Park at
+  // (−139.5,−12.25) — 24.8 m from its Ring B seat and 19.5 m outside `maxX` — and
+  // the other four at deltas of 19.5, 41.8, 48.1 and 62.6 m. Verified against
+  // §5.4's stated behaviour: bearing survives, radius compresses to
+  // 113 + (r − 340)/41.9, which reproduces all five seats to the quarter metre.
+  { id: 26, name: 'East Cambridge Savings Bank', plan: null, height: 8.6, E: -378, N: 88,
+    conf: 'Position: Confirmed (OSM). Storeys: Confirmed (2). Height: est. (2 × 4.3). Footprint: `02` gives none' },
+  { id: 27, name: 'Third Congregational Church', plan: null, height: null, E: -335, N: -36,
+    conf: 'Position: Confirmed (OSM). Storeys, footprint AND height: `02` gives none — the only row in this table with no height at all. `02` §7 puts active places of worship under "handle with care"' },
+  { id: 28, name: 'Chang Shing Tofu Factory', plan: null, height: 3.5, E: -238, N: -433,
+    conf: 'Position: Confirmed (OSM). Storeys: Confirmed (1). Height: est. (1 × 3.5, industrial). CONFLICT: `02` §4 calls it "240 m southwest" but these offsets give a real radius of 494 m — the prose figure matches |E| alone. Offsets used; see the P6.4 report' },
+  { id: 29, name: 'Centanni Park', plan: null, height: 0, E: -252, N: -16,
+    conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground)' },
+  { id: 30, name: 'Silva Park', plan: null, height: 0, E: -413, N: 66,
+    conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground). One of the two Portuguese park names `02` §4 calls "the neighbourhood telling you what it is"' },
+  { id: 31, name: 'Costa Lopez Park', plan: null, height: 0, E: -314, N: -251,
+    conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground). The other Portuguese park name — and it derives to z +71.75, 42 m south of `03` §4.4\'s own rect for the district that owns it' },
+  { id: 32, name: 'Timothy J. Toomey, Jr. Park', plan: null, height: 0, E: -366, N: -399,
+    conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground)' },
+  { id: 33, name: 'American Twine Office Park', plan: null, height: 10.5, E: -328, N: -342,
+    conf: 'Position: Confirmed (OSM). Storeys: Confirmed (3). Height: est. (3 × 3.5, converted mill). Footprint: `02` gives none' },
 ];
 
 // `03` §1.2's law, in one function: real (E, N) offset in true-north metres →
@@ -548,6 +648,30 @@ export const CAMBRIDGE_STREETS = [
   // which is the tightest gap in the district and the reason the chords sweep
   // west going north rather than east.
   { name: 'Lechmere Busway', axis: 'z', x: 4, z: -81.5, w: 6, d: 39.5 },
+  // District 4, indices 6-8. CAMBRIDGE STREET IS ONE STREET AND TWO ROWS, and
+  // the split is bookkeeping rather than geometry: row 0 runs x[−72,−25.5] and
+  // this one continues it west to the map edge in the same z band, abutting at
+  // exactly x −72. It cannot be widened in place because row 0 is addressed by
+  // index — `CAMBRIDGE_CROSSINGS` holds [0,−63], [0,−44] and [0,−34] — and
+  // because District 2's kerb runs, footway decor and frontage were all
+  // measured against the rect as written at Phase 5.
+  { name: 'Cambridge Street West', axis: 'x', x: -120, z: -5.5, w: 48, d: 7 },
+  // Gore Street, one block north, and the frontage the twenty-two houses need.
+  // `02` gives no offset for it, so it is placed rather than derived: 24.5 m
+  // north of Cambridge Street's centreline, which is `03` §1.2's 1:3 of the ~74
+  // m the real pair sit apart. Named rather than numbered because every
+  // numbered street in this quarter is either already built (First Street) or
+  // spoken for by `03` §4.5's Thorndike/Otis/Spring grid.
+  { name: 'Gore Street', axis: 'x', x: -120, z: -30, w: 42, d: 6 },
+  // Third Street, the north-south connector. Also unoffset in `02`, and placed
+  // on the pitch the built map already implies: First Street stands at x −33,
+  // and the East Cambridge numbered streets run ~100 real metres apart, which
+  // at 1:3 is 33 m — so Third Street lands at −99 by that arithmetic and at −96
+  // once its 6 m carriageway is centred on the block it actually divides. It
+  // starts at Gore Street's south kerb rather than crossing it: a rect that
+  // overlapped Gore Street's would make every block in the junction interior to
+  // two carriageways at once.
+  { name: 'Third Street', axis: 'z', x: -96, z: -24, w: 6, d: 50 },
 ];
 export const CAM_XW_LEN = 3;
 export const CAMBRIDGE_CROSSINGS = [
@@ -563,6 +687,12 @@ export const CAMBRIDGE_CROSSINGS = [
   // for: it is how the busway's passengers reach the headhouse on the west side.
   [4, -6],
   [5, -72], [5, -46],
+  // District 4. All six clear of the kerb ranks below for the same reason
+  // District 1's and District 3's do: a zebra painted under a parked car is
+  // legal to every probe and wrong to every eye.
+  [6, -117], [6, -87],
+  [7, -112], [7, -86],
+  [8, -20], [8, 10],
 ];
 
 // Kerb-parked and moving vehicles. Exported because `probeRoadConflicts` treats
@@ -614,6 +744,30 @@ export const CAMBRIDGE_VEHICLES = [
   { kind: 'boxVan', x: -19.75, z: -60, axis: 'z', len: 6, cab: 0xd8d3c6, box: 0x2a4f9a, d: 3 },
   // One car in the junction, under the viaduct.
   { kind: 'sedan', x: -4, z: -86, axis: 'x', body: 0x8d2f28, roof: 0x8d2f28, d: 3 },
+  // District 4. Both Cambridge Street West ranks are placed ON the excursion's
+  // own corridor rather than beside it: an axis-'x' sedan at z −5.5 occupies
+  // z[−5.5,−3.5], so its centre sits exactly on the outbound leg's z −4.5, and
+  // the south rank at z −0.5 does the same for the return at z +0.5. That is
+  // the difference between a parked car the density probe meets and one it
+  // drives past — and a residential street's kerb rank is the cheapest
+  // continuous content this district has.
+  { kind: 'sedan', x: -113, z: -5.5, axis: 'x', body: 0x30343b, roof: 0x30343b, d: 4 },
+  { kind: 'sedan', x: -102, z: -5.5, axis: 'x', body: 0xd8d3c6, roof: 0x8d2f28, d: 4 },
+  { kind: 'sedan', x: -83, z: -5.5, axis: 'x', body: 0x3d5a3a, roof: 0x3d5a3a, d: 4 },
+  // −114, not −112: a sedan is 5 m long from its origin and the box van behind
+  // it starts at −108, so −112 parks the two of them 1 m inside each other.
+  { kind: 'sedan', x: -114, z: -0.5, axis: 'x', body: 0x8a6a2e, roof: 0x8a6a2e, d: 4 },
+  { kind: 'boxVan', x: -108, z: -0.5, axis: 'x', len: 6, cab: 0xd8d3c6, box: 0x2f6b7a, d: 4 },
+  { kind: 'sedan', x: -80, z: -0.5, axis: 'x', body: 0x2f4756, roof: 0x2f4756, d: 4 },
+  // Third Street, both lanes. A z-axis sedan is 2 m across x from its origin,
+  // so −94.5 and −92.5 are the two lanes of the x[−96,−90] carriageway with
+  // 0.5 m of kerb clearance each side.
+  { kind: 'sedan', x: -94.5, z: -13, axis: 'z', body: 0x8d2f28, roof: 0x8d2f28, d: 4 },
+  { kind: 'sedan', x: -92.5, z: 15, axis: 'z', body: 0x4a4f57, roof: 0x4a4f57, d: 4 },
+  { kind: 'motorcycle', x: -94.5, z: -4, axis: 'x', d: 4 },
+  // Gore Street.
+  { kind: 'sedan', x: -105, z: -30, axis: 'x', body: 0xd8d3c6, roof: 0xd8d3c6, d: 4 },
+  { kind: 'sedan', x: -92, z: -26.5, axis: 'x', body: 0x2f6b4f, roof: 0x2f6b4f, d: 4 },
 ];
 
 // Overhead spans: the ONE case where a physical block may stand inside a
@@ -847,6 +1001,70 @@ export const CAMBRIDGE_DISTRICTS = [
                       // continuously between bents — is built, and the measured
                       // mean gap is far inside 12 rather than just under it.
   },
+  {
+    id: 4,
+    name: 'Cambridge Street & the Portuguese seam',
+    // REFINED AGAINST WHAT STANDS, and the departure from `03` §4.4's
+    // x[−120,−58] z[−28,+30] is measured in both directions rather than argued.
+    //
+    // EAST: −72 rather than −58. §4.4's east edge reaches 14 m into District
+    // 2's built block and would annex 2,007 of its pieces (31% of District 2's
+    // 6,535) into this district's density. Nothing §4.4 asks for stands there:
+    // every item with a derivable position lands west of x −72, which is
+    // District 2's own west edge, so the two rects ABUT instead — the first
+    // pair in this scene that do. `rectsOverlap` is open, so an abutting edge
+    // costs nothing, and the three-district run of overlapping rects stops
+    // here. The number §4.4's rect-as-written would have reported is in the
+    // P6.4 report, both ways.
+    //
+    // WEST: −120, the map edge, which §4.4 already gives. Silva Park's own
+    // offset (−114.75 centre, 9.5 m wide) reaches −119.5 and is what carries
+    // `CAMBRIDGE_BOUNDS` out to −120 this task.
+    //
+    // NORTH: −41 rather than −28. §4.4's z −28 predates Gore Street, and Gore
+    // Street is not optional: twenty-two triple-deckers need ~77 m of frontage
+    // and Cambridge Street alone offers 48, of which the storefront row, the
+    // bank, the church and two parks already claim most. The ten-house row on
+    // its north side reaches z −40.25 with its rear porches.
+    //
+    // MEASURED BOTH WAYS, for P6.10: §4.4's rect as written reports 6,942
+    // pieces over 1,647 cells (4.22/m²) — but 2,007 of those pieces are District
+    // 2's, and it MISSES 1,186 of District 4's own, all of them on Gore Street
+    // at z[−39.88,−28.25]. The rect below reports 6,121 over 1,418 (4.32/m²)
+    // with zero pieces shared with any neighbour.
+    //
+    // SOUTH: +26 rather than +30. Row D's last house reaches exactly +26 and the
+    // church +22.75; nothing this district builds goes further.
+    //
+    // NOT IN THIS RECT, on purpose: Costa Lopez Park at (−76,+71.75) and the
+    // Chang Shing Tofu Factory at (−38,+96.25). See the district's own note
+    // above — both are Ring B items whose bearings land them outside the map as
+    // it currently stands, and both are recorded at `CAMBRIDGE_OFFSETS` 31 and
+    // 28 rather than force-fitted into a rect they are 46 m and 70 m outside.
+    rect: { minX: -120, maxX: -72, minZ: -41, maxZ: 26 },
+    budget: 8600,     // `03` §4.4. Ships at 6,121 blocks over 1,418 built cells:
+                      // 71% of budget, 4.32 piece(s)/m² against §8.2's 2.6
+                      // target. THE UNDERSPEND IS SCENE-WIDE, NOT LOCAL — every
+                      // district built so far lands in the same band (D1 72.6%,
+                      // D2 66.7%, D3 65.3%, D4 71.2%), because §4's per-object
+                      // figures are cube-era counts and ADR-0013 collapses a
+                      // whole wall course into one piece. §4.4 budgets a
+                      // triple-decker at ~150 blocks; the built one is 71, and
+                      // it is not thinner — it is the same house in anisotropic
+                      // primitives. Line by line: houses 1,562 vs 3,300,
+                      // storefront row 294 vs 1,900, bank 98 vs 480, church 959
+                      // vs 620, parks 782 vs 700 with only two of the three
+                      // built, tofu factory 0 vs 260 (deferred, Ring B), street
+                      // furniture ~2,400 vs 1,340. Budget is a ceiling and the
+                      // density clause is the floor; the floor is cleared by
+                      // 66%, so the gap was reported rather than padded out.
+    gapFloor: 8,      // `03` §8.2's floor for District 4 — joint second-tightest
+                      // in the scene, and the mitigation §8.2 names is the
+                      // district itself: "the density reservoir. Twenty-two
+                      // triple-deckers with porches." A stacked porch is ~15
+                      // separately-eatable members on a 3 m frontage, which is
+                      // what makes an 8 m ceiling reachable without a mass.
+  },
 ];
 
 // The scripted excursion, `03` §9.5: the Davenport's long axis and back along
@@ -884,6 +1102,13 @@ export const CAMBRIDGE_DISTRICTS = [
 // District 1's 6 m gap floor is half as forgiving as District 2's, so the legs
 // here hug furnished ground harder: the Canal Park leg runs 0.75 m off the
 // food-truck row rather than down the crown of the carriageway.
+//
+// CURRENT LENGTH, kept here so nothing downstream has to count: 43 legs, 580.1 m
+// of arc, 256 s. It was 62 s at P5, 105 at P6.2, 185 at P6.3, 245 at P6.4's first
+// draft and 256 once leg 4 was extended to the savings bank's park front. `03`
+// §7.4's own column says leg 4 should LEAVE at ~3 min; the drift is P6.2's and
+// P6.3's prepends, not this leg's pace, and it compounds with every district
+// added ahead of the ones already written.
 export const CAMBRIDGE_ROUTE = [
   { until: 4, x: 0, z: 20.5 },     // south out of the front-door ring
   { until: 8, x: 2.5, z: 25 },     // southeast across the forecourt
@@ -947,6 +1172,52 @@ export const CAMBRIDGE_ROUTE = [
   { until: 165, x: -68, z: 14 },    // west down the mill spine
   { until: 174, x: -68, z: 5 },     // north through the west end
   { until: 185, x: -36, z: 2.2 },   // east along the Cambridge Street frontage
+  // --- `03` §7.4 LEG 4: out along Cambridge Street to the Portuguese seam and
+  // the savings bank. APPENDED, unlike leg 2: §7.4 puts this one AFTER the
+  // Davenport, so the ordering the doc asks for and the ordering the file
+  // already has agree, and District 2's nine legs keep their times as well as
+  // their geometry.
+  //
+  // IT GOES OUT ON THE NORTH SIDE AND STAYS THERE, and that is forced rather
+  // than chosen. District 2's own last leg runs east at z +2.2, which is 1.7 m
+  // from any return this leg could take along the south kerb — inside the 2.6 m
+  // corridor, so `projectOnRoute` would hand District 2's whole south-side rank
+  // to whichever leg won the tie and leave the other with a 32 m hole. The
+  // north side is free: no existing leg comes within 6 m of it, so this one
+  // takes the frontage row's kerb, posts and parked cars without moving a
+  // single piece off a leg that already measured green.
+  //
+  // IT ALSO DOES NOT COME BACK. §7.4's leg 5 is "back east into Thorndike
+  // Civic", so the return east is P6.5's to author down Thorndike's own
+  // streets, not a retrace of this one. An out-and-back here would hit exactly
+  // the trap P6.3 hit at Lechmere.
+  // THE WESTBOUND LEG RUNS AT z −5.5, NOT −4.5, WEST OF x −88. One course further
+  // south puts Silva Park's north railing 2.375 m off the line instead of 3.375,
+  // which is the difference between inside and outside the 2.6 m corridor: 147
+  // more of the park's pieces are met for 1.6 m of extra arc. The bend happens at
+  // x −88 rather than at the district seam so that District 2's own stretch of
+  // this leg keeps the geometry it measured green under.
+  { until: 189, x: -44, z: -4.5 },     // northwest onto Cambridge Street's north kerb line
+  { until: 197, x: -66, z: -4.5 },     // west past the frontage row's shopfronts
+  { until: 205, x: -88, z: -5.5 },     // across the district seam at x −72, easing onto the kerb line
+  { until: 212, x: -108, z: -5.5 },    // west along Silva Park's railings
+  { until: 215, x: -117, z: -5.5 },    // to the west end, below the savings bank
+  { until: 217, x: -117, z: 0.5 },     // across to the south kerb, under the awnings
+  { until: 223, x: -99, z: 0.5 },      // east along the storefront row
+  { until: 225, x: -94.5, z: 0.5 },    // into the Third Street junction
+  { until: 233, x: -94.5, z: -22 },    // north up Third Street's west kerb rank
+  { until: 237, x: -94.5, z: -32.75 }, // across Gore Street onto the house frontage
+  { until: 246, x: -119, z: -32.75 },  // west along Row A's stacked porches, to the map edge
+  // AND THEN BACK DOWN THE WEST EDGE TO THE BANK'S OWN FRONT. §7.4 names the
+  // savings bank in this leg and the leg as first drawn never reached it: the
+  // Gore Street return passes its BACK at 9.00 m, four times the corridor, and a
+  // stub along that face was measured and met 2 of its 98 pieces. The bank fronts
+  // SOUTH onto Silva Park — that is what the offsets produce and what the
+  // building actually does — so the face that can be met is the park face, and
+  // this pair of legs meets 72 of 98. Down the west edge rather than diagonally
+  // across, because the diagonal drives through the bank's own footprint.
+  { until: 252, x: -119, z: -16 },     // south past the bank's west flank
+  { until: 256, x: -108, z: -16 },     // east along its park front, and out toward leg 5
 ];
 
 // "Do not put the mark on the wrong building." The Davenport carries a painted
@@ -2536,6 +2807,637 @@ export const LECHMERE_AMBIENT = {
   steam: [{ x: -34, z: -102, rate: 0.22 }],
 };
 
+// --- DISTRICT 4: CAMBRIDGE STREET & THE PORTUGUESE SEAM ----------------------
+// `03` §4.4's density reservoir, and the one district in the scene whose job is
+// COUNT rather than mass: twenty-two triple-deckers, a storefront row, two
+// civic anchors and two parks, none of which is a large object. §8.2 gives it
+// the second-tightest mean-gap target on the map (8 m) and a 2.6 pieces/m²
+// floor, and the reason it can carry both is that a three-storey wooden house
+// with stacked porches is 71 separately-eatable members on an 18 m² footprint
+// (measured, Row A #0). A tower is four slabs; this is the opposite trade. The
+// rest of the census, for P6.10: one storefront unit 42, the savings bank 98,
+// the church 959, Silva Park 497, Centanni Park 285.
+//
+// WHERE IT SITS, AND WHY IT ABUTS RATHER THAN OVERLAPS. `03` §4 gives this
+// district x[−120,−58] z[−28,+30], which reaches 14 m into District 2's built
+// ground. It does not need to: everything §4.4 asks for that has a derivable
+// position lands west of x −72, which is exactly District 2's own west edge. So
+// the geometry stops at −72.5 and the rect stops at −72, and this is the FIRST
+// district pair in the scene whose rects do not overlap at all (`rectsOverlap`
+// is open, so an abutting edge is not a conflict). The 2,007-piece figure that
+// §4's rect-as-written would have annexed from District 2 is reported in the
+// P6.4 report rather than measured into this district's density.
+//
+// TWO OF §4.4'S LINE ITEMS ARE NOT HERE, and it is the scale law that moves
+// them rather than a decision taken here. `02` §2.5 puts Costa Lopez Park at
+// real (E−314,N−251) and the Chang Shing Tofu Factory at (E−238,N−433). Both
+// are past `03` §1.2's 340 m Ring B seam, so the law preserves their BEARING
+// and compresses only the radius — a thing 400 m south-west stays south-west,
+// at ~114 m out. They derive to scene (−76,+71.75) and (−38,+96.25), which is
+// 42 m and 66 m south of §4.4's own rect and outside `CAMBRIDGE_BOUNDS`
+// entirely. Building them there would force the south edge from +36 to ~+100
+// and open a 38 m band of empty ground between District 2's rear yard and them,
+// which `probeBoundsRect` would pass (it measures the EDGES) and a player would
+// walk straight into. Their offsets are recorded at `CAMBRIDGE_OFFSETS` rows 28
+// and 31 with the derived positions; the geometry waits for a district whose
+// own ground reaches them. `03` §4.5 takes District 5 to z +56, which halves
+// the distance.
+//
+// THE ONE NUMBER `02` AND ITS OWN OFFSET TABLE DISAGREE ON, recorded once here
+// rather than three times: `02` §4 calls Costa Lopez and Silva "two parks 300 m
+// from HubSpot" and the tofu factory "240 m southwest", against real radii of
+// 402, 418 and 494 m computed from §2.5's own offsets. In all three cases the
+// prose figure matches |E| alone rather than the radius, so it reads as a
+// consistent transcription habit rather than three separate errors. `03` §1.2
+// makes the offsets the authority and they are what is built.
+
+// The residential fabric's geometry, in one place because every constant in it
+// is load-bearing for `probePlacementStep` rather than for the eye.
+//
+// STOREY PITCH EQUALS THE WALL MEMBER'S OWN HEIGHT, 2.25 m, and that is the
+// whole reason this house stands up to the probe. A repeated non-cube element
+// must have gap 0 (abut) or gap >= its own extent; a 2.25 m wall panel on a
+// 2.5 m pitch leaves 0.25 m of daylight between courses, which is 0 < gap <
+// extent and exactly the "placement step does not match the extent" defect. So
+// the jamb piers run the FULL storey and abut, and the floor plate is inset
+// 0.25 m from every wall rather than sitting between courses. 3 x 2.25 + the
+// 0.25 m plinth is 7.0 m, which is `02`'s 10.5 m triple-decker at `03` §1.2's
+// 1:1.5 height scale exactly, with nothing rounded.
+const TD_H = 2.25;          // storey pitch AND wall-member height — see above
+const TD_D = 4;             // body depth
+const TD_PORCH = 1;         // porch projection, front and rear
+// Three widths and six paint tones, rotating on coprime cycles (3 and 6 share a
+// factor, so a width/tone pair repeats every six houses — 21 m at the 3.5 m
+// pitch, which is far outside any member's own extent). Nothing here is
+// decoration: a row of identical houses on a fixed pitch is a run of identical
+// collinear boxes at a fixed spacing, which is the defect the probe exists to
+// catch, and the fix is that no two neighbours share a group at all.
+const TD_WIDTHS = [3.0, 2.75, 3.25];
+const TD_TONES = [C.clapCream, C.clapSage, C.clapSlate, C.clapOchre, C.clapRose, C.clapDove];
+const TD_PITCH = 3.5;
+
+// One three-decker. `dir` −1 puts the front porch on the −z face (axis 'x') or
+// the −x face (axis 'z'); +1 puts it on the far face. Everything below is
+// authored in (u, v): u runs along the frontage, v runs BACK from the front
+// face, so the porch is simply negative v and the same body code serves all
+// four orientations.
+function tripleDecker(sim, o) {
+  const {
+    x, z, w = 3, d = TD_D, axis = 'x', dir = -1,
+    clap = C.clapCream, trim = C.seamTrim, rear = true,
+  } = o;
+  const H = TD_H, N = 3, P = TD_PORCH;
+  const box = (u, v, du, dv, y, h, mat, color) => {
+    const bx = axis === 'x' ? x + u : (dir < 0 ? x + v : x + d - v - dv);
+    const bz = axis === 'x' ? (dir < 0 ? z + v : z + d - v - dv) : z + u;
+    pier(sim, {
+      x: bx, y, z: bz,
+      w: axis === 'x' ? du : dv,
+      h,
+      d: axis === 'x' ? dv : du,
+      mat, color,
+    });
+  };
+
+  box(0, 0, w, d, 0, 0.25, 'concrete', C.seamPlinth);
+  const y0 = 0.25;
+
+  // THE TWO FRONT WINDOWS ARE DELIBERATELY DIFFERENT WIDTHS. Two 0.75 m lights
+  // 0.5 m apart are one group with a 0.5 m gap against a 0.75 m extent, which
+  // fails; 0.75 and 0.5 are two groups and neither has a neighbour at all.
+  const wins = [{ u: 0.5, ww: 0.75 }, { u: 1.75, ww: 0.5, door: true }];
+  const jambs = [{ u: 0, jw: 0.5 }, { u: 1.25, jw: 0.5 }, { u: 2.25, jw: w - 2.25 }];
+
+  for (let s = 0; s < N; s++) {
+    const y = y0 + s * H;
+    for (const j of jambs) box(j.u, 0, j.jw, 0.25, y, H, 'wood', clap);
+    for (const wn of wins) {
+      if (s === 0 && wn.door) {
+        // The street door and its transom light. Its own extents, so it never
+        // joins the window groups stacked above it.
+        box(wn.u, 0, wn.ww, 0.25, y, 1.75, 'wood', C.doorRed);
+        box(wn.u, 0, wn.ww, 0.25, y + 1.75, 0.5, 'glass', C.houseGlass);
+        continue;
+      }
+      // 0.5 sill + 1.0 light + 0.75 head = 2.25. The light is 1.0 rather than
+      // the 1.25 the eye would pick because the vertical gap between courses is
+      // 2.25 − h, and h must be <= 1.125 for that gap to clear the extent.
+      box(wn.u, 0, wn.ww, 0.25, y, 0.5, 'wood', trim);
+      box(wn.u, 0, wn.ww, 0.25, y + 0.5, 1.0, 'glass', C.houseGlass);
+      box(wn.u, 0, wn.ww, 0.25, y + 1.5, 0.75, 'wood', trim);
+    }
+    box(0, 0.25, 0.25, d - 0.5, y, H, 'wood', clap);
+    box(w - 0.25, 0.25, 0.25, d - 0.5, y, H, 'wood', clap);
+    box(0, d - 0.25, w, 0.25, y, H, 'wood', clap);
+    // Inset from every wall so it is a floor rather than a course joint.
+    box(0.25, 0.25, w - 0.5, d - 0.5, y + H - 0.25, 0.25, 'wood', C.porchDeck);
+  }
+
+  // THE STACKED PORCHES — `03` §4.4 calls them the signature and they are also
+  // where a third of this house's piece count lives. The posts run CONTINUOUS
+  // through all three decks rather than stopping at each: a post per storey is
+  // three collinear boxes with a deck's thickness of daylight between them.
+  const TOP = y0 + N * H;
+  // `v0` is the porch's near edge and `rail` the v of its OUTER 0.25 m band —
+  // which is v0 for the front porch (v runs back from the front face, so the
+  // outermost cell is the most negative) and v0 + P − 0.25 for the rear.
+  const porch = (v0, rail, roofed) => {
+    // From y 0, not from the plinth's top: the plinth is the BODY's footprint
+    // and stops at the front wall, so a post starting at 0.25 out here would be
+    // a post with nothing under its own cell.
+    box(0.25, rail, 0.25, 0.25, 0, TOP, 'wood', C.porchPost);
+    box(w - 0.5, rail, 0.25, 0.25, 0, TOP, 'wood', C.porchPost);
+    for (let s = 0; s < N; s++) {
+      const y = s * H;
+      box(0.5, v0, w - 1, P, y, 0.25, 'wood', C.porchDeck);
+      for (let bu = 0.75; bu <= w - 1.0 + 1e-9; bu += 0.75) {
+        box(bu, rail, 0.25, 0.25, y + 0.25, 0.5, 'wood', C.porchPost);
+      }
+      box(0.5, rail, w - 1, 0.25, y + 0.75, 0.25, 'wood', C.porchPost);
+    }
+    if (roofed) box(0, v0, w, P, TOP, 0.25, 'panel', C.seamRoof);
+  };
+  porch(-P, -P, false);
+  if (rear) porch(d, d + P - 0.25, true);
+
+  // Flat roof over the body and the front porch in one plate, its fascia band,
+  // and the brick flue every one of these houses has.
+  box(0, -P, w, d + P, TOP, 0.25, 'panel', C.seamRoof);
+  box(0, -P, w, 0.25, TOP + 0.25, 0.25, 'wood', trim);
+  box(w - 0.75, d - 1.25, 0.5, 0.5, TOP + 0.25, 1.0, 'brick', C.chimney);
+}
+
+// A row of them along one frontage. `i0` continues the district-wide index so
+// the width/tone rotation never restarts at a row boundary — two rows meeting
+// at a corner would otherwise both open with the same house.
+function tripleDeckerRow(sim, o) {
+  const { x, z, n, axis = 'x', dir = -1, i0 = 0, rear = true } = o;
+  for (let i = 0; i < n; i++) {
+    const g = i0 + i;
+    const w = TD_WIDTHS[g % TD_WIDTHS.length];
+    const u = i * TD_PITCH;
+    tripleDecker(sim, {
+      x: axis === 'x' ? x + u : x,
+      z: axis === 'x' ? z : z + u,
+      w, axis, dir, rear, clap: TD_TONES[g % TD_TONES.length],
+    });
+  }
+}
+
+// --- The Cambridge Street storefront row -------------------------------------
+// `02` §7 is binding and it is binding by omission: EVOKE, DO NOT NAME. There
+// is no `signText` anywhere in this district and there is no wordmark on any
+// awning. What carries the identity is the awning CHROMA — the reds, greens and
+// blues of a fish market, a bakery and a coffee counter — over a plain brick
+// party-wall row, which is what the street actually looks like. `04` owns the
+// specifics; this builds the shell they hang on.
+const SHOP_TONES = [C.shopBrick, C.shopBrickAlt];
+const AWNINGS = [C.awningRed, C.awningGreen, C.awningBlue, C.awningYellow];
+// Two board tones for the floor plates. Not decoration — the plate is 2.5 m wide
+// on a 3 m unit pitch, so one shared colour makes every plate in the row one
+// `probePlacementStep` group with a 0.5 m gap against a 2.5 m extent. Alternating
+// puts same-group plates 6 m apart (gap 3.5), which clears their own width.
+const SHOP_DECKS = [C.porchDeck, C.shopDeck];
+
+function shopUnit(sim, o) {
+  const { x, z, w = 3, d = 5, dir = -1, storeys = 2, brick, awning, deck } = o;
+  const H = 2.75;
+  const box = (u, v, du, dv, y, h, mat, color) => {
+    pier(sim, {
+      x: x + u, y, z: dir < 0 ? z + v : z + d - v - dv,
+      w: du, h, d: dv, mat, color,
+    });
+  };
+  box(0, 0, w, d, 0, 0.25, 'concrete', C.seamPlinth);
+  const y0 = 0.25;
+
+  // Grade: two brick jambs, a central mullion, and two shopfronts of different
+  // widths either side of it — same two-group trick the houses use.
+  box(0, 0, 0.5, 0.25, y0, H, 'brick', brick);
+  box(w - 0.5, 0, 0.5, 0.25, y0, H, 'brick', brick);
+  box(1.5, 0, 0.25, 0.25, y0, H, 'brick', brick);
+  const bays = [{ u: 0.5, bw: 1.0 }, { u: 1.75, bw: w - 2.25 }];
+  for (const b of bays) {
+    box(b.u, 0, b.bw, 0.25, y0, 0.5, 'wood', C.shopSill);        // stallriser
+    box(b.u, 0, b.bw, 0.25, y0 + 0.5, 1.25, 'glass', C.shopGlass);
+    box(b.u, 0, b.bw, 0.25, y0 + 1.75, 0.5, 'glass', C.shopGlass); // transom
+    box(b.u, 0, b.bw, 0.25, y0 + 2.25, 0.5, 'wood', C.shopSill);   // fascia
+  }
+  // The awning: one 0.5 m canopy projecting a metre over the footway, on two
+  // brackets. ONE piece rather than a canopy plus a hanging valance, and the
+  // brackets sit in front of the brick JAMBS rather than in front of the
+  // shopfront — support never flows downward, so a valance under a canopy has
+  // nothing to stand on, and a bracket in front of a transom is a bracket
+  // leaning on glass, which carries nothing in either direction. Both fell.
+  box(0.25, -1, w - 0.5, 1, y0 + 2.25, 0.5, 'panel', awning);
+  for (const bu of [0, w - 0.25]) box(bu, -0.75, 0.25, 0.75, y0 + 2.0, 0.25, 'steel', C.steelDark);
+
+  for (let s = 1; s < storeys; s++) {
+    const y = y0 + s * H;
+    for (const j of [{ u: 0, jw: 0.5 }, { u: 1.25, jw: 0.5 }, { u: 2.25, jw: w - 2.25 }]) {
+      box(j.u, 0, j.jw, 0.25, y, H, 'brick', brick);
+    }
+    for (const wn of [{ u: 0.5, ww: 0.75 }, { u: 1.75, ww: 0.5 }]) {
+      box(wn.u, 0, wn.ww, 0.25, y, 0.5, 'concrete', C.shopSill);
+      box(wn.u, 0, wn.ww, 0.25, y + 0.5, 1.0, 'glass', C.shopGlass);
+      box(wn.u, 0, wn.ww, 0.25, y + 1.5, 0.75, 'concrete', C.shopSill);
+    }
+  }
+  for (let s = 0; s < storeys; s++) {
+    const y = y0 + s * H;
+    box(0, d - 0.25, w, 0.25, y, H, 'brick', brick);            // rear wall
+    box(w - 0.25, 0.25, 0.25, d - 0.5, y, H, 'brick', brick);   // party wall
+    box(0.25, 0.25, w - 0.5, d - 0.5, y + H - 0.25, 0.25, 'wood', deck);
+  }
+  // The wall head is at `top`; the roof goes ON it, not 0.25 m into it. Setting
+  // `top` a course low puts the roof slab in the same cells as the last floor
+  // plate (`y + H - 0.25` for the top storey IS `y0 + storeys*H - 0.25`), which
+  // is 180 overlapping cells per unit. The cornice sits BESIDE the wall head
+  // rather than above the roof, so it has brick to hold onto — projecting off
+  // a roof edge it has nothing under or beside it and falls.
+  const top = y0 + storeys * H;
+  cornice(sim, {
+    x: x + 0, y: top - 0.25, z: dir < 0 ? z - 0.25 : z + d,
+    run: w, axis: 'x', t: 0.25, proj: 0.25, mat: 'concrete', color: C.shopSill,
+  });
+  box(0, 0, w, d, top, 0.25, 'panel', C.seamRoof);
+  box(0, 0, w, 0.25, top + 0.25, 0.5, 'brick', brick);          // parapet
+}
+
+function mercadoRow(sim, o) {
+  const { x, z, n, d = 5, dir = -1, i0 = 0, tall = null } = o;
+  for (let i = 0; i < n; i++) {
+    const g = i0 + i;
+    shopUnit(sim, {
+      x: x + i * 3, z, w: 3, d, dir,
+      storeys: tall && tall(g) ? 3 : 2,
+      brick: SHOP_TONES[g % SHOP_TONES.length],
+      awning: AWNINGS[g % AWNINGS.length],
+      deck: SHOP_DECKS[g % SHOP_DECKS.length],
+    });
+  }
+}
+
+// --- East Cambridge Savings Bank ---------------------------------------------
+// `02` §2.4 row: 2 storeys, real (E−378,N+88), which `sceneOffset` puts at
+// (−114,−20.5) — so the footprint below is centred on that point to the
+// quarter-metre rather than shifted to a tidier address. Two storeys at `02`
+// §6's civic 4.3 m is 8.6 m real, 5.73 scene, taken as 5.75 (0.75 base + two
+// 2.5 m storeys) because 5.73 is not on ADR-0006's grade.
+//
+// It fronts SOUTH onto Silva Park rather than onto Gore Street behind it, which
+// is both what the offsets produce and the right way round: a small civic
+// building facing a green is the one composition this neighbourhood repeats.
+function savingsBank(sim) {
+  const x0 = -118.5, z0 = -24, W = 9, D = 7;
+  // The base is laid in three runs rather than one plate: at grade the plan
+  // diagonal clause bites at 8 m and a 9 x 7 slab is 11.4.
+  for (let i = 0; i < 3; i++) {
+    plinth(sim, { x: x0 + i * 3, y: 0, z: z0, w: 3, d: D, h: 0.75, mat: 'concrete', color: C.bankBase });
+  }
+  const y0 = 0.75, H = 2.5;
+  // ALTERNATING SPANDREL STONE, and it is a probe constraint before it is a
+  // detail. A 1.25 m bay on a 1.75 m pilaster pitch leaves 0.50 m between
+  // consecutive bays, which is `probePlacementStep`'s exact defect: a repeat step
+  // shorter than the piece it repeats. Alternating the stone on `(bay + storey)`
+  // parity puts same-group bays 3.5 m apart on x — clear of their 1.25 m width —
+  // and, because the parity flips with the storey, makes every vertical pair two
+  // different groups as well, which is the other half of the same failure (the
+  // 1.5 m glass repeats on a 2.5 m storey pitch, gap 1.0).
+  const BAY_STONE = [C.bankTrim, C.bankStone];
+  const BAY_GLASS = [C.churchGlass, C.houseGlass];
+  // Six pilasters on the park face, five bays between them.
+  for (let s = 0; s < 2; s++) {
+    const y = y0 + s * H;
+    for (let p = 0; p < 6; p++) {
+      pier(sim, { x: x0 + p * 1.75, y, z: z0 + D - 0.5, w: 0.5, h: H, d: 0.5, mat: 'concrete', color: C.bankStone });
+    }
+    for (let b = 0; b < 5; b++) {
+      const bx = x0 + 0.5 + b * 1.75;
+      if (s === 0 && b === 2) {
+        // The cast-stone door surround `03` §4.4 asks for: jambs proud of the
+        // wall plane, a deep lintel, and the door recessed behind both.
+        pier(sim, { x: bx, y, z: z0 + D - 0.75, w: 0.25, h: H, d: 0.25, mat: 'concrete', color: C.bankTrim });
+        pier(sim, { x: bx + 1, y, z: z0 + D - 0.75, w: 0.25, h: H, d: 0.25, mat: 'concrete', color: C.bankTrim });
+        pier(sim, { x: bx, y, z: z0 + D - 0.5, w: 1.25, h: 2.0, d: 0.5, mat: 'wood', color: C.doorRed });
+        pier(sim, { x: bx, y: y + 2.0, z: z0 + D - 0.5, w: 1.25, h: 0.5, d: 0.5, mat: 'concrete', color: C.bankTrim });
+        pier(sim, { x: bx, y: y + H, z: z0 + D - 0.75, w: 1.25, h: 0.25, d: 0.25, mat: 'concrete', color: C.bankTrim });
+        continue;
+      }
+      const stone = BAY_STONE[(b + s) % 2], lite = BAY_GLASS[(b + s) % 2];
+      pier(sim, { x: bx, y, z: z0 + D - 0.5, w: 1.25, h: 0.5, d: 0.5, mat: 'concrete', color: stone });
+      panel(sim, { x: bx, y: y + 0.5, z: z0 + D - 0.5, w: 1.25, h: 1.5, axis: 'x', t: 0.5, mat: 'glass', color: lite });
+      pier(sim, { x: bx, y: y + 2.0, z: z0 + D - 0.5, w: 1.25, h: 0.5, d: 0.5, mat: 'concrete', color: stone });
+    }
+    // The rear wall, plain ashlar, and the two flanks — the flanks are laid as
+    // three pier segments with the window bays cut out between them rather than
+    // as one wall with a pane placed over it. A `panel` dropped onto a solid
+    // pier is two blocks in the same cells, which is a ghost, not an opening.
+    pier(sim, { x: x0, y, z: z0, w: W, h: H, d: 0.5, mat: 'concrete', color: C.bankStone });
+    for (const sx of [x0, x0 + W - 0.5]) {
+      for (const sz of [z0 + 0.5, z0 + 3, z0 + 5.5]) {
+        pier(sim, { x: sx, y, z: sz, w: 0.5, h: H, d: 1, mat: 'concrete', color: C.bankStone });
+      }
+      // Same alternation on the flanks, for the same reason on the other axis:
+      // two 1.5 m windows on a 2.5 m centre leave a 1.0 m step.
+      for (const [wi, sz] of [[0, z0 + 1.5], [1, z0 + 4]]) {
+        pier(sim, { x: sx, y, z: sz, w: 0.5, h: 0.5, d: 1.5, mat: 'concrete', color: wi ? C.bankBase : C.bankStone });
+        panel(sim, { x: sx, y: y + 0.5, z: sz, w: 1.5, h: 1.25, axis: 'z', t: 0.5, mat: 'glass', color: BAY_GLASS[wi] });
+        pier(sim, { x: sx, y: y + 1.75, z: sz, w: 0.5, h: 0.75, d: 1.5, mat: 'concrete', color: wi ? C.bankTrim : C.bankStone });
+      }
+    }
+    // D − 1.5, not D − 1: the door surround is recessed a course behind the
+    // pilaster line, so a plate that reaches the full depth puts a cell of itself
+    // inside each door jamb.
+    slab(sim, { x: x0 + 0.5, y: y + H - 0.25, z: z0 + 0.5, w: W - 1, d: D - 1.5, t: 0.25, mat: 'concrete', color: C.bankBase });
+  }
+  const top = y0 + 2 * H;
+  slab(sim, { x: x0, y: top, z: z0, w: W, d: D, t: 0.25, mat: 'concrete', color: C.bankRoof });
+  // ONE cornice, on the park face only. The north face stands on Gore Street's
+  // south kerb line, and a 0.25 m projection there is a physical block inside a
+  // declared carriageway — `probeRoadConflicts` gates every block, not tall ones.
+  // ...and it hangs at the wall HEAD, not above the roof: a projecting course
+  // at `top` has the roof beside it but a course too low to touch, and nothing
+  // at all beneath it. At `top - 0.25` it is face-adjacent to the pilasters.
+  cornice(sim, { x: x0, y: top - 0.25, z: z0 + D, run: W, axis: 'x', t: 0.25, proj: 0.25, mat: 'concrete', color: C.bankTrim });
+  pier(sim, { x: x0 + 0.5, y: top + 0.25, z: z0 + 0.5, w: W - 1, h: 0.5, d: 0.25, mat: 'concrete', color: C.bankStone });
+  pier(sim, { x: x0 + 0.5, y: top + 0.25, z: z0 + D - 0.75, w: W - 1, h: 0.5, d: 0.25, mat: 'concrete', color: C.bankStone });
+  // The clock lantern every branch of this vintage carries.
+  pier(sim, { x: x0 + W / 2 - 1, y: top + 0.25, z: z0 + D / 2 - 1, w: 2, h: 1.5, d: 2, mat: 'concrete', color: C.bankStone });
+  slab(sim, { x: x0 + W / 2 - 1.25, y: top + 1.75, z: z0 + D / 2 - 1.25, w: 2.5, d: 2.5, t: 0.25, mat: 'concrete', color: C.bankRoof });
+}
+
+// --- Third Congregational Church ---------------------------------------------
+// `02` §7's sensitivities list names this one explicitly: an ACTIVE place of
+// worship, to be depicted respectfully and never as a destruction set-piece.
+// What that means in a game where everything is eatable is that it gets the
+// same care as any other building and no more attention than that — no glyph,
+// no easter egg, no signage, nothing that singles it out. It is a church on a
+// corner, built and left alone.
+//
+// `02` gives it no height, so the massing is the New England congregational
+// type rather than a measurement: a plain gabled nave with a square west tower
+// and a spire. Position (−108,+16.75) is `sceneOffset(−335,−36)` exactly.
+function seamChurch(sim) {
+  naveChurch(sim, {
+    ox: -114, oz: 11.25, w: 12, d: 11, h: 6, axis: 'x',
+    mat: 'concrete', stone: C.churchStone, roof: C.churchRoof, roofRise: 2,
+    buttress: 4, buttressH: 5, buttressColor: C.churchStone,
+    // WEST OF THE NAVE, not on its corner. `naveChurch` skips whatever cells the
+    // nave already owns, so a tower at dx 0 would start at the roof line and
+    // stand on the nave's cap plate; at dx −3 it is a ground-anchored shaft
+    // beside the west end, which is also where a congregational tower goes.
+    // `cap: 'spire'` builds the whole crown — a hand-authored spire on top of it
+    // is two structures in the same cells.
+    towers: [{ dx: -3, dz: 0, w: 3, d: 3, h: 13, cap: 'spire' }],
+    gable: { face: 'max', w: 6, h: 4, color: C.churchGlass, y0: 2 },
+  });
+  // The entry stair, threaded between two buttresses. `buttress: 4` lands them
+  // at ox+2, +5, +8 and +11 on both flanks, each a 1 m cube reaching z 23.25, so
+  // the only clear run on this face is x[−111,−109] south of that line.
+  // Going 0.75 on a 0.5 m step, so each tread OVERLAPS the one below it by 0.25
+  // rather than meeting it edge to edge — an exactly-abutting stair touches only
+  // along a line, which is not face adjacency, so every tread above the first is
+  // unsupported and the flight collapses.
+  for (let i = 0; i < 3; i++) {
+    tread(sim, { x: -111, y: i * 0.25, z: 24.25 - i * 0.5, run: 2, axis: 'x', rise: 0.25, going: 0.75, mat: 'concrete', color: C.bankBase });
+  }
+}
+
+// --- The parks ---------------------------------------------------------------
+// `03` §4.4: "named on the ground plane. Play equipment, benches, fencing." The
+// fencing is doing double duty — a park is a hole in the built fabric, so the
+// mean-gap clause sees straight through one unless its EDGE is content, and a
+// fence run is the cheapest continuous edge there is.
+function seamParks(sim) {
+  // Silva Park (−114.75,−12.5), between the savings bank and Cambridge Street.
+  fenceRun(sim, { x: -119.5, z: -8, len: 9.5, axis: 'x', h: 1, mat: 'steel', color: C.parkFence });
+  fenceRun(sim, { x: -110, z: -17, len: 9, axis: 'z', h: 1, mat: 'steel', color: C.parkFence });
+  playgroundSet(sim, { x: -118.5, z: -13.5, slide: C.awningYellow, frame: C.awningRed, climb: C.awningBlue, deck: C.parkFence });
+  for (const [tx, tz] of [[-117, -10], [-113, -10], [-118, -15.5], [-112, -15.5], [-111.5, -12]]) tree(sim, tx, tz);
+  for (const bx of [-116.5, -113.5]) bench(sim, bx, -9);
+  drinkingFountain(sim, -111, -9.5, C.parkFence);
+  trashBin(sim, -110.75, -14, 0x33453a);
+  for (const lz of [-15, -10]) lampPost(sim, -110.75, lz);
+  for (const [px, pz] of [[-119, -11], [-119, -9]]) planter(sim, px, pz, 1.5, 1, C.planterSoil);
+
+  // Centanni Park (−81.75,+5.5), the pocket park at the district's east end. It
+  // is 5 m deep because its centre is fixed and Cambridge Street's south kerb is
+  // 2.5 m from it — the park is small in life for the same reason.
+  // The returns start a course SOUTH of the north run's line. Two runs sharing a
+  // corner cell is two blocks in the same cells, not a mitre.
+  fenceRun(sim, { x: -87, z: 3, len: 10.5, axis: 'x', h: 1, mat: 'steel', color: C.parkFence });
+  fenceRun(sim, { x: -87, z: 3.25, len: 4.75, axis: 'z', h: 1, mat: 'steel', color: C.parkFence });
+  fenceRun(sim, { x: -76.5, z: 3.25, len: 4.75, axis: 'z', h: 1, mat: 'steel', color: C.parkFence });
+  for (const [tx, tz] of [[-85.5, 5], [-82, 5], [-78.5, 5]]) tree(sim, tx, tz);
+  for (const bx of [-84.5, -80]) bench(sim, bx, 6.5);
+  statueBase(sim, -82.25, 6.5);
+  for (const lx of [-86, -77]) lampPost(sim, lx, 6.5);
+  trashBin(sim, -78, 3.5, 0x33453a);
+}
+
+// A plinth-and-shaft memorial rather than a figure: the parks are named for
+// people and a named park in this neighbourhood carries a stone, not a bronze.
+function statueBase(sim, x, z) {
+  plinth(sim, { x, y: 0, z, w: 1.5, d: 1.5, h: 0.5, mat: 'concrete', color: C.bankBase });
+  pier(sim, { x: x + 0.25, y: 0.5, z: z + 0.25, w: 1, h: 1.5, d: 1, mat: 'concrete', color: C.bankStone });
+  cornice(sim, { x: x + 0.125, y: 2, z: z + 0.125, run: 1.25, axis: 'x', t: 0.25, proj: 1.25, mat: 'concrete', color: C.bankTrim });
+}
+
+// --- The streetscape ---------------------------------------------------------
+// `03` §8.2's rule, applied literally: the ground plane carries the density.
+// Every kerb run, tree, post and parked car below is placed against the
+// excursion's own corridor (2.6 m off the route line) rather than by eye, which
+// is why the ranks sit where they do and not on the crown of the carriageway.
+function seamKerb(sim, x, z, len, axis) {
+  for (let o = 0; o < len - 0.01; o += 6) {
+    const l = Math.min(6, len - o);
+    beam(sim, axis === 'x'
+      ? { x: x + o, y: 0, z, len: l, axis: 'x', t: 0.25, depth: 0.25, mat: 'concrete', color: C.kerb }
+      : { x, y: 0, z: z + o, len: l, axis: 'z', t: 0.25, depth: 0.25, mat: 'concrete', color: C.kerb });
+  }
+}
+
+function seamStreetscape(sim) {
+  // Cambridge Street West, both kerbs, broken at the Third Street junction.
+  // THE EAST SEGMENTS START ON A 6 m MULTIPLE OF THEIR OWN JOIN, and that is a
+  // probe constraint rather than a tidiness one: `seamKerb` lays 6 m runs with
+  // the remainder LAST, so a segment of 17.75 m ends with a 5.75 m piece and
+  // leaves the 6 m group with a 5.75 m gap against District 2's first 6 m run at
+  // x −72 — one sub-extent step, exactly the defect `probePlacementStep` names.
+  // At 18 m the last piece is 6 m and the two districts' kerbs simply abut.
+  for (const kz of [-5.75, 1.5]) {
+    seamKerb(sim, -119.5, kz, 23.25, 'x');
+    seamKerb(sim, -90, kz, 18, 'x');
+  }
+  // Gore Street's north kerb. Its SOUTH kerb starts at x −109.5 rather than at
+  // the street's west end, because the savings bank's plinth stands on that line
+  // from x −118.5 to −109.5 — the building fronts the pavement directly, the way
+  // a corner bank does, and a kerb there would be laid through its base.
+  seamKerb(sim, -119.5, -30.25, 23.25, 'x');
+  seamKerb(sim, -90, -30.25, 12, 'x');
+  seamKerb(sim, -109.5, -24, 13.25, 'x');
+  seamKerb(sim, -90, -24, 12, 'x');
+  // Third Street, both kerbs, broken at Cambridge Street. It starts a course
+  // SOUTH of Gore Street's kerb line and stops a course NORTH of Cambridge
+  // Street's: at a T-junction the two kerbs meet in one corner cell, and two
+  // beams in one cell is an overlap, not a corner.
+  for (const kx of [-96.25, -90]) {
+    seamKerb(sim, kx, -23.75, 17.75, 'z');
+    seamKerb(sim, kx, 1.75, 24.25, 'z');
+  }
+
+  // Cambridge Street West's north footway — the outbound leg's rank. Posts and
+  // bins alternate on a 4.5 m pitch so nothing on this walk is more than 2.5 m
+  // from the next thing on it.
+  // NOTHING ON EITHER WALK STANDS BETWEEN x −96 AND x −90. That is Third Street's
+  // carriageway, and `probeRoadConflicts` gates a block for being inside a
+  // declared road rect whatever height it is — the two walks cross the junction
+  // on the crossing decor, not on street furniture. Same clause District 2's
+  // First Street note already records; this is its west-end twin. The three props
+  // that sat in it (a bin at −93, a bench at −95.5, a hydrant at −91) moved out
+  // rather than being deleted, so the rank keeps its count.
+  for (const x of [-116, -107, -98, -80, -75]) lampPost(sim, x, -6.5);
+  for (const x of [-111.5, -97.25, -84.5]) trashBin(sim, x, -6.5, 0x33453a);
+  hydrant(sim, -102.5, -6.5);
+  mailbox(sim, -89, -6.5, C.awningBlue);
+  for (const x of [-119, -105.5, -77]) bollard(sim, x, -6.5, C.steelDark);
+  // The south footway — the return leg's rank, under the storefront awnings.
+  for (const x of [-118, -109, -100, -82, -73.5]) lampPost(sim, x, 2.0);
+  for (const x of [-113.5, -99.25]) bench(sim, x, 2.0);
+  for (const x of [-104.5, -86.5]) trashBin(sim, x, 2.0, 0x33453a);
+  hydrant(sim, -88.25, 2.0);
+  newsBox(sim, -78, 2.0, C.awningRed);
+  newsBox(sim, -76.5, 2.0, C.awningGreen);
+  // The market clutter that makes a storefront row read as a working street.
+  // `02` §7 again: crates and stalls, no names on any of them.
+  // ALL OF IT STANDS AT z 1.75 AND IS AT MOST 1 m DEEP. The shopfronts are at
+  // z 3 and the south kerb at z 1.5, so the walk is 1.5 m wide and anything
+  // deeper than that is inside a shop's own plinth, not in front of it. The x
+  // addresses below are interleaved with the post-and-bin rank above rather than
+  // chosen by eye — every one of them sits in a gap between two of those.
+  // The x addresses are the 2.5 m windows BETWEEN the awning brackets, which
+  // stand at each unit's origin and 2.75 m along it: −116.25, −107.25 and the
+  // open stretch east of the row. A stall parked on a unit boundary is parked in
+  // a bracket.
+  for (const [sx, sc] of [[-116.25, C.awningRed], [-107.25, C.awningGreen], [-85, C.awningYellow]]) {
+    marketStall(sim, sx, 1.75, sc, 2.5, 1);
+  }
+  crateStack(sim, -112, 1.75, 2, C.dockTimber);
+  crateStack(sim, -103, 1.75, 3, C.shopSill);
+  sandwichBoard(sim, -110.25, 1.75, C.awningBlue);
+  hotDogCart(sim, -80.5, 2.0);
+
+  // Third Street's west footway, the leg that climbs into the residential
+  // fabric. Trees rather than posts north of Cambridge Street: this is the
+  // domestic half of the district and a triple-decker street is a tree street.
+  // Trees only SOUTH of Cambridge Street on this side. North of it Row D's front
+  // porches come out to x −96.5 and the kerb is at −96.25, so the walk there is
+  // 0.25 m wide — a tree is 1.5 m across its canopy and would grow through three
+  // houses. The posts and bollards are 0.25 m and abut the house line cleanly.
+  // The north side's greenery moves across to Third Street's east walk instead,
+  // which is open ground for its whole length.
+  for (const tz of [-21, -17, -13, -9]) tree(sim, -97, tz);
+  for (const lz of [-19, -11]) lampPost(sim, -97.75, lz);
+  bollard(sim, -97.75, -15, C.steelDark);
+  bikeRack(sim, -89, -20, 3, 'z');
+  // x −89 exactly: a canopy is 1.5 m across and this walk is 2 m, between the
+  // kerb at −90 and Row C's porch line at −88. There is one address that fits.
+  for (const tz of [-16, -12, 6, 14, 22]) tree(sim, -89, tz);
+  for (const lz of [-22, -14, 4, 12, 20]) lampPost(sim, -89, lz);
+
+  // Gore Street's north footway and the front-yard line that fronts Row A. The
+  // fence is what makes the porches reachable by the corridor: it stands 2.4 m
+  // off the route line and the porch posts stand 2.1 m the other side of it.
+  fenceRun(sim, { x: -119.5, z: -30.5, len: 36, axis: 'x', h: 0.75, mat: 'wood', color: C.seamTrim });
+  for (const x of [-115, -106, -97, -88]) lampPost(sim, x, -31.5);
+  for (const x of [-110.5, -92.5]) trashBin(sim, x, -31.5, 0x33453a);
+  for (const [tx, tz] of [[-118, -32.5], [-101.5, -32.5], [-84, -32.5]]) tree(sim, tx, tz);
+  // Gore Street's south footway, EAST of the savings bank only. The bank's own
+  // plinth runs x[−118.5,−109.5] along this line at y[0,0.75] and street furniture
+  // is 0.25 m across — a post at −116 stands inside the base of the building it
+  // is meant to light.
+  for (const x of [-108, -99, -88]) lampPost(sim, x, -23.5);
+  for (const x of [-103.5, -84]) bollard(sim, x, -23.5, C.steelDark);
+  bench(sim, -105, -23.5);
+
+  for (const v of CAMBRIDGE_VEHICLES) {
+    if (v.d !== 4) continue;
+    if (v.kind === 'sedan') sedan(sim, v.x, v.z, v.body, v.roof, v.axis);
+    else if (v.kind === 'boxVan') boxVan(sim, v.x, v.z, v.len, v.cab, v.box, v.axis);
+    else motorcycle(sim, v.x, v.z);
+  }
+}
+
+export function portugueseSeamDistrict(sim) {
+  // Row A — ten houses on Gore Street's north side, fronting south. The longest
+  // continuous frontage in the district and the one the excursion's last leg
+  // runs along.
+  tripleDeckerRow(sim, { x: -118, z: -39, n: 10, axis: 'x', dir: 1, i0: 0 });
+  // Row B — three on Gore Street's south side, east of the savings bank.
+  tripleDeckerRow(sim, { x: -108.5, z: -21, n: 3, axis: 'x', dir: -1, i0: 10 });
+  // Row C — four on Third Street's east side, fronting west.
+  tripleDeckerRow(sim, { x: -87, z: -22, n: 4, axis: 'z', dir: -1, i0: 13 });
+  // Row D — five on Third Street's west side, fronting east. No rear porches:
+  // their backs abut the church's lot and a rear porch would stand in it.
+  //
+  // IT STARTS AT z 9, NOT z 4. The storefront row is 5 m deep from z 3, and this
+  // row's body is 4 m deep from x −101.5, so the corner of the two at z 4 was
+  // literally the same 3 x 4 m of ground twice over — 296 overlapping pairs, and
+  // the far-away non-static blocks that came with them. z 9 leaves the corner to
+  // the shop that already owns it and a 1 m service gap behind it.
+  tripleDeckerRow(sim, { x: -101.5, z: 9, n: 5, axis: 'z', dir: 1, i0: 17, rear: false });
+
+  mercadoRow(sim, { x: -119.5, z: 3, n: 5, dir: -1, i0: 0, tall: (g) => g % 3 === 1 });
+  mercadoRow(sim, { x: -104.5, z: 3, n: 2, dir: -1, i0: 5 });
+  mercadoRow(sim, { x: -82, z: -12, n: 3, dir: 1, i0: 7, tall: (g) => g % 3 === 1 });
+
+  savingsBank(sim);
+  seamChurch(sim);
+  seamParks(sim);
+  seamStreetscape(sim);
+}
+
+export const SEAM_DECOR = {
+  plaza: [
+    { x: -120, z: 2, w: 18.5, d: 8 },            // the south storefront run
+    { x: -83, z: -13.5, w: 10.5, d: 7.5 },       // the north storefront run
+    { x: -119, z: -24.5, w: 10, d: 8.5 },        // the savings bank and its apron
+    { x: -118, z: 9.5, w: 18, d: 16.5 },         // the church, its tower, buttresses and stair
+  ],
+  parks: [
+    { x: -120, z: -17.5, w: 10.5, d: 10 },       // Silva Park
+    { x: -87.5, z: 2.5, w: 11.5, d: 6.5 },       // Centanni Park
+    { x: -119.5, z: -41, w: 37, d: 11.5 },       // Row A's lots and front yards
+    { x: -109.5, z: -24, w: 12, d: 9 },          // Row B's lots
+    { x: -91, z: -23, w: 10, d: 16 },            // Row C's lots
+    { x: -103, z: 3, w: 7.5, d: 23 },            // Row D's lots, to the rect's north edge
+  ],
+  sidewalks: [
+    { x: -120, z: -7, w: 48, d: 1.5 },           // Cambridge Street West, north
+    { x: -120, z: 1.5, w: 48, d: 1.5 },          // Cambridge Street West, south
+    { x: -120, z: -31.75, w: 42, d: 1.75 },      // Gore Street, north
+    { x: -120, z: -24, w: 42, d: 1.5 },          // Gore Street, south
+    { x: -97.75, z: -24, w: 1.75, d: 50 },       // Third Street, west
+    { x: -90, z: -24, w: 1.5, d: 50 },           // Third Street, east
+  ],
+};
+
+export const SEAM_AMBIENT = {
+  // The awning line, read as one continuous glow rather than seven signs —
+  // there is no lettering anywhere in this district and there is none here.
+  neon: [
+    { x: -117, z: 2.5, w: 15, d: 1.2, color: 0xff9a4a, period: 3.7 },
+    { x: -81, z: -6.8, w: 8, d: 1.2, color: 0xffd166, period: 4.9 },
+  ],
+  pigeons: [
+    { x: -114, z: -11, count: 11 },
+    { x: -95, z: 1, count: 9 },
+    { x: -100, z: -32, count: 8 },
+  ],
+  steam: [{ x: -108, z: 4.5, rate: 0.18 }],
+};
+
 // --- THE SHELL ---------------------------------------------------------------
 // Ground, streets, decor, kerbs, street furniture, vehicles, ambient life and
 // camera blockers. IDENTICAL across all three variants by construction: it is
@@ -2990,7 +3892,23 @@ export function cambridgeSpendBack(sim) {
 //
 // minX goes to −83 for the Transportation Office's west wall at −81.5, and it is
 // the office rather than District 2's mill that now sets that edge.
-export const CAMBRIDGE_BOUNDS = { minX: -83, maxX: 66, minZ: -112, maxZ: 36 };
+//
+// P6.4 MOVES ONE EDGE, WEST TO −120, AND IT IS THE ONE THIS TASK WAS ALWAYS
+// GOING TO MOVE. Silva Park's offset fixes its centre at x −114.75 and the park
+// is 9.5 m across, so its west railing stands at −119.5 and the rect has to
+// reach −120 to hold it. That happens to equal `03` §1.1's designed west edge
+// exactly, which is a coincidence of one park's position rather than a decision
+// to stop growing the rect — the other three edges still hug what is built and
+// still move at P6.5 through P6.10.
+//
+// SOUTH STAYS AT +36 rather than going to ~+100. Costa Lopez Park and the Chang
+// Shing Tofu Factory derive to z +71.75 and +96.25 and are the only two things
+// in `03` §4.4 that would have moved it; both are deferred with their offsets
+// recorded, for the reason in District 4's own note above. A rect stretched to
+// +100 passes `probeBoundsRect` — it only measures the edges — and leaves 38 m
+// of empty ground in the middle of the playable map, which is precisely the
+// class of green-but-wrong this file keeps refusing.
+export const CAMBRIDGE_BOUNDS = { minX: -120, maxX: 66, minZ: -112, maxZ: 36 };
 
 export function buildCambridge(sim) {
   cambridgeShell(sim, (s) => {
@@ -2998,19 +3916,20 @@ export function buildCambridge(sim) {
     cambridgeSpendBack(s);
     canalParkDistrict(s);
     lechmereDistrict(s);
+    portugueseSeamDistrict(s);
   }, {
     bounds: CAMBRIDGE_BOUNDS,
-    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR),
-    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT),
+    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR, SEAM_DECOR),
+    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT, SEAM_AMBIENT),
   });
 }
 
-// Two districts' worth of ground handed to one `opts.decor`. Merged here rather
-// than in the shell because the shell is shared with Phase 5's variants and must
-// keep seeing exactly one object.
-function mergeDecor(a, b) {
+// Several districts' worth of ground handed to one `opts.decor`. Merged here
+// rather than in the shell because the shell is shared with Phase 5's variants
+// and must keep seeing exactly one object.
+function mergeDecor(...srcs) {
   const out = {};
-  for (const src of [a, b]) {
+  for (const src of srcs) {
     for (const [k, rects] of Object.entries(src)) (out[k] ??= []).push(...rects);
   }
   return out;
