@@ -278,6 +278,45 @@ grounds to reopen already-verified work. District 1 carries no equivalent
 ambiguity: `03` §1.4 hand-seats 2 Canal Park's centre at (0, −14) directly, so
 its placement was never contingent on this question.
 
+**P6.3 reconciliation additions, 2026-08-08 (District 3 — Lechmere & the
+Viaduct).** Same pattern as P6.2: doc/geometry mismatches measured and
+recorded rather than force-fit or silently fixed.
+
+- **`03` §4.3's District 3 rect flatters density with a neighbour's tower.**
+  Built as written (`x[-40,+40] z[-80,-36]`) it reads 4.62 pieces/m², *higher*
+  than the shipped rect's 3.98/m² — but 31% of that count (1,662 pieces) is
+  Sierra, District 1's residential slab, which the rect's west edge
+  incorrectly annexes. Shipped rect: `x[-18,11] z[-88,-36]`, the honest
+  measurement, both numbers recorded on the row.
+- **North edge budget crosses into District 7's share.** District 3 builds
+  both of `03` §4.11's named buildings (Transportation Office + Capuano
+  carhouse) and reads 926 pieces north of z −88 against §4.11's combined
+  D3+D7 estimate of ~900 (D3 ~600 + D7 ~300) — within 3%, but it means
+  **P6.7 should not re-spend District 7's ~300-piece share on the same
+  buildings.**
+- **Two doc-vs-engine exceptions, both local and deliberate:** `03` §4.3's
+  catenary line item can't be built (`_recalcSupport` never flows support
+  downward, so a hanging wire is an unsupported floating block) — substituted
+  masts with cantilever brackets borne from below. Track gauge is drawn at
+  1.0 m rather than the scale-correct 0.48 m, which at 0.25 m rail width
+  would render as a solid strip — a local exception to `03` §1.2's law, not
+  a bug.
+- **District 2's "6,532 blocks" comment (line ~807) is under-specified, not
+  wrong.** That figure is District 2's own isolated build (`buildVariant
+  ('B2')`). In the shipped multi-district scene, District 2's rect actually
+  holds 6,535 — three of District 1's apron pieces at z −12.375 fall inside
+  District 2's `minZ −12.5`. Predates P6.3 (verified against HEAD before any
+  P6.3 edit); worth a word when P6.10 reconciles `03` §4 against `03` §6.
+- **`corbelArch` imported and never called, `tread` only re-exported via
+  `FORMS`.** Both pre-existing at HEAD, not a P6.3 regression — flagged
+  because the import line is shared, not because either needs fixing now.
+- **A two-rank routing trap, worth remembering for later districts:**
+  `projectOnRoute` assigns each piece to exactly one leg (its nearest). An
+  outbound and return route sharing one physical corridor will starve one of
+  the two legs of every piece — the starved leg reads a false "hole" (zero
+  met pieces) that has nothing to do with the ground it runs over. Fix is two
+  separate ranks (offset lines), not more content.
+
 ---
 
 ## Phase 7 — Hidden content, glyphs, and achievements
