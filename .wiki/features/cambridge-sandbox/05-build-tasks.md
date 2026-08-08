@@ -335,6 +335,62 @@ the branch is correct. Two doc bugs surfaced, neither a build blocker:
   a future district's landmark and is worth a permanent note in `03` §1.2
   rather than rediscovering it.
 
+**P6.4 reconciliation additions, 2026-08-08 (District 4 — Cambridge Street &
+the Portuguese Seam).**
+
+- **`03` §1.3 misclassifies five landmarks as Ring A.** Its prose list puts
+  Costa Lopez, Silva and Toomey parks, the Chang Shing Tofu Factory and
+  American Twine under "In, at Ring A"; their real radii (402–541 m) are all
+  past §1.2's own 340 m seam, so `sceneOffset` (which implements §1.2, not
+  §1.3) correctly seats all five in Ring B. The law and the code agree; §1.3's
+  list is wrong, and wrong in the direction that matters — Ring A would seat
+  Silva Park 19.5 m outside `maxX`. Recorded at the offsets table.
+- **Two District 4 items land 40–66 m outside both §4.4's rect and the built
+  map** (Costa Lopez Park, Chang Shing Tofu Factory — both genuine Ring B
+  seats, not transcription errors). Building them at their derived positions
+  would force `CAMBRIDGE_BOUNDS.maxZ` from +36 to ~+100, opening a 38 m dead
+  band between District 2's rear yard and the nearest of the two —
+  `probeBoundsRect`'s edge-slack clause would still pass, since it only
+  checks the perimeter, which is exactly the failure mode to avoid: a green
+  gate hiding a dead patch of playable map. **Deferred instead**: both ship
+  as `CAMBRIDGE_OFFSETS` rows only (`plan: null`), no geometry, no district
+  claim. Costa Lopez is 16 m from District 5's expected reach once §4.5
+  lands (vs. 38 m now) — whichever of P6.5/P6.10 is genuinely adjacent picks
+  it up then. Chang Shing stays a genuine outlier (66 m out, nothing near
+  it) — flagged for P8.5-style owner review, not pre-assigned.
+- **§4.4's rect, measured both ways** (same convention as P6.3): shipped rect
+  `x[-120,-72] z[-41,26]` → 6,121 pieces / 4.317/m², zero shared with any
+  neighbour. §4.4's rect as written → 6,942 pieces / 4.215/m², of which 2,007
+  are District 2's and which also misses 1,186 of District 4's own. Refined
+  rect shipped, both numbers recorded in-file.
+- **The `02` §4 |E|-only prose-distance pattern recurs a third time**: the
+  tofu factory is called "240 m southwest" (matches |E|=238) against a real
+  radius of 494 m. Same pattern as District 3's Costa-Lopez-adjacent finding
+  above — doc-level, not a one-off, worth a single `02` fix at P6.10 rather
+  than per-row corrections.
+- **The §4 district budgets are a stale unit, not four coincidental
+  underbuilds.** All four landed districts land at 65–73% of their §4
+  budget (D1 72.6%, D2 66.7%, D3 65.3%, D4 71.2%) despite shipping every
+  in-scope line item — §4's per-object figures predate ADR-0013's
+  anisotropic-primitive collapse (one piece now does what used to take a
+  whole wall course of cubes). Padding to hit the old numbers would make the
+  level worse to make a metric right. **Restate the §4 budgets in
+  ADR-0013-era piece counts at P6.10/P8.x once the full pattern is visible
+  across all ten districts** — not a per-district fix.
+- **The §7.4 corridor can pass its aggregate mean-gap check while missing
+  the anchors the leg actually names.** District 4's route leg 4 read green
+  (mean gap 0.08 m) while the two buildings §7.4 names for that leg — the
+  savings bank and Silva Park — were completely unreached by the 2.6 m
+  corridor (0/98, 0/497 met). Root cause: the bank fronts south onto Silva
+  Park, not north onto the street a direct diagonal would run along, so no
+  route line placed by the aggregate probe's own logic would ever reach it.
+  Fixed by scoring six route variants against the probe's own arithmetic and
+  landing the one that reaches both named anchors (72/98, 147/497) with zero
+  regression to the other three districts' route coverage. **Worth
+  generalizing: a passing aggregate route-density number does not prove a
+  leg reaches the specific content its own doc names for it** — check named
+  anchors directly wherever a leg's prose calls out a specific building.
+
 ---
 
 ## Phase 7 — Hidden content, glyphs, and achievements
