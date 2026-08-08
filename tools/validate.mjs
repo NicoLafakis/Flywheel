@@ -164,7 +164,7 @@ function validateVoxelSandbox() {
   // state, and sweeping them in would replace a real invariant with noise.
   // The regex requires the open paren so that a header comment discussing
   // Math.random does not trip it.
-  const SIM_PURE_NAMED = ['rng', 'tiers', 'citygen', 'levels', 'sim', 'voxelsim', 'voxelkit'];
+  const SIM_PURE_NAMED = ['rng', 'tiers', 'citygen', 'levels', 'sim', 'voxelsim', 'voxelkit', 'voxelforms'];
   const sceneFiles = readdirSync(new URL('../js/', import.meta.url))
     .filter((f) => /^voxelscene-.+\.js$/.test(f))
     .map((f) => f.replace(/\.js$/, ''))
@@ -208,6 +208,17 @@ function validateVoxelSandbox() {
   }
   if (bad > 0) fail(`voxel sandbox: ${bad} non-finite block/chunk positions after 30s`);
   if (a.sim.hole.eatenCount > a.sim.totalBlocks) fail(`voxel sandbox: consumed ${a.sim.hole.eatenCount} > total ${a.sim.totalBlocks}`);
+
+  // The ADR-0013 vocabulary contract. These are AUTHORING probes, so they need
+  // the scene as authored: `a.sim` has driven the full 56 s tour and its blocks
+  // have fallen, rotated and been consumed, which turns every one of them into
+  // noise. Every other scene runs its probes on a fresh sim; this one has to
+  // build a second one to get the same thing.
+  const fresh = new VoxelSandboxSim({ seed: 'validator' });
+  probeGradeDiagonal(fresh, 'voxel sandbox');
+  probePlacementStep(fresh, 'voxel sandbox');
+  probeDistrictDensity(fresh, 'voxel sandbox', [], VOXEL_PATH);   // no districts declared — vacuous
+  probeHeroIdentity(fresh, 'voxel sandbox', []);                  // no hero pair declared — vacuous
 
   console.log(`  voxel sandbox: eaten=${a.sim.hole.eatenCount}/${a.sim.totalBlocks} mass=${a.sim.hole.mass.toFixed(1)} radius=${a.sim.hole.radius.toFixed(2)} (t=10s: ${a.snap.eaten10}, t=20s: ${a.snap.eaten20})`);
 }
@@ -577,6 +588,336 @@ function probeFinitePositions(blocks, name, when) {
   if (bad > 0) fail(`${name}: ${bad} non-finite block positions ${when}`);
 }
 
+// --- the anisotropic-vocabulary contract (ADR-0013) --------------------------
+// Four probes that only became necessary once a block stopped being a cube.
+// They are SHARED, not Cambridge's: the first two bind every scene from the
+// moment they exist, and the last two are table-parameterised so a scene that
+// declares no districts and no hero pair passes them vacuously rather than
+// being exempt from them. A probe that lives in a scene file is not a contract.
+
+// Grade clause, engine-derived and hard. A ground-anchored block is removed by
+// the rim test, which samples its four base corners inset 0.05 m from the edge
+// against the removal disc; losing anchor status needs 3 of 4 corners inside,
+// so the smallest hole that can take it has radius
+// sqrt((sx-0.1)^2 + (sz-0.1)^2) / 1.9. The hole's MAX_RADIUS is 7.1 m, which
+// puts the cliff at a 9.7 m plan diagonal: past that the piece is PERMANENTLY
+// uneatable, and the damage is silent rather than visible — it still counts
+// toward `totalMass`, so it makes the 50%-of-mass goal harder while reading as
+// ordinary scenery. 8 m is the working limit, roughly two SIZE levels inside
+// the cliff. Only `gy === 0` is at risk; an elevated piece is removed by losing
+// its supports, not by this test, at any size.
+function probeGradeDiagonal(sim, name, max = 8) {
+  let over = 0, worst = 0, worstAt = '';
+  for (const b of sim.blocks) {
+    if (b.gy !== 0) continue;
+    const diag = Math.hypot(b.sx - 0.1, b.sz - 0.1);
+    if (diag <= max) continue;
+    over++;
+    if (diag > worst) { worst = diag; worstAt = `${b.matType}/${sizeLabel(b)}m at (${b.x},${b.z})`; }
+  }
+  if (over > 0) {
+    fail(`${name}: ${over} grade block(s) exceed the ${max} m plan diagonal — worst ${worstAt} at ${worst.toFixed(2)} m (uneatable past 9.7 m, and it still counts toward totalMass)`);
+  }
+}
+
+// `.wiki/modules/voxel.md` rule 10 — the placement step must equal the piece
+// extent — generalised to three axes, which is the only form that survives
+// anisotropic pieces: one call now carries three extents and a hand-rolled loop
+// can step by the wrong one. Physics never complains (every piece is still
+// grounded), so without a probe only the eye catches it, and only sometimes.
+//
+// What it looks for is the SLIVER: two collinear pieces of identical extent,
+// material and colour, separated by a gap that is neither zero nor a whole
+// piece. That is the failure ADR-0013 made likely rather than rare — a bay
+// computed as `w / bays` lands on 1.333, quantises to 1.25, and the run walks
+// off its own extent a fine cell at a time.
+//
+// THE GATE IS ANISOTROPIC PIECES; THE CUBE CASE IS A CENSUS. That split was
+// measured, not assumed, and it is worth stating exactly because "narrow the
+// guard until it goes green" is how bad probes ship. Run universally, the
+// sliver rule flags 157 places across the five shipped scenes, and every one of
+// them was inspected: the gallery's four jersey barriers on a 1.5 m pitch, and
+// pairs of Upper Manhattan buildings standing 0.5 m apart down a shared column
+// line. Both are deliberate, and both are legible AS deliberate for one reason —
+// on the cube ladder a 0.5 m gap is itself a legal brick width, so it reads as a
+// one-brick alley. There is no such reading for a 0.5 m gap between two 4 m
+// slabs; that is a step that missed. So the cube population is counted and
+// printed every run rather than dropped, and the anisotropic population, where
+// the sliver has no innocent meaning, fails the build.
+//
+// Also deliberately NOT gated: the uniform case rule 10 names, a 0.5 m piece
+// walked on a 1 m step. Every gap there is exactly one extent, which is
+// geometrically identical to a column grid at 2 m pitch or a fence-post run.
+// A probe that cannot tell those apart is noise, not a contract.
+function probePlacementStep(sim, name) {
+  const AXES = [
+    { g: 'gx', fs: 'fsx', a: 'gy', b: 'gz', label: 'x' },
+    { g: 'gy', fs: 'fsy', a: 'gx', b: 'gz', label: 'y' },
+    { g: 'gz', fs: 'fsz', a: 'gx', b: 'gy', label: 'z' },
+  ];
+  let gated = 0, census = 0, worst = '';
+  for (const A of AXES) {
+    // Grouped in fine-cell integers, never metres: a gap test against a float
+    // extent would invent its own slivers.
+    const runs = new Map();
+    for (const bl of sim.blocks) {
+      const k = `${bl.matType}|${bl.color}|${bl.fsx},${bl.fsy},${bl.fsz}|${bl[A.a]},${bl[A.b]}`;
+      const list = runs.get(k);
+      if (list) list.push(bl); else runs.set(k, [bl]);
+    }
+    for (const list of runs.values()) {
+      if (list.length < 2) continue;
+      list.sort((p, r) => p[A.g] - r[A.g]);
+      for (let i = 1; i < list.length; i++) {
+        const cur = list[i - 1], nxt = list[i];
+        const gap = nxt[A.g] - (cur[A.g] + cur[A.fs]);
+        if (gap <= 0 || gap >= cur[A.fs]) continue;
+        if (cur.fsx === cur.fsy && cur.fsy === cur.fsz) { census++; continue; }
+        gated++;
+        if (!worst) {
+          worst = `${cur.matType}/${sizeLabel(cur)}m at (${cur.x},${cur.y},${cur.z}) leaves ${(gap * 0.25).toFixed(2)} m on ${A.label} before (${nxt.x},${nxt.y},${nxt.z}), against a ${(cur[A.fs] * 0.25).toFixed(2)} m extent`;
+        }
+      }
+    }
+  }
+  if (gated > 0) fail(`${name}: ${gated} sub-extent gap(s) between collinear identical BOXES — the placement step does not match the piece extent. First: ${worst}`);
+  if (census > 0) console.log(`  ${name} placement step: ${census} sub-extent gap(s) between cubes (reported, not gated — see the probe's note)`);
+}
+
+// Arc-length parameterisation of a scripted route, so "the gap between
+// consecutive eatable pieces along the driving line" is a number rather than a
+// figure of speech. Segments are the waypoint polyline; a piece's position on
+// the route is its nearest point on that polyline.
+function routeArc(route) {
+  const segs = [];
+  let total = 0;
+  for (let i = 1; i < route.length; i++) {
+    const p = route[i - 1], n = route[i];
+    const dx = n.x - p.x, dz = n.z - p.z;
+    const len = Math.hypot(dx, dz);
+    if (len <= 0) continue;
+    segs.push({ x: p.x, z: p.z, ux: dx / len, uz: dz / len, len, s0: total });
+    total += len;
+  }
+  return { segs, total };
+}
+
+function pointOnRoute(arc, s) {
+  let g = arc.segs[arc.segs.length - 1];
+  for (const c of arc.segs) { if (s <= c.s0 + c.len) { g = c; break; } }
+  const t = Math.max(0, Math.min(g.len, s - g.s0));
+  return { x: g.x + g.ux * t, z: g.z + g.uz * t };
+}
+
+function projectOnRoute(arc, px, pz) {
+  let bestD2 = Infinity, bestS = 0;
+  for (const g of arc.segs) {
+    const t = Math.max(0, Math.min(g.len, (px - g.x) * g.ux + (pz - g.z) * g.uz));
+    const cx = g.x + g.ux * t, cz = g.z + g.uz * t;
+    const d2 = (px - cx) ** 2 + (pz - cz) ** 2;
+    if (d2 < bestD2) { bestD2 = d2; bestS = g.s0 + t; }
+  }
+  return { d2: bestD2, s: bestS };
+}
+
+// The probe that enforces hand 2 of the two-hand rule, and the single most
+// important one on this list. Two clauses, both from `01` §7.5 gate 6:
+//
+//   1. Mean gap between consecutive eatable pieces along the scene's own
+//      scripted route stays under 15 m, per district. 15 is not arbitrary: the
+//      combo window is 1.5 s and SIZE 1 speed is 9.96 m/s, so 14.9 m of travel
+//      is exactly one chain's worth of patience. A district may declare itself
+//      TIGHTER via `gapFloor` and the probe holds it to that; it can never
+//      declare itself looser, because a contract a scene can widen is not one.
+//   2. No district falls below half the scene's median eatable-pieces per m² of
+//      built footprint. The median is DERIVED from the scene, not declared, for
+//      the same reason.
+//
+// Clause 1 is the doc's stated metric, and on its own it CANNOT SEE A HOLE.
+// A mean is a total over a count, so a district with six pieces at 50, 52, 54,
+// 94, 96 and 98 m reads 9.6 m — comfortably inside 15 — while carrying a 40 m
+// dead stretch through its middle. That fixture is in the RED tests because the
+// first version of this probe passed it. The mean is a proxy; §8.1's actual
+// derivation ("it cares whether the next bite arrives within 1.5 s") is
+// per-gap, so clause 1 is joined by a third:
+//
+//   3. No SINGLE gap along the route inside a district exceeds 25 m — `01`
+//      §3.5's own loose reading of the same rule, the mid-ladder speed at which
+//      1.5 s of patience buys ~25 m. A gap over that breaks the chain at every
+//      speed on the ladder, so it needs no assumption about the player's SIZE
+//      on arrival; gaps between the district's mean ceiling and this one are
+//      speed-dependent and are deliberately left alone rather than guessed at.
+//      A district that declares a tighter mean gets a proportionally tighter
+//      hole ceiling — fine grain does not stop being fine grain for one bay.
+//
+// Clause 3 measures the route's presence inside the rect as contiguous PASSES,
+// not just the span between the first and last piece, so the lead-in and
+// run-out count as gaps too. Without that, a district whose pieces all huddle
+// in one corner while the route drives 80 m of nothing scores a perfect mean, a
+// perfect worst gap and a high density — the empty diorama passing every clause
+// written to catch it. `03` §8.2 anticipates the temptation to answer a failure
+// here by loosening the probe: "the answer is more ground furniture, never a
+// wider probe."
+//
+// Together they are the combo dead zone and the empty diorama made into a
+// failing test. Consolidation attacks this locally even when the scene total is
+// fine, because the two-hand rule redistributes: a consolidated building goes
+// sparse and its savings are spent somewhere else on the map. The chain does not
+// care about the map total.
+//
+// COINS ARE NOT EATABLE PIECES, and this is the load-bearing exclusion
+// (`04` §4.2's gate note). Counting them would let an author paper over a combo
+// dead zone with CURRENCY instead of content — precisely the failure this probe
+// exists to catch — and it is a live temptation, because a coin refreshes
+// `chainTimer` and therefore genuinely does bridge a gap in play. Under today's
+// engine a coin is not a block at all: `sim.coins` is its own array and nothing
+// in it ever reaches `sim.blocks`. The exclusion is therefore structural rather
+// than a filter, and the guard below is what keeps it that way — if a later
+// change ever routes coins through the block list, or a caller hands this probe
+// a padded piece list, every coin-shaped entry fails here instead of quietly
+// raising the density.
+//
+// `corridor` is the half-width of the swathe a driving hole clears. It defaults
+// to 2.60 m, which is not a taste number: it is the hole's radius at SIZE 4
+// (`1.1 + (size - 1) * 0.5`), and SIZE 4 is the progression floor every scene's
+// excursion is already asserted against below.
+function probeDistrictDensity(sim, name, districts, route, opts = {}) {
+  if (!districts || districts.length === 0) return;   // scene declares none — vacuous, not exempt
+  const { corridor = 2.6, maxGap = 15, maxHole = 25 } = opts;
+  const arc = routeArc(route || []);
+  if (arc.segs.length === 0) { fail(`${name}: ${districts.length} district(s) declared but the scripted route is empty — the mean-gap clause cannot be measured`); return; }
+
+  const coins = new Set(sim.coins || []);
+  let notAPiece = 0;
+  const pieces = sim.blocks.filter((b) => {
+    if (coins.has(b) || b.matType === undefined || !(b.fsx > 0)) { notAPiece++; return false; }
+    return true;
+  });
+  if (notAPiece > 0) fail(`${name}: ${notAPiece} non-block entr(ies) reached the eatable-piece count — coins and other currency must never be counted as content`);
+
+  const inRect = (r, x, z) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ;
+  const rows = [];
+  for (const d of districts) {
+    const r = d.rect;
+    const mine = pieces.filter((b) => inRect(r, b.x, b.z));
+    const cells = new Set();
+    for (const b of mine) {
+      for (let cx = Math.floor(b.x - b.sx / 2); cx < Math.ceil(b.x + b.sx / 2); cx++) {
+        for (let cz = Math.floor(b.z - b.sz / 2); cz < Math.ceil(b.z + b.sz / 2); cz++) {
+          if (inRect(r, cx + 0.5, cz + 0.5)) cells.add(`${cx},${cz}`);
+        }
+      }
+    }
+    const density = cells.size > 0 ? mine.length / cells.size : 0;
+    // Pieces the route actually meets, ordered along it.
+    const met = mine
+      .map((b) => projectOnRoute(arc, b.x, b.z))
+      .filter((p) => p.d2 <= corridor * corridor)
+      .map((p) => p.s)
+      .sort((p, n) => p - n);
+    let meanGap = null;
+    if (met.length >= 2) meanGap = (met[met.length - 1] - met[0]) / (met.length - 1);
+
+    // The route's own presence inside the rect, as contiguous passes: a gap is
+    // only real where the player is actually driving through the district, so a
+    // route that leaves and re-enters must not have the outside stretch scored
+    // against it. Sampled rather than clipped because the rect test is the same
+    // one `mine` uses, and one predicate beats two that must agree.
+    const passes = [];
+    let open = null;
+    for (let s = 0; s <= arc.total + 1; s += 1) {
+      const at = Math.min(s, arc.total);
+      const p = pointOnRoute(arc, at);
+      if (s <= arc.total && inRect(r, p.x, p.z)) {
+        if (open) open.s1 = at; else open = { s0: at, s1: at };
+      } else if (open) { passes.push(open); open = null; }
+    }
+    let worstGap = 0, worstAt = null;
+    for (const p of passes) {
+      const here = met.filter((s) => s >= p.s0 && s <= p.s1);
+      const marks = [p.s0, ...here, p.s1];
+      for (let i = 1; i < marks.length; i++) {
+        const g = marks[i] - marks[i - 1];
+        if (g > worstGap) { worstGap = g; worstAt = pointOnRoute(arc, (marks[i] + marks[i - 1]) / 2); }
+      }
+    }
+    rows.push({ d, mine: mine.length, cells: cells.size, density, met: met.length, meanGap, worstGap, worstAt, passes: passes.length });
+  }
+
+  const sorted = rows.map((r) => r.density).sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  const floor = median / 2;
+
+  for (const r of rows) {
+    const ceil = Math.min(maxGap, r.d.gapFloor ?? maxGap);
+    const holeCeil = ceil * (maxHole / maxGap);
+    if (r.passes === 0) {
+      // Reported, not gated: WHICH districts the route visits is the excursion's
+      // decision, not this probe's. Once it does drive through, every metre of
+      // that pass is this probe's business — which is why an unmeasurable mean
+      // below is no longer a way out.
+      console.log(`  ${name} district ${r.d.id} "${r.d.name}": the scripted route never enters it — no gap measurable (density ${r.density.toFixed(2)}/m²)`);
+    } else {
+      if (r.meanGap !== null && r.meanGap > ceil) {
+        fail(`${name}: district ${r.d.id} "${r.d.name}" mean inter-piece gap ${r.meanGap.toFixed(1)} m along the scripted route exceeds ${ceil} m over ${r.met} pieces — combo dead zone`);
+      }
+      if (r.worstGap > holeCeil) {
+        const w = r.worstAt;
+        fail(`${name}: district ${r.d.id} "${r.d.name}" has a ${r.worstGap.toFixed(1)} m hole in the route (ceiling ${holeCeil.toFixed(1)} m) centred near (${w.x.toFixed(0)}, ${w.z.toFixed(0)}) — the chain breaks crossing it at any size, and a mean of ${r.meanGap === null ? 'n/a' : `${r.meanGap.toFixed(1)} m`} does not see it`);
+      }
+    }
+    if (r.density < floor) {
+      fail(`${name}: district ${r.d.id} "${r.d.name}" holds ${r.density.toFixed(2)} eatable piece(s)/m² of built footprint, below half the scene median (${floor.toFixed(2)}, median ${median.toFixed(2)}) — the released budget was banked, not spent`);
+    }
+  }
+  console.log(`  ${name} district density: ${rows.length} district(s), median ${median.toFixed(2)} piece(s)/m² (floor ${floor.toFixed(2)}), coins excluded`);
+}
+
+// "Do not put the mark on the wrong building." Table-parameterised from the
+// start even though one scene needs it: the mistake is scene-specific but the
+// SHAPE of it is not, and a second implementation for the next scene with two
+// near-identical neighbours is how a contract stops being one.
+//
+// Each row is `{ id, colorKey, hero, notHero }`. Signage is identified by its
+// colour key rather than by which builder emitted it, because that is the thing
+// an author can get wrong: a block is signage if it is painted the mark's
+// colour, whoever drew it. Two clauses, stated separately because they fail for
+// different reasons — a mark that drifted off the hero, and a mark that appeared
+// on its neighbour. A deliberately faded companion mark is authored with its own
+// distinct colour constant, so it never trips this and never has to be excused.
+function probeHeroIdentity(sim, name, table) {
+  if (!table || table.length === 0) return;   // scene declares none — vacuous, not exempt
+  const within = (b, a) =>
+    b.x - b.sx / 2 >= (a.minX ?? -Infinity) && b.x + b.sx / 2 <= (a.maxX ?? Infinity) &&
+    b.y - b.sy / 2 >= (a.minY ?? -Infinity) && b.y + b.sy / 2 <= (a.maxY ?? Infinity) &&
+    b.z - b.sz / 2 >= (a.minZ ?? -Infinity) && b.z + b.sz / 2 <= (a.maxZ ?? Infinity);
+  const touches = (b, a) =>
+    b.x + b.sx / 2 > (a.minX ?? -Infinity) && b.x - b.sx / 2 < (a.maxX ?? Infinity) &&
+    b.y + b.sy / 2 > (a.minY ?? -Infinity) && b.y - b.sy / 2 < (a.maxY ?? Infinity) &&
+    b.z + b.sz / 2 > (a.minZ ?? -Infinity) && b.z - b.sz / 2 < (a.maxZ ?? Infinity);
+
+  for (const row of table) {
+    const label = row.id ?? row.name ?? 'hero';
+    let marked = 0, strayed = 0, strayAt = '', onNeighbour = 0, neighbourAt = '';
+    for (const b of sim.blocks) {
+      if (b.color !== row.colorKey) continue;
+      marked++;
+      if (row.hero && !within(b, row.hero)) {
+        strayed++;
+        if (!strayAt) strayAt = `${b.matType}/${sizeLabel(b)}m at (${b.x},${b.y},${b.z})`;
+      }
+      if (row.notHero && touches(b, row.notHero)) {
+        onNeighbour++;
+        if (!neighbourAt) neighbourAt = `${b.matType}/${sizeLabel(b)}m at (${b.x},${b.y},${b.z})`;
+      }
+    }
+    if (strayed > 0) fail(`${name}: ${label} — ${strayed} of ${marked} signage block(s) fall outside the hero AABB, first ${strayAt}`);
+    if (onNeighbour > 0) fail(`${name}: ${label} — ${onNeighbour} block(s) in the not-hero AABB carry the signage colour key, first ${neighbourAt} (the mark is on the wrong building)`);
+    if (marked === 0 && row.hero) fail(`${name}: ${label} — no block carries the signage colour key 0x${(row.colorKey >>> 0).toString(16)}; the hero AABB is unguarded because the mark is not there`);
+  }
+}
+
 // --- manhattan sandbox checks -------------------------------------------------
 // The second voxel scene (Lower Manhattan): same engine, so we check the
 // scene-specific risks — overlapping placement (ghost blocks), spontaneous
@@ -589,13 +930,18 @@ function validateManhattan() {
   // it: ownership, camera coverage, the park-under-water draw-order trap, and
   // idle stability. The rest of the set is not skipped on principle — this scene
   // has never been re-authored against it — and adopting it here is its own pass.
+  // scripted excursion: cross town to the WTC base, then excavate for 30 s
+  const WP = [{ until: 9, x: -24, z: -20 }, { until: 39, x: -24, z: -26 }];
+
   probeCellOwnership(sim, 'manhattan');
   probeCameraBlockers(sim, 'manhattan', footprintTops(sim));
   probeParkUnderWater(sim, 'manhattan');
+  probeGradeDiagonal(sim, 'manhattan');
+  probePlacementStep(sim, 'manhattan');
+  probeDistrictDensity(sim, 'manhattan', [], WP);   // no districts declared — vacuous
+  probeHeroIdentity(sim, 'manhattan', []);          // no hero pair declared — vacuous
   probeIdleStability(sim, 'manhattan');
 
-  // scripted excursion: cross town to the WTC base, then excavate for 30 s
-  const WP = [{ until: 9, x: -24, z: -20 }, { until: 39, x: -24, z: -26 }];
   for (let i = 0; i < 39 * 60; i++) {
     const t = i * DT, h = sim.hole;
     const wp = t < WP[0].until ? WP[0] : WP[1];
@@ -651,6 +997,23 @@ function validateUpperManhattan() {
   // 12 surfaces drowned under water, 946 bare footprint cells, 300 overlapping
   // crosswalk stripes). They are ported unchanged rather than tuned to fit;
   // narrowing a guard until it goes green is how every one of those shipped.
+
+  // The excursion route, declared before the probe block because the density
+  // probe measures inter-piece gaps ALONG it — the route is scene data now, not
+  // just the excursion's own business. Why it has this shape is argued below,
+  // where it is driven.
+  const WP = [
+    { until: 6, x: 7, z: 14 },       // east off the spawn lawn, over the erratics
+    { until: 14, x: 13, z: 16 },     // in at the museum's south-west corner
+    { until: 21, x: 19, z: 16 },     // along the south range
+    { until: 29, x: 20, z: 11 },     // up the Fifth Avenue front, under the portico
+    { until: 37, x: 20, z: 5 },      // the north-east corner
+    { until: 45, x: 14, z: 4 },      // across the north range, under the lantern
+    { until: 53, x: 13, z: 9 },      // back down the park side
+    { until: 58, x: 17, z: 13 },     // and diagonally through the middle
+    { until: 62, x: 19, z: 8 },
+  ];
+
   const umTops = footprintTops(sim);
   probeCellOwnership(sim, 'upper manhattan');
   probeCameraBlockers(sim, 'upper manhattan', umTops);
@@ -668,6 +1031,10 @@ function validateUpperManhattan() {
   // No surf and no ferries: every water body in this level is a park pond inside
   // the green, and none of them is big enough to run a boat across.
   probeAmbient(sim, 'upper manhattan', ['gulls', 'steam', 'neon', 'pigeons']);
+  probeGradeDiagonal(sim, 'upper manhattan');
+  probePlacementStep(sim, 'upper manhattan');
+  probeDistrictDensity(sim, 'upper manhattan', [], WP);   // no districts declared — vacuous
+  probeHeroIdentity(sim, 'upper manhattan', []);          // no hero pair declared — vacuous
   probeIdleStability(sim, 'upper manhattan');
 
   // A twelve-metre approach and then a slow perimeter orbit INSIDE the
@@ -693,17 +1060,6 @@ function validateUpperManhattan() {
   // floor slabs, a lantern on the roof and a colonnaded front, twelve metres
   // from spawn. Result: 721 eaten, combo 3,680, SIZE 4 at 37.8 s of 62 —
   // 24 seconds of margin at 2.04x the gate.
-  const WP = [
-    { until: 6, x: 7, z: 14 },       // east off the spawn lawn, over the erratics
-    { until: 14, x: 13, z: 16 },     // in at the museum's south-west corner
-    { until: 21, x: 19, z: 16 },     // along the south range
-    { until: 29, x: 20, z: 11 },     // up the Fifth Avenue front, under the portico
-    { until: 37, x: 20, z: 5 },      // the north-east corner
-    { until: 45, x: 14, z: 4 },      // across the north range, under the lantern
-    { until: 53, x: 13, z: 9 },      // back down the park side
-    { until: 58, x: 17, z: 13 },     // and diagonally through the middle
-    { until: 62, x: 19, z: 8 },
-  ];
   const runExcursion = () => {
     const run = new VoxelSandboxSim({ seed: 'validator', scene: 'upper-manhattan' });
     for (let i = 0; i < 62 * 60; i++) {
@@ -746,6 +1102,17 @@ function validateBrooklyn() {
   // body now lives above this function and Upper Manhattan calls the same ones —
   // see the note there. What stays here is WHICH contracts this scene signs and
   // WHICH tables it signs them with.
+  // The excursion route, declared up here because the density probe measures
+  // inter-piece gaps ALONG it — the route is scene data, not just the
+  // excursion's own business. Why it has this shape is argued at 12, below.
+  const WP = [
+    { until: 12, x: 34, z: 18 },    // approach across the museum apron
+    { until: 26, x: 37, z: 15 },    // south-east quarter
+    { until: 38, x: 32, z: 20 },    // north-west quarter
+    { until: 50, x: 39, z: 19 },    // north-east quarter
+    { until: 62, x: 33, z: 15 },    // south-west quarter
+  ];
+
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'brooklyn');                                                  // 1
   probeCameraBlockers(sim, 'brooklyn', tops);                                           // 2
@@ -761,19 +1128,16 @@ function validateBrooklyn() {
   probeCrossingsOnDeclaredStreet('brooklyn', BROOKLYN_CROSSINGS, BROOKLYN_STREETS, XW_LEN); // 8b
   probeDecorKeyOrder(sim, 'brooklyn');                                                  // 9
   probeAmbient(sim, 'brooklyn', ['gulls', 'surf', 'ferries', 'steam', 'neon', 'pigeons']); // 10
+  probeGradeDiagonal(sim, 'brooklyn');                                                  // 10b
+  probePlacementStep(sim, 'brooklyn');                                                  // 10c
+  probeDistrictDensity(sim, 'brooklyn', [], WP);   // 10d — no districts declared, vacuous
+  probeHeroIdentity(sim, 'brooklyn', []);          // 10e — no hero pair declared, vacuous
   probeIdleStability(sim, 'brooklyn');                                                  // 11
 
   // 12. deterministic excursion, run twice. The route is a slow orbit inside
   // the Brooklyn Museum rather than a tour of the boroughs: a straight sweep
   // spends most of its time crossing open plaza with nothing overhead, and a
   // moving path through dense structure is what keeps fresh mass falling in.
-  const WP = [
-    { until: 12, x: 34, z: 18 },    // approach across the museum apron
-    { until: 26, x: 37, z: 15 },    // south-east quarter
-    { until: 38, x: 32, z: 20 },    // north-west quarter
-    { until: 50, x: 39, z: 19 },    // north-east quarter
-    { until: 62, x: 33, z: 15 },    // south-west quarter
-  ];
   const runExcursion = () => {
     const run = new VoxelSandboxSim({ seed: 'validator', scene: 'brooklyn' });
     for (let i = 0; i < 62 * 60; i++) {
@@ -807,6 +1171,22 @@ function validateBoston() {
   // Same contract set as Brooklyn and Upper Manhattan, same probe bodies, signed
   // with Boston's own tables. Nothing scene-specific is re-implemented here on
   // purpose: a probe that drifts per scene stops being a contract.
+  // The excursion route, declared up here because the density probe measures
+  // inter-piece gaps ALONG it — the route is scene data, not just the
+  // excursion's own business. Why it has this shape is argued at 12, below.
+  const WP = [
+    { until: 4, x: 24, z: 14 },   // east off the spawn lot, past the jersey barriers
+    { until: 10, x: 30, z: 9 },   // in at the west podium's south-west corner
+    { until: 16, x: 30, z: 21 },  // north up the inside of the podium
+    { until: 22, x: 30, z: 33 },
+    { until: 28, x: 30, z: 45 },  // across the service slot into the north arm
+    { until: 34, x: 30, z: 57 },
+    { until: 40, x: 30, z: 68 },  // out at the podium's north end
+    { until: 47, x: 36, z: 78 },  // down into the south podium's pierShed
+    { until: 54, x: 48, z: 80 },  // east along its 3 m column grid
+    { until: 62, x: 58, z: 78 },
+  ];
+
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'boston');                                                  // 1
   probeCameraBlockers(sim, 'boston', tops);                                           // 2
@@ -822,6 +1202,10 @@ function validateBoston() {
   probeCrossingsOnDeclaredStreet('boston', BOSTON_CROSSINGS, BOSTON_STREETS, BOS_XW_LEN); // 8b
   probeDecorKeyOrder(sim, 'boston');                                                  // 9
   probeAmbient(sim, 'boston', ['gulls', 'surf', 'ferries', 'steam', 'neon', 'pigeons']); // 10
+  probeGradeDiagonal(sim, 'boston');                                                  // 10b
+  probePlacementStep(sim, 'boston');                                                  // 10c
+  probeDistrictDensity(sim, 'boston', [], WP);   // 10d — no districts declared, vacuous
+  probeHeroIdentity(sim, 'boston', []);          // 10e — no hero pair declared, vacuous
   probeIdleStability(sim, 'boston');                                                  // 11
 
   // 12. deterministic excursion, run twice. The route walks the BCEC podium end
@@ -832,18 +1216,6 @@ function validateBoston() {
   // legs run END TO END rather than orbiting a point, so each one drags the
   // opening onto footprint it has not already taken. The spawn lot itself is
   // surface car park by design, so the first leg is transit, not harvest.
-  const WP = [
-    { until: 4, x: 24, z: 14 },   // east off the spawn lot, past the jersey barriers
-    { until: 10, x: 30, z: 9 },   // in at the west podium's south-west corner
-    { until: 16, x: 30, z: 21 },  // north up the inside of the podium
-    { until: 22, x: 30, z: 33 },
-    { until: 28, x: 30, z: 45 },  // across the service slot into the north arm
-    { until: 34, x: 30, z: 57 },
-    { until: 40, x: 30, z: 68 },  // out at the podium's north end
-    { until: 47, x: 36, z: 78 },  // down into the south podium's pierShed
-    { until: 54, x: 48, z: 80 },  // east along its 3 m column grid
-    { until: 62, x: 58, z: 78 },
-  ];
   const runExcursion = () => {
     const run = new VoxelSandboxSim({ seed: 'validator', scene: 'boston' });
     for (let i = 0; i < 62 * 60; i++) {
