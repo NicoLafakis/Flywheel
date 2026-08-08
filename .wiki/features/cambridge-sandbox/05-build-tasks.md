@@ -310,7 +310,7 @@ metric-and-direction) re-checked after P7.7.
 | ID | Done when | Files / surfaces | Deps | Size |
 |---|---|---|---|---|
 | P8.1 | Full shared 19-probe contract plus the four new probes (P3.2–P3.5) pass against the complete scene, Cambridge's own tables supplied (`CAMBRIDGE_OFFSETS`, `CAMBRIDGE_DISTRICTS`, `CAMBRIDGE_COIN_ANCHORS`, `CAMBRIDGE_VEHICLES`, `CAMBRIDGE_ROAD_SPANS`, `CAMBRIDGE_STREETS`/`CROSSINGS`). | `tools/validate.mjs`, `js/voxelscene-cambridge.js` | P6.*, P7.* | S |
-| P8.2 | The scripted excursion (Davenport long axis + First Street, `03` §9.5) passes: determinism across two runs, `eatenCount ≥ 300`, `size ≥ 4`. If eats fall short of 300 on the vocabulary-built district, the fix is content, not a lowered floor (`03` §9.5's own instruction). | `tools/validate.mjs` | P6.4/P5.5 | S |
+| P8.2 | The scripted excursion (Davenport long axis + First Street, `03` §9.5) passes: determinism across two runs, `eatenCount ≥ 300`, `size ≥ 4`. If eats fall short of 300 on the vocabulary-built district, the fix is content, not a lowered floor (`03` §9.5's own instruction). **This floor is measured against the COMPLETE ten-district scene only — see the ladder-scaling note below before touching it.** | `tools/validate.mjs` | P6.4/P5.5 | S |
 | P8.3 | Dead-ground census at zero, checked cell-by-cell (not the 4 m sampled probe). | `tools/validate.mjs` | P6.* | S |
 | P8.4 | Doc hygiene, same commit as the last code change: `.wiki/modules/voxel.md` gains `js/voxelforms.js` and `js/voxelscene-cambridge.js` in `covers:` and a Cambridge Scenes entry; `AGENTS.md`'s validate-required file list gains both; `STATUS.md` gets one line; ADR-0013 moves `proposed` → `accepted` if not already done at P0.1. | `.wiki/modules/voxel.md`, `AGENTS.md`, `STATUS.md`, ADR-0013 | P8.1 | S |
 | P8.5 | The 12-fixed-pose apparent-richness capture (`01` §7.3): Sobel edge density, distinct roofline heights per 10 m of frontage, mean luminance, visible-piece count, compared A vs. B2 from Phase 5. Owner reviews both variants behind the free-play picker — this is the one gate whose pass/fail is a judgement call, not a number. | screenshots + measurement notes | P8.1 | M |
@@ -318,6 +318,48 @@ metric-and-direction) re-checked after P7.7.
 **Gate:** `node tools/validate.mjs` → `ALL PASS`. Both of `01` §8's open
 owner questions (bite size, crumble-vs-collapse) are answered by playing, not
 blocking — they tune bay size, they do not gate ship.
+
+**Ladder-scaling note, 2026-08-08 (found during P6.2).** `voxelsim.js:316`
+scales the entire SIZE ladder by the scene's own total mass:
+`this._sizeLadder = SIZE_MASS.map((m) => m * 0.3 * Math.min(10, Math.max(1,
+Math.round(this.totalMass / 4200))))`. District 2 alone (totalMass 9,299)
+multiplies ×2; Districts 1+2 (totalMass 21,783) already multiplies ×5 — every
+rung 2.5x more expensive — and the finished ten-district map will likely hit
+the ×10 cap, another 2x on top of that. Measured on Districts 1+2 at ×5: the
+Davenport excursion reaches only SIZE 3 against P8.2's `≥ 4` floor, not
+because of a content regression but because the ladder itself got more
+expensive. Isolating the two variables (ladder multiplier held fixed, route
+held fixed) shows District 1 strictly IMPROVES the excursion at any fixed
+multiplier — this is the ladder's own design working as intended, not
+something to fix.
+
+**This is not a reason to weaken P8.2's floor.** `03` §9.5 already anticipated
+scenes needing more mass and deliberately capped the multiplier at ×10 "so the
+largest scenes are not held to a lower standard than the ones they were built
+to surpass" — the absolute `size ≥ 4` target is the point, not an oversight,
+and asserting it against a scene's own ladder rung instead would do exactly
+what §9.5 built the cap to prevent. **It is, however, a reason P8.2 cannot be
+meaningfully checked before the map is complete** — a 2-of-10-district build
+reading SIZE 3 is expected, not a P8.2 failure, and any dev-time gate run
+during Phase 6 (`_phase5-deliverables/gate.mjs`) that still asserts Phase 5's
+own District-2-only numbers (`eaten ≥ 300`/`size ≥ 4` calibrated to a ×2
+multiplier) against a growing partial build should treat that specific
+assertion as informational only until P8.2 itself runs against the finished
+scene — the district/gap/hero/dead-ground probes and cross-run determinism all
+stay meaningful at partial scale and are unaffected.
+
+**Also flagged for P8.5's owner review, not a validator question:** `03` §7.2
+promises "ten seconds of eating 0.25 m furniture ... puts the player at SIZE 2
+with a live chain." Measured on the Districts-1+2 shipped scene at its own ×5
+multiplier, ten seconds in the front-door ring yields `rawMass` 7 against a
+SIZE-2 rung of 37.5 — roughly 5x short already, and the finished map's ×10 cap
+would double that gap again. The same arithmetic likely touches every rung in
+§7.3's table (SIZE 2/3/5/6/8/10-12 at named route legs), since all of them are
+absolute-SIZE promises made before the ladder's mass-scaling was measured at
+real content volume. Whether to add more mass to the early ring, redesign the
+opening beat, or accept the drift as intended pacing for a bigger map is a
+level-design call for the owner, not something to resolve here — re-measure
+against the finished map at P8.5 and decide then.
 
 ---
 
