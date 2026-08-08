@@ -11,7 +11,7 @@ import { Controls } from './controls.js';
 import { HUD } from './ui/hud.js';
 import { Screens, SKINS } from './ui/screens.js';
 import { mountReadyGate } from './ui/ready.js';
-import { TIERS, TIER_ORDER, detectTier, QualityWatchdog } from './quality.js';
+import { TIERS } from './quality.js';
 
 const canvas = document.getElementById('game-canvas');
 const hud = new HUD();
@@ -50,39 +50,19 @@ let lastTs = 0;
 let shopBonus = { clock: 0, growth: 0 };
 
 // ------------------------------------------------------------------ quality tier
-// Detection runs ONCE, at boot, and its result is cached: it costs a throwaway
-// WebGL context, and the hardware does not change mid-session. The watchdog is
-// what tracks anything that does — including the fact that Boston is 2.1x
-// Brooklyn's block count, so the right tier genuinely differs per level.
-const detected = detectTier();
-// Seeded from the classifier rather than from a hardcoded 'high'. startQuality()
-// overwrites this at every level start, so the seed is only ever READ before the
-// first level — which is exactly when the SETTINGS screen asks for it to render
-// "AUTO · <tier>". Left at 'high', that row told a handheld it was on HIGH
-// before it had rendered a frame of a city (measured: a 390x844 coarse-pointer
-// profile classifies as MEDIUM and the row still said AUTO · HIGH), which is the
-// one failure the label exists to prevent — see the comment above it in
-// js/ui/screens.js. Nothing else reads tierName this early: the loop's sub-step
-// ceiling and applyQuality both require a level to have started.
-let tierName = detected.tier;
-const watchdog = new QualityWatchdog((tier, reason) => {
-  tierName = tier;
-  applyQuality();
-  // Not a toast. A player who is already dropping frames does not need a popup
-  // built out of more DOM work telling them so, and the whole point of the
-  // ladder is that it is invisible. It goes to the console and to the debug
-  // handle, where the next person profiling this can see it.
-  if (typeof console !== 'undefined') console.info(`[quality] ${reason}`);
-});
+// Two tiers, and the player picks one. Nothing here classifies the device and
+// nothing watches frame times: full graphics or not is the whole contract.
+// HIGH is the default, so an untouched settings screen ships the pre-tier sim.
+let tierName = wantedTier();
 // Debug hook, same idiom as window.__sim / __world / __cam / __controls.
-// `force` is what a harness (and a dev on a fast machine) uses to see a tier it
-// will never be classified into; it stops the watchdog so the forced tier holds.
+// `force` lets a harness (and a dev) push a tier without going through the
+// settings screen; it does not touch the saved setting, so the next level start
+// resolves back to whatever the player chose.
 window.__quality = {
-  detected, watchdog, TIERS,
+  TIERS,
   tier: () => tierName,
   force(t) {
     if (!TIERS[t]) return false;
-    watchdog.enabled = false;
     tierName = t;
     applyQuality();
     return true;
@@ -100,15 +80,16 @@ window.__quality = {
   }),
 };
 
-// The player's setting is the authority; 'auto' delegates to the classifier.
+// The player's setting is the only authority. Anything unexpected — a key from
+// a hand-edited save, a value from a build that had more tiers — reads as HIGH
+// rather than as nothing, so a bad string can never leave the game untiered.
 function wantedTier() {
-  const q = save.settings && save.settings.quality;
-  return q && q !== 'auto' && TIER_ORDER.includes(q) ? q : detected.tier;
+  return save.settings && save.settings.quality === 'low' ? 'low' : 'high';
 }
 
 // Push the current tier at both halves of the engine. Idempotent — every setter
 // it calls returns early when nothing changed — so it is safe to call from
-// applySettings, from level start, and from the watchdog.
+// applySettings, from level start, and from the debug hook.
 function applyQuality() {
   const spec = TIERS[tierName] || TIERS.high;
   if (world && world.setQuality) world.setQuality(spec);
@@ -120,16 +101,12 @@ function applyQuality() {
   }
 }
 
-// Called at every level start: re-resolve the tier from the setting, hand it to
-// the watchdog (pinned when the player chose one by hand — or when the machine
-// is desktop-class: the ladder exists for phones, and a desktop on AUTO gets
-// HIGH and keeps it, see detectTier's header note), and apply it.
-let qualityPref = null;   // last-seen save.settings.quality, so applySettings can tell it apart
+// Called at every level start: re-resolve the tier from the setting and apply
+// it. A level start is still the right moment to do this even though nothing
+// varies per level any more — `world` and `sim` are rebuilt there, so the tier
+// has to be pushed at the new pair.
 function startQuality() {
-  qualityPref = save.settings && save.settings.quality;
   tierName = wantedTier();
-  const pinned = !!(qualityPref && qualityPref !== 'auto') || detected.desktopClass === true;
-  watchdog.start(tierName, { pinned });
   applyQuality();
 }
 
@@ -192,11 +169,12 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     // and the campaign World3D must not be called with a method it lacks.
     if (world && world.setReducedMotion) world.setReducedMotion(save.settings.reducedMotion);
     if (world && world.setPerfMode) world.setPerfMode(save.settings.perfMode);
-    // Only when the quality setting itself moved. applySettings fires on every
-    // slider drag, and restarting the watchdog there would keep clearing its
-    // window — it would never accumulate the three seconds it needs to judge
-    // anything.
-    if (save.settings.quality !== qualityPref) startQuality();
+    // Unconditional: applySettings fires on every slider drag, but resolving a
+    // tier is now two comparisons and applyQuality's setters all return early
+    // when nothing moved. This used to be guarded against the last-seen value
+    // because re-running it restarted the watchdog and cleared the window it
+    // needed to judge anything; with the watchdog gone, so is the guard.
+    startQuality();
     applyVoxTuning();
   },
 });
@@ -499,17 +477,6 @@ function frame(ts) {
     // accumulator here (rather than letting it fill) means the level cannot
     // lurch forward by however long the player looked at the sign.
     const held = cam.introHolding();
-    // The watchdog gets the RAW gap, not the clamped one: the clamp exists so a
-    // long frame cannot make the sim lurch, and feeding it the clamped value
-    // would cap every sample at 100 ms and hide the worst frames — precisely the
-    // ones it is looking for. It does its own stall rejection (see quality.js).
-    //
-    // Not while the READY gate holds the establishing shot: the sim is not
-    // stepping, so those frames are the cheapest in the level and a player who
-    // reads the sign for ten seconds would otherwise hand the watchdog ten
-    // seconds of evidence that the machine is fast. The scene-build hitch lands
-    // in the same window and is excluded by the same line.
-    if (!held) watchdog.sample(rawDt * 1000);
     accumulator = held ? 0 : accumulator + realDt;
     if (isVoxelSandbox) {
       // One signal, two consumers: the camera scales its framing, standoff and

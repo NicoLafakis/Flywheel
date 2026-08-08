@@ -2,7 +2,7 @@
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 13;
+export const CURRENT_VERSION = 14;
 
 // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
 export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2 };
@@ -21,22 +21,22 @@ function defaultSettings() {
     // v13 is about a key that is PRESENT and holds a choice nobody could have
     // made informedly; see the migration for why.
     pointMove: false,
-    // Device quality tier: 'auto' | 'high' | 'medium' | 'low' | 'potato'.
-    // 'auto' means js/quality.js classifies the device at boot and a live
-    // watchdog may step it down (or back up) while playing; anything else pins
-    // the tier and turns the watchdog off entirely.
+    // Graphics detail: 'high' | 'low'. Binary and player-chosen — full graphics
+    // or not. There is no 'auto', no device classifier and no live watchdog any
+    // more (see js/quality.js), so HIGH is the honest default: it is the
+    // pre-tier sim byte for byte, and a player who wants less opts down.
     //
     // This one DOES get a schema bump, unlike `pointMove` above, and the
     // difference is worth recording because it is the judgement the comment
     // there is asking for. `pointMove` is a boolean whose absent value reads
     // correctly as `false` through `!undefined` — the setting works on an old
-    // save with no migration. `quality` is a string, and `undefined` is not
-    // 'auto': it would fall through every comparison in main.js and leave an
-    // upgrading player with no tier at all, no auto-detection and no watchdog,
-    // which is silently worse than the build they came from. A key whose absent
+    // save with no migration. `quality` is a string, and every one of its old
+    // values ('auto', 'medium', 'potato') now names a tier that does not exist;
+    // left alone they would fall through main.js's comparison to HIGH, which is
+    // right for two of them and silently wrong for 'potato'. A key whose stored
     // value is WRONG needs a migration; a key whose absent value is already the
     // default does not.
-    quality: 'auto',
+    quality: 'high',
     // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
     ...VOX_DEFAULTS,
   };
@@ -204,6 +204,34 @@ const MIGRATIONS = {
       ...defaultSettings(),
       ...(s.settings || {}),
       pointMove: false,
+    },
+  }),
+  // v14: graphics detail collapses to HIGH or LOW. 'auto', 'medium' and
+  // 'potato' no longer name anything js/quality.js can build, so every stored
+  // value has to be remapped rather than merged forward.
+  //
+  // This is not the same kind of act as v13's re-default above, and does not
+  // need that one's justification: nobody's choice is being overruled, it is
+  // being TRANSLATED onto the two rungs that still exist. The mapping keeps the
+  // side of the ladder the player was on — 'potato' was the bottom rung and
+  // lands on LOW, 'medium' was an upper rung and lands on HIGH. 'auto' is the
+  // one that carries a real decision, and it goes to HIGH because that is the
+  // tier the auto path resolved to for every desktop-class machine and the
+  // default a fresh save now starts on; a player who is actually on a device
+  // that needed less will find one button in SETTINGS, which is one more than
+  // the old classifier ever offered them.
+  //
+  // Unknown values (a hand-edited save, a future build read backwards) also
+  // land on HIGH rather than on nothing, so the key always holds a tier that
+  // exists. main.js's wantedTier() repeats this same default for anything that
+  // reaches it un-migrated.
+  13: (s) => ({
+    ...s,
+    version: 14,
+    settings: {
+      ...defaultSettings(),
+      ...(s.settings || {}),
+      quality: (s.settings && (s.settings.quality === 'low' || s.settings.quality === 'potato')) ? 'low' : 'high',
     },
   }),
 };

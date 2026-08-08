@@ -351,36 +351,29 @@ export class Screens {
     ctl('Look around (touch)', 'drag right ½');
     ctl('Zoom (touch)', 'pinch two fingers');
 
-    // Device quality. AUTO is the default and the only value that lets the live
-    // watchdog work — the named tiers pin it, which is the point of choosing
-    // one. Cycled by a single button rather than a <select> because every other
-    // control on this screen is a button and a native dropdown is the one widget
-    // that would look imported; five options is few enough that a cycle never
-    // feels like hunting.
+    // Graphics detail, binary: full graphics or not. HIGH is the default and is
+    // the pre-tier sim exactly; LOW drops the pixel ratio, shadows, ambient life
+    // and the debris/support budgets (js/quality.js has the measured rationale
+    // for each). There is no AUTO — nothing classifies the device and nothing
+    // adjusts while playing, so the button reads the setting and only that.
     //
-    // The label reports what AUTO actually resolved to, because the honest
-    // failure mode of an auto setting is a player who cannot tell whether it
-    // did anything. `window.__quality` is set by main.js at boot.
-    const QUALITY_ORDER = ['auto', 'high', 'medium', 'low', 'potato'];
-    const QUALITY_LABEL = { auto: 'AUTO', high: 'HIGH', medium: 'MEDIUM', low: 'LOW', potato: 'LOWEST' };
-    const qualityText = () => {
-      const cur = st.quality || 'auto';
-      if (cur !== 'auto') return QUALITY_LABEL[cur];
-      const q = typeof window !== 'undefined' && window.__quality;
-      const live = q && q.tier ? q.tier() : null;
-      return live ? `AUTO · ${QUALITY_LABEL[live] || live.toUpperCase()}` : 'AUTO';
-    };
+    // Still the same button rather than a <select>: every other control on this
+    // screen is a button, a native dropdown is the one widget that would look
+    // imported, and two options make the cycle a straight toggle.
+    const QUALITY_ORDER = ['high', 'low'];
+    const QUALITY_LABEL = { high: 'HIGH', low: 'LOW' };
+    const qualityText = () => QUALITY_LABEL[st.quality] || QUALITY_LABEL.high;
     const qRow = el(`<div class="set-row"><span class="set-label">🎚 Graphics detail</span>
       <span class="set-val"><button class="btn secondary">${qualityText()}</button></span></div>`);
     const qBtn = qRow.querySelector('button');
     qBtn.onclick = () => {
-      const i = QUALITY_ORDER.indexOf(st.quality || 'auto');
+      // Fall back to the tier the LABEL is showing, not to a sentinel: an
+      // unrecognised stored value renders as HIGH, so starting the cycle
+      // anywhere else makes the first click look like it did nothing.
+      const i = Math.max(0, QUALITY_ORDER.indexOf(st.quality));
       st.quality = QUALITY_ORDER[(i + 1) % QUALITY_ORDER.length];
       qBtn.textContent = qualityText();
       this.actions.applySettings();
-      // Re-read AFTER applySettings: switching back to AUTO re-resolves the tier,
-      // and the label would otherwise show the previous one until the next visit.
-      qBtn.textContent = qualityText();
     };
     panel.appendChild(qRow);
 
