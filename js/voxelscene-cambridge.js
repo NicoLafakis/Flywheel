@@ -509,7 +509,7 @@ export const CAMBRIDGE_OPEN_GROUND = [
     // District 3's, per `03` §4.3. `02` §2 puts the Michael Capuano Inner Belt
     // Carhouse at real E −132 / N +689 and the Green Line Transportation Office
     // at E −337 / N +604 (both Confirmed, OSM), which `sceneOffset` maps to
-    // (−42.75, −127.75) and (−76.25, −108.5) — the first of which reproduces the
+    // (−43, −127.75) and (−76.25, −108.5) — the first of which reproduces the
     // "computed z ≈ −128" that `03` §1.5 exception 4 cites before pulling both
     // radially in to z −100…−108. This is the ballast left north of the
     // pulled-in yard, between it and minZ.
