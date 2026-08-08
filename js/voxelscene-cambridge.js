@@ -137,7 +137,7 @@ import {
   lampPost, hydrant, bench, trashBin, bollard, planter, signPost, bikeRack,
   crateStack, trashBags, newsBox, tree, shippingContainer, fireEscape,
   cafeTable, sandwichBoard, marketStall, lightMast,
-  hotDogCart, mailbox, drinkingFountain, fenceRun,
+  hotDogCart, mailbox, drinkingFountain, fenceRun, bus,
 } from './voxelkit.js';
 
 // See the palette note in the header: authored, unmeasured. `sp()` marks the two
@@ -215,6 +215,43 @@ const C = {
   terrace: 0x9a9184,
   canalTimber: 0x6b5642,
   planterSoil: 0x4f4133,
+
+  // --- DISTRICT 3, LECHMERE & THE VIADUCT -------------------------------
+  // `03` §4's palette bank for this district is "concrete + transit green",
+  // and §3's table files the viaduct under **concrete, weathered** at LOW
+  // chroma. So the structure is a four-step grey ramp and the ONLY saturated
+  // thing in the district is the train — §4.3's "very-high-chroma transit
+  // accent, tiny area". That contrast is the district's whole read: a grey
+  // line of infrastructure with one green object standing on it.
+  viaductPier: 0x83878d,     // pier shafts, plinths — the darkest structural grey
+  viaductCross: 0x8e9298,    // crossheads and girders
+  viaductDeck: 0x9aa0a6,     // deck soffit plates
+  viaductEdge: 0x777b81,     // fascia band and parapet, one step down so the
+                             // deck edge reads as a line at distance
+  platformDeck: 0xa8aca8,
+  platformTactile: 0xc8b24a, // the yellow warning strip along both platform edges
+  canopySteel: 0x59626b,
+  canopyRoof: 0x8d949b,
+  // The Green Line's own livery. Not the HubSpot orange and not near it:
+  // `probeHeroIdentity` keys on 0xff7a59 alone, and nothing in this district
+  // may carry it (`03` §6.5 — the mark belongs to 2 Canal Park only).
+  transitGreen: 0x1a7a4c,
+  transitWhite: 0xe4e8e4,
+  carGlass: sp(0x4f6a72),
+  carSkirt: 0x35393d,
+  // Track and yard.
+  ballast: 0x6b665e,
+  sleeper: 0x4d443a,
+  railHead: 0x8a8f94,
+  signalMast: 0x4a5158,
+  // Busway and street furniture.
+  shelterGreen: 0x2f5c48,
+  buswayKerb: 0x9d9a92,
+  // The north edge (`03` §4.11): the carhouse and the Transportation Office.
+  carhouseWall: 0x6f757c,
+  carhouseRoof: 0x565c63,
+  officeBrick: 0x8a7a68,
+  officeBand: 0xa9a294,
 };
 
 // --- THE MAP -----------------------------------------------------------------
@@ -483,6 +520,34 @@ export const CAMBRIDGE_STREETS = [
   // streets by index, so a row inserted above this line silently re-points
   // District 2's five crossings.
   { name: 'Canal Park', axis: 'z', x: 6.5, z: 5, w: 6, d: 25 },
+  // District 3, indices 3-5. NORTH FIRST STREET IS NOT FIRST STREET CONTINUED, and the
+  // separation is forced by geometry rather than chosen: District 2's First
+  // Street sits at x[−33,−27], and 1 Canal Park already occupies x[−39.5,−19.25]
+  // z[−38,−12], so extending that carriageway north drives it through a
+  // building. `02` gives Lechmere the address 3 North First Street and it is a
+  // separate stub in life too, running north off the Lechmere junction. Here it
+  // runs in the slot between 1 Canal Park's east flank and the viaduct's west
+  // edge (deck minX −10.5 at its northernmost segment), which is the only
+  // north-south corridor District 1 left open.
+  //
+  // It stops at z −39 rather than running down to meet District 1's service
+  // yard: 1 Canal Park's east skin stands at x −19.25 as far south as z −38, and
+  // a 6 m carriageway at x[−20,−14] that reached past it would have a wall
+  // inside its own asphalt — `probeRoadConflicts` gates every block, not just
+  // tall ones. The 1 m stub is the district seam, and P6.4 owns closing it.
+  { name: 'North First Street', axis: 'z', x: -20, z: -87.5, w: 6, d: 48.5 },
+  // The Lechmere junction: the east-west leg that passes UNDER the viaduct and
+  // feeds the busway. This is the crossing `03` §9.4 names for
+  // `CAMBRIDGE_ROAD_SPANS`, and it is deliberately sited in the one 12 m bay of
+  // the viaduct (see `VIADUCT.bents`) so no pier ever stands in a carriageway.
+  { name: 'Lechmere Junction', axis: 'x', x: -20, z: -87.5, w: 30, d: 6 },
+  // The Lechmere Busway, east of and parallel to the viaduct. Not a public
+  // street — a bus-only roadway — but it is a carriageway to every probe, so it
+  // is declared as one and its buses are in `CAMBRIDGE_VEHICLES` below. Its west
+  // kerb at x 4 clears the viaduct's southernmost deck edge (x 3.25) by 0.75 m,
+  // which is the tightest gap in the district and the reason the chords sweep
+  // west going north rather than east.
+  { name: 'Lechmere Busway', axis: 'z', x: 4, z: -81.5, w: 6, d: 39.5 },
 ];
 export const CAM_XW_LEN = 3;
 export const CAMBRIDGE_CROSSINGS = [
@@ -491,6 +556,13 @@ export const CAMBRIDGE_CROSSINGS = [
   // Both clear of the food-truck row's 18 m of kerb (z 9..27): a zebra painted
   // under a parked truck is legal to every probe and wrong to every eye.
   [2, 5.5], [2, 27],
+  // District 3. Both North First Street zebras clear the kerb-parked rows
+  // (z −70..−64 and z −52..−46) for the same reason District 1's do.
+  [3, -74], [3, -46],
+  // Under the viaduct, in the 12 m bay. A crossing here is what the junction is
+  // for: it is how the busway's passengers reach the headhouse on the west side.
+  [4, -6],
+  [5, -72], [5, -46],
 ];
 
 // Kerb-parked and moving vehicles. Exported because `probeRoadConflicts` treats
@@ -529,10 +601,42 @@ export const CAMBRIDGE_VEHICLES = [
   // footway furniture standing behind it.
   { kind: 'sedan', x: 10.25, z: 12, axis: 'z', body: 0x2f4756, roof: 0x2f4756, d: 1 },
   { kind: 'sedan', x: 10.25, z: 23, axis: 'z', body: 0x8d2f28, roof: 0x8d2f28, d: 1 },
+  // District 3. Three buses on the Lechmere Busway, `03` §4.3's line item. A
+  // z-axis bus is 6 m along z and 2 m across x from its own origin, so x 4.5 and
+  // x 7.5 are the two lanes of a 6 m roadway at x[4,10] with 0.5 m of kerb
+  // clearance each side.
+  { kind: 'bus', x: 4.5, z: -76, axis: 'z', body: 0x2f6b4f, d: 3 },
+  { kind: 'bus', x: 4.5, z: -60, axis: 'z', body: 0xc9a227, d: 3 },
+  { kind: 'bus', x: 7.5, z: -68, axis: 'z', body: 0x2f6b4f, d: 3 },
+  // North First Street's kerb rank, east side (kerb at x −14).
+  { kind: 'sedan', x: -16.25, z: -70, axis: 'z', body: 0x30343b, roof: 0x30343b, d: 3 },
+  { kind: 'sedan', x: -16.25, z: -52, axis: 'z', body: 0xd8d3c6, roof: 0x2f4756, d: 3 },
+  { kind: 'boxVan', x: -19.75, z: -60, axis: 'z', len: 6, cab: 0xd8d3c6, box: 0x2a4f9a, d: 3 },
+  // One car in the junction, under the viaduct.
+  { kind: 'sedan', x: -4, z: -86, axis: 'x', body: 0x8d2f28, roof: 0x8d2f28, d: 3 },
 ];
 
-// No bridges or viaducts over a carriageway anywhere in this district.
-export const CAMBRIDGE_ROAD_SPANS = [];
+// Overhead spans: the ONE case where a physical block may stand inside a
+// roadway rect, and only where it is fully inside the declared rect AND its
+// underside clears `minY`. `03` §9.4 names the Lechmere viaduct crossing North
+// First Street as this scene's first such case.
+//
+// The rect is stated in BLOCK-RECT terms with a margin, the same way Boston's
+// is: `probeRoadConflicts` requires the block to be FULLY inside, and the
+// viaduct's northern segment runs x[−10.5,−1.25], so the span runs x[−11,−0.75]
+// to leave the parapet and fascia room. `minY` 4.5 sits below the crossheads
+// (y 5.0) and above every ground-anchored thing in the junction — a pier that
+// drifted into the carriageway would still fail, which is the point.
+//
+// THE SPAN IS THE WHOLE BAY, NOT THE CARRIAGEWAY. "Fully inside" is a clause
+// about the BLOCK, not about the overlap: the girders that cross the junction
+// are one 11.75 m member each, running z[−90.25,−78.5], so a span drawn to the
+// road's own z[−88,−81] rejects the very structure it exists to admit. The rect
+// therefore spans bent to bent. It buys nothing extra — the piers at both bents
+// stand clear of the carriageway, and `minY` still holds the ground.
+export const CAMBRIDGE_ROAD_SPANS = [
+  { minX: -11, maxX: -0.75, minZ: -90.5, maxZ: -78.25, minY: 4.5 },
+];
 
 // Declared-empty ground. `probeOpenGround` holds each span to being genuinely
 // block-free AND to touching a boundsRect edge, so this list cannot be widened
@@ -585,7 +689,31 @@ export const CAMBRIDGE_ROAD_SPANS = [];
 // moment their districts land and carry the rect out to meet them — P6.3 and
 // P6.8 respectively, and unconditionally by P6.10 when the rect becomes the
 // designed extent for good.
-export const CAMBRIDGE_OPEN_GROUND = [];
+//
+// P6.3 LANDS THE FIRST ONE, and the span and the rect had to move together in a
+// single edit rather than in two: `probeOpenGround` requires each span to touch
+// a `boundsRect` edge, so the ballast band is illegal until the rect reaches
+// z −112 to meet it, and the rect is illegal at z −112 until `03` §4.11's north
+// edge exists to hold its 12 m content slack. Neither half is a valid commit on
+// its own — the ballast, the rect and the carhouse/Transportation Office are one
+// change. The Charles span stays deferred to P6.8 on the same terms.
+export const CAMBRIDGE_OPEN_GROUND = [
+  {
+    // `03` §1.4's Inner Belt ballast, and the only one of its four spans that
+    // ever needed this list: the other three are water, and `reportDeadGround`
+    // already discounts a `sceneDecor.water` rect through its own BY_DESIGN set.
+    //
+    // The band is the yard's north throat beyond the last thing built in it.
+    // `03` §4.11 pulls the carhouse and the Transportation Office radially in to
+    // z ≈ −100…−108 precisely so the content stops short of here; both are built
+    // to a north face at z −107.5, which leaves this 4 m band genuinely empty
+    // rather than empty-until-someone-needs-the-room. The extent is the one
+    // derived at P6.1 and preserved in the prose above, unchanged: this task
+    // confirmed it against the built geometry rather than re-deriving it.
+    minX: -80, maxX: -40, minZ: -112, maxZ: -108,
+    why: 'Inner Belt yard ballast, north of the carhouse throat, at the level edge',
+  },
+];
 
 // `probeDistrictDensity` reads these. Districts 1 and 2 exist in this file, so
 // the density-floor clause (half the scene median) is now a real two-row
@@ -679,6 +807,46 @@ export const CAMBRIDGE_DISTRICTS = [
                       // at 6,532 blocks, 67% of its own budget.
     gapFloor: 8,      // `03` §8.2's floor for District 2
   },
+  {
+    id: 3,
+    name: 'Lechmere & the Viaduct',
+    // REFINED AGAINST WHAT STANDS, and this one departs from `03` §4.3's
+    // approximate x[−40,+40] z[−80,−36] much further than District 1's did.
+    // Two reasons, both measured rather than argued.
+    //
+    // EAST: §4.3's rect reaches x +40, which swallows SIERRA — District 1's
+    // 8-storey residential slab at x[+19.5,+40.5] z[−63.75,−48], seated there by
+    // `sceneOffset(111,115)` and recorded on District 1's row above. A rect that
+    // holds a neighbour's tower measures the neighbour: Sierra alone contributes
+    // more pieces than this district's entire busway, and it would carry the
+    // density clause on ground District 3 never built. So the east edge stops at
+    // +11, the busway's outer kerb. The number that would have been reported at
+    // §4.3's own rect is in the P6.3 report, both ways, rather than hidden.
+    //
+    // WEST: §4.3's x −40 covers ground that belongs to 1 Canal Park (District 1
+    // owns x[−39.5,−19.25] up to z −38). District 3 builds nothing west of North
+    // First Street's west kerb at −17.
+    //
+    // NORTH: −88, the viaduct's north abutment, rather than §4.3's −80. The
+    // viaduct is 49.5 m long and it does not fit in a 44 m rect.
+    //
+    // THE §4.11 NORTH EDGE IS OUTSIDE THIS RECT ON PURPOSE. The carhouse and the
+    // Transportation Office stand at z ≈ −100…−107.5, and §4.11 is explicit that
+    // they are "not a district in its own right — the north tail of districts 3
+    // and 7". They exist to hold `boundsRect`'s 12 m content slack at z −112,
+    // and they are 12 m of open yard away from anything else, so a rect stretched
+    // to hold them would report a hole this district's own ground does not have.
+    rect: { minX: -18, maxX: 11, minZ: -88, maxZ: -36 },
+    budget: 5000,     // `03` §4.3. §4.11's ~600-block north edge is drawn from
+                      // this budget and District 7's; since D3 builds BOTH of
+                      // §4.11's buildings, D7 should not re-spend its share.
+    gapFloor: 12,     // `03` §8.2's floor for District 3 — the most forgiving in
+                      // the scene, and §8.2 says why: "a viaduct is a line of
+                      // piers with gaps between them." The mitigation it names —
+                      // busway, shelters, kerbs and track furniture running
+                      // continuously between bents — is built, and the measured
+                      // mean gap is far inside 12 rather than just under it.
+  },
 ];
 
 // The scripted excursion, `03` §9.5: the Davenport's long axis and back along
@@ -724,15 +892,61 @@ export const CAMBRIDGE_ROUTE = [
   { until: 24, x: 4.5, z: 6 },     // northwest onto the entry plaza
   { until: 29, x: -8, z: 1.5 },    // west along the hero's south apron bosque
   { until: 34, x: -20, z: -1 },    // west across the link plaza
-  { until: 38, x: -26, z: 1 },     // to Cambridge Street's east kerb stub
-  { until: 43, x: -26.5, z: 12 },  // north up First Street's east footway
-  { until: 49, x: -33.5, z: 12 },  // across First Street to the service walk
-  { until: 57, x: -33.5, z: 26 },  // south along the mill's east gable
-  { until: 65, x: -44, z: 26 },    // west along the rear yard
-  { until: 73, x: -50, z: 20 },    // north in through the mill's south range
-  { until: 85, x: -68, z: 14 },    // west down the mill spine
-  { until: 94, x: -68, z: 5 },     // north through the west end
-  { until: 105, x: -36, z: 2.2 },  // east along the Cambridge Street frontage
+  // --- `03` §7.4 LEG 2: north to Lechmere. INSERTED HERE, NOT APPENDED, and
+  // for a different reason than P6.2's prepend. §7.4 puts Lechmere second, ahead
+  // of the Davenport, because it is the recognition beat and it has to land
+  // "while the player is still small enough to be impressed by a station"; an
+  // appended leg would reach it at the size that eats it in one pass. The loop
+  // returns to EXACTLY (−20, −1), so every District 2 leg below keeps its own
+  // geometry and its own duration and moves only in time — the same discipline
+  // P6.2 used, for the same reason: District 2's excursion result was measured
+  // once and a re-routed leg would silently re-measure it.
+  // THE TRANSIT LEGS BEND AT THE DISTRICT SEAM (z −36) BECAUSE NO SINGLE x CAN
+  // SERVE BOTH SIDES OF IT. District 1's continuous frontage on this line is 1
+  // Canal Park's east skin at x −19.38..−19.88, which needs x ≤ −17.28 to sit
+  // inside the 2.6 m corridor. District 3's is North First Street's east kerb at
+  // x −13.875 — the street's own rect is x[−20,−14], so nothing of District 3's
+  // can stand west of that — which needs x ≥ −16.475. The two windows do not
+  // intersect. A single straight leg at x −17 measured green on the mean (0.11 m)
+  // and still opened a 21.9 m hole in District 1 and a 21.4 m one in District 3,
+  // because it ran down the one line that is 2.9 m from everything and 2.6 m from
+  // nothing. So: −17.5 while District 1 owns the ground, −16 once District 3
+  // does, and the jog between them inside District 3's first 4 m, where the
+  // pass-in gap it costs is 3 m against a 20 m ceiling.
+  { until: 40, x: -17.5, z: -16 },  // north into the slot between 1 and 2 Canal Park
+  { until: 46, x: -17.5, z: -36 },  // north past 1 Canal Park's east flank, to the seam
+  { until: 48, x: -16, z: -40 },    // the jog east onto North First Street's east kerb
+  { until: 55, x: -16, z: -60 },    // up the kerb rank, past the station chord
+  { until: 62, x: -16, z: -84.5 },  // to the Lechmere junction
+  { until: 67, x: -6, z: -84.5 },   // east through the viaduct's junction bay
+  { until: 72, x: 6.5, z: -79 },    // onto the Lechmere Busway
+  { until: 82, x: 6.5, z: -58 },    // south past the station, beside the platform
+  { until: 89, x: 6.5, z: -44 },    // to the busway's south end
+  { until: 95, x: -5, z: -40 },     // west under the viaduct's south abutment
+  // THE RETURN TAKES THE OTHER SIDE OF THE SLOT, AND IT HAS TO. `projectOnRoute`
+  // gives each piece to exactly ONE leg — the nearest — so an out-and-back that
+  // retraces its own line hands every piece to the outbound and leaves the
+  // return pass with zero met pieces and a 30.6 m hole. Two legs sharing a slot
+  // therefore need two continuous ranks, one each: the outbound at x −17.5 takes
+  // 1 Canal Park's east skin (x −19.38..−19.88, 1.88−2.38 m away, and 3.13 m
+  // from the return), the return at x −16.25 takes the service yard's new west
+  // fence and 2 Canal Park's west skin (x −13.88..−14.38, 1.88−2.38 m away, and
+  // 3.13 m from the outbound). Neither leg can reach the other's rank, which is
+  // the point.
+  { until: 99, x: -16, z: -40 },     // back onto North First Street's east kerb
+  { until: 102, x: -16.25, z: -35 }, // across the seam onto the slot's east side
+  { until: 108, x: -16.25, z: -12 }, // south along the yard fence and 2 Canal Park
+  { until: 114, x: -20, z: -1 },    // back to the link plaza, where leg 2 began
+  // --- District 2 resumes, every leg +80 s and otherwise untouched ---
+  { until: 118, x: -26, z: 1 },     // to Cambridge Street's east kerb stub
+  { until: 123, x: -26.5, z: 12 },  // north up First Street's east footway
+  { until: 129, x: -33.5, z: 12 },  // across First Street to the service walk
+  { until: 137, x: -33.5, z: 26 },  // south along the mill's east gable
+  { until: 145, x: -44, z: 26 },    // west along the rear yard
+  { until: 153, x: -50, z: 20 },    // north in through the mill's south range
+  { until: 165, x: -68, z: 14 },    // west down the mill spine
+  { until: 174, x: -68, z: 5 },     // north through the west end
+  { until: 185, x: -36, z: 2.2 },   // east along the Cambridge Street frontage
 ];
 
 // "Do not put the mark on the wrong building." The Davenport carries a painted
@@ -1541,6 +1755,13 @@ function serviceYard(sim) {
   lightMast(sim, 12, -34, 6, 0x39414d);
   lightMast(sim, -13, -26, 6, 0x39414d);
   fenceRun(sim, { x: -14, z: -36, len: 28, axis: 'x', h: 1.5, mat: 'steel', color: 0x3a4450 });
+  // The yard's WEST return, added in P6.3. A yard fenced on three sides and open
+  // to the street it backs onto was already odd; what forced it is that the
+  // Lechmere excursion's return leg comes down this alley, and District 1 had
+  // 13 m of nothing on its east side (z −36 to −23.5) — a 12.2 m hole against a
+  // 10 m ceiling. It starts at z −35.75 rather than −36 because the south run
+  // already owns the corner cell.
+  fenceRun(sim, { x: -14, z: -35.75, len: 10.75, axis: 'z', h: 1.5, mat: 'steel', color: 0x3a4450 });
 }
 
 // `03` §4.1's trees, lamps, benches, hydrants, vehicles and signage — the layer
@@ -1638,6 +1859,681 @@ export const CANAL_PARK_AMBIENT = {
     { x: 0, z: 16, count: 14 },
     { x: 20, z: 17, count: 10 },
   ],
+};
+
+// --- DISTRICT 3: LECHMERE & THE VIADUCT --------------------------------------
+// `03` §4.3. The first place the route sends the player, the first "oh, they got
+// that" moment, and structurally the district that proves the primitive: a
+// viaduct built from 0.25 m cubes is the kind of thing that used to eat a whole
+// district's budget.
+//
+// THE ALIGNMENT IS DERIVED, NOT DRAWN. `sceneOffset(13, 127)` — `02` §6's row
+// for Lechmere station — and `03` §5.1's independently stated (−2.9, −56.5) have
+// to agree, so `VIADUCT.segs` is laid out such that the MIDDLE chord's
+// centreline passes through that point: chord B runs z[−62.5,−50.5] with its
+// deck at x[−7.5,+1.75], giving a centre of (−2.875, −56.5). The check is a
+// measurement in the P6.3 report rather than an assertion here, because a
+// hardcoded scene coordinate is a number nobody can check against a source.
+//
+// THE CURVE IS THREE SHALLOW CHORDS, per §4.3's instruction and ADR-0013's
+// stepped-approximation rule. The WHOLE cross-section steps 1.5 m east per 12 m
+// chord rather than the platform curving inside a straight deck — a curved
+// island platform between straight tracks is not a thing that exists — and every
+// step lands ON a bent, so no girder is ever asked to be at two x positions at
+// once. The sweep is westward going north, which is both the real alignment
+// (the viaduct curves toward the Inner Belt) and the only direction with room:
+// the busway's west kerb at x 4 clears chord C's deck edge by 0.75 m.
+//
+// CATENARY CANNOT BE BUILT, AND THIS IS A DOC-VS-ENGINE CONFLICT, NOT A CUT.
+// §4.3's last line item is "track, catenary, signals, the retaining wall north".
+// Support in this sim never flows downward — `voxelkit.js` says so at 307, 355
+// and 367 — so a contact wire strung between two masts has no load path at all:
+// every segment of it is a floating block that fails `probeIdleStability` on the
+// first recalc, and there is no authoring trick that fixes it, because the rule
+// is the engine's. What is built instead is the half that stands: masts rising
+// from the deck and cantilever brackets borne from below, inside steel's 3 m
+// span. The wire itself is absent and its share of the 730 went into signals,
+// the yard's track furniture and the retaining wall. Recorded for the §4-vs-§9
+// reconciliation at P6.10, not papered over.
+
+const VIADUCT = {
+  w: 9.25,          // track 2.75 + island platform 3.75 + track 2.75
+  track: 2.75,
+  island: 3.75,
+  plinthH: 0.5,
+  pierH: 4.5,       // 0.5 + 4.5 puts the crosshead soffit at 5.0
+  crossY: 5.0,
+  girderY: 5.5,
+  deckY: 6.0,
+  deckTop: 6.5,
+  platTop: 7.0,     // platform surface, 0.5 above the deck and level with rail head
+  // Each chord's deck runs x[.x, .x + w] over z[.z0, .z1).
+  segs: [
+    { z0: -90.5,  z1: -74.5,  x: -10.5 },   // north approach, over the junction
+    { z0: -74.5,  z1: -62.5,  x: -9 },      // chord A
+    { z0: -62.5,  z1: -50.5,  x: -7.5 },    // chord B — the station chord
+    { z0: -50.5,  z1: -37.75, x: -6 },      // chord C
+  ],
+  // Bent centres. The 11 m bay between −89.5 and −78.5 is the one the junction
+  // passes through; every other bay is 6 m. Segment boundaries are all bents.
+  bents: [-89.5, -78.5, -74.5, -68.5, -62.5, -56.5, -50.5, -44.5, -38.5],
+  plat: { z0: -74.5, z1: -38.5 },     // 36 m, `03` §4.3's stated scene length
+  entry: { z0: -81.5, z1: -80.5 },    // the gap in the west parapet at the stair head
+};
+
+const viaSeg = (z) => VIADUCT.segs.find((s) => z >= s.z0 && z < s.z1) ?? VIADUCT.segs[3];
+
+// The deck width a bent has to carry. At the three segment boundaries the bent
+// serves two chords at once, so it spans their union — 10.75 m instead of 9.25.
+function bentSpan(bz) {
+  let lo = Infinity, hi = -Infinity;
+  for (const s of VIADUCT.segs) {
+    if (bz + 0.75 <= s.z0 || bz - 0.75 >= s.z1) continue;
+    lo = Math.min(lo, s.x); hi = Math.max(hi, s.x + VIADUCT.w);
+  }
+  return [lo, hi];
+}
+
+// Plinth, a three-lift pier pair, and the crosshead they carry. `03` §7.4 wants
+// these takeable at SIZE 2, so each shaft is 2 m in plan and cut into 1.5 m
+// lifts rather than standing as one 4.5 m block.
+//
+// THE PIERS SIT UNDER THE TRACKS, NOT UNDER THE PLATFORM — offsets 0.75 and
+// w−2.75 from the deck edge — which is both how a bent actually works and what
+// leaves the centre strip clear for the stair well to drop through.
+function viaductBent(sim, bz) {
+  const V = VIADUCT;
+  const [lo, hi] = bentSpan(bz);
+  const z = bz - 0.75;
+  for (const px of [lo + 0.75, hi - 2.75]) {
+    plinth(sim, { x: px - 0.25, y: 0, z: z - 0.25, w: 2.5, d: 2, h: V.plinthH, mat: 'concrete', color: C.viaductPier });
+    for (let i = 0; i < 3; i++) {
+      pier(sim, { x: px, y: V.plinthH + i * 1.5, z, w: 2, h: 1.5, d: 1.5, mat: 'concrete', color: C.viaductPier });
+    }
+  }
+  // Three crosshead segments rather than one member. The middle one reaches
+  // 0.25 m ONTO the west pier: `rectsOverlap` is open, so a segment that merely
+  // abutted the pier would have no vertical support and would be a floating
+  // block on the first recalc.
+  const w = hi - lo;
+  for (const [cx, cw] of [[lo, 2.5], [lo + 2.5, w - 5], [hi - 2.5, 2.5]]) {
+    beam(sim, { x: cx, y: V.crossY, z, len: cw, axis: 'x', t: 0.5, depth: 1.5, mat: 'concrete', color: C.viaductCross });
+  }
+}
+
+// `greenLineViaduct` — the composite `03` §10.3 names. Three longitudinal girder
+// lines per bay carried on the crossheads, so every deck tile lands on steel
+// rather than hopping the full 9.25 m between edges (concrete's `maxSpan` is 3,
+// and 9.25 m of 0.5 m tiles is 18 hops).
+function greenLineViaduct(sim) {
+  const V = VIADUCT, B = V.bents;
+  for (const bz of B) viaductBent(sim, bz);
+
+  for (let i = 0; i < B.length - 1; i++) {
+    const z0 = i === 0 ? V.segs[0].z0 : B[i];
+    const z1 = i === B.length - 2 ? V.segs[3].z1 : B[i + 1];
+    const s = viaSeg((B[i] + B[i + 1]) / 2);
+    for (const off of [1.5, 4.25, 7.0]) {
+      beam(sim, { x: s.x + off, y: V.girderY, z: z0, len: z1 - z0, axis: 'z', t: 0.5, depth: 0.75, mat: 'steel', color: C.viaductCross });
+    }
+  }
+
+  // Deck, parapet and coping. 0.5 m tiles in three strips, so the deck reads as
+  // a laid surface rather than one plate, and so the district's eatable-piece
+  // density comes from the structure itself rather than from props scattered on
+  // it (`03` §8.2's mitigation is continuity, not decoration).
+  // THE LAST TILE OF A SEGMENT IS CLAMPED TO THE SEGMENT. Two of the four chords
+  // are not a whole number of 0.5 m tiles long (the north approach is 15.75 m),
+  // so an unclamped run overshoots `z1` by 0.25 and lands inside the first tile
+  // of the chord below — 2,573 doubly-owned fine cells, all of them at three
+  // segment seams.
+  for (const s of V.segs) {
+    for (let z = s.z0; z < s.z1 - 0.01; z += 0.5) {
+      const d = Math.min(0.5, s.z1 - z);
+      const strips = [[s.x, V.track], [s.x + V.track, V.island], [s.x + V.track + V.island, V.track]];
+      for (let k = 0; k < 3; k++) {
+        slab(sim, { x: strips[k][0], y: V.deckY, z, w: strips[k][1], d, t: 0.5, mat: 'concrete', color: C.viaductDeck });
+      }
+    }
+    for (let z = s.z0; z < s.z1 - 0.01; z += 1) {
+      const len = Math.min(1, s.z1 - z);
+      for (const px of [s.x, s.x + V.w - 0.25]) {
+        // The west parapet is broken at the stair head — a station whose only
+        // entrance is walled off is a station nobody reaches.
+        if (px === s.x && z < V.entry.z1 && z + len > V.entry.z0) continue;
+        panel(sim, { x: px, y: V.deckTop, z, w: len, h: 0.75, axis: 'z', t: 0.25, mat: 'concrete', color: C.viaductEdge });
+        panel(sim, { x: px, y: V.deckTop + 0.75, z, w: len, h: 0.25, axis: 'z', t: 0.25, mat: 'concrete', color: C.castStone });
+      }
+    }
+  }
+
+  // Track. Sleepers at a 1 m pitch and 3 m rail lengths — the gap between
+  // sleepers is 0.75 m against a 0.25 m extent, so `probePlacementStep`'s
+  // sub-extent clause does not see a run of sleepers as a broken line.
+  //
+  // GAUGE IS 1.0 m, NOT 0.48. `03` §1.2's 1:3 plan scale puts standard gauge at
+  // 0.48 m, which with 0.25 m rails leaves 0.23 m between them and renders as a
+  // solid strip. The track is drawn at the width that reads as track; it is a
+  // deliberate local exception to the plan scale, in the same spirit as §1.5's
+  // declared four, and it costs nothing positional because nothing keys off it.
+  for (const s of V.segs) {
+    for (const t0 of [s.x + 0.25, s.x + 6.75]) {
+      for (let z = s.z0 + 0.25; z < s.z1 - 0.5; z += 1) {
+        slab(sim, { x: t0, y: V.deckTop, z, w: 2.25, d: 0.25, t: 0.25, mat: 'wood', color: C.sleeper });
+      }
+      for (let z = s.z0; z < s.z1 - 0.01; z += 3) {
+        const len = Math.min(3, s.z1 - z);
+        for (const rx of [t0 + 0.5, t0 + 1.5]) {
+          beam(sim, { x: rx, y: V.deckTop + 0.25, z, len, axis: 'z', t: 0.25, depth: 0.25, mat: 'steel', color: C.railHead });
+        }
+      }
+    }
+  }
+}
+
+// `elevatedCurvedPlatform` — the second composite `03` §10.3 names. 36 x 3.75 m
+// over three chords, each 12 m, each stepped 1.5 m east of the one north of it.
+function elevatedCurvedPlatform(sim) {
+  const V = VIADUCT;
+  for (const s of V.segs) {
+    const z0 = Math.max(s.z0, V.plat.z0), z1 = Math.min(s.z1, V.plat.z1);
+    if (z1 - z0 < 0.01) continue;
+    const px = s.x + V.track;
+    for (let z = z0; z < z1 - 0.01; z += 0.5) {
+      for (let k = 0; k < 3; k++) {
+        slab(sim, { x: px + k * 1.25, y: V.deckTop, z, w: 1.25, d: 0.5, t: 0.5, mat: 'concrete', color: C.platformDeck });
+      }
+    }
+    // The yellow warning strip down both edges — the district's one saturated
+    // thing apart from the train, and the reason the platform reads as a
+    // platform in silhouette rather than as more deck.
+    for (let z = z0; z < z1 - 0.01; z += 1) {
+      const len = Math.min(1, z1 - z);
+      for (const tx of [px, px + V.island - 0.25]) {
+        panel(sim, { x: tx, y: V.platTop, z, w: len, h: 0.25, axis: 'z', t: 0.25, mat: 'concrete', color: C.platformTactile });
+      }
+    }
+    // Canopy: a column line down the platform centre at a 4 m pitch, a ridge
+    // beam on it, and a three-tile roof. The outer roof tiles hop 1.5 m from the
+    // ridge, half of steel's `maxSpan`.
+    const cx = s.x + V.track + 1.75;
+    for (let z = z0 + 2; z < z1 - 1; z += 4) {
+      for (let i = 0; i < 3; i++) {
+        column(sim, { x: cx, y: V.platTop + i, z, h: 1, s: 0.25, mat: 'steel', color: C.canopySteel });
+      }
+      bench(sim, cx - 1.25, z + 1.25, V.platTop);
+    }
+    for (let z = z0; z < z1 - 0.01; z += 4) {
+      const len = Math.min(4, z1 - z);
+      beam(sim, { x: cx - 0.25, y: V.platTop + 3, z, len, axis: 'z', t: 0.25, depth: 0.75, mat: 'steel', color: C.canopySteel });
+      for (let k = 0; k < 3; k++) {
+        slab(sim, { x: s.x + 2.5 + k * 1.5, y: V.platTop + 3.25, z, w: 1.5, d: len, t: 0.25, mat: 'steel', color: C.canopyRoof });
+      }
+    }
+    // Overhead line masts, `03` §4.3's "catenary" line item as far as the engine
+    // allows: a mast off the platform edge and a bracket cantilevered over the
+    // track from it. THE WIRE ITSELF IS NOT HERE — see the header note.
+    for (let z = z0 + 4; z < z1 - 2; z += 8) {
+      column(sim, { x: px + V.island, y: V.platTop, z, h: 2.75, s: 0.25, mat: 'steel', color: C.signalMast });
+      beam(sim, { x: px + V.island - 1.5, y: V.platTop + 2.5, z, len: 1.5, axis: 'x', t: 0.25, depth: 0.25, mat: 'steel', color: C.signalMast });
+    }
+  }
+}
+
+// `greenLineCar` — the third composite `03` §10.3 names. Two of these make
+// §4.3's "green-and-white Green Line train, two cars": very high chroma, tiny
+// area, and the only saturated object in a district of greys.
+function greenLineCar(sim, o) {
+  const { x, z, len } = o;
+  const y = VIADUCT.platTop;            // rail head — the car stands on the rails
+  const w = 2.25;
+  // The bogies sit BETWEEN the rails, not across them: the rail head occupies
+  // y[6.75,7.0] over x+0.5 and x+1.5, so a 1.5 m skirt at the same level owns
+  // cells the track already owns.
+  for (const tz of [z + 1, z + len - 1.5]) {
+    slab(sim, { x: x + 0.75, y: y - 0.25, z: tz, w: 0.75, d: 0.5, t: 0.25, mat: 'steel', color: C.carSkirt });
+  }
+  // A WINDOW PILLAR EVERY 2 m, AND IT IS STRUCTURAL, NOT DECORATIVE. Glass has
+  // vertBond 0.40 against the engine's BOND_CARRY of 0.5, so it passes no
+  // support upward at all: a continuous glazed band leaves the white band and
+  // the roof above it with no load path, and both cars came apart in the idle
+  // probe. The pillars are the only thing carrying the car's upper half.
+  for (let dz = 0; dz < len - 0.01; dz += 0.5) {
+    const pillar = Math.abs(dz % 2) < 0.01;
+    slab(sim, { x, y, z: z + dz, w, d: 0.5, t: 0.25, mat: 'steel', color: C.carSkirt });
+    slab(sim, { x, y: y + 2.25, z: z + dz, w, d: 0.5, t: 0.25, mat: 'panel', color: C.transitWhite });
+    for (const sx of [x, x + w - 0.25]) {
+      panel(sim, { x: sx, y: y + 0.25, z: z + dz, w: 0.5, h: 0.75, axis: 'z', t: 0.25, mat: 'panel', color: C.transitGreen });
+      panel(sim, { x: sx, y: y + 1.0, z: z + dz, w: 0.5, h: 0.75, axis: 'z', t: 0.25, mat: pillar ? 'panel' : 'glass', color: pillar ? C.transitGreen : C.carGlass });
+      panel(sim, { x: sx, y: y + 1.75, z: z + dz, w: 0.5, h: 0.5, axis: 'z', t: 0.25, mat: 'panel', color: C.transitWhite });
+    }
+  }
+  // The cab ends carry the SAME three bands as the flanks — 0.75/0.75/0.5, not
+  // 0.75 three times. A 0.75 m top band runs to y+2.5 and the roof slab starts
+  // at y+2.25, so the taller version puts the whole end wall through the roof.
+  for (const ez of [z, z + len - 0.25]) {
+    for (const [dy, h, m, col] of [[0.25, 0.75, 'panel', C.transitGreen], [1.0, 0.75, 'glass', C.carGlass], [1.75, 0.5, 'panel', C.transitWhite]]) {
+      panel(sim, { x: x + 0.25, y: y + dy, z: ez, w: 1.75, h, axis: 'x', t: 0.25, mat: m, color: col });
+    }
+  }
+  // The pantograph, borne from below off the roof — the one piece of overhead
+  // kit that has a load path in this sim.
+  for (const pz of [z + len / 2 - 0.75, z + len / 2 + 0.5]) {
+    column(sim, { x: x + 1, y: y + 2.5, z: pz, h: 0.5, s: 0.25, mat: 'steel', color: C.signalMast });
+  }
+  beam(sim, { x: x + 0.5, y: y + 3.0, z: z + len / 2 - 0.75, len: 1.5, axis: 'z', t: 0.25, depth: 1.25, mat: 'steel', color: C.signalMast });
+}
+
+// The headhouse: ticket hall, flight and lift. `03` §4.3's "canopy, headhouse,
+// stairs, lifts, faregates".
+//
+// THE CORE STANDS WEST OF THE VIADUCT, NOT INSIDE IT. The first cut put the
+// flight up through the deck's centre strip, which cannot work: a 0.5/0.5 stair
+// needs 7 m of run, the only bay that long is the one the junction road passes
+// under, and every other bay puts a bent's crosshead (y[5.0,5.5], full deck
+// width) straight through the flight. The strip between North First Street's
+// kerb and the viaduct's west fascia — x[−13.5,−10.5] — is 3 m of otherwise
+// dead ground that no pier, road or footway occupies, and it is exactly where
+// an at-grade headhouse belongs.
+//
+// Every step is ground-anchored — a stair built as floating treads is a stair
+// that falls the moment the flight below it goes.
+function lechmereHeadhouse(sim) {
+  // The flight: 13 risers of 0.5 climbing NORTHWARD from grade at z −74.5 to
+  // deck level (6.5) at z −81, then a landing that meets the parapet opening.
+  // It tops out at the deck, not at the platform: concourse first, then the
+  // 0.5 m step up to the island, which is how an elevated station actually
+  // reads and what keeps the stair clear of the platform's canopy columns.
+  for (let i = 0; i < 13; i++) {
+    for (let k = 0; k < 3; k++) {
+      plinth(sim, { x: -13 + k * 0.75, y: 0, z: -75 - i * 0.5, w: 0.75, d: 0.5, h: (i + 1) * 0.5, mat: 'concrete', color: C.viaductPier });
+    }
+  }
+  for (let k = 0; k < 3; k++) {
+    plinth(sim, { x: -13 + k * 0.75, y: 0, z: -81.5, w: 0.75, d: 0.5, h: 6.5, mat: 'concrete', color: C.viaductPier });
+  }
+  // Cheek walls in 2 m lengths, which is `03` §7.4's own promise for what a
+  // SIZE 2 player meets here. They flank the treads rather than sharing their
+  // x, and the east cheek stops at x −10.5 so it abuts the fascia.
+  for (let i = 0; i < 14; i += 4) {
+    const zz = -81.5 + i * 0.5;
+    const seg = Math.min(2, -74.5 - zz);
+    for (const cw of [-13.25, -10.75]) {
+      panel(sim, { x: cw, y: 0, z: zz, w: seg, h: 7.5 - i * 0.5, axis: 'z', t: 0.25, mat: 'concrete', color: C.viaductPier });
+    }
+  }
+
+  // The ticket hall at grade, south of the flight: a glazed box open to the
+  // north, so hall and stair are one movement.
+  // THE MULLIONS CARRY THE SPANDREL AND THE ROOF; THE GLASS IS INFILL. Glass
+  // passes no support upward (vertBond 0.40 < BOND_CARRY 0.5), so a glazed
+  // panel with a spandrel stacked on it is a spandrel standing on nothing. Each
+  // bay is therefore mullion, then glass INSET past it, then a spandrel that
+  // spans the whole bay and lands on the mullion head.
+  // THE PANES ALTERNATE 1.25 / 0.75 — same rule `curtainFace` follows on the
+  // District 1 blocks. Equal panes on an equal pitch put a 0.25 m mullion gap
+  // between identical boxes, which is `probePlacementStep`'s sub-extent clause;
+  // alternating widths puts each pane two bays from its own kind, where the gap
+  // is at least the extent. The spandrel above runs as four EQUAL 1.25 m pieces
+  // at gap 0, which passes for the opposite reason.
+  for (const wx of [-13.5, -10.75]) {
+    let z = -74.5;
+    for (const pane of [1.25, 0.75, 1.25, 0.75]) {
+      mullion(sim, { x: wx, y: 0, z, h: 2.25, s: 0.25, mat: 'steel', color: C.canopySteel });
+      panel(sim, { x: wx, y: 0, z: z + 0.25, w: pane, h: 2.25, axis: 'z', t: 0.25, mat: 'glass', color: C.labGlass });
+      z += pane + 0.25;
+    }
+    for (let sz = -74.5; sz < -69.6; sz += 1.25) {
+      panel(sim, { x: wx, y: 2.25, z: sz, w: 1.25, h: 1, axis: 'z', t: 0.25, mat: 'panel', color: C.viaductEdge });
+    }
+  }
+  // The south wall closes the box from OUTSIDE the two side lines — z −69.5 is
+  // where they end, so the corner mullion abuts rather than doubling up.
+  let hx = -13.25;
+  for (const pane of [1.25, 0.75]) {
+    mullion(sim, { x: hx, y: 0, z: -69.5, h: 2.25, s: 0.25, mat: 'steel', color: C.canopySteel });
+    panel(sim, { x: hx + 0.25, y: 0, z: -69.5, w: pane, h: 2.25, axis: 'x', t: 0.25, mat: 'glass', color: C.labGlass });
+    hx += pane + 0.25;
+  }
+  mullion(sim, { x: -10.75, y: 0, z: -69.5, h: 2.25, s: 0.25, mat: 'steel', color: C.canopySteel });
+  panel(sim, { x: -13.25, y: 2.25, z: -69.5, w: 1.25, h: 1, axis: 'x', t: 0.25, mat: 'panel', color: C.viaductEdge });
+  panel(sim, { x: -12, y: 2.25, z: -69.5, w: 1.5, h: 1, axis: 'x', t: 0.25, mat: 'panel', color: C.viaductEdge });
+  // The roof runs OVER the wall lines rather than between them, so every plank
+  // has a mullion head under it or a plank that does.
+  for (let x = -13.5; x < -10.6; x += 0.5) {
+    slab(sim, { x, y: 3.25, z: -74.5, w: 0.5, d: 5, t: 0.25, mat: 'panel', color: C.canopyRoof });
+  }
+
+  // Faregates: a paired-post line across the hall, and the ticket machines.
+  // PITCH IS 1.75, NOT 1.25, AND THE MACHINES SIT 1.5 APART. A 0.75 m post on a
+  // 1.25 m pitch leaves a 0.50 m gap, which is `probePlacementStep`'s sub-extent
+  // clause exactly: a run of identical boxes whose gap is smaller than the box
+  // reads as a line that failed to close, not as a rank of separate objects.
+  for (const gz of [-73.5, -72.25]) {
+    for (const x of [-13, -11.5]) {
+      pier(sim, { x, y: 0, z: gz, w: 0.75, h: 1, d: 0.5, mat: 'steel', color: C.canopySteel });
+    }
+  }
+  for (const mz of [-71.5, -70.5]) {
+    pier(sim, { x: -13.25, y: 0, z: mz, w: 0.75, h: 1.75, d: 0.5, mat: 'panel', color: C.transitGreen });
+  }
+
+  // The lift: a glazed shaft in the 1.5 m strip between the hall's east wall and
+  // the chord-A fascia, rising to deck level. Mullions carry the glass —
+  // `panel`'s own rule, not optional for glass. Its head slab tops out at 6.5,
+  // level with the deck it opens onto, so nothing cantilevers.
+  for (let i = 0; i < 5; i++) {
+    const ly = i * 1.25;
+    for (const mx of [-10.5, -9.25]) for (const mz of [-71.5, -70.25]) {
+      mullion(sim, { x: mx, y: ly, z: mz, h: 1.25, s: 0.25, mat: 'steel', color: C.canopySteel });
+    }
+    for (const mx of [-10.5, -9.25]) {
+      panel(sim, { x: mx, y: ly, z: -71.25, w: 1, h: 1.25, axis: 'z', t: 0.25, mat: 'glass', color: C.heroGlass });
+    }
+    panel(sim, { x: -10.25, y: ly, z: -71.5, w: 1, h: 1.25, axis: 'x', t: 0.25, mat: 'glass', color: C.heroGlass });
+  }
+  slab(sim, { x: -10.5, y: 6.25, z: -71.5, w: 1.5, d: 1.5, t: 0.25, mat: 'steel', color: C.canopySteel });
+}
+
+// The Lechmere Busway and North First Street: `03` §4.3's 900-block line item,
+// and — more load-bearing than that — `03` §8.2's NAMED MITIGATION for this
+// district's density risk: "the busway, shelters, kerbs and track furniture run
+// continuously between bents." A viaduct is a line of piers with gaps; what
+// closes the gaps is what stands on the ground under and beside it.
+function lechmereBusway(sim) {
+  const kerb = (x, z, len, axis) => {
+    for (let o = 0; o < len - 0.01; o += 6) {
+      const l = Math.min(6, len - o);
+      beam(sim, axis === 'x'
+        ? { x: x + o, y: 0, z, len: l, axis: 'x', t: 0.25, depth: 0.25, mat: 'concrete', color: C.buswayKerb }
+        : { x, y: 0, z: z + o, len: l, axis: 'z', t: 0.25, depth: 0.25, mat: 'concrete', color: C.buswayKerb });
+    }
+  };
+  kerb(3.75, -81.5, 39.5, 'z');
+  kerb(10, -81.5, 39.5, 'z');
+  kerb(-20.25, -87.5, 48.5, 'z');
+  kerb(14, -87.5, 48.5, 'z');
+  kerb(-20, -88, 30, 'x');
+  // North First Street's EAST kerb. It stops 6 m short of its west twin because
+  // the Lechmere Junction carriageway runs x[−20,+10] across z[−87.5,−81.5] and
+  // a kerb inside a carriageway is a road conflict — the same reason the east
+  // footway's furniture has a hole there. What it is really for is the density
+  // probe: it is the only continuous line of District 3 content east of the
+  // street's own rect, so it is what the northbound leg measures for 42 m.
+  kerb(-14, -81.5, 42.5, 'z');
+
+  // Three bus shelters on the busway's east footway, on a 12 m pitch so the
+  // route leg down the busway is never more than 6 m from one.
+  for (const sz of [-79, -67, -55]) {
+    for (const pz of [sz, sz + 3.5]) {
+      column(sim, { x: 10.5, y: 0, z: pz, h: 2.5, s: 0.25, mat: 'steel', color: C.shelterGreen });
+      column(sim, { x: 12.75, y: 0, z: pz, h: 2.5, s: 0.25, mat: 'steel', color: C.shelterGreen });
+    }
+    slab(sim, { x: 10.25, y: 2.5, z: sz - 0.25, w: 3, d: 4.25, t: 0.25, mat: 'steel', color: C.shelterGreen });
+    panel(sim, { x: 12.75, y: 0, z: sz + 0.25, w: 3.25, h: 2.5, axis: 'z', t: 0.25, mat: 'glass', color: C.labGlass });
+    bench(sim, 11, sz + 1.5);
+    signPost(sim, 10.75, sz - 1.5, C.shelterGreen, 2, 'z', 1.0);
+  }
+  for (const z of [-77, -71, -65, -59, -53, -47]) lampPost(sim, 10.75, z);
+  for (const z of [-74, -62, -50]) trashBin(sim, 13.5, z, 0x33453a);
+  for (const z of [-68, -56]) bollard(sim, 13.5, z, C.steelDark);
+  hydrant(sim, 13.5, -80);
+  for (const [tx, tz] of [[13, -72], [13, -60], [13, -44]]) tree(sim, tx, tz);
+
+  // North First Street's west footway. Everything on a 4.5 m pitch, which is
+  // what carries the density probe up the outbound leg: the corridor at x −17
+  // sees this walk on one side and the viaduct's piers on the other.
+  for (const z of [-85, -76, -67, -58, -49, -41]) lampPost(sim, -20.75, z);
+  for (const z of [-81, -72, -63, -54, -45]) bollard(sim, -20.75, z, C.steelDark);
+  for (const z of [-79, -61, -43]) planter(sim, -21.75, z, 1.5, 1, 0x5d6a4a);
+  for (const z of [-70, -52]) bench(sim, -21.25, z);
+  hydrant(sim, -20.75, -87);
+  mailbox(sim, -21, -47, 0x2a4f9a);
+  newsBox(sim, -21, -66, 0xc23b2e);
+  for (const [tx, tz] of [[-22, -84], [-22, -66], [-22, -48]]) tree(sim, tx, tz);
+
+  // The east footway is the station's own approach, so it carries the wayfinding
+  // rather than the greenery: a totem at each end and a bike rack at the door.
+  //
+  // TWO HOLES IN THIS LINE ARE DELIBERATE. Nothing sits in z[−87.5,−81.5]: the
+  // Lechmere Junction carriageway runs x[−20,+10] there, so a lamp on this walk
+  // is a lamp in the road. And nothing sits in z[−82,−69]: that is the
+  // headhouse's own footprint, and the station entrance is the streetscape
+  // event on that stretch.
+  for (const z of [-67, -59, -50, -42]) lampPost(sim, -13.25, z);
+  for (const z of [-65, -56, -44]) bollard(sim, -13.25, z, C.steelDark);
+  bikeRack(sim, -13.5, -62, 3, 'z');
+  signPost(sim, -13.25, -68.5, C.shelterGreen, 2.5, 'z', 1.25);
+  signPost(sim, -13.25, -46, C.shelterGreen, 2.5, 'z', 1.25);
+  drinkingFountain(sim, -13.5, -53);
+  hotDogCart(sim, -13.5, -66);
+  for (const v of CAMBRIDGE_VEHICLES) {
+    if (v.d !== 3) continue;
+    if (v.kind === 'sedan') sedan(sim, v.x, v.z, v.body, v.roof, v.axis);
+    else if (v.kind === 'boxVan') boxVan(sim, v.x, v.z, v.len, v.cab, v.box, v.axis);
+    else if (v.kind === 'bus') bus(sim, v.x, v.z, v.body, v.axis);
+    else motorcycle(sim, v.x, v.z);
+  }
+}
+
+// `03` §4.11's north edge and §4.3's "retaining wall north". The yard throat
+// leaves the viaduct's north abutment at grade, turns west, and runs into the
+// Michael Capuano Inner Belt Carhouse; the MBTA Green Line Transportation
+// Office stands beyond it. BOTH ARE PULLED RADIALLY IN under `03` §1.5's
+// exception 4 — the carhouse computes to (−43, −127.75) and the office to
+// (−76.25, −108.5), and each is scaled toward the origin until its z lands in
+// §4.11's declared −100…−108 band: (−35, −104) and (−74.5, −103.5). That pull
+// is what makes `boundsRect`'s minZ −112 legal, which is what makes the Inner
+// Belt ballast span declarable at all.
+function innerBeltYard(sim) {
+  // The abutment: the viaduct's north end is retained ground, not a dangling
+  // deck. It is also the seam a later district extends the alignment from.
+  for (let x = -10.5; x < -1.3; x += 1.5) {
+    const w = Math.min(1.5, -1.25 - x);
+    for (let i = 0; i < 4; i++) {
+      panel(sim, { x, y: i * 1.5, z: -91, w, h: 1.5, axis: 'x', t: 0.5, mat: 'concrete', color: C.viaductPier });
+    }
+  }
+  // Ballasted track at grade, two legs: north out of the abutment, then west
+  // into the carhouse throat. Sleepers on a 1 m pitch the whole way, which is
+  // what stops the 20 m between the district and the north edge reading as void.
+  const yardTrack = (x0, z0, len, axis, n) => {
+    for (let i = 0; i < n; i++) {
+      const a = i * 1;
+      if (axis === 'z') {
+        slab(sim, { x: x0, y: 0, z: z0 + a, w: 2.25, d: 0.25, t: 0.25, mat: 'wood', color: C.sleeper });
+      } else {
+        slab(sim, { x: x0 + a, y: 0, z: z0, w: 0.25, d: 2.25, t: 0.25, mat: 'wood', color: C.sleeper });
+      }
+    }
+    for (let o = 0; o < len - 0.01; o += 3) {
+      const l = Math.min(3, len - o);
+      for (const g of [0.5, 1.5]) {
+        beam(sim, axis === 'z'
+          ? { x: x0 + g, y: 0.25, z: z0 + o, len: l, axis: 'z', t: 0.25, depth: 0.25, mat: 'steel', color: C.railHead }
+          : { x: x0 + o, y: 0.25, z: z0 + g, len: l, axis: 'x', t: 0.25, depth: 0.25, mat: 'steel', color: C.railHead });
+      }
+    }
+  };
+  // Both legs stop SHORT of what they run into. The north leg ended at z −90.5,
+  // which is the abutment's own face, and the west leg ran to x −8, straight
+  // through the curve that is supposed to join them.
+  yardTrack(-7.75, -99.5, 8.5, 'z', 9);
+  yardTrack(-23, -104.5, 11, 'x', 11);
+  // The curve between them, as one stepped chord — the same stepped
+  // approximation ADR-0013 asks for on the platform, at yard scale. ONE sleeper
+  // per z, 0.5 m apart: two interleaved chords at a 1 m pitch put half their
+  // sleepers on the same z as the other chord's, and a sleeper is 2.25 m wide.
+  for (let i = 0; i < 4; i++) {
+    slab(sim, { x: -8.5 - i, y: 0, z: -100.5 - i * 0.5, w: 2.25, d: 0.25, t: 0.25, mat: 'wood', color: C.sleeper });
+  }
+  // Signals and yard lighting. `03` §4.3's "signals" — free-standing, borne from
+  // the ground, which is the only way anything vertical stands out here.
+  for (const [sx, sz] of [[-6.5, -93], [-6.5, -97], [-14, -101.5], [-19, -101.5]]) {
+    column(sim, { x: sx, y: 0, z: sz, h: 2.5, s: 0.25, mat: 'steel', color: C.signalMast });
+    pier(sim, { x: sx - 0.25, y: 2.5, z: sz - 0.25, w: 0.75, h: 1, d: 0.75, mat: 'panel', color: C.transitGreen });
+  }
+  // THE MASTS STAND BESIDE THE SHED, NOT IN IT. (−26,−101) and (−40,−101) were
+  // inside the carhouse footprint x[−47,−23] z[−107.5,−99.5], so a 5 m mast came
+  // up through a 4.5 m roof and was still moving at the end of the idle probe.
+  for (const [mx, mz] of [[-3, -95], [-12, -100], [-26, -97.5], [-40, -97.5], [-55, -100], [-66, -100]]) {
+    lightMast(sim, mx, mz, 5, C.signalMast);
+  }
+  // The retaining wall north: a 2 m-panel run along the yard's east side, which
+  // is `03` §4.3's line item and doubles as the thing that keeps the throat
+  // reading as cut ground rather than open field.
+  for (let z = -99.5; z < -92.4; z += 2) {
+    panel(sim, { x: -3.5, y: 0, z, w: 2, h: 1.75, axis: 'z', t: 0.5, mat: 'concrete', color: C.viaductPier });
+  }
+  for (let x = -22; x < -12.4; x += 2) {
+    panel(sim, { x, y: 0, z: -100.5, w: 2, h: 1.5, axis: 'x', t: 0.5, mat: 'concrete', color: C.viaductPier });
+  }
+
+  // The Michael Capuano Inner Belt Carhouse: a 24 x 8 m shed, portal doors on
+  // the throat end. Steel and profiled sheet, no chroma — `02` files it under
+  // infrastructure, and the district already has its one saturated object.
+  for (let x = -47; x < -23.1; x += 1.5) {
+    for (const wz of [-107.5, -99.75]) {
+      for (let i = 0; i < 3; i++) {
+        panel(sim, { x, y: i * 1.5, z: wz, w: 1.5, h: 1.5, axis: 'x', t: 0.25, mat: 'panel', color: C.carhouseWall });
+      }
+    }
+  }
+  // THE SIDE WALLS START INSIDE THE END WALLS. An 8 m run of 1.5 m panels begun
+  // at the building line puts its first panel through the end wall's own 0.25 m
+  // thickness at the corner, and its last panel 1 m out the far end.
+  for (let z = -107.25; z < -99.8; z += 1.5) {
+    for (const wx of [-47, -23.25]) {
+      for (let i = 0; i < 3; i++) {
+        // The throat end is open to the track: a shed with a wall across its
+        // own doors is a shed nobody believes.
+        if (wx === -23.25 && z > -105.5 && z < -101.5) continue;
+        panel(sim, { x: wx, y: i * 1.5, z, w: 1.5, h: 1.5, axis: 'z', t: 0.25, mat: 'panel', color: C.carhouseWall });
+      }
+    }
+  }
+  for (let x = -47; x < -23.1; x += 2) {
+    beam(sim, { x, y: 4.5, z: -107.5, len: 8, axis: 'z', t: 0.25, depth: 0.5, mat: 'steel', color: C.carhouseRoof });
+    for (let k = 0; k < 4; k++) {
+      slab(sim, { x, y: 4.75, z: -107.5 + k * 2, w: 2, d: 2, t: 0.25, mat: 'panel', color: C.carhouseRoof });
+    }
+  }
+
+  // The MBTA Green Line Transportation Office: two storeys, brick, the one
+  // domestic-scaled thing on the north edge.
+  // THE TWO STOREYS ARE DIFFERENT HEIGHTS ON PURPOSE — 2.0 then 1.75. Two brick
+  // panels of the SAME extent stacked in one column with a 0.75 m window band
+  // between them are `probePlacementStep`'s sub-extent case: the run reads as a
+  // wall that failed to close rather than as two storeys. Differing the height
+  // puts them in different groups, which is also what they honestly are.
+  //
+  // The window band is 0.5, not 0.75, so the sill course above it LANDS ON IT.
+  // At 0.75 the course and the glass shared y[+2.5,+2.75]: an overlap, not a
+  // bearing, and the whole upper storey and roof came down in the idle probe.
+  // THE PIERS CARRY THE SILL COURSE; THE WINDOW IS INFILL BETWEEN THEM. Glass
+  // has vertBond 0.40 against BOND_CARRY 0.5, so it passes nothing upward: the
+  // first cut ran a full-width brick panel, a glazed band on top of it and the
+  // course on top of that, and the course, the upper storey and the roof all
+  // came down in the idle probe with no overlap anywhere to explain it.
+  //
+  // The two storeys are also deliberately different heights (2.25 then 2.0).
+  // Two brick pieces of the SAME extent stacked in one column with a course
+  // between them are `probePlacementStep`'s sub-extent case; differing the
+  // height puts them in separate groups, which is what they honestly are.
+  const storeys = [{ y: 0, h: 2.25 }, { y: 2.5, h: 2 }];
+  for (let x = -81.5; x < -67.6; x += 1.75) {
+    for (const wz of [-107.5, -100]) {
+      for (const st of storeys) {
+        for (const px of [x, x + 1.25]) {
+          pier(sim, { x: px, y: st.y, z: wz, w: 0.5, h: st.h, d: 0.5, mat: 'brick', color: C.officeBrick });
+        }
+        panel(sim, { x: x + 0.5, y: st.y, z: wz, w: 0.75, h: 0.75, axis: 'x', t: 0.5, mat: 'brick', color: C.officeBrick });
+        panel(sim, { x: x + 0.5, y: st.y + 0.75, z: wz, w: 0.75, h: st.h - 0.75, axis: 'x', t: 0.5, mat: 'glass', color: C.labGlass });
+        beam(sim, { x, y: st.y + st.h, z: wz, len: 1.75, axis: 'x', t: 0.25, depth: 0.5, mat: 'concrete', color: C.officeBand });
+      }
+    }
+  }
+  for (let z = -107; z < -100.1; z += 1.75) {
+    for (const wx of [-81.5, -68]) {
+      for (const st of storeys) {
+        panel(sim, { x: wx, y: st.y, z, w: 1.75, h: st.h + 0.25, axis: 'z', t: 0.5, mat: 'brick', color: C.officeBrick });
+      }
+    }
+  }
+  for (let x = -81.5; x < -67.6; x += 2) {
+    slab(sim, { x, y: 4.75, z: -107.5, w: 2, d: 8, t: 0.5, mat: 'concrete', color: C.officeBand });
+  }
+  // The yard fence between the two buildings, and the service road they share.
+  fenceRun(sim, { x: -67.5, z: -103.75, len: 20.5, axis: 'x', h: 1.5, mat: 'steel', color: 0x4a5158 });
+  // The containers stand clear of BOTH sheds: 1 m cubes six long from `cx`, two
+  // deep from `z`, so the old (−50, −101.5) run reached x −44 z −99.5 and put
+  // its corner through the carhouse's south wall.
+  for (const cx of [-67, -60, -53]) shippingContainer(sim, cx, 0, -102.5, 6, 0x3d6b5a);
+}
+
+// The station's west forecourt and the props that make the undercroft read as a
+// place rather than as the space under a bridge.
+function lechmereProps(sim) {
+  for (const [tx, tz] of [[-12, -46], [-12, -41], [-8, -44]]) tree(sim, tx, tz);
+  for (const z of [-46, -41]) lampPost(sim, -9.5, z);
+  bikeRack(sim, -12.5, -49, 3, 'z');
+  for (const x of [-11, -8.5]) cafeTable(sim, x, -38.5);
+  sandwichBoard(sim, -10.5, -50, C.shelterGreen);
+  for (const [px, pz] of [[-12.5, -52], [-9, -52]]) planter(sim, px, pz, 1.5, 1, 0x5d6a4a);
+  // The undercroft's own lighting and kit, between the bents.
+  for (const z of [-79, -72, -60, -48]) lampPost(sim, -1, z);
+  for (const z of [-70, -58]) trashBin(sim, -0.75, z, 0x33453a);
+  crateStack(sim, -9.5, -68, 2, C.dockTimber);
+  trashBags(sim, -9.5, -57);
+  greenLineCar(sim, { x: -2.25, z: -73.5, len: 8 });
+  greenLineCar(sim, { x: -0.75, z: -61.5, len: 8 });
+}
+
+export function lechmereDistrict(sim) {
+  greenLineViaduct(sim);
+  elevatedCurvedPlatform(sim);
+  lechmereHeadhouse(sim);
+  lechmereBusway(sim);
+  innerBeltYard(sim);
+  lechmereProps(sim);
+}
+
+export const LECHMERE_DECOR = {
+  plaza: [
+    { x: -10.75, z: -90.75, w: 14.5, d: 53.25 },   // the viaduct undercroft, all four chords
+    { x: -14.5, z: -53, w: 4.25, d: 16 },          // North First Street's east walk widening
+    { x: -13.5, z: -87.5, w: 4.5, d: 50 },         // the station approach walk
+    { x: -21.5, z: -87.5, w: 4.5, d: 50 },         // North First Street's west walk
+    { x: 3.5, z: -81.75, w: 11, d: 40 },           // the busway, its island and east footway
+    { x: -47.5, z: -108, w: 25, d: 12 },           // the carhouse and its south apron
+    { x: -82, z: -108, w: 15, d: 9 },              // the Transportation Office
+    { x: -68, z: -104.5, w: 21, d: 5.5 },          // the yard's shared service road
+  ],
+  rail: [
+    { x: -13, z: -101, w: 11, d: 11 },             // the yard throat leaving the abutment
+    { x: -24, z: -106, w: 17, d: 6 },              // the carhouse neck
+    { x: -11, z: -103.5, w: 4, d: 3 },             // the stepped curve between them
+  ],
+  sidewalks: [
+    { x: -20.25, z: -88, w: 0.5, d: 49 },
+    { x: -14, z: -81.5, w: 0.5, d: 43 },           // the east kerb, short of the junction
+    { x: 13.75, z: -88, w: 0.5, d: 49 },
+    { x: 3.5, z: -81.75, w: 0.5, d: 40 },
+  ],
+  parks: [
+    { x: -23, z: -87, w: 2.5, d: 48 },             // the verge behind the west walk
+  ],
+};
+
+export const LECHMERE_AMBIENT = {
+  pigeons: [
+    { x: -6, z: -79, count: 12 },
+    { x: 8, z: -60, count: 9 },
+  ],
+  neon: [
+    { x: -12, z: -80, w: 1.2, d: 4, color: 0x4ad9ff, period: 5.2 },
+  ],
+  steam: [{ x: -34, z: -102, rate: 0.22 }],
 };
 
 // --- THE SHELL ---------------------------------------------------------------
@@ -2078,17 +2974,44 @@ export function cambridgeSpendBack(sim) {
 // --- THE SHIPPED SCENE -------------------------------------------------------
 
 // The rect below is the HULL OF WHAT IS BUILT plus the slack `probeBoundsRect`
-// allows, computed from the two districts standing rather than transcribed from
-// `03` §1.1's designed extent. Districts 1 and 2 together span x[−72,+60.75]
-// z[−63,+30]; every edge here sits inside the probe's 12 m content-slack of that
-// hull, which is the clause P6.1's full-map rect could not satisfy. It widens
-// again at every P6.x and becomes §1.1's designed rect at P6.10.
-export const CAMBRIDGE_BOUNDS = { minX: -78, maxX: 66, minZ: -69, maxZ: 36 };
+// allows, computed from the three districts standing rather than transcribed
+// from `03` §1.1's designed extent. It widens again at every P6.x and becomes
+// §1.1's designed rect at P6.10.
+//
+// P6.3 MOVES THREE OF THE FOUR EDGES, AND minZ IS THE ONE THAT MATTERS. It goes
+// to −112 not because District 3's geometry reaches there — the viaduct stops at
+// −90.5 and the north edge at −108 — but because `probeOpenGround` will only
+// accept the Inner Belt ballast span if the span TOUCHES a rect edge. That is
+// the whole reason `03` §1.5's exception 4 exists: the carhouse and the
+// Transportation Office are pulled radially in to z ≈ −100…−108 so that a rect
+// reaching −112 still has content inside the probe's 12 m slack (measured: 4.5 m
+// at the north edge). Span, rect and buildings are one indivisible change; land
+// any two without the third and the gate goes red.
+//
+// minX goes to −83 for the Transportation Office's west wall at −81.5, and it is
+// the office rather than District 2's mill that now sets that edge.
+export const CAMBRIDGE_BOUNDS = { minX: -83, maxX: 66, minZ: -112, maxZ: 36 };
 
 export function buildCambridge(sim) {
   cambridgeShell(sim, (s) => {
     cambridgeBuildings(FORMS, s);
     cambridgeSpendBack(s);
     canalParkDistrict(s);
-  }, { bounds: CAMBRIDGE_BOUNDS, decor: CANAL_PARK_DECOR, ambient: CANAL_PARK_AMBIENT });
+    lechmereDistrict(s);
+  }, {
+    bounds: CAMBRIDGE_BOUNDS,
+    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR),
+    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT),
+  });
+}
+
+// Two districts' worth of ground handed to one `opts.decor`. Merged here rather
+// than in the shell because the shell is shared with Phase 5's variants and must
+// keep seeing exactly one object.
+function mergeDecor(a, b) {
+  const out = {};
+  for (const src of [a, b]) {
+    for (const [k, rects] of Object.entries(src)) (out[k] ??= []).push(...rects);
+  }
+  return out;
 }
