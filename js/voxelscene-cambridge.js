@@ -9,8 +9,28 @@
 // builds plus the budget the first one freed, spent back into the same ground
 // (`01` §7's Variant B2). The remaining districts, the hero building at 2 Canal
 // Park, and this scene's registration in AUTHORED_SCENES/FREE_PLAY are Phase 6
-// and are deliberately absent. `sim.boundsRect` therefore hugs District 2 alone
-// and will widen when the rest of the map lands.
+// and are deliberately absent.
+//
+// P6.1 has since added the MAP layer below the plan: `03` §1.2's scale law and
+// `02` §6's real-world offset table, which is the ground the other nine
+// districts get authored against. It is data and one pure function and emits
+// nothing, so District 2's geometry is byte-for-byte what Phase 5 measured.
+//
+// P6.1 also moved `sim.boundsRect` to `03` §1.1's full-map x[−120,132]
+// z[−112,116] and declared the two open-ground spans that rect makes legal. THE
+// MAP IS THEREFORE KNOWINGLY UNDER-FILLED: `probeBoundsRect`'s 12 m
+// content-slack clause fails against a 252 × 228 m rect holding one district,
+// and will keep failing until districts 1 and 3-10 land. That is scaffolding
+// rather than a defect, and it is survivable precisely because this scene is not
+// registered anywhere yet — not in AUTHORED_SCENES or FREE_PLAY (P6.12), not in
+// the validator's scene registry (P8.1) — so nothing runs the shared contract
+// against it on the way past. The rect is a designed extent, not a hull, which
+// is why it lands once instead of growing per district.
+//
+// The ten-row district table `03` §4 wants is still absent, for a reason
+// recorded in full at CAMBRIDGE_DISTRICTS below: `probeDistrictDensity` derives
+// its floor from the rows themselves, so an unbuilt district cannot be stubbed
+// at all without failing. Each row lands with its geometry.
 //
 // LAYOUT. x = east, z = south, north = -z, the same convention as the other five
 // scenes. District 2 is one urban block plus the two streets that bound it:
@@ -156,6 +176,215 @@ const C = {
   ghostSign: 0xd9c8a0,       // the painted wall sign — see CAMBRIDGE_HEROES
 };
 
+// --- THE MAP -----------------------------------------------------------------
+// `03` §1.2's scale law, and the real-world offset table it consumes. This is
+// P6.1's scaffolding: the ground the remaining nine districts get authored
+// against. District 2 below PREDATES it and is not derived from it — see the
+// discrepancy recorded on `sceneOffset`.
+//
+// `02` §6 states the obligation this section discharges: whatever compression is
+// chosen, RECORD IT IN THE SCENE FILE, "because the offsets above are the only
+// thing that will let anyone check the layout later." `03` §1.2 then sharpens it
+// from a matter of content into a matter of FORM — the scene file computes its
+// positions "from an exported `CAMBRIDGE_OFFSETS` table rather than hardcoding
+// them, so a corrected real offset re-derives the layout instead of requiring a
+// re-author." Hence data plus a pure function, and no list of scene coordinates
+// anywhere: a hardcoded (x, z) is a number nobody can check against a source.
+
+// The East Cambridge grid runs 9.8° clockwise of true north (`02` §2.1). `02`'s
+// instruction is to "either author in true north and rotate the grid, or author
+// in grid axes and rotate the landmarks. Do one, not both." `03` §2 takes the
+// second: the scene's x/z axes ARE the grid, no building is ever rotated, and
+// this constant is the only place true north appears in the file.
+export const CAMBRIDGE_GRID_ROT = 9.8;
+
+// RING A — the core. Real radius ≤ 340 m of 2 Canal Park: true position in grid
+// axes, 1:3 in plan, 1:1.5 in height.
+export const RING_A_RADIUS = 340;
+export const RING_A_PLAN = 3;
+export const RING_A_HEIGHT = 1.5;
+
+// RING B — the shelf. Beyond 340 m real, the BEARING IS PRESERVED EXACTLY and
+// only the radius compresses: `scene_r = 113 + (real_r − 340) / 41.9`. Real 340
+// → scene 113 (against Ring A's own 340/3 = 113.33, so the declared seam is a
+// 0.33 m step rather than a cliff); real 2,054 — the NECCO tower, the furthest
+// thing on the map — → scene 154.
+//
+// FOOTPRINTS AND HEIGHTS DO NOT COMPRESS WITH THE RADIUS. A Ring B landmark
+// keeps Ring A's 1:3 / 1:1.5 unless `03` §5 declares a per-landmark exception
+// (Museum of Science 1:5 in plan, Longfellow 1:8 in length, Zakim 1:6, Stata
+// 1:4). That asymmetry IS the shelf: every object is the right size and only the
+// walk between them is compressed, which `03` §5.4 prices honestly — the Great
+// Dome sits 155 m away instead of 1,706, an elevenfold lie, bought with bearings
+// that are exact to better than a degree.
+export const RING_B_SEAM = 113;
+export const RING_B_RATE = 41.9;
+
+// 2 Canal Park's authored centre, in z. Spawn is NOT a scene decision —
+// `voxelsim.js` hardcodes the hole at (0, 16) for every scene — so the map is
+// seated around the spawn point rather than the other way round, and −14 is the
+// offset that lands the hero's south facade at z ≈ +3.75 with the spawn disc
+// 12 m clear of it on the canal-side forecourt (`03` §1.4).
+export const CAMBRIDGE_ORIGIN_Z = -14;
+
+// Rotation factors, derived once. `Math.cos`/`Math.sin` are implementation-
+// defined to within an ULP where `Math.sqrt` is not, which would normally be a
+// determinism worry in a scene-geometry path (ADR-0006) — it is not one here
+// because `sceneOffset` snaps its result to the 0.25 m fine grid, and a 1e-16
+// factor error over a 2 km offset moves the raw result by ~1e-13 m. Nothing
+// reaches a quantisation boundary from there. `Math.sqrt` is used for the radius
+// rather than `Math.hypot` for the same reason, in the direction where it costs
+// nothing: `sqrt` is correctly rounded by spec, `hypot` is not.
+const ROT = (CAMBRIDGE_GRID_ROT * Math.PI) / 180;
+const ROT_COS = Math.cos(ROT), ROT_SIN = Math.sin(ROT);
+
+// `02` §6's table, transcribed. One row per feature, in the doc's own order, so
+// a row number here is a row number there.
+//
+//   E, N     real-world offset from 2 Canal Park in metres, true north, per
+//            `02` §6's flat-earth projection at latitude 42.37 (1° lat =
+//            111,132 m, 1° lon = 82,238 m). THE ONLY INPUT `sceneOffset` TAKES.
+//   plan     real footprint [w, d] in metres, or `null` where `02` gives none.
+//            A second element of `null` means the doc gives one dimension only.
+//            Rows marked (bbox) in `conf` are the bounding box of an OSM
+//            outline and therefore OVER-ESTIMATE a non-rectangular plan — `02`
+//            §6's own method note 3, and the reason `03` §1.5 has to correct
+//            2 Canal Park by hand.
+//   height   real metres, or `[lo, hi]` where the doc states a range rather than
+//            a figure. Where `02` had no source it is `storeys × 4.3` for
+//            office/residential and `storeys × 3.5` for mill buildings, marked
+//            (est.) in `conf` — method note 4, and its instruction: do not
+//            treat an estimate as a measurement.
+//   conf     `02`'s confidence marker, carried VERBATIM rather than reduced to a
+//            flag. Several rows are conflicting or unverified and the next
+//            author needs to see which, inline, at the moment they read the
+//            number — not to go back to the doc to find out.
+//
+// The one row that is not a row: the Longfellow (#15) is a bridge and `02` gives
+// both its ends, so it carries `E2`/`N2` for the Boston end. `E`/`N` is the
+// Cambridge end, which is the one `03` §5.1 tables.
+export const CAMBRIDGE_OFFSETS = [
+  { id: 1, name: '2 Canal Park (HubSpot)', plan: [104, 71], height: 22, E: 0, N: 0,
+    conf: 'Position, footprint, storeys: Confirmed. Height: est. (bbox; 5 storeys)' },
+  { id: 2, name: 'The Davenport, 25 First St (HubSpot)', plan: [110, 65], height: [14, 25], E: -123, N: -40,
+    conf: 'Position: Confirmed (measured). Footprint and heights: Likely/est. (4–7 storeys, stepped)' },
+  { id: 3, name: '1 Canal Park (NOT HubSpot)', plan: [56, 67], height: 17, E: -40, N: -7,
+    conf: 'Confirmed (bbox; 4 storeys, height est.)' },
+  { id: 4, name: 'Lechmere station + viaduct', plan: [108, 11], height: [9, 12], E: 13, N: 127,
+    conf: 'Platform dims: Confirmed. Rail height: est. (platform 108 × 11, curved island)' },
+  { id: 5, name: 'Lechmere Canal + basin', plan: [140, 90], height: 0, E: 137, N: -170,
+    conf: 'Position: Confirmed. Extent: est. (water level ~0; channel extent is `03` §1.5 exception 2, inferred)' },
+  { id: 6, name: '40 Thorndike (ex-courthouse)', plan: [86, 57], height: 86, E: -272, N: -95,
+    conf: 'Position/footprint: Confirmed (bbox). Storeys: CONFLICT, 20 vs 22 — `02` says build 20 and record both' },
+  { id: 7, name: 'First Street Garage', plan: [123, 75], height: 20, E: -152, N: -125,
+    conf: 'Position/footprint: Confirmed (bbox). Height: est.' },
+  { id: 8, name: 'Archstone Northpoint', plan: null, height: 95, E: 264, N: -21,
+    conf: 'Storeys: Confirmed (OSM, 22). Height: est.' },
+  { id: 9, name: 'Twenty|20 at Cambridge Crossing', plan: null, height: 86, E: 375, N: 156,
+    conf: 'Storeys: Confirmed (OSM, 20). Height: est.' },
+  { id: 10, name: 'CambridgeSide (20 CambridgeSide corner)', plan: [120, 90], height: 43, E: -14, N: -352,
+    conf: 'Position: Confirmed. Storeys: Confirmed (10). Footprint: est.' },
+  { id: 11, name: 'Royal Sonesta Boston', plan: null, height: 47, E: 98, N: -397,
+    conf: 'Storeys: Confirmed (OSM, 11). Height: est.' },
+  { id: 12, name: 'Museum of Science', plan: [250, 60], height: 25, E: 428, N: -301,
+    conf: 'Position: Confirmed. Dimensions: est. (spans the dam; 4 levels). PLAN 1:5, not 1:3 — `03` §1.5 exception 3' },
+  { id: 13, name: 'Charles River Dam / Craigie Bridge', plan: [200, null], height: 6, E: 594, N: -332,
+    conf: 'Position: Confirmed. Length and deck height: est.' },
+  { id: 14, name: 'North Point Park', plan: [300, 150], height: 0, E: 591, N: -136,
+    conf: 'Position: Confirmed. Extent: est. (ground)' },
+  { id: 15, name: 'Longfellow Bridge', plan: [539, 32], height: 18, E: -84, N: -949, E2: 222, N2: -967,
+    conf: 'Length: Confirmed. Tower height: est., UNVERIFIED (~18 above deck; deck ~9 above water). LENGTH 1:8 — `03` §5.1' },
+  { id: 16, name: 'Zakim Bridge', plan: [444, 55], height: 82, E: 1098, N: -172,
+    conf: 'Length, width, mast height: Confirmed — the one mast figure that is not an estimate. LENGTH 1:6 — `03` §5.1' },
+  { id: 17, name: 'Kendall/MIT station + plaza', plan: [80, 60], height: 6, E: -774, N: -858,
+    conf: 'Position: Confirmed. Dimensions and headhouse height: est.' },
+  { id: 18, name: 'TD Garden', plan: [200, 150], height: 45, E: 1163, N: -427,
+    conf: 'Position: Confirmed. Dimensions: est. — `02`: recognizable by where it is, not by shape' },
+  { id: 19, name: 'Bunker Hill Monument', plan: [9, 9], height: 67, E: 1278, N: 690,
+    conf: 'Position: Confirmed. Height: Likely (221 ft, widely cited, not re-verified). Base: est.' },
+  { id: 20, name: 'Stata Center', plan: [130, 110], height: 40, E: -1181, N: -956,
+    conf: 'Position: Confirmed. Dimensions: est., UNVERIFIED (7–9 storeys). PLAN 1:4 — `03` §5.1' },
+  { id: 21, name: 'MIT Green Building', plan: [35, 20], height: 84, E: -1072, N: -1092,
+    conf: 'Position, height: Confirmed (277 ft architectural; 90 to tip). Footprint: est.' },
+  { id: 22, name: 'MIT Great Dome (Bldg 10)', plan: [120, 40], height: 46, E: -1290, N: -1116,
+    conf: 'Height and dome diameter (ø 30.5): Confirmed. Position: Likely (approx). Block plan: est.' },
+  { id: 23, name: 'Killian Court', plan: [180, 130], height: 0, E: -1249, N: -1265,
+    conf: 'Position: Confirmed. Lawn extent: est. (ground)' },
+  { id: 24, name: 'Novartis / old NECCO + water tower', plan: [150, 80], height: 30, E: -1791, N: -1006,
+    conf: 'Position: Confirmed. Dimensions: est. (tower +12 above the building)' },
+  { id: 25, name: 'Citgo sign', plan: [18, 18], height: 30, E: -1578, N: -2372,
+    conf: 'UNVERIFIED position AND visibility from East Cambridge. `03` §1.3 leaves it OUT — no backdrop plane exists to demote it to. Carried here so nobody re-derives it as missing data' },
+];
+
+// `03` §1.2's law, in one function: real (E, N) offset in true-north metres →
+// scene (x, z).
+//
+//   E' = E·cos(9.8°) − N·sin(9.8°)     grid-east component
+//   N' = N·cos(9.8°) + E·sin(9.8°)     grid-north component
+//   scene_x =  E' / scale
+//   scene_z = −N' / scale − 14
+//
+// with `scale` fixed at 3 inside Ring A, and outside it replaced by the radial
+// map that holds the bearing and compresses the distance.
+//
+// WHY TWO RINGS AND NOT A SMOOTH CURVE, since the seam is the obvious objection:
+// a continuous log compression has no discontinuity but makes every position
+// un-recomputable by hand, and `02`'s entire point is that the layout must stay
+// CHECKABLE. Two rules of arithmetic can be redone on paper by anyone holding
+// `02` §6's table. That is worth a 0.33 m seam.
+//
+// THE RESULT IS SNAPPED TO THE 0.25 m FINE GRID, through the same `q` the plan
+// walker below uses. Every extent in this engine is
+// a multiple of 0.25 (ADR-0006's determinism proof rests on it) and so is every
+// position that generates one; an unsnapped 38.13 is a placement no builder can
+// honour. The cost is that a computed position can sit up to 0.125 m off the
+// design-time value `03` prints — which is why `03`'s figures are stated as
+// design-time values and this function, not the doc, is the authority.
+//
+// VERIFIED against the sixteen scene positions `03` states independently of this
+// code — the origin seat, Lechmere and 40 Thorndike in Ring A, and thirteen Ring
+// B landmarks from CambridgeSide just over the seam (r 352) out to the NECCO
+// tower at the far end (r 2,054). All sixteen reproduce inside the doc's own
+// rounding plus this function's 0.25 m snap. Ring B is the half worth sampling
+// densely, because its error would grow with radius and a couple of near points
+// would not show it; it does not grow.
+//
+// TWO POSITIONS `03` PRINTS ARE NOT THIS FUNCTION'S OUTPUT, and both are the
+// doc's, not the law's:
+//   1 Canal Park — law (−12.75, −9.5), doc (−13.5, −12.5). DECLARED: `03` §1.5
+//     exception 1 re-seats it so its east face stands 18 m real west of the
+//     hero's west face, because the two OSM bounding boxes overlap. The law is
+//     not the last word wherever §1.5 declares an exception, and a district
+//     author must check §1.5 before trusting a computed seat.
+//   TD Garden — law (+132.25, +10.25), doc (+130, +10). UNDECLARED: the law puts
+//     it 0.25 m outside `maxX` 132 and §5.1 quietly pulls it in. No exception
+//     covers it in §1.5 or §5. P6.9 should either declare it or move it; it is
+//     recorded here rather than silently reproduced.
+//
+// ONE DISCREPANCY, RECORDED RATHER THAN RESOLVED. Row 2 is the Davenport, and
+// this function puts it at scene (−38.25, +6.0). District 2 as shipped occupies
+// x[−71.5,−35] z[+3,+24.5], centred (−53.25, +13.75) — 15 m west and 7.6 m south
+// of the law, and the law's own answer would carry the block across First Street
+// at x −33. Phase 5 built to `03` §4's approximate district rect, which is not
+// the same placement as `03` §1.2's law; the two disagree in the doc, not in the
+// code. District 2 is shipped and frozen, so the seating question belongs to
+// whoever authors District 1 — the hero is the building the origin is DEFINED by
+// (row 1 at (0, 0) → scene (0, −14), which this function reproduces exactly), so
+// getting it from the law is what makes the law load-bearing rather than
+// decorative. Flagged here so the next author meets it before building on it.
+export function sceneOffset(E, N) {
+  const gE = E * ROT_COS - N * ROT_SIN;
+  const gN = N * ROT_COS + E * ROT_SIN;
+  const r = Math.sqrt(gE * gE + gN * gN);
+  // Ring A is a plain divide. Ring B rescales the SAME grid vector, so the
+  // bearing survives exactly and only its length changes — which is the whole
+  // claim `03` §5.4 makes to justify the compression.
+  const k = r <= RING_A_RADIUS
+    ? 1 / RING_A_PLAN
+    : (RING_B_SEAM + (r - RING_A_RADIUS) / RING_B_RATE) / r;
+  return { x: q(gE * k), z: q(-gN * k + CAMBRIDGE_ORIGIN_Z) };
+}
+
 // --- THE PLAN ----------------------------------------------------------------
 // Everything below this line is data, and it is EXPORTED because Phase 5's
 // control build (`_phase5-deliverables/variant-a.mjs`) walks the same tables
@@ -238,12 +467,97 @@ export const CAMBRIDGE_ROAD_SPANS = [];
 // Declared-empty ground. `probeOpenGround` holds each span to being genuinely
 // block-free AND to touching a boundsRect edge, so this list cannot be widened
 // to excuse an interior void.
-export const CAMBRIDGE_OPEN_GROUND = [];
+//
+// TWO OF `03` §1.4'S FOUR SPANS ARE HERE, and both are provisional. Each is the
+// thinnest band that reaches its edge, anchored to a value `03` or `02` states
+// rather than to geometry that does not exist yet, and each is owned by a
+// district that replaces it with real `sceneDecor` when it builds. Sized to
+// shrink, never to excuse: a span that later holds a block fails this probe,
+// which is exactly the property that makes an early declaration safe.
+//
+// THE OTHER TWO CANNOT BE DECLARED, and the reason is the probe rather than the
+// paperwork. Recorded so P6.6/P6.8/P6.9 do not re-derive them:
+//
+//   THE CANAL BASIN IS INTERIOR. `02` §6 row 5 puts it at real E +137 / N −170
+//   over ~140 × 90 m, which `sceneOffset` maps to scene (+54.75, +34) spanning
+//   roughly x[+31,+78] z[+19,+49] — the middle of the map, some 60 m short of
+//   the nearest edge. `probeOpenGround` rejects an interior span outright
+//   ("declare only level-edge emptiness, build the rest"), and stretching one to
+//   an edge would mean inventing water `02` explicitly denies: it calls this "a
+//   short dead-end canal basin ... cut inland from the Charles".
+//
+//   THE ZAKIM CHANNEL IS UNDER ITS OWN DECK. This probe's emptiness test is 2D
+//   (`rectsOverlap` on x/z), so a bridge's deck, piers and masts project onto
+//   the water beneath them and no span there can ever be block-free. `03` §5.1
+//   also seats the Zakim at (+131, −16), inside district 7's x[+60,+132]
+//   z[−90,+16]. A sliver BESIDE the deck would pass, but `03` does not say which
+//   side the channel runs, and this file should not be what decides that.
+//
+// Neither omission costs the dead-ground census anything, which is the point:
+// `reportDeadGround` already discounts every sample inside a `sceneDecor.water`
+// rect through its own `BY_DESIGN` list, so both are covered the moment their
+// district authors the water. Of `03` §1.4's four, only the Inner Belt ballast —
+// rail, not water — was ever doing work this list alone could do.
+//
+// One constraint for P7.3, since it lands on the span below: `03` §8.3 lays the
+// edge-band gallery's marks "inside a declared `CAMBRIDGE_OPEN_GROUND` span or
+// on an authored apron", and `04` G11 puts the Flywheel sprocket in the Inner
+// Belt yard. A mark inside the span makes it non-empty and fails this probe. The
+// apron has to sit ADJACENT to a span, never inside one.
+export const CAMBRIDGE_OPEN_GROUND = [
+  {
+    // District 3's, per `03` §4.3. `02` §2 puts the Michael Capuano Inner Belt
+    // Carhouse at real E −132 / N +689 and the Green Line Transportation Office
+    // at E −337 / N +604 (both Confirmed, OSM), which `sceneOffset` maps to
+    // (−42.75, −127.75) and (−76.25, −108.5) — the first of which reproduces the
+    // "computed z ≈ −128" that `03` §1.5 exception 4 cites before pulling both
+    // radially in to z −100…−108. This is the ballast left north of the
+    // pulled-in yard, between it and minZ.
+    minX: -80, maxX: -40, minZ: -112, maxZ: -108,
+    why: 'Inner Belt yard ballast running out to the north level edge',
+  },
+  {
+    // District 8's, per `03` §4.8. `03` §5.1 seats the Longfellow's Cambridge end
+    // at (+10.5, +113) and `sceneOffset` puts its Boston end at (+49.75, +104.5),
+    // so this starts east of the deck's 2D footprint rather than under it — the
+    // same constraint that keeps the Zakim's channel out of this list entirely.
+    minX: 60, maxX: 132, minZ: 113, maxZ: 116,
+    why: 'the Charles south of the Longfellow line, at the south level edge',
+  },
+];
 
 // `probeDistrictDensity` reads these. Only District 2 exists in this file, so
 // the probe's density-floor clause (half the scene median) is self-referential
 // and always passes; the mean-gap and worst-hole clauses along the scripted
 // route are the ones that bind, and they are the ones that matter for combo.
+//
+// `03` §4's OTHER NINE ROWS ARE DELIBERATELY NOT HERE YET, and the reason is the
+// probe rather than the paperwork. The density-floor clause fails any row whose
+// rect holds no geometry: an unbuilt district reads as 0.00 pieces/m², which is
+// below half of any nonzero median, and the probe cannot tell "empty because
+// nobody built it" from "empty because the budget was banked". Declaring all ten
+// now takes the Phase 5 gate from ALL PASS to eight density failures — districts
+// 3, 6, 7 and 8, the four whose rects do not overlap District 2's geometry,
+// across both variants. Measured, not predicted.
+//
+// It is also not fixable by choosing better stand-in rects for the two rows `03`
+// §4 gives none for (District 9 is "the Ring B annulus, all edges", District 10
+// is "scene-wide"). Districts 1, 4, 5 and 10 all overlap District 2 whatever
+// rect they are given, so at least five of ten rows are always nonzero, so the
+// median is always nonzero, so the empty rows always fail. The table becomes
+// declarable when the districts it describes are built, one row per P6.x task,
+// each rect refined against what actually stands — the same way District 2's own
+// rect became x[−72,−25.5] z[−12.5,30] rather than §4's approximate
+// x[−72,−26] z[−12,+26] (the frontage row's cornice and dentils project 0.25 m
+// north of its wall, so the rect has to reach further out than the footprint
+// that generated it).
+//
+// The two figures that column needs when it lands, checked and recorded so they
+// do not have to be re-derived: §4's ten budgets sum to exactly 74,060, and §8.2
+// gives District 10 a gap floor of "n/a" — which encodes as an ABSENT `gapFloor`
+// field, not a null and not a 15, because the probe reads
+// `Math.min(maxGap, d.gapFloor ?? maxGap)` and an absent field falls back to the
+// scene-wide 15 m ceiling rather than exempting the row.
 export const CAMBRIDGE_DISTRICTS = [
   {
     id: 2,
@@ -482,10 +796,13 @@ export function cambridgeBuildings(E, sim) {
 
 export function cambridgeShell(sim, buildings) {
   sim.bounds = 120;
-  // minZ is -12.5 rather than the frontage row's own -12: the row's cornice and
-  // dentil courses project 0.25 m outboard of its north wall, and boundsRect
-  // must contain the geometry, not the footprint that generated it.
-  sim.boundsRect = { minX: -72, maxX: -25.5, minZ: -12.5, maxZ: 30 };
+  // `03` §1.1's full-map rect, landed whole at P6.1 rather than grown district by
+  // district: it is a DESIGNED extent — 252 x 228 m, 340 m diagonal, asymmetric
+  // so the Zakim clears x 131 against a maxX of 132 (§1.4) — and not a hull of
+  // whatever happens to be standing. Districts 1 and 3-10 are still Phase 6 work,
+  // so it is knowingly under-filled and `probeBoundsRect`'s 12 m content-slack
+  // clause fails against it until they land. See the header note.
+  sim.boundsRect = { minX: -120, maxX: 132, minZ: -112, maxZ: 116 };
 
   const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [];
   const roads = [], rail = [], bikePaths = [], laneMarkers = [], crosswalks = [];
