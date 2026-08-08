@@ -742,9 +742,9 @@ export function vehicleBBox(v) {
 export function generateBlockers(sim, minH = 6) {
   const tops = new Map();
   for (const b of sim.blocks) {
-    const top = (b.gy + b.fs) * 0.25;
-    for (let cx = Math.floor(b.gx * 0.25); cx < Math.ceil((b.gx + b.fs) * 0.25); cx++) {
-      for (let cz = Math.floor(b.gz * 0.25); cz < Math.ceil((b.gz + b.fs) * 0.25); cz++) {
+    const top = (b.gy + b.fsy) * 0.25;
+    for (let cx = Math.floor(b.gx * 0.25); cx < Math.ceil((b.gx + b.fsx) * 0.25); cx++) {
+      for (let cz = Math.floor(b.gz * 0.25); cz < Math.ceil((b.gz + b.fsz) * 0.25); cz++) {
         const k = cx + ',' + cz;
         if (!(tops.get(k) >= top)) tops.set(k, top);
       }

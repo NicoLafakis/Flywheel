@@ -1,9 +1,14 @@
 // Progressive voxel excavation sandbox.
 //
 // The hole removes floor support; a deterministic load-path graph decides how
-// the block-built world collapses. Blocks come in four sizes (0.25 / 0.5 / 1 /
-// 2 m) on a shared 0.25 m fine grid — small bricks for detailed objects, big
-// slabs for large structures. Three simulation layers:
+// the block-built world collapses. A block is an axis-aligned BOX with
+// independent per-axis extents (`sx/sy/sz` in metres, `fsx/fsy/fsz` in fine
+// cells) on a shared 0.25 m fine grid — a cube is the degenerate case
+// `sx === sy === sz`, and the shipped 0.25 / 0.5 / 1 / 2 m ladder is a
+// convention rather than an enumeration. Every extent must stay a multiple of
+// 0.25 m: ADR-0006's determinism proof rests on every span being an exact sum
+// of multiples of 1/8, which is what makes two tying BFS paths produce
+// bit-identical floats. See ADR-0013. Three simulation layers:
 //   1. STATIC blocks in a support graph — 0-1 BFS up from floor anchors, with
 //      per-material bond strengths and cantilever (maxSpan) limits in meters.
 //      Destruction is rim-driven: the crack front sweeps inward from the
@@ -282,8 +287,8 @@ export class VoxelSandboxSim {
     // block is too expensive during a city-wide collapse.
     this._collisionBuckets = new Map();
     for (const b of this.blocks) {
-      const minX = Math.floor(b.x - b.s / 2), maxX = Math.floor(b.x + b.s / 2);
-      const minZ = Math.floor(b.z - b.s / 2), maxZ = Math.floor(b.z + b.s / 2);
+      const minX = Math.floor(b.x - b.sx / 2), maxX = Math.floor(b.x + b.sx / 2);
+      const minZ = Math.floor(b.z - b.sz / 2), maxZ = Math.floor(b.z + b.sz / 2);
       for (let x = minX; x <= maxX; x++) for (let z = minZ; z <= maxZ; z++) {
         const k = cellKey(x, z);
         let bucket = this._collisionBuckets.get(k);
@@ -291,7 +296,7 @@ export class VoxelSandboxSim {
         bucket.push(b);
       }
     }
-    this.totalMass = this.blocks.reduce((s, b) => s + b.mat.mass * b.s ** 3, 0);
+    this.totalMass = this.blocks.reduce((s, b) => s + b.mat.mass * (b.sx * b.sy * b.sz), 0);
     // SIZE ladder scales with scene mass so progression pacing matches the
     // gallery's (~4.2k raw → exactly ×1); bigger cities demand more per SIZE.
     //
@@ -489,31 +494,53 @@ export class VoxelSandboxSim {
   // --- scene construction (hand-authored, deterministic) ---------------------
 
   // meters, min-corner placement; `color` overrides the material's color
-  // (physics come from the material, paint is per-block)
+  // (physics come from the material, paint is per-block).
+  //
+  // `s` is either one number (a cube, which is every call site that predates
+  // ADR-0013) or `[sx, sy, sz]` (a box). Read positionally rather than
+  // destructured so the scalar path allocates nothing — this runs once per
+  // block, 82,894 times on Boston alone.
   _block(x, y, z, matType, s = 1, color) {
     const f = 1 / FINE;
-    return this._addBlock(Math.round(x * f), Math.round(y * f), Math.round(z * f), matType, Math.round(s * f), color);
+    const a = Array.isArray(s);
+    const ex = a ? s[0] : s, ey = a ? s[1] : s, ez = a ? s[2] : s;
+    return this._addBlock(
+      Math.round(x * f), Math.round(y * f), Math.round(z * f), matType,
+      Math.round(ex * f), Math.round(ey * f), Math.round(ez * f), color);
   }
 
-  // nx × ny × nz counts of s-sized blocks starting at (x0, y0, z0) meters
+  // nx × ny × nz counts of s-sized blocks starting at (x0, y0, z0) meters.
+  // The placement step is the piece extent on each axis, which is the rule
+  // `.wiki/modules/voxel.md` states for cubes and which anisotropic pieces make
+  // far easier to violate by hand.
   _box(x0, y0, z0, nx, ny, nz, matType, s = 1, color) {
+    const a = Array.isArray(s);
+    const ex = a ? s[0] : s, ey = a ? s[1] : s, ez = a ? s[2] : s;
     for (let i = 0; i < nx; i++) {
       for (let j = 0; j < ny; j++) {
         for (let k = 0; k < nz; k++) {
-          this._block(x0 + i * s, y0 + j * s, z0 + k * s, matType, s, color);
+          this._block(x0 + i * ex, y0 + j * ey, z0 + k * ez, matType, s, color);
         }
       }
     }
   }
 
-  _addBlock(fx, fy, fz, matType, fs, color) {
-    const s = fs * FINE;
+  _addBlock(fx, fy, fz, matType, fsx, fsy, fsz, color) {
+    const sx = fsx * FINE, sy = fsy * FINE, sz = fsz * FINE;
     const b = {
       id: this._blockId++,
       bi: this.blocks.length, // index into this.blocks; ALWAYS id - 1 (array order == id order)
       gx: fx, gy: fy, gz: fz, // fine coord of the min corner
-      fs, s,
-      x: (fx + fs / 2) * FINE, y: (fy + fs / 2) * FINE, z: (fz + fs / 2) * FINE,
+      fsx, fsy, fsz, sx, sy, sz,
+      // Characteristic length: the side of the cube of equal volume. Everything
+      // that needs ONE number for a box's size uses this (chunk `sizeAvg`, rim
+      // torque, creak timing), so those readings stay comparable across shapes.
+      // The cube case is taken from `sx` rather than computed, because
+      // `Math.cbrt` is implementation-approximated in the spec and every
+      // existing scene is cubes — this makes their bit-identity structural
+      // instead of a property of whichever cbrt the engine ships.
+      sAvg: fsx === fsy && fsy === fsz ? sx : Math.cbrt(sx * sy * sz),
+      x: (fx + fsx / 2) * FINE, y: (fy + fsy / 2) * FINE, z: (fz + fsz / 2) * FINE,
       vx: 0, vy: 0, vz: 0,
       rotX: 0, rotZ: 0, vRotX: 0, vRotZ: 0,
       matType, mat: MATERIALS[matType],
@@ -532,9 +559,9 @@ export class VoxelSandboxSim {
       neighbors: [],
     };
     this.blocks.push(b);
-    for (let ix = 0; ix < fs; ix++) {
-      for (let iy = 0; iy < fs; iy++) {
-        for (let iz = 0; iz < fs; iz++) {
+    for (let ix = 0; ix < fsx; ix++) {
+      for (let iy = 0; iy < fsy; iy++) {
+        for (let iz = 0; iz < fsz; iz++) {
           this.grid.set(key(fx + ix, fy + iy, fz + iz), b);
         }
       }
@@ -840,14 +867,15 @@ export class VoxelSandboxSim {
   _buildNeighbors() {
     for (const b of this.blocks) {
       const g = [b.gx, b.gy, b.gz];
+      const e = [b.fsx, b.fsy, b.fsz]; // extents indexed the same way as `g`
       const found = new Set();
       for (const [dx, dy, dz] of DIRS) {
         const a = dx !== 0 ? 0 : dy !== 0 ? 1 : 2;
         const sign = dx + dy + dz;
-        const fixed = sign > 0 ? g[a] + b.fs : g[a] - 1;
+        const fixed = sign > 0 ? g[a] + e[a] : g[a] - 1;
         const i1 = (a + 1) % 3, i2 = (a + 2) % 3;
-        for (let u = 0; u < b.fs; u++) {
-          for (let v = 0; v < b.fs; v++) {
+        for (let u = 0; u < e[i1]; u++) {
+          for (let v = 0; v < e[i2]; v++) {
             const c = [0, 0, 0];
             c[a] = fixed; c[i1] = g[i1] + u; c[i2] = g[i2] + v;
             const nb = this.grid.get(key(c[0], c[1], c[2]));
@@ -913,8 +941,8 @@ export class VoxelSandboxSim {
       const cells = new Set();
       for (let k = 0; k < list.length; k++) {
         const b = blocks[list[k]];
-        const x0 = Math.floor((b.x - b.s / 2) / ZONE_CELL), x1 = Math.floor((b.x + b.s / 2) / ZONE_CELL);
-        const z0 = Math.floor((b.z - b.s / 2) / ZONE_CELL), z1 = Math.floor((b.z + b.s / 2) / ZONE_CELL);
+        const x0 = Math.floor((b.x - b.sx / 2) / ZONE_CELL), x1 = Math.floor((b.x + b.sx / 2) / ZONE_CELL);
+        const z0 = Math.floor((b.z - b.sz / 2) / ZONE_CELL), z1 = Math.floor((b.z + b.sz / 2) / ZONE_CELL);
         for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) cells.add(x + ',' + z);
       }
       for (const k of cells) {
@@ -1067,15 +1095,18 @@ export class VoxelSandboxSim {
         if (b.state === 'consumed' || b.state === 'falling') continue;
         const dx = b.x - h.x, dz = b.z - h.z;
         if (dx * dx + dz * dz > instabR2) { this._clearLean(b); b.supportRatio = 1; continue; }
-        const o = b.s / 2 - 0.05;
+        // Corner inset per axis: it is the block's PLAN rectangle that is
+        // sampled, so a long thin kerb is tested at its ends, not at a square
+        // derived from one scalar side.
+        const ox = b.sx / 2 - 0.05, oz = b.sz / 2 - 0.05;
         let outside = 0;
-        let px = b.x - o - h.x, pz = b.z - o - h.z;
+        let px = b.x - ox - h.x, pz = b.z - oz - h.z;
         if (px * px + pz * pz > remR2) outside++;
-        px = b.x + o - h.x;
+        px = b.x + ox - h.x;
         if (px * px + pz * pz > remR2) outside++;
-        pz = b.z + o - h.z;
+        pz = b.z + oz - h.z;
         if (px * px + pz * pz > remR2) outside++;
-        px = b.x - o - h.x;
+        px = b.x - ox - h.x;
         if (px * px + pz * pz > remR2) outside++;
         // The renderer leans a weakened rim block TOWARD the hole, so its matrix
         // is a function of the hole's live position as well as of this ratio —
@@ -1110,14 +1141,32 @@ export class VoxelSandboxSim {
         for (let q = 0; q < nbs.length; q++) {
           const nb = nbs[q];
           if (nb.state !== 'static' && nb.state !== 'unstable') continue;
-          if (nb.gy + nb.fs <= cur.gy) continue; // entirely below — support never flows downward
+          if (nb.gy + nb.fsy <= cur.gy) continue; // entirely below — support never flows downward
           let ns;
-          if (nb.gy >= cur.gy + cur.fs) {
+          if (nb.gy >= cur.gy + cur.fsy) {
             if (cur.mat.vertBond < BOND_CARRY) continue;
             ns = 0;
           } else {
             if (cur.mat.horizBond < BOND_CARRY) continue;
-            ns = cs + (cur.s + nb.s) / 2;
+            // SPAN HOP, ADR-0013 P2.4. The cost of a horizontal hop is the
+            // centre-to-centre distance ALONG THE AXIS CROSSED — for cubes that
+            // is `(cur.s + nb.s) / 2` whichever way you go, which is why this
+            // line was direction-independent before boxes existed.
+            //
+            // `neighbors` is an unordered Set that never recorded direction, so
+            // the axis is recovered here from the two fine AABBs. It costs four
+            // integer adds and four compares on data already in hand: no
+            // allocation, no second pass, no lookup structure — this is the
+            // hottest loop in the sim and ADR-0006 exists to protect it.
+            //
+            // Face-adjacent boxes touch on exactly ONE axis and overlap on the
+            // other two (an edge- or corner-only touch shares no face cell, so
+            // `_buildNeighbors` never pairs them). y is already known to
+            // overlap: `nb.gy + nb.fsy <= cur.gy` was skipped above and
+            // `nb.gy >= cur.gy + cur.fsy` took the vertical branch. So the hop
+            // axis is x or z, and testing x settles it.
+            const xHop = cur.gx + cur.fsx === nb.gx || nb.gx + nb.fsx === cur.gx;
+            ns = cs + (xHop ? cur.sx + nb.sx : cur.sz + nb.sz) / 2;
             // Floor cells over the void can only cantilever a single meter;
             // upper structures use the material's own span limit.
             const cap = nb.gy === 0 ? Math.min(nb.mat.maxSpan, FLOOR_CANTILEVER) : nb.mat.maxSpan;
@@ -1195,8 +1244,10 @@ export class VoxelSandboxSim {
           continue;
         }
         const dist = frontHas[i] ? frontVal[i] : 0; // no path to support at all = let go now
-        // material creak scales with brick size: small bricks pop, big slabs grind
-        const failTime = Math.min(FAIL_CAP, b.mat.delay * creak * (1 + 0.15 * b.gy * FINE) * b.s + waveK * dist);
+        // material creak scales with brick size: small bricks pop, big slabs
+        // grind. `sAvg` is the characteristic length cbrt(sx·sy·sz), which is
+        // exactly `s` for a cube — so no shipped scene re-paces (ADR-0013).
+        const failTime = Math.min(FAIL_CAP, b.mat.delay * creak * (1 + 0.15 * b.gy * FINE) * b.sAvg + waveK * dist);
         b.failRate = 1 / Math.max(0.05, failTime);
         this._watchDamage(b);
       } else if (hang[i]) {
@@ -1207,7 +1258,7 @@ export class VoxelSandboxSim {
           this._watchDamage(b);
           continue;
         }
-        const failTime = Math.min(HANG_CAP, b.mat.delay * creak * (1 + 0.15 * b.gy * FINE) * b.s + 0.15 + 0.25 * spanVal[i]);
+        const failTime = Math.min(HANG_CAP, b.mat.delay * creak * (1 + 0.15 * b.gy * FINE) * b.sAvg + 0.15 + 0.25 * spanVal[i]);
         b.failRate = 1 / failTime;
         this._watchDamage(b);
       } else if (b.state === 'unstable') {
@@ -1228,9 +1279,9 @@ export class VoxelSandboxSim {
   _makeChunk(members, vx = 0, vy = 0, vz = 0) {
     let cx = 0, cy = 0, cz = 0, vol = 0, massSum = 0, sizeSum = 0;
     for (const b of members) {
-      const v = b.s ** 3;
+      const v = b.sx * b.sy * b.sz;
       cx += b.x * v; cy += b.y * v; cz += b.z * v;
-      vol += v; massSum += b.mat.mass * v; sizeSum += b.s;
+      vol += v; massSum += b.mat.mass * v; sizeSum += b.sAvg;
     }
     cx /= vol; cy /= vol; cz /= vol;
     const chunk = {
@@ -1300,7 +1351,7 @@ export class VoxelSandboxSim {
         for (const nb of cur.neighbors) {
           if (nb.state !== 'falling' || nb._mark || nb.parentChunk || nb.matType === 'loose') continue;
           if (this.time - nb.fallT > FRESH_WINDOW) continue;
-          const vertical = nb.gy >= cur.gy + cur.fs || nb.gy + nb.fs <= cur.gy;
+          const vertical = nb.gy >= cur.gy + cur.fsy || nb.gy + nb.fsy <= cur.gy;
           const bond = vertical
             ? Math.min(cur.mat.vertBond, nb.mat.vertBond)
             : Math.min(cur.mat.horizBond, nb.mat.horizBond);
@@ -1325,11 +1376,12 @@ export class VoxelSandboxSim {
   _assertCellKeyRange(scene) {
     let mnX = Infinity, mxX = -Infinity, mnZ = Infinity, mxZ = -Infinity;
     for (const b of this.blocks) {
-      const r = (b.fs + 2) * FINE; // footprint + the one-cell broad-phase pad
-      if (b.x - r < mnX) mnX = b.x - r;
-      if (b.x + r > mxX) mxX = b.x + r;
-      if (b.z - r < mnZ) mnZ = b.z - r;
-      if (b.z + r > mxZ) mxZ = b.z + r;
+      // footprint + the one-cell broad-phase pad, per axis
+      const rx = (b.fsx + 2) * FINE, rz = (b.fsz + 2) * FINE;
+      if (b.x - rx < mnX) mnX = b.x - rx;
+      if (b.x + rx > mxX) mxX = b.x + rx;
+      if (b.z - rz < mnZ) mnZ = b.z - rz;
+      if (b.z + rz > mxZ) mxZ = b.z + rz;
     }
     if (!this.blocks.length) return;
     const rect = this.boundsRect;
@@ -1363,14 +1415,14 @@ export class VoxelSandboxSim {
 
   // current-position fine min-corner (gx/gy/gz are build-time; blocks move)
   _foot(b) {
-    return [Math.round(b.x / FINE - b.fs / 2), Math.round(b.y / FINE - b.fs / 2), Math.round(b.z / FINE - b.fs / 2)];
+    return [Math.round(b.x / FINE - b.fsx / 2), Math.round(b.y / FINE - b.fsy / 2), Math.round(b.z / FINE - b.fsz / 2)];
   }
 
   _topAdd(b) {
     const [fx, fy, fz] = this._foot(b);
-    const top = (fy + b.fs) * FINE;
-    for (let ix = 0; ix < b.fs; ix++) {
-      for (let iz = 0; iz < b.fs; iz++) {
+    const top = (fy + b.fsy) * FINE;
+    for (let ix = 0; ix < b.fsx; ix++) {
+      for (let iz = 0; iz < b.fsz; iz++) {
         const k = cellKey(fx + ix, fz + iz);
         const prev = this._top.get(k) || 0;
         if (prev < top) {
@@ -1385,15 +1437,15 @@ export class VoxelSandboxSim {
   // columns to the next solid block below, and wake debris sleeping on it.
   _topRemove(b) {
     const [fx, fy, fz] = this._foot(b);
-    const bTop = (fy + b.fs) * FINE;
-    for (let ix = 0; ix < b.fs; ix++) {
-      for (let iz = 0; iz < b.fs; iz++) {
+    const bTop = (fy + b.fsy) * FINE;
+    for (let ix = 0; ix < b.fsx; ix++) {
+      for (let iz = 0; iz < b.fsz; iz++) {
         const k = cellKey(fx + ix, fz + iz);
         if (this._top.get(k) === bTop) {
           let ny = 0;
           for (let cy = fy - 1; cy >= 0; cy--) {
             const o = this.grid.get(key(fx + ix, cy, fz + iz));
-            if (o && (o.state === 'static' || o.state === 'unstable')) { ny = (o.gy + o.fs) * FINE; break; }
+            if (o && (o.state === 'static' || o.state === 'unstable')) { ny = (o.gy + o.fsy) * FINE; break; }
           }
           if (ny > 0) this._top.set(k, ny); else this._top.delete(k);
           this._blockerColChanged(fx + ix, fz + iz, bTop, ny);
@@ -1418,12 +1470,12 @@ export class VoxelSandboxSim {
   }
 
   // highest solid surface under a footprint at (x,z), 0 = bare ground
-  _topAt(x, z, fs) {
-    const gx0 = Math.round(x / FINE - fs / 2), gz0 = Math.round(z / FINE - fs / 2);
+  _topAt(x, z, fsx, fsz) {
+    const gx0 = Math.round(x / FINE - fsx / 2), gz0 = Math.round(z / FINE - fsz / 2);
     const top0 = this._top;
     let top = 0;
-    for (let ix = 0; ix < fs; ix++) {
-      for (let iz = 0; iz < fs; iz++) {
+    for (let ix = 0; ix < fsx; ix++) {
+      for (let iz = 0; iz < fsz; iz++) {
         const t = top0.get(cellKey(gx0 + ix, gz0 + iz));
         if (t > top) top = t;
       }
@@ -1437,21 +1489,33 @@ export class VoxelSandboxSim {
   _contact(b, vx, vz) {
     // _foot inline: this runs once per airborne body per step and the array it
     // returns was pure garbage
-    const fx = Math.round(b.x / FINE - b.fs / 2);
-    const fy = Math.round(b.y / FINE - b.fs / 2);
-    const fz = Math.round(b.z / FINE - b.fs / 2);
+    const fx = Math.round(b.x / FINE - b.fsx / 2);
+    const fy = Math.round(b.y / FINE - b.fsy / 2);
+    const fz = Math.round(b.z / FINE - b.fsz / 2);
     const xDominant = Math.abs(vx) > Math.abs(vz);
     const sgn = (xDominant ? vx : vz) >= 0 ? 1 : -1;
-    for (let u = 0; u < b.fs; u++) {
-      for (let v = 0; v < b.fs; v++) {
-        let cx, cz;
-        if (xDominant) { cx = sgn > 0 ? fx + b.fs : fx - 1; cz = fz + u; }
-        else { cz = sgn > 0 ? fz + b.fs : fz - 1; cx = fx + u; }
-        const cy = fy + v;
-        let o = this.grid.get(key(cx, cy, cz));
-        if (o && o !== b && (o.state === 'static' || o.state === 'unstable')) return o;
-        o = this.grid.get(key(fx + u, fy - 1, fz + v));
-        if (o && o !== b && (o.state === 'static' || o.state === 'unstable')) return o;
+    // The side probe sweeps (lateral, height); the bottom probe sweeps (x, z).
+    // On a box those two rectangles differ in size, so each gets a guard inside
+    // ONE fused loop rather than a loop of its own — this returns the FIRST
+    // solid hit, so splitting the walk would change which block a cube reports.
+    // On a cube lat === fsx and fsy === fsz, every guard is true, and the
+    // iteration is exactly the old one.
+    const lat = xDominant ? b.fsz : b.fsx;
+    const uMax = lat > b.fsx ? lat : b.fsx;
+    const vMax = b.fsy > b.fsz ? b.fsy : b.fsz;
+    for (let u = 0; u < uMax; u++) {
+      for (let v = 0; v < vMax; v++) {
+        if (u < lat && v < b.fsy) {
+          let cx, cz;
+          if (xDominant) { cx = sgn > 0 ? fx + b.fsx : fx - 1; cz = fz + u; }
+          else { cz = sgn > 0 ? fz + b.fsz : fz - 1; cx = fx + u; }
+          const o = this.grid.get(key(cx, fy + v, cz));
+          if (o && o !== b && (o.state === 'static' || o.state === 'unstable')) return o;
+        }
+        if (u < b.fsx && v < b.fsz) {
+          const o = this.grid.get(key(fx + u, fy - 1, fz + v));
+          if (o && o !== b && (o.state === 'static' || o.state === 'unstable')) return o;
+        }
       }
     }
     return null;
@@ -1471,8 +1535,8 @@ export class VoxelSandboxSim {
   _sleepObsAdd(b) {
     const [fx, , fz] = this._foot(b);
     b._obsFx = fx; b._obsFz = fz;
-    for (let ix = -1; ix <= b.fs; ix++) {
-      for (let iz = -1; iz <= b.fs; iz++) {
+    for (let ix = -1; ix <= b.fsx; ix++) {
+      for (let iz = -1; iz <= b.fsz; iz++) {
         const k = cellKey(fx + ix, fz + iz);
         let arr = this._sleepObs.get(k);
         if (!arr) { arr = []; this._sleepObs.set(k, arr); }
@@ -1487,8 +1551,8 @@ export class VoxelSandboxSim {
     if (b._obsFx === undefined) return;
     const fx = b._obsFx, fz = b._obsFz;
     b._obsFx = undefined;
-    for (let ix = -1; ix <= b.fs; ix++) {
-      for (let iz = -1; iz <= b.fs; iz++) {
+    for (let ix = -1; ix <= b.fsx; ix++) {
+      for (let iz = -1; iz <= b.fsz; iz++) {
         const k = cellKey(fx + ix, fz + iz);
         const arr = this._sleepObs.get(k);
         if (!arr) continue;
@@ -1648,11 +1712,11 @@ export class VoxelSandboxSim {
         ry = cb.relZ * sinX + ry * cosX;
         cb.x = c.cx + rx; cb.y = c.cy + ry; cb.z = c.cz + rz;
         if (this._overVoid(cb.x, cb.z, remR2)) {
-          if (cb.y + cb.s / 2 <= SINK_Y) { this._consume(cb); continue; }
+          if (cb.y + cb.sy / 2 <= SINK_Y) { this._consume(cb); continue; }
         } else {
           // impact on ANY solid surface — rooftops, rims, debris piles; and
           // hard contacts smash (damage) whatever the chunk hits
-          const topHit = cb.y <= this._topAt(cb.x, cb.z, cb.fs) + cb.s / 2 + 0.05;
+          const topHit = cb.y <= this._topAt(cb.x, cb.z, cb.fsx, cb.fsz) + cb.sy / 2 + 0.05;
           const directionalHit = topHit ? null : this._contact(cb, c.vx, c.vz);
           const solidHit = topHit || directionalHit ? this._resolveStaticContacts(cb) : null;
           if (solidHit || topHit || directionalHit) {
@@ -1699,7 +1763,7 @@ export class VoxelSandboxSim {
         members.push(cur);
         for (const nb of cur.neighbors) {
           if (!inPool.has(nb) || seen.has(nb)) continue;
-          const vertical = nb.gy >= cur.gy + cur.fs || nb.gy + nb.fs <= cur.gy;
+          const vertical = nb.gy >= cur.gy + cur.fsy || nb.gy + nb.fsy <= cur.gy;
           const bond = vertical
             ? Math.min(cur.mat.vertBond, nb.mat.vertBond)
             : Math.min(cur.mat.horizBond, nb.mat.horizBond);
@@ -1785,7 +1849,7 @@ export class VoxelSandboxSim {
       b.rotX += b.vRotX * dt; b.rotZ += b.vRotZ * dt;
 
       if (overVoid) {
-        if (b.y + b.s / 2 <= SINK_Y) this._consume(b);
+        if (b.y + b.sy / 2 <= SINK_Y) this._consume(b);
         continue;
       }
       // wall scrape: falling bodies damp against standing structures and
@@ -1794,7 +1858,7 @@ export class VoxelSandboxSim {
       // then run the full AABB separation against nearby solid buckets; open
       // air never pays for a city-wide overlap scan.
       const directionalHit = this._contact(b, b.vx, b.vz);
-      const topHit = b.y <= this._topAt(b.x, b.z, b.fs) + b.s / 2 + 0.05;
+      const topHit = b.y <= this._topAt(b.x, b.z, b.fsx, b.fsz) + b.sy / 2 + 0.05;
       const hit = topHit || directionalHit
         ? this._resolveStaticContacts(b) || directionalHit
         : null;
@@ -1810,19 +1874,19 @@ export class VoxelSandboxSim {
       // bodies contacted last step count as support too — without that, a
       // block landing on awake rubble sinks to ground level inside it and
       // gets squirted out sideways, and the pile never solidifies.
-      let support = this._topAt(b.x, b.z, b.fs);
+      let support = this._topAt(b.x, b.z, b.fsx, b.fsz);
       let looseSup = false;
       const rl = b._restLoose;
       b._restLoose = null; // re-set by this step's contact pass if still touching
       if (rl && rl.state === 'falling' && !rl.asleep) {
-        const hSum = (b.s + rl.s) / 2;
-        const top = rl.y + rl.s / 2;
-        if (Math.abs(b.x - rl.x) < hSum && Math.abs(b.z - rl.z) < hSum && top > support) {
+        const hSumX = (b.sx + rl.sx) / 2, hSumZ = (b.sz + rl.sz) / 2;
+        const top = rl.y + rl.sy / 2;
+        if (Math.abs(b.x - rl.x) < hSumX && Math.abs(b.z - rl.z) < hSumZ && top > support) {
           support = top;
           looseSup = true;
         }
       }
-      const rest = support + b.s / 2;
+      const rest = support + b.sy / 2;
       b._grounded = false; // vacuum only acts on airborne/sliding bodies
       b._looseSup = false; // re-stamped each grounded step — _capDebris reads it
       if (b.y <= rest) {
@@ -1838,8 +1902,8 @@ export class VoxelSandboxSim {
         // hole-facing edge really overhangs the opening. A block on solid
         // ground NEXT to the hole has no business moving, and contact with
         // the pile damps spin instead of letting it pirouette in place.
-        if (nearRim && this._overVoid(b.x + (dx / dist) * b.s * 0.5, b.z + (dz / dist) * b.s * 0.5, remR2)) {
-          const tip = 1.5 / b.s;
+        if (nearRim && this._overVoid(b.x + (dx / dist) * b.sx * 0.5, b.z + (dz / dist) * b.sz * 0.5, remR2)) {
+          const tip = 1.5 / b.sAvg;
           b.rotX = Math.max(-0.6, Math.min(0.6, b.rotX + (-dz / dist) * tip * dt));
           b.rotZ = Math.max(-0.6, Math.min(0.6, b.rotZ + (dx / dist) * tip * dt));
         } else if (looseSup) {
@@ -1853,10 +1917,12 @@ export class VoxelSandboxSim {
           let lowTop = support, lowX = 0, lowZ = 0;
           for (let q = 0; q < 4; q++) {
             const nx = REPOSE_DIRS[q << 1], nz = REPOSE_DIRS[(q << 1) | 1];
-            const t = this._topAt(b.x + nx * b.s, b.z + nz * b.s, b.fs);
+            const t = this._topAt(b.x + nx * b.sx, b.z + nz * b.sz, b.fsx, b.fsz);
             if (t < lowTop) { lowTop = t; lowX = nx; lowZ = nz; }
           }
-          if (support - lowTop > b.s * 1.25) {
+          // a SLOPE test: drop over a run of one block width along whichever
+          // axis the low neighbour sits on (`b.s` both ways, for a cube)
+          if (support - lowTop > (lowX !== 0 ? b.sx : b.sz) * 1.25) {
             b.vx += lowX * 6 * dt; b.vz += lowZ * 6 * dt;
           } else if (b.vx * b.vx + b.vz * b.vz < 0.06) {
             // sleep CANDIDATE — committed only after this step's contact
@@ -1883,7 +1949,7 @@ export class VoxelSandboxSim {
       b.asleep = true;
       b.vx = 0; b.vy = 0; b.vz = 0; b.vRotX = 0; b.vRotZ = 0;
       const [fx, , fz] = this._foot(b);
-      const colK = cellKey(fx + (b.fs >> 1), fz + (b.fs >> 1));
+      const colK = cellKey(fx + (b.fsx >> 1), fz + (b.fsz >> 1));
       b.restCol = colK;
       b.restTop = b._sleepSupport;
       let sl = this._sleepers.get(colK);
@@ -1974,7 +2040,7 @@ export class VoxelSandboxSim {
       // Grounded means `b.y` was snapped to `support + s/2` this step, so this is
       // the support it is actually resting on — no probe needed, and no chance of
       // recording a surface it is not touching.
-      b._sleepSupport = b.y - b.s / 2;
+      b._sleepSupport = b.y - b.sy / 2;
     }
   }
 
@@ -2046,9 +2112,9 @@ export class VoxelSandboxSim {
     const relB = (b) => { b.length = 0; pool.push(b); };
 
     const insertInto = (map, b) => {
-      const fx = Math.round(b.x / FINE - b.fs / 2), fz = Math.round(b.z / FINE - b.fs / 2);
-      for (let ix = -1; ix <= b.fs; ix++) {
-        for (let iz = -1; iz <= b.fs; iz++) {
+      const fx = Math.round(b.x / FINE - b.fsx / 2), fz = Math.round(b.z / FINE - b.fsz / 2);
+      for (let ix = -1; ix <= b.fsx; ix++) {
+        for (let iz = -1; iz <= b.fsz; iz++) {
           const k = keyInt(fx + ix, fz + iz);
           let a = map.get(k);
           if (!a) { a = getB(); map.set(k, a); }
@@ -2078,7 +2144,7 @@ export class VoxelSandboxSim {
       occMove.clear();
       for (const b of awake) insertInto(occMove, b);
       for (const b of awake) {
-        const fx = Math.round(b.x / FINE - b.fs / 2), fz = Math.round(b.z / FINE - b.fs / 2);
+        const fx = Math.round(b.x / FINE - b.fsx / 2), fz = Math.round(b.z / FINE - b.fsz / 2);
         // Vertical pre-reject. These buckets are keyed on (x, z) only, so one
         // cell of a settled pile holds every block in that column at every
         // height, and the overwhelming majority of candidates are nowhere near
@@ -2090,16 +2156,16 @@ export class VoxelSandboxSim {
         // it is processed are both unchanged — this is a pure cost cut.
         // NB b.y is read live on every test, never hoisted: _pushAxis moves b
         // mid-loop, and _separate's own py term sees the updated position.
-        const bhs = b.s / 2;
-        for (let ix = -1; ix <= b.fs; ix++) {
-          for (let iz = -1; iz <= b.fs; iz++) {
+        const bhs = b.sy / 2;
+        for (let ix = -1; ix <= b.fsx; ix++) {
+          for (let iz = -1; iz <= b.fsz; iz++) {
             const k = keyInt(fx + ix, fz + iz);
             const mo = occMove.get(k);
             if (mo) {
               for (const o of mo) {
                 if (o === b || o.id < b.id) continue; // each pair once per round
                 const dy = b.y - o.y;
-                if (bhs + o.s / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, true);
+                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, true);
               }
             }
             const ob = occObs.get(k), sb = sleepObs.get(k);
@@ -2109,29 +2175,29 @@ export class VoxelSandboxSim {
               while (p < ob.length && q < sb.length) {
                 o = ob[p].id < sb[q].id ? ob[p++] : sb[q++];
                 const dy = b.y - o.y;
-                if (bhs + o.s / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
               }
               while (p < ob.length) {
                 o = ob[p++];
                 const dy = b.y - o.y;
-                if (bhs + o.s / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
               }
               while (q < sb.length) {
                 o = sb[q++];
                 const dy = b.y - o.y;
-                if (bhs + o.s / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
               }
             } else if (ob) {
               for (let p = 0; p < ob.length; p++) {
                 o = ob[p];
                 const dy = b.y - o.y;
-                if (bhs + o.s / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
               }
             } else if (sb) {
               for (let q = 0; q < sb.length; q++) {
                 o = sb[q];
                 const dy = b.y - o.y;
-                if (bhs + o.s / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
               }
             }
           }
@@ -2158,10 +2224,10 @@ export class VoxelSandboxSim {
   _resolveStaticContacts(b) {
     const stamp = ++this._scStamp;
     let hit = null;
-    const minX = Math.floor((b.x - b.s / 2) / COLLISION_CELL) - 1;
-    const maxX = Math.floor((b.x + b.s / 2) / COLLISION_CELL) + 1;
-    const minZ = Math.floor((b.z - b.s / 2) / COLLISION_CELL) - 1;
-    const maxZ = Math.floor((b.z + b.s / 2) / COLLISION_CELL) + 1;
+    const minX = Math.floor((b.x - b.sx / 2) / COLLISION_CELL) - 1;
+    const maxX = Math.floor((b.x + b.sx / 2) / COLLISION_CELL) + 1;
+    const minZ = Math.floor((b.z - b.sz / 2) / COLLISION_CELL) - 1;
+    const maxZ = Math.floor((b.z + b.sz / 2) / COLLISION_CELL) + 1;
     for (let x = minX; x <= maxX; x++) for (let z = minZ; z <= maxZ; z++) {
       const bucket = this._collisionBuckets.get(cellKey(x, z));
       if (!bucket) continue;
@@ -2170,12 +2236,11 @@ export class VoxelSandboxSim {
         if (o === b || o._scSeen === stamp) continue;
         if (o.state !== 'static' && o.state !== 'unstable') continue;
         o._scSeen = stamp;
-        const hSum = (b.s + o.s) / 2;
-        const py = hSum - Math.abs(b.y - o.y);
+        const py = (b.sy + o.sy) / 2 - Math.abs(b.y - o.y);
         if (py <= 0) continue;
-        const px = hSum - Math.abs(b.x - o.x);
+        const px = (b.sx + o.sx) / 2 - Math.abs(b.x - o.x);
         if (px <= 0) continue;
-        const pz = hSum - Math.abs(b.z - o.z);
+        const pz = (b.sz + o.sz) / 2 - Math.abs(b.z - o.z);
         if (pz <= 0) continue;
         const pen = px < py ? (px < pz ? px : pz) : (py < pz ? py : pz);
         if (!hit) hit = o;
@@ -2190,9 +2255,10 @@ export class VoxelSandboxSim {
   // least penetration. Blocks are axis-aligned in the sim (rotation is
   // render-side), so their shapes are respected exactly.
   _separate(b, o, movableO) {
-    const hSum = (b.s + o.s) / 2;
     const dx = b.x - o.x, dy = b.y - o.y, dz = b.z - o.z;
-    const px = hSum - Math.abs(dx), py = hSum - Math.abs(dy), pz = hSum - Math.abs(dz);
+    const px = (b.sx + o.sx) / 2 - Math.abs(dx);
+    const py = (b.sy + o.sy) / 2 - Math.abs(dy);
+    const pz = (b.sz + o.sz) / 2 - Math.abs(dz);
     const pen = Math.min(px, py, pz);
     if (pen <= 0) return;
     // trivially-embedded loaded contacts (a resting block pressed down by
@@ -2253,9 +2319,9 @@ export class VoxelSandboxSim {
     this._fallingRemoved++;             // stale entry in the active mover list
     this._dirtyComps.add(this._compOf[b.bi]); // its zone's support graph shrank
     this._unsleep(b); // sleeping debris: unregister + drop solid contribution
-    for (let ix = 0; ix < b.fs; ix++) {
-      for (let iy = 0; iy < b.fs; iy++) {
-        for (let iz = 0; iz < b.fs; iz++) {
+    for (let ix = 0; ix < b.fsx; ix++) {
+      for (let iy = 0; iy < b.fsy; iy++) {
+        for (let iz = 0; iz < b.fsz; iz++) {
           this.grid.delete(key(b.gx + ix, b.gy + iy, b.gz + iz));
         }
       }
@@ -2264,9 +2330,10 @@ export class VoxelSandboxSim {
     h.chain += 1;
     h.chainTimer = COMBO_WINDOW;
     h.bestCombo = Math.max(h.bestCombo, h.chain);
-    const gained = b.mat.mass * b.s ** 3 * comboMult(h.chain);
+    const vol = b.sx * b.sy * b.sz;
+    const gained = b.mat.mass * vol * comboMult(h.chain);
     h.mass += gained;
-    h.rawMass += b.mat.mass * b.s ** 3; // un-multiplied, for the HUD bar (combos inflate mass past the world total)
+    h.rawMass += b.mat.mass * vol; // un-multiplied, for the HUD bar (combos inflate mass past the world total)
     h.eatenCount += 1;
     // SIZE progression: escalating mass thresholds (scaled per scene — see
     // the constructor). Radius interpolates smoothly inside each level

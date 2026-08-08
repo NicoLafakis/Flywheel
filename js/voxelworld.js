@@ -279,8 +279,8 @@ function contentExtent(sim) {
     if (z1 > maxZ) maxZ = z1;
   };
   for (const b of sim.blocks) {
-    const h = num(b.s, 1) / 2;
-    grow(b.x - h, b.x + h, b.z - h, b.z + h);
+    const hx = num(b.sx, 1) / 2, hz = num(b.sz, 1) / 2;
+    grow(b.x - hx, b.x + hx, b.z - hz, b.z + hz);
   }
   // Decor rects can reach past the block field (a river, a beach, a park edge
   // with nothing built on it), and they are the surface the player reads as the
@@ -637,19 +637,26 @@ export class VoxelWorld3D {
       // keeps a detailed city from turning every paint variant into another
       // draw call.
       //
-      // `b.s` joins the key only when the bucket is surfaced, because that is
-      // the only case where it partitions anything real — surfaceMaterial()
-      // bakes the tile repeat per metre, so a 2 m brick genuinely needs its own
-      // material. Unsurfaced, every bucket resolves to the SAME cached
-      // mat(0xffffff) over the same unit boxGeo(), and size rides in the
-      // per-instance scale matrix (`this._s.set(b.s, b.s, b.s)` in update), so
-      // splitting on it bought a second InstancedMesh drawing identical
+      // The block's SIZE joins the key only when the bucket is surfaced,
+      // because that is the only case where it partitions anything real —
+      // surfaceMaterial() bakes the tile repeat per metre, so a 2 m brick
+      // genuinely needs its own material. Unsurfaced, every bucket resolves to
+      // the SAME cached mat(0xffffff) over the same unit boxGeo(), and size
+      // rides in the per-instance scale matrix (`this._s.set(...)` in update),
+      // so splitting on it bought a second InstancedMesh drawing identical
       // material and geometry. Across the five shipped scenes that was 116
       // block draw calls where 56 do the same work. Reproduce:
       // `node tools/probe-buildcost2.mjs --n=9`.
+      //
+      // ADR-0013: a block is a BOX, so "size" is three numbers. A cube tags as
+      // the bare scalar, which makes this key string byte-identical to the one
+      // `b.s` produced — every all-cube scene keeps exactly its bucket count.
+      // The key carries the full triple rather than the characteristic length
+      // so that Tier-2 per-axis tile repeat can land without re-partitioning.
       const surf = surfOf(b);
-      const k = surf ? surf + ':' + b.matType + ':' + b.s : b.matType;
-      if (!byMat.has(k)) byMat.set(k, { surf, size: surf ? b.s : null, list: [] });
+      const ext = b.sx === b.sy && b.sy === b.sz ? b.sx : b.sx + 'x' + b.sy + 'x' + b.sz;
+      const k = surf ? surf + ':' + b.matType + ':' + ext : b.matType;
+      if (!byMat.has(k)) byMat.set(k, { surf, size: surf ? b.sAvg : null, list: [] });
       byMat.get(k).list.push(b);
     }
     const boxG = boxGeo();
@@ -847,7 +854,7 @@ export class VoxelWorld3D {
       const k = gx + ',' + gz;
       let e = g.get(k);
       if (!e) { e = { gx, gz, top: 0, n: 0, ind: 0 }; g.set(k, e); }
-      const top = b.y + b.s / 2; // b.y is the block CENTRE, not its base
+      const top = b.y + b.sy / 2; // b.y is the block CENTRE, not its base
       if (top > e.top) e.top = top;
       e.n++;
       if (b.matType === 'steel' || b.matType === 'concrete') e.ind++;
@@ -2210,7 +2217,7 @@ export class VoxelWorld3D {
       // physical 5 cm shortfall, which is a see-through slot in a wall one
       // block thick — it is painted now (see mortarTexture), so the seam
       // survives and the hole does not.
-      this._s.set(b.s, b.s, b.s);
+      this._s.set(b.sx, b.sy, b.sz);
       this._m4.compose(this._v, this._q, this._s);
       b._im.setMatrixAt(b._imIndex, this._m4);
       b._renderMatrixReady = true;

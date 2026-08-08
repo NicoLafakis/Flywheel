@@ -377,15 +377,18 @@ const farBoost = (camDist) => 1 + 0.30 * clamp01((camDist - 22) / 55);
 //   hole.chain / hole.chainTimer               combo count and its countdown
 //
 // The two renderers disagree about `obj`: the campaign sim gives tier/golden/
-// kind, the voxel sandbox gives a block with .s and .mat. One normaliser hides
-// that from every skin, so a jaw opens wider for a bus than for a hydrant in
-// both games without either builder knowing which game it is in.
+// kind, the voxel sandbox gives a block with .sAvg and .mat. One normaliser
+// hides that from every skin, so a jaw opens wider for a bus than for a hydrant
+// in both games without either builder knowing which game it is in.
 
 export function biteFromEvent(ev) {
   const o = ev.obj || {}, h = ev.hole || {};
   let size;
   if (o.tier != null) size = clamp01((o.tier - 1) / 6);          // campaign: 1..7
-  else if (o.s != null) size = clamp01((o.s - 0.5) / 2.5);        // sandbox: brick edge
+  // sandbox: the block's characteristic length cbrt(sx*sy*sz), which is its
+  // edge when it is a cube. A bite is a mouthful, so equal volumes read equal
+  // however the box is proportioned (ADR-0013).
+  else if (o.sAvg != null) size = clamp01((o.sAvg - 0.5) / 2.5);
   else size = clamp01(Math.log2(1 + (ev.gained || 1)) / 7);       // fallback: mass
   // World position of the meal, however the sim happens to carry it, and the
   // bearing FROM the hole TO it. Skins that mark the ground (Attribution,

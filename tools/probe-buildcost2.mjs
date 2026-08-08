@@ -65,18 +65,33 @@ const SCENES = ['gallery', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston']
 // not replace these.
 const isSurface = (id) => typeof id === 'string' && SURFACE_BY_ID.has(id);
 
+// The block extent as the pre-ADR-0013 `b.s` scalar wrote it. A block is a box
+// now and carries no scalar, so the historical variants below could no longer
+// compute their own historical numbers — every key would end in `undefined` and
+// collapse the size split that is the whole point of the `size-always` column.
+// A cube tags as its bare size, which is exactly what `b.s` held, so those
+// columns keep reporting what they reported when the field existed. Their `src`
+// pins are untouched: those are the historical SOURCE and must not drift.
+const sizeTag = (b) => (b.sx === b.sy && b.sy === b.sz ? b.sx : b.sx + 'x' + b.sy + 'x' + b.sz);
+
 const KEY_VARIANTS = [
   {
     id: 'size-always',
     label: 'b.s in the key for every block (pre-P1.2)',
     src: "for (const b of sim.blocks) { const surf = surfOf(b); const k = (surf ? surf + ':' : '') + b.matType + ':' + b.s; if (!byMat.has(k)) byMat.set(k, { surf, size: b.s, list: [] }); byMat.get(k).list.push(b); }",
-    key: (b, surf) => (surf ? surf + ':' : '') + b.matType + ':' + b.s,
+    key: (b, surf) => (surf ? surf + ':' : '') + b.matType + ':' + sizeTag(b),
   },
   {
     id: 'size-when-surfaced',
     label: 'b.s in the key only when surfaced (P1.2)',
     src: "for (const b of sim.blocks) { const surf = surfOf(b); const k = surf ? surf + ':' + b.matType + ':' + b.s : b.matType; if (!byMat.has(k)) byMat.set(k, { surf, size: surf ? b.s : null, list: [] }); byMat.get(k).list.push(b); }",
-    key: (b, surf) => (surf ? surf + ':' + b.matType + ':' + b.s : b.matType),
+    key: (b, surf) => (surf ? surf + ':' + b.matType + ':' + sizeTag(b) : b.matType),
+  },
+  {
+    id: 'extent-when-surfaced',
+    label: 'per-axis extent in the key only when surfaced (ADR-0013 P2.6)',
+    src: "for (const b of sim.blocks) { const surf = surfOf(b); const ext = b.sx === b.sy && b.sy === b.sz ? b.sx : b.sx + 'x' + b.sy + 'x' + b.sz; const k = surf ? surf + ':' + b.matType + ':' + ext : b.matType; if (!byMat.has(k)) byMat.set(k, { surf, size: surf ? b.sAvg : null, list: [] }); byMat.get(k).list.push(b); }",
+    key: (b, surf) => (surf ? surf + ':' + b.matType + ':' + sizeTag(b) : b.matType),
   },
 ];
 
@@ -128,7 +143,7 @@ function countScene(sim) {
   const sizes = new Set();
   for (const b of sim.blocks) {
     const surf = surfOf(b);
-    sizes.add(b.s);
+    sizes.add(sizeTag(b));
     for (const v of KEY_VARIANTS) buckets.get(v.id).add(v.key(b, surf));
   }
   return {
@@ -222,16 +237,19 @@ for (const r of rows) {
 }
 
 console.log('\nRENDER BUCKETS  one InstancedMesh per bucket, so this IS the block draw-call count');
-console.log(`  ${padr('scene', 16)} ${pad('size-always', 12)} ${pad('size-when-surf', 15)} ${pad('delta', 7)}`);
-let totA = 0, totB = 0;
+console.log(`  ${padr('scene', 16)} ${pad('size-always', 12)} ${pad('size-when-surf', 15)} ${pad('delta', 7)} ${pad('extent-when-surf', 17)}`);
+let totA = 0, totB = 0, totC = 0;
 for (const r of rows) {
-  const a = r.buckets['size-always'], b = r.buckets['size-when-surfaced'];
-  totA += a; totB += b;
+  const a = r.buckets['size-always'], b = r.buckets['size-when-surfaced'], c = r.buckets['extent-when-surfaced'];
+  totA += a; totB += b; totC += c;
   const d = b - a;
-  console.log(`  ${padr(r.scene, 16)} ${pad(a, 12)} ${pad(b, 15)} ${pad(d > 0 ? `+${d}` : d, 7)}`);
+  console.log(`  ${padr(r.scene, 16)} ${pad(a, 12)} ${pad(b, 15)} ${pad(d > 0 ? `+${d}` : d, 7)} ${pad(c, 17)}`);
 }
-console.log(`  ${padr('TOTAL', 16)} ${pad(totA, 12)} ${pad(totB, 15)} ${pad(totB - totA, 7)}`);
-console.log(`  shipped column: ${shipped.id === 'size-always' ? 'size-always' : 'size-when-surf'}`);
+console.log(`  ${padr('TOTAL', 16)} ${pad(totA, 12)} ${pad(totB, 15)} ${pad(totB - totA, 7)} ${pad(totC, 17)}`);
+console.log(`  shipped column: ${shipped.id}`);
+// ADR-0013's claim for P2.6 is that going per-axis re-partitions nothing on an
+// all-cube scene. That is a number, so print it rather than asserting it.
+console.log(`  extent-when-surf vs size-when-surf: ${totC === totB ? 'identical' : `MOVED ${totC - totB}`}`);
 
 console.log(`\nBUILD COST  min-of-${N}, round-robin, ms`);
 console.log(`  ${padr('scene', 16)} ${pad('min', 9)} ${pad('median', 9)} ${pad('max', 9)} ${pad('med/min', 8)}`);

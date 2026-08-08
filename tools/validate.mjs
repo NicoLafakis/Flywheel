@@ -213,14 +213,17 @@ function validateVoxelSandbox() {
 }
 
 function overlaps(a, b) {
-  return Math.abs(a.x - b.x) < (a.s + b.s) / 2 &&
-    Math.abs(a.y - b.y) < (a.s + b.s) / 2 &&
-    Math.abs(a.z - b.z) < (a.s + b.s) / 2;
+  return Math.abs(a.x - b.x) < (a.sx + b.sx) / 2 &&
+    Math.abs(a.y - b.y) < (a.sy + b.sy) / 2 &&
+    Math.abs(a.z - b.z) < (a.sz + b.sz) / 2;
 }
 
+// `s` is a metre extent: a scalar for a cube, or [x, y, z] for a box (ADR-0013).
 function collisionBody(id, x, y, z, s = 1) {
+  const a = Array.isArray(s);
+  const sx = a ? s[0] : s, sy = a ? s[1] : s, sz = a ? s[2] : s;
   return {
-    id, state: 'falling', parentChunk: null, asleep: false, x, y, z, s,
+    id, state: 'falling', parentChunk: null, asleep: false, x, y, z, sx, sy, sz,
     vx: 0, vy: 0, vz: 0, vRotX: 0, vRotZ: 0, _inContact: false,
   };
 }
@@ -228,7 +231,7 @@ function collisionBody(id, x, y, z, s = 1) {
 function validateVoxelCollisions() {
   console.log('Validating voxel collision separation...');
   const sim = new VoxelSandboxSim({ seed: 'collision-validator' });
-  const solid = sim.blocks.find((b) => b.state === 'static' && b.s === 1);
+  const solid = sim.blocks.find((b) => b.state === 'static' && b.sx === 1 && b.sy === 1 && b.sz === 1);
   const mover = collisionBody(-1, solid.x, solid.y, solid.z);
   if (!sim._resolveStaticContacts(mover) || overlaps(mover, solid)) {
     fail('voxel collision: solid AABB separation left the mover embedded');
@@ -255,16 +258,19 @@ function validateVoxelCollisions() {
 
 const rectsOverlap = (a, b) =>
   a.x < b.x + b.w && a.x + a.w > b.x && a.z < b.z + b.d && a.z + a.d > b.z;
-const blockRect = (bl) => ({ x: bl.x - bl.s / 2, z: bl.z - bl.s / 2, w: bl.s, d: bl.s });
+const blockRect = (bl) => ({ x: bl.x - bl.sx / 2, z: bl.z - bl.sz / 2, w: bl.sx, d: bl.sz });
+// How a block's extent reads in a failure message: `1` for a cube, `2x0.5x2`
+// for a box, so a report names the actual piece rather than one of its axes.
+const sizeLabel = (bl) => (bl.sx === bl.sy && bl.sy === bl.sz ? bl.sx : `${bl.sx}x${bl.sy}x${bl.sz}`);
 
 // Highest block top (m) per 1 m footprint cell. The camera-blocker probe and the
 // bare-ground probe both key off it, so it is derived once per scene.
 function footprintTops(sim) {
   const tops = new Map();
   for (const b of sim.blocks) {
-    const top = (b.gy + b.fs) * 0.25;
-    for (let cx = Math.floor(b.gx * 0.25); cx < Math.ceil((b.gx + b.fs) * 0.25); cx++) {
-      for (let cz = Math.floor(b.gz * 0.25); cz < Math.ceil((b.gz + b.fs) * 0.25); cz++) {
+    const top = (b.gy + b.fsy) * 0.25;
+    for (let cx = Math.floor(b.gx * 0.25); cx < Math.ceil((b.gx + b.fsx) * 0.25); cx++) {
+      for (let cz = Math.floor(b.gz * 0.25); cz < Math.ceil((b.gz + b.fsz) * 0.25); cz++) {
         const k = `${cx},${cz}`;
         if (!(tops.get(k) >= top)) tops.set(k, top);
       }
@@ -278,9 +284,9 @@ function footprintTops(sim) {
 function probeCellOwnership(sim, name) {
   let ghosts = 0;
   for (const b of sim.blocks) {
-    for (let ix = 0; ix < b.fs; ix++) {
-      for (let iy = 0; iy < b.fs; iy++) {
-        for (let iz = 0; iz < b.fs; iz++) {
+    for (let ix = 0; ix < b.fsx; ix++) {
+      for (let iy = 0; iy < b.fsy; iy++) {
+        for (let iz = 0; iz < b.fsz; iz++) {
           if (sim.grid.get(`${b.gx + ix},${b.gy + iy},${b.gz + iz}`) !== b) ghosts++;
         }
       }
@@ -316,8 +322,8 @@ function probeCameraBlockers(sim, name, tops) {
 function probeBoundsRect(sim, name, slack = 12) {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const b of sim.blocks) {
-    minX = Math.min(minX, b.x - b.s / 2); maxX = Math.max(maxX, b.x + b.s / 2);
-    minZ = Math.min(minZ, b.z - b.s / 2); maxZ = Math.max(maxZ, b.z + b.s / 2);
+    minX = Math.min(minX, b.x - b.sx / 2); maxX = Math.max(maxX, b.x + b.sx / 2);
+    minZ = Math.min(minZ, b.z - b.sz / 2); maxZ = Math.max(maxZ, b.z + b.sz / 2);
   }
   const R = sim.boundsRect;
   if (!R) { fail(`${name}: no boundsRect`); return; }
@@ -343,10 +349,10 @@ function probeRoadConflicts(sim, name, vehicles, spans) {
       r.x >= v.minX - 0.75 && r.x + r.w <= v.maxX + 0.75 && r.z >= v.minZ - 0.75 && r.z + r.d <= v.maxZ + 0.75);
     if (inVehicle) continue;
     const inSpan = spans.some((s) =>
-      r.x >= s.minX && r.x + r.w <= s.maxX && r.z >= s.minZ && r.z + r.d <= s.maxZ && bl.y - bl.s / 2 >= s.minY);
+      r.x >= s.minX && r.x + r.w <= s.maxX && r.z >= s.minZ && r.z + r.d <= s.maxZ && bl.y - bl.sy / 2 >= s.minY);
     if (inSpan) continue;
     roadConflicts++;
-    if (!roadWorst) roadWorst = `${bl.matType}/${bl.s}m at (${r.x},${bl.y},${r.z})`;
+    if (!roadWorst) roadWorst = `${bl.matType}/${sizeLabel(bl)}m at (${r.x},${bl.y},${r.z})`;
   }
   if (roadConflicts > 0) fail(`${name}: ${roadConflicts} physical block(s) inside a roadway rect, first ${roadWorst}`);
 }
@@ -391,9 +397,9 @@ function probeRimmedWater(sim, name) {
   const D = sim.sceneDecor, R = sim.boundsRect;
   const groundCells = new Set();
   for (const b of sim.blocks) {
-    if (b.y - b.s / 2 > 0.01) continue;
-    for (let cx = Math.floor(b.x - b.s / 2); cx < Math.ceil(b.x + b.s / 2); cx++) {
-      for (let cz = Math.floor(b.z - b.s / 2); cz < Math.ceil(b.z + b.s / 2); cz++) groundCells.add(`${cx},${cz}`);
+    if (b.y - b.sy / 2 > 0.01) continue;
+    for (let cx = Math.floor(b.x - b.sx / 2); cx < Math.ceil(b.x + b.sx / 2); cx++) {
+      for (let cz = Math.floor(b.z - b.sz / 2); cz < Math.ceil(b.z + b.sz / 2); cz++) groundCells.add(`${cx},${cz}`);
     }
   }
   const wet = (x, z) => D.water.some((w) => x >= w.x && x < w.x + w.w && z >= w.z && z < w.z + w.d);
@@ -448,7 +454,7 @@ function probeOpenGround(sim, name, spans) {
       openBad++;
       if (!openWorst) {
         const b0 = occupied[0];
-        openWorst = `"${s.why}" holds ${occupied.length} block(s), first ${b0.matType}/${b0.s}m at (${b0.x},${b0.z})`;
+        openWorst = `"${s.why}" holds ${occupied.length} block(s), first ${b0.matType}/${sizeLabel(b0)}m at (${b0.x},${b0.z})`;
       }
     }
     if (s.minX < R.minX || s.maxX > R.maxX || s.minZ < R.minZ || s.maxZ > R.maxZ) {

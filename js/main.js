@@ -371,11 +371,12 @@ function startVoxelSandbox(scene = 'gallery') {
     if (authored && authored.intro) {
       let mnX = Infinity, mxX = -Infinity, mnZ = Infinity, mxZ = -Infinity;
       for (const b of sim.blocks) {
-        const h = b.s / 2;   // blocks carry a world centre and a world size
-        if (b.x - h < mnX) mnX = b.x - h;
-        if (b.x + h > mxX) mxX = b.x + h;
-        if (b.z - h < mnZ) mnZ = b.z - h;
-        if (b.z + h > mxZ) mxZ = b.z + h;
+        // blocks carry a world centre and a per-axis world size (ADR-0013)
+        const hx = b.sx / 2, hz = b.sz / 2;
+        if (b.x - hx < mnX) mnX = b.x - hx;
+        if (b.x + hx > mxX) mxX = b.x + hx;
+        if (b.z - hz < mnZ) mnZ = b.z - hz;
+        if (b.z + hz > mxZ) mxZ = b.z + hz;
       }
       // Sun direction, READ from the renderer rather than restated here — the
       // establishing yaw is scored partly on which facades are lit, and a copied
