@@ -317,6 +317,24 @@ recorded rather than force-fit or silently fixed.
   met pieces) that has nothing to do with the ground it runs over. Fix is two
   separate ranks (offset lines), not more content.
 
+**Ring B verification, 2026-08-08 (found during P6.4 prep).** District 4 is
+the first district with landmarks past the Ring A/B seam (scene radius >
+113 m), so the branch was checked against `03` §5.4 independently rather than
+trusted: worst radius error 0.109 m (inside the 0.25 m quantisation step),
+worst bearing error 0.056° against §5.4's own "better than a degree" claim —
+the branch is correct. Two doc bugs surfaced, neither a build blocker:
+- `03` §5.4's Great Dome figure ("155 m") is wrong; the law gives 145.5 m
+  (`sceneOffset` returns 145.49) from §5.4's own real-world 1,706 m. Looks
+  borrowed from NECCO's 154 m. §5.4's "eleven-fold lie" argument is
+  unaffected — the ratio is still ~11.7×.
+- **Ring A and Ring B disagree by 0.33 m at the seam** (real r=340: Ring A
+  gives 113.333, Ring B gives 113.000), making scene radius briefly
+  non-monotonic for real r ∈ (339, 340] vs (340, 354]. No landmark falls in
+  that window — the closest is Third Congregational Church (District 4) at
+  336.9 m real, 3.1 m of margin — but it's the kind of thing that could bite
+  a future district's landmark and is worth a permanent note in `03` §1.2
+  rather than rediscovering it.
+
 ---
 
 ## Phase 7 — Hidden content, glyphs, and achievements
