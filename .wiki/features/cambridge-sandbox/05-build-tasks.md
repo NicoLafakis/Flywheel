@@ -176,15 +176,15 @@ first thing `probeHeroIdentity` needs real geometry to check.
 | ID | Done when | Files / surfaces | Deps | Size |
 |---|---|---|---|---|
 | P6.1 | Map scaffolding, **geometry-independent half only**: `CAMBRIDGE_OFFSETS` (from `02` §6, with confidence markers) and the §1.2 scale-law conversion function. See the reconciliation note below for why `sim.boundsRect`, `CAMBRIDGE_OPEN_GROUND` and the `CAMBRIDGE_DISTRICTS` stub moved out of this task. | `js/voxelscene-cambridge.js` | P3.1, P4.1 | S |
-| P6.2 | **District 1 — Canal Park, the Hero Block.** 2 Canal Park member-by-member (`03` §6.1), 1 Canal Park, the front-door ring, spawn seating at (0, −14). `probeHeroIdentity`'s AABB pair gets real geometry. `HERO_SIGNAGE` authored to the `'entry'` default seam (`03` §6.5) — **see the blocked-on-signage note below before finalising this task.** Also adds District 1's own row to `CAMBRIDGE_DISTRICTS` and widens `sim.boundsRect` to hug Districts 1+2 — see the reconciliation note. | `js/voxelscene-cambridge.js` | P6.1, P3.5 | L |
-| P6.3 | **District 3 — Lechmere & the Viaduct.** First route leg; the local-recognition beat. Includes the Inner Belt yard geometry and, if it lands here, that district's `CAMBRIDGE_OPEN_GROUND` ballast span (the only one of `03` §1.4's four that isn't already covered by `sceneDecor.water`'s own dead-ground exemption — see the reconciliation note). Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect` to hug whatever districts exist by this point. | `js/voxelscene-cambridge.js` | P6.2 | M |
-| P6.4 | **District 4 — Cambridge Street & the Portuguese Seam.** The density reservoir. Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
-| P6.5 | **District 5 — Thorndike Civic.** Includes the First Street Garage's three required density mitigations (`03` §8.2) — all three, or the district fails the probe. Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
-| P6.6 | **District 6 — The Canal & CambridgeSide.** Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
-| P6.7 | **District 7 — North Point & Cambridge Crossing.** Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
-| P6.8 | **District 8 — The Charles Shore.** Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
+| P6.2 | **District 1 — Canal Park, the Hero Block.** 2 Canal Park member-by-member (`03` §6.1), 1 Canal Park, the front-door ring, spawn seating at (0, −14). `probeHeroIdentity`'s AABB pair gets real geometry. `HERO_SIGNAGE` authored to the `'entry'` default seam (`03` §6.5) — **see the blocked-on-signage note below before finalising this task.** Also adds District 1's own row to `CAMBRIDGE_DISTRICTS` — see the reconciliation note. `sim.boundsRect` is already at its final full-map value (landed early, inside P6.1 — see the reconciliation note) and does not need touching. | `js/voxelscene-cambridge.js` | P6.1, P3.5 | L |
+| P6.3 | **District 3 — Lechmere & the Viaduct.** First route leg; the local-recognition beat. Includes the Inner Belt yard geometry, already landed as one of `CAMBRIDGE_OPEN_GROUND`'s two declarable spans (see the reconciliation note) — verify it lines up with this district's actual built position, do not re-declare it. Adds its own `CAMBRIDGE_DISTRICTS` row. `sim.boundsRect` is already final; do not touch it. | `js/voxelscene-cambridge.js` | P6.2 | M |
+| P6.4 | **District 4 — Cambridge Street & the Portuguese Seam.** The density reservoir. Adds its own `CAMBRIDGE_DISTRICTS` row (`sim.boundsRect` is already final — see the reconciliation note — do not touch it). | `js/voxelscene-cambridge.js` | P6.1 | M |
+| P6.5 | **District 5 — Thorndike Civic.** Includes the First Street Garage's three required density mitigations (`03` §8.2) — all three, or the district fails the probe. Adds its own `CAMBRIDGE_DISTRICTS` row (`sim.boundsRect` is already final — see the reconciliation note — do not touch it). | `js/voxelscene-cambridge.js` | P6.1 | M |
+| P6.6 | **District 6 — The Canal & CambridgeSide.** Adds its own `CAMBRIDGE_DISTRICTS` row (`sim.boundsRect` is already final — see the reconciliation note — do not touch it). | `js/voxelscene-cambridge.js` | P6.1 | M |
+| P6.7 | **District 7 — North Point & Cambridge Crossing.** Adds its own `CAMBRIDGE_DISTRICTS` row (`sim.boundsRect` is already final — see the reconciliation note — do not touch it). | `js/voxelscene-cambridge.js` | P6.1 | M |
+| P6.8 | **District 8 — The Charles Shore.** Adds its own `CAMBRIDGE_DISTRICTS` row (`sim.boundsRect` is already final — see the reconciliation note — do not touch it). | `js/voxelscene-cambridge.js` | P6.1 | M |
 | P6.9 | **District 9 — The Landmark Shelf.** Stata Center (`03` §5.2, watch the grade-clause clarification on plinth-run sizing), Great Dome + Killian Court, Longfellow, Zakim, Bunker Hill, MIT Green Building, Kendall/MIT, NECCO water tower. `03` §4 gives this district no rect (it is described as "the Ring B annulus, all edges") — decide at this task whether to split it into per-edge-band rows or extend `probeDistrictDensity` to an annulus shape; a full-map rect swallows the Ring A core and would let the scene's highest-risk district never fail the probe. Also resolves the TD Garden law-vs-doc 0.25 m gap (declare a `03` §1.5-style exception or nudge the position in). | `js/voxelscene-cambridge.js` | P6.1 | L |
-| P6.10 | **District 10 — Street life, kerb kit & the edge-band gallery.** All five gallery items belong to `04`'s catalogue (`03` §8.3, reconciled 2026-08-07) — coordinate with P7.3 rather than authoring them here. `03` §4 calls this district's extent "scene-wide" rather than giving it a rect; decide whether it gets a probed `CAMBRIDGE_DISTRICTS` row at all, or folds its budget into the other nine as embedded props. Also: `03` §8.3 says the gallery's marks sit "inside a declared `CAMBRIDGE_OPEN_GROUND` span," which `probeOpenGround` cannot accept (a span holding content is no longer empty) — site them on an apron adjacent to a span instead, never inside one, per the reconciliation note. Finally widens `sim.boundsRect` to `03` §1.1's full map rect, now that every district exists to justify it. | `js/voxelscene-cambridge.js` | P6.2–P6.9 | S |
+| P6.10 | **District 10 — Street life, kerb kit & the edge-band gallery.** All five gallery items belong to `04`'s catalogue (`03` §8.3, reconciled 2026-08-07) — coordinate with P7.3 rather than authoring them here. `03` §4 calls this district's extent "scene-wide" rather than giving it a rect; decide whether it gets a probed `CAMBRIDGE_DISTRICTS` row at all, or folds its budget into the other nine as embedded props. Also: `03` §8.3 says the gallery's marks sit "inside a declared `CAMBRIDGE_OPEN_GROUND` span," which `probeOpenGround` cannot accept (a span holding content is no longer empty) — site them on an apron adjacent to a span instead, never inside one, per the reconciliation note. `sim.boundsRect` needs no action here — it already carries `03` §1.1's full map rect, landed early inside P6.1 (see the reconciliation note). | `js/voxelscene-cambridge.js` | P6.2–P6.9 | S |
 | P6.11 | `generateBlockers(sim)` run over the finished geometry; camera blockers never hand-written. | `js/voxelscene-cambridge.js` | P6.2–P6.10 | S |
 | P6.12 | Scene registered so it is reachable: a `cambridge` entry added to `AUTHORED_SCENES` in `js/main.js` (label/hud/intro subtitle, matching the existing entries' shape) and a `cambridge` row added to `FREE_PLAY` in `js/ui/screens.js`. Without this the finished scene has no way to load from the landing screen's free-play picker. | `js/main.js`, `js/ui/screens.js` | P6.11 | S |
 
@@ -209,16 +209,24 @@ Landing all five against the Phase-5-shipped tree (District 2 only) broke the
 Phase 5 gate three separate ways, each confirmed by actually running it
 rather than reasoned from the docs:
 
-- **Widening `sim.boundsRect` to `03` §1.1's full-map rect now** clears the
-  open-ground spans' edge-touching requirement but fails `probeBoundsRect`'s
-  12 m content-slack clause (one district cannot fill a 252×228 m map), and
-  it changes District 2's own scripted-excursion result (`eaten` 336→334,
-  `size` 7→6) by clamping the hole's travel differently — a regression against
-  already-shipped, already-verified content. `sim.boundsRect` stays at
-  District 2's own scope and widens incrementally, one district at a time, as
-  each district-landing task adds real geometry — never jumping ahead of what
-  is actually built. It only reaches the full-map rect at P6.10, once every
-  district exists to justify it.
+- **Widening `sim.boundsRect` to `03` §1.1's full-map rect against the
+  Phase-5-shipped tree (District 2 only)** clears the open-ground spans'
+  edge-touching requirement but fails `probeBoundsRect`'s 12 m content-slack
+  clause (one district cannot fill a 252×228 m map), and it changes District
+  2's own scripted-excursion result (`eaten` 336→334, `size` 7→6) by clamping
+  the hole's travel differently — a regression against already-shipped,
+  already-verified content. This was measured and correctly held back from
+  the first P6.1 delivery for exactly that reason. **It landed anyway, a few
+  minutes later inside the same P6.1 commit (`faaf220`)** — a process
+  failure, not a design decision: the change was made between when the diff
+  was reviewed and when it was staged, so the commit went out with a message
+  describing only half of what it contained (corrected after the fact in
+  `0fb0ec5`, see [[feedback-stop-the-tree-moving-before-gating]]). The two
+  `probeBoundsRect` failures this causes are consequently already live as of
+  P6.1, not staged in from P6.2 onward as originally planned — every
+  remaining P6.x task should leave `sim.boundsRect` untouched and treat those
+  two failures as pre-existing/expected until enough districts land to fill
+  the rect and clear them on their own.
 - **Declaring all 10 `CAMBRIDGE_DISTRICTS` rows before 9 of the districts have
   geometry** takes `probeDistrictDensity` from ALL PASS to 8 failures: an
   unbuilt district reads 0.00 pieces/m², indistinguishable to the probe from
