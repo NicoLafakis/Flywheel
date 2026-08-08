@@ -16,16 +16,14 @@
 // districts get authored against. It is data and one pure function and emits
 // nothing, so District 2's geometry is byte-for-byte what Phase 5 measured.
 //
-// P6.1 also moved `sim.boundsRect` to `03` §1.1's full-map x[−120,132]
-// z[−112,116] and declared the two open-ground spans that rect makes legal. THE
-// MAP IS THEREFORE KNOWINGLY UNDER-FILLED: `probeBoundsRect`'s 12 m
-// content-slack clause fails against a 252 × 228 m rect holding one district,
-// and will keep failing until districts 1 and 3-10 land. That is scaffolding
-// rather than a defect, and it is survivable precisely because this scene is not
-// registered anywhere yet — not in AUTHORED_SCENES or FREE_PLAY (P6.12), not in
-// the validator's scene registry (P8.1) — so nothing runs the shared contract
-// against it on the way past. The rect is a designed extent, not a hull, which
-// is why it lands once instead of growing per district.
+// `sim.boundsRect` GROWS PER DISTRICT and does not jump to `03` §1.1's designed
+// 252 × 228 m extent until every district exists to fill it (P6.10). P6.1 landed
+// the full-map rect early and it was reverted: `probeBoundsRect`'s second clause
+// fails a rect leaving more than 12 m of blank ground on any side, and it also
+// silently moved District 2's own already-measured excursion result — the hole
+// is clamped to the rect, so widening it changes where a leg ends. A rect is a
+// measurement of what is built, not a statement of intent, and every task widens
+// it to hug its own geometry. See `cambridgeShell` and `CAMBRIDGE_BOUNDS`.
 //
 // The ten-row district table `03` §4 wants is still absent, for a reason
 // recorded in full at CAMBRIDGE_DISTRICTS below: `probeDistrictDensity` derives
@@ -139,6 +137,7 @@ import {
   lampPost, hydrant, bench, trashBin, bollard, planter, signPost, bikeRack,
   crateStack, trashBags, newsBox, tree, shippingContainer, fireEscape,
   cafeTable, sandwichBoard, marketStall, lightMast,
+  hotDogCart, mailbox, drinkingFountain, fenceRun,
 } from './voxelkit.js';
 
 // See the palette note in the header: authored, unmeasured. `sp()` marks the two
@@ -174,6 +173,48 @@ const C = {
   dockTimber: 0x5f4a34,
   awning: 0x2f5c48,
   ghostSign: 0xd9c8a0,       // the painted wall sign — see CAMBRIDGE_HEROES
+
+  // --- DISTRICT 1, CANAL PARK -------------------------------------------
+  // `03` §6.4 guard 3 asks that the hero and its neighbour be unconfusable at
+  // any distance, and colour is the only channel that survives a silhouette
+  // reading at 60 m. So 2 Canal Park gets the district's only warm, saturated
+  // brick and 1 Canal Park gets the district's flattest greys — the separation
+  // is in the palette before it is in the massing.
+  heroBrick: 0xb0563a,       // 2 Canal Park's water-struck red
+  heroBrickDeep: 0x9c4830,   // the plinth course and the parapet
+  heroBand: 0xc8bda8,        // cast-stone sill/lintel bands
+  heroGlass: sp(0x5a7b88),
+  heroMullion: 0x39424a,
+  heroSteel: 0x59626b,       // the frame: columns, girders
+  heroDeck: 0xa9a49a,        // precast floor plates
+  // HubSpot's brand orange, and the ONLY use of it anywhere in the scene: the
+  // sprocket and the door reveal on the entry court. `probeHeroIdentity` keys
+  // on this exact value, so any second use of it — on any building — fails the
+  // build. That is the point of it having its own name here.
+  hubspotOrange: 0xff7a59,
+  // 1 Canal Park, the lab conversion. No mark, no orange, no sprocket:
+  // `03` §6.4 guard 1. Very low chroma on purpose.
+  labPrecast: 0x9a9c9b,
+  labPrecastDeep: 0x87898a,
+  labBand: 0xb2b4b3,
+  labGlass: sp(0x76807f),
+  labMullion: 0x63686a,
+  labSteel: 0x7c8183,
+  labDeck: 0x9fa2a1,
+  // The residential edge: Sierra and Thomas Graves Landing.
+  sierraBrick: 0x8e7a68,
+  sierraBand: 0xb6b0a4,
+  gravesBrick: 0x967f6a,
+  gravesBand: 0xbab5aa,
+  resGlass: sp(0x6d7f86),
+  resMullion: 0x4f565c,
+  resSteel: 0x6c7278,
+  resDeck: 0xa5a29a,
+  // Canal Park's ground.
+  granite: 0x8b8b86,         // the forecourt ring and the terrace copings
+  terrace: 0x9a9184,
+  canalTimber: 0x6b5642,
+  planterSoil: 0x4f4133,
 };
 
 // --- THE MAP -----------------------------------------------------------------
@@ -435,11 +476,21 @@ export const FRONTAGE = {
 export const CAMBRIDGE_STREETS = [
   { name: 'Cambridge Street', axis: 'x', x: -72, z: -5.5, w: 46.5, d: 7 },
   { name: 'First Street', axis: 'z', x: -33, z: -12, w: 6, d: 42 },
+  // District 1. Canal Park is a DEAD END in reality and it is one here: it runs
+  // north off the forecourt and stops at 2 Canal Park's entry court, which is
+  // the whole reason the street reads as the building's address rather than as
+  // through traffic. APPENDED, never inserted — `CAMBRIDGE_CROSSINGS` addresses
+  // streets by index, so a row inserted above this line silently re-points
+  // District 2's five crossings.
+  { name: 'Canal Park', axis: 'z', x: 6.5, z: 5, w: 6, d: 25 },
 ];
 export const CAM_XW_LEN = 3;
 export const CAMBRIDGE_CROSSINGS = [
   [0, -63], [0, -44], [0, -34],
   [1, 4], [1, 21],
+  // Both clear of the food-truck row's 18 m of kerb (z 9..27): a zebra painted
+  // under a parked truck is legal to every probe and wrong to every eye.
+  [2, 5.5], [2, 27],
 ];
 
 // Kerb-parked and moving vehicles. Exported because `probeRoadConflicts` treats
@@ -459,6 +510,25 @@ export const CAMBRIDGE_VEHICLES = [
   // allowance for a 1.5 x 0.5 m machine, and it would reject the half of the
   // bike that sticks out of its own declared box.
   { kind: 'motorcycle', x: -29.5, z: -8, axis: 'x' },
+
+  // District 1. `d` names the district that EMITS the row; District 2's rows
+  // above are `d` 2 by omission. One exported allowlist is what
+  // `probeRoadConflicts` needs, but the shell may only emit District 2's — the
+  // Phase 5 variants call `cambridgeShell` directly and must stay byte-identical
+  // to what they measured. So the table is whole and the emission is filtered.
+  //
+  // `03` §7.2's food-truck row, along Canal Park's west kerb and pointing north
+  // toward Lechmere. Three 6 m vans cover z 9..27 continuously, which is also
+  // what carries the density probe up the middle of a 6 m carriageway: nothing
+  // else in a street is within the 2.6 m corridor of its own centreline.
+  { kind: 'boxVan', x: 6.75, z: 9, axis: 'z', len: 6, cab: 0xd8d3c6, box: 0xc9532f, d: 1 },
+  { kind: 'boxVan', x: 6.75, z: 15, axis: 'z', len: 6, cab: 0xd8d3c6, box: 0x2f6b7a, d: 1 },
+  { kind: 'boxVan', x: 6.75, z: 21, axis: 'z', len: 6, cab: 0xd8d3c6, box: 0x3d5a3a, d: 1 },
+  // A z-axis sedan is 2 m wide in x from its own origin, so x 10.25 parks it
+  // 0.25 m off the east kerb at 12.5 — x 11 drove it through the kerb and the
+  // footway furniture standing behind it.
+  { kind: 'sedan', x: 10.25, z: 12, axis: 'z', body: 0x2f4756, roof: 0x2f4756, d: 1 },
+  { kind: 'sedan', x: 10.25, z: 23, axis: 'z', body: 0x8d2f28, roof: 0x8d2f28, d: 1 },
 ];
 
 // No bridges or viaducts over a carriageway anywhere in this district.
@@ -504,32 +574,36 @@ export const CAMBRIDGE_ROAD_SPANS = [];
 // on an authored apron", and `04` G11 puts the Flywheel sprocket in the Inner
 // Belt yard. A mark inside the span makes it non-empty and fails this probe. The
 // apron has to sit ADJACENT to a span, never inside one.
-export const CAMBRIDGE_OPEN_GROUND = [
-  {
-    // District 3's, per `03` §4.3. `02` §2 puts the Michael Capuano Inner Belt
-    // Carhouse at real E −132 / N +689 and the Green Line Transportation Office
-    // at E −337 / N +604 (both Confirmed, OSM), which `sceneOffset` maps to
-    // (−43, −127.75) and (−76.25, −108.5) — the first of which reproduces the
-    // "computed z ≈ −128" that `03` §1.5 exception 4 cites before pulling both
-    // radially in to z −100…−108. This is the ballast left north of the
-    // pulled-in yard, between it and minZ.
-    minX: -80, maxX: -40, minZ: -112, maxZ: -108,
-    why: 'Inner Belt yard ballast running out to the north level edge',
-  },
-  {
-    // District 8's, per `03` §4.8. `03` §5.1 seats the Longfellow's Cambridge end
-    // at (+10.5, +113) and `sceneOffset` puts its Boston end at (+49.75, +104.5),
-    // so this starts east of the deck's 2D footprint rather than under it — the
-    // same constraint that keeps the Zakim's channel out of this list entirely.
-    minX: 60, maxX: 132, minZ: 113, maxZ: 116,
-    why: 'the Charles south of the Longfellow line, at the south level edge',
-  },
-];
+// EMPTY AGAIN AT P6.2, and it is the bounds rect that empties it rather than a
+// change of mind. `probeOpenGround` requires each span to TOUCH a `boundsRect`
+// edge. P6.1's two spans were anchored to `03` §1.1's full-map rect, which this
+// task steps back from (see `cambridgeShell`'s `bounds` option) because a rect
+// that large fails the same probe's 12 m content-slack clause with only two
+// districts standing. Both derivations above survive as prose because they cost
+// real work and neither number changes: the Inner Belt ballast at
+// x[−80,−40] z[−112,−108] and the Charles at x[60,132] z[113,116] go back in the
+// moment their districts land and carry the rect out to meet them — P6.3 and
+// P6.8 respectively, and unconditionally by P6.10 when the rect becomes the
+// designed extent for good.
+export const CAMBRIDGE_OPEN_GROUND = [];
 
-// `probeDistrictDensity` reads these. Only District 2 exists in this file, so
-// the probe's density-floor clause (half the scene median) is self-referential
-// and always passes; the mean-gap and worst-hole clauses along the scripted
-// route are the ones that bind, and they are the ones that matter for combo.
+// `probeDistrictDensity` reads these. Districts 1 and 2 exist in this file, so
+// the density-floor clause (half the scene median) is now a real two-row
+// comparison rather than the self-referential one it was at Phase 5; the
+// mean-gap and worst-hole clauses along the scripted route still bind hardest,
+// and they are the ones that matter for combo.
+//
+// THE TWO RECTS OVERLAP, and that is `03` §4's own arithmetic rather than a
+// mistake here: §4 gives District 1 x[−46,+40] and District 2 x[−72,−26], which
+// share x[−46,−26], and both run through z[−12,+24]. The geometry does NOT
+// overlap — 1 Canal Park sits at z[−35,−12.75], north of District 2's z range —
+// but the RECTS do, so 1,359 of District 2's pieces stand inside District 1's
+// rect and are counted toward its density. Measured both ways: District 1 reads
+// 3.42 pieces/m² with the overlap in and 3.26 with it taken back out, and §8.2's
+// floor for it is 3.0, so the clause passes on District 1's own brickwork and not
+// on its neighbour's. Recorded rather than resolved: making the rects disjoint
+// means either abandoning 1 Canal Park's west half or moving a district boundary
+// §4 sets, and neither is P6.2's to decide.
 //
 // `03` §4's OTHER NINE ROWS ARE DELIBERATELY NOT HERE YET, and the reason is the
 // probe rather than the paperwork. The density-floor clause fails any row whose
@@ -558,7 +632,41 @@ export const CAMBRIDGE_OPEN_GROUND = [
 // field, not a null and not a 15, because the probe reads
 // `Math.min(maxGap, d.gapFloor ?? maxGap)` and an absent field falls back to the
 // scene-wide 15 m ceiling rather than exempting the row.
+//
+// TWO ROWS NOW, AND THEIR RECTS OVERLAP BY 13.5 m IN x. That is `03` §4's own
+// arithmetic, not a slip here: §4 gives District 1 x[−46,+40] and District 2
+// x[−72,−26], which overlap by 20 m before either is refined. Refining both
+// against built geometry narrows it (−39.5 against −25.5) but cannot close it,
+// because 1 Canal Park genuinely stands west of First Street's east footway and
+// District 2's footway genuinely runs past it. Overlapping rects are legal —
+// `probeDistrictDensity` scores each row independently and a block may be inside
+// both — but the consequence is worth stating: part of District 1's measured
+// density is District 2's First Street furniture. Reported, not hidden.
 export const CAMBRIDGE_DISTRICTS = [
+  {
+    id: 1,
+    name: 'Canal Park',
+    // REFINED AGAINST WHAT STANDS, not transcribed from `03` §4.1's approximate
+    // x[−46,+40] z[−36,+24]. West to 1 Canal Park's outer skin at −39.5 rather
+    // than −46 (nothing is built in the 6.5 m beyond it); east to the canal
+    // terrace's coping at +30.5 rather than +40; north to the service yard's
+    // plant enclosure at −36.5; south to the terrace's south coping at +27.
+    //
+    // SIERRA AND THOMAS GRAVES LANDING ARE OUTSIDE IT, deliberately. `02` §6
+    // seats them at real (E+111,N+115) and (E+141,N−92), which `sceneOffset`
+    // maps to (+30,−58) and (+51.5,+8.25) — 22 m north of §4.1's rect and 11.5 m
+    // east of it. Both are built at the law's position (`03` §1.2 is the
+    // authority and §1.5 declares no exception for either), so the rect is drawn
+    // around Canal Park proper and leaves them to the districts whose rects
+    // actually reach them. Sierra lands inside §4.3's District 3
+    // (x[−40,+40] z[−80,−36]); Thomas Graves Landing lands in NO declared rect
+    // in `03` §4 at all. Both recorded for P6.3 and P6.6 rather than forced.
+    rect: { minX: -39.5, maxX: 30.5, minZ: -36.5, maxZ: 27 },
+    budget: 11270,    // `03` §4.1
+    gapFloor: 6,      // `03` §8.2's floor for District 1 — the tightest in the
+                      // scene, and the reason every route leg below runs over
+                      // furnished ground rather than down a carriageway.
+  },
   {
     id: 2,
     name: 'The Davenport block',
@@ -593,14 +701,38 @@ export const CAMBRIDGE_DISTRICTS = [
 // hug the west kerb where the service walk's furniture and the mill's east gable
 // are both inside the corridor, and the rear-yard leg runs at z 26 rather than
 // mid-yard so the mill's south wall stays within reach of it.
+// P6.2 PREPENDS DISTRICT 1 AND SHIFTS DISTRICT 2 BY 43 s rather than appending.
+// Appending is the cheaper edit and it is the wrong one: the run starts at the
+// hardcoded spawn (0, 16), which is now inside District 1's forecourt, so a
+// route that opens 33 m west of it makes the first leg a traverse of ground
+// nobody scores. The legs below start where the player starts.
+//
+// Two properties of the old note change with the second district. Spawn is now
+// INSIDE `boundsRect`, so the first moving frame no longer snaps the hole to the
+// east edge — the 3 s idle-stability probe and the excursion both now begin in
+// the front-door ring, which is what `03` §7.2 asked for. And the run is 105 s
+// rather than 62; anything that hardcodes 62 measures the first two thirds of
+// it. Every leg is still placed against the density probe's 2.6 m corridor, and
+// District 1's 6 m gap floor is half as forgiving as District 2's, so the legs
+// here hug furnished ground harder: the Canal Park leg runs 0.75 m off the
+// food-truck row rather than down the crown of the carriageway.
 export const CAMBRIDGE_ROUTE = [
-  { until: 6, x: -33.5, z: 12 },   // across First Street to the service walk
-  { until: 14, x: -33.5, z: 26 },  // south along the mill's east gable
-  { until: 22, x: -44, z: 26 },    // west along the rear yard
-  { until: 30, x: -50, z: 20 },    // north in through the mill's south range
-  { until: 42, x: -68, z: 14 },    // west down the mill spine
-  { until: 51, x: -68, z: 5 },     // north through the west end
-  { until: 62, x: -36, z: 2.2 },   // east along the Cambridge Street frontage
+  { until: 4, x: 0, z: 20.5 },     // south out of the front-door ring
+  { until: 8, x: 2.5, z: 25 },     // southeast across the forecourt
+  { until: 13, x: 9.5, z: 26 },    // east onto Canal Park
+  { until: 20, x: 9.5, z: 11 },    // north up the food-truck row
+  { until: 24, x: 4.5, z: 6 },     // northwest onto the entry plaza
+  { until: 29, x: -8, z: 1.5 },    // west along the hero's south apron bosque
+  { until: 34, x: -20, z: -1 },    // west across the link plaza
+  { until: 38, x: -26, z: 1 },     // to Cambridge Street's east kerb stub
+  { until: 43, x: -26.5, z: 12 },  // north up First Street's east footway
+  { until: 49, x: -33.5, z: 12 },  // across First Street to the service walk
+  { until: 57, x: -33.5, z: 26 },  // south along the mill's east gable
+  { until: 65, x: -44, z: 26 },    // west along the rear yard
+  { until: 73, x: -50, z: 20 },    // north in through the mill's south range
+  { until: 85, x: -68, z: 14 },    // west down the mill spine
+  { until: 94, x: -68, z: 5 },     // north through the west end
+  { until: 105, x: -36, z: 2.2 },  // east along the Cambridge Street frontage
 ];
 
 // "Do not put the mark on the wrong building." The Davenport carries a painted
@@ -615,7 +747,32 @@ export const CAMBRIDGE_HEROES = [
     hero: { minX: -72, maxX: -35, minZ: 2.5, maxZ: 25, minY: 0, maxY: 20 },
     notHero: { minX: -72, maxX: -35, minZ: -12.5, maxZ: -6.5 },
   },
+  {
+    // The one the whole scene is about. `hero` is 2 Canal Park's envelope plus
+    // its entry court; `notHero` is 1 Canal Park's, drawn generously so that a
+    // mark drifting even 1 m off the hero lands in it rather than in the gap
+    // between them. Both AABBs are read off the built footprints below, not off
+    // `03` §1.5's design-time figures.
+    id: 'canal-park-sprocket',
+    colorKey: C.hubspotOrange,
+    hero: { minX: -15.5, maxX: 16, minZ: -26, maxZ: 6.5, minY: 0, maxY: 16 },
+    notHero: { minX: -40, maxX: -19, minZ: -36.5, maxZ: -12 },
+  },
 ];
+
+// `03` §6.5's signage declaration, carried in the doc's own shape. `color` is
+// the one field added to it: the probe needs a key and a colour kept only in a
+// doc cannot be checked against a build (the same reason `budget` rides on the
+// district rows). The two counts are RESERVES, not measurements — see
+// `sprocketPanel` for what the raster actually spends against them, and why the
+// difference is banked rather than padded out.
+export const HERO_SIGNAGE = {
+  placement: 'entry',
+  face: 'canal',
+  markBlocks: 120,
+  doorBlocks: 40,
+  color: C.hubspotOrange,
+};
 
 // --- EMITTERS ----------------------------------------------------------------
 // The plan walker below never calls js/voxelforms.js directly. It calls an
@@ -788,21 +945,729 @@ export function cambridgeBuildings(E, sim) {
   E.panel(sim, { x: -71.75, y: 4.5, z: 8.5, w: 3, h: 1, axis: 'z', t: 0.25, mat: 'brick', color: C.ghostSign });
 }
 
+// --- DISTRICT 1: CANAL PARK --------------------------------------------------
+// `03` §4.1's 11,270-block district: 2 Canal Park and its entry court, the
+// 1 Canal Park lab conversion, Canal Park itself, the front-door ring, the canal
+// forecourt and terrace, the two residential slabs, the service yard, and the
+// street furniture that ties them together.
+//
+// THE 1980s OFFICE VOCABULARY IS A DIFFERENT WALL FROM THE MILL'S, and that is
+// the point of building it with the same nine atoms. District 2's wall is a
+// masonry pier run with punched openings; this one is a storey-height bay of
+// pier, spandrel, sill band, twin lights and lintel band, on a 2.75 m floor to
+// floor (`03` §6.1) rather than the mill's 2.5. Same emitters, different
+// grammar — which is what makes ADR-0013's claim a vocabulary claim rather than
+// a one-building trick.
+//
+// FIVE RULES SHAPE EVERY NUMBER BELOW, and four of them are `probePlacementStep`
+// wearing different hats. Recorded here once instead of at each call site:
+//
+//   1. TWO LIGHTS PER BAY, NEVER EQUAL. `bayLights` splits the glazed part of a
+//      bay into unequal panes, so the pair inside one bay is never two identical
+//      collinear boxes a mullion apart — the gate condition, and the same one
+//      `lobbyLink` hit from the other direction.
+//   2. THE ODD BAY GOES AT THE END OF A RUN. Bays of equal width abut, so their
+//      repeated members sit gap 0 apart; an odd bay in the middle would put a
+//      sub-extent gap between the two equal runs either side of it.
+//   3. EVERY INTERIOR STRIP IS A DIFFERENT WIDTH. Floor plates repeat along the
+//      frame, and two equal plates separated by a 0.5 m column line are exactly
+//      the defect. Unequal strips also off-centre the column grid, which is what
+//      a real deep-plan floor plate does anyway.
+//   4. GLAZED HEIGHT ≤ HALF THE FLOOR PITCH. A 2.5 m light on a 2.75 m storey
+//      repeats 0.25 m above itself; 1.25 m on 2.75 leaves a 1.5 m gap and
+//      passes. This is why the storey stack carries a 1 m spandrel rather than
+//      full-height glass, and it is a physics answer as much as a probe one —
+//      glass carries no load, so it needs a bearing course every storey.
+//   5. COLUMNS RUN THE FULL PITCH; PLATES SIT BESIDE THEM ON GIRDERS. A column
+//      that stops under each plate leaves a plate-thickness gap in its own
+//      stack. District 2 proved the pattern on timber; `frameGrid` is the steel
+//      version of it.
+//
+// WHAT IS DELIBERATELY NOT HERE: `03` §4.1's ~870-block glyph and egg reserve —
+// the Cutaway at E36–E38 and the G6 anamorph — belongs to P7.3/P7.4 and is
+// banked, not spent. This district therefore targets ~10,400, not 11,270.
+
+const PIER_W = 0.75;      // jamb pier in plan
+const MUL_W = 0.25;
+const WALL_D = 0.75;      // wall zone: 0.25 m skin outboard of a 0.5 m pier
+const SP_H = 1.0;         // spandrel apron
+const BAND_H = 0.25;      // sill and lintel bands
+const D1_STOREY = 2.75;   // `03` §6.1
+
+// Footprints. Every one is the OUTER envelope including the wall zone, and every
+// extent is a multiple of 0.25 (ADR-0006).
+//
+// 1 CANAL PARK MOVED NORTH, and the deviation is large enough to state plainly.
+// `03` §1.5 exception 1 fixes its EAST face 6 m (scene) clear of the hero's west
+// face, which pins x to [−38.75,−20] and is honoured exactly. It says nothing
+// about z, and the law's own z — around −9.5 — puts the building through three
+// things that already exist: District 2's frontage row (x[−72,−35] z[−12,−7]),
+// Cambridge Street's carriageway (z[−5.5,+1.5] across the full map width), and
+// First Street's (x[−33,−27]). Nothing in §1.5 or §6.4 licenses moving a shipped
+// street, so the building moves instead: z[−35,−12.75], about 34 real metres
+// north of its true seat. THE COST IS TO §6.4 GUARD 4 — "the two Canal Park
+// buildings must read as neighbours" — because they now meet at a corner rather
+// than face to face across 6 m. Recorded, not silently absorbed: whoever
+// re-seats District 4's Cambridge Street can give this back.
+export const CANAL_PARK = {
+  hero:   { x0: -14,    z0: -24.25, w: 28,    d: 20.5,  storeys: 5 },
+  court:  { x0: 1.75,   z0: -3.75,  w: 12.5,  d: 8.25,  storeys: 3 },
+  lab:    { x0: -38.75, z0: -35,    w: 18.75, d: 22.25, storeys: 4 },
+  // Both at `sceneOffset`'s answer for `02` §6's rows, footprints estimated
+  // (the doc gives neither a plan nor a height for either — `02` §6 method note
+  // 4's territory) and heights at §6.1's 8 storeys.
+  sierra: { x0: 20,     z0: -63,    w: 20,    d: 10,    storeys: 8 },
+  graves: { x0: 42.25,  z0: 4,      w: 18.5,  d: 8.5,   storeys: 8 },
+};
+
+const HERO_PAL = {
+  brick: C.heroBrick, band: C.heroBand, glass: C.heroGlass,
+  mullion: C.heroMullion, steel: C.heroSteel, deck: C.heroDeck,
+  parapet: C.heroBrickDeep,
+};
+const LAB_PAL = {
+  brick: C.labPrecast, band: C.labBand, glass: C.labGlass,
+  mullion: C.labMullion, steel: C.labSteel, deck: C.labDeck,
+  parapet: C.labPrecastDeep,
+};
+const SIERRA_PAL = {
+  brick: C.sierraBrick, band: C.sierraBand, glass: C.resGlass,
+  mullion: C.resMullion, steel: C.resSteel, deck: C.resDeck,
+  parapet: C.sierraBand,
+};
+const GRAVES_PAL = {
+  brick: C.gravesBrick, band: C.gravesBand, glass: C.resGlass,
+  mullion: C.resMullion, steel: C.resSteel, deck: C.resDeck,
+  parapet: C.gravesBand,
+};
+
+// The glazed part of a bay, split into two UNEQUAL lights. `a` is always at
+// least 0.25 m narrower than `b`, and both are 0.25 m multiples by construction.
+function bayLights(bw) {
+  const rem = bw - PIER_W - 2 * MUL_W;
+  const a = q(rem / 2) - 0.25;
+  return [a, rem - a];
+}
+
+// One face of one storey. `axis` is the direction the face RUNS; `v` is the min
+// coordinate of its 0.75 m wall zone on the other plan axis; `u0` where it
+// starts along its own.
+function curtainFace(sim, o) {
+  const { axis, u0, v, y, bays, pal } = o;
+  const glH = D1_STOREY - SP_H - 2 * BAND_H;
+  const gy = y + SP_H + BAND_H;
+  let u = u0;
+  for (const bw of bays) {
+    if (axis === 'x') pier(sim, { x: u, y, z: v, w: PIER_W, h: D1_STOREY, d: WALL_D, mat: 'brick', color: pal.brick });
+    else pier(sim, { x: v, y, z: u, w: WALL_D, h: D1_STOREY, d: PIER_W, mat: 'brick', color: pal.brick });
+    let g = u + PIER_W;
+    for (const pane of bayLights(bw)) {
+      const seg = MUL_W + pane;
+      if (axis === 'x') {
+        panel(sim, { x: g, y, z: v, w: seg, h: SP_H, axis: 'x', t: WALL_D, mat: 'brick', color: pal.brick });
+        beam(sim, { x: g, y: y + SP_H, z: v, len: seg, axis: 'x', t: BAND_H, depth: WALL_D, mat: 'concrete', color: pal.band });
+        mullion(sim, { x: g, y: gy, z: v + 0.25, h: glH, s: MUL_W, mat: 'steel', color: pal.mullion });
+        panel(sim, { x: g + MUL_W, y: gy, z: v + 0.25, w: pane, h: glH, axis: 'x', t: 0.25, mat: 'glass', color: pal.glass });
+        beam(sim, { x: g, y: gy + glH, z: v, len: seg, axis: 'x', t: BAND_H, depth: WALL_D, mat: 'concrete', color: pal.band });
+      } else {
+        panel(sim, { x: v, y, z: g, w: seg, h: SP_H, axis: 'z', t: WALL_D, mat: 'brick', color: pal.brick });
+        beam(sim, { x: v, y: y + SP_H, z: g, len: seg, axis: 'z', t: BAND_H, depth: WALL_D, mat: 'concrete', color: pal.band });
+        mullion(sim, { x: v + 0.25, y: gy, z: g, h: glH, s: MUL_W, mat: 'steel', color: pal.mullion });
+        panel(sim, { x: v + 0.25, y: gy, z: g + MUL_W, w: pane, h: glH, axis: 'z', t: 0.25, mat: 'glass', color: pal.glass });
+        beam(sim, { x: v, y: gy + glH, z: g, len: seg, axis: 'z', t: BAND_H, depth: WALL_D, mat: 'concrete', color: pal.band });
+      }
+      g += seg;
+    }
+    u += bw;
+  }
+}
+
+// The steel frame and its plates. Columns run the FULL storey pitch so they
+// stack gap-free; the girders flank each column line and the plates land on the
+// girders, which is the only arrangement where nothing floats and nothing
+// repeats at a sub-extent gap. `strips` are the plate widths along x (all
+// different — rule 3), `frames` the bay depths along z (odd one first — rule 2).
+function frameGrid(sim, o) {
+  const { x0, z0, strips, frames, storeys, pal } = o;
+  const colXs = [];
+  let cx = x0;
+  for (let i = 0; i < strips.length - 1; i++) { cx += strips[i]; colXs.push(cx); cx += 0.5; }
+  const colZs = [];
+  let cz = z0;
+  for (const f of frames) { colZs.push(cz); cz += f; }
+  colZs.push(cz - 0.5);
+  for (let s = 0; s < storeys; s++) {
+    const y = s * D1_STOREY;
+    for (const colX of colXs) {
+      for (const pz of colZs) {
+        column(sim, { x: colX, y, z: pz, h: D1_STOREY, s: 0.5, mat: 'steel', color: pal.steel });
+      }
+      let bz = z0;
+      for (const f of frames) {
+        for (const gx of [colX - 0.5, colX + 0.5]) {
+          beam(sim, { x: gx, y: y + D1_STOREY - 0.75, z: bz, len: f, axis: 'z', t: 0.5, depth: 0.5, mat: 'steel', color: pal.steel });
+        }
+        bz += f;
+      }
+    }
+    let sx = x0;
+    for (const w of strips) {
+      let bz = z0;
+      for (const f of frames) {
+        slab(sim, { x: sx, y: y + D1_STOREY - 0.25, z: bz, w, d: f, t: 0.25, mat: 'concrete', color: pal.deck });
+        bz += f;
+      }
+      sx += w + 0.5;
+    }
+  }
+}
+
+// Dentil course, cornice, parapet and coping, at the wall head. The order is the
+// mill's and for the same reason: the dentils sit level with the top lintel band
+// so they have something to take a bearing off sideways, the cornice sits on the
+// dentils, and the parapet stands ON the wall head rather than behind a
+// projecting cornice with nothing under it.
+function capBuilding(sim, o) {
+  const { x0, z0, w, d, y, pal } = o;
+  const x1 = x0 + w, z1 = z0 + d;
+  const faces = [
+    { axis: 'x', u0: x0, len: w, v: z0, out: z0 - 0.25 },
+    { axis: 'x', u0: x0, len: w, v: z1 - WALL_D, out: z1 },
+    { axis: 'z', u0: z0 + WALL_D, len: d - 2 * WALL_D, v: x0, out: x0 - 0.25 },
+    { axis: 'z', u0: z0 + WALL_D, len: d - 2 * WALL_D, v: x1 - WALL_D, out: x1 },
+  ];
+  for (const f of faces) {
+    for (let o2 = 0; o2 + 0.5 <= f.len; o2 += 1.0) {
+      if (f.axis === 'x') panel(sim, { x: f.u0 + o2, y: y - 0.25, z: f.out, w: 0.5, h: 0.25, axis: 'x', t: 0.25, mat: 'concrete', color: C.castStoneDeep });
+      else panel(sim, { x: f.out, y: y - 0.25, z: f.u0 + o2, w: 0.5, h: 0.25, axis: 'z', t: 0.25, mat: 'concrete', color: C.castStoneDeep });
+    }
+    if (f.axis === 'x') {
+      cornice(sim, { x: f.u0, y, z: f.out, run: f.len, axis: 'x', t: 0.25, proj: 0.25, mat: 'concrete', color: pal.band });
+      panel(sim, { x: f.u0, y, z: f.v, w: f.len, h: 0.75, axis: 'x', t: WALL_D, mat: 'brick', color: pal.parapet });
+      beam(sim, { x: f.u0, y: y + 0.75, z: f.v, len: f.len, axis: 'x', t: 0.25, depth: WALL_D, mat: 'concrete', color: pal.band });
+    } else {
+      cornice(sim, { x: f.out, y, z: f.u0, run: f.len, axis: 'z', t: 0.25, proj: 0.25, mat: 'concrete', color: pal.band });
+      panel(sim, { x: f.v, y, z: f.u0, w: f.len, h: 0.75, axis: 'z', t: WALL_D, mat: 'brick', color: pal.parapet });
+      beam(sim, { x: f.v, y: y + 0.75, z: f.u0, len: f.len, axis: 'z', t: 0.25, depth: WALL_D, mat: 'concrete', color: pal.band });
+    }
+  }
+}
+
+// A plinth course wrapping a building, cut into ≤5 m runs. The cut is the grade
+// clause: `plinth`'s own doc says never past 6 m in plan at grade, and
+// `probeGradeDiagonal` fails anything past an 8 m plan diagonal at gy 0.
+function plinthBand(sim, o) {
+  const { x0, z0, w, d, color, skipSouthFrom } = o;
+  const run = (ax, az, len, axis) => {
+    for (let t = 0; t < len - 0.01; t += 5) {
+      const l = Math.min(5, len - t);
+      plinth(sim, axis === 'x'
+        ? { x: ax + t, y: 0, z: az, w: l, d: 0.75, h: 0.5, mat: 'concrete', color }
+        : { x: ax, y: 0, z: az + t, w: 0.75, d: l, h: 0.5, mat: 'concrete', color });
+    }
+  };
+  run(x0 - 0.75, z0 - 0.75, w + 1.5, 'x');
+  run(x0 - 0.75, z0 + d, skipSouthFrom === undefined ? w + 1.5 : skipSouthFrom - (x0 - 0.75), 'x');
+  run(x0 - 0.75, z0, d, 'z');
+  run(x0 + w, z0, d, 'z');
+}
+
+// A whole office block: skin, frame, cap, plinth. Four buildings run through it.
+function curtainBlock(sim, o) {
+  const { x0, z0, w, d, storeys, longAxis, xBays, zBays, strips, frames, pal, skipSouthFrom } = o;
+  const x1 = x0 + w, z1 = z0 + d;
+  for (let s = 0; s < storeys; s++) {
+    const y = s * D1_STOREY;
+    if (longAxis === 'x') {
+      curtainFace(sim, { axis: 'x', u0: x0, v: z0, y, bays: xBays, pal });
+      curtainFace(sim, { axis: 'x', u0: x0, v: z1 - WALL_D, y, bays: xBays, pal });
+      curtainFace(sim, { axis: 'z', u0: z0 + WALL_D, v: x0, y, bays: zBays, pal });
+      curtainFace(sim, { axis: 'z', u0: z0 + WALL_D, v: x1 - WALL_D, y, bays: zBays, pal });
+    } else {
+      curtainFace(sim, { axis: 'z', u0: z0, v: x0, y, bays: zBays, pal });
+      curtainFace(sim, { axis: 'z', u0: z0, v: x1 - WALL_D, y, bays: zBays, pal });
+      curtainFace(sim, { axis: 'x', u0: x0 + WALL_D, v: z0, y, bays: xBays, pal });
+      curtainFace(sim, { axis: 'x', u0: x0 + WALL_D, v: z1 - WALL_D, y, bays: xBays, pal });
+    }
+  }
+  frameGrid(sim, { x0: x0 + WALL_D, z0: z0 + WALL_D, strips, frames, storeys, pal });
+  capBuilding(sim, { x0, z0, w, d, y: storeys * D1_STOREY, pal });
+  plinthBand(sim, { x0, z0, w, d, color: pal.parapet, skipSouthFrom });
+}
+
+// `03` §6.5's mark. ONE call site, called ONCE, from 2 Canal Park's own origin —
+// which is the whole content of §6.4 guard 2: the sprocket is not a decal the
+// scene can sprinkle, it is a property of one building, so there is exactly one
+// function and exactly one caller and both live inside `canalParkHero`.
+//
+// A 12 x 12 cell raster on the 0.25 m grid (3.0 x 3.0 m), emitted as horizontal
+// runs so the whole mark is 18 blocks rather than 88 cells. Each row rests on
+// the row below and the bottom row rests on the sign rail, so the mark is a
+// supported stack rather than a decal that falls on frame one.
+//
+// AUTHORED, NOT SAMPLED. `03` §6.5 says to use the current official brand asset
+// and not to redraw it; there is no asset in this repo to sample, so this is a
+// sprocket silhouette at the declared grid and the raster is the thing P7.3
+// should replace when the asset lands. Flagged rather than passed off as traced.
+// It spends 18 of `HERO_SIGNAGE.markBlocks`' 120: the reserve is sized for a
+// sampled raster at this grid, and padding a cleaner shape out to hit a
+// reserved number would be spending budget on nothing.
+const SPROCKET = [
+  '....#..#....',
+  '....####....',
+  '..########..',
+  '.##########.',
+  '###......###',
+  '#..........#',
+  '#..........#',
+  '###......###',
+  '.##########.',
+  '..########..',
+  '....####....',
+  '....#..#....',
+];
+
+function sprocketPanel(sim, o) {
+  const { x, yTop, z0 } = o;
+  // The rail the mark stands on, and the only non-orange piece of the assembly:
+  // it takes its bearing sideways off the wall and hands the raster a vertical
+  // bearing, which a glass wall could never do (glass receives support and never
+  // passes it on).
+  beam(sim, { x, y: yTop - SPROCKET.length * 0.25 - 0.25, z: z0 - 0.25, len: SPROCKET[0].length * 0.25 + 0.5, axis: 'z', t: 0.25, depth: 0.25, mat: 'steel', color: C.heroSteel });
+  for (let r = 0; r < SPROCKET.length; r++) {
+    const row = SPROCKET[r];
+    const y = yTop - (r + 1) * 0.25;
+    let c = 0;
+    while (c < row.length) {
+      if (row[c] !== '#') { c++; continue; }
+      let n = 0;
+      while (c + n < row.length && row[c + n] === '#') n++;
+      panel(sim, { x, y, z: z0 + c * 0.25, w: n * 0.25, h: 0.25, axis: 'z', t: 0.25, mat: 'panel', color: C.hubspotOrange });
+      c += n;
+    }
+  }
+}
+
+// The glazed entry court: `03` §6.1's 12 x 8 m, three storeys, on the hero's
+// canal-facing corner. A different wall from the office bays above it — a
+// transom-and-spandrel curtain wall on a steel frame, which is what a 2010s
+// lobby insertion into an 1980s block actually looks like.
+// A run terminates on its last bay and no further. The obvious-looking closing
+// mullion past the end of the run has nothing under it — the bands and panels
+// stop at `u0 + sum(bays)` — so it would be a floating post at every storey.
+// The corner is closed by the adjacent wall's own plane instead.
+function courtWall(sim, o) {
+  const { axis, u0, v, y, bays } = o;
+  let u = u0;
+  const put = (kind, uu, len, yy, h) => {
+    if (axis === 'x') {
+      if (kind === 'band') beam(sim, { x: uu, y: yy, z: v, len, axis: 'x', t: h, depth: 0.25, mat: 'steel', color: C.heroSteel });
+      else panel(sim, { x: uu, y: yy, z: v, w: len, h, axis: 'x', t: 0.25, mat: kind, color: kind === 'glass' ? C.heroGlass : C.heroBand });
+    } else if (kind === 'band') {
+      beam(sim, { x: v, y: yy, z: uu, len, axis: 'z', t: h, depth: 0.25, mat: 'steel', color: C.heroSteel });
+    } else {
+      panel(sim, { x: v, y: yy, z: uu, w: len, h, axis: 'z', t: 0.25, mat: kind, color: kind === 'glass' ? C.heroGlass : C.heroBand });
+    }
+  };
+  const post = (uu, yy, h) => (axis === 'x'
+    ? mullion(sim, { x: uu, y: yy, z: v, h, s: MUL_W, mat: 'steel', color: C.heroMullion })
+    : mullion(sim, { x: v, y: yy, z: uu, h, s: MUL_W, mat: 'steel', color: C.heroMullion }));
+  for (const bw of bays) {
+    put('band', u, bw, y, BAND_H);
+    post(u, y + 0.25, 1.25);
+    put('glass', u + MUL_W, bw - MUL_W, y + 0.25, 1.25);
+    put('band', u, bw, y + 1.5, BAND_H);
+    put('panel', u, bw, y + 1.75, 1.0);
+    u += bw;
+  }
+}
+
+function entryCourt(sim) {
+  const K = CANAL_PARK.court;
+  const x0 = K.x0, z0 = K.z0, x1 = x0 + K.w, z1 = z0 + K.d;
+  const top = K.storeys * D1_STOREY;
+  // The frame. Its plates are the court's floors and its top plate is its roof.
+  frameGrid(sim, {
+    x0: x0 + 0.25, z0, strips: [3.25, 3.75, 4.0], frames: [4, 4],
+    storeys: K.storeys, pal: HERO_PAL,
+  });
+  for (let s = 0; s < K.storeys; s++) {
+    const y = s * D1_STOREY;
+    // West wall (the plaza side), south wall, east wall. The north side is the
+    // hero's own south elevation and is deliberately left as it stands.
+    courtWall(sim, { axis: 'z', u0: z0, v: x0, y, bays: [3.75, 4.25] });
+    courtWall(sim, { axis: 'x', u0: x0, v: z1 - 0.25, y, bays: [3.75, 4.0, 4.5] });
+    courtWall(sim, { axis: 'z', u0: z0, v: x1 - 0.25, y, bays: [3.75, 4.25] });
+  }
+  // Coping around the roof, in three runs so no two identical pieces meet at a
+  // sub-extent gap and nothing at grade is implicated.
+  beam(sim, { x: x0, y: top, z: z1 - 0.25, len: K.w, axis: 'x', t: 0.25, depth: 0.25, mat: 'concrete', color: C.heroBand });
+  beam(sim, { x: x0, y: top, z: z0, len: K.d - 0.25, axis: 'z', t: 0.25, depth: 0.25, mat: 'concrete', color: C.heroBand });
+  beam(sim, { x: x1 - 0.25, y: top, z: z0, len: K.d - 0.25, axis: 'z', t: 0.25, depth: 0.25, mat: 'concrete', color: C.heroBand });
+
+  // THE DOOR. `HERO_SIGNAGE.doorBlocks`' orange, on the canal face under the
+  // mark. Jambs and fins stand on the threshold, the header stands on them, and
+  // the sign rail stands on the header — one load path from the pavement to the
+  // sprocket.
+  const dz0 = -2.0, dLen = 4.5;
+  plinth(sim, { x: x1, y: 0, z: dz0, w: 0.25, d: dLen, h: 0.25, mat: 'concrete', color: C.hubspotOrange });
+  for (const jz of [dz0, dz0 + dLen - 0.25]) {
+    mullion(sim, { x: x1, y: 0.25, z: jz, h: 2.25, s: MUL_W, mat: 'steel', color: C.hubspotOrange });
+  }
+  for (const fz of [-1.25, -0.5, 0.75, 1.5]) {
+    mullion(sim, { x: x1, y: 0.25, z: fz, h: 2.25, s: MUL_W, mat: 'steel', color: C.hubspotOrange });
+  }
+  beam(sim, { x: x1, y: 2.5, z: dz0, len: dLen, axis: 'z', t: 0.25, depth: 0.25, mat: 'steel', color: C.hubspotOrange });
+  // Entry canopy, outboard over the terrace approach.
+  for (const cz of [-1.75, -0.25, 1.25]) {
+    slab(sim, { x: x1 + 0.25, y: 2.5, z: cz, w: 1.25, d: 1.5, t: 0.25, mat: 'steel', color: C.hubspotOrange });
+  }
+  return { x1, top };
+}
+
+function canalParkHero(sim) {
+  const H = CANAL_PARK.hero;
+  curtainBlock(sim, {
+    x0: H.x0, z0: H.z0, w: H.w, d: H.d, storeys: H.storeys, longAxis: 'x',
+    xBays: [4, 4, 4, 4, 4, 4, 4],
+    zBays: [3, 4, 4, 4, 4],
+    strips: [3.25, 3.5, 4.0, 4.5, 3.0, 2.75, 2.5],
+    frames: [3, 4, 4, 4, 4],
+    pal: HERO_PAL,
+    skipSouthFrom: CANAL_PARK.court.x0 - 0.75,
+  });
+  const court = entryCourt(sim);
+  // The mark, from the hero's own origin: one call, one call site.
+  sprocketPanel(sim, { x: court.x1 + 0.25, yTop: 6.0, z0: -1.25 });
+
+  // Roof plant on the hero. `ry` is the ROOF DECK'S TOP FACE — the top storey's
+  // plates end at `storeys * D1_STOREY`, and the parapet above that stands on
+  // the wall head, not on the deck. Anything placed at the coping's level
+  // instead is placed 1 m above the only thing that could carry it.
+  const ry = H.storeys * D1_STOREY;
+  for (const [px, pz, pw] of [[-9, -20, 2], [-3.5, -20, 1.5], [4, -19, 2], [-6, -9, 1.5]]) {
+    pier(sim, { x: px, y: ry, z: pz, w: pw, h: 1.25, d: pw, mat: 'steel', color: 0x6e757c });
+  }
+  // Stair and lift overrun.
+  plinth(sim, { x: 7, y: ry, z: -12.5, w: 4, d: 4, h: 0.5, mat: 'concrete', color: C.heroDeck });
+  for (let s = 0; s < 2; s++) {
+    curtainFace(sim, { axis: 'x', u0: 7, v: -12.5, y: ry + 0.5 + s * D1_STOREY, bays: [4], pal: HERO_PAL });
+  }
+}
+
+function oneCanalPark(sim) {
+  const L = CANAL_PARK.lab;
+  curtainBlock(sim, {
+    x0: L.x0, z0: L.z0, w: L.w, d: L.d, storeys: L.storeys, longAxis: 'z',
+    xBays: [3.25, 3.5, 3.5, 3.5, 3.5],
+    zBays: [4.25, 4.5, 4.5, 4.5, 4.5],
+    strips: [2.5, 2.75, 3.0, 3.25, 3.75],
+    frames: [3.75, 4.25, 4.25, 4.25, 4.25],
+    pal: LAB_PAL,
+  });
+  // The conversion's tell: lab exhaust stacks and a chilled-water plant on the
+  // roof, and a covered goods entrance on the north gable. NO MARK, NO ORANGE,
+  // NO SPROCKET anywhere on this building — `03` §6.4 guard 1, and the reason
+  // `probeHeroIdentity`'s `notHero` box is drawn around it.
+  const ry = L.storeys * D1_STOREY;
+  for (const sx of [-36, -33.5, -31, -28.5]) {
+    mullion(sim, { x: sx, y: ry, z: -30, h: 3.5, s: 0.5, mat: 'steel', color: 0x8d9298 });
+  }
+  // The two chiller sets stand their own width apart in BOTH plan axes. Any
+  // closer and the pair reads to `probePlacementStep` as one mis-stepped run —
+  // the same rule District 2's yard transformers are spaced by.
+  plinth(sim, { x: -27, y: ry, z: -22, w: 5, d: 4, h: 0.5, mat: 'concrete', color: C.labDeck });
+  for (const [px, pz] of [[-26.5, -21.5], [-23.5, -21.5]]) {
+    pier(sim, { x: px, y: ry + 0.5, z: pz, w: 1.5, h: 1.0, d: 1.5, mat: 'steel', color: 0x7f868c });
+  }
+  // Covered goods entrance on the north gable, clear of the wall zone.
+  for (const gx of [-35, -30]) {
+    column(sim, { x: gx, y: 0, z: -37.5, h: 3.0, s: 0.5, mat: 'steel', color: C.labSteel });
+  }
+  slab(sim, { x: -35.5, y: 3.0, z: -38, w: 6, d: 3, t: 0.25, mat: 'steel', color: 0x6e757c });
+}
+
+function residentialEdge(sim) {
+  const S = CANAL_PARK.sierra;
+  curtainBlock(sim, {
+    x0: S.x0, z0: S.z0, w: S.w, d: S.d, storeys: S.storeys, longAxis: 'x',
+    xBays: [4, 4, 4, 4, 4],
+    zBays: [4.25, 4.25],
+    strips: [3.5, 4.0, 4.5, 5.0],
+    frames: [4.25, 4.25],
+    pal: SIERRA_PAL,
+  });
+  const G = CANAL_PARK.graves;
+  curtainBlock(sim, {
+    x0: G.x0, z0: G.z0, w: G.w, d: G.d, storeys: G.storeys, longAxis: 'x',
+    xBays: [3.5, 3.75, 3.75, 3.75, 3.75],
+    zBays: [3.5, 3.5],
+    strips: [3.5, 3.75, 4.0, 4.25],
+    frames: [3.5, 3.5],
+    pal: GRAVES_PAL,
+  });
+}
+
+// `03` §7.2's front-door ring. A granite seat ring on an octagonal outline, one
+// quadrant authored and mirrored, every piece 0.5 m so SIZE 1 can take it.
+//
+// THE OUTLINE IS THE WHOLE POINT AND IT IS WHY THIS IS NOT A RING OF BOLLARDS.
+// The target is that all 32 headings out of spawn meet something eatable inside
+// 6 m. A prop is a point: sixteen bollards on a 4.75 m circle cover about a
+// quarter of the headings between them and the rest of the sweep finds nothing.
+// A CONTINUOUS outline covers every heading by construction — consecutive pieces
+// meet at a face or at a corner, and a corner is angularly complete because a
+// ray either side of it enters one piece or the other. Measured band: nearest
+// face 4.25 m, furthest corner 5.26 m, so it clears the 4 m spawn disc on the
+// inside and the 6 m target on the outside with room either way.
+const RING_C = { x: 0, z: 16 };
+const RING_QUARTER = [
+  [0, -4.75], [0.5, -4.75], [1.0, -4.75], [1.5, -4.75], [2.0, -4.75],
+  [2.25, -4.25], [2.75, -3.75], [3.25, -3.25], [3.75, -2.75],
+  [4.25, -2.25], [4.25, -1.75], [4.25, -1.25], [4.25, -0.75], [4.25, -0.25],
+];
+
+function frontDoorRing(sim) {
+  const seen = new Set();
+  for (const [dx, dz] of RING_QUARTER) {
+    for (const [sx, sz] of [[dx, dz], [-dx - 0.5, dz], [dx, -dz - 0.5], [-dx - 0.5, -dz - 0.5]]) {
+      const key = `${sx},${sz}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      plinth(sim, { x: RING_C.x + sx, y: 0, z: RING_C.z + sz, w: 0.5, d: 0.5, h: 0.5, mat: 'concrete', color: C.granite });
+      // A seat back on the two straight runs facing the hero and the canal, so
+      // the ring reads as furniture rather than as a kerb.
+      if (Math.abs(sz + 0.25) > 4.4) {
+        plinth(sim, { x: RING_C.x + sx, y: 0.5, z: RING_C.z + sz, w: 0.5, d: 0.5, h: 0.5, mat: 'wood', color: C.canalTimber });
+      }
+    }
+  }
+}
+
+// Canal Park's kerbs, and the furniture that carries the density probe up a 6 m
+// carriageway. Cut into 5 m runs for the same grade reason as District 2's.
+function canalParkStreet(sim) {
+  const kerb = (x, z, len, axis) => {
+    for (let o = 0; o < len - 0.01; o += 5) {
+      const l = Math.min(5, len - o);
+      beam(sim, axis === 'x'
+        ? { x: x + o, y: 0, z, len: l, axis: 'x', t: 0.25, depth: 0.25, mat: 'concrete', color: C.kerb }
+        : { x, y: 0, z: z + o, len: l, axis: 'z', t: 0.25, depth: 0.25, mat: 'concrete', color: C.kerb });
+    }
+  };
+  for (const kx of [6.25, 12.5]) kerb(kx, 5.5, 24, 'z');
+  // West footway: the food-truck row's customer side, and the leg the excursion
+  // runs. Everything on a 5 m pitch, deconflicted by hand the way District 2's
+  // schedule is — these are 1.5 m walks and a 2 m prop overhangs a carriageway.
+  for (const z of [6, 16, 26]) lampPost(sim, 5.75, z);
+  for (const z of [9, 19]) bollard(sim, 5.75, z, C.steelDark);
+  for (const z of [12, 22]) trashBin(sim, 5.6, z, 0x33453a);
+  newsBox(sim, 5.5, 14, 0xc23b2e);
+  newsBox(sim, 5.5, 15.5, 0x2a4f9a);
+  hydrant(sim, 5.6, 24);
+  for (const z of [13.5, 20.5]) bench(sim, 13, z);
+  for (const z of [8, 18, 28]) lampPost(sim, 13.25, z);
+  for (const z of [11, 24]) bollard(sim, 13.25, z, C.steelDark);
+  planter(sim, 12.75, 16, 1.5, 1, 0x5d6a4a);
+  mailbox(sim, 12.75, 26.5, 0x2a4f9a);
+  // z 27, not 29: the board hangs 1 m beyond the post and the footway ends at 30.
+  signPost(sim, 5.75, 27, 0x2c6e4f, 2, 'z', 1.0);
+}
+
+// The canal forecourt and terrace: `03` §4.1's plinth stepping down toward the
+// water. THE WATER ITSELF IS NOT DECLARED HERE. `02` calls the basin "a short
+// dead-end canal basin cut inland from the Charles" and `03` §4.6 gives it to
+// District 6; a half-built body of water would have to satisfy `probeRimmedWater`
+// against a rim nobody has authored yet. The terrace is built to the edge it
+// will meet, and P6.6 brings the water up to it.
+function canalTerrace(sim) {
+  // Three steps down eastward, each its own ground-anchored course.
+  for (let i = 0; i < 3; i++) {
+    const y = 0.75 - i * 0.25;
+    for (let z = 8; z < 26; z += 4.5) {
+      plinth(sim, { x: 17 + i * 2.5, y: 0, z, w: 2.5, d: 4.5, h: y, mat: 'concrete', color: C.terrace });
+    }
+  }
+  for (let z = 8; z < 26; z += 4.5) {
+    plinth(sim, { x: 24.5, y: 0, z, w: 4, d: 4.5, h: 0.25, mat: 'concrete', color: C.granite });
+  }
+  // The coping the water will meet, and the rail behind it. The coping sits ON
+  // the granite course, INSIDE its western half — a coping outboard of the last
+  // plinth is a coping standing on nothing.
+  for (let z = 8; z < 26; z += 6) {
+    beam(sim, { x: 28, y: 0.25, z, len: 6, axis: 'z', t: 0.25, depth: 0.5, mat: 'concrete', color: C.granite });
+  }
+  fenceRun(sim, { x: 29.25, z: 8, len: 17.5, axis: 'z', h: 1.0, mat: 'steel', color: 0x4a5158 });
+  // The furniture stands ON the steps, not through them: every prop below takes
+  // the top face of the course it occupies as its `y`.
+  for (const z of [9, 15, 21, 26]) lampPost(sim, 16.5, z);
+  for (const z of [11, 17, 23]) bench(sim, 22.5, z, 0.25);
+  for (const z of [12.5, 19.5]) planter(sim, 20, z, 1.5, 1, 0x5d6a4a, 0.5);
+  for (const [tx, tz] of [[15.5, 12], [15.5, 18], [15.5, 24]]) tree(sim, tx, tz);
+  // `03` §7.2's "planters along the canal edge", on the granite course between
+  // the last step and the coping. 1.25 m wide so the run stops exactly where the
+  // coping starts rather than growing through it.
+  for (const z of [9, 12.5, 16, 19.5, 23]) planter(sim, 26.75, z, 1.25, 1, 0x5d6a4a, 0.25);
+  // `03` §7.2's private outdoor patio, at grade on the terrace's north apron
+  // rather than on the steps: `cafeTable` builds from its own floor and there is
+  // no version of it that starts on a raised course.
+  for (const x of [18.5, 21, 23.5, 26]) cafeTable(sim, x, 6.75);
+}
+
+// The service yard, dock, ramp and plant north of the hero — `03` §4.1's line
+// item, and the district's one piece of back-of-house.
+function serviceYard(sim) {
+  wedge(sim, { x: -13, y: 0, z: -30, w: 5, d: 3, h: 1.0, axis: 'x', from: 'max', riser: 0.25, mat: 'concrete', color: 0x8b8378 });
+  plinth(sim, { x: -8, y: 0, z: -30, w: 5, d: 3, h: 1.0, mat: 'concrete', color: 0x8b8378 });
+  plinth(sim, { x: -3, y: 0, z: -30, w: 4.5, d: 3, h: 1.0, mat: 'concrete', color: 0x847c72 });
+  wedge(sim, { x: 1.5, y: 0, z: -30, w: 2, d: 3, h: 1.0, axis: 'x', from: 'min', riser: 0.25, mat: 'concrete', color: 0x8b8378 });
+  for (const px of [-8, -3.5, 1]) {
+    column(sim, { x: px, y: 1.0, z: -28.25, h: 2.5, s: 0.25, mat: 'steel', color: C.steelDark });
+  }
+  beam(sim, { x: -8, y: 3.5, z: -28.25, len: 9.25, axis: 'x', t: 0.25, depth: 0.25, mat: 'steel', color: C.steelDark });
+  slab(sim, { x: -8.25, y: 3.75, z: -30.25, w: 4.5, d: 2.25, t: 0.25, mat: 'steel', color: 0x6e757c });
+  slab(sim, { x: -3.75, y: 3.75, z: -30.25, w: 5, d: 2.25, t: 0.25, mat: 'steel', color: 0x686f76 });
+  // The parking ramp down to the basement, and the plant enclosure beside it.
+  // 6 x 3.5 m, not 8 x 5: `probeGradeDiagonal` caps a piece that meets grade at
+  // an 8 m plan diagonal, and 8 x 5 is 9.43 m across the corners.
+  wedge(sim, { x: 5, y: 0, z: -35, w: 6, d: 3.5, h: 2.0, axis: 'x', from: 'min', riser: 0.25, mat: 'concrete', color: 0x7f7a72 });
+  shippingContainer(sim, -13, 0, -34.5, 6, 0xb4552f);
+  shippingContainer(sim, -13, 3, -34.5, 6, 0x2f6b7a);
+  for (const x of [-6, -4.5, -3]) crateStack(sim, x, -34.5, 3, 0x8a6a44);
+  for (const x of [-11, -1]) trashBin(sim, x, -26.5, 0x33453a);
+  trashBags(sim, 3, -26.5, 0x22262c);
+  // Backed up east of the container stack, not into it.
+  bigTruck(sim, -6, -33.5, 0xd8d3c6, true);
+  lightMast(sim, 12, -34, 6, 0x39414d);
+  lightMast(sim, -13, -26, 6, 0x39414d);
+  fenceRun(sim, { x: -14, z: -36, len: 28, axis: 'x', h: 1.5, mat: 'steel', color: 0x3a4450 });
+}
+
+// `03` §4.1's trees, lamps, benches, hydrants, vehicles and signage — the layer
+// that turns four buildings and a street into a place, and the layer the
+// district's 6 m gap floor actually rides on. The apron bosque between the hero
+// and the forecourt is load-bearing for it: the excursion's westbound legs run
+// 5 m off the hero's south wall, which is twice the density probe's corridor.
+function canalParkProps(sim) {
+  for (const tx of [-12, -8, -4, 0]) tree(sim, tx, 1.0);
+  for (const tx of [-14, -10, -6, -2]) lampPost(sim, tx + 0.5, 3.0);
+  for (const bx of [-11, -5]) bench(sim, bx, 3.25);
+  for (const tx of [-16, -20, -24]) tree(sim, tx, 0.0);
+  // The westmost lamp stops at -25: its head is 0.5 m wide, and Cambridge
+  // Street's carriageway runs to x -25.5.
+  for (const x of [-18, -22, -25]) lampPost(sim, x, -2.0);
+  for (const x of [-17, -21]) bollard(sim, x, 1.5, C.steelDark);
+  for (const x of [-19, -23]) planter(sim, x, 2.0, 1.5, 1, 0x5d6a4a);
+  bikeRack(sim, -20.5, -5.5, 3, 'x');
+  drinkingFountain(sim, -24.5, 2.5);
+  hydrant(sim, -15.5, -2.0);
+  // The forecourt itself, outside the ring: the working plaza `03` §7.2 asks
+  // for, all of it 0.25/0.5 m grain so the opening can start on any of it.
+  for (const [px, pz] of [[-7.5, 9], [-7.5, 22], [1.5, 8], [1.5, 24]]) cafeTable(sim, px, pz);
+  for (const [px, pz] of [[-11, 12], [-11, 20]]) bikeRack(sim, px, pz, 4, 'z');
+  for (const [px, pz] of [[-14, 8], [-14, 26]]) marketStall(sim, px, pz, 0xc23b2e, 2, 2);
+  // Both stand OUTSIDE the seat ring's z band (11.25 to 20.75). Anything on the
+  // ring's own footprint is a prop placed through a 0.5 m granite course.
+  hotDogCart(sim, 2.5, 8);
+  sandwichBoard(sim, 3.0, 24);
+  for (const [px, pz] of [[-17, 10], [-17, 17], [-17, 24]]) tree(sim, px, pz);
+  for (const [px, pz] of [[-9, 6], [-3, 6], [-9, 28], [-3, 28]]) lampPost(sim, px, pz);
+  for (const pz of [7.5, 27]) bench(sim, -6, pz);
+  for (const pz of [11, 21]) planter(sim, -19.5, pz, 1.5, 1, 0x5d6a4a);
+  for (const pz of [14, 18]) trashBin(sim, -19.5, pz, 0x33453a);
+  newsBox(sim, 3.25, 22, 0x2a4f9a);
+  signPost(sim, -19.5, 6, 0x2c6e4f, 2, 'z', 1.0);
+  // The residential edge's own ground, so neither slab stands on bare fill.
+  for (const tx of [21, 26, 31, 36]) tree(sim, tx, -51);
+  for (const x of [23, 33]) lampPost(sim, x, -49.5);
+  for (const z of [5, 9]) lampPost(sim, 41, z);
+  for (const tx of [44, 50, 56]) tree(sim, tx, 14);
+  bench(sim, 47, 14.5);
+  bench(sim, 53, 14.5);
+}
+
+export function canalParkDistrict(sim) {
+  canalParkHero(sim);
+  oneCanalPark(sim);
+  residentialEdge(sim);
+  frontDoorRing(sim);
+  canalParkStreet(sim);
+  canalTerrace(sim);
+  serviceYard(sim);
+  canalParkProps(sim);
+  for (const v of CAMBRIDGE_VEHICLES) {
+    if (v.d !== 1) continue;
+    if (v.kind === 'sedan') sedan(sim, v.x, v.z, v.body, v.roof, v.axis);
+    else if (v.kind === 'boxVan') boxVan(sim, v.x, v.z, v.len, v.cab, v.box, v.axis);
+    else if (v.kind === 'bigTruck') bigTruck(sim, v.x, v.z, v.box);
+    else motorcycle(sim, v.x, v.z);
+  }
+}
+
+// The district's ground. Passed to `cambridgeShell` as an option rather than
+// emitted inside it, because the shell is shared with Phase 5's variants and
+// they must keep measuring the pavement they measured.
+export const CANAL_PARK_DECOR = {
+  plaza: [
+    { x: -15, z: -25.25, w: 30.5, d: 22.5 },    // 2 Canal Park and its plinth
+    { x: 1.5, z: -4, w: 15, d: 9 },             // the entry court and its door apron
+    { x: -39.5, z: -38, w: 20.25, d: 26 },      // 1 Canal Park + its goods canopy
+    { x: -26, z: -3.25, w: 31, d: 34 },         // the apron, forecourt and ring
+    { x: -26, z: -9.5, w: 12.5, d: 6.25 },      // the link plaza west of the hero
+    { x: 14.25, z: 5.5, w: 16.25, d: 21.5 },    // the canal terrace
+    { x: -14.5, z: -36.5, w: 29, d: 11.75 },    // the service yard
+    { x: 19.5, z: -63.75, w: 21, d: 15.75 },    // Sierra
+    { x: 40, z: 3.5, w: 21.25, d: 11.5 },       // Thomas Graves Landing
+  ],
+  sidewalks: [
+    { x: 5, z: 5, w: 1.5, d: 25 },
+    { x: 12.5, z: 5, w: 1.5, d: 25 },
+  ],
+  parks: [
+    { x: 14.5, z: 10.5, w: 2.5, d: 15.5 },      // the terrace verge
+  ],
+};
+
+export const CANAL_PARK_AMBIENT = {
+  steam: [{ x: -6, z: -27, rate: 0.28 }],
+  neon: [
+    { x: 8, z: 4.4, w: 6, d: 1.2, color: 0xff7a59, period: 3.6 },
+    { x: 9.5, z: 18, w: 1.2, d: 8, color: 0x4ad9ff, period: 4.1 },
+  ],
+  pigeons: [
+    { x: 0, z: 16, count: 14 },
+    { x: 20, z: 17, count: 10 },
+  ],
+};
+
 // --- THE SHELL ---------------------------------------------------------------
 // Ground, streets, decor, kerbs, street furniture, vehicles, ambient life and
 // camera blockers. IDENTICAL across all three variants by construction: it is
 // one function and all three call it, so the A/B/B2 deltas are a property of the
 // buildings and of the spend-back, never of the pavement.
 
-export function cambridgeShell(sim, buildings) {
+// `opts` is P6.2's one structural addition, and it exists so that this function
+// can stay the single shared shell while the SHIPPED scene grows past what the
+// Phase 5 variants measured. Three optional fields, all defaulting to exactly
+// the Phase 5 behaviour, so `buildVariant('A')` and `buildVariant('B2')` are
+// byte-identical to what they were:
+//
+//   bounds   the level rect. Defaults to District 2's own hull.
+//   decor    extra `sceneDecor` layers, merged in before the object is frozen
+//            onto the sim — a district's ground has to be declared by the shell
+//            (that is where `sceneDecor` is assembled) but must not appear in a
+//            variant that does not build that district's geometry.
+//   ambient  extra ambient life, merged the same way.
+//
+// P6.1 SET THE FULL-MAP RECT HERE AND IT IS ROLLED BACK. `03` §1.1's designed
+// 252 x 228 m extent is right and it is not yet true: `probeBoundsRect`'s second
+// clause fails a rect that leaves more than 12 m of blank ground on any side,
+// and with two districts standing that rect leaves about a hundred. It lands for
+// good at P6.10, when every district exists to fill it. Until then each task
+// widens the rect to hug what is actually built — see `buildCambridge`.
+export function cambridgeShell(sim, buildings, opts = {}) {
   sim.bounds = 120;
-  // `03` §1.1's full-map rect, landed whole at P6.1 rather than grown district by
-  // district: it is a DESIGNED extent — 252 x 228 m, 340 m diagonal, asymmetric
-  // so the Zakim clears x 131 against a maxX of 132 (§1.4) — and not a hull of
-  // whatever happens to be standing. Districts 1 and 3-10 are still Phase 6 work,
-  // so it is knowingly under-filled and `probeBoundsRect`'s 12 m content-slack
-  // clause fails against it until they land. See the header note.
-  sim.boundsRect = { minX: -120, maxX: 132, minZ: -112, maxZ: 116 };
+  sim.boundsRect = opts.bounds ?? { minX: -72, maxX: -25.5, minZ: -12.5, maxZ: 30 };
 
   const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [];
   const roads = [], rail = [], bikePaths = [], laneMarkers = [], crosswalks = [];
@@ -917,17 +1782,25 @@ export function cambridgeShell(sim, buildings) {
   slab(sim, { x: -26.75, y: 2.5, z: 10.25, w: 1.25, d: 4.75, t: 0.25, mat: 'steel', color: C.steelDark });
   bench(sim, -26.5, 12);
 
+  // District 2's rows only. `CAMBRIDGE_VEHICLES` is one whole allowlist because
+  // `probeRoadConflicts` needs one, but a row belongs to the district that emits
+  // it — District 1's are emitted by `canalParkDistrict`.
   for (const v of CAMBRIDGE_VEHICLES) {
+    if ((v.d ?? 2) !== 2) continue;
     if (v.kind === 'sedan') sedan(sim, v.x, v.z, v.body, v.roof, v.axis);
     else if (v.kind === 'boxVan') boxVan(sim, v.x, v.z, v.len, v.cab, v.box, v.axis);
     else if (v.kind === 'bigTruck') bigTruck(sim, v.x, v.z, v.box);
     else motorcycle(sim, v.x, v.z);
   }
 
-  sim.sceneDecor = {
+  // The key ORDER here is the contract `probeDecorKeyOrder` reads, so the merge
+  // has to fill these arrays rather than spread another object over them.
+  const layers = {
     parks, sand, plaza, cobbles, sidewalks, roads, rail,
     bikePaths, laneMarkers, crosswalks, water, boardwalk,
   };
+  for (const [k, rects] of Object.entries(opts.decor ?? {})) layers[k].push(...rects);
+  sim.sceneDecor = layers;
 
   // Procedural surfaces, bound by matType in js/voxelsurfaces.js.
   //
@@ -978,6 +1851,7 @@ export function cambridgeShell(sim, buildings) {
       { x: -64, z: -6, count: 11 },
     ],
   };
+  for (const [k, items] of Object.entries(opts.ambient ?? {})) sim.sceneAmbient[k].push(...items);
 
   sim.cameraBlockers = generateBlockers(sim);
 }
@@ -1203,9 +2077,18 @@ export function cambridgeSpendBack(sim) {
 
 // --- THE SHIPPED SCENE -------------------------------------------------------
 
+// The rect below is the HULL OF WHAT IS BUILT plus the slack `probeBoundsRect`
+// allows, computed from the two districts standing rather than transcribed from
+// `03` §1.1's designed extent. Districts 1 and 2 together span x[−72,+60.75]
+// z[−63,+30]; every edge here sits inside the probe's 12 m content-slack of that
+// hull, which is the clause P6.1's full-map rect could not satisfy. It widens
+// again at every P6.x and becomes §1.1's designed rect at P6.10.
+export const CAMBRIDGE_BOUNDS = { minX: -78, maxX: 66, minZ: -69, maxZ: 36 };
+
 export function buildCambridge(sim) {
   cambridgeShell(sim, (s) => {
     cambridgeBuildings(FORMS, s);
     cambridgeSpendBack(s);
-  });
+    canalParkDistrict(s);
+  }, { bounds: CAMBRIDGE_BOUNDS, decor: CANAL_PARK_DECOR, ambient: CANAL_PARK_AMBIENT });
 }
