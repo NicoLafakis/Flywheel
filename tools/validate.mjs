@@ -868,7 +868,7 @@ function probeDistrictDensity(sim, name, districts, route, opts = {}) {
       }
     }
     if (r.density < floor) {
-      fail(`${name}: district ${r.d.id} "${r.d.name}" holds ${r.density.toFixed(2)} eatable piece(s)/m² of built footprint, below half the scene median (${floor.toFixed(2)}, median ${median.toFixed(2)}) — the released budget was banked, not spent`);
+      fail(`${name}: district ${r.d.id} "${r.d.name}" holds ${r.density.toFixed(2)} eatable piece(s)/m² of built footprint, below half the scene median (${floor.toFixed(2)}, median ${median.toFixed(2)}) — next to the rest of the scene this district reads as empty ground`);
     }
   }
   console.log(`  ${name} district density: ${rows.length} district(s), median ${median.toFixed(2)} piece(s)/m² (floor ${floor.toFixed(2)}), coins excluded`);

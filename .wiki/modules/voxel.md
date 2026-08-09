@@ -3,11 +3,13 @@ covers:
   - "js/voxelsim.js"
   - "js/voxelworld.js"
   - "js/voxelkit.js"
+  - "js/voxelforms.js"
   - "js/voxelsurfaces.js"
   - "js/voxelscene-manhattan.js"
   - "js/voxelscene-upper-manhattan.js"
   - "js/voxelscene-brooklyn.js"
   - "js/voxelscene-boston.js"
+  - "js/voxelscene-cambridge.js"
 ---
 # Voxel Sandbox (pile physics)
 
@@ -39,6 +41,8 @@ bottom-up, along material bond strengths.
 | `js/voxelscene-upper-manhattan.js` | `buildUpperManhattan(sim)`: the full Central Park + Upper Manhattan district (73,393 blocks / 86,083 mass). Sets its own bounds, landmarks, curb kit, decor, and camera blockers |
 | `js/voxelscene-brooklyn.js` | `buildBrooklyn(sim)`: bridges-to-Coney-Island sandbox, 1.35 blocks/m² |
 | `js/voxelscene-boston.js` | `buildBoston(sim)`: Seaport, Fort Point and the BCEC (82,894 blocks, 2.0 blocks/m²) — see the Boston section below |
+| `js/voxelforms.js` | The twelve anisotropic primitives ADR-0013 unlocked (`slab`, `column`, `beam`, `panel`, `mullion`, `cornice`, `pier`, `plinth`, `tread`, and the rest), sitting below `js/voxelkit.js`. Geometry only — no named buildings, no city semantics. Pure sim |
+| `js/voxelscene-cambridge.js` | `buildCambridge(sim)`: East Cambridge around 2 Canal Park, the first scene authored in the `voxelforms.js` vocabulary. Districts 1–4 built; 5–10, hidden content and sign-off still ahead. Not yet wired into the sim's scene dispatch or `AUTHORED_SCENES` (task P6.12) |
 | `js/voxelworld.js` | `VoxelWorld3D`: one `InstancedMesh` per material + brick size with per-instance paint colors, cached static transforms, and per-frame dynamic motion; renders `sceneDecor` (roads/sidewalks/parks/bike paths/markings/water) |
 | `js/voxelsurfaces.js` | three.js binding for `voxeltiles.js`'s procedural surface registry (canvas-generated textures for `sim.sceneSurfaces`); zero cost until a scene names a surface. Owns the metals-only PMREM-probe rule — see the Boston section below |
 
@@ -192,6 +196,12 @@ reach ≥ SIZE 4; Upper Manhattan also floors `eatenCount ≥ 300`).
 
 Five scenes share the sim (`new VoxelSandboxSim({ scene })`, default
 `'gallery'`): `gallery`, `manhattan`, `upper-manhattan`, `brooklyn`, `boston`.
+A sixth, **Cambridge**, is being authored in `js/voxelscene-cambridge.js` —
+Districts 1–4 are built and committed, Districts 5–10 and Phase 7's hidden
+content are ahead, and the file is not yet imported by `voxelsim.js` or listed
+in `AUTHORED_SCENES` / `FREE_PLAY` (task P6.12), so it is not loadable or
+validated yet. See
+[features/cambridge-sandbox/](../features/cambridge-sandbox/README.md).
 `js/main.js`'s `AUTHORED_SCENES` table is the single source of truth for which
 scenes are real places (label text, HUD text, and whether an `intro`
 establishing shot/READY-gate framing applies) — see Talks To below. Scene
@@ -405,16 +415,16 @@ mind the hanging threshold — remR + (span + 1.5) × radius/6.6, ≈ 1.6 m at
 the 1.1 start radius — for anything whose support path includes horizontal
 hops.
 
-**Planned, not built:** [ADR-0013](../adr/0013-anisotropic-voxel-primitives.md)
-proposes widening a block from a cube to an axis-aligned box (independent
-`sx/sy/sz`), authored through a new `js/voxelforms.js` layer below
-`js/voxelkit.js`, with `js/voxelscene-cambridge.js` as its debut scene. See
+**Accepted and shipped:** [ADR-0013](../adr/0013-anisotropic-voxel-primitives.md)
+widened a block from a cube to an axis-aligned box (independent `sx/sy/sz`),
+authored through the `js/voxelforms.js` layer below `js/voxelkit.js`, with
+`js/voxelscene-cambridge.js` as its debut scene. Every shipped scene stayed
+byte-identical across the change. See
 [features/cambridge-sandbox/](../features/cambridge-sandbox/README.md),
 especially
 [01-voxel-primitive-vocabulary.md](../features/cambridge-sandbox/01-voxel-primitive-vocabulary.md)
 (the capability audit against this file's cost model) and
 [00-objective-overview.md](../features/cambridge-sandbox/00-objective-overview.md).
-Nothing in `voxelsim.js`, `voxelworld.js` or `voxelkit.js` has changed yet.
 
 ## Talks To
 

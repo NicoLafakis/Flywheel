@@ -101,37 +101,51 @@ Building it is blocked on three things only Nico can do:
    `11-risk-register.md`) depend on how long the booth runs and haven't been
    pinned to real dates yet.
 
-### Cambridge sandbox — planning package landed, nothing built
+### Cambridge sandbox — engine and four districts built, six to go
 
-`.wiki/features/cambridge-sandbox/` (6 docs) plus ADR-0013 landed 2026-08-06/07.
-**Paperwork only** — no code changed. It plans a sixth voxel sandbox scene
-centred on HubSpot's real Cambridge, MA HQ (2 Canal Park + the Davenport) for
-UNBOUND, and the debut of a new anisotropic voxel-primitive vocabulary
-(ADR-0013, status: proposed, awaiting Nico) that widens a block from a cube to
-an axis-aligned box. The vocabulary page carries the owner's **scale rule**
-(2026-08-07): piece size follows building size — a landmark tower is solid
-columns + per-bay slabs + curtain panels, hundreds of blocks and never 20,000
-cubes, same look, no toy models. See `.wiki/architecture.md`'s matching
-"planned, not built" note and `.wiki/modules/voxel.md`.
+A sixth voxel sandbox scene centred on HubSpot's real Cambridge, MA HQ (2 Canal
+Park + the Davenport) for UNBOUND, planned in `.wiki/features/cambridge-sandbox/`
+(6 docs) plus ADR-0013, which is **accepted and shipped**: a block is now an
+axis-aligned box rather than a cube.
 
-### Awaiting Nico — three decisions, none answered
+Built and committed: the anisotropic-extent change through `voxelsim.js` /
+`voxelworld.js` / the validator, the twelve-primitive layer `js/voxelforms.js`,
+the render bucket-key win, scene-declared coin anchors, the four new validator
+probes (grade diagonal, placement step, per-district density, hero identity),
+and Districts 1–4 — `js/voxelscene-cambridge.js` is ~3,900 lines.
 
-1. **Construction vocabulary.** His actual request, and **nothing has been
-   started on it**: not bigger buildings, but *per-building construction
-   vocabulary* — one apartment built from tons of blocks of one type, another
-   from brick-shaped configurations, another from planks, another from columns
-   made of extruded-cylinder "slices". He asked for thoughts before any action
-   and has not yet replied. The enabling insight: the sim/render split
-   (ADR-0002) means the **sim** needs cubes but the **renderer** does not.
-   Caution: the renderer batches on `matType + ':' + b.s`, so a `shape` tag
-   adds a third key dimension and multiplies draw-call buckets.
-2. **Sun elevation** — leave at 54.2°, or drop to 32°? New information: the
+Ahead: Districts 5–10 (P6.5–P6.10), then Phase 7's hidden content, glyphs and
+achievement rows, then the Phase 8 sign-off. Note that P6.12 — the
+`AUTHORED_SCENES` / `FREE_PLAY` registration — has not been done, so the scene
+cannot be loaded from the landing screen yet.
+
+The vocabulary page carries the owner's **scale rule** (2026-08-07): piece size
+follows building size — a landmark tower is solid columns + per-bay slabs +
+curtain panels, hundreds of blocks and never 20,000 cubes, same look, no toy
+models. The **block budget is a target to come in under, not a quota**: aim
+below 75,000 blocks for the finished scene, lower is better, and going over is
+the cue to build some buildings more efficiently rather than to thin the map.
+Density, not block count, is what the validator actually checks. See
+`.wiki/modules/voxel.md` and `05-build-tasks.md` for the live task state.
+
+### Awaiting Nico — two decisions, neither answered
+
+*(The construction-vocabulary question that used to sit at the top of this list
+is answered and off it. ADR-0013 was accepted 2026-08-07 and the work has
+shipped: a block is now an axis-aligned box, and `js/voxelforms.js` gives each
+building its own construction vocabulary — twelve named primitives, so one
+facade is columns and per-bay slabs and the next is brick courses. The
+draw-call caution that made it a question turned out to be the opposite of a
+problem: the renderer's bucket key was reworked as part of the same change, and
+draw calls went down, not up. See the Cambridge section above.)*
+
+1. **Sun elevation** — leave at 54.2°, or drop to 32°? New information: the
    intro's lighting term reads the renderer's actual light via `sunDirOf()`
    rather than assuming a constant, and it gets more decisive as the sun drops
    (lit spread 0.758 at 54.2°, 0.868 at 32°, 0.917 at 20°). At 32° the portrait
    hold pose would move from yaw 0° to 15° on its own, no code change. So this
    decision now also improves the mobile establishing shot for free.
-3. **Intro orbit** — motion at ±30° (shipped, 12.19%) or static (24.22%)?
+2. **Intro orbit** — motion at ±30° (shipped, 12.19%) or static (24.22%)?
    A ±20° option exists at 15.16%; apparent orbit speed is now identical at
    every arc, so ±20 dominates ±30 on coverage. Gated on an unmeasured check:
    whether the arc endpoint eases or snaps.
@@ -293,6 +307,7 @@ district sweep).
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
 
+- 2026-08-09: Sandbox travel cue is now a compact Flywheel compass puck at the moving rim (gold bezel + orange needle); it follows real travel, not tank heading, and hides while stopped
 - 2026-08-08: Quality settings collapsed to a strict HIGH/LOW binary, player-chosen only — device auto-detection and the live frame-time watchdog are gone (`js/quality.js` 314 → 58 lines); save schema v13 → v14 remaps every legacy tier value
 - 2026-08-07: Tank controls stay, now readable: player A/B-tested four keyboard schemes live (direct / tank / strafe-snap / mouse-follow) and picked tank — the "roundabout" was an INVISIBLE heading, not the scheme. New heading pointer welded to the hole (paper-plane arrow, brand orange, all skins); rig removed same pass
 - 2026-08-07: Voxel physics: `_capDebris` stops sleeping blocks onto loose supports (no more mid-air hangs), contact-budget-excluded debris parks instead of sinking into itself (no more re-entry fountain / rim knocking bricks sky-high)

@@ -13,9 +13,10 @@ the real place instead of a plausible one.
 
 The audience for this scene is people who work in the building. They will not
 grade it on block count; they will grade it on whether the thing across the
-street from their desk is the thing across the street from their desk. That
-raises the cost of a confident guess above the cost of an admitted blank, so
-every factual claim below carries a marker:
+street from their desk is the thing across the street from their desk. For that
+audience a confident guess costs more than an admitted blank, which is why every
+factual claim below carries a marker — the marker is how a reader tells what
+they can build on without checking, and what still needs a source:
 
 | Marker | Means |
 |---|---|
@@ -23,16 +24,19 @@ every factual claim below carries a marker:
 | **Likely** | One good source, or two that agree in substance but differ in a number. |
 | **Unverified** | Could not be established. Stated as a gap, not filled in. |
 
-Where sources conflict, both numbers appear and the conflict is called out.
-Do not silently pick one.
+An Unverified item is a research task that is still open, so it stays Unverified
+until someone closes it with a source. Where sources conflict, both numbers
+appear and the conflict is called out rather than quietly resolved — the
+designer is better served by seeing the disagreement than by seeing a tidy
+number that might be the wrong one.
 
 ---
 
-## 0. The single worst failure mode, resolved first
+## 0. Which building, settled first
 
-HubSpot has held several Cambridge addresses over fifteen years and has let
-some of them go. Building the wrong one is the one mistake this document
-exists to prevent. The timeline:
+HubSpot has held several Cambridge addresses over fifteen years and has let some
+of them go. Getting the hero building wrong is the most expensive mistake
+available here, so it is worth settling before anything else. The timeline:
 
 | When | Address | What happened | Confidence |
 |---|---|---|---|
@@ -43,11 +47,11 @@ exists to prevent. The timeline:
 | Sept 2021 | **1 Canal Park** | Lease **terminated**. Building sold to Breakthrough Properties and converted to biotech lab | Confirmed ([Bisnow](https://www.bisnow.com/boston/news/office/hubspot-doubles-down-office-commitment-at-east-cambridge-hq-110110), [Breakthrough / PRNewswire](https://www.prnewswire.com/news-releases/breakthrough-properties-to-welcome-three-mission-driven-biotech-companies-to-one-canal-development-in-the-heart-of-cambridge-302153015.html)) |
 | June 2024 | **64 Sidney Street** | Vacated, $2.8M impairment, subleased Aug 2024 | Confirmed (HubSpot SEC disclosure, via [search of SEC filings](https://www.sec.gov/Archives/edgar/data/1404655/)) |
 
-> **1 Canal Park is a trap.** It is a four-storey building **40 m due west** of
-> 2 Canal Park, it is still called "Canal Park", HubSpot was in it, and HubSpot
-> is not in it any more — it is a life-science building now. If the scene puts
-> the sprocket on the wrong Canal Park building, the people who moved out of it
-> will be the first to notice.
+**1 Canal Park is the easy one to mix up.** It is a four-storey building **40 m
+due west** of 2 Canal Park, it is still called "Canal Park", HubSpot was in it,
+and HubSpot is not in it any more — it is a life-science building now. If the
+sprocket lands on the wrong Canal Park building, the people who moved out of it
+will be the first to notice.
 
 **The build target.**
 
@@ -69,15 +73,15 @@ HubSpot, and the scene is large enough to hold them. Centering the map on 2
 Canal Park and putting the Davenport a block WSW is correct under every reading
 of the sources.
 
-**Also worth knowing, and NOT worth building.** No public source after 2024
-indicates a Cambridge move, and HubSpot's 2026 investor materials still describe
-a Cambridge headquarters ([ir.hubspot.com](https://ir.hubspot.com/)). But
-HubSpot has publicly consolidated leases and shrunk its footprint elsewhere
+**Worth knowing, not worth building.** No public source after 2024 indicates a
+Cambridge move, and HubSpot's 2026 investor materials still describe a Cambridge
+headquarters ([ir.hubspot.com](https://ir.hubspot.com/)). HubSpot has, though,
+publicly consolidated leases and shrunk its footprint elsewhere
 ([Bisnow](https://www.bisnow.com/national/news/office/hubspot-is-latest-tech-firm-to-spend-millions-on-lease-consolidation-layoffs-117442)),
-so **confirm with someone at HubSpot before ship** that both buildings are still
-occupied. That is a product question about a real place, answerable by one
-email, and it costs less than shipping the wrong campus to a room full of
-employees.
+so it is worth confirming with someone at HubSpot before ship that both
+buildings are still occupied. That is a product question about a real place,
+answerable by one email, and it costs a lot less than shipping the wrong campus
+to a room full of employees.
 
 ---
 
@@ -97,13 +101,14 @@ employees.
 | Setting | Fronts the historic Lechmere Canal on the east side | Confirmed |
 | Parking | Covered on-site, ratio 0.9; 5 elevators | Likely |
 | Interior features from HubSpot's own announcement | Event space with bleacher seating, industrial kitchen, ping-pong room, indoor beer garden, private outdoor patio, barista café | Confirmed ([HubSpot](https://www.hubspot.com/company-news/hubspot-cambridge-hq-expands-across-the-street)) |
-| Exterior HubSpot signage — where it is, how big, whether the sprocket is on the roof, the parapet, or only at the door | — | **Unverified.** Get a street-level photo before authoring it. This is the single most-looked-at detail in the scene and there is no reliable public description of it. |
+| Exterior HubSpot signage — where it is, how big, whether the sprocket is on the roof, the parapet, or only at the door | — | **Unverified.** No reliable public description exists; a street-level photo closes it. This is the single most-looked-at detail in the scene, so it is worth closing before authoring rather than after. |
 
 **Massing in four shapes.** A wide, low, flat-topped brick slab — roughly one
 and a half times as long as it is deep — with a lighter cast-stone base band and
 cornice band, and a glass-and-steel entry court punched into the canal-facing
 side. It is a broad building, not a tall one: at 104 × 71 × 22 m it is wider
-than it is high by a factor of nearly five. Do not draw it as a tower.
+than it is high by a factor of nearly five, so it reads as a slab rather than a
+tower.
 
 ### 1.2 The Davenport — 25 First Street
 
@@ -125,10 +130,10 @@ tall regularly-spaced industrial window openings, flat roofs, and a stepped
 skyline where the pieces meet. The visual signature is the height jog between
 adjoining sections. A single clean box loses the whole character.
 
-> **A gift for the voxel vocabulary.** The Davenport is exactly the case
-> `01-voxel-primitive-vocabulary.md` is arguing for: a long brick mill wall is
-> one solid piece with punched openings, not a field of same-size cubes. The
-> two documents point at the same building.
+A gift for the voxel vocabulary: the Davenport is exactly the case
+`01-voxel-primitive-vocabulary.md` is arguing for. A long brick mill wall is one
+solid piece with punched openings rather than a field of same-size cubes, and
+the two documents end up pointing at the same building.
 
 ---
 
@@ -203,7 +208,7 @@ counts are OSM's `building:levels` where present.
 
 | Building | Storeys | Offset E / N (m) | Note |
 |---|---|---|---|
-| 1 Canal Park | 4 | −40 / −7 | Ex-HubSpot, now biotech lab. **Do not label it HubSpot.** |
+| 1 Canal Park | 4 | −40 / −7 | Ex-HubSpot, now biotech lab — it carries no HubSpot branding. |
 | 10 Canal Park | 5 | +84 / −176 | |
 | 40 Thorndike Street (ex-Sullivan Courthouse) | **22** in OSM, **20** in the developer's press | −272 / −95 | See §3. Footprint 86 × 57 m. |
 | Middlesex South Registry of Deeds | — | −247 / +50 | 89 × 50 m, civic masonry |
@@ -377,7 +382,7 @@ and it is 288 m from HubSpot's front door — locals will look for it.
 | One Memorial Drive (Microsoft NERD) | −456 / −933 | 1,039 m SSW | glass block on the Cambridge riverbank | Confirmed |
 | MIT Media Lab | −904 / −1,060 | 1,393 m SW | white-and-glass cube grid | Likely (position approximate) |
 | Novartis / the old **NECCO building**, 250 Mass Ave | −1,791 / −1,006 | 2,054 m WSW | long brick factory, **rooftop water tower** — once painted as a roll of NECCO wafers, now carrying a **DNA double helix** | Confirmed ([MIT Tech Review](https://www.technologyreview.com/2015/08/18/10816/the-past-and-future-of-kendall-square/)) |
-| Citgo sign, Kenmore Square | ≈ −1,578 / −2,372 | ≈ 2,849 m SSW | red triangle in a white square, on a roof | Position **Unverified** (approximated). Visibility from East Cambridge: **Unverified** — it is famously visible from the river basin *upstream* of the Longfellow; whether it clears the skyline from Canal Park is not established. Do not place it as a "you can see it from the office" beat without checking. |
+| Citgo sign, Kenmore Square | ≈ −1,578 / −2,372 | ≈ 2,849 m SSW | red triangle in a white square, on a roof | Position **Unverified** (approximated). Visibility from East Cambridge: **Unverified** — it is famously visible from the river basin *upstream* of the Longfellow; whether it clears the skyline from Canal Park is not established, so a "you can see it from the office" beat needs that checked first. |
 | North Point Park / Richard McKinnon State Park | +591 / −136 | 598 m ESE | green wedge between the river and the rail yard, with a curving footbridge | Confirmed |
 | Charles River Dam locks (two gatehouses) | +538 / −450 and +604 / −368 | ~600–700 m SE | two small hip-roofed masonry sheds flanking a lock channel | Confirmed |
 | Community College (Orange Line) station | +485 / +424 | ~640 m NE | elevated platform | Confirmed (OSM) |
@@ -583,8 +588,8 @@ axes and rotate the landmarks. Do one, not both.
    non-rectangular building the box is an over-estimate. Marked *(bbox)*.
 4. Heights carry a source where one exists. Where none does, they are
    **`storeys × 4.3 m`** for office/residential and **`storeys × 3.5 m`** for
-   older mill buildings, and are marked *(est.)*. Do not treat an estimate as a
-   measurement.
+   older mill buildings, and are marked *(est.)* so an estimate is never mistaken
+   for a measurement.
 
 | # | Feature | Footprint (m) | Height (m) | Offset E | Offset N | Dist | Dir | Confidence |
 |---|---|---|---|---|---|---|---|---|
@@ -621,9 +626,10 @@ running further southwest toward MIT than northwest — captures the entire
 Tier 1 + Tier 2 set plus most of Tier 3, with only the Citgo sign and the
 Boston skyline left for the backdrop plane. Compare: Lower Manhattan is
 124 × 118 m and Upper Manhattan's diagonal is 297 m, so a literal 1:1 Cambridge
-at that density is not on the table. **Whatever compression factor is chosen,
-apply it uniformly and record it in the scene file**, because the offsets above
-are the only thing that will let anyone check the layout later.
+at that density is not on the table. Whichever compression factor is chosen,
+apply it uniformly and record it in the scene file — the offsets above are the
+only thing that lets anyone check the layout later, and they only work as a
+check if the factor that scaled them is written down.
 
 ---
 
@@ -664,7 +670,8 @@ a second look before they ship, and where the line sits.
   joke lands without the trademark, and for Dunkin' specifically the joke *is*
   the density, not any one store.
 - **Competitor branding.** Depicting a rival CRM's office in a HubSpot-audience
-  game reads as a jab whether or not one is intended. Do not.
+  game reads as a jab whether or not one is intended, which is a reason to leave
+  it out.
 
 **Handle with care.**
 
@@ -675,14 +682,16 @@ a second look before they ship, and where the line sits.
 - **The former courthouse and jail at 40 Thorndike.** It was a jail. It has a
   long, contested, still-litigated local history. Build the building; skip the
   jokes about it.
-- **St. Anthony's Church** and other active places of worship. Depict
-  respectfully or not at all; do not make one a destruction set piece beat.
+- **St. Anthony's Church** and other active places of worship. Depict them
+  respectfully or leave them out; either is fine, a destruction set-piece beat
+  built around one is not.
 - **Destruction framing generally.** This is a game where a hole eats a city, and
   the city this time is one that people work in, and one that includes a
   hospital-adjacent civic district and a river with a dam holding back water. The
   existing scenes have carried this fine because the tone is playful and
-  cartoon-physical rather than catastrophic. Keep it there. Nothing here should
-  read as a disaster depiction of a real neighbourhood.
+  cartoon-physical rather than catastrophic, and that is where Cambridge wants to
+  sit too — recognisably a game, not a disaster depiction of a real
+  neighbourhood.
 - **The Charles River itself.** The dam and locks are flood-control
   infrastructure. Collapsing them is a different kind of image from collapsing an
   office block. Probably fine at this tone; worth one deliberate look.
@@ -691,7 +700,9 @@ a second look before they ship, and where the line sits.
 
 ## 8. Known gaps
 
-Listed so nobody mistakes silence for confirmation.
+These are the open research items, collected in one place so that silence in the
+sections above is never mistaken for confirmation. Each one is closable with a
+source or a photograph.
 
 | Gap | Why it matters |
 |---|---|

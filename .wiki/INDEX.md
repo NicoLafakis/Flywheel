@@ -42,7 +42,7 @@ this wiki is the engineering companion.
 | [modules/](modules/) | Per-module docs with `covers:` globs: [campaign](modules/campaign.md), [citygen](modules/citygen.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
 | [adr/](adr/) | Architecture Decision Records |
 | [runbooks/](runbooks/) | Run/validate/deploy playbooks |
-| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (planning only — accounts, live shared arena, leaderboards; nothing built yet), [cambridge-sandbox](features/cambridge-sandbox/README.md) (planning only — sixth voxel scene + anisotropic voxel-primitive vocabulary; nothing built yet) |
+| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (planning only — accounts, live shared arena, leaderboards; nothing built yet), [cambridge-sandbox](features/cambridge-sandbox/README.md) (partly built — sixth voxel scene + anisotropic voxel-primitive vocabulary; engine change, primitive layer and Districts 1–4 committed, Districts 5–10 and Phase 7 ahead) |
 
 ## Feature planning packages
 
@@ -57,7 +57,10 @@ this wiki is the engineering companion.
   plan for a sixth voxel sandbox scene centred on HubSpot's real Cambridge, MA
   HQ (2 Canal Park + the Davenport), and the debut vehicle for a new
   anisotropic voxel-primitive vocabulary ([ADR-0013](adr/0013-anisotropic-voxel-primitives.md)).
-  **Documentation only — no code exists yet.** Start at the
+  **Partly built** — the engine change, `js/voxelforms.js`, the new validator
+  probes and Districts 1–4 are committed in `js/voxelscene-cambridge.js`;
+  Districts 5–10, Phase 7's hidden content and the Phase 8 sign-off are ahead,
+  and the scene is not yet registered so it cannot be loaded (P6.12). Start at the
   [README](features/cambridge-sandbox/README.md), which points at
   [00-objective-overview.md](features/cambridge-sandbox/00-objective-overview.md).
 

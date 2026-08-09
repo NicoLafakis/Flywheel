@@ -22,25 +22,25 @@ carry 25,875 / 39,984 / 73,393 / 82,894 blocks, and why `STATUS.md` records the
 sim — not the renderer — as the per-frame cost on a large scene (ADR-0006:
 97% of frame time before the zone fix).
 
-`STATUS.md`'s open decision 1 records the owner's standing request, unstarted:
-per-building **construction vocabulary** — different sized bricks, blocks and
+`STATUS.md`'s board carried the owner's standing request as an open decision,
+unstarted, at the time this was written (the entry is retired now that this ADR
+has shipped): per-building **construction vocabulary** — different sized bricks, blocks and
 shapes, whatever size best represents a thing. His two examples: a floor as one
 solid piece, a pillar as a solid pillar. That board entry also names the
 enabling insight (ADR-0002's sim/render split means the **sim** needs cubes but
 the **renderer** does not) and the caution (the renderer batches on
 `matType + ':' + b.s`, so a `shape` tag would add a third key dimension).
 
-**The objective is explicitly not minimisation**, clarified by the owner on
-2026-08-06: *"we're not trying to do a 'least amount of blocks possible,' so I
-hope you're not taking it to the extreme here."* The goal is the right shape for
-the thing, and the block savings are **reinvested, not banked** — a floor that
-costs one slab instead of forty bricks frees those forty for the thing next door
-that would not otherwise have fit. Cambridge should land in the same block
-neighbourhood as the existing authored scenes and deliver materially **more**
-apparent detail and more eatable content for that budget. Anisotropic primitives
-are a way to buy detail uniform cubes could not afford, not a way to build a
-sparse level. This ADR is therefore about **detail per block**, never about a
-reduced total.
+**The objective is not minimisation**, as the owner put it on 2026-08-06:
+*"we're not trying to do a 'least amount of blocks possible,' so I hope you're
+not taking it to the extreme here."* The goal is the right shape for the thing.
+A floor that costs one slab instead of forty bricks frees those forty for the
+thing next door that would not otherwise have fit, and that is how the room
+should be used. Cambridge should deliver materially **more** apparent detail and
+more eatable content than the existing authored scenes do. Anisotropic
+primitives are a way to buy detail uniform cubes could not afford, not a way to
+build a sparse level. This ADR is about **detail per block**, not about a target
+total in either direction.
 
 A full capability audit against the current tree
 (`.wiki/features/cambridge-sandbox/01-voxel-primitive-vocabulary.md`) resolved
@@ -98,22 +98,25 @@ make it any other shape.** Concretely:
   kit **only when a second scene calls it** — the rule exists because
   `STATUS.md` is already tracking `voxelkit.js` (2,771 lines, ~95 exports) as a
   shared-kit dumping ground.
-- Authoring is governed by **the two-hand rule**, two constraints that pull in
-  opposite directions and are therefore always stated together:
+- Authoring is governed by **two constraints that pull in opposite directions**,
+  and so are always stated together:
   **(1) skin, not fill** — a solid piece replaces a *surface*, never an
   *interior* (a floor is a 0.25-0.5 m plate, not a 1 m solid cube), because
   fine-cell cost is linear in occupied volume and not in block count; and
-  **(2) spend it back** — every block a primitive frees is budget owed back to
-  the scene, not banked. An author holding only hand 1 produces an *empty
-  diorama*: correct silhouettes, nothing between them, too little to eat. An
-  author holding only hand 2 produces an *expensive solid lump*: a beautifully
-  low block count that builds slower and is no cheaper per frame. A falling
-  block count is a warning sign, not a result.
+  **(2) the room a primitive frees is for more content** — a district that gets
+  cheaper should get richer, not emptier. An author holding only the first
+  produces an *empty diorama*: correct silhouettes, nothing between them, too
+  little to eat. An author holding only the second produces an *expensive solid
+  lump*: a low block count that builds slower and is no cheaper per frame. The
+  measure of whether a district landed well is how densely eatable it is, not
+  what it totals.
 - Legibility is enforced by **authoring rules with validator probes**, never by
   a runtime size gate. Three probes join the shared contract: no ground-anchored
   piece with a plan diagonal > 8 m; placement step equals piece extent on every
-  axis; and — enforcing hand 2 — per declared district, the mean gap between
-  consecutive eatable pieces along the scene's scripted route stays under 15 m.
+  axis; and — enforcing the second constraint above — per declared district, the
+  mean gap between consecutive eatable pieces along the scene's scripted route
+  stays under 15 m. That density probe, not a block count, is what catches a
+  district that has gone thin.
 
 The one edit that is more than mechanical, flagged so it is budgeted rather
 than discovered: the span hop at `js/voxelsim.js:1090` is direction-independent
@@ -166,15 +169,15 @@ an ADR rather than a refactor:
 4. **The combo economy is block-count-denominated — a safeguard now, not a
    prerequisite.** `comboMult` awards a level every 25 blocks eaten
    (`js/voxelsim.js:89-92`), while mass, the per-scene SIZE ladder and the 50%
-   goal are all mass-based and therefore conserved. Because the reinvestment
-   rule holds the scene total roughly steady, the *aggregate* risk is largely
+   goal are all mass-based and therefore conserved. Because a district that gets
+   cheaper gets richer rather than emptier, the *aggregate* risk is largely
    gone: a chain persists while the player eats something every 1.5 s
    (`:2228-2231`), so combo levels over an uninterrupted run track total blocks
    eaten, and Brooklyn's 530-eat excursion (`STATUS.md:54`) sits right at the
    ×3 cap's 501 threshold either way. **What does not go away is the local
    rate.** The 1.5 s window is a rate gate, and consolidation reduces bites *per
-   object* even when it does not reduce bites *per scene* — while reinvestment
-   explicitly moves those bites elsewhere on the map. A brick tower fed the
+   object* even when it does not reduce bites *per scene* — the added detail
+   simply moves those bites elsewhere on the map. A brick tower fed the
    player ~300 bites and coasted them across the plaza beyond; the same tower as
    eight slabs runs dry mid-plough, with ~15 m of travel at SIZE 1 to find the
    next thing. So: re-denominating `comboMult` by mass is **still worth doing**
@@ -215,7 +218,7 @@ data and the renderer reads them, as it reads `b.s` today.
   the sim, not the renderer, is the per-frame cost on a large scene (the
   renderer submits Upper Manhattan's 892k triangles in 1-2 ms), so a render-only
   change optimises the cheap half and buys **no headroom in the sim** — which is
-  the currency the whole reinvestment argument is denominated in. It would also
+  the currency the whole added-detail argument is denominated in. It would also
   put geometry and physics on two different models, which is the failure the
   `shape` tag was rejected for.
 - **Do nothing; author Cambridge at Boston's grain.** Rejected as the default,

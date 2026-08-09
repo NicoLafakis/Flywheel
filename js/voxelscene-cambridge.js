@@ -6,10 +6,11 @@
 // "vocabulary proof": build ONE district — District 2, the Davenport block —
 // twice, once at the old cube ladder and once through js/voxelforms.js, and
 // measure the difference honestly. What ships here is the SECOND of those two
-// builds plus the budget the first one freed, spent back into the same ground
-// (`01` §7's Variant B2). The remaining districts, the hero building at 2 Canal
-// Park, and this scene's registration in AUTHORED_SCENES/FREE_PLAY are Phase 6
-// and are deliberately absent.
+// builds, plus the capacity the first one freed put back into the same ground
+// as more content (`01` §7's Variant B2) — not because a number had to be hit,
+// but because that ground reads better furnished. The remaining districts, the
+// hero building at 2 Canal Park, and this scene's registration in
+// AUTHORED_SCENES/FREE_PLAY are Phase 6 and are deliberately absent.
 //
 // P6.1 has since added the MAP layer below the plan: `03` §1.2's scale law and
 // `02` §6's real-world offset table, which is the ground the other nine
@@ -98,8 +99,8 @@
 //      into a 0.5 m light and a 0.25 m light either side of an in-plane steel
 //      mullion puts every glass column against a pier or the bar. Any glazed
 //      elevation in Phase 6 will hit the same wall.
-//   5. 161 FIRST STREET IS NOT BUILT. `03` §4.2 budgets it 900 blocks, but at
-//      1:3 it sits ~400 real metres north of the Davenport, which is Ring B
+//   5. 161 FIRST STREET IS NOT BUILT. `03` §4.2 estimates it at 900 blocks, but
+//      at 1:3 it sits ~400 real metres north of the Davenport, which is Ring B
 //      ground and outside this district's rect entirely. Deferred to Phase 6
 //      with the rest of the map rather than crushed into a 38 m-deep block.
 //
@@ -890,11 +891,11 @@ export const CAMBRIDGE_OPEN_GROUND = [
 // `03` §4's OTHER NINE ROWS ARE DELIBERATELY NOT HERE YET, and the reason is the
 // probe rather than the paperwork. The density-floor clause fails any row whose
 // rect holds no geometry: an unbuilt district reads as 0.00 pieces/m², which is
-// below half of any nonzero median, and the probe cannot tell "empty because
-// nobody built it" from "empty because the budget was banked". Declaring all ten
-// now takes the Phase 5 gate from ALL PASS to eight density failures — districts
-// 3, 6, 7 and 8, the four whose rects do not overlap District 2's geometry,
-// across both variants. Measured, not predicted.
+// below half of any nonzero median, and the probe has no way to distinguish a
+// district that has not been authored yet from one that was authored too thin.
+// Declaring all ten now takes the Phase 5 gate from ALL PASS to eight density
+// failures — districts 3, 6, 7 and 8, the four whose rects do not overlap
+// District 2's geometry, across both variants. Measured, not predicted.
 //
 // It is also not fixable by choosing better stand-in rects for the two rows `03`
 // §4 gives none for (District 9 is "the Ring B annulus, all edges", District 10
@@ -908,10 +909,16 @@ export const CAMBRIDGE_OPEN_GROUND = [
 // north of its wall, so the rect has to reach further out than the footprint
 // that generated it).
 //
-// The two figures that column needs when it lands, checked and recorded so they
-// do not have to be re-derived: §4's ten budgets sum to exactly 74,060, and §8.2
-// gives District 10 a gap floor of "n/a" — which encodes as an ABSENT `gapFloor`
-// field, not a null and not a 15, because the probe reads
+// Two figures worth recording so they do not have to be re-derived. First, §4's
+// ten per-district estimates sum to about 74,000, which is roughly where the
+// scene as a whole is aiming: the target is "we would like to come in under
+// 75,000", not a total to be matched. Under is fine, and lower is better; coming
+// in over is the signal to go look at which buildings could be built more
+// efficiently, not a failure in itself. Nothing in the validator reads a scene
+// total — the density probe is the thing that actually guards against a district
+// reading as empty. Second, §8.2 gives District 10 a gap floor of "n/a" — which
+// encodes as an ABSENT `gapFloor` field, not a null and not a 15, because the
+// probe reads
 // `Math.min(maxGap, d.gapFloor ?? maxGap)` and an absent field falls back to the
 // scene-wide 15 m ceiling rather than exempting the row.
 //
@@ -944,7 +951,8 @@ export const CAMBRIDGE_DISTRICTS = [
     // (x[−40,+40] z[−80,−36]); Thomas Graves Landing lands in NO declared rect
     // in `03` §4 at all. Both recorded for P6.3 and P6.6 rather than forced.
     rect: { minX: -39.5, maxX: 30.5, minZ: -36.5, maxZ: 27 },
-    budget: 11270,    // `03` §4.1
+    budget: 11270,    // `03` §4.1's starting estimate for this district — a
+                      // sense of scale to author against, not a number to hit.
     gapFloor: 6,      // `03` §8.2's floor for District 1 — the tightest in the
                       // scene, and the reason every route leg below runs over
                       // furnished ground rather than down a carriageway.
@@ -953,12 +961,15 @@ export const CAMBRIDGE_DISTRICTS = [
     id: 2,
     name: 'The Davenport block',
     rect: { minX: -72, maxX: -25.5, minZ: -12.5, maxZ: 30 },
-    budget: 9800,     // `03` §4.2. Carried on the row because `03` §4 declares
-                      // the table as { id, name, rect, budget, gapFloor } and a
-                      // budget kept only in a doc cannot be checked against a
-                      // build. Nothing reads it yet; the density probe takes
-                      // rect and gapFloor. What it records: this district ships
-                      // at 6,532 blocks, 67% of its own budget.
+    budget: 9800,     // `03` §4.2's starting estimate. It rides on the row
+                      // because `03` §4 declares the table as
+                      // { id, name, rect, budget, gapFloor } and because an
+                      // author sizing a district wants the figure next to the
+                      // rect it applies to. Nothing reads it — the density
+                      // probe takes rect and gapFloor, and that is the check
+                      // that matters. Measured for reference: this district
+                      // ships at 6,532 blocks, 67% of the estimate. Comfortably
+                      // under, which is a good place to be.
     gapFloor: 8,      // `03` §8.2's floor for District 2
   },
   {
@@ -991,9 +1002,10 @@ export const CAMBRIDGE_DISTRICTS = [
     // and they are 12 m of open yard away from anything else, so a rect stretched
     // to hold them would report a hole this district's own ground does not have.
     rect: { minX: -18, maxX: 11, minZ: -88, maxZ: -36 },
-    budget: 5000,     // `03` §4.3. §4.11's ~600-block north edge is drawn from
-                      // this budget and District 7's; since D3 builds BOTH of
-                      // §4.11's buildings, D7 should not re-spend its share.
+    budget: 5000,     // `03` §4.3's starting estimate. §4.11's ~600-block north
+                      // edge is counted against this district and District 7's;
+                      // since D3 builds BOTH of §4.11's buildings, D7's own
+                      // estimate already covers ground D3 built.
     gapFloor: 12,     // `03` §8.2's floor for District 3 — the most forgiving in
                       // the scene, and §8.2 says why: "a viaduct is a line of
                       // piers with gaps between them." The mitigation it names —
@@ -1042,22 +1054,25 @@ export const CAMBRIDGE_DISTRICTS = [
     // it currently stands, and both are recorded at `CAMBRIDGE_OFFSETS` 31 and
     // 28 rather than force-fitted into a rect they are 46 m and 70 m outside.
     rect: { minX: -120, maxX: -72, minZ: -41, maxZ: 26 },
-    budget: 8600,     // `03` §4.4. Ships at 6,121 blocks over 1,418 built cells:
-                      // 71% of budget, 4.32 piece(s)/m² against §8.2's 2.6
-                      // target. THE UNDERSPEND IS SCENE-WIDE, NOT LOCAL — every
-                      // district built so far lands in the same band (D1 72.6%,
-                      // D2 66.7%, D3 65.3%, D4 71.2%), because §4's per-object
-                      // figures are cube-era counts and ADR-0013 collapses a
-                      // whole wall course into one piece. §4.4 budgets a
-                      // triple-decker at ~150 blocks; the built one is 71, and
-                      // it is not thinner — it is the same house in anisotropic
-                      // primitives. Line by line: houses 1,562 vs 3,300,
-                      // storefront row 294 vs 1,900, bank 98 vs 480, church 959
-                      // vs 620, parks 782 vs 700 with only two of the three
-                      // built, tofu factory 0 vs 260 (deferred, Ring B), street
-                      // furniture ~2,400 vs 1,340. Budget is a ceiling and the
-                      // density clause is the floor; the floor is cleared by
-                      // 66%, so the gap was reported rather than padded out.
+    budget: 8600,     // `03` §4.4's starting estimate. Ships at 6,121 blocks
+                      // over 1,418 built cells: 71% of the estimate, and 4.32
+                      // piece(s)/m² against §8.2's 2.6 target. Every district
+                      // built so far lands in the same band (D1 72.6%, D2
+                      // 66.7%, D3 65.3%, D4 71.2%), which says something about
+                      // the estimates rather than the districts: §4's
+                      // per-object figures are cube-era counts, and ADR-0013
+                      // collapses a whole wall course into one piece. §4.4
+                      // estimates a triple-decker at ~150 blocks; the built one
+                      // is 71, and it is not thinner — it is the same house in
+                      // anisotropic primitives. Line by line: houses 1,562 vs
+                      // 3,300, storefront row 294 vs 1,900, bank 98 vs 480,
+                      // church 959 vs 620, parks 782 vs 700 with only two of
+                      // the three built, tofu factory 0 vs 260 (deferred, Ring
+                      // B), street furniture ~2,400 vs 1,340. The density
+                      // clause is the real floor and it is cleared by 66%, so
+                      // the district is as full as it needs to be; coming in
+                      // well under the estimate is a fine outcome, not a
+                      // shortfall to pad out.
     gapFloor: 8,      // `03` §8.2's floor for District 4 — joint second-tightest
                       // in the scene, and the mitigation §8.2 names is the
                       // district itself: "the density reservoir. Twenty-two
@@ -1248,9 +1263,9 @@ export const CAMBRIDGE_HEROES = [
 // `03` §6.5's signage declaration, carried in the doc's own shape. `color` is
 // the one field added to it: the probe needs a key and a colour kept only in a
 // doc cannot be checked against a build (the same reason `budget` rides on the
-// district rows). The two counts are RESERVES, not measurements — see
-// `sprocketPanel` for what the raster actually spends against them, and why the
-// difference is banked rather than padded out.
+// district rows). The two counts are estimates, not measurements — see
+// `sprocketPanel` for what the raster actually costs against them, and why the
+// mark is left at the size that looks right rather than padded to match.
 export const HERO_SIGNAGE = {
   placement: 'entry',
   face: 'canal',
@@ -1468,9 +1483,11 @@ export function cambridgeBuildings(E, sim) {
 //      stack. District 2 proved the pattern on timber; `frameGrid` is the steel
 //      version of it.
 //
-// WHAT IS DELIBERATELY NOT HERE: `03` §4.1's ~870-block glyph and egg reserve —
-// the Cutaway at E36–E38 and the G6 anamorph — belongs to P7.3/P7.4 and is
-// banked, not spent. This district therefore targets ~10,400, not 11,270.
+// WHAT IS DELIBERATELY NOT HERE: `03` §4.1's ~870-block glyph and egg figure —
+// the Cutaway at E36–E38 and the G6 anamorph — belongs to P7.3/P7.4, so roughly
+// that much of §4.1's figure describes geometry a later phase will author. Worth
+// knowing when reading this district's count against the estimate; it is not a
+// number this district owes anyone.
 
 const PIER_W = 0.75;      // jamb pier in plan
 const MUL_W = 0.25;
@@ -1694,9 +1711,10 @@ function curtainBlock(sim, o) {
 // and not to redraw it; there is no asset in this repo to sample, so this is a
 // sprocket silhouette at the declared grid and the raster is the thing P7.3
 // should replace when the asset lands. Flagged rather than passed off as traced.
-// It spends 18 of `HERO_SIGNAGE.markBlocks`' 120: the reserve is sized for a
-// sampled raster at this grid, and padding a cleaner shape out to hit a
-// reserved number would be spending budget on nothing.
+// It costs 18 against `HERO_SIGNAGE.markBlocks`' 120: that estimate was sized
+// for a sampled raster at this grid, and this shape is simply cleaner. Adding
+// blocks to close the gap would make the mark worse to look at for no reason,
+// so the mark stays as drawn.
 const SPROCKET = [
   '....#..#....',
   '....####....',
@@ -3655,11 +3673,13 @@ export function cambridgeShell(sim, buildings, opts = {}) {
 }
 
 // --- VARIANT B2: THE SPEND-BACK ----------------------------------------------
-// Hand 2 of the two-hand rule. Every block the primitive vocabulary freed on the
-// shared plan above is owed back to this district, not banked, and this is where
-// it went. All of it is content a cube ladder could not afford on the same
-// budget: the rear yard, the freight dock, the fire escapes, the 1987 lobby link
-// and the 2008 courtyard, roof plant, and the shopfronts on the frontage row.
+// Hand 2 of the two-hand rule. The primitive vocabulary builds the shared plan
+// above far more cheaply than the cube ladder does, and rather than stop there,
+// this district put the room that freed up into more ground-plane content,
+// which is what the district actually wanted: the rear yard, the freight dock,
+// the fire escapes, the 1987 lobby link and the 2008 courtyard, roof plant, and
+// the shopfronts on the frontage row. None of it fits on a cube ladder at
+// anything like the same cost.
 //
 // It is also where the three COMPOSITE primitives earn their place — the dock's
 // corbelled brick arch, the roof tank's drum, and the ramp's wedge. They are
@@ -3713,8 +3733,8 @@ function loadingDock(sim) {
 
 function rearYard(sim) {
   // The freight spur, then the clutter a working yard actually carries. This
-  // band is why Variant B2 exists: on the cube ladder the district's whole
-  // budget went into the walls and there was nothing left.
+  // band is why Variant B2 exists: on the cube ladder the walls alone cost so
+  // much that a yard like this was out of reach.
   //
   // Band B. Sleepers ACROSS the track, rails on top of them — the previous
   // arrangement had both running the same way at the same level, which is not a

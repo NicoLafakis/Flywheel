@@ -7,11 +7,14 @@ covers:
 ---
 # Cambridge sandbox — the voxel primitive vocabulary
 
-**Status:** proposal / capability audit. Nothing here is built.
+**Status:** the capability audit, and now the shipped toolkit — `js/voxelforms.js`
+carries all twelve primitives. The audit below is kept as written, because it is
+the reasoning the toolkit was built from.
 **Date:** 2026-08-06.
-**Answers:** `STATUS.md`'s open decision 1, *"Construction vocabulary"* — the
-one the board records as *"his actual request, and nothing has been started on
-it"*.
+**Answers:** the owner's *"Construction vocabulary"* request, which sat on
+`STATUS.md`'s board as an open decision — *"his actual request, and nothing has
+been started on it"* — until ADR-0013 was accepted and this vocabulary shipped.
+The board entry is retired.
 
 The product ask, in the owner's terms: the new Cambridge scene should not chase
 a higher block count. It should be **more artistic with the voxels** — different
@@ -21,29 +24,23 @@ of same-size cubes; a pillar should be **a solid pillar**, not a stack of
 bricks. He accepts that this moves away from the brick-by-brick feel. That is
 the point.
 
-> **The objective is not minimisation.** Corrected by the owner, 2026-08-06:
-> *"we're not trying to do a 'least amount of blocks possible,' so I hope you're
-> not taking it to the extreme here."* The goal is **the right shape for the
-> thing**, and the savings are **reinvested, not banked**. A floor that costs
-> one slab instead of forty bricks frees those forty for the thing next door
-> that would not otherwise have fit. Cambridge should land in the same block
-> neighbourhood as the existing authored scenes and deliver materially MORE
-> apparent detail and more "stuff" for that budget — not a fraction of the count
-> delivering the same. Anisotropic primitives are a way to **buy detail that
-> uniform cubes could not afford**, not a way to build a sparse level. The
-> success metric everywhere below is **detail per block at a comparable budget**,
-> never a reduced total.
+The objective is not minimisation. In the owner's words: *"we're not trying to
+do a 'least amount of blocks possible.'"* The goal is **the right shape for the
+thing**. Anisotropic primitives are a way to buy detail that uniform cubes could
+not afford, so the same scene reads richer rather than sparser. The success
+metric everywhere below is **detail per block** — how much place a district
+delivers — not a block total in either direction.
 
 This page establishes what the engine can already do toward that, what it
 cannot, what the change actually costs, and the named set of primitives to
 author with. Every claim about current behaviour cites a file and a line.
 
-> **Line-number drift, noted once.** `STATUS.md`'s established-facts block cites
-> `_addBlock` at `voxelsim.js:188`, `_buildNeighbors` at `:516`, and the
-> `InstancedMesh` sizing at `voxelworld.js:377`. Those functions are now at
-> `voxelsim.js:479`, `voxelsim.js:810` and `voxelworld.js:621`. The *facts* in
-> that block are unchanged and still hold — only the line numbers moved. All
-> citations below are against the tree at 2026-08-06 (`cc38fff`).
+Line numbers move as the tree does. `STATUS.md`'s established-facts block cites
+`_addBlock` at `voxelsim.js:188`, `_buildNeighbors` at `:516`, and the
+`InstancedMesh` sizing at `voxelworld.js:377`; those functions now live at
+`voxelsim.js:479`, `voxelsim.js:810` and `voxelworld.js:621`. The facts are the
+same — only the offsets shifted. All citations below are against the tree at
+2026-08-06 (`cc38fff`).
 
 ---
 
@@ -134,11 +131,10 @@ then traced:
 > count. A solid slab where a perimeter ring used to be costs more even though
 > it is one block instead of forty.
 
-**Read this as a budget result, not a savings result.** What the cost model
-licenses is not a smaller scene — it is *the same scene budget buying more
-scene*. Every figure below describes what a block buys; none of it is an
-argument for buying fewer. The reinvestment rule in §4.2 is what turns this
-section from a cost analysis into a content plan.
+Read the figures below as a description of what a block buys, not as an argument
+for buying fewer. The cost model tells us how much scene fits inside the
+headroom the renderer and sim can carry (§4.4); what we do with that headroom is
+a content question, and §4 answers it.
 
 ### 2.1 Build cost — fine-grid writes are flat, neighbour probes get cheaper
 
@@ -238,10 +234,10 @@ Three places, all honest:
    punches, an interior column grid, full plates only every `slabEvery` layers.
    A vocabulary that makes each floor *one solid piece* fills the interior. A
    10 × 10 m floor as a perimeter-plus-columns ring is a few hundred fine cells;
-   as one solid 10 × 10 × 1 m piece it is 6,400. **The rule this generates —
-   "skin, not fill": solid pieces replace surfaces, never interiors** — a floor
-   becomes one 0.25 m or 0.5 m *plate*, not a 1 m solid block. It is half of a
-   pair; see the two-hand rule in §4.
+   as one solid 10 × 10 × 1 m piece it is 6,400. Hence *skin, not fill*: a
+   solid piece stands in for a surface rather than an interior, so a floor
+   becomes one 0.25 m or 0.5 m *plate* rather than a 1 m solid block. That is
+   one half of the two-hand rule in §4.
 2. **One more render bucket per distinct `b.s`**, unless §2.3's key change
    lands.
 3. **Per-metre surface tiling** is uniform (`repeat.set(size, size)`,
@@ -300,10 +296,10 @@ if (ns > cap) continue;                                // :1093-1094
   it is the one place the change is not monotonically good.
 - **Determinism survives, conditionally.** ADR-0006's tie-breaking proof rests
   on *"every span is an exact sum of multiples of 1/8 (block sizes are
-  0.25/0.5/1/2 m)"*. Any anisotropic extent must therefore stay a multiple of
-  0.25 m, so half-sums stay multiples of 1/8 and two tying BFS paths still
-  produce bit-identical floats. **This is a hard authoring constraint, not a
-  preference.**
+  0.25/0.5/1/2 m)"*. Anisotropic extents therefore stay on multiples of 0.25 m,
+  which keeps half-sums on multiples of 1/8 so two tying BFS paths still produce
+  bit-identical floats. Everything downstream of that proof depends on it, so
+  it is one of the few authoring rules with no give in it.
 
 ### 3.2 The rim-support test, and the grain ceiling it creates
 
@@ -342,19 +338,19 @@ radius ≥ (a/2 − 0.05) · √2 / 0.95   =   (a/2 − 0.05) × 1.48865
 `MAX_RADIUS` is 6.6 m at `sizeFrac 0` (`voxelsim.js:63`) and reaches 7.1 m at
 `sizeFrac 1`. For a rectangle `a × b` the driver is the diagonal:
 `radius ≥ √((a−0.1)² + (b−0.1)²) / 1.9` — so a long thin kerb or cornice run at
-grade is as bad as its length. **A 12 m ground-anchored plinth is a permanent,
-uneatable monument.** This is the hard ceiling any grain rule must respect, and
-it applies only to `gy === 0`; elevated pieces are removed by losing their
+grade is as bad as its length. A 12 m ground-anchored plinth is a permanent,
+uneatable monument. That is the ceiling any grain rule works under, and it
+applies only to `gy === 0`; elevated pieces are removed by losing their
 supports, not by this test.
 
-This also corrects a stale note. `voxelsim.js:298` says *"The hole can only eat
-bricks smaller than itself"*. That is not an enforced rule — there is no size
-gate anywhere in the file — it is an **emergent property of this corner test**,
-and it holds only for ground-anchored blocks.
+Worth reading alongside `voxelsim.js:298`, which says *"The hole can only eat
+bricks smaller than itself"*. There is no size gate anywhere in the file — that
+behaviour is an emergent property of this corner test, and it holds only for
+ground-anchored blocks.
 
-### 3.3 Eating — the one-bite hazard
+### 3.3 Eating — a big piece goes in one bite
 
-Consumption is two conditions, and **neither one looks at size**:
+Consumption is two conditions, and neither one looks at size:
 
 ```js
 _overVoid(x, z, remR2) { ... dx*dx + dz*dz <= remR2 }   // voxelsim.js:1322-1325
@@ -364,16 +360,16 @@ if (b.y + b.s / 2 <= SINK_Y) this._consume(b);           // :1743 (and :1620 for
 `_overVoid` tests the block's **centre** only. Inside the void, `_stepDebris`
 skips support entirely (`:1742-1745`) — the block simply falls. So:
 
-> **A fallen 20 m slab lying beside the hole is eaten whole, in about a third of
-> a second, by a SIZE 1 hole, the moment the hole's centre passes within
-> ~1.05 m of the slab's centre.** It wakes via `_wakeRestingUnderHole`
-> (`:1534-1557`), unsleeps, falls, and `_consume` (`:2174`) awards
-> `mat.mass × s³ × comboMult` and **one** combo tick (`h.chain += 1`, `:2192`).
+A fallen 20 m slab lying beside the hole is eaten whole, in about a third of a
+second, by a SIZE 1 hole, the moment the hole's centre passes within ~1.05 m of
+the slab's centre. It wakes via `_wakeRestingUnderHole` (`:1534-1557`),
+unsleeps, falls, and `_consume` (`:2174`) awards `mat.mass × s³ × comboMult`
+and one combo tick (`h.chain += 1`, `:2192`).
 
-That is the legibility problem in one sentence, and it is exactly the difference
-the owner named between *a huge slab vanishing in one bite* and *a wall
-crumbling*. It is not a bug — it is what the geometry says — and the grain rule
-in §4 exists to keep authors out of it.
+That is the legibility question in one sentence, and it is exactly the
+difference the owner named between *a huge slab vanishing in one bite* and *a
+wall crumbling*. It is not a bug — it is what the geometry says — and the grain
+rule in §4 is how authors steer around it.
 
 ### 3.4 Chunks, debris and feel
 
@@ -404,65 +400,56 @@ in §4 exists to keep authors out of it.
 (`voxelsim.js:89-92`), and the chain counter increments once per block
 (`:2192`). Mass is conserved when you consolidate — `mat.mass × s³` sums the
 same — so `totalMass`, the per-scene SIZE ladder scaling
-(`voxelsim.js:296-310`), and the 50% completion goal are all unaffected. But
-**the combo ladder is block-count-denominated**, so a Cambridge at half the
-block count of Boston yields roughly half the combo levels for the same
-excavation, which slows SIZE growth (`h.mass` is combo-inflated,
-`voxelsim.js:2195-2204`) even though raw mass is identical.
+(`voxelsim.js:296-310`), and the 50% completion goal are all unaffected. The
+combo ladder, though, is block-count-denominated, so a scene with far fewer
+pieces yields proportionally fewer combo levels for the same excavation, which
+slows SIZE growth (`h.mass` is combo-inflated, `voxelsim.js:2195-2204`) even
+though raw mass is identical. `SANDBOX_COIN_COUNT` and the goal are mass and
+position based, so they are unaffected either way.
 
-Also note `SANDBOX_COIN_COUNT` and the goal are mass/position based, not block
-based, so they are safe.
+The aggregate risk here is small; the local one is real, and it is worth
+separating the two because the aggregate figure hides the mechanism.
 
-**Re-examined against the reinvestment principle (2026-08-06).** The first
-version of this section assumed a large drop in total count and concluded that
-re-denominating combos was close to a prerequisite. With the two-hand rule
-holding the total steady, that conclusion changes — but **only partly, and it
-matters which part survives**, because the aggregate figure hides the mechanism.
-
-- **De-risked at the aggregate level: yes, materially.** A chain persists as
+- **At the scene level this mostly takes care of itself.** A chain persists as
   long as the player eats *something* every `COMBO_WINDOW` = 1.5 s
   (`voxelsim.js:2228-2231`), and combo level is `floor((chain − 1) / 25)`
-  (`:92`) — so over an uninterrupted run, combo levels earned track **total
-  blocks eaten**. If the scene total holds, they hold. Brooklyn's excursion eats
-  530 blocks in 62 s (`STATUS.md:54`), right at the ×3 cap's 501-block
-  threshold; a Cambridge at a comparable count reaches the same place.
-- **Not eliminated locally, and this is the honest part.** The 1.5 s window is a
-  **rate gate**, not a total. Consolidation reduces *bites per object* even when
-  it does not reduce *bites per scene* — and the two-hand rule explicitly
-  **redistributes**: a consolidated building goes sparse and its savings are
-  spent somewhere else on the map. The chain does not care about the map total;
-  it cares whether the next bite arrives within 1.5 s of the last. A brick tower
-  fed the player ~300 bites while they ploughed it and coasted them across the
-  plaza beyond; the same tower as 8 slabs runs dry mid-plough, and at SIZE 1's
-  9.96 m/s the hole has only ~15 m of travel to find the next thing before the
-  chain drops (~39 m at SIZE 12's 26.12 m/s — `.wiki/modules/voxel.md`).
-- **Verdict: a safeguard worth doing anyway, no longer a prerequisite.**
-  Re-denominating `comboMult` by mass rather than block count still buys a
-  genuinely better property — a combo economy invariant to authoring grain,
-  forever, rather than "we counted and it came out fine this time." But it no
-  longer blocks the primitive change and **should not be bundled into it**: own
-  change, own before/after, or not at all.
-- **What would make it a prerequisite again** — stated so it can be tested
-  rather than argued: any contiguous district a player would plough in one pass
-  whose **mean gap between consecutive eatable pieces along a plausible driving
-  line exceeds ~15 m** (the SIZE 1 reach), or ~25 m at mid-ladder speeds. That
-  is the concrete shape of "an author leans hard on slabs in one district": the
-  scene total is fine, the warehouse quarter is a combo dead zone, and the
-  market street two blocks over spikes. §7.2 adds chain-break count and mean
-  inter-eat interval to the measured set precisely so this is caught by number
-  and not by feel.
-- **Cross-reference, added during Cambridge reconciliation (2026-08-07).**
-  `.wiki/features/cambridge-sandbox/04-easter-eggs-and-achievements.md` §4.2
-  proposes the concrete fix this section implies but does not specify: a coin
-  refreshes `chainTimer` (`voxelsim.js:2193`) without incrementing `chain`
-  (`:2192`). Checked against this section's own terms, it sustains rather than
-  inflates — `comboMult` and `longest_chain` stay strictly block-denominated, so
-  it does not touch the ×3 cap or the Unbroken Chain belt, and it does not
-  relax the mean-gap probe either (a coin must not be counted as an eatable
-  piece by that probe, or a district could paper over a real dead zone with
-  currency instead of content). Consistent with this section and with
-  Cambridge's own per-district floors (`03` §8); owned and stated in full there
-  and in `04`, not repeated here.
+  (`:92`) — so over an uninterrupted run, combo levels earned track total blocks
+  eaten. Brooklyn's excursion eats 530 blocks in 62 s (`STATUS.md:54`), right at
+  the ×3 cap's 501-block threshold; a Cambridge of comparable density reaches
+  the same place.
+- **Locally it does not.** The 1.5 s window is a rate gate, not a total.
+  Consolidation reduces bites *per object* even where the scene as a whole has
+  plenty to eat, and the chain only cares whether the next bite arrives within
+  1.5 s of the last. A brick tower fed the player ~300 bites while they ploughed
+  it and coasted them across the plaza beyond; the same tower as 8 slabs runs
+  dry mid-plough, and at SIZE 1's 9.96 m/s the hole has only ~15 m of travel to
+  find the next thing before the chain drops (~39 m at SIZE 12's 26.12 m/s —
+  `.wiki/modules/voxel.md`).
+- **So: a safeguard worth doing, not a prerequisite.** Re-denominating
+  `comboMult` by mass rather than block count buys a genuinely better property —
+  a combo economy invariant to authoring grain, forever, rather than "we
+  measured it and it came out fine this time." It does not block the primitive
+  change, and it is better as its own change with its own before/after than
+  bundled into this one.
+- **What would promote it to a prerequisite**, stated so it can be tested rather
+  than argued: any contiguous district a player would plough in one pass whose
+  mean gap between consecutive eatable pieces along a plausible driving line
+  exceeds ~15 m (the SIZE 1 reach), or ~25 m at mid-ladder speeds. That is the
+  concrete shape of an author leaning too hard on slabs in one place — the scene
+  overall is fine, the warehouse quarter is a combo dead zone, and the market
+  street two blocks over spikes. §7.2 puts chain-break count and mean inter-eat
+  interval in the measured set so this gets caught by number rather than by
+  feel.
+- **The fix that follows from this** is specified in
+  `.wiki/features/cambridge-sandbox/04-easter-eggs-and-achievements.md` §4.2: a
+  coin refreshes `chainTimer` (`voxelsim.js:2193`) without incrementing `chain`
+  (`:2192`). That sustains a chain rather than inflating it — `comboMult` and
+  `longest_chain` stay strictly block-denominated, so it leaves the ×3 cap and
+  the Unbroken Chain belt alone. It also leaves the mean-gap probe alone by
+  design: a coin does not count as an eatable piece there, or a district could
+  paper over a real dead zone with currency instead of content. That change is
+  owned by `04` and by Cambridge's own per-district density floors (`03` §8),
+  and is not restated here.
 
 ### 3.6 Surfaces and texturing
 
@@ -487,93 +474,92 @@ The sandbox does **not** use `tiers.js` edibility at all. `isEdible` and the
 
 Design premises, each grounded above:
 
-- **The atom stays an axis-aligned box.** Not a preference — the sim's only
-  geometric operation is AABB separation (§1.4, §3.1), and adding a `shape` tag
-  would give the renderer a third bucket-key dimension, which `STATUS.md:87-88`
-  already flags as the caution on this exact request.
+- **The atom stays an axis-aligned box.** The sim's only geometric operation is
+  AABB separation (§1.4, §3.1), and adding a `shape` tag would give the renderer
+  a third bucket-key dimension, which `STATUS.md:87-88` already flags as the
+  caution on this exact request.
 - **One piece per architectural member**, sized by what the member *is*, not by
   a brick ladder.
-- **Solid where the member is solid; a plate where the member is a surface.**
-  Never fill a hollow interior (§2.4).
-- **The budget is spent, not saved.** What a primitive frees goes back into the
-  scene. See the two-hand rule immediately below — it is the premise the whole
-  vocabulary exists to serve.
+- **Solid where the member is solid; a plate where the member is a surface** —
+  hollow interiors stay hollow (§2.4).
+- **The map stays full.** Consolidation is a way to afford more place, not a way
+  to end up with less of one. See the two-hand rule below.
 - **All extents are multiples of 0.25 m**, so ADR-0006's determinism proof
   survives (§3.1).
-- **Piece size follows BUILDING size.** The ask is not "more complex
-  buildings," it is *larger buildings that are not made of 20,000 cubes* —
-  see the scale rule immediately below, stated as strongly as the two-hand
-  rule because the owner keeps coming back to it.
+- **Piece size follows building size.** The ask is not "more complex buildings,"
+  it is *larger buildings that are not made of 20,000 cubes* — see the scale
+  rule below, which the owner keeps coming back to.
 
 ### The scale rule — *the bigger the building, the bigger the pieces*
 
-The owner's framing, 2026-08-07: *"It shouldn't be that the Empire State
-Building is made out of 20,000 voxels. The floors are solid pieces, the
-columns are solid pieces — the same look, just not made up of as many
-individual parts."*
+The owner's framing: *"It shouldn't be that the Empire State Building is made
+out of 20,000 voxels. The floors are solid pieces, the columns are solid pieces
+— the same look, just not made up of as many individual parts."*
 
 Three clauses:
 
-1. **The vocabulary matters MOST where the building is BIG.** A brownstone of
+1. **The vocabulary matters most where the building is big.** A brownstone of
    0.5 m bricks costs hundreds of blocks; a tower of them costs tens of
    thousands — and reads worse. So the larger the structure, the harder an
    author leans on structural members: solid columns, per-bay floor slabs,
-   curtain panels on mullions, cornice runs. A 60 m tower is hundreds of
-   blocks, not twenty thousand — the *Empire State test*: no landmark in
-   Cambridge may cost a small scene's entire budget in one footprint.
-2. **Same look, fewer parts.** Consolidation is invisible from gameplay
-   distance or it is wrong. The silhouette, the surface grain, and the
-   collapse read all survive; only the part count changes. The one trap is
-   §3.6's: a very large *plain* plate reads as one enormous brick — a big
-   piece carries a surface or a paint break, exactly as a big real member
-   carries joints and shadow lines.
-3. **The failure this prevents is the toy model.** A large building piled
-   from small cubes reads as a miniature of a building — the Mickey Mouse
-   read — and burns a whole district's budget doing it. This is the third
-   named failure mode, beside the two-hand rule's expensive solid lump and
-   empty diorama: those two come from consolidating wrongly or stopping
-   early; this one comes from not consolidating at all.
+   curtain panels on mullions, cornice runs. A 60 m tower should be hundreds of
+   blocks, not twenty thousand — call it the *Empire State test*: no single
+   landmark should cost what a whole small scene costs.
+2. **Same look, fewer parts.** Consolidation should be invisible from gameplay
+   distance. The silhouette, the surface grain, and the collapse read all
+   survive; only the part count changes. The one trap is §3.6's: a very large
+   *plain* plate reads as one enormous brick, so a big piece wants a surface or
+   a paint break, exactly as a big real member carries joints and shadow lines.
+3. **The failure this avoids is the toy model.** A large building piled from
+   small cubes reads as a miniature of a building — the Mickey Mouse read — and
+   spends an enormous number of blocks doing it. That is a third failure mode
+   alongside the two-hand rule's expensive solid lump and empty diorama: those
+   two come from consolidating wrongly or stopping early; this one comes from
+   not consolidating at all.
 
-The one deliberate refinement, and it is gameplay's, not a dilution of the
-ask: "each floor one solid piece" lands as **one slab per structural bay**
-(§4.2 clause 2), so a 20 × 20 m tower floor is 9-16 pieces rather than 1 —
-a 25-40× reduction from the ~400 cubes it is today, with every bite still
-legible. Floors *are* solid pieces; columns *are* solid pillars. The bay cap
-just keeps the collapse readable while they are.
+One deliberate refinement, and it comes from gameplay rather than from diluting
+the ask: "each floor one solid piece" lands as **one slab per structural bay**
+(§4.2 clause 2), so a 20 × 20 m tower floor is 9-16 pieces rather than 1 — a
+25-40× reduction from the ~400 cubes it is today, with every bite still legible.
+Floors *are* solid pieces; columns *are* solid pillars. The bay cap just keeps
+the collapse readable while they are.
 
-### The two-hand rule — *skin, not fill* · *spend it back*
+### The two-hand rule — *skin, not fill* · *keep it full*
 
-Two rules, always stated together, because **they pull in opposite directions
-and an author needs both hands on the wheel.** Each one alone produces a
+Two guidelines, always stated together, because they pull in opposite directions
+and an author wants both hands on the wheel. Each one alone produces a
 recognisable, different failure.
 
-> **Hand 1 — SKIN, NOT FILL.** A solid piece replaces a *surface*, never an
-> *interior*. A floor becomes one 0.25 m or 0.5 m plate; it does not become a
-> 1 m solid cube of concrete. A wall becomes a panel; it does not become a
-> block. A column is solid because a column *is* solid.
+> **Hand 1 — skin, not fill.** A solid piece stands in for a *surface*, not an
+> *interior*. A floor becomes one 0.25 m or 0.5 m plate rather than a 1 m solid
+> cube of concrete. A wall becomes a panel rather than a block. A column is
+> solid because a column *is* solid.
 >
-> *Prevents:* **the expensive solid lump.** Fine-cell cost is linear in occupied
-> volume, not in block count (§2.1, §2.4), so an author who consolidates by
-> filling produces a scene with a beautifully low block count that builds
-> *slower*, eats more memory, and is no cheaper per frame than the thing it
-> replaced. The block count lies; `sim.grid.size` tells the truth.
+> *Avoids:* **the expensive solid lump.** Fine-cell cost is linear in occupied
+> volume, not in block count (§2.1, §2.4), so consolidating by filling produces
+> a scene with a beautifully low block count that builds *slower*, eats more
+> memory, and is no cheaper per frame than the thing it replaced. The block
+> count flatters you; `sim.grid.size` tells the truth.
 
-> **Hand 2 — SPEND IT BACK.** Every block a primitive frees is budget **owed
-> back to the scene**, not banked. A floor that costs one slab instead of forty
-> bricks has bought forty blocks of something else: the loading dock, the roof
-> plant, the fire escape, the bike racks, the thing next door that would not
-> otherwise have fit. Cambridge should land in the same block neighbourhood as
-> the existing authored scenes and read as *more* place for it.
+> **Hand 2 — keep it full.** Consolidating a member frees room for the loading
+> dock, the roof plant, the fire escape, the bike racks — the things that make a
+> district feel inhabited. Cambridge should read as *more* place than the
+> existing authored scenes, not less, and no part of the map should feel empty
+> as the player crosses it.
 >
-> *Prevents:* **the empty diorama.** An author who consolidates and stops
-> produces a technically elegant, over-simplified level — correct silhouettes,
-> nothing to look at between them, and (per §3.3 and §3.5) far too few things to
-> eat. This is the failure the owner named directly: *"we're not trying to do a
-> 'least amount of blocks possible.'"*
+> *Avoids:* **the empty diorama.** Consolidating and then stopping produces a
+> technically elegant, over-simplified level — correct silhouettes, nothing to
+> look at between them, and (per §3.3 and §3.5) too few things to eat. This is
+> the failure the owner named directly: *"we're not trying to do a 'least amount
+> of blocks possible.'"*
+>
+> The guard here is **density, not count**. `probeDistrictDensity` in
+> `tools/validate.mjs` checks eatable pieces per m² and the gap between
+> consecutive pieces, per district — that is what actually catches an empty
+> quarter. Nothing in the validator checks a block total, and nothing needs to.
 
-The two together give the actual objective: **detail per block, at a comparable
-budget.** Neither "fewer blocks" nor "more blocks" is the goal; *more scene per
-block, all of it spent* is.
+Together they give the objective: **detail per block** — more place per block,
+spread evenly enough that the player never crosses a dead patch.
 
 ### 4.1 The primitives
 
@@ -585,11 +571,11 @@ matching `_block`'s existing convention (`voxelsim.js:461-466`).
 | **slab** | `bay × 0.25–0.5 × bay`, bay ≤ 6 m | one floor plate per structural bay; roof decks; landings | 1 block replaces 25-100. Fine cells **drop** (0.25 m plate vs 1 m course) | Detaches whole when its columns go; falls as one plate. Sits inside the grain ladder at its bay size |
 | **column** | `0.5 × storey × 0.5` or `1 × storey × 1` | the owner's "solid pillar"; interior grid; portico columns | 1 block replaces 3-12 | Its slab above loses vertical support and drops the same step. Reads as "the leg went, the floor came down" — the right read |
 | **pier** | `1–2 × 2–4 × 1–2`, at grade | masonry piers, bridge bents, gate posts, plinth legs | 1 replaces 8-32 | At grade → obeys the grain ladder (§3.2); a 2 m pier is removable from SIZE 1.8 |
-| **beam** | `len × 0.5 × 0.5` along one axis, `len ≤ 6 m` | lintels, spandrel bands, crossheads, rails | 1 replaces up to 24 | **Must stand on something at each end.** A beam is never fed horizontally — one hop from a support costs `(len + s)/2`, which blows `maxSpan` for any `len > ~5 m` |
+| **beam** | `len × 0.5 × 0.5` along one axis, `len ≤ 6 m` | lintels, spandrel bands, crossheads, rails | 1 replaces up to 24 | Stands on something at each end. A beam is not fed horizontally — one hop from a support costs `(len + s)/2`, which exceeds `maxSpan` for any `len > ~5 m` |
 | **panel** | `w × h × 0.25` (or `0.25 × h × d`) | curtain-wall infill, spandrels, non-load-bearing walls, signage faces | 1 replaces 4-40 | Glass panels: still `vertBond/horizBond < 0.5`, so **every panel needs a non-glass supporter at its own level** (`.wiki/modules/voxel.md`, rule 2). Unchanged rule, larger pieces |
 | **mullion** | `0.25 × storey × 0.25` | the vertical strip that *carries* the glass panels beside it | 1 replaces 4-16 | The load path. Kill the mullion and the panels beside it lose their only horizontal support |
 | **cornice** | `run × 0.25–0.5 × 0.5`, projecting one cell outboard of the plate carrying it | the continuous avenue shadow line | 1 replaces a whole `for` loop (see `setbackTower`, `voxelkit.js:2115-2125`, which currently emits ~2·`w/0.5` cubes per building) | Detaches with its plate |
-| **plinth** | `w × 0.5–1 × d`, at grade, `w,d ≤ 6 m` | building bases, monument steps, terrace edges | 1 replaces 36+ | Grain ladder applies hard (§3.2). **Never exceed 6 m** or it becomes late-game-only furniture |
+| **plinth** | `w × 0.5–1 × d`, at grade, `w,d ≤ 6 m` | building bases, monument steps, terrace edges | 1 replaces 36+ | Grain ladder applies in full (§3.2). Keep it at or under 6 m — past that it is late-game-only furniture |
 | **tread** | `run × 0.25 × 0.5` | stair flights, grandstand steps, terracing | 1 per step | Each tread rests vertically on the one behind it |
 | **ramp / wedge** | **does not exist.** Author as a run of `tread`s of decreasing width. | slopes, gables, batter | ~1 block per 0.25 m of rise, vs ~`w` blocks today | Per tread |
 | **corbel-arch** | a stack of `beam`s of shrinking span, each resting vertically on the one below | arches, vaults, gateways | replaces `stoneArch`'s cube ring | Per course, bottom-up — which is also how it fails structurally, correctly |
@@ -600,82 +586,94 @@ needs a new shape, a new geometry, or a new material.
 
 ### 4.2 The grain rule
 
-A player must be able to read *"I am eating a building"* rather than *"the
+A player should be able to read *"I am eating a building"* rather than *"the
 building deleted itself"*. Three clauses, all derived above:
 
-1. **Grade clause (hard, engine-derived).** Any piece with `gy === 0` must have
-   a plan diagonal `≤ 8 m`, i.e. `√((a−0.1)² + (b−0.1)²) ≤ 8`. That puts it
+1. **Grade clause (engine-derived).** A piece with `gy === 0` keeps its plan
+   diagonal at or under 8 m, i.e. `√((a−0.1)² + (b−0.1)²) ≤ 8`. That puts it
    inside SIZE 10 on the §3.2 ladder with margin. Above ~9.7 m of diagonal it is
-   permanently uneatable and becomes accidental scenery.
-2. **Bite clause (authoring, from §3.3).** No single piece may carry more than
-   **~5% of its structure's mass**. A structure should take at least ~20 bites.
-   In practice this caps a floor plate at one *bay* — 4-6 m — not one *floor*,
-   which is the single most important correction to the naive reading of "each
-   floor one solid piece". A 20 × 20 m tower floor becomes 9-16 slabs, not 1;
-   that is still a 25-40× reduction from the ~400 cubes it is today, and it
-   keeps the collapse legible. The ~385 blocks that frees are **owed straight
-   back to the district** (hand 2), not banked.
+   permanently uneatable and becomes accidental scenery, which is why this one
+   is a hard limit rather than a target.
+2. **Bite clause (authoring, from §3.3).** Aim for no single piece carrying more
+   than ~5% of its structure's mass, so a structure takes at least ~20 bites. In
+   practice that caps a floor plate at one *bay* — 4-6 m — rather than one
+   *floor*, which is the most important refinement to the naive reading of "each
+   floor one solid piece". A 20 × 20 m tower floor becomes 9-16 slabs rather
+   than 1; that is still a 25-40× reduction from the ~400 cubes it is today, and
+   it keeps the collapse legible. The room that frees goes into the district
+   around it (hand 2).
 3. **Ladder clause (feel).** Match the *dominant* piece size of a district to
    the SIZE the player will be at when they reach it, using the §3.2 table:
    0.5-1 m street furniture and infill everywhere (SIZE 1); 2 m piers and
    plinths on the approach (SIZE 2); 4 m bays in the mid-district (SIZE 4);
    6 m plinths and monument masses only where the route arrives late (SIZE 7).
-   Cambridge's spawn neighbourhood must be fine-grained or the opening minute
-   has nothing the hole can take.
+   Cambridge's spawn neighbourhood wants to be fine-grained, or the opening
+   minute has nothing the hole can take.
 
 ### 4.3 When NOT to consolidate
 
-With the budget holding steady (the two-hand rule), the risk is no longer "too
-few pieces in the scene." It is **an author reaching for a big primitive where
-several smaller ones would read better and eat better.** Consolidation is
-bracketed from both ends by findings already established above:
+The risk worth watching is an author reaching for a big primitive where several
+smaller ones would read better and eat better. Consolidation is bracketed from
+both ends by findings already established above:
 
 - **From below, by the grade ceiling (§3.2).** A ground-anchored piece over
-  ~9.7 m of plan diagonal is *permanently uneatable* — it stops being content
-  and becomes accidental scenery, invisible to the 50%-of-mass goal in the worst
-  way (it counts toward `totalMass` at `voxelsim.js:293` and can never be
-  removed from it). Clause 1's 8 m cap is the working limit; treat 9.7 m as the
-  cliff, not the target.
-- **From above, by the one-bite hazard (§3.3).** `_overVoid` tests the centre
+  ~9.7 m of plan diagonal is permanently uneatable — it stops being content and
+  becomes accidental scenery, and in the worst way for the 50%-of-mass goal (it
+  counts toward `totalMass` at `voxelsim.js:293` and can never be removed from
+  it). Clause 1's 8 m cap is the working limit; 9.7 m is the cliff, not the
+  target.
+- **From above, by the one-bite behaviour (§3.3).** `_overVoid` tests the centre
   only, so any elevated piece, at any size, is swallowed whole the moment the
   hole's centre reaches it. Past ~5% of a structure's mass, a piece stops
   reading as a bite and starts reading as the building deleting itself.
 
-**Consolidate when the member is one physical thing whose failure is genuinely
-all-or-nothing** — a floor plate, a pier, a lintel, a column, a cornice run on
-one facade. **Keep it split when the real thing is an assembly** — a brick wall,
-a rubble mound, a truss, a stair, a roofline. Five specific "don'ts":
+Consolidate when the member is one physical thing whose failure is genuinely
+all-or-nothing — a floor plate, a pier, a lintel, a column, a cornice run on one
+facade. Keep it split when the real thing is an assembly — a brick wall, a
+rubble mound, a truss, a stair, a roofline. Five cases where splitting wins:
 
-1. **Don't consolidate across a support boundary.** Two members that need to
-   fail at different times must be two pieces — merging them puts them in one
-   BFS node and they now fail together, always.
-2. **Don't consolidate below ~4 bites per object.** Clause 2 caps a piece at 5%
-   of its *structure*; the same instinct applies per object. A kiosk that is one
-   block is a kiosk that vanishes.
-3. **Don't consolidate the spawn neighbourhood.** At SIZE 1 the hole is 1.1 m
-   and the §3.2 ladder says only ~1-2 m pieces are removable at grade. A
-   consolidated opening district is an opening minute with nothing to eat.
-4. **Don't consolidate where the silhouette is the point.** A stepped parapet,
-   gable or cornice reads as detail; the same run as one bar reads as a bar.
-   This is also where the mortar course betrays you — it is proportional per
-   face (§3.6), so a very large plain plate reads as *one enormous brick*.
-5. **Don't consolidate to hit a number.** There is no block-count target to
-   beat. If a member reads better as six pieces, it is six pieces, and the
-   budget it did not save was never owed to anyone.
+1. **Across a support boundary.** Two members that need to fail at different
+   times want to be two pieces; merging them puts them in one BFS node, and from
+   then on they always fail together.
+2. **Below ~4 bites per object.** Clause 2 caps a piece at 5% of its
+   *structure*; the same instinct applies per object. A kiosk that is one block
+   is a kiosk that vanishes.
+3. **The spawn neighbourhood.** At SIZE 1 the hole is 1.1 m and the §3.2 ladder
+   says only ~1-2 m pieces are removable at grade. A consolidated opening
+   district is an opening minute with nothing to eat.
+4. **Where the silhouette is the point.** A stepped parapet, gable or cornice
+   reads as detail; the same run as one bar reads as a bar. This is also where
+   the mortar course works against you — it is proportional per face (§3.6), so
+   a very large plain plate reads as *one enormous brick*.
+5. **To hit a number.** There is no block count to chase in either direction. If
+   a member reads better as six pieces, it is six pieces.
 
-### 4.4 What the budget should land at
+### 4.4 The headroom the level lives inside
 
-**Not a reduced total.** Applying clauses 1-3 plus the two-hand rule should put
-Cambridge in **the same block neighbourhood as the existing authored scenes** —
-call it Brooklyn-to-Boston range, ~40-80k — while delivering materially more
-apparent detail and more eatable "stuff" per square metre than any of them.
-The primitive vocabulary is what makes that affordable: the blocks a one-slab
-floor frees are the blocks that pay for the loading dock next to it.
+The 40-80k block range is engineering headroom, not a destination. It is what
+the renderer and the sim demonstrably carry well: Brooklyn ships 39,984 blocks
+and Upper Manhattan 73,393, both at healthy frame times and modest draw counts
+(§2.3), so a scene anywhere in that band is on proven ground. Above it we are
+extrapolating; the sim, not the renderer, is what runs out first (ADR-0006).
 
-A falling block count is therefore a **warning sign, not a result**. If a
-Cambridge district comes in dramatically under its brick-built twin, hand 2 has
-been dropped and the district is under-populated, not efficient. §7 is how that
-gets caught rather than admired.
+Inside that headroom, the number we aim to come in **under is 75,000 blocks for
+the whole of Cambridge**. It is a ceiling we would like to stay beneath, not a
+figure to hit. Lower is better and entirely fine. If a build comes in over it,
+that is the signal to look at which buildings could be built more efficiently —
+which is exactly the kind of question the primitive vocabulary is good at
+answering.
+
+There is no exact total to shoot for, and trying to derive one produces a mess:
+the level is driven by geometric aesthetics — what each building actually looks
+like, member by member — not by an arithmetic target handed down in advance.
+
+Coming in low is safe, and it is worth being explicit about why. The thing that
+would make a map feel thin is not a small block count, it is emptiness the
+player can walk through, and that is caught by the per-district **density**
+check — eatable pieces per m² and the gap between consecutive pieces, enforced
+by `probeDistrictDensity` in `tools/validate.mjs`. Nothing in the validator
+looks at a block total. So a district that passes density and comes in well
+under 75,000 has done the job.
 
 ---
 
@@ -728,12 +726,12 @@ need, and it is the whole of the ask. Scope, from the audit:
 - `tools/validate.mjs` — `probeCellOwnership` (`:276-290`) and `footprintTops`
   (`:262-274`) both iterate `b.fs`; both become three-axis.
 
-**Non-negotiable acceptance condition:** all five existing scenes must remain
-**byte-identical**. Every cube keeps `sx === sy === sz`, so every expression
-above must reduce to today's exactly. `node tools/validate.mjs` must print
-`ALL PASS` (`AGENTS.md:9-13` makes it mandatory for any touch of `voxelsim.js`
+**Acceptance condition:** all five existing scenes come out byte-identical.
+Every cube keeps `sx === sy === sz`, so every expression above reduces to
+today's exactly — if one does not, that is the bug. `node tools/validate.mjs`
+prints `ALL PASS` (`AGENTS.md:9-13` requires it for any touch of `voxelsim.js`
 or `voxelkit.js`), and the per-step state digest ADR-0006 established as the
-standard of proof should be re-run rather than trusted.
+standard of proof gets re-run rather than assumed.
 
 ### Tier 2 — nice-to-have, sequence after Tier 1
 
@@ -747,13 +745,13 @@ standard of proof should be re-run rather than trusted.
   consolidated building loses its chunk juice. Prefer the authoring fix
   (bays, per §4.2 clause 2) and only touch the constant if playtest says so.
 
-### Tier 3 — refuse
+### Tier 3 — not doing
 
 - **Non-box render shapes** (true wedges, cylinders, arches). Wanted
-  aesthetically; refused because the sim would still collide the AABB, so
-  geometry and physics would visibly disagree, and because `STATUS.md:87-88`
-  correctly flags the `shape` tag as a third bucket-key dimension.
-  **Compliant alternative:** the `tread` / `corbel-arch` / `drum`
+  aesthetically, but the sim would still collide the AABB, so geometry and
+  physics would visibly disagree — and `STATUS.md:87-88` correctly flags the
+  `shape` tag as a third bucket-key dimension.
+  The route we take instead: the `tread` / `corbel-arch` / `drum`
   approximations in §4.1, which the shipped scenes already use and which get
   materially cheaper under Tier 1 (a stepped gable becomes one wedge-shaped
   stack of long thin slabs instead of a field of cubes).
@@ -765,7 +763,7 @@ standard of proof should be re-run rather than trusted.
 | 1 — no `Math.random()` in `js/` | Unaffected. New primitives are pure geometry; the validator's glob already covers `js/voxelscene-*.js` (`conventions.md` hard rule 1). |
 | 2 — pure sim boundary | Unaffected. Everything in Tier 1 is inside `voxelsim.js`; no three.js, no DOM. |
 | 3 — state changes only in `sim.step(1/60)` | Unaffected. Scene builders run in the constructor, as they always have. |
-| 4 — **size/edibility only via `tiers.js`** | **This is the one to watch.** The temptation is to add a legibility gate like `if (b.sx > hole.radius * 2) return;` to stop the one-bite hazard (§3.3). **Do not.** That is a second edibility ladder living outside `tiers.js`, in direct conflict with the invariant, and it would also break the sandbox's *"the hole never decides whether an object fits"* premise (`.wiki/modules/voxel.md`). **Compliant alternative:** solve it in *authoring* — §4.2's grain rule — and enforce it with a validator probe (§7), which is where every other scene contract already lives. If a runtime gate ever does become necessary, it belongs in `tiers.js` as a named export, not inline in `voxelsim.js`. |
+| 4 — size/edibility only via `tiers.js` | The one to watch. The temptation is a legibility gate like `if (b.sx > hole.radius * 2) return;` to soften §3.3's one-bite behaviour. That would be a second edibility ladder living outside `tiers.js`, which the invariant exists to prevent, and it would also break the sandbox's *"the hole never decides whether an object fits"* premise (`.wiki/modules/voxel.md`). The compliant route is authoring — §4.2's grain rule — backed by a validator probe (§7), which is where every other scene contract already lives. If a runtime gate ever does become necessary, it belongs in `tiers.js` as a named export rather than inline in `voxelsim.js`. |
 | 5 — placement no-overlap via the spatial hash | Campaign-only; the sandbox's equivalent is one-block-per-fine-cell, enforced by `probeCellOwnership`. Larger pieces make overlap *easier to commit* (a 6 m slab clashes with far more) and *cheaper to detect* (the probe is per fine cell either way). Run it. |
 | 6 — save schema | Unaffected. No save shape changes. |
 
@@ -796,8 +794,8 @@ it would repeat exactly the mistake the board is already tracking. The split:
   from a scene file into `voxelkit.js` **only when a second scene calls it**.
   One caller is not a kit.
 
-The existing `covers:` frontmatter in `.wiki/modules/voxel.md` must gain both
-new files in the same commit as the code (`conventions.md`, Wiki hygiene).
+The existing `covers:` frontmatter in `.wiki/modules/voxel.md` gains both new
+files in the same commit as the code (`conventions.md`, Wiki hygiene).
 
 ### 6.2 What a scene file should read like
 
@@ -819,9 +817,9 @@ frame(sim, {                  // an MIT-style lab block, ~6 pieces per storey
 Three properties to preserve from the existing kit, because they were learned
 the hard way:
 
-1. **One `put()` site per builder** (`voxelkit.js:270-278`). Non-negotiable —
-   it is what makes the Tier 1 primitive change a one-line edit per builder
-   rather than an audit of every nested loop.
+1. **One `put()` site per builder** (`voxelkit.js:270-278`). This is what makes
+   the Tier 1 primitive change a one-line edit per builder rather than an audit
+   of every nested loop, so it is worth holding to strictly.
 2. **Emission order is part of the contract.** `megaShell`'s comment at
    `voxelkit.js:277-278` notes `fill` reproduces `_box`'s x→y→z order exactly,
    because `id` order is block-array order and `_falling`/`_sleepObs` ordering
@@ -831,16 +829,15 @@ the hard way:
 
 ### 6.3 Author-facing gotchas to put in the module header
 
-- A beam/slab **never receives horizontal support** past `maxSpan` (§3.1). Every
-  plate needs a column under it, not beside it.
+- A beam or slab receives no horizontal support past `maxSpan` (§3.1), so every
+  plate wants a column under it rather than beside it.
 - Glass rules are unchanged and now apply to bigger pieces: a glass `panel`
   needs a non-glass neighbour **at its own level**, and nothing rests on glass.
 - Keep everything ≥ 1.7 m from spawn (the SIZE-scaled hanging threshold,
   `.wiki/modules/voxel.md` scene rule 8), not 1.05 m.
-- **The placement step must equal the piece extent** — the same rule as
-  `.wiki/modules/voxel.md` rule 10, and far easier to violate with mixed
-  anisotropic extents than with a uniform brick. A validator probe should
-  enforce it.
+- **The placement step equals the piece extent** — the same rule as
+  `.wiki/modules/voxel.md` rule 10, and far easier to get wrong with mixed
+  anisotropic extents than with a uniform brick. A validator probe covers it.
 - Every structure ≥ 6 m still needs a camera blocker; Cambridge should use
   `generateBlockers` (`voxelkit.js:742`) like Brooklyn and Upper Manhattan, not
   a hand list.
@@ -849,84 +846,66 @@ the hard way:
 
 ## 7. Measurement plan
 
-The claim to prove is **"at a comparable block budget, materially more
-scene."** Not "same detail, fewer blocks" — that was the first draft's framing
-and the owner corrected it. Lower block count is *not* the deliverable; it is
-headroom, and the deliverable is what gets built with the headroom. So the
-measurement has to answer two questions, and confusing them is the main way
-this goes wrong:
+The claim to prove is **"materially more scene, comfortably inside the
+headroom."** A lower block count is not itself the deliverable — it is room, and
+the deliverable is what gets built in it. So the measurement answers two
+questions, and keeping them apart is most of the discipline here:
 
 - **Is the primitive more efficient per member?** (a control experiment, E1)
-- **Does the scene deliver more, at the same budget?** (the real claim, E2)
+- **Does the district deliver more place?** (the real claim, E2)
 
-`STATUS.md:50-53` sets the instrument standard and it is binding:
+`STATUS.md:50-53` sets the instrument standard:
 
 > *"this box showed 2.0–2.6× median/min noise and a 40 s outlier on a 2.5 s
 > build while agents were live. **No perf number is quotable until the tree is
 > still.** Min-of-N round-robin is the minimum acceptable instrument."*
 
-Note that `probe-buildcost2.mjs`, the probe that produced the current numbers,
-is **not in `tools/`** — it was a scratch script. It has to be rebuilt as a
-committed tool before any of this is measurable, and that is task zero.
+One practical note: `probe-buildcost2.mjs`, the probe that produced the current
+numbers, is not in `tools/` — it was a scratch script. Rebuilding it as a
+committed tool is task zero, because nothing here is measurable until it exists.
 
 ### 7.1 The two experiments
 
-> **Reconciled 2026-08-08, after Phase 5 actually ran this experiment.** The
-> district and the ±15% target below both predate `03`'s ten-district plan and
-> its per-district budget table, and neither survived contact with it. The
-> district choice was already superseded once (see the note below); running
-> the measurement surfaced that the budget target has the same problem, and
-> that fix is recorded in §7.2, not here, because it changes what a target
-> means rather than which district it is measured on.
-
 Both run on **one Cambridge district**, not against Boston — comparing Cambridge
-to Boston measures two different cities and proves nothing. Proposal: Kendall
-Square + the MIT river face, ~120 × 90 m. **Superseded** — District 2, the
-Davenport, was used instead: it is `03` §9.5's own independently-chosen
-scripted-excursion/regression district, so the E1/E2 output is the shipped
+to Boston measures two different cities and proves nothing. The district used is
+**District 2, the Davenport**, which is `03` §9.5's own independently-chosen
+scripted-excursion and regression district, so the E1/E2 output is the shipped
 district rather than throwaway proof work. See `05-build-tasks.md`'s
 Prerequisites section.
 
-**E1 — member efficiency (control).** Author the district **twice from the same
-plan**: same footprints, same skyline, same palette.
+**E1 — member efficiency (control).** Author the district twice from the same
+plan: same footprints, same skyline, same palette.
 
 - **A — `cambridge-brickwise`**: today's `voxelkit.js`, today's 0.25/0.5/1/2 m
-  ladder. It must be a *fair* control — a genuine, competent Boston-quality
+  ladder. It needs to be a *fair* control — a genuine, competent Boston-quality
   pass, not a strawman.
-- **B1 — `cambridge-forms`**: the identical plan through the §4 vocabulary,
-  **with nothing added**.
+- **B1 — `cambridge-forms`**: the identical plan through the §4 vocabulary, with
+  nothing added.
 
-E1 answers only "how much headroom does the primitive buy?" Its block-count
-delta is the **budget released**, and it is an input to E2 — *not a result to
-celebrate*. A large delta here with nothing done about it is exactly the empty
-diorama the two-hand rule exists to prevent.
+E1 answers one question: how much room does the primitive buy? Its block-count
+delta is an input to E2, not a result in itself — a large delta with nothing
+built into it is the empty diorama the two-hand rule warns about.
 
-**E2 — scene richness (the real claim).** Take E1's released budget and spend
-it.
+**E2 — scene richness (the real claim).** Take the room E1 opened up and build
+in it.
 
 - **B2 — `cambridge`**: same ground area, same 19-probe contract, authored
-  freely through the vocabulary, ~~to a block budget within ±15% of A~~ **to
-  `03`'s own per-district budget (9,800 blocks for District 2), not to A's
-  block count.** See the reconciliation note below.
+  freely through the vocabulary and comfortably inside the headroom.
 
 The comparison that decides the direction is **A vs. B2 at equal ground area**,
-not equal budget, and the question it answers is: *does spending `03`'s real
-budget through the vocabulary deliver a materially richer place than the same
-plan diced into cubes would have?*
+and the question it answers is: does the vocabulary deliver a materially richer
+place than the same plan diced into cubes would have?
 
-Both A and B2 must pass the full shared 19-probe contract in
-`tools/validate.mjs`. Neither ships until the comparison is recorded.
+Both A and B2 pass the full shared 19-probe contract in `tools/validate.mjs`,
+and the comparison is recorded before either ships.
 
-> **Reconciled 2026-08-08.** Phase 5 ran this experiment on District 2 (`05`,
-> the Davenport): A built the identical plan in cubes at 54,933 blocks, B2
-> shipped it through the vocabulary at 6,532 — 88% under A, nowhere near ±15%.
-> That gap is not a shortfall, it is the discovery: A is 5.6× over `03`'s own
-> 9,800-block budget for this district (`03` §4.2), so it was never a target
-> B2 should chase — it is a cube-diced upper bound on the same plan, not a
-> shippable size. Pinning B2 to ±15% of A would mean re-inflating a shippable
-> district back toward an unshippable one purely to match a control that was
-> only ever supposed to be a floor-of-cube-cost reference. B2 is accepted as
-> shipped, unpadded.
+**What it produced.** Phase 5 ran this on District 2: A built the plan in cubes
+at 54,933 blocks, B1 at 5,162, and B2 shipped through the vocabulary at 6,532.
+A is a cube-diced upper bound on the same plan rather than a shippable size —
+it is 5.6× what `03` sketches for this district — so it is a reference point for
+what cubes cost, not a figure B2 should have been chasing. B2 shipped unpadded
+at 6,532 with 159 identifiable objects and 4.29 eatable pieces/m², which is the
+outcome the whole exercise was for.
 
 ### 7.2 Counts — exact, noise-free, quotable immediately
 
@@ -934,54 +913,46 @@ Recorded from a headless build (these are counts, not timings):
 
 | Metric | Source | What it is for |
 |---|---|---|
-| `sim.totalBlocks` | `voxelsim.js:278` | **E2 constraint**, not a target — B2 within ±15% of A |
+| `sim.totalBlocks` | `voxelsim.js:278` | headroom check — is the scene comfortably under 75,000 (§4.4)? Not a target to hit |
 | Fine-cell count | `sim.grid.size` | **the honest cost metric** (§2.1); catches the *skin-not-fill* failure |
 | `sim.totalMass` | `:293` | pacing; drives `_sizeLadder` (`:296-310`) and the 50% goal |
 | Distinct `b.s` / bucket count / draw calls | the §2.3 key | render cost of the vocabulary |
 | Zone count | `sim._compBlocks.length` | ADR-0006's unit |
 | **Distinct identifiable objects placed** | count of named builder/composite calls in the scene file | **the headline E2 number** — "more stuff" made countable |
 | **Eatable pieces per m² of built footprint** | blocks ÷ footprint cells with content | density the player actually meets |
-| **Mean gap between consecutive eatable pieces** along the scripted route, per district | derived from the excursion | §3.5's re-trigger condition — the combo dead-zone detector |
+| **Mean gap between consecutive eatable pieces** along the scripted route, per district | derived from the excursion | §3.5's re-trigger condition — the combo dead-zone detector, and the real guard against a sparse map |
 | **Chain breaks + combo levels earned** on the scripted excursion | `hole.bestCombo`, chain-reset count | §3.5's regression risk, measured not assumed |
 | Dead-ground census | existing shared probe | Boston ships zero; Cambridge should too |
 
-**E1 target:** B1's block count materially under A's *with `grid.size` no higher
-than A's*. If `grid.size` goes **up**, hand 1 has been dropped (§2.4) and the
-design is wrong regardless of what the block count says.
+**E1 target:** B1's block count materially under A's, with `grid.size` no higher
+than A's. If `grid.size` goes *up*, hand 1 has slipped (§2.4) and the design is
+wrong regardless of what the block count says.
 
-**E2 targets, reconciled 2026-08-08 against `03`'s per-district budget model**
-(originally: B2 within ±15% of A's block count; pieces/m² not below A's; combo
-levels within 10% of A's — see the note in §7.1 for why those three broke):
+**E2 targets.** These are about density and richness, not about a total:
 
-- Block budget: **within `03`'s own per-district figure** (District 2: 9,800),
-  not a percentage of A. *Measured: B2 shipped 6,532 — 67% of 9,800, not a
-  literal match either.* `03`'s figure predates ADR-0013 and reads as a
-  cube-convention count too: rescaling it by E1's own measured ratio for this
-  exact plan (B1 5,162 / A 54,933 = 9.4%) puts a vocabulary-native floor around
-  ~920 blocks, and 6,532 clears that by 7×. Judged acceptable on that basis,
-  not on hitting 9,800 to the block.
-- Distinct identifiable objects: **up by ≥ 50%** over A. Unchanged — this
-  target never referenced A's block count. *Measured: 49 → 159, +224%. MET.*
-- Eatable pieces per m² of built footprint: **`03` §8.2's own per-district
-  target** (District 2: 2.8/m², `gapFloor` ≤ 8 m), not "not below A's." A cube
-  ladder dicing the identical plan will always out-count a primitive vocabulary
-  on pieces/m² by construction — the coarser, larger pieces are ADR-0013's
-  thesis, not a shortfall. That comparison is retired; the shipped validator
-  gate (`probeDistrictDensity`) already enforces `03`'s real number. *Measured:
-  B2 4.29/m² median. MET.*
-- Mean inter-piece gap under 15 m in every district (or the district's own
-  tighter `gapFloor`): unchanged, this is what `probeDistrictDensity` gates.
-  *B2 passes.*
-- Combo levels earned within 10% of A's: **retired**, same reasoning as the
-  block-budget target — combo level tracks total blocks eaten (§3.5), so it
-  inherits A's inflated block count rather than measuring anything about the
-  district. No replacement target; combo behavior is exercised directly by
+- Block count: comfortably inside §4.4's headroom, aiming under 75,000 for the
+  whole scene. *Measured: District 2 shipped at 6,532.* There is no per-district
+  figure to match to the block, and coming in low is not a shortfall.
+- Distinct identifiable objects: **up by ≥ 50%** over A. *Measured: 49 → 159,
+  +224%. Met.*
+- Eatable pieces per m² of built footprint: the district's own density target
+  (`03` §8.2 — District 2: 2.8/m², `gapFloor` ≤ 8 m). This is not compared
+  against A: a cube ladder dicing the identical plan will always out-count a
+  primitive vocabulary on pieces/m² by construction, because coarser, larger
+  pieces are ADR-0013's whole thesis. The shipped validator gate
+  (`probeDistrictDensity`) enforces the real number. *Measured: B2 4.29/m²
+  median. Met.*
+- Mean inter-piece gap under 15 m in every district, or the district's own
+  tighter `gapFloor`. This is what `probeDistrictDensity` gates, and it is the
+  measurement that actually protects against a map that feels empty. *B2
+  passes.*
+- Combo levels are not compared against A. Combo level tracks total blocks eaten
+  (§3.5), so an A-relative target would inherit A's inflated block count rather
+  than say anything about the district. Combo behaviour is exercised directly by
   the scripted-excursion regression check instead.
 
-**A falling block count against `03`'s per-district budget is still a
-failure.** The two-hand rule still applies — B2 must spend its real budget,
-not bank it. It is only the *A-relative* framing above that was retired: A was
-never a spend target, it was a cube-cost floor for the same plan.
+The density gates above are where a thin district gets caught. A block total
+that comes in low, on its own, is not evidence of anything.
 
 ### 7.3 Apparent richness — the half that is easy to fake
 
@@ -996,10 +967,10 @@ Define it before running it, or it becomes an argument.
   detail), **distinct roofline heights per 10 m of street frontage**, and mean
   luminance (so a richness gain is not just a lighting change).
 - **Per-pose visible-piece count** — distinct blocks contributing pixels. In E1
-  this will fall and that is expected; **in E2 it should be flat or up against
-  A**. If B2's visible-piece count is below A's at most poses, the district
-  reads flatter than the thing it replaced, no matter what the object count
-  says, and the grain rule (§4.2 clause 3) plus hand 2 both need tightening.
+  this will fall and that is expected; in E2 it should be flat or up against A.
+  If B2's visible-piece count sits below A's at most poses, the district reads
+  flatter than the thing it replaced, whatever the object count says, and the
+  grain rule (§4.2 clause 3) plus hand 2 both want tightening.
 - **The judgement call is the owner's, not the instrument's.** Numbers bound the
   risk; they cannot decide whether it looks good. Ship A and B2 behind the
   free-play picker and let him drive both.
@@ -1013,34 +984,33 @@ Only after the tree is still (no agents running, nothing else building):
   result).
 - **Per-frame**: median and p95 `sim.step` over a **scripted, deterministic
   excursion** identical in all three variants, plus `_recalcSupport` ms/call,
-  which is ADR-0006's headline number and the one most likely to move. Note the
-  expectation: B1 should be clearly cheaper than A, and **B2 should be roughly
-  level with A** — B2 spent its savings, so a big per-frame win there means it
-  under-spent.
+  which is ADR-0006's headline number and the one most likely to move. Expect B1
+  to be clearly cheaper than A. B2 will land somewhere between the two, since it
+  builds more into the room B1 opened up.
 - **Draw calls / buckets**: report separately for (i) Tier 1 alone and (ii) Tier
   1 plus the §2.3 key change, so the two are not confounded.
 - Report **min-of-N**, state N, state the machine was quiet, and quote nothing
   otherwise.
 
-### 7.5 Regression gates (all must pass before either variant ships)
+### 7.5 Regression gates — the checks that run before either variant ships
 
 1. `node tools/validate.mjs` → `ALL PASS` (`AGENTS.md:9-13`).
-2. All five existing scenes **byte-identical** — block counts, total mass, and a
+2. All five existing scenes byte-identical — block counts, total mass, and a
    per-step state digest across the existing scripted excursions, the standard
    ADR-0006 set.
 3. `probeCellOwnership` clean on both variants — larger pieces make overlaps far
-   easier to author.
+   easier to author by accident.
 4. A **new probe**: no `gy === 0` block with a plan diagonal > 8 m (§4.2
-   clause 1). This is the grain rule made enforceable, and it belongs in the
-   shared contract, not in a scene file.
+   clause 1). This is the grain rule made checkable, and it lives in the shared
+   contract rather than in a scene file.
 5. A **new probe**: placement step equals piece extent on every axis
    (`.wiki/modules/voxel.md` rule 10, generalised).
-6. A **new probe, and the one that enforces hand 2**: per declared district,
+6. A **new probe, and the one that keeps hand 2 honest**: per declared district,
    the mean gap between consecutive eatable pieces along the scene's own
    scripted route stays under 15 m, and no district falls below the scene's
-   median eatable-pieces-per-m² by more than half. This is the combo dead zone
-   (§3.5) and the empty diorama made enforceable, and like every other scene
-   contract it belongs in the shared probe set, not in a scene file.
+   median eatable-pieces-per-m² by more than half. That makes the combo dead
+   zone (§3.5) and the empty diorama measurable, and like every other scene
+   contract it lives in the shared probe set.
 
 ---
 
@@ -1067,5 +1037,6 @@ Everything else on this page is a decision that has been made here.
 - `adr/0002-sim-render-split.md` — why the renderer can be told about extents
   the sim cares nothing for
 - `modules/voxel.md` — the shipped model, the scene-building rules
-- `STATUS.md` — open decision 1 (construction vocabulary), the measurement
-  precondition, the shared-kit warning
+- `STATUS.md` — the construction-vocabulary decision (since retired from the
+  board, answered by ADR-0013 and this page), the measurement precondition, the
+  shared-kit warning

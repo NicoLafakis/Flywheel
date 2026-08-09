@@ -6,10 +6,16 @@ covers:
 ---
 # Cambridge sandbox — objective overview
 
-**Status:** planning spine. Nothing here is built.
+**Status:** the spine, and partly built. ADR-0013's engine change, the primitive
+layer (`js/voxelforms.js`), the coin-anchor and chain changes, the new validator
+probes, and Districts 1, 2, 3 and 4 are committed. Districts 5 through 10,
+Phase 7's hidden content and achievements, and the Phase 8 sign-off are still
+ahead, and the scene is not yet registered in `AUTHORED_SCENES` or the free-play
+picker (P6.12), so it cannot be loaded from the menu yet.
 **Date:** 2026-08-06.
 **Reads with:** `01-voxel-primitive-vocabulary.md` (the toolkit),
 `02-cambridge-reference.md` (the facts), `03-level-design.md` (the design),
+`05-build-tasks.md` (the ordered work and its live state),
 `adr/0013-anisotropic-voxel-primitives.md` (the decision).
 
 This page exists to answer the question the other four do not: **why are we
@@ -32,13 +38,13 @@ they are not evaluating a city, they are checking whether we got *their* block
 right.
 
 That inverts the usual accuracy calculus. In Brooklyn, a wrong cornice costs
-nothing because nobody is holding a photograph. Here, **the cost of a confident
-guess is higher than the cost of an admitted blank** — which is exactly why `02`
-marks every claim Confirmed / Likely / Unverified and why `03` is forbidden from
-hardening an Unverified item into a spec. The single most likely way to lose the
-room is to put the sprocket on 1 Canal Park, which HubSpot *left* in 2021 and
-which is a life-science building now. `03` carries a validator probe whose only
-job is to make that mistake impossible.
+nothing because nobody is holding a photograph. Here, the cost of a confident
+guess is higher than the cost of an admitted blank — which is why `02` marks
+every claim Confirmed / Likely / Unverified, and why an Unverified item does not
+get hardened into a spec in `03`. The single most likely way to lose the room is
+to put the sprocket on 1 Canal Park, which HubSpot *left* in 2021 and which is a
+life-science building now. `03` carries a validator probe (`probeHeroIdentity`)
+whose only job is to catch that mistake.
 
 The corollary is that **delight is cheap here and errors are expensive.** A tofu
 factory that is genuinely there, a Portuguese fish market, a police car on the
@@ -49,12 +55,12 @@ research budget the way `02` spent it.
 
 ### 1.2 It is the debut vehicle for a new authoring vocabulary
 
-`STATUS.md` has been carrying the owner's construction-vocabulary request as
-open decision 1, unstarted, for weeks: not bigger buildings, but *per-building
+`STATUS.md` carried the owner's construction-vocabulary request as an open
+decision, unstarted, for weeks: not bigger buildings, but *per-building
 construction vocabulary* — a floor as one solid piece, a pillar as a solid
 pillar, different sized bricks and blocks and shapes, whatever best represents a
-thing. ADR-0013 is the decision that answers it and `01` is the audit that made
-the decision safe to take.
+thing. ADR-0013 is the decision that answered it and `01` is the audit that made
+the decision safe to take; the board entry is retired now that both have shipped.
 
 A new primitive needs a scene **designed for it**, not a scene retrofitted to
 it. Cambridge is that scene, and the fit is not coincidental: `02` independently
@@ -109,13 +115,14 @@ result. Only a scene planned around the primitive produces B2, and B2 is the
 deliverable.
 
 Two other bindings, weaker but real: the Davenport's seven-section mill range
-and the Stata Center's tilted masses do not fit their district budgets in `03`
-at Boston's grain, and the vocabulary's authoring gotchas (a plate needs a
-column *under* it, not beside it) are the kind of thing that is learned by
-authoring a whole scene, not a corner of one.
+and the Stata Center's tilted masses do not fit anywhere near `03`'s district
+estimates at Boston's grain, and the vocabulary's authoring gotchas (a plate
+needs a column *under* it, not beside it) are the kind of thing that is learned
+by authoring a whole scene, not a corner of one.
 
 **So: shipped together, sequenced apart.** Three commits, in this order, each
-with its own before/after so no measurement is confounded:
+with its own before/after so no measurement is confounded. Steps 1 and 2 have
+since landed; step 3 is the work in progress:
 
 1. **The bucket-key change** (`01` §2.3, ADR-0013's "independent adjacent win").
    Drop `b.s` from the render bucket key for *unsurfaced* blocks. Independent of
@@ -125,9 +132,9 @@ with its own before/after so no measurement is confounded:
    precisely so its win is not credited to the vocabulary.
 2. **ADR-0013 + `js/voxelforms.js`.** Per-axis extents through the sim, the
    renderer and the validator; the twelve primitives; the three new shared
-   probes. **Acceptance condition: all five existing scenes byte-identical**,
-   proved the way ADR-0006 was proved — validator plus a per-step state digest
-   across the existing scripted excursions — not asserted.
+   probes. The acceptance condition is that all five existing scenes come out
+   byte-identical, shown the way ADR-0006 was shown — validator plus a per-step
+   state digest across the existing scripted excursions — rather than asserted.
 3. **Cambridge.**
 
 The value of that order is that **if Cambridge slips, nothing is stranded.**
@@ -171,7 +178,7 @@ what a scene can afford**, and the doors it opens are worth naming now so that
 
 ### 3.2 Should existing scenes be retrofitted?
 
-**No. Leave all five alone.** Three independent reasons, in descending strength:
+No — leave all five alone. Three independent reasons, in descending strength:
 
 1. **Byte-identical is the acceptance condition.** ADR-0013 passes only if the
    shipped scenes do not move. A retrofit *is* the scenes moving, and it would
@@ -237,15 +244,13 @@ seam toward the pen and surface it.
 | **Districts declared as named data, not comments** | The density probe has to iterate districts. Declaring them as a table costs nothing and turns "the warehouse quarter is a combo dead zone" from a feeling into a failing test. |
 | **Signage behind one switchable constant** | `02` flags HubSpot's real exterior signage as Unverified. One `HERO_SIGNAGE` constant with a placement switch means the correction after someone takes a photo is a one-line edit, not a re-author. |
 | **`sceneAmbient` extended, never special-cased** | New ambient kinds (Duck Boats, geese, Green Line trains) go through the existing render-only ambient path. |
-| **`sim.coinAnchors` — scene-declared coin locations** (reclassified from pen, 2026-08-07 — see note below) | Coins are a seeded scatter over `boundsRect` today (`voxelsim.js:324-338`). `04`'s entire coin-placement design — the bridging, egg-beacon and vertical allocations in its §4.3 table — presupposes an author can say where a coin goes, and a uniform scatter cannot express any of it. A design that reserves most of its coin budget for a capability the engine does not have is not working within the limitation, it is depending on a change to it. Existing scenes are unaffected: a scene that declares no anchors keeps today's scatter exactly as it runs now, and the RNG draw must hold its position in the seed sequence for those scenes or their coin layout re-rolls (ADR-0003's determinism invariant). See `03` §8.1 and `04` §4.1. |
-
-**Reclassification note, 2026-08-07.** `sim.coinAnchors` was first filed below as a pen — "it changes the sim and touches all six scenes' coin determinism; `03` works within the scatter." That description does not survive contact with `04`, which was written concurrently and depends on authored coin placement throughout: eighteen of the sixty coins are allocated specifically to bridge this package's own ≤15 m density rule, "placed by measurement" against the scripted-excursion probe — a job a uniform scatter cannot do. The row above replaces the pen entry that used to sit here; the determinism obligation it carries (RNG sequence, existing scenes untouched) is the same one that made it a pen in the first place, and it is satisfied the same way — a scene-declared opt-in with the old scatter as the unconditional fallback.
+| **`sim.coinAnchors` — scene-declared coin locations** | Coins are a seeded scatter over `boundsRect` today (`voxelsim.js:324-338`). `04`'s coin-placement design — the bridging, egg-beacon and vertical allocations in its §4.3 table — presupposes an author can say where a coin goes, and a uniform scatter cannot express any of it; eighteen of the sixty coins are allocated specifically to bridge this package's own ≤15 m density rule, placed by measurement against the scripted-excursion probe. Existing scenes are unaffected: a scene that declares no anchors keeps today's scatter exactly as it runs now, and the RNG draw holds its position in the seed sequence for those scenes so their coin layout does not re-roll (ADR-0003's determinism invariant). See `03` §8.1 and `04` §4.1. |
 
 ### 4.2 Surfaced, not built (pens — for the owner to decide, later, separately)
 
 | Pen | What it would buy | Why it is not in scope now |
 |---|---|---|
-| **Mass-denominated combo economy** | A combo ladder invariant to authoring grain, forever, rather than "we counted and it came out fine this time." | ADR-0013 demotes it from prerequisite to safeguard *because* the reinvestment rule holds the block total steady. Bundling it would confound its own before/after. It becomes a prerequisite again the moment a district fails the 15 m probe. |
+| **Mass-denominated combo economy** | A combo ladder invariant to authoring grain, forever, rather than "we counted and it came out fine this time." | ADR-0013 demotes it from prerequisite to safeguard because the density probe, not the block total, is what actually guards the play experience — and the districts built so far earn combos comfortably. Bundling it would confound its own before/after. It becomes a prerequisite again the moment a district fails the 15 m probe. |
 | **A backdrop silhouette plane** | `02` wants the Boston skyline on the southeast horizon as non-buildable low-detail silhouette. Would also retire the Citgo-sign question. | It is a renderer feature, not a scene feature, and no scene has one. Cambridge ships without a backdrop; the horizon is the landmark shelf. |
 | **Per-axis surface UV repeat** | `uv: 'metre'` surfaces tile uniformly; a 4 × 0.25 plate wants different repeats on its top and its edge. | Only bites if Cambridge declares a metre-tiled surface on a non-cubic piece. `03` declares none. Revisit if it does. |
 | **Retrofitting Boston's Fort Point** | A second E2 data point on the closest analogue to the Davenport. | See §3.2. Long after Cambridge ships, as its own change. |
@@ -262,11 +267,27 @@ Three gates, in increasing order of authority.
    existing scenes byte-identical, Cambridge signs the full 19-probe contract
    plus the three new ones, dead ground at zero (Boston's standard, cell-by-cell
    — not the 4 m sampled probe, which can walk past an 8 m bare stripe).
-2. **The numbers say "more scene per block."** `01` §7.2's targets: total blocks
-   within ±15% of a fair brick-built control, distinct identifiable objects up
-   by ≥ 50%, eatable pieces per m² not below the control's, mean inter-piece gap
-   under 15 m in every district, combo levels earned within 10%. **A falling
-   block count is a failure, not a success.**
+2. **The numbers say "more scene per block."** `01` §7.2's targets: distinct
+   identifiable objects up by ≥ 50% over a fair brick-built control, eatable
+   pieces per m² not below the control's, mean inter-piece gap under 15 m in
+   every district, combo levels earned within 10%.
+
+   On the block total: we would like the finished scene to come in **under
+   75,000 blocks**. That is a ceiling to stay beneath, not a number to hit —
+   under is good, well under is better, and there is no exact figure we are
+   shooting for. The level is driven by geometric aesthetics, not by arithmetic;
+   working backwards from a pre-calculated total produces a mess. If the scene
+   or a district runs over, that is the cue to look at which buildings could be
+   built more efficiently, not a reason to thin the map out. `03` §4's
+   per-district numbers are starting estimates to author against; the four
+   districts built so far landed at 67–71% of theirs, which is a good outcome.
+
+   The reason a lower count is safe is that nothing we care about is measured in
+   blocks. The property we actually want — no part of the map reading as empty —
+   is enforced directly by `probeDistrictDensity` in `tools/validate.mjs`, which
+   measures eatable pieces per m² and inter-piece gap per district with coins
+   excluded. The validator has no block-budget check at all, and does not need
+   one.
 3. **Someone who works in the building recognises it before they are told what
    it is.** No instrument measures this and none should. Ship it behind the
    free-play picker and put it in front of them.
@@ -283,5 +304,5 @@ Three gates, in increasing order of authority.
 - `../../adr/0006-structural-zone-simulation.md` — the support BFS and the
   determinism proof this must preserve
 - `../../modules/voxel.md` — the shipped model and the scene-building rules
-- `../../../STATUS.md` — open decision 1, the shared-kit warning, the
-  measurement precondition
+- `../../../STATUS.md` — the construction-vocabulary decision (since retired
+  from the board), the shared-kit warning, the measurement precondition

@@ -4,7 +4,8 @@ covers:
 ---
 # Cambridge sandbox — hidden content, ground glyphs and achievements
 
-**Status:** design proposal. Nothing here is built.
+**Status:** design spec for Phase 7. The engine work it depends on has shipped;
+the catalogue itself is not authored yet.
 **Date:** 2026-08-06.
 **Owns:** what is hidden in the Cambridge scene, what is drawn on the ground,
 what the player gets for finding it, and how all of that becomes rows rather
@@ -103,7 +104,7 @@ centre.** The owner's instinct — *"familiar symbols and logos created near the
 edges"* — is not just a nice idea, it is the only place the engine will let a
 big one work. Say that back to him as a compliment, because it is one.
 
-**The glyph grain law (hard).** A glyph of span `S` drawn on an `N × N` raster
+**The glyph grain rule.** A glyph of span `S` drawn on an `N × N` raster
 has cells of `S / N`. `01` §4.2 clause 1 caps a ground piece's plan diagonal at
 8 m, and `01` §3.2 puts the permanent-scenery cliff at 9.7 m. So:
 
@@ -124,7 +125,8 @@ or it vanishes in one swallow and reads as a bug.
 ### 1.3 The glyph catalog
 
 Cost is **ink cells** — one piece per inked raster cell, `01`'s `slab` primitive
-at 0.25 m thickness (a glyph is paint, not a plinth; hand 1, *skin not fill*).
+at 0.25 m thickness. A glyph is paint, not a plinth: it replaces a surface, not
+an interior, which is `01`'s *skin, not fill* guidance in its simplest form.
 
 #### G1 · The Sprocket That Becomes The Mark — **hero**
 
@@ -197,13 +199,13 @@ at 0.25 m thickness (a glyph is paint, not a plinth; hand 1, *skin not fill*).
 - **Cost.** ~60 pieces of ghost + the cladding that hides it, which the building
   needs anyway.
 - **Reward.** **A67 "Wrong Canal Park"** (secret, Midcard).
-- **Colour key, resolved 2026-08-07.** `03` §6.4/§9.4's `probeHeroIdentity` fails
-  the build on any HubSpot-orange block inside `CAMBRIDGE_NOT_HERO_AABB` — which
-  is exactly where this egg lives. The ghost is authored with its own
-  `HERO_SIGNAGE_GHOST` colour constant (a desaturated, weathered version of the
-  live orange, never the live constant itself), so the probe's live-key check
-  passes by construction rather than by luck. The ghost builder must not import
-  `HERO_SIGNAGE`'s colour — that is the one rule this egg cannot break.
+- **Colour key.** `03` §6.4/§9.4's `probeHeroIdentity` flags any HubSpot-orange
+  block inside `CAMBRIDGE_NOT_HERO_AABB`, which is exactly where this egg lives.
+  So the ghost gets its own `HERO_SIGNAGE_GHOST` constant — a desaturated,
+  weathered version of the live orange rather than the live orange itself. That
+  also happens to be the right look: a painted-over mark should not match the
+  paint on the building across the water. Authoring it from its own constant
+  (never importing `HERO_SIGNAGE`'s) means the probe passes by construction.
 - **Rights.** HubSpot's own mark on a building HubSpot demonstrably occupied
   (`02` §0, Confirmed). It reads as fondness for a former office, which is what
   it is. **One check:** the current owner's building is being depicted with a
@@ -273,9 +275,9 @@ at 0.25 m thickness (a glyph is paint, not a plinth; hand 1, *skin not fill*).
 - **Cost.** Helix ~40 pieces (a twisted pair of `drum` facets, `01` §4.1); the
   wafer roll is paint on the drum beneath, ~0 extra.
 - **Reward.** **A79 "Sweet Then, Sweeter Now"** (Main Event, secret).
-- **Placement caveat, resolved.** 2,054 m WSW — outside Tier 1/2 range, so this
-  depended on `03`'s map extent. `03` §1.3 and §5.1 confirm the NECCO water tower
-  is in scope, in Ring B at scene (−120, +83), budgeted 340 blocks. Stays an egg.
+- **Placement.** 2,054 m WSW, so this one depended on `03`'s map extent. `03`
+  §1.3 and §5.1 put the NECCO water tower in scope, in Ring B at scene
+  (−120, +83), around 340 blocks. It stays an egg.
 - **Rights.** Novartis owns the building now; the water tower's paint is a
   public landmark. Build the tower and the helix, **no Novartis wordmark**
   (`02` §7).
@@ -333,20 +335,16 @@ Fill it with:
 | A rowing-eight wake pattern | Charles surface, south edge | ~70 m | 5 m | ~50 | scenery |
 | The rotated grid, drawn once as a compass rose with the real 9.8° bearing on it (`02` §2.1) | NE corner mudflat | ~50 m | 4 m | ~70 | yes |
 
-Roughly **930 pieces** for the whole gallery. Against `01` §4.4's 40–80k budget
-that is ~1.5%, and hand 2 (*spend it back*) says this is precisely the kind of
-thing the consolidated floor plates paid for.
+Roughly **930 pieces** for the whole gallery — a rounding error against a scene
+of tens of thousands, and a good use of the room the anisotropic primitives
+opened up. This is exactly the sort of content the consolidated floor plates
+paid for.
 
-**Reconciled with `03` §8.3, 2026-08-07.** `03`'s edge-mark mechanism
-originally specified four ~180-block corner marks and reserved one of those
-slots for HubSpot's sprocket; it now describes this five-item, ~930-piece
-gallery exactly, including the rowing-eight wake's scenery (non-eatable)
-status. HubSpot's sprocket (G1) is not part of the edge band — it sits on the
-First Street Garage roof in District 5 (`03` §4.5) — so all five gallery slots
-here are filled by Flywheel's mark and the four items above. `03`'s District
-10 budget is revised from 1,000 to 1,210 to cover the difference between the
-gallery's real ~930-piece cost and the ~720 the original four-mark estimate
-assumed.
+`03` §8.3 describes the same five items, including the rowing-eight wake's
+scenery (non-eatable) status. HubSpot's sprocket (G1) is not part of the edge
+band — it sits on the First Street Garage roof in District 5 (`03` §4.5) — so
+all five gallery slots here are filled by Flywheel's own mark and the four items
+above. District 10 carries the gallery at ~1,210 pieces.
 
 ### 1.4 Glyph budget rollup
 
@@ -492,17 +490,16 @@ silhouette is better.
 ~44 items. Most are one prop (2–30 pieces); the Cutaway (E36–E38) is the
 expensive one at ~600–900 pieces of interior. Call the whole catalog
 **~1,500–1,800 pieces**, i.e. about the same again as the glyphs. Combined with
-§1.4 that is **~3,500 pieces, ~5–8% of a 40–80k scene**.
+§1.4 that is **~3,500 pieces**, a few percent of the scene.
 
-**Reconciliation, 2026-08-07.** Most of that ~3,500 genuinely is "spend it back"
-money — small props riding on buildings `03` already budgets. Six items are not:
-the Cutaway and five glyphs (G1, G2, G5, G6, G9+G10, ~1,850 pieces combined) sit
-on ground or roof with no existing line item to absorb them. `03` §4 now carries
-an explicit glyph/egg reserve row per affected district, and the scene total
-moved from 72,000 to **74,060** in total — 1,850 for this reserve, plus a
-further 210 from a separate correction to the edge-band gallery's real cost
-(`03` §8.3) — see the reconciliation note at the top of `03` §4. The remaining
-~1,650 pieces of this catalog are still genuinely free.
+Most of that rides free: small props sitting on buildings `03` already accounts
+for. Six items do not — the Cutaway and five glyphs (G1, G2, G5, G6, G9+G10,
+~1,850 pieces between them) sit on ground or roof with no existing line item to
+absorb them, and another ~210 belongs to the edge-band gallery (`03` §8.3). So
+the eggs and glyphs carry roughly **2,060 pieces** of content of their own, which
+`03` §4 shows as a glyph/egg reserve row on each affected district. The other
+~1,650 pieces of this catalogue come along with geometry that is being built
+anyway.
 
 ---
 
@@ -521,7 +518,8 @@ run identically in browser, server and `tools/validate.mjs`. Predicates use only
 Naively, forty easter eggs means forty new metrics, which is forty schema bumps
 and forty sim edits — the exact thing `06` §7 warns about (*"the ones that are
 not free are the ones asking the game to measure something it has never
-measured"*). **Do not do that.** Add **one** field to the registry:
+measured"*). There is a much cheaper shape available. Add **one** field to the
+registry:
 
 ```
 discoveries       // per-scene bitmask of named discovery IDs, 128 bits
@@ -656,12 +654,11 @@ Numbering continues from `06`'s 58. Card positions are `06`'s four:
 | 95 | **The Deep Cut** | Find twenty Cambridge discoveries in a single run. | Legend | Visible |
 | 96 | **Every Last One** | Find every Cambridge discovery across your career. | Legend | Visible |
 
-**38 achievements, numbers 59–96, 20 of them secret** (53% — deliberately higher
+**38 achievements, numbers 59–96, 20 of them secret** — 53%, deliberately higher
 than `06`'s ~20% baseline, because this is a *discovery* level and the secret
-ratio is the level's entire pitch; corrected 2026-08-07 from a miscounted 18/47%
-found during Cambridge-package reconciliation — the table above is the source of
-truth and was recounted row by row). If that reads too high against the rest of
-the catalog, flip 63, 70, 74 and 85 to Visible and it lands at 16/38, 42%.
+ratio is the level's entire pitch. The tables above are the source of truth for
+that count. If 53% reads too high against the rest of the catalogue, flipping
+63, 70, 74 and 85 to Visible lands it at 16/38, 42%.
 
 Two are event-scoped (93, 94), which fits `06` §3's model exactly: event scoping
 is recorded on the run at submission and immutable afterwards, so 93 and 94
@@ -769,9 +766,8 @@ declare none. That is a small, contained change to one function, and the RNG
 draw must stay in the same place in the sequence for any scene that *doesn't*
 declare coins, or every existing scene's coin layout re-rolls.
 
-This is no longer filed as a pen. `00` §4.1 and `03` §8.1 and §9.3 both carry
-`sim.coinAnchors` as a prerequisite for this level — reclassified 2026-08-07,
-on exactly the dependency stated above.
+`00` §4.1 and `03` §8.1/§9.3 carry `sim.coinAnchors` as a prerequisite for this
+level, on exactly the dependency above.
 
 **(2) A coin does not keep a combo alive.** The chain increments in exactly one
 place — `_consume` (`voxelsim.js:2192`: `h.chain += 1; h.chainTimer = COMBO_WINDOW;`)
@@ -836,13 +832,16 @@ The mitigation, if it plays badly: the bridging 18 and the efficiency 6 are
 already on the natural route, the beacon 14 come free with the eggs, and only
 the last 22 are real work.
 
-**Interaction with the ≤15 m combo-density rule, stated as a gate.** `01` §7.5
-gate 6 measures mean inter-eatable gap per district along the scripted route.
-**Coins must not be counted as eatables by that probe** — under the current
-code they genuinely are not one, and under §4.2's fix they sustain rather than
-feed. Counting them would let an author paper over a combo dead zone with
-currency, which is exactly the empty-diorama failure the probe exists to catch.
-Write that into the probe's comment.
+**Interaction with the ≤15 m combo-density rule.** `01` §7.5 gate 6 measures the
+mean inter-eatable gap per district along the scripted route, and coins stay out
+of that count. Under today's code they are genuinely not eatables, and under
+§4.2's change they sustain a chain rather than feed it — so counting them would
+let an author paper over a dead zone with currency. That density check is the
+real guard against a map that feels sparse, which is worth remembering whenever
+piece counts come up: `tools/validate.mjs` enforces per-district density, and
+enforces nothing at all about a scene's total block count. A district that comes
+in lean but dense is fine; a district that comes in fat but empty is not. Worth
+a line in the probe's comment so the reason survives.
 
 ---
 
@@ -976,7 +975,7 @@ added later by someone who did not read this paragraph.
 
 - `02-cambridge-reference.md` — every factual claim on this page traces there
 - `01-voxel-primitive-vocabulary.md` — the grain rule, the grade ceiling, the
-  one-bite hazard, the two-hand rule
+  one-bite hazard, and the skin-not-fill guidance glyphs are the simplest case of
 - `03-level-design.md` — owns extent, districts, spawn and placement; the glyph
   gallery in §1.3 and the NECCO reveal in G7 both depend on its map extent
 - `../online-flywheel/06-belts-and-achievements.md` — the achievement system

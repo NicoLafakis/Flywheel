@@ -7,7 +7,13 @@ covers:
 ---
 # Cambridge sandbox — the level design
 
-**Status:** design. Nothing here is built; no code has changed.
+**Status:** the build spec, and partly built. ADR-0013's engine change, the
+primitive layer (`js/voxelforms.js`), the coin-anchor and chain changes, the new
+validator probes, and Districts 1, 2, 3 and 4 are committed. Districts 5 through
+10, Phase 7's hidden content and achievements, and the Phase 8 sign-off are
+still ahead, and the scene is not yet registered in `AUTHORED_SCENES` or the
+free-play picker (P6.12), so it cannot be loaded from the menu yet. The rest of
+this page still reads as the plan it was written as.
 **Date:** 2026-08-06.
 **Toolkit:** `01-voxel-primitive-vocabulary.md`. **Facts:**
 `02-cambridge-reference.md`. **Decision:** `adr/0013-anisotropic-voxel-primitives.md`.
@@ -15,11 +21,12 @@ covers:
 page reserves slots and states the placement principle; it does not catalogue).
 
 Every real-world claim on this page traces to `02` and carries `02`'s confidence
-marker. Where `02` says **Unverified**, this page says Unverified and designs a
-seam rather than a spec. Where `02` records a **conflict**, both numbers appear.
-Numbers that are *design choices* — bay sizes, budgets, piece counts, scene
-coordinates — are marked as such and are re-derivable from the rules stated
-here.
+marker. Where `02` says Unverified, this page says Unverified and designs a seam
+rather than a spec. Where `02` records a conflict, both numbers appear. Numbers
+that are *design choices* — bay sizes, block estimates, piece counts, scene
+coordinates — are marked as such, and each one is re-derivable from the rules
+stated here, so an author who disagrees with a number can recompute it rather
+than guess at it.
 
 ---
 
@@ -35,7 +42,7 @@ here.
 | **`sim.boundsRect`** | `{ minX: −120, maxX: 132, minZ: −112, maxZ: 116 }` |
 | **`sim.bounds`** | `132` (scalar fallback; `boundsRect` overrides it, as in Brooklyn and Boston) |
 | **Playable extent** | **252 × 228 m**, area **57,456 m²**, diagonal **340 m** |
-| **Total block budget** | **74,060** (§4) — 1.29 blocks/m² |
+| **Block-count target** | Come in under **75,000** (§4). At the map's 57,456 m² that works out to roughly 1.3 blocks/m² — a description of where we expect to land, not a figure to author toward |
 | **Goal** | `{ name: 'SWALLOW THE SPROCKET', targetFraction: 0.5 }` (same 50% as every other scene) |
 | **Spawn** | fixed by the sim at `(0, 16)` — see §1.4 |
 
@@ -52,9 +59,9 @@ band `.wiki/modules/voxel.md` sets for traversal.
 
 `02` §6 is blunt about the problem: everything in Tier 1 fits inside a ~1.8 km
 real radius, Lower Manhattan is 124 × 118 m, and *"a literal 1:1 Cambridge at
-that density is not on the table."* It is equally blunt about the obligation:
-whatever compression is chosen, **record it in the scene file**, because the
-offset table is the only thing that will let anyone check the layout later.
+that density is not on the table."* It is just as clear about what follows from
+that: whatever compression we choose, we record it in the scene file, because the
+offset table is the only thing that lets anyone check the layout later.
 
 A single uniform factor cannot serve both halves of this scene. At 1:12 —
 enough to fit MIT — the hero building becomes a 8.7 × 5.9 m shed, and the
@@ -64,8 +71,8 @@ explicit, recorded discontinuity**, which is the same move Boston made with its
 three declared scale exceptions, generalised and named.
 
 > **Ring A — the core.** Real radius ≤ **340 m** from 2 Canal Park.
-> **1:3 in plan, 1:1.5 in height.** True positions in grid axes. No exceptions
-> except the four listed in §1.5.
+> **1:3 in plan, 1:1.5 in height.** True positions in grid axes. Four places
+> depart from this, and §1.5 names them.
 >
 > **Ring B — the shelf.** Real radius > 340 m. **Bearing is preserved exactly**
 > (in grid axes); **radius is compressed** by
@@ -153,9 +160,10 @@ adds nothing new:
   at x ≈ 131 against a `maxX` of 132.
 - **`CAMBRIDGE_OPEN_GROUND`** — positional, named, reasoned declarations of
   ground that is empty *on purpose*, exactly as `BROOKLYN_OPEN_GROUND` is. The
-  validator holds each to being genuinely block-free **and edge-touching**,
-  because "the edge of the map trails off" is the only rationale that has ever
-  been accepted. There are four, all water or rail: the Charles surface south of
+  validator checks each one is genuinely block-free and edge-touching; "the edge
+  of the map trails off" is the rationale that has held up in the shipped scenes,
+  and it is the one we lean on here. There are four, all water or rail: the
+  Charles surface south of
   the Longfellow line, the canal basin's water, the Inner Belt yard's ballast,
   and the Zakim's river channel.
 - **`sceneDecor.water` carries the Charles and the canal**, so the south and
@@ -289,12 +297,26 @@ places (§6.5) so that it stays an event.
 
 ## 4. Districts
 
-Ten, summing to **74,060 blocks**. Each is a declared entry in a
-`CAMBRIDGE_DISTRICTS` table — an exported array of `{ id, name, rect, budget,
-gapFloor }` — because the density probe (§9.4) iterates it and because a
-district that only exists as a comment cannot be tested.
+Ten of them. Each is a declared entry in a `CAMBRIDGE_DISTRICTS` table — an
+exported array of `{ id, name, rect, budget, gapFloor }` — because the density
+probe (§9.4) iterates it, and because a district that only exists as a comment
+cannot be tested.
 
-| # | District | Scene rect (approx) | Budget | Dominant primitives | Palette bank | Role in play |
+The block figures below are **starting estimates to author against**, not
+budgets to hit. They exist so that an author picking up a district has a sense
+of its scale relative to the other nine before placing the first piece — a
+district sketched at 9,800 should end up carrying about twice the substance of
+one sketched at 5,000. Nothing downstream reads these numbers: the `budget` field on
+each district row is an authoring annotation, and `tools/validate.mjs` has no
+block-count check of any kind.
+
+The districts built so far have come in around 67–71% of their estimates. That
+is fine, and it is roughly what we expect — the estimates were sketched from
+massing, and the vocabulary consistently gets a given look for less than the
+sketch assumed. Coming in low is not a signal that something is missing, and
+there is nothing to "spend back."
+
+| # | District | Scene rect (approx) | Est. blocks | Dominant primitives | Palette bank | Role in play |
 |---|---|---|---|---|---|---|
 | 1 | **Canal Park — the Hero Block** | x[−46,+40] z[−36,+24] | **11,270** | slab · column · pier · panel · mullion · cornice · plinth | mill brick + cast stone, glass entry court | Spawn, the front-door ring, and the climax target |
 | 2 | **First Street & The Davenport** | x[−72,−26] z[−12,+26] | **9,800** | panel · beam · column · slab · cornice | mill brick, timber | The densest, most texturally rich district; the validator's excursion |
@@ -307,29 +329,30 @@ district that only exists as a comment cannot be tested.
 | 9 | **The Landmark Shelf** | the Ring B annulus, all edges | **8,580** | whatever the landmark is: mostly slab · pier · drum · corbel-arch | per landmark | The horizon, the recognition payoff, the endgame drive |
 | 10 | **Street life, kerb kit & the edge-band gallery** | scene-wide | **1,210** | panel (marks) · props (kit reuse) | — | Density glue; the ≤15 m insurance |
 
-**Sum: 74,060.** Within `01` §4.4's 40–80k band, at 1.29 blocks/m².
+Added up, the ten estimates land in the mid-70,000s, which sits inside `01`
+§4.4's 40–80k band with room on both sides. We would like the finished scene to
+come in under 75,000; lower is better. If it lands over, that is the cue to look
+at which buildings could be built more efficiently — it is a prompt to go
+looking, not a failure.
 
-> **Budget reconciliation note, 2026-08-07.** These ten totals were closed
-> before `04-easter-eggs-and-achievements.md`'s glyph gallery and egg catalogue
-> were fully priced. Most of that content is small props riding on buildings
-> already itemized below and needs no separate line. Six items do not — the
-> Cutaway (E36–E38), G1, G2, G5, G6, and G9+G10 — because they are either large
-> or free-standing, with no existing line item to absorb them. Each now carries
-> an explicit **glyph/egg reserve** row in its district's item table, below,
-> adding 1,850 blocks. A second correction the same day: §8.3's edge-band
-> gallery (District 10) was specified as four ~180-block marks (~720) before
-> `04` actually authored it as a five-item, ~930-piece gallery; District 10's
-> line item is revised to 1,210 accordingly. Combined, the scene total moves
-> from 72,000 to **74,060**. See `04` §2.8 for the corresponding note on the
-> egg side.
+> **Why a soft target and not a contract.** A level authored toward an exact
+> block count starts making decisions for arithmetic reasons, and the geometry
+> gets worse. What we actually care about is that no part of the map reads as
+> empty, and that is protected by a different and better check: the per-district
+> density probe (§8.2, §9.4), which measures mean gap between eatable pieces and
+> pieces per m² of built footprint. That probe is the one with teeth. Because it
+> guards the thing we were worried about, coming in under the block estimate is
+> safe — a lean district that passes the density floors is a well-built
+> district, not an under-built one.
 
-> **On blocks/m².** Cambridge's 1.29 sits below Brooklyn's 1.35 and well below
-> Boston's 2.0, and that is **expected and correct** — under this vocabulary a
-> block covers more surface, so blocks per m² stops measuring apparent density.
-> The metrics that do measure it are `01` §7.2's *distinct identifiable objects
-> placed* and *eatable pieces per m² of built footprint*, and both must go **up**
-> against a brick-built control, not down. §7 turns that into a per-district
-> floor.
+> **On blocks/m².** Roughly 1.3 blocks/m² sits below Brooklyn's 1.35 and well
+> below Boston's 2.0, which is what we would expect — under this vocabulary a
+> single block covers more surface, so blocks per m² stops measuring apparent
+> density and starts measuring how coarse the pieces are. The metrics that track
+> what a player sees are `01` §7.2's *distinct identifiable objects placed* and
+> *eatable pieces per m² of built footprint*, and those are the ones we want
+> going up against a brick-built control. §7 and §8.2 turn that into a
+> per-district floor.
 
 ### 4.1 District 1 — Canal Park, the Hero Block · 11,270
 
@@ -339,7 +362,7 @@ HubSpot, now a Breakthrough Properties life-science building), Canal Park the
 street, the forecourt onto the canal, and the residential edge — Sierra and
 Thomas Graves Landing, both 8 storeys (Confirmed OSM).
 
-**Contents and budget split:**
+**Contents, and how the estimate breaks down:**
 
 | Item | Blocks | Note |
 |---|---|---|
@@ -353,7 +376,7 @@ Thomas Graves Landing, both 8 storeys (Confirmed OSM).
 | **Thomas Graves Landing** (8 storeys, on the canal) | 1,450 | |
 | **Loading dock, service yard, parking ramp, plant** | 700 | Hand-2 spend: the stuff a brick-built version could not afford |
 | **Trees, lamps, benches, hydrants, vehicles, signage** | 700 | |
-| **Glyph/egg reserve — the Cutaway (E36–E38) + G6 anamorph** | 870 | `04`'s six-room interior set piece (~750) and the anamorph glyph resolving from Lechmere (~120); reconciliation added 2026-08-07, see the note at the top of §4 |
+| **Glyph/egg reserve — the Cutaway (E36–E38) + G6 anamorph** | 870 | `04`'s six-room interior set piece (~750) and the anamorph glyph resolving from Lechmere (~120). Free-standing enough that it needs its own line rather than riding on a building already itemized above |
 
 **Role.** This is where the player starts, where the ≤15 m rule is strictest,
 and where the run ends. It carries the finest grain in the scene by a wide
@@ -458,7 +481,7 @@ and the First Street Garage — 123 × 75 m of blank-walled parking deck.
 | **Middlesex South Registry of Deeds** | 900 | 89 × 50 m of civic masonry |
 | **Old Middlesex County Courthouse** | 700 | 32 × 49 m |
 | **Thorndike/Otis/Spring street grid, kerbs, crossings** | 900 | |
-| **Glyph reserve — G1 sprocket + centre disc** | 200 | On the First Street Garage's top deck (`04` G1); reconciliation added 2026-08-07 |
+| **Glyph reserve — G1 sprocket + centre disc** | 200 | On the First Street Garage's top deck (`04` G1) |
 
 **Role.** The tall thing to the west. `02` notes 40 Thorndike is 288 m from
 HubSpot's front door and *"locals will look for it"*, and that it is the tallest
@@ -467,7 +490,7 @@ thing in East Cambridge proper. In play it is the mid-game growth engine: a
 
 **Sensitivity, carried forward from `02` §7:** it was a jail, it has a long
 contested still-litigated local history. Build the building; no jokes, no bars,
-no prisoner props. `04` is bound by the same line.
+no prisoner props. `04` holds the same line.
 
 ### 4.6 District 6 — The Canal & CambridgeSide · 7,600
 
@@ -489,7 +512,7 @@ of lab in the former Sears, with retail still operating on the lower levels
 | **20 CambridgeSide** (10 storeys) | 2,100 | Big glassy podium block, retail base, lab floors above |
 | **100 CambridgeSide** | 1,200 | |
 | **Land Boulevard's diagonal, kerbs, crossings** | 670 | The 25.9° diagonal, as decor plus stepped kerbs (§2.2) |
-| **Glyph reserve — G9 food court ghost + G10 canal flywheel** | 200 | Roof paving pattern + park arcs (`04` G9/G10); reconciliation added 2026-08-07 |
+| **Glyph reserve — G9 food court ghost + G10 canal flywheel** | 200 | Roof paving pattern + park arcs (`04` G9/G10) |
 
 **Role.** Water, the south gateway, and the district that gives the map a
 non-orthogonal edge. `02`'s designer note applies directly: anyone who worked in
@@ -514,7 +537,7 @@ Glassworks Avenue, a real street 400 m out.
 | **AVA East, AVA West, Avalon Lofts** (6/6/6) | 1,050 | |
 | **The Glass Factory** (8) | 600 | |
 | **The Common at CX, Viaduct Courts, Glassworks Avenue** | 500 | |
-| **Glyph reserve — G2 Partner Alley, North Point half** | 200 | Half the partner-mark run on the container stacks (`04` G2); reconciliation added 2026-08-07 |
+| **Glyph reserve — G2 Partner Alley, North Point half** | 200 | Half the partner-mark run on the container stacks (`04` G2) |
 
 **Role.** `02`'s reading of the skyline is the design brief for this district and
 should be quoted verbatim in the scene file: *"the hero building is one of the
@@ -541,27 +564,26 @@ foot in Cambridge (all Confirmed).
 | **North Point Park + the curving footbridge** | 900 | `archBridge` reused |
 | **Cambridge Parkway, park strip, boathouses, seawall** | 1,000 | |
 | **Duck Boat ramp, rowing shells, geese** | 400 | `02`: Duck Tours launch **at the Museum of Science**, Confirmed. Geese are universally observed and Unverified as a citation — *"nobody will fact-check a goose."* Both go in `sceneAmbient` |
-| **Glyph reserve — G2 Partner Alley, Cambridge Parkway half** | 200 | Half the partner-mark run on the river frontage (`04` G2); reconciliation added 2026-08-07 |
+| **Glyph reserve — G2 Partner Alley, Cambridge Parkway half** | 200 | Half the partner-mark run on the river frontage (`04` G2) |
 
 **Role.** The long horizontal showcase, and the district that most obviously
-could not have existed at Boston's grain. Note `02`'s correction, which the
-scene must honour: the **dinghy fleet is upstream of the Longfellow**, not here.
+could not have existed at Boston's grain. One detail worth getting right, from
+`02`: the **dinghy fleet is upstream of the Longfellow**, not here.
 Off Cambridge Parkway you get rowing shells, Duck Boats and lock traffic. A
 sailboat scatter would be the postcard, not the place.
 
 ### 4.9 District 9 — The Landmark Shelf · 8,580
 
-Ring B. Detailed in §5. Budget split there.
+Ring B. Detailed in §5, where the estimate is broken out landmark by landmark.
 
 ### 4.10 District 10 — Street life, kerb kit & the edge-band gallery · 1,210
 
 Scene-wide glue: the shared curb-furniture pitch, oriented vehicles on
 grid-aligned streets, the crossing template, and the **edge-band gallery**
-(§8.3, reconciled 2026-08-07 to `04`'s actual ~930-piece gallery — up from the
-~720 this line item originally assumed for four ~180-block marks). This
-district exists as a line item because the density probe needs somewhere to
-attribute the scene's connective tissue, and because `01`'s hand 2 is easiest
-to drop precisely on the things nobody thinks to budget.
+(§8.3, whose five items run to roughly 930 pieces). This district exists as a
+line item because the density probe needs somewhere to attribute the scene's
+connective tissue, and because `01`'s hand 2 is easiest to drop precisely on the
+things nobody thinks to count.
 
 ### 4.11 The north edge
 
@@ -569,8 +591,9 @@ Not a district in its own right — it is the north tail of districts 3 and 7 �
 but it carries a `boundsRect` obligation. The **Michael Capuano Inner Belt
 Carhouse** and the **MBTA Green Line Transportation Office** (both Confirmed,
 OSM) are pulled radially in to z ≈ −100…−108 under the §1.5 exception so the
-scene's content reaches within the 12 m slack of `minZ: −112`. They cost ~600
-blocks, drawn from district 3's 5,000 and district 7's 7,400.
+scene's content reaches within the 12 m slack of `minZ: −112`. They run to about
+600 blocks, which sits inside districts 3 and 7 rather than adding an eleventh
+line.
 
 ---
 
@@ -600,11 +623,11 @@ offset table.
 | **North Point Park** | 3 | (+119, −7) | Ring B | in district 8 |
 | **Charles River Dam locks** | 3 | (+114, +26) | Ring B | in district 8 |
 
-Shelf budget: 1,700 + 2,000 + 1,900 + 1,300 + 420 + 700 + 380 + 260 + 340 =
-**9,000**, less 600 reattributed to districts 6 and 8 where a landmark sits
-inside another district's rect, plus **180** reserved for `04`'s "UNBOUND"
-ground glyph on the Killian Court lawn (G5; reconciliation added 2026-08-07,
-see the note at the top of §4) → **8,580**, as budgeted.
+The shelf's own items come to 1,700 + 2,000 + 1,900 + 1,300 + 420 + 700 + 380 +
+260 + 340 = 9,000. Six hundred of that sits inside districts 6 and 8, where a
+landmark falls within another district's rect and is counted there instead, and
+180 is set aside for `04`'s "UNBOUND" ground glyph on the Killian Court lawn
+(G5), which has no building to ride on. Net: the ~8,580 in §4's table.
 
 ### 5.2 The Stata Center — the vocabulary's showpiece
 
@@ -626,16 +649,17 @@ At 1:4 plan the footprint is ~32.5 × 27.5 m and the height ~26.7 m. Authored as
 | **The tilted window bands** | `mullion` + glass `panel` runs following each mass's own step, not a shared datum | 380 |
 | **Roof plant, vents, the amphitheatre lawn, the block it sits on** | mixed | 350 |
 
-**Grade ceiling, checked here too.** Each base mass's `plinth` is a run of 4 m-scale
-pieces, the same convention as the hero building's base band (§6.1), not one
-monolithic block per mass. §6.3 shows the grade-diagonal clause held against the
-two hero buildings only; stated here so it is not silently assumed for Stata's
-ground-anchored masses as well — at the 4 m plinth-run size nothing here
-approaches the 8 m clause, let alone the 9.7 m cliff, but an 8 m single-piece
-reading of "5–8 m plan" would blow both, so the run size is the authoring rule,
-not the mass's overall footprint.
+**The grade ceiling, checked here too.** Each base mass's `plinth` is a run of
+4 m-scale pieces — the same convention as the hero building's base band (§6.1) —
+rather than one monolithic block per mass. §6.3 works the grade-diagonal clause
+through the two hero buildings, so it is worth doing the same sum here rather
+than assuming it carries over: at the 4 m plinth-run size nothing on Stata comes
+close to the 8 m clause, let alone the 9.7 m cliff. Read "5–8 m plan" as a single
+piece and it would exceed both, which is why the run size is what the authoring
+rule keys on, not the mass's overall footprint.
 
-The critical authoring note: **each tilted stack is a vertical load path** — a
+One authoring note that matters more than the rest: **each tilted stack is a
+vertical load path** — a
 slab resting on the slab below resets the cantilever span to zero, so a leaning
 tower of plates is structurally the *cheapest and safest* thing this engine can
 build (`01` §3.1). The lean is free. What is not free is horizontal: two adjacent
@@ -723,11 +747,12 @@ deliberate omissions with the reason, so nobody re-adds them by accident.
 
 ## 6. The two HubSpot buildings
 
-These are the hero assets and this is where the new style must most obviously
-pay off. Both are authored in the §1.2 Ring A scale — **1:3 in plan, 1:1.5 in
-height** — and every extent below is a multiple of 0.25 m, which is a hard
-constraint, not a style preference: ADR-0006's determinism proof rests on every
-span being an exact sum of multiples of 1/8.
+These are the hero assets, and they are where the new style has the most to
+prove. Both are authored in the §1.2 Ring A scale — **1:3 in plan, 1:1.5 in
+height** — and every extent below is a multiple of 0.25 m. That last part is not
+a stylistic preference: ADR-0006's determinism proof rests on every span being an
+exact sum of multiples of 1/8, so an off-grid extent quietly costs us
+reproducibility.
 
 ### 6.1 2 Canal Park — the hero
 
@@ -901,9 +926,10 @@ Every ground-anchored piece on both buildings, against `01` §3.2's ladder
 | Davenport ground spandrel | 5.25 × 0.5 | 5.17 | 2.72 m | **5** |
 | Loading-dock plinth | 4 × 2 | 4.44 | 2.34 m | **3** |
 
-Nothing exceeds 5.2 m of plan diagonal, against an 8 m cap. **No piece anywhere
-on either hero building is permanently uneatable.** That is checked here and
-enforced by the probe in §9.4.
+Nothing exceeds 5.2 m of plan diagonal, against an 8 m cap — so no piece on
+either hero building is permanently uneatable, with 2.8 m of margin to spare.
+Worked through by hand here, and re-checked by the probe in §9.4 so it stays true
+after edits.
 
 ### 6.4 Making the right building unmistakably the hero
 
@@ -919,13 +945,14 @@ Five guards, in descending order of how much they would survive a careless edit:
    `CAMBRIDGE_HERO_AABB` and `CAMBRIDGE_NOT_HERO_AABB`. The probe asserts that
    every block emitted by the signage builder lies inside the hero AABB, and that
    **zero** blocks inside the not-hero AABB carry the HubSpot orange colour key.
-   This is the guard that cannot be forgotten, because it fails the build.
-   **One deliberate exception, resolved 2026-08-07:** `04`'s G3 "Ghost Sprocket"
-   egg puts a faded mark on 1 Canal Park's facade — inside the not-hero AABB, by
-   design. It is authored with its own `HERO_SIGNAGE_GHOST` colour constant, a
-   desaturated, weathered version of the live orange, never the live constant
-   itself, so it never trips this probe's colour-key check. The ghost builder
-   must not import `HERO_SIGNAGE`'s colour — see `04`'s G3 entry.
+   This is the guard that survives being forgotten, because it fails the build.
+   There is one intentional piece of content inside the not-hero AABB: `04`'s G3
+   "Ghost Sprocket" egg, a faded mark on 1 Canal Park's facade. It carries its
+   own `HERO_SIGNAGE_GHOST` colour constant — a desaturated, weathered version of
+   the live orange rather than the live constant itself — so it sits there by
+   design without tripping the colour-key check. The ghost builder takes its
+   colour from `HERO_SIGNAGE_GHOST`, never from `HERO_SIGNAGE`; see `04`'s G3
+   entry.
 2. **One signage builder, one call site.** The mark is emitted by
    `sprocketPanel()` and it is called exactly once, from one place, with the
    hero's own origin. There is no second way to draw it.
@@ -1019,11 +1046,11 @@ of spawn.
 | News boxes, bollards, a coffee cart, sandwich boards | 0.25 | `newsBox`, `bollard`, `hotDogCart`, `sandwichBoard` |
 | Trash and recycling on the service side | 0.25 | `trashBags`, `trashBin` |
 
-**The rule, and it is a validator target (§9.4):** the innermost 4 m around spawn
-stays completely clear — the hole must not be chewing before the player touches a
-key, and the READY gate holds a static frame — and **every one of 32 sampled
-headings out of spawn must find something edible within 6 m.** Brooklyn ships
-0 of 32 dead; Cambridge holds the same standard.
+**Two things shape the ring, and both are checkable (§9.4):** the innermost 4 m
+around spawn stays completely clear, so the hole is not already chewing before
+the player touches a key and the READY gate can hold a static frame; and every
+one of 32 sampled headings out of spawn finds something edible within 6 m.
+Brooklyn ships 0 of 32 dead, and Cambridge aims at the same result.
 
 **Second 0–10:** the hole is 1.1 m and moving at 9.96 m/s. Turn any direction and
 you are into the ring within half a second. Ten seconds of eating 0.25 m
@@ -1051,8 +1078,9 @@ when they reach it* — applied as a map:
 | 8–10 | 4.6–5.6 m | 8 m grade pieces — the largest the grade clause permits | The Museum of Science's terrace, the dam |
 | 11–12 | 6.1–7.1 m | Everything on the map. Nothing is uneatable | — |
 
-**Nothing on this map is above an 8 m plan diagonal at grade.** The 9.7 m cliff
-is never approached, which is checked by probe (§9.4) rather than trusted.
+Nothing on this map goes above an 8 m plan diagonal at grade, so the 9.7 m cliff
+never comes into play. §9.4's probe checks that rather than leaving it to
+memory.
 
 ### 7.4 The intended route and the growth curve
 
@@ -1113,11 +1141,13 @@ not by the grade test, and it comes down with the top plate.
 
 ### 7.6 Where the SIZE-1 player is *not* sent
 
-Three places are deliberately hostile early and this is stated so nobody
-"fixes" them: the **First Street Garage** (blank concrete decks, nothing under
-2 m), the **Landmark Shelf** (bold masses at 4–8 m), and the **Charles Shore's**
-dam and locks. All three are late-ladder content. Each still has to satisfy the
-≤15 m rule (§8) — being late is not permission to be empty.
+Three places are deliberately hostile early, and it is worth saying so here so
+that nobody later reads them as oversights and "fixes" them: the **First Street
+Garage** (blank concrete decks, nothing under 2 m), the **Landmark Shelf** (bold
+masses at 4–8 m), and the **Charles Shore's** dam and locks. All three are
+late-ladder content. They still sit under the ≤15 m rule (§8), though — being
+late in the ladder is a reason for the pieces to be big, not a reason for the
+ground between them to be bare.
 
 ---
 
@@ -1132,10 +1162,13 @@ SIZE 1 reach), or ~25 m at mid-ladder speeds.* The 15 m is not arbitrary — the
 combo window is 1.5 s and SIZE 1 speed is 9.96 m/s, so 14.9 m of travel is
 exactly one chain's worth of patience.
 
-Consolidation attacks this locally even when it leaves the scene total alone,
-because the two-hand rule *redistributes*: a consolidated building goes sparse and
-its savings are spent somewhere else on the map. The chain does not care about the
-map total. It cares whether the next bite arrives within 1.5 s.
+This is a *local* measure, and that is the whole point of it. Consolidating a
+building into fewer, larger pieces can leave the scene looking fine in aggregate
+while that particular stretch of pavement goes sparse. The chain has no opinion
+about the map as a whole; it only cares whether the next bite arrives within
+1.5 s of the last one. So the check that matters is per-district and along a
+driving line, which is exactly what §8.2's floors and §9.4's density probe
+measure.
 
 **Coin anchors are a prerequisite here, not a pen.** `04` §4.1 establishes that
 today's coin scatter (`_placeCoins`, `voxelsim.js:324-338`) is a uniform draw over
@@ -1143,26 +1176,33 @@ today's coin scatter (`_placeCoins`, `voxelsim.js:324-338`) is a uniform draw ov
 size. `04` §4.3 then allocates 18 of the scene's 60 coins specifically to bridge
 the gaps this section defines, "placed by measurement" against this page's own
 scripted-excursion probe. A design that reserves nearly a third of its coin budget
-for a capability the engine does not yet have is not deferring the capability, it
-is depending on it. `00` §4.1 now carries `sim.coinAnchors` as a completer rather
-than the pen it was first filed as. Two constraints travel with that promotion,
-stated here because this is where the density floors live: the RNG draw must hold
-its position in the seed sequence for any scene that declares no anchors, or the
-five shipped scenes' coin layouts re-roll (ADR-0003); and, per `04` §4.2's
-companion fix, **a coin refreshes `chainTimer` without incrementing `chain`** —
-checked against this section's own terms, that sustains a chain across a gap
-without inflating `comboMult` or the Unbroken Chain belt's `longest_chain` metric,
-which is consistent with `01` §3.5's rate-gate analysis and with the floors below.
-The corollary the density probe must hold to: **a coin does not count as an
-eatable piece** for the pieces/m² or mean-gap measurement, or an author could
-paper over a real dead zone with currency instead of content.
+for a capability the engine does not yet have is not deferring that capability, it
+is depending on it — which is why `00` §4.1 carries `sim.coinAnchors` as a
+completer rather than a pen.
+
+Two things travel with it, and they belong here because this is where the density
+floors live. First, the RNG draw needs to hold its position in the seed sequence
+for any scene that declares no anchors; otherwise the five shipped scenes' coin
+layouts re-roll (ADR-0003). Second, per `04` §4.2's companion fix, a coin
+refreshes `chainTimer` without incrementing `chain`. Read against this section's
+terms, that lets a coin sustain a chain across a gap without inflating
+`comboMult` or the Unbroken Chain belt's `longest_chain` metric, which is what
+`01` §3.5's rate-gate analysis and the floors below both assume.
+
+One corollary for the density probe: a coin does not count as an eatable piece
+in the pieces/m² or mean-gap measurement. If it did, an author could paper over a
+genuine dead zone with currency instead of content, and the probe would stop
+telling us anything.
 
 ### 8.2 Per-district floors
 
-Scene median, from §4's budget over ~31,600 m² of built footprint: **~2.34 eatable
-pieces per m² of built footprint.** `01` §7.5's probe 6 sets the floor at half the
-scene median → **1.17/m²**, and the gap ceiling at 15 m. Districts declared tighter
-than the floor where the design demands it:
+Across roughly 31,600 m² of built footprint, the scene's median density comes out
+at **~2.34 eatable pieces per m²**. `01` §7.5's probe 6 sets the floor at half
+the scene median — **1.17/m²** — with a 15 m ceiling on mean gap. These are the
+numbers with real consequences: they are what `tools/validate.mjs` measures, and
+they are the reason a district can come in lean on block count and still be
+demonstrably not-empty. Per district, with the tighter targets the design asks
+for where it can afford them:
 
 | District | Risk | Mean-gap target | Pieces/m² floor | The mitigation, named |
 |---|---|---|---|---|
@@ -1170,16 +1210,16 @@ than the floor where the design demands it:
 | 2 The Davenport | **Low** | ≤ 8 m | 2.8 | Mill-wall members are inherently dense: 34 pieces per storey per face |
 | 3 Lechmere | **Medium** | ≤ 12 m | 1.6 | A viaduct is a line of piers with gaps between them. **Mitigation: the busway, shelters, kerbs and track furniture run continuously between bents** — the gap between piers is filled at ground level, not left as span |
 | 4 Cambridge Street | **Low** | ≤ 8 m | 2.6 | The density reservoir. Twenty-two triple-deckers with porches |
-| 5 Thorndike Civic | **HIGH** | ≤ 14 m | 1.3 | **The First Street Garage is 1,025 m² of blank deck.** Mitigations, all three required: (a) the decks are authored as *open* decks with a column grid and edge kerbs, not solid plates, so a pass through one deck meets a column every 4 m; (b) the ground level is a working lot with parked vehicles, ticket booths, barriers and light masts; (c) 40 Thorndike's grade retail wraps the block's street faces. Without all three this district fails the probe |
+| 5 Thorndike Civic | **HIGH** | ≤ 14 m | 1.3 | **The First Street Garage is 1,025 m² of blank deck.** Three mitigations, and it takes all three to get there: (a) the decks are authored as *open* decks with a column grid and edge kerbs, not solid plates, so a pass through one deck meets a column every 4 m; (b) the ground level is a working lot with parked vehicles, ticket booths, barriers and light masts; (c) 40 Thorndike's grade retail wraps the block's street faces. Drop any one of them and the district comes in under its floor |
 | 6 Canal & CambridgeSide | **Medium** | ≤ 13 m | 1.4 | Water is excluded from the built footprint, but the *route around it* is not. **Mitigation: a continuous canal-edge kerb, rim, bollard and seating run** all the way round the basin, plus the park's path furniture |
 | 7 North Point | **HIGH** | ≤ 14 m | 1.3 | Tower-and-plaza is the classic dead-zone geometry: 1,700 blocks in one 22-storey slab and nothing between it and the next. **Mitigation: podium retail at grade on every tower, a continuous kerb and street-tree pitch, and the Common at CX's furniture.** The towers are tall, not wide — the ground plane does the density work |
 | 8 Charles Shore | **HIGH** | ≤ 15 m | 1.2 | Water, park and one very long building. **Mitigation: the seawall, the park path furniture, the boathouse cluster, the Duck Boat ramp and the parkway's kerb line form one continuous eatable spine** along the whole shore. A player driving the shore never leaves the spine |
-| 9 Landmark Shelf | **HIGHEST** | ≤ 15 m | 1.2 | Bold masses with hundreds of scene-metres between them is what a shelf *is*. **Mitigation: the shelf is not free-standing.** Each landmark sits on an authored block — a plinth, a lawn edge, a kerb, a fence run, a row of parked vehicles — and the shelf items are placed so that consecutive ones are ≤ 40 m apart along the map's edge, with the edge-band gallery (§8.3) and the kerb line closing the remaining gaps. If the probe still fails, the answer is more ground furniture, never a wider probe |
+| 9 Landmark Shelf | **HIGHEST** | ≤ 15 m | 1.2 | Bold masses with hundreds of scene-metres between them is what a shelf *is*. **Mitigation: the shelf is not free-standing.** Each landmark sits on an authored block — a plinth, a lawn edge, a kerb, a fence run, a row of parked vehicles — and the shelf items are placed so that consecutive ones are ≤ 40 m apart along the map's edge, with the edge-band gallery (§8.3) and the kerb line closing the remaining gaps. If the probe still comes up short, the answer is more ground furniture rather than a wider probe |
 | 10 Street life | n/a | — | — | This district *is* the mitigation for the other nine |
 
-**The rule this generates, and it belongs in the scene file's header:** *in a
-district built from large primitives, the ground plane carries the density.* A
-tower can be four slabs. The 30 m of pavement in front of it cannot be empty.
+The single line worth carrying into the scene file's header: *in a district built
+from large primitives, the ground plane carries the density.* A tower can be four
+slabs. It is the 30 m of pavement in front of it that has to do the work.
 
 ### 8.3 The edge-band gallery
 
@@ -1189,37 +1229,32 @@ design turns that into a mechanism rather than a decoration: reserve the outer
 ground the architecture does not reach, and put content there instead of
 leaving it as the dead-ground census's worst offender.
 
-**Reconciled with `04`'s actual gallery, 2026-08-07.** This section originally
-specified exactly four ~180-block marks, one per corner quadrant, all eatable,
-with one slot reserved for HubSpot's sprocket and one for Flywheel's own mark.
-`04` §1.3's G11 built a broader five-item gallery instead — the Flywheel
-sprocket (~230, Inner Belt rail yard north), Partner Alley (~400, river
-frontage/North Point, G2), "UNBOUND" (~180, Killian Court, G5), a rowing-eight
-wake pattern (~50, Charles south edge, inert scenery — not eatable), and the
-rotated-grid compass rose (~70, NE mudflat) — roughly 930 pieces total, not
-four ~180-block marks. **HubSpot's own sprocket (G1) is not in the edge band
-at all**; it lives on the First Street Garage roof in District 5 (`03` §4.5),
-so the "HubSpot sprocket" slot this section originally reserved is filled by
-G1 elsewhere on the map, not by anything in the edge band. The description
-below now matches what `04` built; District 10's budget (§4.10) is revised
-accordingly.
+The gallery `04` §1.3's G11 lays out has five items, roughly 930 pieces in all:
+the Flywheel sprocket (~230, in the Inner Belt rail yard to the north), Partner
+Alley (~400, along the river frontage and North Point, G2), "UNBOUND" (~180, on
+Killian Court, G5), a rowing-eight wake pattern (~50, on the Charles south edge,
+inert scenery rather than eatable), and the rotated-grid compass rose (~70, on
+the northeast mudflat). HubSpot's own sprocket is not among them — G1 lives on
+the First Street Garage roof in District 5 (§4.5), where it reads against a
+building rather than against open ground.
 
-Rules that bind the gallery, all of which trace to existing contracts:
+Four things shape how the gallery gets built, each of them following from
+something already established elsewhere:
 
-- Flat, ground-plane, laid at each item's own declared raster pitch, inside a
-  declared `CAMBRIDGE_OPEN_GROUND` span or on an authored apron — **never**
-  inside a `roads`, `water` or `parks` rect (the road-conflict and
-  water-over-surfaces probes would catch it, but the rule is stated so nobody
-  has to discover it).
-- **No third-party trademarks.** `02` §7 is the line: HubSpot's own mark is the
-  point; a competitor's would read as a jab; a small local business did not ask
-  to be in a game.
-- **Eatable by default** — the dead-ground-census reason still holds: a mark
-  should come apart properly rather than sit there as scenery. `04`'s
-  rowing-eight wake is the one deliberate exception in the current catalogue;
-  since it sits on the Charles south edge, it does not count toward District
-  8's eatable-pieces-per-m² floor (§8.2), one of the two already-HIGH-risk
-  districts.
+- Flat and on the ground plane, laid at each item's own declared raster pitch,
+  inside a declared `CAMBRIDGE_OPEN_GROUND` span or on an authored apron — not
+  inside a `roads`, `water` or `parks` rect. The road-conflict and
+  water-over-surfaces probes would catch that anyway, but it is worth writing
+  down so nobody has to learn it from a red build.
+- No third-party trademarks. `02` §7 draws the line well: HubSpot's own mark is
+  the point of the exercise, a competitor's would read as a jab, and a small
+  local business did not ask to be in a game.
+- Eatable by default, for the same reason the edge band exists at all — a mark
+  that comes apart is better than a mark that sits there as scenery. `04`'s
+  rowing-eight wake is the one exception in the current catalogue, and since it
+  sits on the Charles south edge it does not count toward District 8's
+  eatable-pieces-per-m² floor (§8.2). District 8 is already one of the tighter
+  ones, so that is worth keeping in view.
 - **The gallery's contents and the achievement each mark unlocks belong to
   `04`** — this section states the placement principle, `04` §1.3 owns the
   catalogue.
@@ -1228,22 +1263,27 @@ Rules that bind the gallery, all of which trace to existing contracts:
 
 ## 9. Validator compliance
 
-### 9.1 What is mandatory
+### 9.1 What the validator asks of this scene
 
-`AGENTS.md` requires `node tools/validate.mjs` → `ALL PASS` before any commit
+`AGENTS.md` calls for `node tools/validate.mjs` → `ALL PASS` before any commit
 touching `js/voxelsim.js` or `js/voxelkit.js`, and `conventions.md` hard rule 1's
-glob over `js/voxelscene-*.js` means **`js/voxelscene-cambridge.js` is covered the
-moment the file exists** — including the `Math.random()` guard. That is
-deliberate and it is why a new scene can no longer ship unguarded.
+glob over `js/voxelscene-*.js` picks up `js/voxelscene-cambridge.js` the moment
+the file exists — the `Math.random()` guard included. That coverage is automatic
+by design, so a new scene does not have to remember to opt in.
+
+Worth noting what the validator does *not* check: there is no block-count probe
+anywhere in it. The `budget` field on each `CAMBRIDGE_DISTRICTS` row is an
+authoring annotation and nothing reads it. Density is the thing that gets
+enforced (§8.2, §9.4), which is the right place for the pressure to sit.
 
 ### 9.2 The shared 19-probe contract
 
 Cambridge signs the full set, the same way Brooklyn, Upper Manhattan and Boston
-do — **the same probe bodies, parameterised with Cambridge's own tables, never a
-second implementation.** `.wiki/modules/voxel.md` is explicit: *a probe that
-drifts per scene stops being a contract.*
+do: the same probe bodies, parameterised with Cambridge's own tables, rather than
+a second implementation. `.wiki/modules/voxel.md` puts the reason well — *a probe
+that drifts per scene stops being a contract.*
 
-| Probe | What Cambridge must supply |
+| Probe | What Cambridge supplies |
 |---|---|
 | `probeCellOwnership` | Nothing — but **run it first and often**. `01` §5 notes that larger pieces make overlaps far easier to author but no more expensive to catch — the probe cost is per fine cell regardless of piece size. A 4 m slab clashes with far more than a 1 m cube |
 | `probeCameraBlockers` | `sim.cameraBlockers = generateBlockers(sim)` — **generated, never hand-written** (`01` §6.3). Every structure ≥ 6 m, with `h` at its true top including the water tanks, the Zakim's masts and the radar drum |
@@ -1285,28 +1325,29 @@ Beyond the standard exports, the scene exports three things no other scene has:
   ships alongside the companion fix in `js/voxelsim.js:2192-2193` — a coin
   refreshes `chainTimer`, never `chain`.
 
-### 9.4 New probes this design implies
+### 9.4 The probes this design adds
 
 Four. Three come from `01` §7.5 and belong in the **shared** contract; one is
 Cambridge-specific.
 
 1. **Grade-diagonal probe (shared).** No `gy === 0` block with a plan diagonal
-   > 8 m. This is `01` §4.2 clause 1 made enforceable, and it is what stops
-   someone authoring a permanently uneatable monument that still counts toward
-   `totalMass` and therefore silently makes the 50% goal harder. §6.3 shows both
-   hero buildings clear it with 2.8 m of margin.
-2. **Placement-step probe (shared).** Placement step equals piece extent **on
-   every axis** — `.wiki/modules/voxel.md` rule 10 generalised. Far easier to
-   violate with mixed anisotropic extents than with a uniform brick, and the
-   failure is invisible to physics (each piece is grounded) and obvious to the
-   eye. The Battery Park "hedge row" of 13 isolated cubes is the shipped
+   over 8 m. This is `01` §4.2 clause 1 made checkable, and it is what catches a
+   permanently uneatable monument that still counts toward `totalMass` and so
+   quietly makes the 50% goal harder. §6.3 walks both hero buildings through it;
+   they clear with 2.8 m of margin.
+2. **Placement-step probe (shared).** Placement step equals piece extent on every
+   axis — `.wiki/modules/voxel.md` rule 10, generalised. This is far easier to
+   get wrong with mixed anisotropic extents than with a uniform brick, and the
+   failure is invisible to physics (each piece is grounded) while being obvious to
+   the eye. The Battery Park "hedge row" of 13 isolated cubes is the shipped
    precedent.
-3. **District density probe (shared) — the one that enforces hand 2.** Per
+3. **District density probe (shared) — the one that carries hand 2.** Per
    declared district: mean gap between consecutive eatable pieces along the
-   scene's own scripted route stays under **15 m**, and no district falls below
-   half the scene's median eatable-pieces-per-m². §8.2's table is the input. This
-   is the combo dead zone and the empty diorama made into a failing test, and it
-   is the single most important new probe on this list.
+   scene's own scripted route stays under 15 m, and no district falls below half
+   the scene's median eatable-pieces-per-m². §8.2's table is the input. This turns
+   the combo dead zone and the empty diorama into a failing test, and it is the
+   most valuable probe on the list — it is the check standing behind everything
+   §4 says about being relaxed on block counts.
 4. **`probeHeroIdentity` (Cambridge-specific, §6.4).** Every signage block inside
    `CAMBRIDGE_HERO_AABB`; zero HubSpot-orange blocks inside
    `CAMBRIDGE_NOT_HERO_AABB`. Scene-specific because the mistake is
@@ -1348,35 +1389,35 @@ surpass.
 **One thing to watch, and to measure rather than assume.** `01` §3.5 is explicit
 that consolidation reduces bites *per object*. A 62 s excursion through a
 vocabulary-built district could plausibly come in under 300 eats where its
-brick-built twin cleared it easily. If it does, **the answer is content, not a
-lower floor** — the same principle as Brooklyn's declared open ground: never
-narrow a probe until it goes green.
+brick-built twin cleared it easily. If that happens, the fix is more content, not
+a lower floor — the same instinct behind Brooklyn's declared open ground. We do
+not narrow a probe to get it green.
 
 ---
 
 ## 10. Authoring plan
 
-### 10.1 The rule applied
+### 10.1 Where a new builder goes
 
-`STATUS.md` is explicit and it is the constraint: *"`js/voxelkit.js` is **shared**
-across all three built-city sandbox scenes now… Anything Brooklyn-only added
-there still does not belong in a shared kit."* The kit is 2,771 lines and ~95
-exports and the board is already tracking it as a dumping ground.
+`STATUS.md` puts the constraint plainly: *"`js/voxelkit.js` is **shared** across
+all three built-city sandbox scenes now… Anything Brooklyn-only added there still
+does not belong in a shared kit."* The kit is 2,771 lines and ~95 exports, and
+the board is already tracking it as a dumping ground.
 
-**The rule this design applies, stated so it can be checked rather than
-remembered, and written into the header of every file it governs:**
+So this design sorts new builders three ways, and the test goes in the header of
+every file it governs so it is checkable rather than remembered:
 
-> **A builder belongs in `js/voxelforms.js` only if it has no city semantics at
-> all — it is a shape, not a thing.**
-> **A builder belongs in `js/voxelkit.js` only when a second scene already calls
-> it.** One caller is not a kit.
-> **Everything else is Cambridge-local**, and graduates later or never.
+> A builder belongs in `js/voxelforms.js` if it has no city semantics at all —
+> it is a shape, not a thing.
+> A builder belongs in `js/voxelkit.js` once a second scene already calls it.
+> One caller is not a kit.
+> Everything else is Cambridge-local, and graduates later or never.
 
-Three tiers, and every new builder lands in exactly one.
+Every new builder lands in exactly one of the three.
 
 ### 10.2 `js/voxelforms.js` — new, shared, and deliberately small
 
-The twelve primitives of `01` §4.1 and **nothing else**: `slab`, `column`,
+The twelve primitives of `01` §4.1, and nothing beyond them: `slab`, `column`,
 `pier`, `beam`, `panel`, `mullion`, `cornice`, `plinth`, `tread`, plus the
 `corbelArch`, `drum` and stepped-wedge approximations. Pure geometry over
 `sim._block`. No named buildings, no street semantics, no colours.
@@ -1395,14 +1436,14 @@ precisely the shape of mistake the rule exists to prevent.
 Three properties carried over from the existing kit, because they were learned
 the hard way:
 
-1. **One `put()` site per builder.** Non-negotiable — it is what makes a future
-   primitive change a one-line edit per builder rather than an audit of every
-   nested loop.
+1. **One `put()` site per builder.** This is what makes a future primitive change
+   a one-line edit per builder rather than an audit of every nested loop, and it
+   is worth holding to even when a second site would be convenient.
 2. **Emission order is part of the contract.** Block `id` order is block-array
-   order, and `_falling` / `_sleepObs` ordering is load-bearing (ADR-0006). Every
-   builder fixes and documents its order.
+   order, and `_falling` / `_sleepObs` ordering is load-bearing (ADR-0006). Each
+   builder fixes its order and documents it.
 3. **Extents on the 0.25 m grid, always.** A builder that computes an extent by
-   division must round to `FINE`.
+   division rounds to `FINE`.
 
 ### 10.3 `js/voxelscene-cambridge.js` — Cambridge-local composites
 
@@ -1465,8 +1506,9 @@ after:
 
 ## 11. The open items this design does not close
 
-Carried forward rather than resolved, because `02` marks them Unverified or
-conflicting and this page is not allowed to harden them.
+Carried forward rather than resolved. `02` marks each of these Unverified or
+conflicting, and hardening them here would mean inventing a fact — so they stay
+open, with the thing that would close each one written down next to it.
 
 | Item | Where it bites | What closes it |
 |---|---|---|
