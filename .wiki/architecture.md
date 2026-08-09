@@ -54,8 +54,10 @@ and `voxelworld.js` reads them the way it reads `b.s` today — and every
 shipped scene stayed byte-identical. Its debut vehicle is the sixth voxel
 scene, [features/cambridge-sandbox/](features/cambridge-sandbox/README.md).
 The engine change, the primitive layer, the coin-anchor change, the new
-validator probes and Districts 1, 2, 3 and 4 are committed in
-`js/voxelscene-cambridge.js`. Districts 5 through 10, Phase 7's hidden content
+validator probes (`tools/probe-aniso.mjs`, `tools/probe-buildcost2.mjs` — see
+`runbooks/run-and-validate.md`'s "Other tools" section; neither runs as part
+of `tools/validate.mjs`'s own `ALL PASS`) and Districts 1, 2, 3 and 4 are
+committed in `js/voxelscene-cambridge.js`. Districts 5 through 10, Phase 7's hidden content
 and achievements, and the Phase 8 sign-off are still ahead. The scene is not
 yet registered in `AUTHORED_SCENES` or `FREE_PLAY` (task P6.12), so it cannot
 be loaded from the menu yet.

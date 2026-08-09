@@ -73,11 +73,13 @@ shipped scenes render at equal or fewer draw calls, `ALL PASS`.
 
 | ID | Done when | Files / surfaces | Deps | Size |
 |---|---|---|---|---|
-| P1.1 | `tools/probe-buildcost2.mjs` exists as a committed tool, min-of-N round-robin per `STATUS.md`'s instrument standard (N stated, machine quiet, no per-run number quoted otherwise). This comes first: `01` §7 notes that the earliest numbers came from a scratch script not in the repo, so nothing downstream is measurable until the tool is committed. | `tools/probe-buildcost2.mjs` (new) | none | S |
+| P1.1 | `tools/probe-buildcost2.mjs` exists as a committed tool, min-of-N round-robin per `STATUS.md`'s instrument standard (N stated, machine quiet, no per-run number quoted otherwise). It came first because everything downstream is measured with it: the earliest numbers came from a scratch script, and the committed tool is what makes them reproducible. It is run by hand rather than by `tools/validate.mjs`. | `tools/probe-buildcost2.mjs` | none | S |
 | P1.2 | `b.s` dropped from the render bucket key for unsurfaced blocks (`voxelworld.js:596-604`). Measured with P1.1: draw calls on all five shipped scenes are equal to or below the previous count, `ALL PASS`. | `js/voxelworld.js` | P1.1 | S |
 
 **Gate:** `node tools/validate.mjs` → `ALL PASS`. Draw-call count reported
 per scene, min-of-9, round-robin, before/after.
+
+Both landed in `23a7708`.
 
 ---
 

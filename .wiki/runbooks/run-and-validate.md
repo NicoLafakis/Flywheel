@@ -65,6 +65,30 @@ ship to static hosting.
   data.
 - `tools/validate.mjs` also proves `freshSave()` and `save.js`'s `MIGRATIONS`
   chain describe the same object — see `conventions.md` hard rule 6.
+- **`node tools/probe-aniso.mjs`** — the ADR-0013 box-path coverage probe.
+  Every shipped scene is still 100% cubes, so `validate.mjs` itself is
+  structurally blind to the anisotropic (`sx/sy/sz`) code paths a box-shaped
+  block exercises — this file builds its own fixture (thin/long steel arms,
+  edge-touch vs. face-touch neighbours, off-axis contact sweeps, separation
+  along each axis) and is what actually proves the per-axis engine change,
+  most sharply the P2.4 hop-axis recovery in `voxelsim.js` where reading the
+  wrong horizontal extent is a 4x cost error no cube could reveal. Not run by
+  `validate.mjs`; run it directly when touching `voxelsim.js`'s box-extent
+  code.
+- **`node tools/probe-buildcost2.mjs [--n=9] [--scene=brooklyn] [--json]`** —
+  build-cost and render-bucket probe for the five shipped voxel scenes
+  (`gallery`, `manhattan`, `upper-manhattan`, `brooklyn`, `boston`). Times are
+  min-of-N, round-robin across scenes (never all reps of one scene in a row),
+  because a busy box contaminates every scene equally that way instead of
+  landing entirely on whichever scene held the wall clock; `--n` below 3 is
+  refused outright. Block/cell/mass/zone counts are exact and quotable even
+  when the box is busy — the tool prints the median/min ratio and says so
+  itself when it isn't. It reads `js/voxelworld.js`'s live render-bucket loop
+  and hard-fails rather than reporting a number for a renderer that has since
+  changed underneath it (`KEY_VARIANTS`, `resolveShippedVariant`) — a new
+  bucket key needs a new variant added there, never a replacement of the old
+  ones, since before/after comparisons depend on both staying computable from
+  one committed instrument.
 
 ## Deploy
 

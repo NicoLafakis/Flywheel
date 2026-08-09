@@ -860,9 +860,25 @@ questions, and keeping them apart is most of the discipline here:
 > build while agents were live. **No perf number is quotable until the tree is
 > still.** Min-of-N round-robin is the minimum acceptable instrument."*
 
-One practical note: `probe-buildcost2.mjs`, the probe that produced the current
-numbers, is not in `tools/` — it was a scratch script. Rebuilding it as a
-committed tool is task zero, because nothing here is measurable until it exists.
+The instrument that standard describes is `tools/probe-buildcost2.mjs`, and it
+is in the repo. It builds each of the five shipped scenes `--n` times
+round-robin — one rep of every scene in order, then the next rep, never all reps
+of one scene in a row — reports min as the estimator with median and max beside
+it, and prints the worst med/min ratio as the tree-quiet readout: over 1.30 it
+says outright that the box was busy and the timings are not quotable. `--n`
+below 3 is refused and there is no flag to override that. Alongside the timings
+it prints the exact counts (blocks, fine cells, mass, zones, distinct sizes) and
+the render-bucket count under each of the three bucket-key variants, and it pins
+itself to `voxelworld.js`'s live bucket loop — an unrecognised loop is a hard
+refusal to report rather than a warning, so it can never quote draw calls for a
+renderer that no longer ships. Counts are cross-checked across every rep, and a
+disagreement voids the run as a determinism failure (ADR-0003).
+
+`tools/probe-aniso.mjs` is the second manually-run probe: ADR-0013 box-path
+coverage, on a fixture of its own thin-and-long pieces, because every shipped
+scene is 100% cubes and `tools/validate.mjs` is therefore structurally blind to
+the per-axis code paths. Neither probe runs as part of `validate.mjs`'s
+`ALL PASS`; both are run by hand.
 
 ### 7.1 The two experiments
 
@@ -1000,12 +1016,12 @@ Only after the tree is still (no agents running, nothing else building):
    ADR-0006 set.
 3. `probeCellOwnership` clean on both variants — larger pieces make overlaps far
    easier to author by accident.
-4. A **new probe**: no `gy === 0` block with a plan diagonal > 8 m (§4.2
+4. `probeGradeDiagonal`: no `gy === 0` block with a plan diagonal > 8 m (§4.2
    clause 1). This is the grain rule made checkable, and it lives in the shared
    contract rather than in a scene file.
-5. A **new probe**: placement step equals piece extent on every axis
+5. `probePlacementStep`: placement step equals piece extent on every axis
    (`.wiki/modules/voxel.md` rule 10, generalised).
-6. A **new probe, and the one that keeps hand 2 honest**: per declared district,
+6. `probeDistrictDensity`, **the one that keeps hand 2 honest**: per declared district,
    the mean gap between consecutive eatable pieces along the scene's own
    scripted route stays under 15 m, and no district falls below the scene's
    median eatable-pieces-per-m² by more than half. That makes the combo dead

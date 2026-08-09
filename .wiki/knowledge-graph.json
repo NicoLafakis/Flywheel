@@ -1,7 +1,7 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-09T22:12:53+00:00",
+    "generatedAt": "2026-08-09T22:42:11+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
@@ -9,7 +9,7 @@
       "symbols": 153,
       "edges": 33,
       "modules": 2,
-      "reusedFromCache": 31
+      "reusedFromCache": 34
     }
   },
   "files": {
@@ -1199,8 +1199,8 @@
     },
     "js/voxelworld.js": {
       "lang": "javascript",
-      "hash": "a4c1dbc151bfdd521b15099b2c5baf9f976ae437305e9b88fb59b1f30098aa3b",
-      "loc": 2424,
+      "hash": "afed5da2b72f14ae2f1fab6e97f5f0e327fc302124663495d0a9f9055f921835",
+      "loc": 2472,
       "module": "js",
       "symbols": [],
       "imports": []
