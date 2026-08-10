@@ -141,6 +141,7 @@ import {
   hotDogCart, mailbox, drinkingFountain, fenceRun, bus,
   naveChurch, playgroundSet,
   basinRim, tieredFountain, pathRibbon, pergola, rowBoat, balustrade, pavilion,
+  waterTower,
 } from './voxelkit.js';
 
 // See the palette note in the header: authored, unmeasured. `sp()` marks the two
@@ -499,6 +500,83 @@ const C = {
   shoreFence: 0x3b4a3e,
   bridgeStone: 0x9a9488,
   bridgeRail: 0xc7c0ac,
+
+  // --- DISTRICT 9, THE LANDMARK SHELF -----------------------------------
+  // `03` §4's palette column for this district is the only one in the table that
+  // refuses to name a bank: it says "per landmark". That is the right call and it
+  // is also the district's whole colour problem — nine objects from six decades
+  // and four cities, none of which shares a wall with any other, all read at once
+  // from the middle of the map. So the values below are grouped by LANDMARK
+  // rather than by material, and every group is anchored to a line `03` §3 or `02`
+  // §3 already wrote about that specific object.
+  //
+  // THE ONE PLACE SATURATION IS ALLOWED, and it is allowed loudly. `03` §3 puts
+  // brushed metal at "~zero chroma — except Stata's base, which carries
+  // deliberately clashing high-chroma orange and yellow brick", and names the
+  // Stata Center alongside the transit accents as supplying "almost all the
+  // saturation in the frame". Everything else on this shelf is granite, limestone,
+  // concrete or white steel, which is what makes those four base volumes work.
+  shelfGranite: 0x8b8d85,     // Longfellow towers and piers, Bunker Hill's shaft
+  shelfGraniteDeep: 0x74766f,
+  shelfGraniteWarm: 0x9a9184, // the monument's base courses and the hill terrace
+  shelfLime: 0xcac3ae,        // the Great Dome and the Killian range — `03` §3's
+  shelfLimeDeep: 0xb3ab96,    // "limestone, pale warm grey", low chroma
+  shelfLimeBand: 0xd7d1bf,
+  shelfGlass: sp(0x5d757d),
+  shelfMullion: 0x434a50,
+  shelfSteel: 0x6e757b,
+  shelfDeck: 0xa4a099,
+  shelfPrecast: 0xa7a49b,
+  shelfPrecastWarm: 0xb2a999,
+  shelfBand: 0xc2bfb6,
+  shelfParapet: 0x8d8a82,
+  // The ground plane. `03` §8.2 is blunt that this district's mitigation IS the
+  // ground — "each landmark sits on an authored block: a plinth, a lawn edge, a
+  // kerb, a fence run, a row of parked vehicles" — so it gets as many named tones
+  // as the buildings do.
+  shelfKerb: 0x9c998f,
+  shelfApron: 0x8e8b84,
+  shelfPath: 0xa9a396,
+  shelfFence: 0x3d453c,
+  shelfLawnEdge: 0x4b6040,
+  shelfCanopy: 0x5e6962,
+  shelfShop: sp(0x6b838c),
+  // The Stata Center. `02`: "leaning brushed-metal cylinders and wedges that look
+  // like they are falling over, mismatched orange and yellow brick volumes at the
+  // base, a crumpled silver tower with no vertical line in it."
+  statSilver: 0xb9bcc0,
+  statSilverDeep: 0x9aa0a6,
+  statGlass: sp(0x6f8a93),
+  statOrange: 0xc4622a,       // the clashing base volumes — the highest chroma in
+  statOrangeDeep: 0xa8501f,   // the scene's west half, and deliberately so
+  statYellow: 0xcf9a2c,
+  statYellowDeep: 0xb0801d,
+  statBrickBand: 0xd8cdb4,
+  // The Zakim. `02`: two white inverted-Y masts, two fans of cables, a wide flat
+  // deck threading THROUGH the legs.
+  zakimWhite: 0xdcd9d0,
+  zakimCable: 0x9ea3a8,
+  zakimDeck: 0x8f8c85,
+  zakimRail: 0x5a6167,
+  // The Longfellow. Granite above, steel arches below, and the ONE place in the
+  // scene a Red Line car may appear (`02` §2.3, explicit).
+  lfSteel: 0x5b6268,
+  lfDeck: 0x8a8780,
+  redLineSilver: 0xc6c9cc,
+  redLineRed: 0xc0392b,
+  // The NECCO building. `02`: a long brick factory with a rooftop water tower.
+  // Warmer and sootier than the Davenport's seven tones, because it is a
+  // 1920s industrial slab rather than an 1860s mill row.
+  neccoBrick: 0x9a5238,
+  neccoBrickDeep: 0x84452e,
+  neccoTank: 0x7d6248,
+  neccoBand: 0xb8ae9b,
+  // TD Garden. `02`: "recognizable mostly by WHERE it is rather than by shape."
+  // One tone, one band, no detail spent — the palette says the same thing the
+  // massing does.
+  gardenPrecast: 0x9b9891,
+  gardenBand: 0xb4b1a8,
+  gardenRoof: 0x7f8288,
 };
 
 // --- THE MAP -----------------------------------------------------------------
@@ -608,9 +686,9 @@ export const CAMBRIDGE_OFFSETS = [
   { id: 9, name: 'Twenty|20 at Cambridge Crossing', plan: null, height: 86, E: 375, N: 156,
     conf: 'Storeys: Confirmed (OSM, 20). Height: est.' },
   { id: 10, name: 'CambridgeSide (20 CambridgeSide corner)', plan: [120, 90], height: 43, E: -14, N: -352,
-    conf: 'Position: Confirmed. Storeys: Confirmed (10). Footprint: est.' },
+    conf: 'Position: Confirmed. Storeys: Confirmed (10). Footprint: est. BUILT AT P6.9 (both blocks), 11.7 m north of the seat — District 6 deferred it, District 8 passed it on, and P6.9 is the task whose rect reaches it' },
   { id: 11, name: 'Royal Sonesta Boston', plan: null, height: 47, E: 98, N: -397,
-    conf: 'Storeys: Confirmed (OSM, 11). Height: est.' },
+    conf: 'Storeys: Confirmed (OSM, 11). Height: est. BUILT AT P6.9, centre (+46,+87.5) against seat (+46,+91) — 3.5 m, and the best-seated building on the shelf: the south band was laid out around it' },
   { id: 12, name: 'Museum of Science', plan: [250, 60], height: 25, E: 428, N: -301,
     conf: 'Position: Confirmed. Dimensions: est. (spans the dam; 4 levels). PLAN 1:5, not 1:3 — `03` §1.5 exception 3' },
   { id: 13, name: 'Charles River Dam / Craigie Bridge', plan: [200, null], height: 6, E: 594, N: -332,
@@ -666,17 +744,17 @@ export const CAMBRIDGE_OFFSETS = [
   { id: 27, name: 'Third Congregational Church', plan: null, height: null, E: -335, N: -36,
     conf: 'Position: Confirmed (OSM). Storeys, footprint AND height: `02` gives none — the only row in this table with no height at all. `02` §7 puts active places of worship under "handle with care"' },
   { id: 28, name: 'Chang Shing Tofu Factory', plan: null, height: 3.5, E: -238, N: -433,
-    conf: 'Position: Confirmed (OSM). Storeys: Confirmed (1). Height: est. (1 × 3.5, industrial). CONFLICT: `02` §4 calls it "240 m southwest" but these offsets give a real radius of 494 m — the prose figure matches |E| alone. Offsets used; see the P6.4 report' },
+    conf: 'Position: Confirmed (OSM). Storeys: Confirmed (1). Height: est. (1 × 3.5, industrial). CONFLICT: `02` §4 calls it "240 m southwest" but these offsets give a real radius of 494 m — the prose figure matches |E| alone. Offsets used; see the P6.4 report. BUILT AT P6.9, centre (−40,+96) — 2 m from the seat, and the P8.5-style owner review District 4 flagged is moot: the map now reaches it' },
   { id: 29, name: 'Centanni Park', plan: null, height: 0, E: -252, N: -16,
     conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground)' },
   { id: 30, name: 'Silva Park', plan: null, height: 0, E: -413, N: 66,
     conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground). One of the two Portuguese park names `02` §4 calls "the neighbourhood telling you what it is"' },
   { id: 31, name: 'Costa Lopez Park', plan: null, height: 0, E: -314, N: -251,
-    conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground). The other Portuguese park name — and it derives to z +71.75, 42 m south of `03` §4.4\'s own rect for the district that owns it' },
+    conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground). BUILT AT P6.9, lawn centre (−71,+69) — District 4 said "whichever of P6.5/P6.10 is genuinely adjacent picks it up", and this is that task. It derives to z +71.75, 42 m south of `03` §4.4\'s own rect for the district that owns it' },
   { id: 32, name: 'Timothy J. Toomey, Jr. Park', plan: null, height: 0, E: -366, N: -399,
-    conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground)' },
+    conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground). BUILT AT P6.9 as a lawn centred (−55,+85) — 8.8 m from the seat, which is what American Twine\'s own footprint leaves beside it' },
   { id: 33, name: 'American Twine Office Park', plan: null, height: 10.5, E: -328, N: -342,
-    conf: 'Position: Confirmed (OSM). Storeys: Confirmed (3). Height: est. (3 × 3.5, converted mill). Footprint: `02` gives none' },
+    conf: 'Position: Confirmed (OSM). Storeys: Confirmed (3). Height: est. (3 × 3.5, converted mill). Footprint: `02` gives none. BUILT AT P6.9, centre (−70,+83) — 5.1 m from the seat' },
   // ROWS 34-35 ADDED AT P6.5, and both are transcribed rather than built. `03`
   // §4.5 names them as District 5 line items (900 and 700 blocks); `02` §2.4
   // gives both a Confirmed offset and a footprint; and `sceneOffset` puts both
@@ -724,9 +802,9 @@ export const CAMBRIDGE_OFFSETS = [
   { id: 36, name: 'Tango (apartments)', plan: null, height: 51.6, E: 214, N: 94,
     conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (12). Height: est. (12 × 4.3). Footprint: `02` gives none' },
   { id: 37, name: 'Hult House (dormitory)', plan: null, height: 51.6, E: 468, N: 93,
-    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (12). Height: est. Footprint: `02` gives none. DEFERRED — derived seat (+108.5,−55.75) is 12 m past the built map\'s east edge, see the district header' },
+    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (12). Height: est. Footprint: `02` gives none. BUILT AT P6.9 at centre (+111,−56), 2.5 m from the seat, once `maxX` reached 132. It was 12 m past the then-built map\'s east edge, see the district header' },
   { id: 38, name: 'Education First HQ', plan: null, height: 51.6, E: 622, N: -35,
-    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (12). Height: est. Footprint: `02` gives none. `02` §7 and `03` §4.7: massing only, NO WORDMARK. DEFERRED — derived seat (+119,−27.75) is 22 m past the built map\'s east edge' },
+    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (12). Height: est. Footprint: `02` gives none. `02` §7 and `03` §4.7: massing only, NO WORDMARK. RE-DEFERRED AT P6.9, and on ground rather than on map extent: the seat is 3 m INSIDE District 8\'s `HARBOUR_REACH` water rect (x[116,124] z[−64,+4]), and every dry seat within 10 m is either District 8\'s North Point Park north finger (x[108,116] z[−32,−6], furnished with a bosque, a seat run, a fence and the reach\'s coping) or District 7\'s own rect. The nearest clear ground is 15 m away, which is further than District 8 moved anything, and this district\'s Charlestown bank plane covers it at a twentieth of the cost. It is also 22 m past the P6.7-era map\'s east edge' },
   { id: 39, name: 'AVA East', plan: null, height: 25.8, E: 177, N: 24,
     conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (6). Height: est. (6 × 4.3). Footprint: `02` gives none' },
   { id: 40, name: 'AVA West', plan: null, height: 25.8, E: 106, N: 69,
@@ -738,7 +816,7 @@ export const CAMBRIDGE_OFFSETS = [
   { id: 43, name: 'The Common at CX', plan: null, height: 0, E: 217, N: 157,
     conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground)' },
   { id: 44, name: 'Viaduct Courts', plan: null, height: 0, E: 310, N: -73,
-    conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground). DEFERRED — derived seat (+106,−7.5) with any usable lawn carries `maxX` past 116 and `maxZ` into District 8\'s unbuilt shore' },
+    conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground). RE-DEFERRED AT P6.9: the seat falls in the 2 m strip between District 8\'s North Point Park main lawn (x[72,116] z[−6,+8]) and its north finger (x[108,116] z[−32,−6]), so there is no lawn to add here that is not already lawn — the ground this row asks for is built, under another district\'s name. It also carries `maxX` past 116 and `maxZ` into District 8\'s unbuilt shore' },
   // ROWS 45-51 ADDED AT P6.8, for the third time and the same reason rows 26-33
   // landed at P6.4 and rows 36-44 at P6.7: `03` §4.8 names eleven things and
   // `02` §2.2/§2.4/§2.5 gives seven of them a Confirmed OSM offset that had never
@@ -770,9 +848,9 @@ export const CAMBRIDGE_OFFSETS = [
   { id: 49, name: 'Science Park', plan: null, height: 0, E: 416, N: -291,
     conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground). Seat (+106,+35.75) — the Museum\'s own ground, which is what a park named Science Park is' },
   { id: 50, name: 'Charlesgate Yacht Club', plan: null, height: null, E: 193, N: -386,
-    conf: 'Position: Confirmed (OSM, `02` §2.2). Footprint and height: `02` gives none. DEFERRED — derived seat (+68.25,+78.75) is 17.75 m south of the built map\'s edge; see the district header on the south band' },
+    conf: 'Position: Confirmed (OSM, `02` §2.2). Footprint and height: `02` gives none. BUILT AT P6.9, clubhouse centre (+66,+77.5), 2.6 m from the seat, with its jetty and two moored hulls on the basin. It was 17.75 m south of the P6.8-era map\'s edge; see the district header on the south band' },
   { id: 51, name: '55 Cambridge Parkway', plan: null, height: 38.7, E: 26, N: -488,
-    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (9). Height: est. (9 × 4.3). Footprint: `02` gives none. DEFERRED — derived seat (+26,+99.75) is 38.75 m south of the built map\'s edge' },
+    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (9). Height: est. (9 × 4.3). Footprint: `02` gives none. BUILT AT P6.9 at centre (+27.5,+90.5) — 9.4 m north of the seat, which is what the promenade coping and the Royal Sonesta\'s own plinth band leave between them. It was 38.75 m south of the P6.8-era map\'s edge' },
 ];
 
 // `03` §1.2's law, in one function: real (E, N) offset in true-north metres →
@@ -1232,6 +1310,36 @@ export const CAMBRIDGE_VEHICLES = [
   { kind: 'sedan', x: 94, z: 9.5, axis: 'x', body: 0x8a6a2e, roof: 0x8a6a2e, d: 8 },
   { kind: 'sedan', x: 86, z: 12.5, axis: 'x', body: 0x4a4f57, roof: 0x4a4f57, d: 8 },
   { kind: 'boxVan', x: 104, z: 12.5, axis: 'x', len: 7, cab: C.duckBoat, box: C.duckBoat, d: 8 },
+  // District 9. NONE OF THESE IS ON A ROAD, and that is deliberate rather than
+  // sloppy: this district declares no `roads` rect anywhere, because the one
+  // corner of the map where it would want a carriageway (the Charlestown
+  // approach) already carries a bridge deck, a bank coping and District 8's park
+  // lawn overlapping each other, and `probeRoadConflicts` fails any physical
+  // block inside a roadway rect whether or not the road is the thing that was
+  // wrong. `03` §8.2 names "a row of parked vehicles" among the authored blocks a
+  // shelf landmark may sit on; these stand on the aprons, which is what an apron
+  // is for and what keeps the ground plane eatable between two 60 m masses.
+  //
+  // THE TWO RANKS ON THE DAM ROAD ARE LOAD-BEARING FOR A PROBE, and it is worth
+  // saying so because they look like decoration. District 8's `LOCK_CUT` and
+  // `HARBOUR_MOUTH` both took their `probeRimmedWater` exemption from touching
+  // `maxX` at 124; this task moves the edge to 132 and revokes it, so both need a
+  // complete rim for the first time. Their facing rings are the two rows of cells
+  // at z 8 and z 13 — which is the middle of Charles River Dam Road, District 8's
+  // own carriageway. Nothing may be BUILT there (`probeRoadConflicts` fails any
+  // physical block inside a roadway rect) and nothing may be flooded there
+  // (`probeWaterOverSurfaces` fails water over a road), so the only legal object
+  // that can carry those cells is the one the roads probe already exempts: a
+  // declared vehicle. `03` §8.2 names "a row of parked vehicles" among the
+  // authored blocks a shelf landmark may sit on; here it is the only thing that
+  // can be. Three per rank, abutting, covering x 111–126.
+  { kind: 'sedan', x: 108.5, z: -46.5, axis: 'x', body: 0x30343b, roof: 0x30343b, d: 9 },
+  { kind: 'sedan', x: 108.5, z: -68, axis: 'x', body: 0xd8d3c6, roof: 0x8d2f28, d: 9 },
+  { kind: 'sedan', x: -6, z: 74, axis: 'x', body: 0x2f4756, roof: 0x2f4756, d: 9 },
+  { kind: 'sedan', x: 14, z: 75, axis: 'x', body: 0x8a6a2e, roof: 0x8a6a2e, d: 9 },
+  { kind: 'sedan', x: -36, z: 77, axis: 'x', body: 0x8d2f28, roof: 0x8d2f28, d: 9 },
+  { kind: 'sedan', x: 108.5, z: -76, axis: 'x', body: 0x2f6b4f, roof: 0x2f6b4f, d: 9 },
+  { kind: 'sedan', x: -118, z: 73, axis: 'x', body: 0xd8d3c6, roof: 0xd8d3c6, d: 9 },
 ];
 
 // Overhead spans: the ONE case where a physical block may stand inside a
@@ -1399,6 +1507,24 @@ export const CAMBRIDGE_OPEN_GROUND = [
 // that is promised. If P6.9 or P6.10 wants the Charles span for documentation
 // after carrying `maxZ` south, it can have it — but it will have to draw it over
 // water that has boats on it, and it still will not move the census.
+
+// P6.9 DECLARES NOTHING HERE EITHER, AND IT IS THE TASK THAT COULD HAVE. It carries
+// `maxZ` to +116, which is the one thing District 8 said `03` §1.4's Charles span
+// was missing: "declaring §1.4's span needs `maxZ` at +116, which is P6.9's move
+// for the Longfellow itself." The move is made and the span is still not declared,
+// for District 8's reason 2 rather than its reason 3 — the Charles south of the
+// Longfellow line is not empty here either. This district puts the Longfellow's own
+// four bents, three arch haunches, four salt-and-pepper towers and a Red Line car
+// on it, and the water either side carries the yacht club's jetty and two moored
+// hulls. A span drawn to dodge them would be a rect shaped by a clause rather than
+// by the ground.
+//
+// So `03` §1.4's list is settled at ONE declarable span, not four and not two: the
+// Inner Belt ballast, declared at P6.3. The canal basin fell to District 6's
+// argument that authoring the water is strictly better than promising not to build,
+// the Zakim channel sits under its own deck (and now under this district's Zakim
+// specifically), and the Charles is water that is built rather than ground that is
+// promised. P6.10 has the reconciliation; there is nothing left here to declare.
 
 // `probeDistrictDensity` reads these. Districts 1 and 2 exist in this file, so
 // the density-floor clause (half the scene median) is now a real two-row
@@ -2022,6 +2148,85 @@ export const CAMBRIDGE_DISTRICTS = [
                       // against: "a player driving the shore never leaves the
                       // spine."
   },
+  // DISTRICT 9 IS THREE ROWS, NOT ONE, AND `03` §4 GIVES IT NO RECT AT ALL. The
+  // full argument is in the district's own header; the short form is that "the
+  // Ring B annulus, all edges" is the one shape that cannot be refined against
+  // built geometry, that a single row would average three places 240 m apart, and
+  // that teaching `probeDistrictDensity` an annulus is a change to a contract four
+  // other scenes sign. Three per-edge bands, each measured against what stands in
+  // it, each able to fail on its own.
+  //
+  // EACH ROW CARRIES A THIRD OF §4.9's 8,580, SPLIT BY WHAT IS IN IT rather than
+  // evenly: the MIT range holds five of the nine landmarks §5.1 tables, the south
+  // shore holds one landmark plus five recovered deferrals, and Charlestown holds
+  // three landmarks and one recovered deferral.
+  {
+    id: '9W',
+    name: 'Landmark Shelf — the MIT range',
+    // MEASURED AGAINST WHAT STANDS. West to `maxX`'s own edge at −120, where the
+    // NECCO slice's west gable is; east to −52, which is Kendall plaza's east kerb
+    // and the last metre before Toomey Park's lawn hands over to the south band;
+    // north to +62, one metre south of District 5's Thorndike Street edge at +61
+    // so the two share nothing; south to +110, the MIT river front's own coping.
+    rect: { minX: -120, maxX: -52, minZ: 62, maxZ: 110 },
+    budget: 3400,     // A third of §4.9's 8,580, apportioned by what is in the
+                      // band rather than evenly — this one holds five of the nine
+                      // landmarks §5.1 tables. MEASURED: 3,962 pieces over 1,667
+                      // cells, 2.377 piece(s)/m² against a floor of 1.76, with
+                      // ONE piece inside a neighbour's rect (a single member
+                      // standing exactly on the x −52 line this row and 9S share).
+                      // It is the thinnest density in the scene and that is what a
+                      // shelf is: six landmarks and 1,600 m² of campus ground
+                      // between them. The mean inter-piece gap along the route is
+                      // 0.14 m and the worst hole 17.0 m against a 25 m ceiling.
+    gapFloor: 15,     // `03` §8.2's floor for District 9, joint most forgiving
+                      // with District 8 and equal to the scene-wide ceiling.
+  },
+  {
+    id: '9S',
+    name: 'Landmark Shelf — the south shore & the Longfellow',
+    // MEASURED AGAINST WHAT STANDS. West to −52, abutting 9W; east to +70, the
+    // yacht club's own jetty and District 8's basin edge, which District 6 already
+    // uses as its own maxX; north to +61, District 5's south edge; south to +116,
+    // the map's own edge, which the Longfellow's deck runs out through.
+    rect: { minX: -52, maxX: 70, minZ: 61, maxZ: 116 },
+    budget: 3400,     // MEASURED: 5,926 pieces over 2,404 cells, 2.465/m². It is
+                      // the largest of the three bands because it is where five of
+                      // this task's recovered deferrals stand — both CambridgeSide
+                      // blocks, the Royal Sonesta, 55 Cambridge Parkway and the
+                      // Charlesgate Yacht Club — none of which §4.9 ever priced,
+                      // because none of them is District 9's on paper. Mean gap
+                      // 0.13 m, worst hole 10.7 m.
+    gapFloor: 15,
+  },
+  {
+    id: '9E',
+    name: 'Landmark Shelf — Charlestown & the Zakim',
+    // MEASURED AGAINST WHAT STANDS, and the north/south edges are the two that
+    // cost something. North is the map edge at −112, which Monument Square's own
+    // lawn reaches. South stops at −8 rather than at TD Garden's block, because
+    // District 8's rect is x[70,124] z[−8,+61] and every metre south of −8 in this
+    // band is District 8's dam, lock chamber and quay — annexing them is the move
+    // District 3 refused at §4.3's rect, District 4 at §4.4's, District 7 at its
+    // own AVA West edge and District 8 at Archstone.
+    //
+    // SO TD GARDEN STANDS IN NO DECLARED RECT, and it is 253 pieces. It is the
+    // fourth object in the scene with that disposition — District 1 gave it to
+    // Sierra and Thomas Graves Landing, District 7 to the Glass Factory — and the
+    // alternative was worse in a way worth stating: a fourth row drawn round the
+    // Boston edge (x[124,132] z[−8,+61]) would hold TD Garden's 253 pieces over
+    // 144 cells at 1.76/m², below the scene's own half-median floor, so declaring
+    // it would fail the probe on a building `02` §3 says has nothing to draw.
+    // West is +107.5 rather than +107, half a metre clear of District 7's own
+    // maxX, so no piece is inside both.
+    rect: { minX: 107.5, maxX: 132, minZ: -112, maxZ: -8 },
+    budget: 1780,     // MEASURED: 2,068 pieces over 625 cells, 3.309/m² — the
+                      // densest of the three, because Charlestown is one monument,
+                      // one tower and a long kerb line rather than a campus. Mean
+                      // gap 0.13 m, worst hole 7.6 m. Zero pieces inside a
+                      // neighbour's rect.
+    gapFloor: 15,
+  },
 ];
 
 // The scripted excursion, `03` §9.5: the Davenport's long axis and back along
@@ -2060,11 +2265,14 @@ export const CAMBRIDGE_DISTRICTS = [
 // here hug furnished ground harder: the Canal Park leg runs 0.75 m off the
 // food-truck row rather than down the crown of the carriageway.
 //
-// CURRENT LENGTH, kept here so nothing downstream has to count: 100 legs,
-// 1,522.2 m of arc, 587 s. It was 62 s at P5, 105 at P6.2, 185 at P6.3, 245 at
+// CURRENT LENGTH, kept here so nothing downstream has to count: 134 legs,
+// 2,178.0 m of arc, 780 s. It was 62 s at P5, 105 at P6.2, 185 at P6.3, 245 at
 // P6.4's first draft, 256 once leg 4 was extended to the savings bank's park
 // front, 337 once P6.5 added leg 5, 402 once P6.6 added the canal loop, 510 once
-// P6.7 added the tower ring and 587 once P6.8 added the shore circuit. `03`
+// P6.7 added the tower ring, 587 once P6.8 added the shore circuit and 780 once
+// P6.9 added the shelf drive — the last of which is 613 m of arc for 193 s, because
+// it is paced at ~6 m of arc per second against every earlier district's ~2.6; the
+// reasoning is at the leg block itself. `03`
 // §7.4's own column says leg 4 should LEAVE at ~3 min; the drift is P6.2's and
 // P6.3's prepends, not any one leg's pace, and it compounds with every district
 // added ahead of the ones already written.
@@ -2404,6 +2612,67 @@ export const CAMBRIDGE_ROUTE = [
   // parks, so the last one runs out along the garage's west apron and its ramp
   // rather than stopping against a wall the hole has already emptied.
   { until: 587, x: 93, z: 17 },
+  // --- DISTRICT 9: THE SHELF DRIVE. `03` §7.4 files "the Landmark Shelf" among
+  // its optional loops — "the late-game drive when the hole is fast enough that
+  // 340 m is 13 seconds" — so this is not §7.4's leg 6 either, and it is here for
+  // the reason Districts 6, 7 and 8 put theirs here: `probeDistrictDensity`
+  // measures gaps ALONG this route, and a district the route never enters is
+  // REPORTED rather than gated. Three rows, three passes, or the scene's
+  // highest-risk district is the one nobody checks.
+  //
+  // IT IS PACED AT ~6 m OF ARC PER SECOND AND EVERYTHING BEFORE IT AT ~2.6, and
+  // that is a deliberate use of the finding P6.8 recorded in this file's own
+  // header: "the density probe measures gaps along the route's ARC and never
+  // reads a leg's duration, so tightening the `until` values costs the probe
+  // nothing and only the excursion's own eaten/size figures move." 613 m of shelf
+  // at the earlier districts' pace would have been 236 s of route on top of 587,
+  // and the validator drives the whole thing twice with a cost per second that is
+  // superlinear in the hole's SIZE. At SIZE 6 the hole moves ~18 m/s, so 6 m/s of
+  // arc is still four legs of slack; what it buys is 105 s instead of 236 for the
+  // same polyline, and the polyline is the only thing the probe reads.
+  //
+  // THE ORDER IS EAST, SOUTH, WEST, which is also the order the three bands fall
+  // in from where District 8's circuit ends. Each band gets ONE contiguous pass —
+  // `probeDistrictDensity` scores gaps per pass and a route that leaves and
+  // re-enters a rect is not charged for the stretch outside it, so a single clean
+  // pass per band is both the honest measurement and the cheap one.
+  { until: 592, x: 104, z: 4 },        // north off the Museum's forecourt
+  { until: 597, x: 111, z: -14 },      // onto the Charlestown approach, into 9E
+  { until: 600, x: 116, z: -16 },      // east under the Zakim's deck
+  { until: 604, x: 126, z: -16 },      // out along it to the far mast
+  { until: 608, x: 114, z: -22 },      // back west onto the north abutment apron
+  { until: 614, x: 109, z: -48 },      // north up the approach past Hult House
+  { until: 620, x: 108, z: -76 },      // on toward Monument Square
+  { until: 625, x: 110, z: -95 },      // into the square, round the monument's hill
+  { until: 630, x: 114, z: -80 },      // back south down the bank's own kerb line
+  { until: 638, x: 115, z: -34 },      // along the reach's coping, out of 9E
+  { until: 644, x: 124, z: 8 },        // southeast onto TD Garden's forecourt
+  { until: 652, x: 100, z: 34 },       // west across District 8's parkway
+  { until: 660, x: 68, z: 70 },        // southwest onto the south lawn, into 9S
+  { until: 665, x: 62, z: 84 },        // to the yacht club's yard
+  { until: 671, x: 48, z: 84 },        // west along the Sonesta's apron
+  { until: 676, x: 26, z: 84.5 },      // past 55 Cambridge Parkway
+  { until: 682, x: 8, z: 96 },         // southwest onto the Cambridge Parkway strip
+  { until: 686, x: 8, z: 100.5 },      // to the Longfellow's abutment
+  { until: 692, x: 20, z: 100.5 },     // east along the reach's coping
+  { until: 700, x: -10, z: 100 },      // back west, on the promenade's own line
+  { until: 706, x: -30, z: 78.5 },     // northwest onto CambridgeSide's kerb
+  { until: 713, x: -48, z: 69 },       // west along the walk to Toomey Park
+  { until: 718, x: -56, z: 84 },       // into the park, out of the south band
+  { until: 724, x: -60, z: 96 },       // northwest to Kendall plaza's east kerb
+  { until: 728, x: -61, z: 102.5 },    // into 9W, along the plaza's south walk
+  { until: 733, x: -74, z: 103.5 },    // west past the Green Building's pilotis
+  { until: 739, x: -91, z: 104 },      // onto Killian Court's north edge
+  { until: 744, x: -100, z: 104 },     // to the court's west corner
+  { until: 750, x: -103, z: 94 },      // north onto the Great Dome's forecourt
+  { until: 756, x: -95, z: 93.5 },     // east along Stata's amphitheatre steps
+  { until: 762, x: -100, z: 73 },      // northwest round Stata's own block kerb
+  { until: 768, x: -113, z: 72 },      // west to the NECCO yard
+  // IT DOES NOT END AT THE NECCO SLICE'S DOOR. `03` §9.5's rule is that a leg
+  // never parks, so the last one runs south down the yard's edge onto the river
+  // promenade rather than stopping against a wall the hole has already emptied.
+  { until: 774, x: -116, z: 92 },
+  { until: 780, x: -110, z: 107.5 },
 ];
 
 // "Do not put the mark on the wrong building." The Davenport carries a painted
@@ -6862,11 +7131,23 @@ const CHARLES_BASIN = [
   { x: 76, z: 52, w: 48, d: 4 },
   { x: 70, z: 56, w: 54, d: 5 },
 ];
-const LOCK_CUT = { x: 112, z: 14, w: 12, d: 22 };
+// P6.9 WIDENED THIS RECT AND `HARBOUR_MOUTH` FROM w 12 TO w 20, and it is a
+// correction to a DECLARATION rather than a change to any geometry — no block in
+// this district moves. Both took their `probeRimmedWater` exemption from touching
+// `maxX` at 124; P6.9 moves the map edge to `03` §1.1's 132 for the Zakim and
+// revokes it, and the two rings they then need are the cells at z 13 and z 8,
+// which are the middle of Charles River Dam Road's own carriageway. Nothing may be
+// built there (`probeRoadConflicts`) and nothing may be flooded there
+// (`probeWaterOverSurfaces`), so neither rect can be rimmed at all where it stands.
+// Running both out to the new edge restores exactly the property they were
+// authored with, and it is also what a cut through a dam does: it continues into
+// the harbour. This district's own header told the next task to re-run the probe
+// before assuming a neighbour's water was still exempt; this is that task doing it.
+const LOCK_CUT = { x: 112, z: 14, w: 20, d: 22 };
 const HARBOUR_REACH = { x: 116, z: -64, w: 8, d: 68 };
 // The reach widens west at the dam's foot, so the dam wall has water on both
 // sides of it and reads as a dam rather than as a road on a bank.
-const HARBOUR_MOUTH = { x: 112, z: 4, w: 12, d: 4 };
+const HARBOUR_MOUTH = { x: 112, z: 4, w: 20, d: 4 };
 const PARK_INLET = { x: 108, z: -4, w: 8, d: 8 };
 const CHARLES_WATER = [...CHARLES_BASIN, LOCK_CUT, HARBOUR_REACH, HARBOUR_MOUTH, PARK_INLET];
 
@@ -7908,6 +8189,1298 @@ export const CHARLES_AMBIENT = {
   steam: [{ x: 100, z: 16, rate: 0.15 }],
 };
 
+// --- DISTRICT 9 — THE LANDMARK SHELF (P6.9) ----------------------------------
+// `03` §4.9 and §5. The Stata Center, the Great Dome and Killian Court, the
+// Longfellow, the Zakim, Bunker Hill, the MIT Green Building, Kendall/MIT and the
+// NECCO water tower — "the horizon, the recognition payoff, the endgame drive",
+// and the one district `03` §8.2 rates HIGHEST risk.
+//
+// THIS DISTRICT HAS NO RECT IN `03` §4, AND THAT IS THE FIRST THING IT HAD TO
+// DECIDE. §4 calls its extent "the Ring B annulus, all edges" and `05`'s P6.9 line
+// states the trap plainly: a full-map rect would swallow the Ring A core, its
+// density would be carried by eight neighbours' brickwork, and the scene's
+// highest-risk district would be the one district that can never fail the probe.
+// The choice was between teaching `probeDistrictDensity` an annulus shape and
+// declaring per-edge bands. THREE PER-EDGE BAND ROWS, and the reasoning is three
+// things, in order of weight:
+//
+//   1. AN ANNULUS IS STILL A SHAPE DRAWN BY A CLAUSE RATHER THAN BY THE GROUND.
+//      The outer boundary would be the map and the inner one an arbitrary radius,
+//      and neither is measured against anything built. Every district from 3 to 8
+//      refined its rect against what stands — that is the discipline that caught
+//      Sierra in District 3's, 2,007 of District 2's pieces in District 4's and
+//      Archstone in District 8's — and an annulus is the one shape that cannot be
+//      refined that way, because it has no edge that touches a building.
+//   2. IT WOULD STILL BE ONE ROW FOR THREE UNRELATED PLACES. The MIT range, the
+//      south shore and Charlestown are 240 m apart and share no ground, no
+//      palette and no route leg. One row averages them, and an average is exactly
+//      what §8.1 says the ≤15 m rule must never be measured as: "the chain has no
+//      opinion about the map as a whole." Three rows can each fail on their own.
+//   3. IT IS A CHANGE TO A SHARED PROBE FOUR OTHER SCENES SIGN. `03` §9.2's whole
+//      argument for the 19-probe contract is that "a probe that drifts per scene
+//      stops being a contract"; teaching it a second rect algebra for one district
+//      is the drift, and `probeDistrictDensity` already accepts as many rows as a
+//      scene wants to declare. The cheap answer was available in the data.
+//
+// The cost is honest and worth stating: three rows instead of one move the scene
+// median that the half-median floor is derived from. Measured both ways in the
+// P6.9 report.
+//
+// THE TD GARDEN LAW-VS-DOC GAP, RESOLVED. `sceneOffset`'s header has carried this
+// since P6.1: the law seats TD Garden at (+132.25,+10.25), which is 0.25 m outside
+// `maxX` 132, and `03` §5.1 quietly prints (+130,+10) with no exception declared
+// anywhere in §1.5 or §5. It is DECLARED here rather than reproduced, as a fifth
+// entry in `03` §1.5's tradition, and the declaration covers two things rather
+// than one:
+//
+//   (a) POSITION. Hand-seated at (+128,−3), inside the rect. Two things force it
+//       and neither is a preference between readings. The law's own seat fails
+//       `probeBoundsRect` outright — geometry may not escape the rect — and once
+//       District 8's lock cut and harbour mouth are carried out to the new edge to
+//       keep their rims (see those two constants), the whole x[124,132] column
+//       between the Zakim and the dam is water except the strip z[−8,+4]. That
+//       strip is where the building goes, and it is 13 m from §5.1's printed seat.
+//       The move is worth naming because it is the district's largest, and worth
+//       accepting because of what `02` §3 says the building is recognisable BY:
+//       "mostly by WHERE it is — right at the Zakim's foot". At (+128,−3) it is
+//       13 m from the Zakim's deck; at (+130,+10) it was 26.
+//   (b) PLAN. 1:20, not Ring B's default 1:3. `02` §6 row 18 gives 200 × 150 m,
+//       which at 1:3 is 66 × 50 — a footprint that would cover the lock cut, the
+//       harbour mouth, the Zakim's whole west approach and 8 m of District 8's
+//       dam. §5.1 prints a 700-block "massing only" line and no dimension, so the
+//       plan figure was never stated; `02` §3 says the building is "recognizable
+//       mostly by WHERE it is rather than by shape", which is the licence to
+//       compress its plan harder than anything else on the shelf and the reason
+//       it costs nothing to do so.
+//
+// WHERE THE MAP GOES, AND WHY IT IS ALL OF IT. `CAMBRIDGE_BOUNDS` reaches `03`
+// §1.1's designed 252 × 228 m rect here rather than at P6.10, and both moved
+// edges are forced by a landmark this task owns: `maxX` 124 → 132 for the Zakim
+// (§1.4: "it is why the Zakim sits at x ≈ 131 against a `maxX` of 132") and
+// `maxZ` 61 → 116 for the Longfellow, whose Cambridge end seats at (+10.5,+113.25)
+// and for the whole MIT shelf, which seats between z +83 and z +107. P6.10 has no
+// rect left to widen, which is the right outcome: `05`'s "how the map metadata
+// grows" note asks each task to widen the rect to hug its own geometry, and this
+// is the task whose geometry is the perimeter.
+//
+// WHAT THAT COSTS AND WHAT IS BUILT TO PAY FOR IT. District 8 measured the south
+// band before deferring into it: carrying `maxZ` to ~105 opens 585 new dead-ground
+// samples, of which only ~140 were reachable from District 8's own ground. This
+// task opens more than that — `maxZ` 116 and `maxX` 132 together take the census
+// grid from 61 × 44 samples to 63 × 57, which is 907 new slots — and it is the
+// district that can reach all of them. Everything
+// in the south band that earlier tasks deferred is picked up here or re-deferred
+// with the arithmetic shown; the census figures are in the district rows below.
+//
+// THE MIT QUADRANGLE IS AUTHORED AT 1:5 IN PLAN, DECLARED. This is `03` §1.5
+// exception 3's move — the Museum of Science at 1:5 rather than 1:3 — applied to
+// the one group on the map where the same failure is four times worse. Ring B
+// compresses radius 41.9:1 past 340 m while leaving footprints at Ring A's 1:3,
+// so six landmarks spread over 1,000 real metres (NECCO r 2,054, the Great Dome
+// 1,706, Killian 1,778, the Green Building 1,530, Stata 1,519, Kendall 1,156)
+// arrive inside a 50 × 25 m patch. At 1:3 the Great Dome's range alone is 40 × 13
+// and Stata's block 43 × 37, and the two overlap by more than half their area
+// before the other four are placed. §5.2's own member table is re-proportioned to
+// the 1:5 plan; the HEIGHT law is untouched at 1:1.5, which is what keeps the
+// Green Building the tallest building in Cambridge (84 m real → 55 m scene) and
+// the Great Dome low and broad against `02`'s hard warning about that ratio.
+//
+// SEATS THAT MOVE, ALL RECORDED, ALL MEASURED AGAINST `sceneOffset`. The pattern
+// District 8 set — hold the pair that fixes the arrangement, move what has to
+// move, state the metres — applied across nine landmarks:
+//
+//   NECCO           built x[−119,−106] z[76,90], centre (−112.5,83) vs seat
+//                   (−119.5,83): 7.0 m east, and the west GABLE of the slice is on
+//                   the seat to the half metre. `03` §5.1 asks for "tower + a slice
+//                   of factory", so what is anchored is the slice's own west end at
+//                   the map edge rather than the centre of a building this scene
+//                   only builds a seventh of.
+//   Stata           centre (−91,79) vs (−93,92.25): 13.4 m, and it is the biggest
+//                   move in the MIT group. It goes north because the Great Dome's
+//                   range is south of it on the real campus and in the seats, and
+//                   at 1:5 the two need 23 m between their centres to stand clear;
+//                   it goes 2 m east because the NECCO slice's own plinth band
+//                   reaches x −105.25 and Stata's block kerb runs down x −105.
+//   Great Dome      centre (−94,97) vs (−92.25,98.5): 2.3 m — the tightest seat of
+//                   the six, which is right for the landmark `02` ranks first.
+//   Killian Court   lawn centre (−91,107.5) vs (−84.25,107): 6.8 m west, z within
+//                   half a metre. The court runs from the Dome's own colonnade to
+//                   the river coping, which is what a court between those two ends
+//                   IS, and that fixes its z before its x.
+//   Green Building  centre (−74.25,100.25) vs (−80.5,102.25): 6.6 m.
+//   Kendall/MIT     plaza centre (−59,98) vs (−70.75,98): 11.75 m east, z EXACT.
+//                   It moves east because the Green Building stands between it and
+//                   its seat and the Green Building's own seat is the tighter one.
+//   Longfellow      Cambridge abutment (+10.5,+102) vs (+10.5,+113.25): 11.25 m
+//                   north, x held EXACTLY — see the bridge's own note, which is
+//                   the largest single move on the shelf and the one with the
+//                   clearest arithmetic behind it.
+//   Zakim           deck centre z −16 vs seat z −16, EXACT; the deck's own centre
+//                   in x is off the map to the east and what is built is the
+//                   24 m of it inside the rect.
+//   Bunker Hill     (+111,−98) vs (+109.75,−100.25): 2.6 m.
+//   TD Garden       (+128,−3) vs §5.1's (+130,+10): 13.2 m, and vs the law's
+//                   (+132.25,+10.25): 13.9 m. It is the largest declared move in
+//                   the district and it is forced rather than chosen — see the
+//                   TD Garden paragraph above. What it buys is the thing `02` §3
+//                   says the building is recognisable BY: it now stands 13 m from
+//                   the Zakim's deck instead of 26.
+//   20 CambridgeSide centre (+8,+89) vs (+14.75,+98.25): 11.4 m northwest, which is
+//                   what the Longfellow reach's own north bank leaves for a 20 × 20
+//                   block once the promenade is laid outside it.
+//   Royal Sonesta   centre (+46,+87.5) vs (+46,+91): 3.5 m, x EXACT — the
+//                   best-seated building in the south band, and the anchor 55
+//                   Cambridge Parkway and the yacht club were laid out around.
+//
+// TWO ITEMS ARE RE-DEFERRED, and both fail on ground rather than on effort — see
+// `CAMBRIDGE_OFFSETS` rows 38 and 44 and the district rows below. Everything else
+// that was handed forward is built: District 4's Costa Lopez Park (5.7 m off its
+// seat) and Chang Shing Tofu Factory (2.0 m), District 6's two CambridgeSide blocks,
+// District 7's Hult House (2.5 m), District 8's Royal Sonesta (3.5 m), 55 Cambridge
+// Parkway, Charlesgate Yacht Club and the Cambridge Parkway park strip, plus the
+// two `03` §1.3 misfiles nobody had reached — American Twine and Toomey Park.
+//
+// WHAT §4.9 PRICES, AND THE DEFECT DISTRICTS 7 AND 8 BOTH FOUND, WORST HERE. §4.9
+// is one line ("Ring B. Detailed in §5") and §5.1's table is nine LANDMARKS
+// summing to 9,000, less 600 counted in Districts 6 and 8 and 180 reserved for
+// `04`'s G5 — the 8,580 in §4's table. There is not one line in it for a kerb, a
+// lawn edge, a fence run, an apron, a walk or a parked car. District 7 found seven
+// buildings and no ground; District 8 found one 1,000-block line for two streets,
+// two kerb circuits, a 71 m seawall and a park strip. This district has ZERO, and
+// it is the one district whose §8.2 mitigation is nothing BUT ground: "the shelf is
+// not free-standing. Each landmark sits on an authored block — a plinth, a lawn
+// edge, a kerb, a fence run, a row of parked vehicles ... if the probe still comes
+// up short, the answer is more ground furniture rather than a wider probe." A
+// district authored to §4.9's own figure would be nine objects on bare earth and
+// would fail the probe §8.2 wrote for it. Restating §4's per-object numbers in
+// current-era counts is P6.10's, and this is the sixth district in a row to say so.
+//
+// WHAT IT COSTS, MEASURED. The district emits 11,927 blocks. Against §4.9's 8,580
+// that is 139%, the second-largest overshoot in the scene after District 7's 158%
+// — but §4.9's 8,580 is nine landmarks and this district builds nineteen objects,
+// because five deferrals from four other districts land in the band the map had to
+// open anyway. The in-scope estimate is §4.9's 8,580 plus §4.6's CambridgeSide
+// (3,300), §4.8's Royal Sonesta and 55 Cambridge Parkway (1,500), §4.7's Hult
+// House share (~630) and §4.4's tofu factory (260) — 14,270 — and the district
+// ships at 84% of it, inside the band D1 (72.6%), D2 (66.7%), D3 (65.3%), D4
+// (71.2%), D6 (87% in scope) and D8 (80% in scope) all sit in.
+//
+// THE SCENE TOTAL IS 67,121 BLOCKS with nine of ten districts standing, against a
+// whole-scene target of "under 75,000". District 10 has about 7,900 left against
+// §4.10's own 1,210, so the target holds with room to spare and nothing here was
+// padded to reach a number: the density clause is what was being aimed at.
+//
+// DEAD GROUND FALLS 320 → 297 WHILE THE MAP GROWS BY 907 SAMPLE SLOTS. That is the
+// number this task is really measured by. District 8 measured 585 new dead samples
+// waiting in the south band at `maxZ` 105 and could reach only ~140 of them;
+// carrying the rect to `03` §1.1's full 252 × 228 m opens fourteen new sample rows
+// across the whole width plus two new columns east — 907 slots, a 34% bigger
+// census grid — and the census
+// comes out 23 BELOW where District 8 left it. Four things did that work, in order
+// of size: the Charles itself (eight new water rects, every one running off an
+// edge, which `reportDeadGround` discounts outright), the two park bands and the
+// campus plazas, the nineteen built objects, and the ground furniture the §8.2
+// mitigation asks for — 190 m of unbroken river promenade, a 60 m Charlestown kerb
+// line, and the lawn edges round three parks.
+
+// The Charles, south and east. Eight rects, every one of them running off a
+// `boundsRect` edge, which is what exempts them from `probeRimmedWater`'s
+// complete-ring clause — "river/ocean run off the map edge by design" — and what
+// makes the shore a coping laid where the design wants one rather than a
+// mandatory ring of cubes laid where the probe wants one.
+//
+// THEY ALSO RE-RIM DISTRICT 8'S WATER, WHICH IS NOT A SIDE EFFECT. Every one of
+// District 8's nine rects took its exemption from `x + w >= maxX` at the old
+// `maxX` of 124. Moving the edge to 132 revokes all nine at once — measured, not
+// predicted: the bare rect change alone produces 269 unrimmed ring cells across
+// six of them. The east column below (W6/W7) and the basin's southward
+// continuation (W5) make their east and south rings wet again; the residual west
+// and north cells are closed by `charlestownBank`'s coping, which is content
+// rather than paperwork. Any task that moves an edge again should re-run
+// `probeRimmedWater` before assuming a neighbour's water is still exempt.
+const SHELF_WATER = [
+  { x: -120, z: 110, w: 62, d: 6 },   // the MIT river front, off the west edge
+  { x: -58, z: 106, w: 54, d: 10 },
+  { x: -4, z: 101, w: 36, d: 15 },    // the Longfellow reach
+  { x: 32, z: 98, w: 38, d: 18 },
+  { x: 69, z: 61, w: 63, d: 55 },     // the basin, continuing District 8's bank
+  { x: 124, z: 20, w: 8, d: 41 },     // the east column: the harbour above the dam
+  { x: 124, z: -64, w: 8, d: 56 },    // and below it, under the Zakim
+  { x: 116, z: -112, w: 16, d: 48 },  // the reach past the Zakim, off the north edge
+];
+
+// One pitch for every framed mass on the shelf, and it is District 7's rather
+// than a new one: `npFace`, `npCap`, `npTower`, `frameGrid` and `plinthBand` are
+// all reused unchanged. Nine of this district's buildings are ordinary framed
+// masses that differ by plan, palette and storey count, which is exactly what
+// those five functions already parameterise; forking a tenth grammar for them
+// would be `03` §9.2's "a probe that drifts per scene" applied to geometry.
+//
+// Every footprint is a min corner plus extents and every one is measured against
+// `sceneOffset`'s answer for its `02` §6 row, in the header above.
+const SHELF = {
+  necco:      { x0: -119,  z0: 76,   w: 13,   d: 14, storeys: 6,  seat: [24] },
+  domeRange:  { x0: -106,  z0: 93,   w: 24,   d: 8,  storeys: 6,  seat: [22] },
+  greenBldg:  { x0: -80,   z0: 97,   w: 11.5, d: 6.5, storeys: 20, seat: [21] },
+  amTwine:    { x0: -76,   z0: 78,   w: 12,   d: 10, storeys: 3,  seat: [33] },
+  tofu:       { x0: -46,   z0: 92,   w: 12,   d: 8,  storeys: 1,  seat: [28] },
+  camSide100: { x0: -32,   z0: 82,   w: 26,   d: 16, storeys: 6,  seat: [10] },
+  camSide20:  { x0: -2,    z0: 79,   w: 20,   d: 20, storeys: 10, seat: [10] },
+  parkway55:  { x0: 21,    z0: 85,   w: 13,   d: 11, storeys: 9,  seat: [51] },
+  sonesta:    { x0: 38,    z0: 81,   w: 16,   d: 13, storeys: 11, seat: [11] },
+  yachtClub:  { x0: 62,    z0: 74,   w: 8,    d: 7,  storeys: 2,  seat: [50] },
+  hult:       { x0: 107.5, z0: -61,  w: 7,    d: 10, storeys: 12, seat: [37] },
+};
+
+// The Stata Center's block, at `03` §5.2's declared 1:4 re-read as this district's
+// 1:5 (see the header). 26 x 18 against 32.5 x 27.5.
+const STATA = { x0: -104, z0: 70, w: 26, d: 18 };
+// Killian Court, TD Garden, and the two bridges.
+const KILLIAN = { x0: -100, z0: 105, w: 18, d: 5 };
+const KENDALL = { x0: -66, z0: 92, w: 14, d: 12 };
+const TD_GARDEN = { x0: 124, z0: -8, w: 8, d: 10 };
+const BUNKER = { cx: 111, cz: -98 };
+// The Longfellow: 10.5 m of deck (32 m real at Ring A's 1:3) crossing the reach
+// on the bridge's own x, from the Cambridge abutment south off the map edge.
+const LONGFELLOW = { x0: 5.25, w: 10.5, z0: 101, z1: 116 };
+// The Zakim: 8 m of deck at z[−20,−12], from x 108 out through `maxX`.
+const ZAKIM = { z0: -20, d: 8, x0: 108, x1: 132, deckY: 7 };
+
+const SHELF_PAL = {
+  precast: C.shelfPrecast, band: C.shelfBand, glass: C.shelfGlass,
+  mullion: C.shelfMullion, steel: C.shelfSteel, deck: C.shelfDeck,
+  parapet: C.shelfParapet, shop: C.shelfShop, apron: C.shelfApron,
+  canopy: C.shelfCanopy,
+};
+const LIME_PAL = {
+  ...SHELF_PAL, precast: C.shelfLime, band: C.shelfLimeBand,
+  parapet: C.shelfLimeDeep, glass: sp(0x6a7f83),
+};
+const NECCO_PAL = {
+  ...SHELF_PAL, precast: C.neccoBrick, band: C.neccoBand,
+  parapet: C.neccoBrickDeep, glass: sp(0x4c626b),
+};
+const CS_PAL = { ...SHELF_PAL, precast: C.shelfPrecastWarm };
+const GRANITE_PAL = {
+  ...SHELF_PAL, precast: C.shelfGranite, band: C.shelfGraniteWarm,
+  parapet: C.shelfGraniteDeep,
+};
+
+// A blank wall band — one member per face per band, cut into ≤5 m runs only at
+// grade. TD Garden and the arena-scale masses use it instead of `npFace` because
+// `02` §3's whole note on the building is that it has no articulation to spend
+// blocks on: a band is a band, and a window rhythm drawn on it would be a detail
+// the source explicitly denies.
+function shelfBlankBand(sim, o) {
+  const { axis, u0, v, y, len, h, t = 0.5, color, mat = 'concrete' } = o;
+  const step = y < 0.01 ? 5 : len;
+  for (let s = 0; s < len - 0.01; s += step) {
+    const l = Math.min(step, len - s);
+    panel(sim, axis === 'x'
+      ? { x: u0 + s, y, z: v, w: l, h, axis: 'x', t, mat, color }
+      : { x: v, y, z: u0 + s, w: l, h, axis: 'z', t, mat, color });
+  }
+}
+
+// The nine framed masses, in one pass. Pane tables follow District 7's rule and
+// the reason is `probePlacementStep` rather than taste: two ADJACENT panes of the
+// same width leave a 0.25 m gap between two identical glass panels, which is the
+// sub-extent gap the probe gates. A repeated width is legal when the pane between
+// them is wide enough that 0.25 + pane + 0.25 clears the repeated extent.
+function shelfMasses(sim) {
+  const S = SHELF;
+  // The NECCO slice. `02` §3: "a long brick factory, rooftop water tower — once
+  // painted as a roll of NECCO wafers, now carrying a DNA double helix." The helix
+  // is `04`'s punchline and P7.3's; the slice and the tank are this task's, and
+  // the tank goes up in `neccoWaterTower` below.
+  npTower(sim, {
+    ...S.necco, pal: NECCO_PAL,
+    xPanes: [4.5, 4, 3.5], zPanes: [4.5, 4, 3.5],
+    strips: [4, 3.75, 3.25], frames: [4.5, 4.5, 4],
+    retail: ['s'],
+  });
+  // The Great Dome's range: `02` §3's "wide limestone-grey classical block". The
+  // colonnade and the dome itself are `greatDome` below.
+  npTower(sim, {
+    ...S.domeRange, pal: LIME_PAL,
+    xPanes: [5, 4.5, 4.75, 4.25, 4], zPanes: [3.5, 2.75],
+    strips: [6, 5.75, 5.25, 4.5], frames: [3.75, 3.25],
+  });
+  // American Twine Office Park — `02` §2.4's converted three-storey mill, and one
+  // of the two `03` §1.3 misfiles District 4 recorded and could not reach.
+  npTower(sim, {
+    ...S.amTwine, pal: NECCO_PAL,
+    xPanes: [4.25, 3.5, 3.25], zPanes: [4.5, 3.75],
+    strips: [5.5, 5], frames: [4.75, 4.25],
+    retail: ['n'],
+  });
+  // The Chang Shing Tofu Factory: one storey, Confirmed at `02` §2.4, flagged for
+  // owner review at P6.4 because it seated 66 m outside the map as it then stood.
+  // It is 0.25 m from its own seat here.
+  npTower(sim, {
+    ...S.tofu, pal: NECCO_PAL,
+    xPanes: [4.25, 3.5, 3.25], zPanes: [3.5, 2.75],
+    strips: [5.5, 5], frames: [3.75, 3.25],
+    retail: ['n'],
+  });
+  // CambridgeSide, both blocks — District 6's deferral, closed. `03` §4.6: 20
+  // CambridgeSide is ten storeys of office/lab where a multi-storey Macy's used to
+  // be; 100 CambridgeSide is lab in the former Sears with retail still operating
+  // on the lower levels, which is why the second one carries retail on three faces
+  // and the first on two.
+  npTower(sim, {
+    ...S.camSide20, pal: CS_PAL,
+    xPanes: [5, 4.5, 4.75, 4.5], zPanes: [4.75, 4.25, 4.5, 4.25],
+    strips: [4.75, 4.5, 4.25, 4], frames: [5, 5, 4.5, 4.5],
+    retail: ['n', 'w'],
+  });
+  npRoofPlant(sim, S.camSide20, CS_PAL);
+  npTower(sim, {
+    ...S.camSide100, pal: CS_PAL,
+    xPanes: [5.25, 4.75, 5, 4.5, 5], zPanes: [5, 4.25, 4.75],
+    strips: [5.5, 5, 4.75, 4.25, 3.5], frames: [5.5, 5, 4.5],
+    retail: ['n', 'e', 's'],
+  });
+  npRoofPlant(sim, S.camSide100, CS_PAL);
+  // 55 Cambridge Parkway and the Royal Sonesta — District 8's two south-band
+  // deferrals, closed. The Sonesta is 0.5 m off its own seat, which is what the
+  // other three buildings in this band were laid out around.
+  npTower(sim, {
+    ...S.parkway55, pal: SHELF_PAL,
+    xPanes: [4.25, 4, 3.75], zPanes: [4.75, 4.5],
+    strips: [4, 3.75, 3.25], frames: [3.5, 3.5, 3],
+    retail: ['s'],
+  });
+  npRoofPlant(sim, S.parkway55, SHELF_PAL);
+  npTower(sim, {
+    ...S.sonesta, pal: CS_PAL,
+    xPanes: [5.25, 4.75, 5], zPanes: [5.75, 5.5],
+    strips: [5, 4.75, 4.25], frames: [4.5, 4, 3.5],
+    retail: ['n', 's'],
+  });
+  npRoofPlant(sim, S.sonesta, CS_PAL);
+  // The Charlesgate Yacht Club — District 8's third south-band deferral. `02`
+  // §2.2 gives it a Confirmed position and no dimensions at all, so what is built
+  // is a two-storey clubhouse at that seat with its float on the basin.
+  npTower(sim, {
+    ...S.yachtClub, pal: SHELF_PAL,
+    xPanes: [4, 3.25], zPanes: [5.5],
+    strips: [3.5, 3], frames: [3.25, 2.75],
+    retail: ['n'],
+  });
+  // Hult House — District 7's deferral, closed at 3.25 m from its own seat now
+  // that `maxX` reaches 132.
+  npTower(sim, {
+    ...S.hult, pal: SHELF_PAL,
+    xPanes: [3.5, 2.75], zPanes: [4.5, 3.75],
+    strips: [3, 2.5], frames: [4.75, 4.25],
+    retail: ['w'],
+  });
+  npRoofPlant(sim, S.hult, SHELF_PAL);
+}
+
+// `02` §3's punchline prop, and `03` §5.3 quotes it: "a perfect two-shape voxel
+// prop with a punchline." The tank is the kit's, on a plant deck rather than
+// straight onto the roof plate — `npRoofPlant`'s own lesson, and it costs four
+// blocks to obey: `frameGrid` lays its roof as strips with 0.5 m voids between
+// them, so anything set on a computed roof position stands over a void half the
+// time and comes down on frame one.
+function neccoWaterTower(sim) {
+  const B = SHELF.necco;
+  const top = B.storeys * D7_STOREY;
+  slab(sim, { x: B.x0 + 4, y: top, z: B.z0 + 4.5, w: 5, d: 5, t: 0.25, mat: 'concrete', color: C.shelfDeck });
+  waterTower(sim, B.x0 + 5.5, top + 0.25, B.z0 + 6, C.neccoTank);
+  // Roof plant on the other end, so the slice does not read as a lid.
+  pier(sim, { x: B.x0 + 10, y: top, z: B.z0 + 1.5, w: 2.5, h: 1.75, d: 2.5, mat: 'concrete', color: C.shelfDeck });
+}
+
+// THE STATA CENTER — `02` calls it "the single best voxel target in the region:
+// its whole identity is a small number of bold tilted masses, which is precisely
+// what a low-block-count voxel vocabulary is good at." `03` §5.2 breaks it into
+// nine masses and a base and states the one authoring rule that matters:
+//
+//   "Each tilted stack is a VERTICAL load path. A slab resting on the slab below
+//   resets the cantilever span to zero, so a leaning tower of plates is
+//   structurally the cheapest and safest thing this engine can build. The lean is
+//   free. What is NOT free is horizontal: two adjacent masses cannot support one
+//   another at these sizes, so every mass stands on its own footprint, which is
+//   also how it should collapse — one mass at a time, which reads as the building
+//   coming apart in pieces rather than deflating."
+//
+// Every mass below stands on its own footprint and every course sits squarely on
+// the one under it. Nothing here cantilevers off a neighbour.
+//
+// AND THE GRADE CLAUSE IS CHECKED HERE RATHER THAN ASSUMED. §5.2 says to read
+// "5–8 m plan" as a RUN of 4 m-scale pieces and not as a single member: at 1:5
+// the base volumes are 4–5.5 m across, each plinth is one piece under 6 m, and the
+// worst plan diagonal at `gy === 0` anywhere on this building is the 5.5 x 4 m
+// west base volume's plinth at 6.8 m against the clause's 8.
+function stataCenter(sim) {
+  const B = STATA;
+  // 1. THE CRUMPLED SILVER TOWER (Gates, 9 storeys). §5.2's "tilted stack of
+  // slabs, each offset from the one below in a walking direction that reverses
+  // twice", and the lean IS the offset — ADR-0013 refuses rotation permanently,
+  // so a leaning tower is a walking stack or it is nothing.
+  //
+  // ELEVEN LEVELS, SEVEN PIECES EACH: a floor plate, three clad faces, and a
+  // glazed north face of two mullions and a light. A solid `pier` per level would
+  // be one block instead of seven and it would also be one BITE instead of seven,
+  // on the district with the scene's joint-loosest gap floor — §8.2's own
+  // instruction here is that the answer to a short probe is more content, and skin
+  // rather than fill is where that content is cheapest. Eleven levels at 2.25 m is
+  // 24.75 m against §5.2's ~26.7.
+  const walk = [0, 0.5, 1, 1.5, 1, 0.5, 0, -0.5, -1, -0.5, 0];
+  for (let i = 0; i < 11; i++) {
+    const y = i * 2.25;
+    const x = B.x0 + 2 + walk[i], z = B.z0 + 2 + walk[i] * 0.5;
+    const tone = i % 2 ? C.statSilver : C.statSilverDeep;
+    slab(sim, { x, y, z, w: 5, d: 4, t: 0.25, mat: 'steel', color: C.shelfDeck });
+    // 5. THE TILTED WINDOW BAND is the NORTH face rather than a band hung off the
+    // plate's own edge: a 0.25 m member set 0.25 m outboard of the plate it belongs
+    // to has nothing under it at all, and `probeIdleStability` drops eleven of them
+    // on frame one. Glazing the face instead keeps §5.2's "following each mass's own
+    // step, not a shared datum" — the band walks with the level — and costs two
+    // pieces rather than three.
+    for (const mx of [x, x + 4.75]) {
+      mullion(sim, { x: mx, y: y + 0.25, z, h: 2, s: 0.25, mat: 'steel', color: C.shelfMullion });
+    }
+    panel(sim, { x: x + 0.25, y: y + 0.25, z, w: 4.5, h: 2, axis: 'x', t: 0.25, mat: 'glass', color: C.statGlass });
+    panel(sim, { x, y: y + 0.25, z: z + 3.75, w: 5, h: 2, axis: 'x', t: 0.25, mat: 'steel', color: tone });
+    panel(sim, { x, y: y + 0.25, z: z + 0.25, w: 3.5, h: 2, axis: 'z', t: 0.25, mat: 'steel', color: tone });
+    panel(sim, { x: x + 4.75, y: y + 0.25, z: z + 0.25, w: 3.5, h: 2, axis: 'z', t: 0.25, mat: 'steel', color: tone });
+  }
+  // 2. THE TWO LEANING BRUSHED-METAL CYLINDERS. `drum`s whose ring centres walk,
+  // which is the same trick as the tower and for the same reason. r 2.0 at 12
+  // facets, every time: District 7's `npRoofPlant` note measured r 2.5 at 20
+  // facets putting 48 fine cells in two owners' hands, and r 2.0 at 12 is the one
+  // pair three builders in this file have already proved clean.
+  for (const [dx, dz, dir] of [[16, 1.5, 1], [20.5, 8, -1]]) {
+    // ONE PLATE PER RING, for the reason the Great Dome's own rings need one: a
+    // ring is a 0.25 m shell and the ring above it walks 0.75 m, so the two share
+    // no cell and the whole cylinder stands on nothing. The plate spans the ring
+    // below, which is also what a floor plate in a Gehry drum actually is.
+    for (let r = 0; r < 4; r++) {
+      const px = B.x0 + dx + r * 0.75 * dir, pz = B.z0 + dz + r * 0.5;
+      drum(sim, {
+        x: px, y: r * 2.75, z: pz, r: 2, h: 2.5, facets: 12, t: 0.25, mat: 'steel',
+        color: r % 2 ? C.statSilver : C.statSilverDeep,
+      });
+      // The plate spans the UNION of this ring and the next, not just this one:
+      // sized to its own ring it stops 0.75 m short of the ring above's leading
+      // facets, which then stand on nothing. The two drums' plates also carry
+      // different tones, because two identical plates 2.5 m apart on one datum is
+      // the sub-extent gap `probePlacementStep` gates.
+      slab(sim, {
+        x: dir > 0 ? px : px - 0.75, y: r * 2.75 + 2.5, z: pz, w: 4.75, d: 4.5, t: 0.25,
+        mat: 'steel', color: dir > 0 ? C.shelfDeck : C.statSilverDeep,
+      });
+    }
+  }
+  // 3. THE DREYFOOS WEDGE (7 storeys): "a `tread` run turned on its side — seven
+  // slabs of decreasing plan, each stepped 1 m."
+  for (let i = 0; i < 7; i++) {
+    pier(sim, {
+      x: B.x0 + 8 + i * 0.5, y: i * 2.5, z: B.z0 + 12, w: 6 - i * 0.5, h: 2.5, d: 4.5,
+      mat: 'steel', color: i % 2 ? C.statSilverDeep : C.statSilver,
+    });
+  }
+  // 4. THE MISMATCHED ORANGE AND YELLOW BRICK BASE VOLUMES — four boxy masses,
+  // `plinth` + four `panel` faces + `cornice` each, and the only saturated masonry
+  // in the scene's west half. `03` §3 puts the whole of this district at ~zero
+  // chroma "except Stata's base, which carries deliberately clashing high-chroma
+  // orange and yellow brick", so the clash is the specification.
+  const bases = [
+    { x: B.x0, z: B.z0 + 8, w: 5.5, d: 4, tone: C.statOrange, deep: C.statOrangeDeep },
+    { x: B.x0 + 6, z: B.z0 + 7.5, w: 4.5, d: 4, tone: C.statYellow, deep: C.statYellowDeep },
+    { x: B.x0 + 15, z: B.z0 + 13.5, w: 5, d: 4.5, tone: C.statYellow, deep: C.statYellowDeep },
+    { x: B.x0 + 20.5, z: B.z0 + 14, w: 4.5, d: 4, tone: C.statOrange, deep: C.statOrangeDeep },
+  ];
+  for (const b of bases) {
+    plinth(sim, { x: b.x, y: 0, z: b.z, w: b.w, d: b.d, h: 0.5, mat: 'brick', color: b.deep });
+    for (let s = 0; s < 2; s++) {
+      const y = 0.5 + s * 2.5;
+      panel(sim, { x: b.x, y, z: b.z, w: b.w, h: 2.5, axis: 'x', t: 0.5, mat: 'brick', color: b.tone });
+      panel(sim, { x: b.x, y, z: b.z + b.d - 0.5, w: b.w, h: 2.5, axis: 'x', t: 0.5, mat: 'brick', color: b.tone });
+      panel(sim, { x: b.x, y, z: b.z + 0.5, w: b.d - 1, h: 2.5, axis: 'z', t: 0.5, mat: 'brick', color: b.deep });
+      panel(sim, { x: b.x + b.w - 0.5, y, z: b.z + 0.5, w: b.d - 1, h: 2.5, axis: 'z', t: 0.5, mat: 'brick', color: b.deep });
+    }
+    // The cornices sit COPLANAR with the top course rather than on top of it: a
+    // 0.25 m member set outboard at the wall head has nothing under it and nothing
+    // beside it, and `probeIdleStability` drops all eight. At y 5.25 each takes its
+    // bearing sideways off the panel it belongs to — District 7's `npCap` argument.
+    cornice(sim, { x: b.x, y: 5.25, z: b.z - 0.25, run: b.w, axis: 'x', t: 0.25, proj: 0.25, mat: 'brick', color: C.statBrickBand });
+    cornice(sim, { x: b.x, y: 5.25, z: b.z + b.d, run: b.w, axis: 'x', t: 0.25, proj: 0.25, mat: 'brick', color: C.statBrickBand });
+    slab(sim, { x: b.x, y: 5.5, z: b.z, w: b.w, d: b.d, t: 0.25, mat: 'concrete', color: C.shelfDeck });
+  }
+  // 6. THE AMPHITHEATRE LAWN AND THE BLOCK IT SITS ON. §5.2's last line item, and
+  // the one that does this district's density work: `03` §8.2's mitigation for the
+  // shelf is that "each landmark sits on an authored block — a plinth, a lawn
+  // edge, a kerb, a fence run".
+  //
+  // IT IS TWO `wedge`s AND NOT A RUN OF `tread`s, for District 2's reason and
+  // District 6's: a free-standing tread only touches the one behind it along an
+  // EDGE, an edge shares no face cell, and the support graph never pairs them — so
+  // a hand-stepped flight goes over above its bottom step. `wedge` stacks each
+  // course squarely on the one below. Two of them rather than one because the
+  // bottom course is at `gy === 0`: a single 12 m wedge has a 12.3 m plan diagonal
+  // against the grade clause's 8.
+  for (const ax of [B.x0 + 4, B.x0 + 10]) {
+    wedge(sim, {
+      x: ax, y: 0, z: B.z0 + B.d + 0.5, w: 2, d: 6, h: 1, axis: 'z', from: 'min',
+      riser: 0.25, mat: 'concrete', color: C.shelfApron,
+    });
+  }
+  // The block's own kerb. The three runs stop clear of each other at the two
+  // corners rather than meeting: a kerb line carried straight through a corner
+  // puts two blocks in one fine cell, which is a ghost rather than a corner —
+  // District 2's junction finding, and it costs half a metre to obey.
+  shoreRun(sim, { x: B.x0 - 0.75, z: B.z0 - 1, len: B.w, axis: 'x', color: C.shelfKerb });
+  shoreRun(sim, { x: B.x0 - 1, z: B.z0 - 0.75, len: B.d - 1, axis: 'z', color: C.shelfKerb });
+  shoreRun(sim, { x: B.x0 + B.w, z: B.z0 + 0.5, len: B.d - 2, axis: 'z', color: C.shelfKerb });
+  for (let i = 0; i < 5; i++) tree(sim, B.x0 + 1 + i * 6, B.z0 - 2.5);
+  for (let i = 0; i < 3; i++) bench(sim, B.x0 + 3 + i * 8, B.z0 + 21.5);
+  for (let i = 0; i < 4; i++) lampPost(sim, B.x0 + 4 + i * 6, B.z0 - 2.5);
+  bikeRack(sim, B.x0 + 14, B.z0 + 21.5, 4, 'x', 0x3a4450);
+  trashBin(sim, B.x0 + 22, B.z0 + 21.5, 0x40463c);
+}
+
+// THE GREAT DOME. `02`'s warning is a hard authoring constraint and it is the one
+// thing on this building that cannot be got wrong: "the dome is LOW AND BROAD, not
+// tall and pointed — get that ratio wrong and it reads as a capitol building."
+// Dome diameter 30.5 m and height 46 m are both Confirmed, so the ratio is not a
+// guess: at the MIT group's declared 1:5 plan the dome is 6.1 m across, and the
+// four rings below rise 3.5 m over it — broad by nearly two to one.
+//
+// IT IS A STACK OF SHRINKING `drum`s, NOT `halfDomeShell`, AND THAT IS A
+// DEVIATION FROM `03` §5.3 WORTH RECORDING. §5.3 files the dome under
+// "`halfDomeShell` reused, which is why this landmark is cheap". `halfDomeShell`
+// builds a SEMI-dome: its `ring()` skips every cell on one side of the centre, so
+// it is an apse against a wall rather than a dome on a rotunda, and the two mirror
+// calls that would close it write the same cells twice — 3D cell ownership, a
+// ghost, and a dome that falls at spawn. Shrinking drums are full-round, leave the
+// Confirmed oculus open at the crown by construction, and cost 32 facets and four
+// plates against `halfDomeShell`'s ~300 cubes at this radius. Cheaper AND correct.
+//
+// EIGHT FACETS PER RING, AND THE COUNT IS NOT A STYLE CHOICE. `drum` lays a ring of
+// identical panels, so two facets that share a plan coordinate are two collinear
+// identical boxes and `probePlacementStep` gates whatever gap quantisation leaves
+// between them. District 7 had already proved r 2.0 at 12 facets clean and r 2.5 at
+// 20 dirty; this district needed four different radii, so the pair was swept over
+// r 1.0-4.0 for facet counts 8-16 against the probe's own rule. Twelve facets is
+// clean only at r 1, 2, 3 and 4; eleven only at 1.75, 2.75 and 3.75; EIGHT is clean
+// at every quarter metre, because an octagon's mirror pairs land on the fine grid
+// whatever its radius. Every drum this district adds is therefore eight-sided
+// except the two Stata cylinders and the Green Building's radar, which are the
+// proven r 2.0 / 12.
+function greatDome(sim) {
+  const B = SHELF.domeRange;
+  const top = B.storeys * D7_STOREY;
+  const cx = B.x0 + B.w / 2, cz = B.z0 + B.d / 2;
+  // The bridging deck first. `frameGrid`'s roof is strips with 0.5 m voids between
+  // them; a drum ring set on a computed centre stands over a void on two facets in
+  // eight and `probeIdleStability` takes the whole dome down on frame one.
+  slab(sim, { x: cx - 4, y: top, z: cz - 3.5, w: 8, d: 7, t: 0.25, mat: 'concrete', color: C.shelfLimeDeep });
+  const rings = [[3, 1.0], [2.5, 1.0], [2, 0.75], [1.5, 0.75]];
+  // A PLATE UNDER EVERY RING, and it is not decoration. A ring is a 0.25 m shell;
+  // the ring above it is 0.5 m smaller in radius, so the two shells share no cell
+  // at all and every ring above the first would stand on nothing —
+  // `probeIdleStability` took all four down on the first draft. The plate spans the
+  // ring below's whole footprint, takes its bearing off that shell, and carries the
+  // next one. It is also, incidentally, how a real masonry dome is built.
+  let y = top + 0.25;
+  for (const [r, h] of rings) {
+    drum(sim, {
+      x: cx - r, y, z: cz - r, r, h, facets: 8, t: 0.25,
+      mat: 'concrete', color: C.shelfLime,
+    });
+    y += h;
+    slab(sim, { x: cx - r, y, z: cz - r, w: 2 * r, d: 2 * r, t: 0.25, mat: 'concrete', color: C.shelfLimeDeep });
+    y += 0.25;
+  }
+  // The colonnade across the front — `02` §3's second of four shapes, and the one
+  // that makes a limestone box read as MIT rather than as an office block. Ten
+  // columns on a stylobate, with the entablature they carry.
+  const sz = B.z0 + B.d;
+  // The stylobate, as three `wedge`s rather than one: course-on-course support
+  // (District 2's tread finding) and a bottom course inside the grade clause's
+  // 8 m plan diagonal (a single 16 m run is 15.9 m).
+  for (const [ax, aw] of [[B.x0 + 4, 5.5], [B.x0 + 9.5, 5.5], [B.x0 + 15, 5]]) {
+    wedge(sim, { x: ax, y: 0, z: sz + 1, w: 1.25, d: aw, h: 1.25, axis: 'z', from: 'min', riser: 0.25, mat: 'concrete', color: C.shelfLimeDeep });
+  }
+  for (let i = 0; i < 8; i++) {
+    column(sim, { x: B.x0 + 4.5 + i * 2, y: 1.25, z: sz + 1, h: 7, s: 1, mat: 'concrete', color: C.shelfLime });
+  }
+  for (let s = 0; s < 16; s += 4) {
+    beam(sim, { x: B.x0 + 4 + s, y: 8.25, z: sz + 1, len: 4, axis: 'x', t: 0.75, depth: 1, mat: 'concrete', color: C.shelfLimeBand });
+  }
+  for (let s = 0; s < 16; s += 4) {
+    cornice(sim, { x: B.x0 + 4 + s, y: 9, z: sz + 0.75, run: 4, axis: 'x', t: 0.25, proj: 1.5, mat: 'concrete', color: C.shelfLimeDeep });
+  }
+}
+
+// KILLIAN COURT — "a big open rectangle of lawn running from its base toward the
+// river", and the Killian-Court-to-2-Canal-Park sightline is literally HubSpot's
+// own founding story (`03` §5.3): 1.8 km in life, 145 m here, both ends on the
+// map. The lawn itself is `parks` decor; what is built is the edge that makes it a
+// court rather than a field, which is also what stops it reading as declared-empty
+// ground — District 6's rule, met on the biggest lawn in the scene.
+//
+// `04` G5 PUTS "UNBOUND" ON THIS LAWN, ~180 pieces (`03` §8.3). The lawn's middle
+// is left clear for it: every piece below is on the perimeter.
+function killianCourt(sim) {
+  const K = KILLIAN;
+  const x1 = K.x0 + K.w, z1 = K.z0 + K.d;
+  shoreRun(sim, { x: K.x0, z: K.z0, len: K.w, axis: 'x', color: C.shelfLawnEdge });
+  shoreRun(sim, { x: K.x0, z: z1, len: K.w, axis: 'x', color: C.shelfLawnEdge });
+  // The two side edges stop a metre short of the river coping, which runs along
+  // z 109.5 for the whole west reach: a lawn edge carried into it is two blocks in
+  // one fine cell rather than a corner.
+  shoreRun(sim, { x: K.x0 - 0.25, z: K.z0, len: K.d - 2, axis: 'z', color: C.shelfLawnEdge });
+  shoreRun(sim, { x: x1, z: K.z0, len: K.d - 2, axis: 'z', color: C.shelfLawnEdge });
+  // ONE TREE ROW, on the court's north edge only. The south edge is 1.5 m from the
+  // river promenade's own tree line, and two rows that close read as one hedge and
+  // put four pairs of crowns in the same fine cells.
+  for (const tx of [K.x0 + 1, K.x0 + 5, K.x0 + 13, K.x0 + 17]) tree(sim, tx, K.z0 + 1);
+  for (const bx of [K.x0 + 3, K.x0 + 9, K.x0 + 15]) bench(sim, bx, K.z0 + 0.75);
+  for (const lx of [K.x0 + 2, K.x0 + 8, K.x0 + 14]) lampPost(sim, lx, z1 - 0.75);
+  drinkingFountain(sim, K.x0 + 11, K.z0 + 0.75, C.shelfSteel);
+  trashBin(sim, K.x0 + 6, K.z0 + 2.5, 0x40463c);
+}
+
+// THE MIT GREEN BUILDING — the tallest building in Cambridge, 84 m architectural
+// and Confirmed, which the height law puts at 55 m of scene. `03` §5.3 gives it
+// three shapes: "a narrow concrete slab on OPEN PILOTIS at the base, with a radar
+// `drum` on the roof."
+//
+// THE PILOTIS ARE REAL RATHER THAN IMPLIED, and that is the only reason this
+// building is not one more `npTower` call. `frameGrid` already emits the steel
+// column grid from grade upward; what `npTower` adds at storey 0 is the SKIN, and
+// omitting exactly that one storey's four faces leaves the frame standing in the
+// open with the tower's first floor plate over it. A glazed ground storey would
+// have read as the same thing from a distance and would have been a lie about the
+// one detail `02` bothers to name.
+function greenBuilding(sim) {
+  const B = SHELF.greenBldg;
+  const x1 = B.x0 + B.w, z1 = B.z0 + B.d;
+  const faces = [
+    { axis: 'x', u0: B.x0, v: B.z0, panes: [5.5, 5.25] },
+    { axis: 'x', u0: B.x0, v: z1 - D7_WALL, panes: [5.5, 5.25] },
+    { axis: 'z', u0: B.z0 + D7_WALL, v: B.x0, panes: [5] },
+    { axis: 'z', u0: B.z0 + D7_WALL, v: x1 - D7_WALL, panes: [5] },
+  ];
+  for (let s = 1; s < B.storeys; s++) {
+    for (const f of faces) npFace(sim, { ...f, y: s * D7_STOREY, pal: SHELF_PAL });
+  }
+  // THE TRANSFER BEAM AT THE PILOTIS HEAD, and it is what makes the open ground
+  // storey stand up rather than just look right. `frameGrid`'s first floor plate is
+  // laid INSIDE the wall zone, so storey 1's spandrel — the lowest piece of skin
+  // on the building — sits 0.5 m outboard of anything at all. A perimeter beam
+  // coplanar with that plate takes its bearing sideways off it and carries the
+  // whole elevation, which is also what the real building's transfer structure at
+  // the top of the pilotis does.
+  for (const [bx, bz, len, ax] of [
+    [B.x0, B.z0, B.w, 'x'], [B.x0, z1 - D7_WALL, B.w, 'x'],
+    [B.x0, B.z0 + D7_WALL, B.d - 1, 'z'], [x1 - D7_WALL, B.z0 + D7_WALL, B.d - 1, 'z'],
+  ]) {
+    beam(sim, { x: bx, y: D7_STOREY - 0.25, z: bz, len, axis: ax, t: 0.25, depth: D7_WALL, mat: 'concrete', color: SHELF_PAL.band });
+  }
+  frameGrid(sim, { x0: B.x0 + D7_WALL, z0: B.z0 + D7_WALL, strips: [5.25, 4.75], frames: [5.5], storeys: B.storeys, pal: SHELF_PAL });
+  npCap(sim, { x0: B.x0, z0: B.z0, w: B.w, d: B.d, y: B.storeys * D7_STOREY, pal: SHELF_PAL });
+  plinthBand(sim, { x0: B.x0, z0: B.z0, w: B.w, d: B.d, color: C.shelfParapet });
+  // The radar drum, on a deck that bridges `frameGrid`'s roof void.
+  const top = B.storeys * D7_STOREY;
+  slab(sim, { x: B.x0 + 3, y: top, z: B.z0 + 1, w: 5, d: 4.5, t: 0.25, mat: 'concrete', color: C.shelfDeck });
+  drum(sim, { x: B.x0 + 3.5, y: top + 0.25, z: B.z0 + 1.25, r: 2, h: 2, facets: 12, t: 0.25, mat: 'steel', color: C.shelfSteel });
+}
+
+// KENDALL/MIT — `03` §5.1 gives it "headhouse + plaza" and 260 blocks, and `02`
+// files it Tier 3: "plaza, headhouse, glass office blocks around it." The plaza is
+// the point. A Red Line station's headhouse is a shed; what a player recognises is
+// the paved forecourt with the transit furniture on it, and that forecourt is also
+// this band's densest 168 m² of ground plane.
+function kendallStation(sim) {
+  const K = KENDALL;
+  // The headhouse: a glazed box with a canopy, and the stair down beside it.
+  const hx = K.x0 + 4, hz = K.z0 + 3.5;
+  // The apron in four pieces, not one: a 7 x 6 m plinth at `gy === 0` is 9.08 m of
+  // plan diagonal against the grade clause's 8, which `probeGradeDiagonal` fails —
+  // and correctly, because a headhouse apron nobody can ever eat is 1.2 m³ of
+  // permanent mass working against the 50% goal.
+  for (const [px, pz] of [[0, 0], [3.5, 0], [0, 3], [3.5, 3]]) {
+    plinth(sim, { x: hx - 0.5 + px, y: 0, z: hz - 0.5 + pz, w: 3.5, d: 3, h: 0.25, mat: 'concrete', color: C.shelfApron });
+  }
+  for (const [px, pz] of [[hx, hz], [hx + 5.75, hz], [hx, hz + 4.75], [hx + 5.75, hz + 4.75]]) {
+    pier(sim, { x: px, y: 0.25, z: pz, w: 0.25, h: 3, d: 0.25, mat: 'steel', color: C.shelfMullion });
+  }
+  panel(sim, { x: hx + 0.25, y: 0.25, z: hz, w: 5.5, h: 3, axis: 'x', t: 0.25, mat: 'glass', color: C.shelfShop });
+  panel(sim, { x: hx + 0.25, y: 0.25, z: hz + 4.75, w: 5.5, h: 3, axis: 'x', t: 0.25, mat: 'glass', color: C.shelfShop });
+  panel(sim, { x: hx, y: 0.25, z: hz + 0.25, w: 4.5, h: 3, axis: 'z', t: 0.25, mat: 'glass', color: C.shelfShop });
+  panel(sim, { x: hx + 5.75, y: 0.25, z: hz + 0.25, w: 4.5, h: 3, axis: 'z', t: 0.25, mat: 'glass', color: C.shelfShop });
+  // The canopy is the slab and nothing else. A cornice projecting 0.75 m beyond it
+  // takes its bearing sideways off a plate that is itself carried on four 0.25 m
+  // corner piers 6 m apart, which is past concrete's own 3 m span from the middle —
+  // so the projection is the one piece of this headhouse that does not stand.
+  slab(sim, { x: hx - 0.5, y: 3.25, z: hz - 0.5, w: 7, d: 6, t: 0.25, mat: 'steel', color: C.shelfCanopy });
+  // The stair down to the platform, as a `wedge`: free-standing `tread`s only
+  // touch each other along an edge, and an edge shares no face cell, so a flight
+  // of them goes over above its bottom step. District 2's finding, unchanged.
+  wedge(sim, { x: hx + 7.5, y: 0, z: hz, w: 3, d: 4, h: 1.5, axis: 'x', from: 'max', riser: 0.25, mat: 'concrete', color: C.shelfApron });
+  // The plaza's furniture — the district's ground plane, per `03` §8.2.
+  // NO NORTH KERB. Toomey Park's own south lawn edge already runs along z 92 for
+  // ten of this plaza's fourteen metres, and two kerbs on one line are two blocks
+  // in one fine cell rather than a wider kerb.
+  shoreRun(sim, { x: K.x0, z: K.z0 + K.d, len: K.w, axis: 'x', color: C.shelfKerb });
+  shoreRun(sim, { x: K.x0 - 0.25, z: K.z0, len: K.d, axis: 'z', color: C.shelfKerb });
+  for (const bx of [K.x0 + 1, K.x0 + 4]) bench(sim, bx, K.z0 + 10.5);
+  for (const lx of [K.x0 + 2, K.x0 + 7, K.x0 + 12]) lampPost(sim, lx, K.z0 + 1);
+  for (const tx of [K.x0 + 3, K.x0 + 11]) tree(sim, tx, K.z0 + 9.75);
+  bikeRack(sim, K.x0 + 8, K.z0 + 10.5, 4, 'x', 0x3a4450);
+  newsBox(sim, K.x0 + 12.5, K.z0 + 9, 0xc23b2e);
+  newsBox(sim, K.x0 + 12.5, K.z0 + 10.5, 0x2a4f9a);
+  bollard(sim, K.x0 + 1, K.z0 + 6, C.steelDark);
+  bollard(sim, K.x0 + 1, K.z0 + 8, C.steelDark);
+  trashBin(sim, K.x0 + 13, K.z0 + 2, 0x40463c);
+  signPost(sim, K.x0 + 13.5, K.z0 + 1.5, 0x2f6b4f, 2.5, 'z', 1.25);
+}
+
+// THE LONGFELLOW BRIDGE — `02` §3: "if exactly one bridge makes the map, make it
+// this one." Four shapes, all four built: a low line of steel arches, two fat
+// granite piers at mid-river, four stubby domed granite towers standing on them in
+// pairs (the salt-and-pepper shakers, which ARE the nickname), and the Red Line
+// running down the middle between the two roadways. `02` §2.3 is explicit that a
+// Red Line car belongs here and nowhere else in this scene, so this is the one
+// place one appears.
+//
+// THE CAMBRIDGE ABUTMENT MOVES 11.75 m NORTH, AND IT IS THE LARGEST DECLARED MOVE
+// ON THE SHELF. `sceneOffset` seats the Cambridge end at (+10.5,+113.25) and
+// `03` §1.1 sets `maxZ` at +116, so at the law's own seat there are 2.75 m of map
+// south of the abutment — less than one span. Every one of `02`'s four shapes
+// would be off the map: both mid-river piers, all four towers, every arch and the
+// whole of the Red Line. `03` §5.1's declared 1:8 length exception gives a 67 m
+// bridge, and 67 m does not fit in 2.75 either. So the abutment goes to z +102,
+// on the reach's own north bank, and 15 m of bridge — abutment, three arch spans, two
+// mid-river bents and all four towers — stands inside the rect with the rest running off the south
+// edge toward a Boston bank `03` §1.4 says is not built. THE x IS HELD EXACTLY at
+// the law's +10.5, which is the half of the seat `03` §5.4 actually sells: "a
+// player who orients by WHICH WAY things are will never be wrong."
+function longfellowBridge(sim) {
+  const L = LONGFELLOW, x1 = L.x0 + L.w;
+  const deckY = 5.5;
+  // The abutment and the three bents, each cut into two pieces so nothing at grade
+  // approaches the 8 m plan diagonal: a 10.5 x 2 m pier is 10.7 m of diagonal and
+  // would be a permanently uneatable bridge foot that still counts toward the 50%
+  // goal.
+  const bents = [L.z0, L.z0 + 4, L.z0 + 9, L.z0 + 13];
+  for (const bz of bents) {
+    for (const px of [L.x0, L.x0 + 5.25]) {
+      pier(sim, { x: px, y: 0, z: bz, w: 5.25, h: deckY, d: 2, mat: 'concrete', color: px === L.x0 ? C.shelfGranite : C.shelfGraniteDeep });
+    }
+  }
+  // The arch line, as stepped haunches springing from each bent. `corbelArch` is
+  // the primitive this asks for and it cannot be used: every corbel course places
+  // two jamb beams of equal length with the clear span between them, and past
+  // about a third closed that span is smaller than the course — which is
+  // `probePlacementStep`'s gate condition exactly. District 2 recorded the same
+  // false positive at the mill dock and reached for `wedge` for the same reason:
+  // a wedge steps course-on-course, so it stands, and it reads as an arch haunch
+  // from any distance a player sees this bridge from.
+  for (const [az0, az1] of [[103, 105], [107, 110], [112, 114]]) {
+    const span = az1 - az0;
+    wedge(sim, { x: L.x0 + 0.5, y: deckY - 2, z: az0, w: span / 2, d: 4.5, h: 2, axis: 'z', from: 'min', riser: 0.25, mat: 'steel', color: C.lfSteel });
+    wedge(sim, { x: L.x0 + 5.5, y: deckY - 2, z: az0 + span / 2, w: span / 2, d: 4.5, h: 2, axis: 'z', from: 'max', riser: 0.25, mat: 'steel', color: C.lfSteel });
+  }
+  // The deck: two roadways and the trackbed between them, in 4 m runs, with the
+  // last one cut so nothing crosses `maxZ`.
+  for (let z = L.z0; z < L.z1; z += 4) {
+    const dz = Math.min(4, L.z1 - z);
+    // THE TWO ROADWAYS ARE 4.5 AND 4 m WIDE, NOT 4.25 EACH. Equal plates put two
+    // identical slabs 2 m apart across the trackbed, which is the sub-extent gap
+    // `probePlacementStep` gates; unequal ones are two different extents and are
+    // never compared. The Longfellow's carriageways are not symmetric in life
+    // either.
+    slab(sim, { x: L.x0, y: deckY, z, w: 4.5, d: dz, t: 0.5, mat: 'concrete', color: C.lfDeck });
+    slab(sim, { x: L.x0 + 4.5, y: deckY, z, w: 2, d: dz, t: 0.5, mat: 'steel', color: C.shelfGraniteDeep });
+    slab(sim, { x: L.x0 + 6.5, y: deckY, z, w: 4, d: dz, t: 0.5, mat: 'concrete', color: C.lfDeck });
+  }
+  // The parapets. No separate rails on the trackbed: the Red Line car below sits
+  // on it and a 0.25 m rail run beside a 0.25 m car skin is two identical steel
+  // members 0.25 m apart, which is the sub-extent gap `probePlacementStep` gates.
+  shoreRun(sim, { x: L.x0, z: L.z0, len: L.z1 - L.z0, axis: 'z', y: deckY + 0.5, t: 0.75, depth: 0.25, color: C.shelfGranite });
+  shoreRun(sim, { x: x1 - 0.25, z: L.z0, len: L.z1 - L.z0, axis: 'z', y: deckY + 0.5, t: 0.75, depth: 0.25, color: C.shelfGranite });
+  // THE FOUR SALT-AND-PEPPER TOWERS, in pairs on the two central bents — which is
+  // where `02` puts them and why the nickname works: they read as a set of four
+  // objects on two piers, not as four towers in a row.
+  for (const tz of [105.75, 110.75]) {
+    for (const tx of [L.x0 + 0.75, x1 - 3.75]) {
+      drum(sim, { x: tx, y: deckY + 0.5, z: tz, r: 1.5, h: 3.5, facets: 8, t: 0.25, mat: 'concrete', color: C.shelfGranite });
+      slab(sim, { x: tx + 0.25, y: deckY + 4, z: tz + 0.25, w: 2.5, d: 2.5, t: 0.25, mat: 'concrete', color: C.shelfGraniteDeep });
+      drum(sim, { x: tx + 0.5, y: deckY + 4.25, z: tz + 0.5, r: 1, h: 0.75, facets: 8, t: 0.25, mat: 'concrete', color: C.shelfGraniteWarm });
+    }
+  }
+  // The Red Line car, silver with a red stripe, standing between the two
+  // roadways. `02` §2.3 is explicit that a Red Line car belongs on the Longfellow
+  // and nowhere else in this scene, so this is the only one built.
+  const cz = 106;
+  slab(sim, { x: L.x0 + 4.5, y: deckY + 0.5, z: cz, w: 1.5, d: 7, t: 0.25, mat: 'steel', color: C.shelfSteel });
+  panel(sim, { x: L.x0 + 4.5, y: deckY + 0.75, z: cz, w: 7, h: 1.5, axis: 'z', t: 0.25, mat: 'steel', color: C.redLineSilver });
+  panel(sim, { x: L.x0 + 5.75, y: deckY + 0.75, z: cz, w: 7, h: 0.75, axis: 'z', t: 0.25, mat: 'steel', color: C.redLineSilver });
+  panel(sim, { x: L.x0 + 5.75, y: deckY + 1.5, z: cz, w: 7, h: 0.75, axis: 'z', t: 0.25, mat: 'steel', color: C.redLineRed });
+  slab(sim, { x: L.x0 + 4.5, y: deckY + 2.25, z: cz, w: 1.5, d: 7, t: 0.25, mat: 'steel', color: C.redLineSilver });
+}
+
+// THE ZAKIM — `02` §3: "270 ft / 82 m inverted-Y towers ... the inverted-Y was
+// designed to echo the Bunker Hill Monument — same silhouette family, so the two
+// read as a pair when both are on the map." They are both on this map and they are
+// 85 m apart, which is the whole reason `03` §5.3 puts them on the same edge.
+//
+// THE MAST HEIGHT IS THE ONE FIGURE ON THIS BRIDGE THAT IS NOT AN ESTIMATE, so it
+// is the one thing built literally: 82 m above deck at the height law's 1:1.5 is
+// 54.75 m, and at a deck 7 m up that is a 62 m mast — the tallest object in the
+// scene by 6 m over the Green Building. `03` §1.4 seats the bridge "at x ≈ 131
+// against a `maxX` of 132", which is to say most of it is off the map by design;
+// what is built is the 24 m of deck inside the rect, its two masts, and the water
+// under it, which is the four shapes `02` names minus the half that is Charlestown.
+function zakimBridge(sim) {
+  const Z = ZAKIM, z1 = Z.z0 + Z.d;
+  // Bents from grade to the deck. Three of the four stand in the harbour reach,
+  // which is what a river crossing looks like.
+  for (const bx of [110, 116, 122, 129]) {
+    for (const bz of [Z.z0 + 0.5, z1 - 2]) {
+      pier(sim, { x: bx, y: 0, z: bz, w: 1.5, h: Z.deckY - 0.75, d: 1.5, mat: 'concrete', color: C.shelfGraniteDeep });
+    }
+    beam(sim, { x: bx, y: Z.deckY - 0.75, z: Z.z0 + 0.5, len: Z.d - 2.5, axis: 'z', t: 0.75, depth: 1.5, mat: 'concrete', color: C.shelfGranite });
+  }
+  for (let x = Z.x0; x < Z.x1; x += 6) {
+    slab(sim, { x, y: Z.deckY, z: Z.z0, w: 6, d: Z.d, t: 0.5, mat: 'concrete', color: C.zakimDeck });
+  }
+  shoreRun(sim, { x: Z.x0, z: Z.z0, len: Z.x1 - Z.x0, axis: 'x', y: Z.deckY + 0.5, t: 0.75, depth: 0.25, mat: 'steel', color: C.zakimRail, step: 4 });
+  shoreRun(sim, { x: Z.x0, z: z1 - 0.25, len: Z.x1 - Z.x0, axis: 'x', y: Z.deckY + 0.5, t: 0.75, depth: 0.25, mat: 'steel', color: C.zakimRail, step: 4 });
+  // The two inverted-Y masts. Each leg is a stack of `pier`s walking 0.75 m in z
+  // per course — the Stata argument, applied to a splay instead of a lean: the
+  // lean IS the offset, because ADR-0013 refuses a rotation permanently, and a
+  // course sitting squarely on the one below is a vertical load path with no
+  // cantilever at all. The two legs stop 0.5 m apart and the shaft above bridges
+  // both, which is what makes it a Y rather than two poles.
+  //
+  // THE LEGS STAND OUTSIDE THE DECK BELOW IT AND SPLAY INWARD ABOVE IT, which is
+  // both what an inverted Y does and the only arrangement that does not put the
+  // deck's own fine cells in two owners' hands: a leg that walked inward from
+  // grade passes THROUGH the deck plate at course two, and `probeCellOwnership`
+  // counted 240 ghost cells for it on the first draft.
+  for (const mx of [114, 126]) {
+    for (const [z0, dir] of [[Z.z0 - 2, 1], [z1 + 0.5, -1]]) {
+      pier(sim, { x: mx, y: 0, z: z0, w: 1.5, h: Z.deckY + 0.5, d: 1.5, mat: 'concrete', color: C.zakimWhite });
+      for (let i = 0; i < 6; i++) {
+        pier(sim, {
+          x: mx, y: Z.deckY + 0.5 + i * 2.75, z: z0 + dir * i * 0.75,
+          w: 1.5, h: 2.75, d: 1.5, mat: 'concrete', color: C.zakimWhite,
+        });
+      }
+    }
+    for (let j = 0; j < 6; j++) {
+      pier(sim, { x: mx, y: 24 + j * 6.25, z: Z.z0 + 2.25, w: 1.5, h: 6.25, d: 3.5, mat: 'concrete', color: C.zakimWhite });
+    }
+  }
+  // The two fans of cables. A hanging catenary cannot exist here — `_recalcSupport`
+  // never flows support downward, so every cell on a descending stretch is
+  // orphaned — so each stay is a stepped run STANDING on the deck, exactly as
+  // District 3's catenary line item was rebuilt and `01` §3.1 requires. The tops
+  // form the fan; nothing hangs.
+  // THREE STAYS PER FAN AND NOT FIVE, and the reason is arithmetic rather than
+  // restraint: at a 1.5 m pitch the fifth stay of the west mast's east fan and the
+  // fifth of the east mast's west fan both land on x 120, which is the same
+  // 0.25 m column twice. Three reaches 4.5 m either side, the two fans stop 3 m
+  // apart, and the fan still reads as a fan.
+  for (const mx of [114, 126]) {
+    for (const dir of [-1, 1]) {
+      for (let i = 1; i <= 3; i++) {
+        const h = 34 - i * 9;
+        for (const sz of [Z.z0 + 0.5, z1 - 0.75]) {
+          column(sim, { x: mx + dir * i * 1.5, y: Z.deckY + 0.5, z: sz, h, s: 0.25, mat: 'steel', color: C.zakimCable });
+        }
+      }
+    }
+  }
+}
+
+// TD GARDEN — `02` §3 is honest that it is "recognizable mostly by WHERE it is
+// rather than by shape", so `03` §5.3 spends nothing on it: "a big blank
+// drum-over-box at the Zakim's foot and nothing more." Both halves of the
+// declared exception at the top of this district apply here — the hand seat at
+// (+128,+11) and the 1:20 plan — and the building is what is left when a source
+// says there is nothing to draw.
+function tdGarden(sim) {
+  const G = TD_GARDEN, x1 = G.x0 + G.w, z1 = G.z0 + G.d;
+  for (let b = 0; b < 3; b++) {
+    const y = b * 7.5;
+    const tone = b === 1 ? C.gardenBand : C.gardenPrecast;
+    shelfBlankBand(sim, { axis: 'x', u0: G.x0, v: G.z0, y, len: G.w, h: 7.5, color: tone });
+    shelfBlankBand(sim, { axis: 'x', u0: G.x0, v: z1 - 0.5, y, len: G.w, h: 7.5, color: tone });
+    shelfBlankBand(sim, { axis: 'z', u0: G.z0 + 0.5, v: G.x0, y, len: G.d - 1, h: 7.5, color: tone });
+    shelfBlankBand(sim, { axis: 'z', u0: G.z0 + 0.5, v: x1 - 0.5, y, len: G.d - 1, h: 7.5, color: tone });
+  }
+  // The roof, on a deck of its own, and the drum over it.
+  for (let z = G.z0; z < z1; z += 6) {
+    slab(sim, { x: G.x0, y: 22.5, z, w: G.w, d: Math.min(6, z1 - z), t: 0.25, mat: 'concrete', color: C.gardenRoof });
+  }
+  drum(sim, { x: G.x0 + 1.5, y: 22.75, z: G.z0 + 3.5, r: 2.5, h: 2.5, facets: 8, t: 0.25, mat: 'concrete', color: C.gardenRoof });
+  // The plinth on the two faces that have ground beside them. The east one is the
+  // map edge — a plinth there would stand outside `boundsRect` — and the west one
+  // is the lock cut, which is water and does not take a kerb.
+  for (const [px, pz, pl, pa] of [[G.x0, G.z0 - 0.75, G.w, 'x'], [G.x0, z1, G.w, 'x']]) {
+    for (let s = 0; s < pl - 0.01; s += 4) {
+      const l = Math.min(4, pl - s);
+      plinth(sim, pa === 'x'
+        ? { x: px + s, y: 0, z: pz, w: l, d: 0.75, h: 0.5, mat: 'concrete', color: C.gardenBand }
+        : { x: px, y: 0, z: pz + s, w: 0.75, d: l, h: 0.5, mat: 'concrete', color: C.gardenBand });
+    }
+  }
+}
+
+// THE BUNKER HILL MONUMENT — `02` §3: "a 221 ft / 67 m granite obelisk on a
+// hilltop. TWO SHAPES: a tapering grey stone needle and a square green hill. Cheap
+// to build, high recognition, and it pairs with the Zakim." `03` §5.3 agrees and
+// calls it "the best value on the shelf".
+//
+// IT IS NOT `obelisk` FROM THE KIT, AND THAT IS A DEVIATION FROM `03` §5.3 WORTH
+// THE LINE. The kit's `obelisk` is cube-era: it lays 0.5 m cubes course by course,
+// and at this monument's 44.7 m of scene height that is about 1,480 of them for a
+// line item `03` §5.1 prices at 420. The needle here is nine stacked `pier`s of
+// shrinking plan plus a four-course pyramidion — sixteen blocks for the same
+// silhouette, which is ADR-0013's entire argument stated on the simplest object in
+// the scene. The kit function is left alone; four other scenes call it.
+function bunkerHill(sim) {
+  const B = BUNKER;
+  // The hill, as a battered terrace on the two long sides only. The four sides
+  // are NOT run round the square: two `wedge`s meeting at a corner both claim the
+  // corner cell, which is a ghost rather than a mitre, and the north and south
+  // returns are what the fence and the lawn edge do instead.
+  for (const [wx, wz, from, wd] of [
+    [B.cx - 4.5, B.cz - 9, 'max', 4.5], [B.cx + 0.5, B.cz - 9, 'max', 4],
+    [B.cx - 4.5, B.cz + 8, 'min', 4.5], [B.cx + 0.5, B.cz + 8, 'min', 4],
+  ]) {
+    wedge(sim, { x: wx, y: 0, z: wz, w: 1, d: wd, h: 0.75, axis: 'z', from, riser: 0.25, mat: 'concrete', color: C.shelfGraniteWarm });
+  }
+  // The base: four plinths rather than one, for the grade clause — a 5 x 5 m base
+  // drawn as a single member is 7.0 m of diagonal, inside the 8, but a 6 x 6 one
+  // would not be and the run size is what the authoring rule keys on (`03` §5.2).
+  // AT GRADE, NOT ON THE TERRACE. The terrace courses run down the square's two
+  // long sides and stop 4 m short of the monument, so a base set on their own top
+  // face stands over open lawn — `probeIdleStability` dropped three of the four.
+  for (const [px, pz] of [[-2.5, -2.5], [0, -2.5], [-2.5, 0], [0, 0]]) {
+    plinth(sim, { x: B.cx + px, y: 0, z: B.cz + pz, w: 2.5, d: 2.5, h: 2.75, mat: 'concrete', color: C.shelfGraniteWarm });
+  }
+  // The needle. Nine courses of 4.5 m, tapering 0.25 m of plan per course, so the
+  // shaft is 3 m across at the base and 1 m at the pyramidion — the proportion
+  // `02`'s "tapering grey stone needle" asks for, on a 67 m real height that the
+  // height law puts at 44.7.
+  let w = 3;
+  for (let i = 0; i < 9; i++) {
+    pier(sim, { x: B.cx - w / 2, y: 2.75 + i * 4.5, z: B.cz - w / 2, w, h: 4.5, d: w, mat: 'concrete', color: i % 2 ? C.shelfGranite : C.shelfGraniteDeep });
+    w -= 0.25;
+  }
+  wedge(sim, { x: B.cx - 0.5, y: 43.25, z: B.cz - 0.5, w: 1, d: 1, h: 1, axis: 'x', from: 'center', riser: 0.25, mat: 'concrete', color: C.shelfGraniteWarm });
+  // The square green hill's own edge, and the square around it. `03` §8.2: "each
+  // landmark sits on an authored block — a plinth, a lawn edge, a kerb, a fence
+  // run, a row of parked vehicles."
+  fenceRun(sim, { x: B.cx - 4.5, z: B.cz - 9.5, len: 9, axis: 'x', h: 1.0, mat: 'steel', color: C.shelfFence });
+  fenceRun(sim, { x: B.cx - 4.5, z: B.cz + 9.5, len: 9, axis: 'x', h: 1.0, mat: 'steel', color: C.shelfFence });
+  shoreRun(sim, { x: B.cx - 5, z: B.cz - 9, len: 18, axis: 'z', color: C.shelfLawnEdge });
+  shoreRun(sim, { x: B.cx + 4.75, z: B.cz - 9, len: 18, axis: 'z', color: C.shelfLawnEdge });
+  for (const tz of [B.cz - 7, B.cz - 1, B.cz + 5]) { tree(sim, B.cx - 3.5, tz); tree(sim, B.cx + 3.5, tz); }
+  for (const bz of [B.cz - 5, B.cz + 3]) bench(sim, B.cx - 4, bz);
+  for (const lz of [B.cz - 8, B.cz + 2, B.cz + 7]) lampPost(sim, B.cx + 4, lz);
+  trashBin(sim, B.cx + 4, B.cz + 4, 0x40463c);
+  signPost(sim, B.cx - 4, B.cz + 7, 0x6b5a3e, 2, 'x', 1.25);
+}
+
+// THE CHARLESTOWN BANK — the monument square's approach, and the ground plane that
+// carries this band's density. `03` §8.2 for District 9: "the shelf is not
+// free-standing ... if the probe still comes up short, the answer is more ground
+// furniture rather than a wider probe." This is that furniture, and it is doing a
+// second job at the same time.
+//
+// THE COPING ALONG x 115.5 IS LOAD-BEARING FOR A PROBE, NOT JUST FOR THE EYE.
+// District 8\'s `HARBOUR_REACH` (x[116,124] z[−64,+4]) took its `probeRimmedWater`
+// exemption from touching `maxX` at 124; this task moves `maxX` to 132 and revokes
+// it, so the reach needs a complete rim for the first time. Its east ring is the
+// new water column, its north ring is the reach past the Zakim, and its WEST ring
+// is 34 m of bank that has never had anything on it. District 8 already coped
+// x 115.5 from z −30 south; this continues the same line north to the map's own
+// water. It is the cheapest 12 blocks in the district and without them six water
+// rects fail.
+function charlestownBank(sim) {
+  shoreRun(sim, { x: 115.5, z: -65, len: 35, axis: 'z', t: 0.5, depth: 0.5, color: C.shelfGranite });
+  // The one cell District 8's own coping stops short of, at z −6, where its run
+  // ends and the park inlet's rim takes over.
+  shoreRun(sim, { x: 115.5, z: -6, len: 1, axis: 'z', t: 0.5, depth: 0.5, color: C.shelfGranite });
+  // The lock cut's west quay head, at z 33 — the last cell of that rect's own ring
+  // District 8 never needed to build, because at `maxX` 124 the cut was exempt.
+  shoreRun(sim, { x: 111.25, z: 33, len: 1.5, axis: 'z', t: 0.5, depth: 0.5, color: C.shelfGranite });
+  // Main Street, Charlestown: the kerb line and the tree pitch from the monument
+  // square down to the Zakim's north abutment. No carriageway rect — this band
+  // declares no roads at all, which keeps `probeRoadConflicts` out of a corner of
+  // the map where a bridge deck, a bank coping and a park lawn already overlap.
+  // TWO RUNS AT x 106.75, NOT ONE AT 106.25. District 7's own North Point Way
+  // streetscape stands at x[106.375,106.625] for the whole of this stretch, and
+  // Hult House's plinth band occupies x[106.75,107.5] across its own frontage — so
+  // the kerb line threads between the two and breaks at the building, which is what
+  // a kerb does at a forecourt anyway.
+  shoreRun(sim, { x: 106.75, z: -88, len: 25, axis: 'z', color: C.shelfKerb });
+  shoreRun(sim, { x: 106.75, z: -49, len: 21, axis: 'z', color: C.shelfKerb });
+  shoreRun(sim, { x: 114.5, z: -88, len: 22, axis: 'z', color: C.shelfKerb });
+  // The tree pitch skips Hult House's own frontage: the tower stands at
+  // x[107.5,114.5] z[−61,−51] and a street tree at x 108 inside that band is a
+  // trunk in a shopfront.
+  for (let tz = -85; tz < -26; tz += 7) { if (tz > -63 && tz < -49) continue; tree(sim, 108, tz); }
+  for (let lz = -82; lz < -26; lz += 11) lampPost(sim, 113.5, lz);
+  for (const bz of [-72, -60, -42]) bench(sim, 108.5, bz);
+  for (const bz of [-70, -50, -34]) bollard(sim, 113.5, bz, C.steelDark);
+  trashBin(sim, 108.5, -66, 0x40463c);
+  planter(sim, 112.5, -72, 2, 1, 0x6d5a4a);
+  planter(sim, 112.5, -46, 2, 1, 0x6d5a4a);
+  // Hult House's own apron and forecourt kerb.
+  shoreRun(sim, { x: 107, z: -62.5, len: 8, axis: 'x', color: C.shelfApron });
+  shoreRun(sim, { x: 107, z: -49.75, len: 8, axis: 'x', color: C.shelfApron });
+  bikeRack(sim, 110, -49.5, 4, 'x', 0x3a4450);
+  // The Zakim's north abutment apron, where the deck meets the bank.
+  shoreRun(sim, { x: 106.5, z: -22, len: 1.5, axis: 'x', color: C.shelfApron });
+  for (const lx of [108, 113]) lightMast(sim, lx, -23.5, 5, C.zakimRail);
+  // TD Garden's forecourt, on the east bank at the Zakim's foot.
+  // z 3, not 2.75: the cell this run has to carry is (124,3), which is the last
+  // dry cell of District 8's harbour reach's own east ring once `maxX` moves.
+  shoreRun(sim, { x: 124, z: 3, len: 8, axis: 'x', color: C.shelfApron });
+  for (const lx of [125.5, 130.5]) lampPost(sim, lx, 3.5);
+  bench(sim, 128, 3.5);
+  bollard(sim, 127, 3.5, C.steelDark);
+}
+
+// THE SOUTH SHORE — the bank staircase from the MIT front all the way east to
+// District 8's basin, and the promenade on it. `03` §8.2's mitigation for this
+// district and District 8's alike is a continuous eatable spine, and this is the
+// one that runs the whole width of the map: 190 m of coping, walk furniture and
+// tree pitch, unbroken except where the Longfellow's abutment cuts it.
+//
+// EVERY RUN IS LAID INLAND OF ITS OWN WATER RECT'S NORTH EDGE, in ≤3 m pieces.
+// The steps between the four reaches are returns along z, so the shore reads as a
+// staircase rather than as four unrelated straight lines — which is also what
+// `03` §2.2 asks for when it lists "the river meeting the grid obliquely rather
+// than squarely" among the three things that make this read as East Cambridge.
+function southShore(sim) {
+  const banks = [
+    { x: -120, z: 109.5, len: 62 },
+    { x: -58, z: 105.5, len: 54 },
+    { x: -4, z: 100.5, len: 9 },      // west of the Longfellow's abutment
+    { x: 16, z: 100.5, len: 16 },     // east of it
+    { x: 32, z: 97.5, len: 38 },
+  ];
+  for (const b of banks) shoreRun(sim, { x: b.x, z: b.z, len: b.len, axis: 'x', t: 0.5, depth: 0.5, color: C.shelfGranite });
+  for (const [rx, rz, rl] of [[-58.5, 105.5, 4], [-4, 101, 4.5], [31.5, 97.5, 3]]) {
+    shoreRun(sim, { x: rx, z: rz, len: rl, axis: 'z', t: 0.5, depth: 0.5, color: C.shelfGranite });
+  }
+  // The promenade furniture, at the shared 5–8 m kerb pitch the other districts
+  // use. It is the whole of this band's answer to a gap floor of 15 m.
+  for (let x = -117; x < -60; x += 7) tree(sim, x, 108.5);
+  for (let x = -114; x < -60; x += 13) bench(sim, x, 107);
+  for (let x = -110; x < -60; x += 17) lampPost(sim, x, 107);
+  for (let x = -55; x < -6; x += 7) tree(sim, x, 103.5);
+  for (let x = -52; x < -6; x += 13) bench(sim, x, 104.5);
+  for (let x = -45; x < -6; x += 17) lampPost(sim, x, 104.5);
+  for (let x = 36; x < 69; x += 7) tree(sim, x, 95.5);
+  for (let x = 38; x < 69; x += 13) bench(sim, x, 96.5);
+  for (let x = 42; x < 69; x += 17) lampPost(sim, x, 96.5);
+  for (const bx of [-100, -70, -30, 20, 52]) bollard(sim, bx, 106, C.steelDark);
+  for (const tx of [-86, -20, 44]) trashBin(sim, tx, 106.5, 0x40463c);
+  drinkingFountain(sim, -64, 104.5, C.shelfSteel);
+  drinkingFountain(sim, 60, 96.5, C.shelfSteel);
+  // The Charlesgate Yacht Club's float and its two moored boats, on the basin.
+  // `02`'s river note holds one district east of here and it holds here: the
+  // dinghy fleet is upstream of the Longfellow, so what is moored off a yacht club
+  // on THIS reach is two hulls and a jetty, not a sailboat scatter.
+  slab(sim, { x: 71, y: 0, z: 76, w: 4, d: 1.5, t: 0.25, mat: 'wood', color: C.jettyTimber });
+  rowBoat(sim, 72, 79, 'z', 0x2f6b3a);
+  rowBoat(sim, 76, 79, 'z', 0x8d2f28);
+  for (const bz of [72.5, 82]) bollard(sim, 70.5, bz, C.steelDark);
+  // THE FOUR CORNER CELLS OF DISTRICT 8'S BANK STAIRCASE, and they are here for a
+  // probe rather than for the eye. Each of that district's six basin rects took
+  // its `probeRimmedWater` exemption from touching `maxX` at 124; this task moves
+  // the edge to 132 and revokes it, and a staircase of rects leaves exactly one
+  // dry outside corner per step where its coping turns. Four blocks, four cells,
+  // and without them four water rects fail. They are laid as granite, which is
+  // what the coping either side of them already is.
+  for (const [cx, cz] of [[91, 43], [83, 47], [75, 51], [69, 55]]) {
+    plinth(sim, { x: cx, y: 0, z: cz, w: 1, d: 1, h: 0.5, mat: 'concrete', color: C.shelfGranite });
+  }
+}
+
+// THE SOUTH BAND'S GREENS AND ITS APRONS — Costa Lopez Park, Timothy J. Toomey Jr.
+// Park, the Cambridge Parkway park strip at its own derived seat, and the ground
+// between CambridgeSide and the shore.
+//
+// TWO OF THESE CLOSE DEFERRALS THAT HAVE BEEN OPEN SINCE P6.4. Costa Lopez Park
+// derives to (−76,+71.75) and the Chang Shing Tofu Factory to (−38,+96.25); both
+// were 42 m and 70 m outside the map District 4 could reach, both shipped as
+// `CAMBRIDGE_OFFSETS` rows with no geometry, and District 4's note said "whichever
+// of P6.5/P6.10 is genuinely adjacent picks it up". This is the task whose rect
+// reaches them, and both are built within 0.3 m of their own seats.
+function shelfGreens(sim) {
+  // Costa Lopez Park — one of the two Portuguese park names `02` §4 calls "the
+  // neighbourhood telling you what it is".
+  const CL = { x0: -78, z0: 62, w: 14, d: 14 };
+  shoreRun(sim, { x: CL.x0, z: CL.z0, len: CL.w, axis: 'x', color: C.shelfLawnEdge });
+  // The north edge starts half a metre in: Stata's own block kerb runs down x −78
+  // and a lawn edge carried to the corner meets it in the same fine cell.
+  shoreRun(sim, { x: CL.x0 + 0.5, z: CL.z0 + CL.d, len: CL.w - 0.5, axis: 'x', color: C.shelfLawnEdge });
+  shoreRun(sim, { x: CL.x0 - 0.25, z: CL.z0, len: CL.d, axis: 'z', color: C.shelfLawnEdge });
+  shoreRun(sim, { x: CL.x0 + CL.w, z: CL.z0, len: CL.d, axis: 'z', color: C.shelfLawnEdge });
+  playgroundSet(sim, { x: CL.x0 + 2, z: CL.z0 + 3 });
+  for (let i = 0; i < 3; i++) { tree(sim, CL.x0 + 1 + i * 6, CL.z0 + 1.5); tree(sim, CL.x0 + 1 + i * 6, CL.z0 + 12.5); }
+  for (const bx of [CL.x0 + 4, CL.x0 + 10]) bench(sim, bx, CL.z0 + 11.5);
+  for (const lx of [CL.x0 + 2, CL.x0 + 12]) lampPost(sim, lx, CL.z0 + 6);
+  trashBin(sim, CL.x0 + 13, CL.z0 + 9, 0x40463c);
+  pergola(sim, { x: CL.x0 + 4, z: CL.z0 + 6.5, len: 7, axis: 'x', w: 2, h: 2.5, color: 0x5a4a32 });
+  // Toomey Park.
+  const TP = { x0: -62, z0: 78, w: 14, d: 14 };
+  shoreRun(sim, { x: TP.x0, z: TP.z0, len: TP.w, axis: 'x', color: C.shelfLawnEdge });
+  shoreRun(sim, { x: TP.x0, z: TP.z0 + TP.d, len: TP.w, axis: 'x', color: C.shelfLawnEdge });
+  shoreRun(sim, { x: TP.x0 + TP.w, z: TP.z0, len: TP.d, axis: 'z', color: C.shelfLawnEdge });
+  for (let i = 0; i < 3; i++) { tree(sim, TP.x0 + 1.5 + i * 5, TP.z0 + 1.5); tree(sim, TP.x0 + 1.5 + i * 5, TP.z0 + 12.5); }
+  for (const bx of [TP.x0 + 4, TP.x0 + 10]) bench(sim, bx, TP.z0 + 7);
+  lampPost(sim, TP.x0 + 12.5, TP.z0 + 5);
+  drinkingFountain(sim, TP.x0 + 12.5, TP.z0 + 10, C.shelfSteel);
+  // The Cambridge Parkway park strip, at its own derived seat (+26.25,+100.5) —
+  // District 8 handed it forward with the Sonesta and 55 Cambridge Parkway, and
+  // this is the strip between them and the water.
+  for (const [tx] of [[-2], [4], [10], [16], [22], [28]]) tree(sim, tx, 100);
+  for (const bx of [0, 12, 24]) bench(sim, bx, 100);
+  for (const lx of [6, 18, 30]) lampPost(sim, lx, 100);
+  for (const bx of [2, 26]) bollard(sim, bx, 100, C.steelDark);
+  // The aprons and kerb lines that tie the four south-band buildings together.
+  shoreRun(sim, { x: -34, z: 79, len: 30, axis: 'x', color: C.shelfKerb });
+  shoreRun(sim, { x: -4, z: 77.25, len: 24, axis: 'x', color: C.shelfKerb });
+  shoreRun(sim, { x: 20, z: 79.25, len: 36, axis: 'x', color: C.shelfKerb });
+  shoreRun(sim, { x: 19.5, z: 79.5, len: 18, axis: 'z', color: C.shelfKerb });
+  shoreRun(sim, { x: 60, z: 73, len: 10, axis: 'x', color: C.shelfKerb });
+  for (const [tx, tz] of [[-30, 79.5], [-22, 79.5], [-14, 79.5], [-6, 76], [2, 76], [10, 76], [24, 77.5], [36, 77.5], [48, 77.5]]) tree(sim, tx, tz);
+  for (const bx of [-26, -10, 6, 30, 42]) bench(sim, bx, 76.5);
+  for (const lx of [-32, -18, 0, 20, 38, 60]) lampPost(sim, lx, 76.5);
+  for (const bx of [-28, 4, 34]) trashBin(sim, bx, 76.5, 0x40463c);
+  marketStall(sim, 14, 72, 0xc23b2e, 3, 2);
+  marketStall(sim, 20, 72, 0x2f6b4f, 3, 2);
+  hotDogCart(sim, 26, 72);
+  for (const [tx, tz] of [[36, 66], [44, 66], [52, 66], [60, 66], [40, 76], [50, 76], [58, 76]]) tree(sim, tx, tz);
+  for (const bx of [38, 48, 58]) bench(sim, bx, 68);
+  for (const lx of [34, 46, 56, 66]) lampPost(sim, lx, 68);
+  pathRibbon([[32, 70], [50, 68], [68, 70]], 2);
+  // The band between Toomey Park and CambridgeSide, which would otherwise be the
+  // emptiest 40 m in the south. A walk, its trees and its seats.
+  for (const [tx, tz] of [[-46, 68], [-38, 68], [-30, 68], [-22, 68], [-14, 68], [-46, 76], [-38, 76]]) tree(sim, tx, tz);
+  for (const bx of [-42, -26, -12]) bench(sim, bx, 69);
+  for (const lx of [-48, -34, -18]) lampPost(sim, lx, 69);
+  pergola(sim, { x: -38, z: 71.5, len: 7, axis: 'x', w: 2, h: 2.5, color: 0x5a4a32 });
+  for (const bx of [-44, -20]) trashBin(sim, bx, 69, 0x40463c);
+}
+
+// The shelf's parked vehicles — `03` §8.2 names "a row of parked vehicles" among
+// the authored blocks a landmark is allowed to sit on, and this district has no
+// carriageway of its own to put a rank in, so they stand on the aprons.
+function shelfVehicles(sim) {
+  for (const v of CAMBRIDGE_VEHICLES) {
+    if (v.d !== 9) continue;
+    if (v.kind === 'sedan') sedan(sim, v.x, v.z, v.body, v.roof, v.axis);
+    else if (v.kind === 'boxVan') boxVan(sim, v.x, v.z, v.len, v.cab, v.box, v.axis);
+    else if (v.kind === 'bus') bus(sim, v.x, v.z, v.body, v.axis);
+    else bigTruck(sim, v.x, v.z, v.box);
+  }
+}
+
+export function landmarkShelfDistrict(sim) {
+  shelfMasses(sim);
+  neccoWaterTower(sim);
+  stataCenter(sim);
+  greatDome(sim);
+  killianCourt(sim);
+  greenBuilding(sim);
+  kendallStation(sim);
+  longfellowBridge(sim);
+  zakimBridge(sim);
+  tdGarden(sim);
+  bunkerHill(sim);
+  charlestownBank(sim);
+  southShore(sim);
+  shelfGreens(sim);
+  shelfVehicles(sim);
+}
+
+// The shelf's ground. Three bands, and every rect is stated off a building's own
+// footprint or a water rect's own bank rather than drawn to look right —
+// `rectsOverlap` is open, so a walk whose edge IS the water's edge is legal and one
+// 0.25 m inside it is not.
+export const SHELF_DECOR = {
+  water: SHELF_WATER,
+  parks: [
+    { x: -100, z: 103, w: 18, d: 7 },     // Killian Court
+    { x: -79, z: 61, w: 17, d: 16 },      // Costa Lopez Park
+    { x: -63, z: 77, w: 16, d: 16 },      // Toomey Park
+    { x: -52, z: 62, w: 51, d: 18 },      // the walk between Toomey and CambridgeSide
+    { x: -4, z: 96, w: 36, d: 5 },        // the Cambridge Parkway park strip
+    { x: 30, z: 61, w: 40, d: 20 },       // the south lawn, below District 6's canal park
+    { x: 30, z: 81, w: 40, d: 14 },       // and its shore half
+    { x: 106, z: -110, w: 10, d: 22 },    // Monument Square, Charlestown
+  ],
+  plaza: [
+    { x: -120, z: 72, w: 16, d: 20 },     // the NECCO yard
+    { x: -107, z: 66, w: 34, d: 30 },     // the Stata block and its amphitheatre
+    { x: -108, z: 91, w: 30, d: 15 },     // the Great Dome's forecourt and colonnade
+    { x: -108, z: 101, w: 28, d: 4 },     // and its stylobate, south of the range
+    { x: -82, z: 91, w: 32, d: 15 },      // the Green Building and Kendall plaza
+    { x: -74, z: 76, w: 17, d: 14 },      // American Twine
+    { x: -48, z: 90, w: 16, d: 12 },      // the tofu factory
+    { x: -34, z: 78, w: 31, d: 22 },      // 100 CambridgeSide
+    { x: -4, z: 74, w: 24, d: 26 },       // 20 CambridgeSide
+    { x: 18, z: 74, w: 40, d: 24 },       // 55 Cambridge Parkway and the Royal Sonesta
+    { x: 58, z: 71, w: 11, d: 14 },       // the yacht club yard
+    { x: 3, z: 98, w: 15, d: 3 },         // the Longfellow's abutment apron
+    { x: 106, z: -88, w: 10, d: 67 },     // the Charlestown approach
+    { x: 124, z: -8, w: 8, d: 12 },       // TD Garden's block
+    { x: 14, z: 70, w: 16, d: 5 },        // the market row on the south lawn's walk
+    // The four corner cells of District 8's bank staircase — see `southShore`.
+    { x: 91, z: 43, w: 1, d: 1 },
+    { x: 83, z: 47, w: 1, d: 1 },
+    { x: 75, z: 51, w: 1, d: 1 },
+    { x: 69, z: 55, w: 1, d: 1 },
+  ],
+  sidewalks: [
+    { x: -120, z: 106, w: 62, d: 4 },     // the promenade, reach by reach
+    { x: -58, z: 102, w: 54, d: 4 },
+    { x: -4, z: 99, w: 36, d: 2 },
+    { x: 32, z: 94, w: 37, d: 4 },
+  ],
+};
+
+export const SHELF_AMBIENT = {
+  gulls: [
+    { x: 20, z: 110, count: 8 },
+    { x: -80, z: 113, count: 7 },
+    { x: 90, z: 90, count: 9 },
+    { x: 128, z: -40, count: 6 },
+  ],
+  pigeons: [
+    { x: -61, z: 98, count: 12 },         // Kendall plaza
+    { x: -93, z: 94, count: 9 },          // Stata's amphitheatre
+    { x: 8, z: 90, count: 11 },           // CambridgeSide's forecourt
+    { x: 110, z: -95, count: 10 },        // Monument Square
+  ],
+  steam: [
+    { x: -113, z: 88, rate: 0.18 },       // the NECCO slice's roof plant
+    { x: -19, z: 90, rate: 0.15 },
+  ],
+  neon: [
+    { x: 8, z: 79.5, w: 12, d: 1.2, color: 0xffb347, period: 3.8 },   // CambridgeSide's retail band
+    { x: 46, z: 84.5, w: 10, d: 1.2, color: 0x7fd4e8, period: 5.2 },  // the Sonesta's canopy
+  ],
+};
+
 // --- THE SHELL ---------------------------------------------------------------
 // Ground, streets, decor, kerbs, street furniture, vehicles, ambient life and
 // camera blockers. IDENTICAL across all three variants by construction: it is
@@ -8494,7 +10067,33 @@ export function cambridgeSpendBack(sim) {
 // will need. The offsets are all in `CAMBRIDGE_OFFSETS` (rows 10, 11, 50, 51)
 // with the derivation recorded, which is the disposition District 4 gave Costa
 // Lopez Park, District 5 the Registry of Deeds and District 7 Hult House.
-export const CAMBRIDGE_BOUNDS = { minX: -120, maxX: 124, minZ: -112, maxZ: 61 };
+// P6.9 MOVES TWO EDGES AND REACHES `03` §1.1's DESIGNED RECT FOR GOOD — 252 × 228 m,
+// x[−120,132] z[−112,116] — which `05`'s task list gives to P6.10. It lands here
+// because both moved edges are forced by a landmark this task owns and neither can
+// wait: `maxX` 124 → 132 for the Zakim, which §1.4 explicitly seats "at x ≈ 131
+// against a `maxX` of 132", and `maxZ` 61 → 116 for the Longfellow's Cambridge end
+// at (+10.5,+113.25) and for the whole MIT shelf between z +83 and z +107. P6.10
+// therefore has no rect left to widen, which is the right outcome rather than a
+// scheduling accident: `05`'s own rule is that each task widens the rect to hug its
+// own geometry, and this is the task whose geometry IS the perimeter.
+//
+// WHAT HOLDS EACH EDGE, since `probeBoundsRect` fails a rect leaving more than 12 m
+// of blank ground on any side: x −120 is District 4's Silva Park and this district's
+// NECCO slice, x +132 the Zakim's deck and TD Garden's east wall, z −112 District
+// 3's Inner Belt carhouse and Monument Square's own lawn, z +116 the Longfellow's
+// deck and the Charles running out through it.
+//
+// AND IT REVOKES NINE EXEMPTIONS ON THE WAY. Every District 8 water rect took its
+// `probeRimmedWater` pass from touching `maxX` at 124; at 132 none of them does.
+// Measured on the bare rect change alone: 269 unrimmed ring cells across six rects.
+// They are closed by this district's own water (the east column and the basin's
+// southward continuation), by 36 m of Charlestown bank coping, by four single-cell
+// corner blocks on District 8's bank staircase, and by widening `LOCK_CUT` and
+// `HARBOUR_MOUTH` to the new edge — the last of which is a change to a
+// DECLARATION, not to geometry, and is argued at those two constants. Any task that
+// moves an edge again should re-run that probe before assuming a neighbour's water
+// is still exempt.
+export const CAMBRIDGE_BOUNDS = { minX: -120, maxX: 132, minZ: -112, maxZ: 116 };
 
 export function buildCambridge(sim) {
   cambridgeShell(sim, (s) => {
@@ -8507,10 +10106,11 @@ export function buildCambridge(sim) {
     canalDistrict(s);
     northPointDistrict(s);
     charlesShoreDistrict(s);
+    landmarkShelfDistrict(s);
   }, {
     bounds: CAMBRIDGE_BOUNDS,
-    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR, SEAM_DECOR, THORNDIKE_DECOR, CANAL_DECOR, NORTH_POINT_DECOR, CHARLES_DECOR),
-    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT, SEAM_AMBIENT, THORNDIKE_AMBIENT, CANAL_AMBIENT, NORTH_POINT_AMBIENT, CHARLES_AMBIENT),
+    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR, SEAM_DECOR, THORNDIKE_DECOR, CANAL_DECOR, NORTH_POINT_DECOR, CHARLES_DECOR, SHELF_DECOR),
+    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT, SEAM_AMBIENT, THORNDIKE_AMBIENT, CANAL_AMBIENT, NORTH_POINT_AMBIENT, CHARLES_AMBIENT, SHELF_AMBIENT),
   });
 }
 
