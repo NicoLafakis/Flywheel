@@ -385,9 +385,12 @@ online leaderboards or any backend, the campaign HUD, per-city phrase sets, a
 score-boosting shop item, and any change to coin behaviour or to any scene's
 `targetFraction`. See [01-prd.md §4](01-prd.md#4-non-goals-out-of-scope).
 
-## Open decisions this contract is waiting on
+## Open decisions this contract was waiting on — ANSWERED
 
-Three, all the owner's, all recorded in
+All three were ruled on before the build (2026-08-10) and are recorded in
 [00-objective-overview.md](00-objective-overview.md) §"Decisions that are the
-owner's" with recommendations. They resolve into values consumed by GWT-301,
-GWT-303 and SYS-308; nothing else in this document is blocked by them.
+owner's": **points-only**, **a named top level** at chain 600, and **a whole
+helping per level**. The values they resolve into are what GWT-301, GWT-303 and
+SYS-308 are now checked against — and Q1's ruling is what SYS-308 means in
+practice, since the SIZE ladder's INPUT changed from `mass` to `rawMass` rather
+than only its thresholds.

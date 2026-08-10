@@ -150,8 +150,19 @@ export class Screens {
     const coins = sim.coinsCollected * 2 + 35;
     // Bank line projects the post-award total: recordSandboxResult runs in the
     // continue callback, so at render time save.coins is still pre-award.
+    // The run's peak has to survive the run, or every celebration during it was
+    // retroactively meaningless. Read BEFORE recordSandboxResult runs (it fires
+    // in the continue callback), so "beaten" compares against the stored best
+    // rather than against the run that just overwrote it.
+    const prev = (this.save.sandbox || {})[sim.scene] || {};
+    const score = Math.floor(sim.hole.mass);
+    const best = sim.hole.bestCombo;
+    const newScore = score > (prev.bestScore || 0);
+    const newCombo = best > (prev.bestCombo || 0);
     const s = el(`<div class="screen"><h2>GOAL COMPLETE</h2><div class="results-stats">
       <div>${sim.goal.name}</div><div>City cleared <b>${Math.round(sim.hole.rawMass / sim.totalMass * 100)}%</b></div>
+      <div>Score <b>${score.toLocaleString('en-US')}</b>${newScore ? ' <span class="rec-new">BEST!</span>' : ''}</div>
+      <div>Best combo <b>${best}</b>${newCombo ? ' <span class="rec-new">BEST!</span>' : ''}</div>
       <div>Coins found <b>${sim.coinsCollected}/${sim.coins.length}</b></div>
       <div>Finish bonus <b>+35</b></div><div>Coins earned <b>+${coins}</b></div>
       <div>Bank <b>🪙 ${this.save.coins + coins}</b></div></div></div>`);

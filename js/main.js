@@ -8,13 +8,14 @@ import { World3D } from './world3d.js';
 import { VoxelWorld3D } from './voxelworld.js';
 import { ChaseCamera } from './camera.js';
 import { Controls } from './controls.js';
-import { HUD } from './ui/hud.js';
+import { HUD, ANN } from './ui/hud.js';
 import { Screens, SKINS, INDICATOR_SKINS } from './ui/screens.js';
 import { mountReadyGate } from './ui/ready.js';
 import { TIERS } from './quality.js';
 
 const canvas = document.getElementById('game-canvas');
 const hud = new HUD();
+window.__hud = hud; // debug/smoke-test hook, same idiom as __sim / __cam / __controls
 const save = loadSave();
 
 // ------------------------------------------------------------------ audio (tiny)
@@ -177,6 +178,9 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     // Guarded like setShadows above: only the voxel renderer implements this,
     // and the campaign World3D must not be called with a method it lacks.
     if (world && world.setReducedMotion) world.setReducedMotion(save.settings.reducedMotion);
+    // The HUD's own celebrations honour the same toggle, live: a mid-session
+    // change must reach the next celebration without a restart (GWT-803).
+    hud.setReducedMotion(save.settings.reducedMotion);
     if (world && world.setPerfMode) world.setPerfMode(save.settings.perfMode);
     // Unconditional: applySettings fires on every slider drag, but resolving a
     // tier is now two comparisons and applyQuality's setters all return early
@@ -347,6 +351,8 @@ function startVoxelSandbox(scene = 'gallery') {
     cam = new ChaseCamera(canvas.clientWidth / Math.max(1, canvas.clientHeight));
     cam.distScale = save.settings.camDist;
     cam.setReducedMotion(save.settings.reducedMotion);
+    hud.setReducedMotion(save.settings.reducedMotion);
+    hud.resetSandboxMeters(); // the plate and the ring must not open on the last run's numbers
     cam.setFollowDirection(true); // chase cam swings behind the direction of travel
     cam.setBlockers(sim.cameraBlockers); // tall towers occlude the low chase cam
     // Establishing shot, authored scenes only (an `intro` row in
@@ -550,13 +556,23 @@ function frame(ts) {
     if (isVoxelSandbox) {
       for (const ev of events) {
         if (ev.type === 'eat') {
-          // eat pitch rises with mass AND combo chain; every 10th chain pops
+          // eat pitch rises with mass AND combo chain
           blip(280 + Math.min(500, (ev.gained || 1) * 30) + Math.min(240, (ev.chain || 1) * 8), 0.04, 'square', 0.02);
-          if (ev.chain && ev.chain % 25 === 0) {
-            blip(660, 0.09, 'triangle', 0.06);
-            blip(880, 0.14, 'triangle', 0.05);
-            world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius, 0xffd23f);
-            cam.triggerShake(0.25);
+        } else if (ev.type === 'combo') {
+          // The combo track's OWN vocabulary: a bright tick rising with the
+          // level, and a fast concentric pulse from the meter itself. Never a
+          // screen phrase — those belong to consumption, which fires a handful
+          // of times a level where this fires every few seconds.
+          hud.pulseCombo();
+          blip(520 + ev.level * 90, 0.06, 'triangle', 0.05);
+          // Chatter damping (js/skins.js calls it that, for the same reason):
+          // levels 1-4 cross every 7-10 s on a measured route, so they get a
+          // tick and a meter change and nothing that costs a particle. Only the
+          // rare steps are allowed to spend the screen.
+          if (ev.level >= 5) {
+            blip(760 + ev.level * 90, 0.12, 'triangle', 0.05);
+            world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius, ev.top ? 0xff2d1f : 0xffd23f);
+            if (!save.settings.reducedMotion) cam.triggerShake(ev.top ? 0.35 : 0.2);
           }
         } else if (ev.type === 'crash') {
           blip(Math.max(70, 130 - ev.size * 3), 0.1, 'sawtooth', 0.05);
@@ -569,19 +585,31 @@ function frame(ts) {
           cam.triggerShake(0.4);
           cam.fovKick(7);
           world.spawnBurst(ev.hole.x, ev.hole.z, ev.hole.radius, 0xffd23f);
-          hud.showBigPop(`SIZE ${ev.size}!`);
+          hud.announce({ text: `SIZE ${ev.size}!`, source: 'size', priority: ANN.SIZE, ms: 1200, channel: 'pop' });
         } else if (ev.type === 'milestone') {
-          blip(520, 0.12, 'triangle', 0.07);
-          blip(780, 0.18, 'triangle', 0.06);
-          cam.fovKick(8);
-          world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * 1.5, 0xffffff);
-          hud.showToast(ev.frac >= 1 ? 'TOTAL CONSUMPTION!' : `${Math.round(ev.frac * 100)}% OF THE CITY CONSUMED`, 2200);
+          // Consumption: the widest thing in the mix. A two-note rising fanfare
+          // and a full-width band, scaled by the row's own tier.
+          const loud = ev.tier === 'roar';
+          blip(loud ? 440 : 520, 0.14, 'triangle', loud ? 0.09 : 0.06);
+          blip(loud ? 880 : 780, 0.26, 'triangle', loud ? 0.08 : 0.05);
+          if (loud) {
+            cam.fovKick(8);
+            world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * 1.5, 0xffffff);
+          }
+          hud.announce({
+            text: ev.text, tier: ev.tier, source: 'milestone',
+            priority: ANN.MILESTONE, ms: 2000, channel: 'band',
+          });
         } else if (ev.type === 'coin') {
           blip(1040, 0.08, 'triangle', 0.06);
-          hud.showToast(`COIN! +${ev.value}`, 700);
+          hud.announce({ text: `COIN! +${ev.value}`, source: 'coin', priority: ANN.COIN, ms: 700 });
         } else if (ev.type === 'goal') {
+          // No pop here any more. The milestone ladder's last row is exactly
+          // goal completion (FR-017) and fires in this same batch, one event
+          // earlier — so the run ends on the band, its loudest beat, instead of
+          // on a higher-priority pop that would erase it mid-sentence. The
+          // sting stays; the results screen carries the words.
           blip(523, 0.12, 'triangle', 0.09); blip(784, 0.18, 'triangle', 0.08);
-          hud.showBigPop('GOAL COMPLETE!');
         }
       }
       // The sandbox used to drop the event stream on the floor here — nothing
@@ -636,7 +664,10 @@ function endSandbox() {
   state = 'results'; hud.hide();
   const finished = sim;
   screens.showSandboxResults(finished, (toCities, coins) => {
-    recordSandboxResult(save, finished.scene, { coinsEarned: coins, size: finished.hole.size, elapsed: finished.time });
+    recordSandboxResult(save, finished.scene, {
+      coinsEarned: coins, size: finished.hole.size, elapsed: finished.time,
+      bestCombo: finished.hole.bestCombo, score: finished.hole.mass,
+    });
     if (toCities) { teardownWorld(); state = 'menu'; screens.showTitle(); }
     else startVoxelSandbox(finished.scene);
   });

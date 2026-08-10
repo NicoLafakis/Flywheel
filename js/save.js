@@ -2,7 +2,7 @@
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 15;
+export const CURRENT_VERSION = 16;
 
 // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
 export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2 };
@@ -243,6 +243,17 @@ const MIGRATIONS = {
     version: 15,
     equippedIndicator: s.equippedIndicator || 'ind-default',
   }),
+  // v16: sandbox records gain `bestCombo` and `bestScore` — the run's longest
+  // chain and its final combo-multiplied score, which the reward layer now
+  // displays and which the results screen compares against.
+  //
+  // No top-level key is added, so the freshSave()/MIGRATIONS key-set guard has
+  // nothing new to hold. The bump exists anyway because the SHAPE of the values
+  // inside `sandbox` changed, and `recordSandboxResult` is written to fill both
+  // fields in from an old record's defaults rather than to assume them — an
+  // upgrading player's existing per-scene rows simply have no bests yet, which
+  // is honest: they were never measured.
+  15: (s) => ({ ...s, version: 16 }),
 };
 
 export function loadSave() {
@@ -312,13 +323,19 @@ export function recordLevelResult(save, levelIndex, { stars, mass, bestCombo, wo
   storeSave(save);
 }
 
-export function recordSandboxResult(save, scene, { coinsEarned, size, elapsed }) {
+// Extended, never forked (PRD §18): `bestCombo` and `bestScore` join the same
+// record through the same call, so there is exactly one write path for a
+// finished sandbox run. `|| 0` on the previous values covers a v15 record that
+// predates both fields — a real case for every upgrading player.
+export function recordSandboxResult(save, scene, { coinsEarned, size, elapsed, bestCombo = 0, score = 0 }) {
   if (!save.sandbox) save.sandbox = {};
   const prev = save.sandbox[scene] || { completions: 0, bestSize: 0, bestTime: null };
   save.sandbox[scene] = {
     completions: prev.completions + 1,
     bestSize: Math.max(prev.bestSize, size),
     bestTime: prev.bestTime === null ? elapsed : Math.min(prev.bestTime, elapsed),
+    bestCombo: Math.max(prev.bestCombo || 0, bestCombo),
+    bestScore: Math.max(prev.bestScore || 0, Math.floor(score)),
   };
   save.coins += coinsEarned;
   storeSave(save);

@@ -1,4 +1,4 @@
-# Score, Combo and Hype — planning package
+# Score, Combo and Hype — SHIPPED 2026-08-10
 
 The sandbox has kept a score since it was built and has never shown it, and the
 one piece of scoring feedback it does show is wrong. This package plans the
@@ -6,7 +6,22 @@ reward layer's face: a score meter, a combo meter that reports the real
 multiplier, a front-loaded multiplier ladder, and a staged consumption
 celebration that gives a run an arc.
 
-Planning only. Nothing here is built.
+**Built and shipped 2026-08-10**, all five phases, with
+[ADR-0015](../../adr/0015-scoring-ladder-is-a-table-the-hud-reads.md) as its
+companion decision. The owner resolved the three open questions in
+[00](00-objective-overview.md) §"Decisions that are the owner's" as:
+**points-only** (the combo no longer feeds hole growth; the SIZE ladder reads
+`rawMass` and was rebased in the same change), **a named top level** at chain
+600 (`MAX`, level 8), and **a whole helping per level** (`COMBO_STEP = 1`, so
+level *n* multiplies by *n*).
+
+Where it lives: the two data tables and the multiplier functions in
+`js/voxelsim.js`; the meters, the count-up and the announcement queue in
+`js/ui/hud.js`; the markup in `index.html`; the styling and the heat-ramp tokens
+in `css/main.css`; the event dressing in `js/main.js`; the persisted per-scene
+`bestCombo`/`bestScore` in `js/save.js` (schema v16); the results-screen rows in
+`js/ui/screens.js`; and `validateRewardLadders()` plus the per-scene
+`peakChain`/`score` summary figures in `tools/validate.mjs`.
 
 ## Start here
 
@@ -22,7 +37,7 @@ Planning only. Nothing here is built.
 
 | Doc | What it is |
 |---|---|
-| [00-objective-overview.md](00-objective-overview.md) | The spine. What the ask really serves, the three separate effect vocabularies and why they may not be one component with a colour swap, the multiplier curve and what it replaces, how often each celebration actually fires (measured), the scope line, and the three decisions that are the owner's. |
+| [00-objective-overview.md](00-objective-overview.md) | The spine (the three owner decisions at the end are now ANSWERED — see the note above; the recommendation on Q1 was overruled). What the ask really serves, the three separate effect vocabularies and why they may not be one component with a colour swap, the multiplier curve and what it replaces, how often each celebration actually fires (measured), the scope line, and the three decisions that are the owner's. |
 | [01-prd.md](01-prd.md) | PRD 0002. The normative spec: load-bearing invariant, functional requirements, the three data tables, surfaces, performance and accessibility budgets, phasing, and the one companion ADR this makes. |
 | [02-requirements.md](02-requirements.md) | Ten user stories with Given/When/Then and EARS criteria, each marked as validator-checkable or live-verify-only. This is the contract verification checks against. |
 

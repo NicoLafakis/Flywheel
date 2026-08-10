@@ -23,6 +23,23 @@
   --fw-steel-extrude: #1b2133;
   --fw-plate: rgba(12, 16, 28, .92); /* dark plate behind quiet gold lines */
 
+  /* ----- combo heat ramp -----
+     The one part of the old combo pill that was right: js/ui/hud.js escalated
+     its label through white -> gold -> hot -> red, and that progression is kept
+     and extended to the ring's eight levels. Tokens rather than the literals
+     they were, so the ramp is one object the meter and any future readout share.
+     Every step is measured against the dark plate behind it, which is why the
+     plate is dark: --fw-heat-8 on ink clears the contrast bar and would not on
+     a light ground. */
+  --fw-heat-1: #ffffff;
+  --fw-heat-2: #ffeaa0;
+  --fw-heat-3: #ffd23f;   /* = --fw-gold */
+  --fw-heat-4: #ffb03f;
+  --fw-heat-5: #ff9a3f;
+  --fw-heat-6: #ff7a2b;   /* = --fw-orange-2 */
+  --fw-heat-7: #ff5a1f;   /* = --fw-orange-3 */
+  --fw-heat-8: #ff2d1f;   /* MAX: the only red on the HUD, and it means one thing */
+
   /* 8-direction hard outline ring. This is what lets gold type sit on a bright,
      moving city with no scrim behind it: the ring measures 19:1 against white.
      Two sizes — 3px for display type, 2px for small uppercase lines. */
@@ -148,6 +165,171 @@ body.mode-sandbox #mass-label {
   font-size: clamp(14px, 2.4vw, 18px); padding: 6px 16px;
 }
 body.mode-sandbox #mass-bar-wrap { height: 20px; }
+
+/* A beaten record on the results screen. Gold on the same dark screen the rest
+   of the stats sit on, and it says the word as well as changing the colour. */
+.rec-new {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 9px;
+  background: var(--fw-gold); color: var(--fw-ink); font-size: 11px;
+  font-weight: 900; letter-spacing: 1px; vertical-align: middle;
+}
+
+/* ---------- score plate (sandbox only) ----------
+   Sandbox-scoped the same way the rules above are: the campaign has its own
+   mass economy and its own results screen and is deliberately untouched. */
+#score-plate { display: none; }
+body.mode-sandbox #score-plate {
+  display: flex; align-items: baseline; gap: 8px;
+  margin-top: 8px; padding: 6px 14px; border-radius: 16px;
+  background: var(--fw-plate); border: 2px solid var(--fw-ink-2);
+  /* Sized for its LARGEST value, not its current one: a run that gains a digit
+     must not reflow the goal stack above it (FR-003). 8 digits of tabular
+     figures at the plate's own size, reserved from the first frame. */
+  min-width: 11ch;
+}
+#score-label {
+  font-size: clamp(9px, 1.4vw, 11px); font-weight: 800; letter-spacing: 2px;
+  color: rgba(255, 255, 255, .65);
+}
+#score-value {
+  margin-left: auto;
+  font-size: clamp(20px, 3.4vw, 30px); font-weight: 900; letter-spacing: 1px;
+  color: var(--fw-gold); text-shadow: var(--fw-ring-2), 0 3px 0 var(--fw-extrude-1);
+  /* Tabular figures keep the digits on a fixed pitch, so a counting animation
+     does not jitter its own width every frame. */
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+}
+/* Count-up tick: a scale nudge on the plate only, never on the HUD around it. */
+body.mode-sandbox #score-plate.gain #score-value { animation: score-tick .18s ease-out; }
+@keyframes score-tick {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- combo meter (sandbox only) ----------
+   Radial and hot: its own screen region, its own shape, its own motion — the
+   three ways it is told apart from the consumption band and the SIZE pop
+   without reading any of them. */
+#combo-meter { display: none; }
+body.mode-sandbox #combo-meter {
+  display: block; position: relative; margin-top: 10px; margin-left: auto;
+  width: clamp(64px, 13vmin, 92px); height: clamp(64px, 13vmin, 92px);
+  --cm-heat: var(--fw-heat-1);
+  opacity: .55; transition: opacity .18s ease-out;
+}
+body.mode-sandbox #combo-meter.live { opacity: 1; }
+#combo-meter svg { width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
+#combo-meter circle { fill: none; stroke-width: 9; stroke-linecap: round; }
+.cm-track { stroke: rgba(10, 14, 24, .85); }
+.cm-arc {
+  stroke: var(--cm-heat);
+  /* r=42 -> circumference 263.89. The drive sets stroke-dashoffset only, which
+     is a paint-only property on an already-composited element: no layout, no
+     node churn, at eleven-plus eats a second. */
+  stroke-dasharray: 263.89; stroke-dashoffset: 263.89;
+  filter: drop-shadow(0 0 6px var(--cm-heat));
+}
+.cm-readout {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; line-height: 1;
+}
+#cm-chain {
+  font-size: clamp(18px, 3.2vw, 26px); font-weight: 900; color: #fff;
+  text-shadow: var(--fw-ring-2); font-variant-numeric: tabular-nums;
+}
+/* The multiplier is the reason the chain count matters, so it is a separate
+   line in the meter's own heat rather than another white number — colour is
+   never the only channel, the two differ in size and position as well. */
+#cm-mult {
+  margin-top: 2px; font-size: clamp(10px, 1.8vw, 13px); font-weight: 800;
+  letter-spacing: 1px; color: var(--cm-heat); text-shadow: var(--fw-ring-2);
+}
+/* Step pulse: a concentric ring OUT of the meter, ~250 ms. Short, sharp and
+   repeatable — the opposite of the band's wide slow sweep, on purpose. */
+#combo-meter::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%;
+  border: 3px solid var(--cm-heat); opacity: 0; pointer-events: none;
+}
+body.mode-sandbox #combo-meter.step::after { animation: cm-pulse .25s ease-out; }
+@keyframes cm-pulse {
+  0% { opacity: .9; transform: scale(.9); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+/* Broken, and visibly not the same thing as never-started: the ring snaps to
+   empty and the readout dims through a short collapse rather than simply
+   sitting at rest. */
+body.mode-sandbox #combo-meter.broke .cm-arc { animation: cm-break .35s ease-in; }
+@keyframes cm-break {
+  0% { opacity: 1; stroke: var(--cm-heat); }
+  100% { opacity: 0; stroke: #6b7280; }
+}
+
+/* ---------- consumption band ----------
+   Full-width, horizontal, gold on ink: the widest thing in the mix, fired a
+   handful of times in a whole level. It sits ABOVE the play area in the same
+   band #toast occupies, and it is pointer-transparent so it can never take a
+   touch meant for the world. */
+#hype-band {
+  /* 27%, not the toast's 18%: full-bleed at 18% runs straight through the left
+     column's goal stack, which at its tallest (banner + bar + label + score
+     plate) reaches ~25% of a 390x844 phone and ~23% of a 1280x800 desktop.
+     Measured on both — at 16% the band's plate sat over the score readout and
+     made it unreadable for its whole two seconds. 27% clears the stack at every
+     viewport this ships to and still lands well above the hole, which is
+     centred. Its lower edge grazes the top of the central 40%; the band is the
+     one element the clear-centre rule exempts, because it is transient and
+     pointer-transparent. */
+  position: absolute; left: 0; right: 0; top: 27%;
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px 16px; pointer-events: none; z-index: 25;
+  background: linear-gradient(90deg, transparent, rgba(10, 14, 24, .92) 12%, rgba(10, 14, 24, .92) 88%, transparent);
+  border-top: 2px solid rgba(255, 210, 63, .35);
+  border-bottom: 2px solid rgba(255, 210, 63, .35);
+}
+#hype-text {
+  font-size: clamp(20px, 5vw, 44px); font-weight: 900; letter-spacing: 2px;
+  color: var(--fw-gold); text-align: center;
+  text-shadow: var(--fw-ring-3), 0 4px 0 var(--fw-extrude-1), 0 7px 0 var(--fw-extrude-2);
+}
+/* Volume by tier — the same shape, louder. Nudges do not shout. */
+#hype-band.tier-nudge #hype-text { font-size: clamp(16px, 3.2vw, 28px); letter-spacing: 1px; }
+#hype-band.tier-roar #hype-text { color: var(--fw-gold); text-shadow: var(--fw-ring-3), 0 5px 0 var(--fw-extrude-1), 0 9px 0 var(--fw-extrude-2), 0 0 36px rgba(255, 210, 63, .55); }
+/* Sweep in from one side, hold, sweep out. Horizontal, because horizontal is
+   this track's whole identity against the combo's radial pulse. */
+#hype-band.show { animation: hype-sweep 2s ease-out forwards; }
+@keyframes hype-sweep {
+  0% { opacity: 0; transform: translateX(-14%); }
+  14% { opacity: 1; transform: translateX(0); }
+  78% { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(10%); }
+}
+
+/* ---------- reduced motion ----------
+   Same information, no translation, scale or shake. Two triggers, matching how
+   js/camera.js and js/voxelworld.js already resolve this: the OS preference,
+   and the in-game setting, which js/ui/hud.js reflects onto the body so one
+   rule covers both. Every readout below still SAYS exactly what it said. */
+@media (prefers-reduced-motion: reduce) {
+  body.mode-sandbox #score-plate.gain #score-value,
+  body.mode-sandbox #combo-meter.step::after,
+  body.mode-sandbox #combo-meter.broke .cm-arc { animation: none; }
+  #hype-band.show { animation: hype-fade 2s ease-out forwards; }
+}
+body.reduced-motion.mode-sandbox #score-plate.gain #score-value,
+body.reduced-motion.mode-sandbox #combo-meter.step::after,
+body.reduced-motion.mode-sandbox #combo-meter.broke .cm-arc { animation: none; }
+body.reduced-motion #hype-band.show { animation: hype-fade 2s ease-out forwards; }
+/* The broken meter still has to be distinguishable from never-started without
+   the collapse animation, so it holds a grey arc instead of moving. */
+body.reduced-motion.mode-sandbox #combo-meter.broke .cm-arc,
+body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
+@keyframes hype-fade {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
 #minimap-wrap {
   position: absolute; border-radius: 12px;
   border: 3px solid rgba(255,255,255,.8); overflow: hidden; background: #06121c;

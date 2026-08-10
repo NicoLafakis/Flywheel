@@ -59,12 +59,34 @@ const ATTRACT_ZONE = 3.0;    // detached bodies feel an inward pull within radiu
 const ATTRACT_ACC = 2;
 const SINK_Y = 0.15;         // a block is eaten once its TOP sinks below this (inside the opening)
 const START_RADIUS = 1.1;
-// Cumulative combo-mass required for each SIZE level (1-indexed via size-1).
+// Cumulative RAW mass required for each SIZE level (1-indexed via size-1).
 // Escalating steps: early sizes are a snack, then each level costs clearly
 // more than the last — pushing players from small props onto big targets,
-// and making SIZE 12 a prize for sustained high combos (scene supplies
-// ~4.2k raw mass, ~12.7k at the ×3 combo cap).
-const SIZE_MASS = [0, 25, 75, 180, 400, 750, 1350, 2300, 3800, 5800, 7800, 10000];
+// and making SIZE 12 a prize for a long, sustained excavation.
+//
+// RAW, not combo-multiplied, as of the points-only ruling (ADR-0015): the
+// combo now buys SCORE and nothing else, so the growth ladder reads
+// `h.rawMass` and a great chain no longer makes the hole physically bigger.
+//
+// Rebased per level, NOT by one divisor. The old ladder read `h.mass`, so the
+// honest question was "how much RAW mass had actually been eaten at the moment
+// each level used to fire". That was measured by re-running every scene's
+// scripted excursion against the HEAD tree and recording both currencies at
+// each crossing; dividing the raw figure by the scene's own ladder scale
+// (`0.3 × min(10, max(1, round(totalMass / 4200)))`) gives the SIZE_MASS entry
+// that scene needs in order to keep the level it had.
+//
+// The raw/mass ratio at a crossing is nowhere near constant — chains lengthen
+// as the hole grows, so the multiplier's contribution grows with the level, and
+// it varies by scene besides. In the gallery it runs 0.94 at SIZE 2 down to
+// 0.49 at SIZE 12; in Manhattan, whose excursion sustains a far longer chain,
+// SIZE 8 landed at 0.39. A single divisor cannot span that, which is why there
+// is no SIZE_RAW_REBASE constant: each entry is the MINIMUM across scenes of
+// what that level costs in raw mass, so no scene loses a level (the floors in
+// tools/validate.mjs pin this), and levels 9-12 — where only the gallery
+// reaches — are eased geometrically off SIZE 8 rather than jumping 2.4× in one
+// step. Re-measure whenever scene mass or the combo ladder changes.
+const SIZE_MASS = [0, 24, 67, 138, 251, 381, 579, 898, 1374, 2102, 3216, 4919];
 const MAX_SIZE = SIZE_MASS.length;
 const MAX_RADIUS = START_RADIUS + (MAX_SIZE - 1) * 0.5; // 6.6 m at SIZE 12
 const SPEED_MULT = 1.4;      // sandbox hole runs at 1.4× the campaign speed curve
@@ -92,10 +114,70 @@ const SPEED_MULT = 1.4;      // sandbox hole runs at 1.4× the campaign speed cu
 const SANDBOX_SPEED_RAMP = 2.72;
 // Mirrors sim.js combo rules, duplicated so the sandbox stays free of the
 // sim.js → citygen.js import chain.
-const COMBO_WINDOW = 1.5;
-// A combo level is earned for every 25 blocks, not every tiny brick. This keeps
-// the counter readable and makes a chain feel like an achievement.
-const comboMult = (chain) => Math.min(3, 1 + 0.1 * Math.floor(Math.max(0, chain - 1) / 25));
+export const COMBO_WINDOW = 1.5;
+
+// --- the combo ladder (ADR-0015) ---------------------------------------------
+// A TABLE, not a formula, and exported so the HUD reads the same object the sim
+// scores with. The closed-form expression this replaces
+// (`min(3, 1 + 0.1 * floor((chain - 1) / 25))`) could not express a
+// front-loaded shape at all, and the HUD's own second expression drifted from
+// it — printing "x2" at chain 26 while the sim awarded 1.1. One ladder, one
+// reader; `tools/validate.mjs` holds the equality for chains 1..1000.
+//
+// Front-loaded on purpose: levels 2-4 land inside the first seconds of any
+// competent run (measured on Cambridge's full route: every 8-10 s), which is
+// the "this is working" signal the game had no way to give. The tail stretches
+// until level 7 is a feat (crossed once or twice in a thirteen-minute clear)
+// and level 8 is the summit (the longest chain measured across a complete clear
+// was 528).
+export const COMBO_THRESHOLDS = [2, 10, 15, 25, 50, 100, 350, 600];
+// FR-013's two named constants. STEP is what one level is worth — a WHOLE extra
+// helping, the owner's ruling — and MAX_LEVEL is the tail rule: the ladder tops
+// out here and hands out nothing past it, so the summit has a name instead of
+// being one more number going up.
+export const COMBO_STEP = 1;
+export const COMBO_MAX_LEVEL = COMBO_THRESHOLDS.length;
+// Display names, indexed by level. Level 8 is named rather than numbered
+// because "get to MAX" is a goal a booth visitor understands in three seconds.
+export const COMBO_LEVEL_NAMES = ['', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'MAX'];
+
+// Level 1 is the floor, including a chain of 0 or 1: a hole that has eaten one
+// block is not on a combo, but the multiplier it scores at is still x1, so the
+// ladder is total and the HUD never has to special-case "no chain".
+export function comboLevel(chain) {
+  let level = 1;
+  for (let i = 0; i < COMBO_THRESHOLDS.length; i++) {
+    if (chain >= COMBO_THRESHOLDS[i]) level = i + 1; else break;
+  }
+  return level;
+}
+export function comboMult(chain) {
+  return 1 + (comboLevel(chain) - 1) * COMBO_STEP;
+}
+
+// --- the consumption milestone ladder (FR-015..FR-018) -----------------------
+// Ordered rows of { at, text, tier } where `at` is a fraction of the SCENE
+// GOAL, not of the whole city — so a targetFraction 0.5 scene and the gallery's
+// 1.0 both stage across their whole run without either being re-tuned. The last
+// row is exactly 1.0, which is goal completion, so the run ends on its loudest
+// beat rather than a beat before or after it.
+//
+// This is DATA and it is meant to be edited as data: change a word, add a row,
+// reorder the volume, without touching a line of logic. `tier` selects how loud
+// the renderer dresses it; the three names are the whole vocabulary.
+export const MILESTONE_TIERS = ['nudge', 'hype', 'roar'];
+export const MILESTONES = [
+  { at: 0.05, text: "Warmin' up…",           tier: 'nudge' },
+  { at: 0.15, text: "Gettin' there!",        tier: 'nudge' },
+  { at: 0.25, text: 'BAM! 25% COMPLETE!',    tier: 'hype'  },
+  { at: 0.40, text: "Chewin' clean through!", tier: 'hype' },
+  { at: 0.50, text: 'HALFWAY GONE!',         tier: 'roar'  },
+  { at: 0.65, text: 'NOTHING LEFT STANDING!', tier: 'hype' },
+  { at: 0.75, text: 'THREE QUARTERS DOWN!',  tier: 'roar'  },
+  { at: 0.90, text: 'HOME STRETCH — EAT IT ALL!', tier: 'roar' },
+  { at: 1.00, text: 'TOTAL CONSUMPTION!',    tier: 'roar'  },
+];
+
 const GOALS = {
   gallery: { name: 'CLEAR THE COLLECTION', targetFraction: 1.0 },
   manhattan: { name: 'OPEN THE FINANCIAL DISTRICT', targetFraction: 0.5 },
@@ -250,7 +332,7 @@ export class VoxelSandboxSim {
     this._leanSet = new Set();     // floor blocks with supportRatio < 0.7 (the rim lean, which tracks the hole)
     this._renderTouch = [];        // blocks leaving the active sets with an unsynced pose
     this._renderTouchOverflow = false; // nobody drained it (headless/validator) — renderer falls back to a full pass
-    this._massMarkIdx = 0;                 // city-consumption milestones: 25/50/75/100%
+    this._massMarkIdx = 0;                 // next unfired row of MILESTONES (fractions of the GOAL)
     this.MAX_SIZE = MAX_SIZE;
     this.bounds = 24;          // hole movement clamp (m); scenes may widen it
     this.boundsRect = null;    // optional {minX,maxX,minZ,maxZ}; overrides `bounds` for off-center maps
@@ -2330,23 +2412,30 @@ export class VoxelSandboxSim {
       }
     }
     const h = this.hole;
+    const prevLevel = comboLevel(h.chain);
     h.chain += 1;
     h.chainTimer = COMBO_WINDOW;
     h.bestCombo = Math.max(h.bestCombo, h.chain);
     const vol = b.sx * b.sy * b.sz;
-    const gained = b.mat.mass * vol * comboMult(h.chain);
-    h.mass += gained;
-    h.rawMass += b.mat.mass * vol; // un-multiplied, for the HUD bar (combos inflate mass past the world total)
+    const raw = b.mat.mass * vol;
+    const gained = raw * comboMult(h.chain);
+    h.mass += gained;      // the SCORE: combo-multiplied, and displayed as such
+    h.rawMass += raw;      // un-multiplied: the goal bar, the milestones and the SIZE ladder
     h.eatenCount += 1;
-    // SIZE progression: escalating mass thresholds (scaled per scene — see
+    // SIZE progression: escalating RAW-mass thresholds (scaled per scene — see
     // the constructor). Radius interpolates smoothly inside each level
     // (+0.5 m per level), so growth still reads continuously.
+    //
+    // POINTS-ONLY (ADR-0015): this reads `rawMass`, not `mass`. A combo is
+    // worth a bigger number and nothing else, so every scene paces the same way
+    // for a sloppy run and a hot one, and the ×8 top of the new ladder cannot
+    // turn a city into a ninety-second run.
     const prevSize = h.size;
     let size = 1;
-    while (size < MAX_SIZE && h.mass >= this._sizeLadder[size]) size++;
+    while (size < MAX_SIZE && h.rawMass >= this._sizeLadder[size]) size++;
     h.size = size;
     const lo = this._sizeLadder[size - 1], hi = size < MAX_SIZE ? this._sizeLadder[size] : Infinity;
-    h.sizeFrac = size >= MAX_SIZE ? 1 : Math.min(1, (h.mass - lo) / (hi - lo));
+    h.sizeFrac = size >= MAX_SIZE ? 1 : Math.min(1, (h.rawMass - lo) / (hi - lo));
     h.radius = START_RADIUS + (h.size - 1 + Math.min(1, h.sizeFrac)) * 0.5;
     this._graphDirty = true;
     this.events.push({ type: 'eat', obj: b, hole: h, gained, chain: h.chain });
@@ -2354,10 +2443,26 @@ export class VoxelSandboxSim {
     if (h.size > prevSize) {
       this.events.push({ type: 'growth', size: h.size, hole: h });
     }
-    const frac = h.rawMass / this.totalMass;
-    if (this._massMarkIdx < 4 && frac >= (this._massMarkIdx + 1) * 0.25) {
+    // Combo ladder step. Additive event: the renderer pulses the combo meter
+    // from it, and it carries the level and the multiplier the sim is actually
+    // applying so no consumer has to re-derive either.
+    const level = comboLevel(h.chain);
+    if (level > prevLevel) {
+      this.events.push({
+        type: 'combo', level, mult: comboMult(h.chain), chain: h.chain,
+        name: COMBO_LEVEL_NAMES[level], top: level >= COMBO_MAX_LEVEL, hole: h,
+      });
+    }
+    // Consumption milestones, against the scene GOAL rather than the whole city
+    // (FR-016) so the last row lands exactly on goal completion in every scene.
+    // Monotonic by index, so progress oscillating around a threshold can never
+    // fire the same row twice (SYS-407).
+    const goalFrac = Math.min(1, h.rawMass / (this.totalMass * this.goal.targetFraction));
+    while (this._massMarkIdx < MILESTONES.length && goalFrac >= MILESTONES[this._massMarkIdx].at) {
+      const row = MILESTONES[this._massMarkIdx];
       this._massMarkIdx++;
-      this.events.push({ type: 'milestone', frac: this._massMarkIdx * 0.25, hole: h });
+      // `frac` is kept alongside `row` because js/skins.js already reads it.
+      this.events.push({ type: 'milestone', frac: row.at, row, text: row.text, tier: row.tier, hole: h });
     }
   }
 
@@ -2458,7 +2563,18 @@ export class VoxelSandboxSim {
     // 4. physics: chunks, then individual debris
     this._stepChunks(dt);
     this._stepDebris(dt);
-    if (!this.won && h.rawMass >= this.totalMass * this.goal.targetFraction) {
+    // Relative epsilon, and it is load-bearing rather than defensive. `rawMass`
+    // is accumulated one add per block as the city is eaten; `totalMass` is a
+    // reduce() over the same blocks in placement order. Same summands, different
+    // order, so float rounding leaves rawMass a few parts in 1e12 BELOW
+    // totalMass even after every block is gone. Any scene whose targetFraction
+    // is 1.0 — the gallery is the only one — can therefore consume 3798 of 3798
+    // blocks, sit at 100.000%, and never win; the HUD floors the percentage, so
+    // the player watches 99% forever. The 0.5 cities have enough slack to hide
+    // it. 1e-9 of the total is ~1000x the accumulated error and still far below
+    // the mass of the lightest single block, so it cannot win a scene early.
+    const goalMass = this.totalMass * this.goal.targetFraction - this.totalMass * 1e-9;
+    if (!this.won && h.rawMass >= goalMass) {
       this.won = true;
       this.over = true;
       this.events.push({ type: 'goal', goal: this.goal, hole: h });

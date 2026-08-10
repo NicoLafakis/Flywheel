@@ -174,23 +174,33 @@ topple). Sleeping debris registers in `_sleepers` and becomes solid itself
 Consumption/impact thresholds are unchanged (`SINK_Y` over the void).
 
 Consumption: a block whose top sinks below `SINK_Y` (0.15) inside the
-removal zone → mass (`mat.mass × s³ × comboMult`), combo (window 1.5 s,
-mirrors `sim.js`), and SIZE progression via escalating `SIZE_MASS`
-thresholds (radius interpolates +0.5 m per level from the 1.1 start).
+removal zone → raw mass (`mat.mass × s³`) into `h.rawMass` and multiplied
+score (`× comboMult(chain)`) into `h.mass`, combo (window `COMBO_WINDOW`,
+1.5 s, mirrors `sim.js`), and SIZE progression via escalating `SIZE_MASS`
+thresholds read against **`h.rawMass`** (radius interpolates +0.5 m per
+level from the 1.1 start). The combo is points-only as of ADR-0015: it
+buys score and never growth, so a hot chain cannot make the hole bigger.
 The ladder scales per scene (`× min(10, max(1, round(totalMass/4200)))` —
 gallery is exactly ×1, Manhattan ×10 at its 43,593 mass, Upper Manhattan ×10
 at its 86,083 mass) so progression pacing is scene-relative. The multiplier
 clamps at ×10: Upper Manhattan's raw ratio is `round(86083/4200) = 21`, so it
 is pinned at the ceiling and cannot re-pace any harder however much mass a
-future pass adds — SIZE 12 there costs **116% of the entire scene's raw
-mass**, reachable only on sustained combos. In absolute terms Manhattan's
-SIZE 8 costs 23,000 combo-mass (53% of the entire city at a 1× combo), SIZE 10
-costs 133% and SIZE 12 costs 230% — the top levels are reachable only on
-sustained combos, by design. Re-check this whenever scene mass changes: the
-ladder re-paces silently up to the ×10 ceiling, and it drags the camera's
-SIZE-keyed zoom ramp with it. `tools/validate.mjs` pins a floor per scene
-(Manhattan's WTC excursion and Upper Manhattan's perimeter excursion must each
-reach ≥ SIZE 4; Upper Manhattan also floors `eatenCount ≥ 300`).
+future pass adds.
+
+Because the ladder now reads RAW mass, the top levels are no longer priced
+against a combo that can no longer pay for them, and the thresholds came down
+to match (ADR-0015). In absolute terms Manhattan's SIZE 8 costs 2,694 raw mass
+— **6.2% of the city**, against 53% of a 1× combo run before — SIZE 10 costs
+6,306 (14.5%) and SIZE 12 costs 14,757 (33.9%). In Upper Manhattan SIZE 12 is
+17.1% of the scene. Every level is now reachable by excavation alone, which is
+the point: growth is a reward for eating, and the combo is a reward for eating
+*fast*. Re-check this whenever scene mass changes: the ladder re-paces silently
+up to the ×10 ceiling, and it drags the camera's SIZE-keyed zoom ramp with it.
+`tools/validate.mjs` pins a per-scene SIZE floor set to the level each scripted
+excursion reached on the OLD combo-mass ladder (Manhattan's WTC excursion ≥ 8,
+its expansion-district sweep ≥ 5, Upper Manhattan / Brooklyn / Boston ≥ 5,
+Cambridge ≥ 7, the gallery tour ≥ 8), so the rebase cannot quietly cost a scene
+a level; Upper Manhattan also floors `eatenCount ≥ 300`.
 
 ## Scenes
 
@@ -285,7 +295,8 @@ Fifth Avenue / Museum Mile, with Harlem across the north edge.
 
 The scene is intentionally separate from Lower Manhattan. Spawn is on the
 Great Lawn; the validator's excursion is a 62 s perimeter orbit inside the
-Met (721 eaten, combo mass 3,680, SIZE 4 at 37.8 s — the discriminator that
+Met (756 eaten, 1,398 raw mass, SIZE 5 — on the old combo-mass ladder the same
+route read 721 eaten / 3,680 combo mass / SIZE 4 at 37.8 s; the discriminator that
 made this route work over five slower candidates is walking a wall's footprint
 rather than re-excavating the same crater twice). Camera blockers are
 *generated* from finished geometry (`generateBlockers`, shared with Brooklyn),
@@ -458,8 +469,9 @@ especially
   crosswalk-stripe containment and non-overlap, crossings inside their
   declared street's span, `sceneDecor` key order matching draw order,
   `sceneAmbient` present and render-only, 3 s spawn-idle stability, excursion
-  determinism, an excursion `eatenCount ≥ 300` floor, a SIZE ≥ 4 progression
-  floor, and a finite-position guard. Per-scene differences (exported tables,
+  determinism, an excursion `eatenCount ≥ 300` floor, a per-scene SIZE
+  progression floor (the level that scene reached on the pre-ADR-0015 ladder,
+  so 5 for most and 7 for Cambridge), and a finite-position guard. Per-scene differences (exported tables,
   which `sceneAmbient` kinds exist, the slack threshold) are always a
   parameter to the shared probe, never a second implementation — duplicated
   probe bodies across the file went from 19 to 0 in the 2026-08-05 refactor.
@@ -529,21 +541,29 @@ especially
   center 0.35 would pop out of existence visibly above ground); fall speed
   uses density, never total block mass, or big slabs would out-fall small
   bricks of the same material.
-- HUD: `hole.mass` is combo-inflated (can exceed the world total); the mass
-  bar/label use `hole.rawMass` (un-multiplied). Combo label clamps at `x99+`.
-- **Juice events** (render-side, deterministic): `eat` carries `chain`
-  (every 10th chain: gold ring + shake + rising two-tone + escalating combo
-  label color/size at 10/25/50); `growth` fires per SIZE level (arpeggio,
-  `cam.fovKick` punch, confetti `spawnBurst`, center-screen "SIZE N!" pop);
-  `milestone` fires at 25/50/75/100% of `totalMass` consumed (fanfare +
-  white ring + toast). Rim material glows with combo intensity and blinks
-  when the chain is about to drop.
+- HUD: `hole.mass` is combo-inflated (can exceed the world total) and is now
+  the displayed SCORE, on its own plate under the goal bar. The goal
+  bar/label, the milestone ladder **and the SIZE ladder** all read
+  `hole.rawMass` (un-multiplied) — see ADR-0015. The old combo pill is gone;
+  the chain is drawn by the ring meter in the right column, which imports
+  `comboMult` from the sim rather than mirroring it.
+- **Juice events** (render-side, deterministic): `eat` carries `chain`;
+  `combo` fires once per LEVEL gained (levels 1-4 get a tick and a meter
+  change only, 5+ add particles and shake); `growth` fires per SIZE level
+  (arpeggio, `cam.fovKick` punch, confetti `spawnBurst`, center-screen
+  "SIZE N!" pop); `milestone` fires on each row of the `MILESTONES` table,
+  keyed to a fraction of the scene GOAL rather than of `totalMass`, and is
+  dressed as a full-width band. All four go through the HUD's announcement
+  priority queue (`ANN`), so a coin toast can no longer erase a milestone.
+  Rim material glows with combo intensity and blinks when the chain is about
+  to drop.
 - **SIZE levels** are the player-facing growth unit: `hole.size` 1..12 with
-  escalating combo-mass thresholds `SIZE_MASS` (25 → 10 000). Radius is just
+  escalating RAW-mass thresholds `SIZE_MASS` (24 → 4 919). Radius is just
   an interpolation inside each level (+0.5 m per level from the 1.1 start).
   The shape is the design: early sizes are seconds away, each later level
-  costs clearly more, and SIZE 12 (~79% of the scene's theoretical ×3-combo
-  max) is reserved for sustained high combos on big targets. HUD shows
+  costs clearly more, and SIZE 12 (about a third of a big scene's total raw
+  mass) is reserved for a long, sustained excavation — not for a lucky chain,
+  which since ADR-0015 buys score only. HUD shows
   "SIZE N → SIZE N+1 · pct" on a gold bar — never show raw radius to
   players. Pacing reference: crate pile ≈ SIZE 2, tower center ≈ SIZE 6-7
   at ~25 s, tour bot tops out at 9-10. The sandbox camera zooms with size:
@@ -556,8 +576,9 @@ especially
   at all: the see-over rule is Manhattan-only today. The ramp is keyed to
   radius and an explicit SIZE 1→12 camera multiplier (`0.7→1.5`), i.e. to
   SIZE and to the mass-scaled ladder — in Manhattan it is
-  fully out by SIZE 9-10, which costs 87-133% of the city's raw mass, so most
-  of a session is played on the low half of the curve.
+  fully out by SIZE 9-10, which after the ADR-0015 rebase costs 9.5-14.5% of
+  the city's raw mass rather than 87-133%, so the wide end of the camera curve
+  is now something a normal session actually reaches.
 - **Scene-building rules** (all learned from spawn-collapse bugs):
   1. Two blocks may NEVER share a fine cell — the grid Map holds one owner,
      and the overwritten "ghost" block is unreachable in the support BFS, so

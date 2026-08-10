@@ -17,7 +17,7 @@ tying everything together.
 | File | Purpose |
 |------|---------|
 | `js/main.js` | Boot, state machine (menu/intro/playing/paused/results), loop, audio; branches campaign vs voxel sandbox (`isVoxelSandbox`) |
-| `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, toasts, `#big-pop` celebrations; `updateSandbox()` variant for the voxel mode (live `CLEARED x% / 50% · SIZE n` readout, dimmed coin pill via `body.mode-sandbox`, sandbox combo pill labeled off a 25-chain "combo level" ladder that does not track the sim's real multiplier — see the Planned note below) |
+| `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, the announcement queue and its three backends (`#toast`, `#big-pop`, `#hype-band`); `updateSandbox()` variant for the voxel mode (live `CLEARED x% / 50% · SIZE n` readout, dimmed coin pill via `body.mode-sandbox`, the score plate's count-up, and the combo ring — chain, window drain and the multiplier read from `voxelsim.js`'s exported ladder, never re-derived; see [ADR-0015](../adr/0015-scoring-ladder-is-a-table-the-hud-reads.md)) |
 | `js/ui/screens.js` | Title (branded landing: sprocket + `FLYWHEEL` wordmark + tagline plate, PLAY BROOKLYN CTA, coin bank, `FREE_PLAY`-driven voxel-scene chip shelf with per-city cleared/best records, quiet SHOP/SETTINGS), shop, results, pause (two-step confirms for run-discarding buttons), mechanic intro |
 | `js/ui/ready.js` | Level-start "READY?" gate overlay (`mountReadyGate`) — the visual reference for the brand layer; renders the shared wordmark at gate scale over the live 3D establishing shot |
 | `js/ui/blockword.js` | Shared block-wordmark builder (`buildBlockWord`) — per-character gold slab letters with outline ring, extrude, deterministic index-derived tilt/stagger/bob. Used by both `screens.js` (`FLYWHEEL`) and `ready.js` (`READY?`) so the two never drift apart. See `.wiki/adr/0005-shared-brand-layer.md` |
@@ -86,10 +86,27 @@ trophy-room screens on top of this module. See
 and [06-belts-and-achievements.md](../features/online-flywheel/06-belts-and-achievements.md).
 None of these screens exist yet.
 
-**Also planned, not built:** the score-combo-and-hype package
-(`.wiki/features/score-combo-and-hype/`) plans a real score meter (the sandbox
-has kept a score since it was built and never shown it) and a combo meter that
-reports the sim's actual multiplier instead of `hud.js`'s current 25-chain
-label, plus a staged consumption celebration. See
-[README.md](../features/score-combo-and-hype/README.md). Nothing in
-`hud.js` has changed for this yet.
+**Built (2026-08-10):** the score-combo-and-hype package
+(`.wiki/features/score-combo-and-hype/`). Three vocabularies, deliberately not
+sharing a look, so a player can tell what fired without reading it:
+
+- **Consumption** — `#hype-band`, full width, horizontal sweep, gold on ink,
+  driven by the `MILESTONES` table in `voxelsim.js` against the scene GOAL
+  fraction. Its last row is exactly goal completion, so the run ends on it.
+- **Combo** — `#combo-meter`, a radial SVG arc on the right that drains over
+  the 1.5 s window, heat-ramped by level (`--fw-heat-1..8`), pulsing
+  concentrically on each ladder step. Never a screen phrase: it fires every few
+  seconds where the band fires a handful of times a level.
+- **SIZE** — unchanged: the existing arpeggio, camera kick, confetti and
+  `#big-pop`.
+
+`#score-plate` in the left column carries the score (`hole.mass`) with an eased
+count-up, sized for its largest value so gaining a digit reflows nothing. All of
+it is scoped under `body.mode-sandbox`; the campaign HUD is untouched.
+
+Every transient message now goes through **`hud.announce({ text, source,
+priority, ms, channel, tier })`** — one channel, a priority scale (`ANN`), and
+coalescing by source. `showToast`/`showBigPop`/`showBand` are its backends and
+are not called directly from `main.js` any more (the validator asserts this).
+That closed a live defect: a 700 ms coin toast used to erase a 2,200 ms
+milestone toast mid-sentence, because both wrote the same element and timer.

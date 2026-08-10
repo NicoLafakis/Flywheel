@@ -38,6 +38,14 @@
       <div id="mass-bar-wrap"><div id="mass-bar"></div></div>
       <div id="mass-label">0 collected</div>
       <div id="combo-label" class="hidden"></div>
+      <!-- Sandbox score plate. Sits under the goal readout because the score is
+           read constantly rather than glanced at on an event, and it is the
+           quietest of the three tracks in motion and the loudest in size.
+           Hidden outside body.mode-sandbox by CSS, not by JS. -->
+      <div id="score-plate">
+        <span id="score-label">SCORE</span>
+        <span id="score-value">0</span>
+      </div>
     </div>
     <div id="hud-right">
       <button id="btn-mute" class="round-btn" title="Sound">&#128266;</button>
@@ -45,6 +53,22 @@
            box on systems without that codepoint (playtest finding). -->
       <button id="btn-pause" class="round-btn" title="Pause"><span class="pause-glyph"><span></span><span></span></span></button>
       <div id="timer">75</div>
+      <!-- Combo meter: radial, on the right, away from the goal stack on the
+           left — the separation is what makes the two tellable apart in
+           peripheral vision, and it is what gives the meter room to be a ring
+           rather than another pill. The arc drains over the 1.5 s combo window,
+           which teaches the rule without a word of tutorial. Persistent: it
+           rests rather than hiding, so its position is learnable. -->
+      <div id="combo-meter">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="cm-track" cx="50" cy="50" r="42"></circle>
+          <circle class="cm-arc" cx="50" cy="50" r="42"></circle>
+        </svg>
+        <div class="cm-readout">
+          <span id="cm-chain">0</span>
+          <span id="cm-mult">x1</span>
+        </div>
+      </div>
     </div>
     <div id="minimap-wrap"><canvas id="minimap" width="150" height="150"></canvas></div>
     <div id="joystick" class="hidden"><div id="joystick-knob"></div></div>
@@ -59,6 +83,11 @@
     </div>
     <div id="toast" class="hidden"></div>
     <div id="big-pop" class="hidden"></div>
+    <!-- Consumption band: the loudest of the three vocabularies, and the only
+         thing this package ever puts across the middle of the screen. Full
+         width, transient, and pointer-transparent so it can never take a touch
+         meant for the world underneath it. -->
+    <div id="hype-band" class="hidden"><span id="hype-text"></span></div>
   </div>
   <div id="screen-root"></div>
 </div>

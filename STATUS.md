@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-07
+Last updated: 2026-08-10
 
 ---
 
@@ -56,24 +56,13 @@ tell."* It still needs doing. Specific suspicions worth checking by hand:
 - Shipped intro pose (desktop): yaw 90°, 238.6 m, 12.19% coverage at
   `orbitArc: ±30`. Static (`orbitArc: 0`) = 170.1 m / 24.22%. Portrait: yaw 0°,
   521.4 m. Worst-in-arc ndc 0.591/0.805 — nothing crops.
-- **The "establishing shot got 38% darker" diagnosis was wrong and is
-  retracted.** I attributed a 54.7 → 34.1 luma drop to the yaw objective
-  lacking a lighting term. Measured across 48 poses on the shipped build,
-  frame luma only ranges 36.08–40.11 — an 11% spread, so yaw cannot produce a
-  38% swing, and neither number appears in this build at any pose. The shipped
-  pose is in fact the *brightest* of the three candidates (40.10, vs 39.80 for
-  the old framing and 37.63 for the old coverage pick); the city reads ~70 luma
-  against a 32.1 background, so more city means a brighter frame. If the
-  darkening was real it came from something else moving in parallel — Brooklyn
-  scene edits were live between my two captures. **Re-measure before acting.**
-- **A real latent bug was found underneath that wrong diagnosis.** The distance
-  fit is period-π but lighting is period-2π, and the yaw search only swept
-  `[0, π)` — so it could return either member of a lit/unlit antipodal pair,
-  arbitrarily. Yaw 90 was correct *by luck*: it scores 0.5567 on the lighting
-  term against 0.1752 for its antipode 270, which measures 6.6 luma darker yet
-  has *higher* coverage, so a coverage-only objective would have taken 270.
-  Now fixed by construction, with a Lambertian term validated at r = 0.851
-  against measured city luma over all 48 poses.
+- **The "establishing shot got 38% darker" diagnosis is retracted.** Measured
+  luma across 48 poses ranges only 36.08–40.11, and the shipped pose is the
+  brightest candidate. Re-measure before acting on any darkening report.
+- **Latent yaw-antipode bug found under it, now fixed by construction:** the
+  yaw search swept `[0, π)` while lighting is period-2π, so it could return
+  the unlit member of an antipodal pair. A Lambertian lighting term
+  (r = 0.851 against measured luma) now disambiguates.
 
 ### Online Flywheel — planning package landed, nothing built
 
@@ -116,7 +105,10 @@ the scene's registration, and **all ten districts** —
 `js/voxelscene-cambridge.js` is ~11,000 lines. The scene loads from the landing
 screen's free-play picker and `node tools/validate.mjs` reaches `ALL PASS`:
 72,943 blocks against the under-75,000 target, dead ground zero, 814 generated
-camera blockers, and the scripted excursion reaching SIZE 7 against a floor of 4.
+camera blockers, and the scripted excursion reaching SIZE 10 against a floor of 7
+(the floor is the SIZE this route reached before the ADR-0015 ladder rebase; the
+route now clears it by three levels because the rebased thresholds are set by
+Manhattan, whose excursion leaned hardest on the old combo multiplier).
 
 Ahead: Phase 7's hidden content, glyphs and achievement rows, then the Phase 8
 sign-off. Phase 7's achievement and belt rows are blocked on the online-Flywheel
@@ -309,6 +301,8 @@ district sweep).
 
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
+
+- 2026-08-10: Score, combo and hype (`.wiki/features/score-combo-and-hype/`, ADR-0015): score plate with animated count-up, radial combo ring that drains the 1.5 s window and reports the sim's REAL multiplier (the old pill printed a level index as `x{n}` — x2 at chain 26 while the sim paid 1.1), table-driven combo ladder at chains 2/10/15/25/50/100/350/600 topping out at a named `MAX`, points-only ruling (SIZE ladder rebased onto `rawMass`, so a hot chain buys score and not growth), 9-row consumption phrase ladder against the scene goal with a full-width band, one priority-and-source announcement queue (a coin toast no longer erases a milestone mid-sentence), per-scene `bestCombo`/`bestScore` on the results screen and in the save (schema v15 → v16)
 
 - 2026-08-09: Nav Indicator Skins & Shop expansion: added 6 incremental indicator skins to Shop (Baseline Chevron, Plasma Wedge, Supered Hot Pink Lightning, Inferno Flame, Cyber Prism, Cosmic Star Vector) with save schema v14 → v15 migration and custom 3D geometries/pulsing animations
 - 2026-08-09: Floating nav indicator in Sandbox updated: bold rim-welded chevron arrow pointer (electric cyan body, dark outline, glowing white core) welded to outer hole rim (reference indicator-02.webp / movement-01.webp), dynamically gliding along moving perimeter in real-time

@@ -6,7 +6,10 @@ import { LEVELS } from '../js/levels.js';
 import { generateCity } from '../js/citygen.js';
 import { Sim } from '../js/sim.js';
 import { isEdible } from '../js/tiers.js';
-import { VoxelSandboxSim } from '../js/voxelsim.js';
+import {
+  VoxelSandboxSim, COMBO_THRESHOLDS, COMBO_STEP, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES,
+  MILESTONES, MILESTONE_TIERS, comboLevel, comboMult,
+} from '../js/voxelsim.js';
 import {
   BROOKLYN_CROSSINGS, BROOKLYN_OPEN_GROUND, BROOKLYN_ROAD_SPANS, BROOKLYN_STREETS,
   BROOKLYN_VEHICLES, vehicleBBox, XW_LEN,
@@ -225,7 +228,7 @@ function validateVoxelSandbox() {
   probeDistrictDensity(fresh, 'voxel sandbox', [], VOXEL_PATH);   // no districts declared — vacuous
   probeHeroIdentity(fresh, 'voxel sandbox', []);                  // no hero pair declared — vacuous
 
-  console.log(`  voxel sandbox: eaten=${a.sim.hole.eatenCount}/${a.sim.totalBlocks} mass=${a.sim.hole.mass.toFixed(1)} radius=${a.sim.hole.radius.toFixed(2)} (t=10s: ${a.snap.eaten10}, t=20s: ${a.snap.eaten20})`);
+  console.log(`  voxel sandbox: eaten=${a.sim.hole.eatenCount}/${a.sim.totalBlocks} raw=${a.sim.hole.rawMass.toFixed(1)} score=${a.sim.hole.mass.toFixed(0)} peakChain=${a.sim.hole.bestCombo} radius=${a.sim.hole.radius.toFixed(2)} (t=10s: ${a.snap.eaten10}, t=20s: ${a.snap.eaten20})`);
 }
 
 function overlaps(a, b) {
@@ -956,11 +959,13 @@ function validateManhattan() {
   if (sim.hole.eatenCount < 100) fail(`manhattan: only ${sim.hole.eatenCount} blocks eaten on the WTC excursion (expected >=100)`);
   // progression floor: the SIZE ladder is scaled by round(totalMass / 4200) —
   // ×10 for this scene's ~43.5k mass — so ANY content change silently re-paces
-  // every level, and nothing else here asserts pacing. The excursion reaches
-  // SIZE 5 today; a drop below 4 means the ladder outran the scene.
-  if (sim.hole.size < 4) fail(`manhattan: WTC excursion reached only SIZE ${sim.hole.size} (expected >=4 — mass-scaled SIZE ladder too steep?)`);
+  // every level, and nothing else here asserts pacing. The floor is the SIZE
+  // this excursion reached under the OLD combo-mass ladder, measured against
+  // the HEAD tree before the points-only rebase (ADR-0015): moving the ladder
+  // onto rawMass must not cost any scene a level.
+  if (sim.hole.size < 8) fail(`manhattan: WTC excursion reached only SIZE ${sim.hole.size} (expected >=8 — SIZE ladder too steep for this scene?)`);
   probeFinitePositions(sim.blocks, 'manhattan', 'after excursion');
-  console.log(`  manhattan sandbox: blocks=${sim.totalBlocks} mass=${sim.totalMass.toFixed(0)} eaten=${sim.hole.eatenCount} size=${sim.hole.size}`);
+  console.log(`  manhattan sandbox: blocks=${sim.totalBlocks} mass=${sim.totalMass.toFixed(0)} eaten=${sim.hole.eatenCount} size=${sim.hole.size} peakChain=${sim.hole.bestCombo} score=${sim.hole.mass.toFixed(0)}`);
 
   // second excursion: a moving sweep through the expansion district — Fed
   // Reserve, then 7 WTC. Single-spot excavation stalls once the local cavity
@@ -981,7 +986,9 @@ function validateManhattan() {
     sim2.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
   }
   if (sim2.hole.eatenCount < 100) fail(`manhattan: only ${sim2.hole.eatenCount} blocks eaten on the expansion-district excursion (expected >=100)`);
-  console.log(`  manhattan district excursion: eaten=${sim2.hole.eatenCount} size=${sim2.hole.size}`);
+  // Same rebase floor as the WTC excursion above, measured on HEAD.
+  if (sim2.hole.size < 5) fail(`manhattan: expansion-district excursion reached only SIZE ${sim2.hole.size} (expected >=5)`);
+  console.log(`  manhattan district excursion: eaten=${sim2.hole.eatenCount} size=${sim2.hole.size} peakChain=${sim2.hole.bestCombo} score=${sim2.hole.mass.toFixed(0)}`);
 }
 
 // --- upper manhattan park sandbox checks ------------------------------------
@@ -1049,7 +1056,8 @@ function validateUpperManhattan() {
   // First, the SIZE ladder scales every growth threshold by
   // `round(totalMass / 4200)`, clamped at ×10. Pass 3's perimeter took this
   // scene to 86k mass, so the multiplier is pinned at the ceiling and the
-  // SIZE 4 gate is 1,800 combo-mass — five times what it was in Pass 2. The
+  // SIZE 4 gate is 414 raw mass (it was 1,800 combo-mass before the ADR-0015
+  // rebase moved the ladder onto rawMass — five times Pass 2's gate). The
   // Belvedere orbit that banked 893 then banks nowhere near enough now, and it
   // is not a route problem: a smaller hole is a slower hole, so under-feeding
   // it early compounds (audit §D.4).
@@ -1063,8 +1071,10 @@ function validateUpperManhattan() {
   // Third, the target has to be the densest mass in the level, and Pass 3 built
   // the Met to be exactly that — a 9 x 14 x 7 m limestone block with three full
   // floor slabs, a lantern on the roof and a colonnaded front, twelve metres
-  // from spawn. Result: 721 eaten, combo 3,680, SIZE 4 at 37.8 s of 62 —
-  // 24 seconds of margin at 2.04x the gate.
+  // from spawn. Result on the old ladder: 721 eaten, combo mass 3,680, SIZE 4
+  // at 37.8 s of 62 — 24 seconds of margin at 2.04x the gate. On the rebased
+  // ladder the same route banks 1,398 raw and reaches SIZE 5, which is the
+  // floor asserted below.
   const runExcursion = () => {
     const run = new VoxelSandboxSim({ seed: 'validator', scene: 'upper-manhattan' });
     for (let i = 0; i < 62 * 60; i++) {
@@ -1085,13 +1095,15 @@ function validateUpperManhattan() {
   // is loose against THIS route on purpose: its job is to catch a future pass
   // thinning the scene out, not to encode one route's yield.
   if (a.hole.eatenCount < 300) fail(`upper manhattan: only ${a.hole.eatenCount} blocks eaten on the Met excursion (expected >=300)`);
-  if (a.hole.size < 4) fail(`upper manhattan: excursion reached only SIZE ${a.hole.size} (expected >=4)`);
+  // Floor = the SIZE this excursion reached on HEAD's combo-mass ladder; the
+  // points-only rebase (ADR-0015) must not cost the scene a level.
+  if (a.hole.size < 5) fail(`upper manhattan: excursion reached only SIZE ${a.hole.size} (expected >=5)`);
 
   probeFinitePositions(a.blocks, 'upper manhattan', 'after excursion');
   // blockers= is in the line for the same reason Brooklyn's is: this scene's
   // camera blockers are GENERATED from the finished geometry, so the count is a
   // running read on how much of the skyline exists, not a hand-kept number.
-  console.log(`  upper manhattan sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} blockers=${sim.cameraBlockers.length}`);
+  console.log(`  upper manhattan sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} peakChain=${a.hole.bestCombo} score=${a.hole.mass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
 }
 
 // --- brooklyn sandbox checks -------------------------------------------------
@@ -1163,10 +1175,11 @@ function validateBrooklyn() {
   // Progression floor, held to the SAME >=4 as manhattan and upper manhattan.
   // The ladder is capped at ×10 in voxelsim.js precisely so the largest scenes
   // are not held to a lower standard than the ones they were built to surpass.
-  if (a.hole.size < 4) fail(`brooklyn: excursion reached only SIZE ${a.hole.size} (expected >=4 — mass-scaled SIZE ladder too steep?)`);
+  // Floor = the SIZE reached on HEAD's combo-mass ladder (see ADR-0015).
+  if (a.hole.size < 5) fail(`brooklyn: excursion reached only SIZE ${a.hole.size} (expected >=5 — SIZE ladder too steep?)`);
 
   probeFinitePositions(a.blocks, 'brooklyn', 'after excursion');
-  console.log(`  brooklyn sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} blockers=${sim.cameraBlockers.length}`);
+  console.log(`  brooklyn sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} peakChain=${a.hole.bestCombo} score=${a.hole.mass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
 }
 
 function validateBoston() {
@@ -1238,14 +1251,15 @@ function validateBoston() {
     fail(`boston: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
   }
   if (a.hole.eatenCount < 300) fail(`boston: only ${a.hole.eatenCount} blocks eaten on the BCEC excursion (expected >=300)`);
-  // Progression floor, held to the same >=4 as every other sandbox. Boston is
-  // the heaviest map on the ladder (141k mass puts the multiplier at its ×10
-  // cap, so the SIZE 4 gate is 1,800 combo-mass), which is exactly why it is
-  // not granted a lower bar than the scenes it was built to surpass.
-  if (a.hole.size < 4) fail(`boston: excursion reached only SIZE ${a.hole.size} (expected >=4 — mass-scaled SIZE ladder too steep?)`);
+  // Progression floor, held to the same >=5 as every other big sandbox. Boston
+  // is the heaviest map on the ladder (141k mass puts the multiplier at its ×10
+  // cap, so the SIZE 4 gate is 414 raw mass), which is exactly why it is not
+  // granted a lower bar than the scenes it was built to surpass.
+  // Floor = the SIZE reached on HEAD's combo-mass ladder (see ADR-0015).
+  if (a.hole.size < 5) fail(`boston: excursion reached only SIZE ${a.hole.size} (expected >=5 — SIZE ladder too steep?)`);
 
   probeFinitePositions(a.blocks, 'boston', 'after excursion');
-  console.log(`  boston sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} blockers=${sim.cameraBlockers.length}`);
+  console.log(`  boston sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} peakChain=${a.hole.bestCombo} score=${a.hole.mass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
 }
 
 // Cambridge, on the same probe list as every scene above it and with three
@@ -1316,12 +1330,13 @@ function validateCambridge() {
     fail(`cambridge: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
   }
   if (a.hole.eatenCount < 300) fail(`cambridge: only ${a.hole.eatenCount} blocks eaten on the scripted excursion (expected >=300)`);
-  // Same >=4 progression floor as every other sandbox. Cambridge is not granted
-  // a lower bar for being newer.
-  if (a.hole.size < 4) fail(`cambridge: excursion reached only SIZE ${a.hole.size} (expected >=4 — mass-scaled SIZE ladder too steep?)`);
+  // Floor = the SIZE this excursion reached on HEAD's combo-mass ladder, which
+  // is 7 — the longest route in the game, so it earns the highest floor of any
+  // scene. Cambridge is not granted a lower bar for being newer (ADR-0015).
+  if (a.hole.size < 7) fail(`cambridge: excursion reached only SIZE ${a.hole.size} (expected >=7 — SIZE ladder too steep?)`);
 
   probeFinitePositions(a.blocks, 'cambridge', 'after excursion');
-  console.log(`  cambridge sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} blockers=${sim.cameraBlockers.length}`);
+  console.log(`  cambridge sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} peakChain=${a.hole.bestCombo} score=${a.hole.mass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
 }
 
 // --- save schema guard --------------------------------------------------------
@@ -1378,6 +1393,141 @@ function validateSaveSchema() {
   if (missingSet.length) fail(`save schema: migrated save.settings is missing key(s) [${missingSet.join(', ')}] that defaultSettings() creates`);
 
   console.log(`  save schema: v1->v${CURRENT_VERSION} chain and freshSave() agree on ${freshKeys.size} top-level key(s) and ${freshSettingKeys.size} setting(s)`);
+}
+
+// --- reward-layer ladders (ADR-0015) -----------------------------------------
+// The regression guard for the defect this package closed. `js/ui/hud.js` used
+// to print `⚡ COMBO x{floor((chain - 1) / 25) + 1}` — a LEVEL INDEX in
+// multiplier notation — beside a sim that awarded `min(3, 1 + 0.1 * ...)`. At a
+// chain of 26 the HUD said x2 and the sim paid 1.1; at 101 it said x5 and paid
+// 1.4. Nothing could have caught that except an assertion that the two agree,
+// because both halves were individually reasonable. So: one ladder, exported,
+// and this function holds the equality across the whole reachable range.
+function validateRewardLadders() {
+  console.log('Validating reward ladders (combo + milestones)...');
+
+  // Shape: DATA, not a formula (FR-012), with the tail rule and the step as
+  // single named constants (FR-013).
+  if (!Array.isArray(COMBO_THRESHOLDS) || COMBO_THRESHOLDS.length === 0) {
+    fail('combo ladder: COMBO_THRESHOLDS is not a non-empty array — the ladder must be a data table');
+  }
+  if (typeof COMBO_STEP !== 'number' || !(COMBO_STEP > 0)) fail(`combo ladder: COMBO_STEP is not a positive number (${COMBO_STEP})`);
+  if (COMBO_MAX_LEVEL !== COMBO_THRESHOLDS.length) {
+    fail(`combo ladder: COMBO_MAX_LEVEL ${COMBO_MAX_LEVEL} does not match the ${COMBO_THRESHOLDS.length} thresholds — the tail rule and the table disagree`);
+  }
+  if (COMBO_LEVEL_NAMES.length !== COMBO_MAX_LEVEL + 1) {
+    fail(`combo ladder: ${COMBO_LEVEL_NAMES.length - 1} level name(s) for ${COMBO_MAX_LEVEL} level(s)`);
+  }
+  for (let i = 1; i < COMBO_THRESHOLDS.length; i++) {
+    if (!(COMBO_THRESHOLDS[i] > COMBO_THRESHOLDS[i - 1])) {
+      fail(`combo ladder: thresholds not strictly increasing at index ${i} (${COMBO_THRESHOLDS[i - 1]} -> ${COMBO_THRESHOLDS[i]})`);
+    }
+  }
+  // The owner's curve (GWT-301): 2, 10, 15, 25, 50, 100, then the rare tail.
+  const WANT_HEAD = [2, 10, 15, 25, 50, 100];
+  for (let i = 0; i < WANT_HEAD.length; i++) {
+    if (COMBO_THRESHOLDS[i] !== WANT_HEAD[i]) {
+      fail(`combo ladder: front-loaded head should be ${WANT_HEAD.join(', ')} — got ${COMBO_THRESHOLDS.slice(0, WANT_HEAD.length).join(', ')}`);
+      break;
+    }
+  }
+
+  // Monotonic, starts at x1, and — the load-bearing line — the multiplier a HUD
+  // reading this ladder would display equals the multiplier the sim scores
+  // with, for every chain the game can reach. The HUD's value is recomputed
+  // here from `comboLevel` + the named constants, which is exactly the path
+  // js/ui/hud.js takes; if anyone reintroduces a second expression there, the
+  // source guard below catches it and this one catches the arithmetic.
+  if (comboMult(1) !== 1) fail(`combo ladder: multiplier at chain 1 is ${comboMult(1)}, must be x1`);
+  if (comboMult(0) !== 1) fail(`combo ladder: multiplier with no chain is ${comboMult(0)}, must be x1`);
+  let prevMult = comboMult(0), topAt = null;
+  for (let c = 1; c <= 1000; c++) {
+    const m = comboMult(c);
+    const hudWouldShow = 1 + (comboLevel(c) - 1) * COMBO_STEP;
+    if (m !== hudWouldShow) {
+      fail(`combo ladder: at chain ${c} the sim awards x${m} and the HUD would show x${hudWouldShow}`);
+      break;
+    }
+    if (m < prevMult) { fail(`combo ladder: multiplier decreased at chain ${c} (x${prevMult} -> x${m})`); break; }
+    if (comboLevel(c) > COMBO_MAX_LEVEL) { fail(`combo ladder: chain ${c} resolved to level ${comboLevel(c)}, past the named top level ${COMBO_MAX_LEVEL}`); break; }
+    if (topAt === null && comboLevel(c) === COMBO_MAX_LEVEL) topAt = c;
+    prevMult = m;
+  }
+  if (comboMult(1e6) !== 1 + (COMBO_MAX_LEVEL - 1) * COMBO_STEP) {
+    fail('combo ladder: an absurd chain exceeds the capped top multiplier — the tail rule is not holding');
+  }
+
+  // Milestones: strictly increasing, inside (0, 1], last exactly on the goal.
+  let prevAt = 0;
+  for (const row of MILESTONES) {
+    if (!(row.at > prevAt)) fail(`milestone ladder: thresholds not strictly increasing at ${row.at} (previous ${prevAt})`);
+    if (!(row.at > 0 && row.at <= 1)) fail(`milestone ladder: threshold ${row.at} outside (0, 1]`);
+    if (typeof row.text !== 'string' || row.text.trim() === '') fail(`milestone ladder: row at ${row.at} has no copy`);
+    if (!MILESTONE_TIERS.includes(row.tier)) fail(`milestone ladder: row at ${row.at} has unknown tier "${row.tier}"`);
+    prevAt = row.at;
+  }
+  if (MILESTONES[MILESTONES.length - 1].at !== 1) {
+    fail(`milestone ladder: last threshold is ${MILESTONES[MILESTONES.length - 1].at}, must be exactly 1 so the loudest beat lands on goal completion`);
+  }
+
+  // Source guards. The ladder must exist ONCE, in the sim, exported — and the
+  // HUD must read it rather than mirror it (GWT-202, SYS-209).
+  const hudSrc = readFileSync(new URL('../js/ui/hud.js', import.meta.url), 'utf8');
+  if (!/import\s*\{[^}]*comboMult[^}]*\}\s*from\s*'\.\.\/voxelsim\.js'/.test(hudSrc)) {
+    fail("js/ui/hud.js does not import comboMult from ../voxelsim.js — a HUD that re-derives the multiplier is the defect this package closed");
+  }
+  // Comments are stripped first: hud.js deliberately QUOTES the old expression
+  // where it explains why the pill was removed, and a guard that cannot tell a
+  // warning label from live code fails on the documentation of its own bug.
+  const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\n'"`]*\/\/.*$/gm, '');
+  if (/chain\s*-\s*1\s*\)\s*\/\s*25/.test(stripComments(hudSrc))) {
+    fail('js/ui/hud.js still contains the old (chain - 1) / 25 level expression');
+  }
+  const simSrc = readFileSync(new URL('../js/voxelsim.js', import.meta.url), 'utf8');
+  if (!/export function comboMult/.test(simSrc)) fail('js/voxelsim.js does not export comboMult');
+
+  // Every gameplay announcement goes through the queue (GWT-604): the sandbox
+  // event dressing must not reach for the presentation backends directly.
+  const mainSrc = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
+  const sandboxBlock = mainSrc.slice(mainSrc.indexOf('if (isVoxelSandbox) {'), mainSrc.indexOf('} else {', mainSrc.indexOf('if (isVoxelSandbox) {')));
+  for (const m of ['hud.showToast', 'hud.showBigPop', 'hud.showBand']) {
+    if (sandboxBlock.includes(m)) fail(`js/main.js sandbox dressing calls ${m}() directly — every announcement must go through hud.announce()`);
+  }
+
+  console.log(`  combo ladder: ${COMBO_THRESHOLDS.length} levels (${COMBO_THRESHOLDS.join(', ')}), x1..x${comboMult(1e6)}, "${COMBO_LEVEL_NAMES[COMBO_MAX_LEVEL]}" from chain ${topAt}`);
+  console.log(`  milestone ladder: ${MILESTONES.length} rows, ${(MILESTONES[0].at * 100).toFixed(0)}% -> ${(MILESTONES[MILESTONES.length - 1].at * 100).toFixed(0)}% of the scene goal`);
+}
+
+// --- the gallery must be winnable ---------------------------------------------
+// A full clear of a targetFraction-1.0 scene must set `won`. This is not a
+// theoretical guard: `hole.rawMass` is accumulated one add per block as the city
+// is eaten, while `totalMass` is a reduce() over the same blocks in ARRAY order.
+// Identical summands, different order, so float rounding leaves rawMass a few
+// parts in 1e12 short — and the gallery, the only scene that must eat 100% of
+// the city, could consume all 3798 blocks and never win. The HUD floors the
+// percentage, so it read 99% forever. Found in live play, fixed with a relative
+// epsilon in js/voxelsim.js.
+//
+// The order matters and is the whole reason this check is written the way it is:
+// eating in ARRAY order reproduces totalMass bit-for-bit and passes even on the
+// broken code. Radial order — nearest first, which is roughly how a real hole
+// eats — is one of the orders that actually loses, so that is what runs here.
+function validateGalleryWinnable() {
+  console.log('Validating the gallery is winnable (float-order guard on the win check)...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'gallery' });
+  if (sim.goal.targetFraction !== 1) {
+    fail(`gallery win guard: expected targetFraction 1, got ${sim.goal.targetFraction} — this guard only means anything at 100%`);
+    return;
+  }
+  const radial = sim.blocks.slice().sort((p, q) => Math.hypot(p.x, p.z) - Math.hypot(q.x, q.z));
+  for (const b of radial) if (b.state !== 'consumed') sim._consume(b);
+  sim.step(1 / 60, { x: 0, z: 0 });
+  const left = sim.blocks.filter((b) => b.state !== 'consumed').length;
+  if (left > 0) fail(`gallery win guard: ${left} block(s) survived a full clear — the harness is not clearing the city`);
+  if (!sim.won) {
+    fail(`gallery win guard: consumed all ${sim.totalBlocks} blocks and won is still false (shortfall ${(sim.totalMass - sim.hole.rawMass).toExponential(3)}) — the win check needs its epsilon`);
+  }
+  console.log(`  gallery winnable: ${sim.totalBlocks} blocks consumed, survivors=${left}, shortfall=${(sim.totalMass - sim.hole.rawMass).toExponential(3)}, won=${sim.won}`);
 }
 
 // --- offline-boot guard -------------------------------------------------------
@@ -1472,6 +1622,8 @@ for (const level of levelsToCheck) {
 
 validateOfflineBoot();
 validateSaveSchema();
+validateRewardLadders();
+validateGalleryWinnable();
 validateVoxelSandbox();
 validateVoxelCollisions();
 validateManhattan();

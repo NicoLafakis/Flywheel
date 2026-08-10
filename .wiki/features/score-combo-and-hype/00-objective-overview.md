@@ -1,6 +1,6 @@
 # Score, Combo and Hype — Objective Overview
 
-**Tier:** 2 · **Status:** planning
+**Tier:** 2 · **Status:** SHIPPED 2026-08-10
 
 > The spine of the package. [01-prd.md](01-prd.md) says *what the system must
 > do* and [02-requirements.md](02-requirements.md) says *how we will know it
@@ -419,10 +419,25 @@ These are new nouns. Each gets a clean seam and a mention here, and no code.
 - **A campaign-mode score display.** Different mode, different sim, not asked
   for.
 
-## Decisions that are the owner's
+## Decisions that are the owner's — ANSWERED
 
-Three, all about what a player feels. Recommendations attached; none of them
-should be built until he has said which way.
+Three, all about what a player feels. The rulings are recorded above each one
+and are what shipped; the recommendations below them are left as written so the
+reasoning that lost is still on the record.
+
+> **Q1 ruled: POINTS-ONLY** — the recommendation below was overruled. The combo
+> no longer affects hole growth at all. The SIZE ladder reads `hole.rawMass`;
+> `hole.mass` is the multiplied total and is now purely the displayed score, and
+> `SIZE_MASS` was rebased onto raw mass in the same change so every scene paces
+> as it did before.
+>
+> **Q2 ruled: A NAMED TOP LEVEL**, as recommended. Thresholds at chain 2, 10,
+> 15, 25, 50, 100, 350, then `MAX` at 600. Eight levels, nothing past it.
+>
+> **Q3 ruled: THE WHOLE HELPING** at every level, not just the early ones.
+> `COMBO_STEP = 1`, so level *n* is worth ×*n*, ×1 through ×8. Cheap to do under
+> Q1's ruling, which is what makes the generous version safe: a ×8 chain buys a
+> bigger number and not a bigger hole.
 
 **1. When you are holding a huge combo, should the hole itself grow faster
 because of it, or should the combo only be worth a bigger number?**
