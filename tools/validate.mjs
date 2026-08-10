@@ -19,6 +19,11 @@ import {
   BOSTON_CROSSINGS, BOSTON_OPEN_GROUND, BOSTON_ROAD_SPANS, BOSTON_STREETS,
   BOSTON_VEHICLES, XW_LEN as BOS_XW_LEN,
 } from '../js/voxelscene-boston.js';
+import {
+  CAMBRIDGE_CROSSINGS, CAMBRIDGE_DISTRICTS, CAMBRIDGE_HEROES, CAMBRIDGE_OPEN_GROUND,
+  CAMBRIDGE_ROAD_SPANS, CAMBRIDGE_ROUTE, CAMBRIDGE_STREETS, CAMBRIDGE_VEHICLES,
+  CAM_XW_LEN,
+} from '../js/voxelscene-cambridge.js';
 import { CURRENT_VERSION, __freshSave, __MIGRATIONS } from '../js/save.js';
 import { readdirSync, readFileSync } from 'node:fs';
 
@@ -1243,6 +1248,77 @@ function validateBoston() {
   console.log(`  boston sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} blockers=${sim.cameraBlockers.length}`);
 }
 
+// Cambridge, on the same probe list as every scene above it and with three
+// probes that finally have something to bite on. The other five scenes declare
+// no districts and no hero pair, so `probeDistrictDensity` and
+// `probeHeroIdentity` pass them vacuously; Cambridge exports
+// `CAMBRIDGE_DISTRICTS`, `CAMBRIDGE_ROUTE` and `CAMBRIDGE_HEROES`, so both run
+// for real here — this is the first scene either one has ever measured.
+//
+// The route is NOT declared in this file the way Boston's WP is. Cambridge
+// exports it, because `probeDistrictDensity` measures inter-piece gaps along it
+// and the scene's own district rects and gap floors were authored against those
+// exact legs; a second copy here would drift from the one the districts were
+// tuned to. The excursion below therefore drives the scene's own line.
+function validateCambridge() {
+  console.log('Validating cambridge sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'cambridge' });
+
+  const WP = CAMBRIDGE_ROUTE;
+  const DURATION = WP[WP.length - 1].until;
+
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'cambridge');                                                 // 1
+  probeCameraBlockers(sim, 'cambridge', tops);                                          // 2
+  probeBoundsRect(sim, 'cambridge');                                                    // 3
+  probeRoadConflicts(sim, 'cambridge', CAMBRIDGE_VEHICLES, CAMBRIDGE_ROAD_SPANS);       // 4
+  probeWaterOverSurfaces(sim, 'cambridge');                                             // 5
+  probeParkUnderWater(sim, 'cambridge');
+  probeRimmedWater(sim, 'cambridge');                                                   // 6
+  probeBareGround(sim, 'cambridge', tops);                                              // 7
+  probeOpenGround(sim, 'cambridge', CAMBRIDGE_OPEN_GROUND);                             // 7b
+  reportDeadGround(sim, 'cambridge', CAMBRIDGE_OPEN_GROUND);                            // 7c
+  probeCrosswalkStripes(sim, 'cambridge');                                              // 8
+  probeCrossingsOnDeclaredStreet('cambridge', CAMBRIDGE_CROSSINGS, CAMBRIDGE_STREETS, CAM_XW_LEN); // 8b
+  probeDecorKeyOrder(sim, 'cambridge');                                                 // 9
+  // The three kinds the shell actually declares. No gulls, no surf, no ferries:
+  // nothing in the built map fronts open water yet.
+  probeAmbient(sim, 'cambridge', ['steam', 'neon', 'pigeons']);                         // 10
+  probeGradeDiagonal(sim, 'cambridge');                                                 // 10b
+  probePlacementStep(sim, 'cambridge');                                                 // 10c
+  probeDistrictDensity(sim, 'cambridge', CAMBRIDGE_DISTRICTS, WP);                      // 10d — real rows
+  probeHeroIdentity(sim, 'cambridge', CAMBRIDGE_HEROES);                                // 10e — real pair
+  probeIdleStability(sim, 'cambridge');                                                 // 11
+
+  // 12. deterministic excursion, run twice, along the scene's own scripted
+  // route rather than a validator-local one. Same two properties Boston's leans
+  // on: it never parks, and every leg runs end to end onto ground the opening
+  // has not already taken.
+  const runExcursion = () => {
+    const run = new VoxelSandboxSim({ seed: 'validator', scene: 'cambridge' });
+    for (let i = 0; i < DURATION * 60; i++) {
+      const t = i * DT, h = run.hole;
+      let wp = WP[WP.length - 1];
+      for (const w of WP) if (t < w.until) { wp = w; break; }
+      const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
+      run.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
+    }
+    return run;
+  };
+  const a = runExcursion();
+  const b = runExcursion();
+  if (a.hole.eatenCount !== b.hole.eatenCount || a.hole.mass.toFixed(6) !== b.hole.mass.toFixed(6)) {
+    fail(`cambridge: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
+  }
+  if (a.hole.eatenCount < 300) fail(`cambridge: only ${a.hole.eatenCount} blocks eaten on the scripted excursion (expected >=300)`);
+  // Same >=4 progression floor as every other sandbox. Cambridge is not granted
+  // a lower bar for being newer.
+  if (a.hole.size < 4) fail(`cambridge: excursion reached only SIZE ${a.hole.size} (expected >=4 — mass-scaled SIZE ladder too steep?)`);
+
+  probeFinitePositions(a.blocks, 'cambridge', 'after excursion');
+  console.log(`  cambridge sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} blockers=${sim.cameraBlockers.length}`);
+}
+
 // --- save schema guard --------------------------------------------------------
 // freshSave() and the MIGRATIONS chain are two independent descriptions of the
 // same object, and only one of them gets exercised while developing: whoever adds
@@ -1333,6 +1409,7 @@ validateManhattan();
 validateUpperManhattan();
 validateBrooklyn();
 validateBoston();
+validateCambridge();
 
 console.log('---');
 if (failures === 0) {

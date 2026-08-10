@@ -30,6 +30,7 @@ import { buildManhattan } from './voxelscene-manhattan.js';
 import { buildUpperManhattan } from './voxelscene-upper-manhattan.js';
 import { buildBrooklyn } from './voxelscene-brooklyn.js';
 import { buildBoston } from './voxelscene-boston.js';
+import { buildCambridge } from './voxelscene-cambridge.js';
 import { sedan, bus, boxVan, bigTruck, motorcycle, tree, lampPost } from './voxelkit.js';
 
 // --- tuning ------------------------------------------------------------------
@@ -101,6 +102,9 @@ const GOALS = {
   'upper-manhattan': { name: 'RECLAIM CENTRAL PARK', targetFraction: 0.5 },
   brooklyn: { name: 'CONNECT THE BOROUGHS', targetFraction: 0.5 },
   boston: { name: 'SWALLOW THE SEAPORT', targetFraction: 0.5 },
+  // `.wiki/features/cambridge-sandbox/03-level-design.md` §1.1, verbatim. Same
+  // 50% as every other scene — the fraction is the ladder's, not the scene's.
+  cambridge: { name: 'SWALLOW THE SPROCKET', targetFraction: 0.5 },
 };
 export const SANDBOX_COIN_COUNT = 60;
 export const SANDBOX_COIN_VALUE = 2;
@@ -273,6 +277,7 @@ export class VoxelSandboxSim {
     else if (scene === 'upper-manhattan') buildUpperManhattan(this);
     else if (scene === 'brooklyn') buildBrooklyn(this);
     else if (scene === 'boston') buildBoston(this);
+    else if (scene === 'cambridge') buildCambridge(this);
     else this._buildScene();
     this.scene = scene;
     this.goal = GOALS[scene] || GOALS.gallery;

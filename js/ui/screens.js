@@ -32,6 +32,7 @@ export const ITEMS = [
 const FREE_PLAY = [
   { scene: 'brooklyn', name: 'BROOKLYN', sub: 'Bridges to Coney Island', tag: 'START HERE' },
   { scene: 'boston', name: 'BOSTON', sub: 'Seaport and the Convention Center' },
+  { scene: 'cambridge', name: 'CAMBRIDGE', sub: 'Canal Park to the Portuguese seam' },
   { scene: 'manhattan', name: 'LOWER MANHATTAN', sub: 'Downtown towers' },
   { scene: 'upper-manhattan', name: 'UPPER MANHATTAN', sub: 'Central Park' },
   { name: 'SANDBOX', sub: 'Physics playground' },

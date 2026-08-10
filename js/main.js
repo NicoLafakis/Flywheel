@@ -299,6 +299,15 @@ const AUTHORED_SCENES = {
     hud: 'SEAPORT · BCEC AND THE FISH PIER',
     intro: { subtitle: 'BOSTON' },
   },
+  // CAMBRIDGE:, not BOSTON: — it is its own city across the Charles, and the
+  // scene's own docs name it that way throughout. No `fallbackR`: the scene
+  // ships camera blockers from `generateBlockers`, so beginIntro frames the
+  // blocker box rather than needing a hand-set radius.
+  'cambridge': {
+    label: 'CAMBRIDGE: KENDALL SQUARE AND THE PORTUGUESE SEAM',
+    hud: 'CAMBRIDGE · CANAL PARK AND LECHMERE',
+    intro: { subtitle: 'CAMBRIDGE' },
+  },
 };
 
 function startVoxelSandbox(scene = 'gallery') {
