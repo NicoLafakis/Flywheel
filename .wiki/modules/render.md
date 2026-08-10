@@ -107,16 +107,23 @@ mutates sim state.
   `depthTest: false`, the same trick as the hole ring, so a collapsing facade
   can never hide the one thing that says which way you are about to drive.
   Per frame `update()` sets only `rotation.y = h.heading` and
-  `scale = max(0.001, h.radius × 1.15)` — the pointer follows the SIM's hole
-  heading, not `controls.heading` directly, so anything that moves the hole
-  moves the arrow. It does not hide when the hole is parked; the heading is
-  meaningful at rest under tank steering, which is the whole reason it exists.
-  Six outlines live in `indicatorShape(id)` (`voxelworld.js`, near line 418) —
-  baseline chevron, plasma wedge, Supered lightning bolt, inferno flame, cyber
-  prism, cosmic starburst — and every one of them keeps its tip at local y=+1.0
-  and its tail near y=-0.55, which is what lets the per-frame scale above stay
-  a single expression: an indicator changes what the pointer looks like, never
-  how far past the rim it reaches. The registry row (id, name, price, `color`,
+  `scale = max(0.001, h.radius × INDICATOR_SCALE)` (0.575) — the pointer
+  follows the SIM's hole heading, not `controls.heading` directly, so anything
+  that moves the hole moves the arrow. Since 2026-08-10 the pointer rides
+  AHEAD of the rim rather than sitting over the mouth: both plates are pushed
+  `INDICATOR_LEAD` (2.6) along local −z (the heading direction) inside the
+  radius-scaled group, so a constant local lead is a constant multiple of the
+  radius in world space — the pointer tracks the rim as the hole grows with no
+  per-frame position write. Worst-case tail across all outlines (cosmic, −0.62,
+  backing plate 1.24×) lands at 1.05 × radius, outside the rim with clearance;
+  measured in-page the plates span roughly 1.05–2.2 × radius on the heading
+  axis, identical at radius 3 and 9. It does not hide when the hole is parked;
+  the heading is meaningful at rest under tank steering, which is the whole
+  reason it exists. Six outlines live in `indicatorShape(id)`
+  (`voxelworld.js`, near line 418) — baseline chevron, plasma wedge, Supered
+  lightning bolt, inferno flame, cyber prism, cosmic starburst — and every one
+  keeps its tip at local y=+1.0 and its tail near y=-0.55, which is what lets
+  the per-frame scale and lead stay single expressions shared by all skins. The registry row (id, name, price, `color`,
   `css` for the shop swatch, blurb) lives in `js/skins.js`; the equipped id
   reaches the renderer as `opts.indicatorId` on the `VoxelWorld3D` constructor
   (`main.js:342`, from `save.equippedIndicator`, added by `save.js`

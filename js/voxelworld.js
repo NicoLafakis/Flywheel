@@ -412,6 +412,24 @@ function mortarTexture() {
   return mortarTex;
 }
 
+// How far AHEAD of the hole the pointer sits, and how big it is. Both are in
+// the arrow group's local units, and the group is scaled by the hole radius
+// every frame — so the lead is a MULTIPLE of the rim and tracks it as the hole
+// grows, rather than a fixed metre gap that a SIZE 9 hole would swallow.
+//
+// The numbers are picked off the outlines in indicatorShape below. Every
+// shape's tail sits at y >= -0.62 (cosmic and inferno are the deepest) and the
+// dark backing plate is
+// drawn at 1.24x, so the rearmost point any skin can reach is 1.24 * -0.62 =
+// -0.769. With scale = radius * 0.575, that puts the tail at
+// 0.575 * (2.6 - 0.769) = 1.05 * radius — just outside the rim ring, with a
+// clearance gap on the worst-case skin, and further out on the rest. The tip
+// reaches ~2.2 * radius. INDICATOR_SCALE is half the old 1.15: the pointer
+// used to be centred ON the hole at rim size, which read as an emblem filling
+// the mouth rather than as a direction to drive in.
+const INDICATOR_LEAD = 2.6;
+const INDICATOR_SCALE = 0.575;
+
 // The heading pointer's outline, one per shop indicator row. Local +y is the
 // heading direction (the mesh is laid flat by rotation.x = -PI/2), tip at +1.0,
 // tail around -0.55, so all six are interchangeable at the same scale.
@@ -647,19 +665,19 @@ export class VoxelWorld3D {
     // (js/skins.js INDICATOR_SKINS, sold on the shop's NAV INDICATOR shelf).
     // Every outline keeps its tip at y=+1 and its tail near y=-0.55 so the
     // per-frame scale/rotation below is identical whichever one is equipped —
-    // the skin only changes what the pointer LOOKS like, never how far past the
-    // rim it reaches.
+    // the skin only changes what the pointer LOOKS like, never where it sits
+    // relative to the rim (see INDICATOR_LEAD / INDICATOR_SCALE above).
     const indRow = INDICATOR_BY_ID.get(opts && opts.indicatorId) || INDICATOR_BY_ID.get('ind-default');
     const arrowShape = indicatorShape(indRow ? indRow.id : 'ind-default');
     const arrowGeo = new THREE.ShapeGeometry(arrowShape);
     const arrowBack = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0x0b0d14, depthTest: false }));
     arrowBack.rotation.x = -Math.PI / 2;
-    arrowBack.position.y = 0.045;
+    arrowBack.position.set(0, 0.045, -INDICATOR_LEAD);
     arrowBack.scale.setScalar(1.24);  // the outline: a slightly larger dark plate
     arrowBack.renderOrder = 998;
     const arrowFace = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: (indRow ? indRow.color : 0xff5a1f), depthTest: false }));
     arrowFace.rotation.x = -Math.PI / 2;
-    arrowFace.position.y = 0.05;
+    arrowFace.position.set(0, 0.05, -INDICATOR_LEAD);
     arrowFace.renderOrder = 999;
     this.headingArrow = new THREE.Group();
     this.headingArrow.add(arrowBack, arrowFace);
@@ -2130,10 +2148,13 @@ export class VoxelWorld3D {
     uHolePos.value.set(h.x, h.z);
     uHoleRadius.value = h.radius * 0.96;
     // The tank scheme's heading made visible: the pointer turns with the
-    // player's heading and grows with the hole, tip reaching just past the
-    // rim so it points at what you are about to drive into.
+    // player's heading and rides just OUTSIDE the rim in that direction, so it
+    // points at what you are about to drive into instead of covering the mouth.
+    // The whole group scales with the radius, which is what carries the lead
+    // (INDICATOR_LEAD, baked into the children's local z) out with the rim as
+    // the hole grows.
     this.headingArrow.rotation.y = h.heading || 0;
-    this.headingArrow.scale.setScalar(Math.max(0.001, h.radius * 1.15));
+    this.headingArrow.scale.setScalar(Math.max(0.001, h.radius * INDICATOR_SCALE));
     for (const ev of events || []) {
       if (ev.type === 'coin') {
         const mesh = this.coinMeshes.get(ev.coin.id);
