@@ -407,6 +407,45 @@ const C = {
   canal10Parapet: 0x8a5b44,
   // Edwin H. Land Boulevard, the 25.9° diagonal (`03` §2.2).
   landKerb: 0x9d9a92,
+
+  // --- DISTRICT 7, NORTH POINT & CAMBRIDGE CROSSING ---------------------
+  // `03` §4's palette bank here is "low-chroma glass, precast", and this is the
+  // district that has to make that bank carry a whole skyline rather than one
+  // building. `02` §5's art direction — "red brick and grey water, cut by
+  // low-chroma glass towers" — names these towers as the CUT, so every value
+  // below sits deliberately near-neutral: the saturation in this frame belongs
+  // to the transit green, the Stata Center and the hero's orange, and a tower
+  // ring that competed with any of them would flatten all three.
+  //
+  // FOUR PRECAST TONES, NOT ONE, and the reason is `02` §2.4's own reading of
+  // the skyline: this is not one development, it is 2007 to 2022 built out in
+  // stages by four different owners. A single spandrel grey across seven
+  // buildings reads as a masterplan render. The three warm/cool/pale variants
+  // separate the residential slabs from the office towers at a glance without
+  // any of them raising chroma.
+  npPrecast: 0xa8a59c,        // Tango and the Glass Factory — the neutral middle
+  npPrecastWarm: 0xb1a898,    // Archstone: the one with a warm cast, 22 storeys of it
+  npPrecastCool: 0x9ea3a6,    // Twenty|20 — the newest and the coldest
+  npPrecastRes: 0x9c8f80,     // AVA East/West and Avalon Lofts, the 6-storey band
+  npBand: 0xc3c0b7,           // sill and head bands, one step up in value
+  npParapet: 0x8e8b83,        // parapet, coping and plinth
+  npParapetRes: 0x81766a,
+  // Glass. Four tones, all `sp()` — `03` §3 files curtain wall as "very low
+  // chroma, and specular, left raw", so a de-veiling pass must skip every one.
+  npGlassCool: sp(0x53707a),  // Twenty|20 and Archstone
+  npGlassPale: sp(0x6a828b),  // Tango, and every shopfront in the district
+  npGlassRes: sp(0x5b737b),   // the residential slabs
+  npGlassGreen: sp(0x4a6b60), // the Glass Factory ONLY — see that building's note
+  npMullion: 0x3f474d,
+  npSteel: 0x6b7278,
+  npDeck: 0xa6a29a,
+  // The ground plane, which `03` §8.2 says does the density work in a
+  // tower-and-plaza district: "the towers are tall, not wide."
+  npKerb: 0x9d9a92,
+  npApron: 0x8f8c85,          // podium thresholds and canopy soffits
+  npCanopy: 0x5f6a63,
+  npFence: 0x424a41,
+  npLawnEdge: 0x4c6141,
 };
 
 // --- THE MAP -----------------------------------------------------------------
@@ -610,6 +649,43 @@ export const CAMBRIDGE_OFFSETS = [
     conf: 'Position: Confirmed (OSM, `02` §2.4). Footprint: Confirmed (89 × 50). Storeys/height: `02` gives none. DEFERRED — derived seat (−84,−16.5) is inside District 4\'s built block (759 blocks)' },
   { id: 35, name: 'Middlesex County Courthouse (old, 41 Second St)', plan: [32, 49], height: null, E: -280, N: -22,
     conf: 'Position: Confirmed (OSM, `02` §2.4). Footprint: Confirmed (32 × 49). Storeys/height: `02` gives none. DEFERRED — derived seat (−90.75,+9) straddles Third Street and Row D (223 blocks)' },
+  // ROWS 36-44 ADDED AT P6.7, for the same reason rows 26-33 landed at P6.4:
+  // `03` §4.7 names nine buildings and three open spaces and `02` §2.4/§2.5
+  // gives every one of them a Confirmed OSM offset, but only two of the nine
+  // (Archstone at row 8, Twenty|20 at row 9) had ever been transcribed. A row
+  // without a transcription is a seat nobody can check, and `03` §1.2 is
+  // explicit that this table is the only thing that lets anyone check the
+  // layout later. Heights follow `02` §6 method note 4 — storeys × 4.3 for
+  // office and residential — and are marked (est.), never promoted.
+  //
+  // `03` §4.7 PUTS THE GLASS FACTORY IN THIS DISTRICT AND ITS OWN OFFSET DOES
+  // NOT. §4.7 describes District 7 as "the ring of new towers immediately east
+  // and northeast" and gives it the rect x[+60,+132] z[−90,+16]; `02` §2.4
+  // seats the Glass Factory at real E −117 / N +191, which is NORTHWEST, and
+  // `sceneOffset` returns (−49.25, −70) — 110 m west of that rect's own west
+  // edge. The building is real, Confirmed, 8 storeys, and inside the built map;
+  // the doc's district assignment is what is wrong, and it is wrong in the
+  // direction that matters, because the ground it actually stands on is the
+  // emptiest quarter of the map. It is built at the law's seat and stands in no
+  // declared rect — see the district's own header for the arithmetic.
+  { id: 36, name: 'Tango (apartments)', plan: null, height: 51.6, E: 214, N: 94,
+    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (12). Height: est. (12 × 4.3). Footprint: `02` gives none' },
+  { id: 37, name: 'Hult House (dormitory)', plan: null, height: 51.6, E: 468, N: 93,
+    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (12). Height: est. Footprint: `02` gives none. DEFERRED — derived seat (+108.5,−55.75) is 12 m past the built map\'s east edge, see the district header' },
+  { id: 38, name: 'Education First HQ', plan: null, height: 51.6, E: 622, N: -35,
+    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (12). Height: est. Footprint: `02` gives none. `02` §7 and `03` §4.7: massing only, NO WORDMARK. DEFERRED — derived seat (+119,−27.75) is 22 m past the built map\'s east edge' },
+  { id: 39, name: 'AVA East', plan: null, height: 25.8, E: 177, N: 24,
+    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (6). Height: est. (6 × 4.3). Footprint: `02` gives none' },
+  { id: 40, name: 'AVA West', plan: null, height: 25.8, E: 106, N: 69,
+    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (6). Height: est. Footprint: `02` gives none' },
+  { id: 41, name: 'Avalon North Point Lofts', plan: null, height: 25.8, E: 290, N: 17,
+    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (6). Height: est. Footprint: `02` gives none' },
+  { id: 42, name: 'The Glass Factory (condos)', plan: null, height: 34.4, E: -117, N: 191,
+    conf: 'Position: Confirmed (OSM, `02` §2.4). Storeys: Confirmed (8). Height: est. Footprint: `02` gives none. CONFLICT: `03` §4.7 files it under District 7 (east/northeast) but the offset is northwest — seat (−49.25,−70), 110 m west of §4.7\'s own rect. Built at the law\'s seat; see the P6.7 report' },
+  { id: 43, name: 'The Common at CX', plan: null, height: 0, E: 217, N: 157,
+    conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground)' },
+  { id: 44, name: 'Viaduct Courts', plan: null, height: 0, E: 310, N: -73,
+    conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground). DEFERRED — derived seat (+106,−7.5) with any usable lawn carries `maxX` past 116 and `maxZ` into District 8\'s unbuilt shore' },
 ];
 
 // `03` §1.2's law, in one function: real (E, N) offset in true-north metres →
@@ -819,6 +895,48 @@ export const CAMBRIDGE_STREETS = [
   // z 30 across x[−71.5,−26.25]; a rect carried north of 30.25 would have the
   // freight spur, the dock and the yard clutter inside its own asphalt.
   { name: 'Second Street', axis: 'z', x: -67, z: 30.5, w: 6, d: 29.5 },
+  // District 7, indices 11-15. `02` gives an offset for every BUILDING in this
+  // quarter and for none of its streets, so all five are PLACED rather than
+  // derived — the same disposition Gore, Third and Second Street got, and stated
+  // the same way. What places them is the buildings: a street here is the gap
+  // the Confirmed seats leave, and every kerb line below is measured off two
+  // derived footprints rather than off a pitch.
+  //
+  // FOUR OF THE FIVE ARE ONE CIRCUIT, and that is `03` §8.2's mitigation for
+  // this district built as geometry rather than described: "podium retail at
+  // grade on every tower, a continuous kerb and street-tree pitch ... the towers
+  // are tall, not wide — the ground plane does the density work." A tower ring
+  // with no street grid is the dead-zone geometry §8.2 warns about; the grid is
+  // what makes a 1.3 piece/m² floor reachable on a district whose buildings
+  // touch the ground at seven places in 5,000 m².
+  //
+  // NO STREET CROSSES ANOTHER'S CARRIAGEWAY RECT. Every one of the four starts
+  // or stops on a neighbour's edge (`rectsOverlap` is open, so an abutting edge
+  // costs nothing), because two overlapping road rects make every block in the
+  // junction interior to two carriageways at once — District 4's Third Street
+  // note, applied four more times.
+  { name: 'North Point Boulevard', axis: 'z', x: 42, z: -92, w: 6, d: 84 },
+  { name: 'Child Street', axis: 'x', x: 48, z: -50, w: 58, d: 6 },
+  { name: 'Water Street', axis: 'z', x: 81, z: -86, w: 6, d: 36 },
+  { name: 'North Point Way', axis: 'x', x: 48, z: -92, w: 58, d: 6 },
+  // Glassworks Avenue, and it is the one street in this district that `03` §4.7
+  // names outright. It runs where the Glass Factory is rather than where §4.7
+  // puts the district, because the two are the same reference: the condos are
+  // named for the East Cambridge glassworks and the avenue is named for the
+  // condos. It ends on North First Street's west kerb, which is the only
+  // carriageway within 200 m of the Glass Factory's Confirmed seat.
+  // IT STOPS AT x −23, THREE METRES SHORT OF NORTH FIRST STREET'S CARRIAGEWAY,
+  // and the three metres are District 3's rather than a rounding. Drawn to the
+  // full 38 m the rect reached x −20 and swallowed that street's own west kerb
+  // (x[−20.25,−20]); pulled back to −20.5 it still held its west-walk furniture,
+  // whose westernmost block face is a street tree's canopy at x −22.5.
+  // `probeRoadConflicts` gates a block inside a roadway rect whether or not
+  // anything visibly overlaps, District 3 is shipped and may not move, so this
+  // street ends at the walk instead of at the asphalt. The two meet at a kerbed
+  // corner, which is what the junction of a service street and a through street
+  // looks like anyway. Measured, not eyeballed: the corridor's block faces run
+  // −22.5, −22, −21.75, −21.5, −21.25, −21, −20.75, −20.5.
+  { name: 'Glassworks Avenue', axis: 'x', x: -58, z: -62, w: 35, d: 6 },
 ];
 export const CAM_XW_LEN = 3;
 export const CAMBRIDGE_CROSSINGS = [
@@ -847,6 +965,15 @@ export const CAMBRIDGE_CROSSINGS = [
   // every eye.
   [9, -96], [9, -78],
   [10, 36], [10, 50],
+  // District 7. Ten zebras across the tower ring's four streets and one across
+  // Glassworks Avenue, every one placed clear of the kerb ranks below it for the
+  // reason every other district's are: a zebra painted under a parked car is
+  // legal to every probe and wrong to every eye.
+  [11, -76], [11, -20],
+  [12, 56], [12, 92],
+  [13, -78], [13, -60],
+  [14, 60], [14, 94],
+  [15, -50], [15, -34],
 ];
 
 // Kerb-parked and moving vehicles. Exported because `probeRoadConflicts` treats
@@ -942,6 +1069,39 @@ export const CAMBRIDGE_VEHICLES = [
   { kind: 'sedan', x: -65.5, z: 41, axis: 'z', body: 0x2f4756, roof: 0x2f4756, d: 5 },
   { kind: 'sedan', x: -63.5, z: 55, axis: 'z', body: 0x4a4f57, roof: 0x4a4f57, d: 5 },
   { kind: 'motorcycle', x: -65.5, z: 33, axis: 'x', d: 5 },
+  // District 7. Every rank below is placed ON the excursion's own line rather
+  // than beside it, which is the placement rule District 4 and District 5 both
+  // paid for: a z-axis sedan at x 42.5 occupies x[42.5,44.5], so its body
+  // straddles the boulevard leg's x 43.75, and an x-axis sedan at z −48.5
+  // straddles Child Street's leg. On a district whose buildings stand 15 m back
+  // from every kerb, the parked rank IS the continuous content the ground plane
+  // has, and the mean-gap clause is measured against exactly it.
+  { kind: 'sedan', x: 42.5, z: -26, axis: 'z', body: 0x30343b, roof: 0x30343b, d: 7 },
+  { kind: 'sedan', x: 42.5, z: -56, axis: 'z', body: 0xd8d3c6, roof: 0x8d2f28, d: 7 },
+  { kind: 'boxVan', x: 42.5, z: -80, axis: 'z', len: 6, cab: 0xd8d3c6, box: 0x2f6b7a, d: 7 },
+  { kind: 'sedan', x: 45.5, z: -40, axis: 'z', body: 0x4a4f57, roof: 0x4a4f57, d: 7 },
+  { kind: 'sedan', x: 45.5, z: -68, axis: 'z', body: 0x3d5a3a, roof: 0x3d5a3a, d: 7 },
+  { kind: 'motorcycle', x: 42.5, z: -14, axis: 'x', d: 7 },
+  // Child Street, both lanes.
+  { kind: 'sedan', x: 62, z: -48.5, axis: 'x', body: 0x2f4756, roof: 0x2f4756, d: 7 },
+  { kind: 'sedan', x: 96, z: -48.5, axis: 'x', body: 0x8a6a2e, roof: 0x8a6a2e, d: 7 },
+  { kind: 'boxVan', x: 74, z: -46.5, axis: 'x', len: 6, cab: 0xd8d3c6, box: 0xc9532f, d: 7 },
+  { kind: 'sedan', x: 84, z: -46.5, axis: 'x', body: 0x30343b, roof: 0x30343b, d: 7 },
+  // North Point Way, both lanes.
+  { kind: 'sedan', x: 66, z: -88, axis: 'x', body: 0x8d2f28, roof: 0x8d2f28, d: 7 },
+  { kind: 'sedan', x: 98, z: -88, axis: 'x', body: 0xd8d3c6, roof: 0xd8d3c6, d: 7 },
+  { kind: 'sedan', x: 52, z: -91.5, axis: 'x', body: 0x3d5a3a, roof: 0x3d5a3a, d: 7 },
+  { kind: 'sedan', x: 80, z: -91.5, axis: 'x', body: 0x4a4f57, roof: 0x4a4f57, d: 7 },
+  // Water Street, both lanes.
+  { kind: 'sedan', x: 81.5, z: -70, axis: 'z', body: 0x2f4756, roof: 0x2f4756, d: 7 },
+  { kind: 'sedan', x: 84.5, z: -84, axis: 'z', body: 0x8a6a2e, roof: 0x8a6a2e, d: 7 },
+  // Glassworks Avenue. Two cars and a van are the whole of the traffic 400 m
+  // out on a street that serves one building, and that is the honest amount.
+  { kind: 'sedan', x: -52, z: -60.5, axis: 'x', body: 0xd8d3c6, roof: 0x2f4756, d: 7 },
+  { kind: 'sedan', x: -36, z: -58, axis: 'x', body: 0x30343b, roof: 0x30343b, d: 7 },
+  // −30, not −26: a 6 m box van from its own origin reaches x −20, which is
+  // North First Street's west walk, and District 3's props are standing on it.
+  { kind: 'boxVan', x: -30, z: -60.5, axis: 'x', len: 6, cab: 0xd8d3c6, box: 0x3d5a3a, d: 7 },
 ];
 
 // Overhead spans: the ONE case where a physical block may stand inside a
@@ -1437,6 +1597,141 @@ export const CAMBRIDGE_DISTRICTS = [
                       // 143 m perimeter — which is why the measured mean gap
                       // lands far inside 13 rather than just under it.
   },
+  {
+    id: 7,
+    name: 'North Point & Cambridge Crossing',
+    // REFINED AGAINST WHAT STANDS. `03` §4.7 writes the rect as
+    // x[+60,+132] z[−90,+16], and like District 6's every edge of it is wrong
+    // against the built tree — three because the district is smaller than the
+    // doc's, one because it is bigger.
+    //
+    // WEST: +41.5, not §4.7's +60. Three of this district's seven buildings
+    // stand west of x 60 — AVA West at x[23,39], AVA East at x[49.25,64.25] and
+    // Tango at x[59,71] — and all three are at Confirmed `02` §2.4 seats. A rect
+    // starting at +60 would measure a district whose own west half it cannot
+    // see. +41.5 is the boulevard's west kerb, which is the westernmost thing
+    // this district builds that no neighbour reaches.
+    //
+    // AVA WEST IS OUTSIDE IT ON PURPOSE, and it is the one edge that cost
+    // something. Its plinth runs x[22.25,39.75], and a rect drawn to hold it
+    // would start at 22.25 and swallow SIERRA — District 1's 8-storey
+    // residential slab at x[19.25,40.75] z[−63.75,−52.25], seated there by
+    // `sceneOffset(111,115)`. That is the annexation District 3 refused at
+    // §4.3's rect and District 4 refused at §4.4's: a rect that holds a
+    // neighbour's tower measures the neighbour.
+    //
+    // MEASURED BOTH WAYS, for P6.10, and the interesting half is that the probe
+    // could not have caught it. At minX 22.25 this row reads 11,433 pieces over
+    // 2,755 cells (4.150/m²); at 41.5 it reads 9,132 over 2,230 (4.095/m²). The
+    // wider rect scores ZERO pieces inside a neighbour's rect in both
+    // measurements — because Sierra stands in no declared rect at all, District
+    // 1's own row having stopped at x 30.5 — so its 1,555 pieces would have been
+    // credited here in silence and the density would have gone UP rather than
+    // down. The overlap clause the other three districts leaned on does not fire
+    // on an unclaimed tower; only the measurement does. The 2,301-piece
+    // difference between the two rects is Sierra's 1,555, AVA West's 391 and the
+    // ground between them, and 391 of it is the only part this district built.
+    //
+    // AND `03` §4.7'S OWN RECT IS WORSE IN THE OTHER DIRECTION. x[+60,+132]
+    // z[−90,+16] reports 7,354 pieces over 1,641 cells (4.481/m²) — the highest
+    // of the three figures, and flattering for the usual reason: it MISSES 1,997
+    // of this district's own pieces (AVA West, AVA East, Tango, the whole
+    // boulevard and the Common's west half) while picking up 219 that are not
+    // this district's at all.
+    //
+    // NORTH: −92.5, not §4.7's −90. North Point Way's north kerb stands at
+    // z[−92.25,−92] and it is the map's north edge in this half of the district.
+    //
+    // EAST: +107, not §4.7's +132. That is the whole of the Hult House /
+    // Education First / Viaduct Courts deferral, argued at the district header,
+    // and it is also where `CAMBRIDGE_BOUNDS.maxX` now stands: Twenty|20's east
+    // service apron is the last thing built and its furniture line is at 106.25.
+    // A rect out to +132 would put 25 m of District 8's and District 9's unbuilt
+    // ground in this district's denominator.
+    //
+    // SOUTH: −8, not §4.7's +16. The boulevard's south turning head is the
+    // southernmost thing this district builds, and the 24 m beyond it belongs to
+    // District 1's canal terrace and Thomas Graves Landing. −8 is also what
+    // keeps this rect disjoint from District 1's z[−36.5,+27]: the two overlap
+    // in z and not in x (District 1 stops at +30.5), so no piece is counted
+    // twice. This is the third row in the table, after Districts 5 and 6, that
+    // shares no ground with any neighbour.
+    //
+    // NOT IN THIS RECT, on purpose: the Glass Factory at (−49.25,−70) and
+    // Glassworks Avenue. Both are built, both are at Confirmed seats, and both
+    // are 90 m west of anything else this district owns — a rect that reached
+    // them would run x[−58,107] and swallow Districts 1, 3 and 6 whole. They are
+    // counted by nobody, the same disposition District 1 gave Sierra and Thomas
+    // Graves Landing, and the district header prices what they buy instead.
+    rect: { minX: 41.5, maxX: 107, minZ: -92.5, maxZ: -8 },
+    budget: 7400,     // `03` §4.7's starting estimate. The district emits 11,665
+                      // blocks against it — 158%, the largest overshoot in the
+                      // scene against D1's 72.6%, D2's 66.7%, D3's 65.3%, D4's
+                      // 71.2%, D5's 107% and D6's 47%. Stated plainly rather
+                      // than dressed up, with every line measured off its own
+                      // footprint box against §4.7's own table:
+                      //
+                      //   Archstone (22 storeys)      1,662  vs 1,700
+                      //   Twenty|20 (20)              1,513  vs 1,450
+                      //   Tango (12)                    606  vs 1,900, which is
+                      //                                     Tango + Hult House +
+                      //                                     Education First, two
+                      //                                     of the three deferred
+                      //   AVA East + AVA West +
+                      //     Avalon North Point Lofts  1,180  vs 1,050
+                      //   The Glass Factory (8)         635  vs   600
+                      //   The Common at CX            1,197     vs 500, which is
+                      //   Glassworks Avenue             469     both of these
+                      //                                        plus Viaduct
+                      //                                        Courts, deferred
+                      //   streets, kerbs, walks,
+                      //     aprons, ranks and podium
+                      //     furniture                 4,403  vs     0
+                      //   ----------------------------------------------------
+                      //   total                      11,665  vs 7,400
+                      //
+                      // Every building is within 15% of §4.7's own figure. The
+                      // last line is the whole of the difference and it is not
+                      // slack: §4.7's table prices seven buildings and three
+                      // open spaces and no ground at all — no carriageway, no
+                      // kerb, no walk, no rank — while `03` §8.2 rates this
+                      // district HIGH risk precisely because "tower-and-plaza is
+                      // the classic dead-zone geometry" and names the ground
+                      // plane as all three of its mitigations. A district
+                      // authored to §4.7's table would be seven towers on bare
+                      // earth and would fail the probe §8.2 wrote for it.
+                      //
+                      // The efficiency pass an overshoot calls for was run and
+                      // found one thing worth having: the tower face was drafted
+                      // at District 1's grammar, which is eleven pieces per 4 m
+                      // bay. Archstone's four faces are sixteen bays over
+                      // twenty-two storeys, so that is 11 x 16 x 22 = 3,872
+                      // blocks of skin before the frame is drawn — arithmetic
+                      // rather than a build, but the right order of magnitude
+                      // against §4.7's whole 1,700-block estimate for the
+                      // building. `npFace` is four pieces per bay, the tower
+                      // reads identically from the ground, and it lands at
+                      // 1,662. Nothing else here is cheaper without deleting a
+                      // mitigation.
+                      //
+                      // The scene total is 50,336 blocks with seven of ten
+                      // districts standing, against a whole-scene target of
+                      // "under 75,000". Three districts remain and the two
+                      // largest of them (8 and 9) are shore and shelf rather
+                      // than city. There is room, and nothing here was padded to
+                      // reach a number: the density clause is what was being
+                      // aimed at, and it lands at 4.10/m² against a floor of
+                      // 1.99.
+    gapFloor: 14,     // `03` §8.2's floor for District 7, joint most forgiving
+                      // with District 5, and §8.2 says exactly why: "1,700
+                      // blocks in one 22-storey slab and nothing between it and
+                      // the next." All three of its named mitigations are built
+                      // and each is load-bearing — see `npRetailFace` (podium
+                      // retail at grade on every tower), `northPointStreets`
+                      // plus `northPointStreetscape` (the continuous kerb and
+                      // street-tree pitch) and `cxCommon` (the Common's
+                      // furniture).
+  },
 ];
 
 // The scripted excursion, `03` §9.5: the Davenport's long axis and back along
@@ -1475,12 +1770,24 @@ export const CAMBRIDGE_DISTRICTS = [
 // here hug furnished ground harder: the Canal Park leg runs 0.75 m off the
 // food-truck row rather than down the crown of the carriageway.
 //
-// CURRENT LENGTH, kept here so nothing downstream has to count: 57 legs, 815.8 m
-// of arc, 337 s. It was 62 s at P5, 105 at P6.2, 185 at P6.3, 245 at P6.4's first
-// draft, 256 once leg 4 was extended to the savings bank's park front, and 337
-// once P6.5 added leg 5. `03` §7.4's own column says leg 4 should LEAVE at
-// ~3 min; the drift is P6.2's and P6.3's prepends, not any one leg's pace, and it
-// compounds with every district added ahead of the ones already written.
+// CURRENT LENGTH, kept here so nothing downstream has to count: 87 legs,
+// 1,276.9 m of arc, 510 s. It was 62 s at P5, 105 at P6.2, 185 at P6.3, 245 at
+// P6.4's first draft, 256 once leg 4 was extended to the savings bank's park
+// front, 337 once P6.5 added leg 5, 402 once P6.6 added the canal loop and 510
+// once P6.7 added the tower ring. `03` §7.4's own column says leg 4 should
+// LEAVE at ~3 min; the drift is P6.2's and P6.3's prepends, not any one leg's
+// pace, and it compounds with every district added ahead of the ones already
+// written.
+//
+// WHERE THE SIZE LADDER STANDS ON IT, since P6.5's note makes a SIZE reading
+// that fails to improve a real content signal rather than the ladder re-scaling
+// underneath the measurement. The multiplier has been pinned at its x10 cap
+// since District 5, so the rungs are fixed at 0 / 75 / 225 / 540 / 1,200 /
+// 2,250 / 4,050 / 6,900 / … The run ends at rawMass 2,193.9 — SIZE 5 with 97.5%
+// of the SIZE-6 rung in hand, 56 mass units short of it. District 6 left it at
+// 1,900.1, which was 84% of the same rung. So this district did move the
+// reading, just not across a rung, and P8.2's floor is >= 4 with two rungs of
+// margin. `eatenCount` goes 3,657 -> 5,093 over the same run.
 export const CAMBRIDGE_ROUTE = [
   { until: 4, x: 0, z: 20.5 },     // south out of the front-door ring
   { until: 8, x: 2.5, z: 25 },     // southeast across the forecourt
@@ -1697,6 +2004,56 @@ export const CAMBRIDGE_ROUTE = [
   // leg never parks.
   { until: 398, x: 44, z: 16.5 },      // west along the basin's north walk
   { until: 402, x: 33, z: 13.5 },      // west along the channel's north bank, facing the hero
+  // --- DISTRICT 7: THE TOWER RING. `03` §7.4 files North Point's tower ring
+  // east as an OPTIONAL loop, exactly as it files the canal south, so this is
+  // not §7.4's leg 6 either and does not pretend to be. It is here for the
+  // reason District 6's loop is here: `probeDistrictDensity` measures gaps ALONG
+  // this route, and a district the route never enters is reported rather than
+  // gated — which would leave the one district `03` §8.2 rates HIGH risk for
+  // dead-zone geometry as the one district whose mean gap nobody checks.
+  //
+  // APPENDED, so every leg above keeps its geometry AND its time — the
+  // discipline P6.4, P6.5 and P6.6 all used.
+  //
+  // IT IS ONE CIRCUIT AROUND THE STREET GRID, NOT AN OUT-AND-BACK, and here
+  // that is a free choice rather than a forced one — which is itself the point.
+  // District 6 had to close its loop because a 3-4 m promenade cannot carry two
+  // ranks; this district's four streets are 6 m of carriageway between 1.5 and
+  // 3 m walks, so an out-and-back down one of them WOULD fit two ranks 6 m
+  // apart. It still does not get one: `projectOnRoute` gives each piece to
+  // exactly one leg, and a 6 m separation against a 2.6 m corridor either side
+  // leaves 0.8 m of margin, which is the same knife-edge District 5's garage
+  // aisles were tuned off. A circuit whose four sides are 42 and 55 m apart has
+  // no shared corridor at all.
+  //
+  // THE CIRCUIT RUNS ANTICLOCKWISE and every side hugs a kerb rank rather than
+  // a crown. A leg down the middle of a 6 m carriageway measures a hole the
+  // width of the street — District 2's First Street legs paid for that lesson
+  // and District 5's Thorndike leg repeated it — so: x 43.75 is 1.75 m off the
+  // boulevard's west kerb, z −87.5 is 1.25 m off North Point Way's south kerb,
+  // x 106 is 0.5 m off Twenty|20's east plinth, and z −48.5 is 1.5 m off Child
+  // Street's north kerb. Every parked rank in `CAMBRIDGE_VEHICLES` with `d` 7
+  // straddles one of those four lines rather than sitting beside it.
+  { until: 408, x: 40, z: 8 },         // east off the channel's head, past Graves' west front
+  { until: 414, x: 45, z: -2 },        // northeast onto the boulevard's turning head
+  { until: 424, x: 43.75, z: -30 },    // north up the west rank, past AVA West's verge
+  { until: 434, x: 43.75, z: -62 },    // on past Child Street and the Common's west gate
+  { until: 442, x: 43.75, z: -84 },    // to the head of the boulevard
+  { until: 446, x: 50, z: -87.5 },     // northeast into North Point Way
+  { until: 458, x: 84, z: -87.5 },     // east along its south rank, the Common's frontage
+  { until: 466, x: 102, z: -87.5 },    // past Twenty|20's north forecourt
+  // SOUTH DOWN THE EAST APRON, WHICH IS WHY THE APRON EXISTS. There is no
+  // carriageway east of Twenty|20 and there should not be — the map ends at
+  // x 107 — so the return runs on the tower's own service strip at 0.5 m off
+  // its plinth, and `northPointStreetscape` puts a lamp, bollard and bench line
+  // on it so the leg meets more than one plinth run every 5 m.
+  { until: 470, x: 106, z: -83 },      // round Twenty|20's northeast corner
+  { until: 478, x: 106, z: -64 },      // south down the east apron
+  { until: 483, x: 100, z: -54 },      // southwest onto Child Street's east end
+  { until: 486, x: 100, z: -48.5 },    // into the carriageway, on the north rank
+  { until: 498, x: 74, z: -48.5 },     // west past Avalon, Water Street and Tango's podium
+  { until: 506, x: 52, z: -48.5 },     // on to the boulevard junction
+  { until: 510, x: 50, z: -42 },       // south out of the junction, onto AVA East's north apron
 ];
 
 // "Do not put the mark on the wrong building." The Davenport carries a painted
@@ -5098,6 +5455,879 @@ export const CANAL_AMBIENT = {
   steam: [{ x: 20.5, z: 37, rate: 0.18 }],
 };
 
+// --- DISTRICT 7 — NORTH POINT & CAMBRIDGE CROSSING (P6.7) --------------------
+// `03` §4.7, and the design brief it asks to be quoted verbatim is `02` §2.4's
+// reading of the skyline: *"the hero building is one of the shortest things in
+// its own neighbourhood… HubSpot's five-storey brick slab sits in a bowl between
+// them. That is the honest silhouette and it is more interesting than a hero
+// tower would be."* This district is the bowl's east wall. The player's sense of
+// scale comes from here: you grow until these stop being tall.
+//
+// SEVEN BUILDINGS, EVERY ONE AT ITS OWN CONFIRMED SEAT. `02` §2.4 gives an OSM
+// offset and an OSM storey count for all nine of §4.7's named buildings, and
+// `CAMBRIDGE_OFFSETS` rows 8, 9 and 36-42 carry them. Nothing here is
+// hand-placed: each footprint is CENTRED on `sceneOffset`'s answer and only its
+// plan extents are chosen, because `02` §6 gives no footprint for a single one
+// of them. The extents are therefore marked estimated in the table below and
+// nowhere pretend otherwise.
+//
+//   AVA West              6   (31,   −42.75)  x[23,39]        z[−48.25,−37.25]
+//   AVA East              6   (56.75,−32)     x[49.25,64.25]  z[−37.5,−26.5]
+//   Tango                12   (65,   −57)     x[59,71]        z[−62,−52]
+//   Archstone Northpoint 22   (88,   −22)     x[78.5,97.5]    z[−29,−15]
+//   Avalon North Point    6   (94.25,−36)     x[85.75,102.75] z[−40.5,−31.5]
+//   Twenty|20 at CX      20   (96.75,−75.25)  x[88.75,104.75] z[−82.25,−68.25]
+//   The Glass Factory     8   (−49.25,−70)    x[−57.25,−41.25] z[−76,−64]
+//
+// A COARSER WALL THAN DISTRICT 1'S, ON PURPOSE, and this is `01` §4's scale rule
+// being obeyed rather than restated: *the bigger the building, the bigger the
+// pieces.* District 1's hero is a 2.75 m storey of pier / spandrel / sill /
+// twin lights / lintel — eleven pieces per 4 m bay, ~176 per storey on a 28 m
+// block, which is right for the building the player eats member by member at the
+// climax. Archstone's four faces are sixteen such bays, so running that grammar
+// up its twenty-two storeys is 11 x 16 x 22 = 3,872 blocks of skin before the
+// frame — for one tower, against `03` §4.7's 1,700 for the whole of it — and it
+// would be wrong for the same reason it is right on the hero: nobody reads a
+// 60 m tower's mullions. So `npFace` below is FOUR pieces per bay — a precast
+// spandrel band, a sill, the mullion-and-light pair, a head band — 44 per storey
+// on Archstone's four faces. Same nine atoms, same physics, one grain coarser.
+//
+// FIVE RULES FROM DISTRICT 1'S HEADER STILL BIND HERE and every number below is
+// checked against them; two of them decided the storey stack outright:
+//   - Rule 4, GLAZED HEIGHT ≤ HALF THE FLOOR PITCH. The pitch is 2.75, so the
+//     light is 1.25 and never 1.5: a 1.5 m light repeats 1.25 m above itself,
+//     which is a sub-extent gap and `probePlacementStep` gates it. That fixes
+//     the whole stack — 1.0 spandrel + 0.25 sill + 1.25 light + 0.25 head.
+//   - Rule 1, NEVER TWO EQUAL LIGHTS A MULLION APART. Two identical panes
+//     separated by one 0.25 m mullion are exactly the gated defect, so every
+//     pane list below alternates width. Where a list repeats a width it does so
+//     with a WIDER pane between them, so the gap the probe measures
+//     (0.25 + middle + 0.25) is at least the extent it is measured against.
+//     Archstone's [4.75, 4.25, 4.5, 4.25] is that arithmetic: 5.00 ≥ 4.25.
+//
+// THE STOREY IS 2.75 m AND `03` §4.7 SAYS 63. `02` §6 method note 4 gives these
+// buildings storeys × 4.3 m real, which at `03` §1.2's 1:1.5 is 2.867 m — not on
+// the 0.25 m fine grid, so it could never have been built as written, exactly as
+// District 2's 2.33 could not. It rounds to 2.75, which is also District 1's
+// pitch, so the two halves of the bowl share one floor line. The cost is
+// Archstone at 60.5 m rather than §4.7's 63, and Twenty|20 at 55 rather than 57.
+// The SILHOUETTE — a 22-storey slab standing three times the hero's height — is
+// what §4.7 is actually asking for and it is preserved exactly.
+//
+// NOTHING HERE RE-SPENDS DISTRICT 3'S FRONTAGE. `03` §4.11 gives the north edge
+// to "the north tail of districts 3 and 7" and names two buildings for it — the
+// Capuano carhouse and the MBTA Transportation Office — and District 3 built
+// BOTH, 926 pieces of them north of z −88. So this district's north edge is
+// North Point Way and the Common at CX at x[48,106] z[−92,−66], which is 66 m
+// east of anything District 3 authored, and it holds none of `boundsRect`'s
+// north slack: z −112 is still carried by the carhouse, exactly as P6.3 left it.
+//
+// THE STREET GRID IS THE DISTRICT. `03` §8.2 rates this district HIGH risk and
+// says why: "tower-and-plaza is the classic dead-zone geometry: 1,700 blocks in
+// one 22-storey slab and nothing between it and the next." Its named mitigation
+// is three things — podium retail at grade on every tower, a continuous kerb and
+// street-tree pitch, and the Common at CX's furniture — and all three are built.
+// The arithmetic behind that warning, measured: the district's rect is
+// 65.5 x 84.5 m = 5,535 m², and the six buildings inside it cover 1,104 m² of
+// it. Four fifths of the ground a player drives over in this district is not a
+// building, and that is the whole difference between it and District 2, where a
+// mill wall is within arm's reach of the driving line for 36 m at a stretch.
+// Take the streets out and the towers are 1,104 m² of content in 4,431 m² of
+// nothing.
+//
+// TWO OF `03` §4.7'S NINE BUILDINGS ARE NOT BUILT, and the arithmetic is the
+// same one District 6 ran on CambridgeSide. Hult House derives to (+108.5,
+// −55.75) and Education First to (+119, −27.75); the built map's east edge is
+// x 107, set by Twenty|20's own east apron. Carrying `maxX` to 131 to hold both
+// opens six new 4 m sample columns over the map's 173 m of z, and MEASURED on
+// this build that strip holds 207 dead-ground samples. Two towers with the
+// census's own ±8 m reach recover about 60 of them; the other ~145 are
+// unfillable from here, because the 6 rows north of z −90 are the map edge and
+// the 16 rows south of z −4 are District 8's unbuilt shore (`03` §4.8 gives it
+// x[+20,+132] z[+20,+116]) and District 9's Ring B shelf, neither of which this
+// task may author. Against that, the nine columns this task DOES open cost 135
+// between them — 15 each, because the street grid reaches every one of them.
+// The ratio inverts at x 107 and that is where the map stops. They ship
+// as `CAMBRIDGE_OFFSETS` rows 37-38 with the derivation recorded and no
+// geometry, which is the disposition District 4 gave Costa Lopez Park, District
+// 5 gave the Registry of Deeds and District 6 gave CambridgeSide. Whoever lands
+// P6.9's Zakim carries `maxX` to §1.1's 132 for its own reasons; both seats are
+// inside that rect and both are one call away then.
+//
+// VIADUCT COURTS GOES WITH THEM, for a second reason on top of the first. It is
+// a park, so its lawn would be `parks` decor and discounted by
+// `reportDeadGround`'s BY_DESIGN list — genuinely the cheapest census move on
+// the board. But its seat is (+106, −7.5) and any lawn wide enough to be a park
+// reaches x 116 and z +2, which is 9 m past this district's east edge and 4 m
+// into District 8's rect. Declaring lawn over ground this district does not
+// furnish is the move District 6's park note rules out: "declaring lawn over
+// ground nobody furnishes would zero the census by promising a park rather than
+// building one." Row 44, deferred.
+//
+// THE GLASS FACTORY STANDS IN NO DECLARED RECT, and that is measured rather than
+// shrugged at. `03` §4.7 lists it as a District 7 line item; `02` §2.4 seats it
+// at real E −117 / N +191, which is northwest, and `sceneOffset` returns
+// (−49.25, −70). District 7's rect is x[41.5,107]; a rect that reached this
+// building would run x[−58,107] and swallow Districts 1, 3 and 6 whole. So it is
+// built at the law's seat and counted by nobody, which is the disposition
+// District 1 already gave Sierra and Thomas Graves Landing.
+//
+// It is built anyway, and the reason is the census. The quarter x[−72,−36]
+// z[−88,−44] is the second-largest continuous dead patch on the map — District 3
+// stops at x −18, District 4 at z −41, and nothing has ever been authored
+// between them. Measured over exactly that window: 102 dead samples on the map
+// District 6 left, 15 on this one. The Glass Factory and Glassworks Avenue take
+// 87 points off the undeclared dead-ground count between them, which is more
+// than any other 1,100 blocks available to this task, and they do it with a
+// Confirmed seat and a street `03` §4.7 names by hand rather than with invented
+// content.
+
+const D7_STOREY = 2.75;     // floor to floor, and District 1's pitch — see header
+const D7_WALL = 0.5;        // wall zone: precast spandrel outboard of the frame
+const D7_SP = 1.0;          // spandrel apron
+const D7_BAND = 0.25;       // sill and head bands
+const D7_GL = 1.25;         // glazed height — half the pitch, District 1's rule 4
+const D7_RETAIL = 2.0;      // shopfront glass at the podium storey
+
+// Footprints. Each is CENTRED on `sceneOffset`'s answer for its `02` §6 row; the
+// plan extents are this file's, because `02` gives none for any of them, and
+// every one is a multiple of 0.5 so the pane arithmetic below resolves onto the
+// fine grid without a sliver at a corner.
+const NORTH_POINT = {
+  avaWest:   { x0: 23,     z0: -48.25, w: 16, d: 11, storeys: 6,  seat: [40] },
+  avaEast:   { x0: 49.25,  z0: -37.5,  w: 15, d: 11, storeys: 6,  seat: [39] },
+  tango:     { x0: 59,     z0: -62,    w: 12, d: 10, storeys: 12, seat: [36] },
+  archstone: { x0: 78.5,   z0: -29,    w: 19, d: 14, storeys: 22, seat: [8] },
+  avalon:    { x0: 85.75,  z0: -40.5,  w: 17, d: 9,  storeys: 6,  seat: [41] },
+  twenty20:  { x0: 88.75,  z0: -82.25, w: 16, d: 14, storeys: 20, seat: [9] },
+  glassFact: { x0: -57.25, z0: -76,    w: 16, d: 12, storeys: 8,  seat: [42] },
+};
+
+// The Common at CX (`02` §2.5, Confirmed at real E +217 / N +157 → scene
+// (+62.25, −78)). The lawn is drawn to hold that seat and to fill the block the
+// four streets leave, which is what a common is.
+const CX_COMMON = { x0: 48, z0: -86, w: 31, d: 20 };
+
+const NP_TOWER_PAL = {
+  precast: C.npPrecastCool, band: C.npBand, glass: C.npGlassCool,
+  mullion: C.npMullion, steel: C.npSteel, deck: C.npDeck, parapet: C.npParapet,
+  shop: C.npGlassPale, apron: C.npApron, canopy: C.npCanopy,
+};
+const NP_ARCHSTONE_PAL = { ...NP_TOWER_PAL, precast: C.npPrecastWarm };
+const NP_TANGO_PAL = { ...NP_TOWER_PAL, precast: C.npPrecast, glass: C.npGlassPale };
+const NP_RES_PAL = {
+  ...NP_TOWER_PAL, precast: C.npPrecastRes, glass: C.npGlassRes,
+  parapet: C.npParapetRes,
+};
+// The Glass Factory is the one building in the district allowed a colour of its
+// own, and it is the one whose NAME is the reason. `02` §2.4: "the name is a
+// genuine East Cambridge glassworks reference." A green-cast glass against the
+// district's four neutrals is the whole of the nod — no sign, no wordmark, per
+// `02` §7's "evoke, do not name".
+const NP_GLASSFACT_PAL = {
+  ...NP_TOWER_PAL, precast: C.npPrecast, glass: C.npGlassGreen,
+  parapet: C.npParapetRes, shop: C.npGlassGreen,
+};
+
+// One face of one storey. `axis` is the direction the face RUNS; `v` is the min
+// coordinate of its 0.5 m wall zone on the other plan axis; `u0` where it starts
+// along its own. The run's length is derived from the pane list rather than
+// passed, so a pane table that does not sum to the footprint is a visible
+// mistake at the call site instead of a silent 0.25 m sliver at a corner.
+//
+// The load path, bottom to top, because it is not obvious from the emission
+// order: the spandrel stands on the head band of the storey below (or on grade),
+// the sill stands on the spandrel, the mullions stand on the sill, the lights
+// stand on the sill AND touch a steel mullion at their own level — glass
+// receives support and never passes it, so both are needed — and the head band
+// stands on the mullions.
+function npFace(sim, o) {
+  const { axis, u0, v, y, panes, pal } = o;
+  const L = panes.reduce((a, b) => a + b, 0) + 0.25 * (panes.length + 1);
+  const gy = y + D7_SP + D7_BAND;
+  const isX = axis === 'x';
+  const at = (u, w) => (isX
+    ? { x: u, z: v, w, axis: 'x' }
+    : { x: v, z: u, w, axis: 'z' });
+  const band = (u, yy, len, color) => beam(sim, isX
+    ? { x: u, y: yy, z: v, len, axis: 'x', t: D7_BAND, depth: D7_WALL, mat: 'concrete', color }
+    : { x: v, y: yy, z: u, len, axis: 'z', t: D7_BAND, depth: D7_WALL, mat: 'concrete', color });
+  // THE SPANDREL IS ONE PIECE PER FACE PER STOREY EXCEPT AT GRADE, where it is
+  // cut into ≤5 m runs. The grade clause is the reason and it is engine-derived
+  // rather than stylistic: a piece at `gy === 0` past an 8 m plan diagonal is
+  // PERMANENTLY uneatable, it still counts toward `totalMass`, and it silently
+  // makes the 50% goal harder — so Archstone's 19 m ground spandrel would be
+  // 19 m of tower nobody can ever remove. `probeGradeDiagonal` fails it, which
+  // is the clause working. One metre up the same member is a single piece and
+  // that is not an inconsistency: nothing at height is subject to the clause,
+  // because `_overVoid` swallows an elevated piece of any size whole.
+  if (y === 0) {
+    for (let t = 0; t < L - 0.01; t += 5) {
+      const l = Math.min(5, L - t);
+      panel(sim, { ...at(u0 + t, l), y, h: D7_SP, t: D7_WALL, mat: 'concrete', color: pal.precast });
+    }
+  } else {
+    panel(sim, { ...at(u0, L), y, h: D7_SP, t: D7_WALL, mat: 'concrete', color: pal.precast });
+  }
+  band(u0, y + D7_SP, L, pal.band);
+  let u = u0;
+  for (const p of panes) {
+    mullion(sim, isX ? { x: u, y: gy, z: v, h: D7_GL, s: 0.25, mat: 'steel', color: pal.mullion }
+      : { x: v, y: gy, z: u, h: D7_GL, s: 0.25, mat: 'steel', color: pal.mullion });
+    panel(sim, { ...at(u + 0.25, p), y: gy, h: D7_GL, t: 0.25, mat: 'glass', color: pal.glass });
+    u += 0.25 + p;
+  }
+  mullion(sim, isX ? { x: u, y: gy, z: v, h: D7_GL, s: 0.25, mat: 'steel', color: pal.mullion }
+    : { x: v, y: gy, z: u, h: D7_GL, s: 0.25, mat: 'steel', color: pal.mullion });
+  band(u0, gy + D7_GL, L, pal.band);
+}
+
+// The podium storey — `03` §8.2's first named mitigation, "podium retail at
+// grade on every tower". It replaces the ground storey's spandrel with a
+// shopfront and hangs a canopy over the footway, so a pass along any street face
+// meets a threshold, a pier, a light and a canopy edge instead of 19 m of blank
+// precast. It is the same four members re-proportioned, not a second grammar.
+//
+// THE THRESHOLD IS CUT INTO ≤5 m RUNS AND EVERYTHING ELSE IS NOT. It is the only
+// piece of this face at `gy === 0`, so it is the only one the grade clause
+// touches: a 19 m threshold drawn as one member has a 19 m plan diagonal against
+// the 8 m cap, and `probeGradeDiagonal` fails the build. The head band two
+// metres up is one piece for the same face and is fine, which is the clause
+// working as designed rather than an inconsistency.
+//
+// THE CANOPY SITS AT THE HEAD BAND'S OWN LEVEL, not above it. A slab hung over
+// the footway at the storey top would be a plate cantilevered off nothing — the
+// head band is below it, not beside it — and `probeIdleStability` takes it down
+// on frame one. At y 2.25 it is coplanar with the band, takes its bearing
+// sideways off it across 0.75 m of hop against concrete's 3 m span, and leaves
+// the storey above a clear wall zone to stand in.
+function npRetailFace(sim, o) {
+  const { axis, u0, v, y, panes, pal, out } = o;
+  const L = panes.reduce((a, b) => a + b, 0) + 0.25 * (panes.length + 1);
+  const isX = axis === 'x';
+  const gy = y + 0.25;
+  for (let t = 0; t < L - 0.01; t += 5) {
+    const l = Math.min(5, L - t);
+    plinth(sim, isX
+      ? { x: u0 + t, y, z: v, w: l, d: D7_WALL, h: 0.25, mat: 'concrete', color: pal.apron }
+      : { x: v, y, z: u0 + t, w: D7_WALL, d: l, h: 0.25, mat: 'concrete', color: pal.apron });
+  }
+  let u = u0;
+  for (const p of panes) {
+    pier(sim, isX
+      ? { x: u, y: gy, z: v, w: 0.25, h: D7_RETAIL, d: D7_WALL, mat: 'concrete', color: pal.apron }
+      : { x: v, y: gy, z: u, w: D7_WALL, h: D7_RETAIL, d: 0.25, mat: 'concrete', color: pal.apron });
+    panel(sim, isX
+      ? { x: u + 0.25, y: gy, z: v, w: p, h: D7_RETAIL, axis: 'x', t: 0.25, mat: 'glass', color: pal.shop }
+      : { x: v, y: gy, z: u + 0.25, w: p, h: D7_RETAIL, axis: 'z', t: 0.25, mat: 'glass', color: pal.shop });
+    u += 0.25 + p;
+  }
+  pier(sim, isX
+    ? { x: u, y: gy, z: v, w: 0.25, h: D7_RETAIL, d: D7_WALL, mat: 'concrete', color: pal.apron }
+    : { x: v, y: gy, z: u, w: D7_WALL, h: D7_RETAIL, d: 0.25, mat: 'concrete', color: pal.apron });
+  const hy = gy + D7_RETAIL;
+  beam(sim, isX
+    ? { x: u0, y: hy, z: v, len: L, axis: 'x', t: 0.5, depth: D7_WALL, mat: 'concrete', color: pal.band }
+    : { x: v, y: hy, z: u0, len: L, axis: 'z', t: 0.5, depth: D7_WALL, mat: 'concrete', color: pal.band });
+  // The canopy, in 6 m runs so no two identical plates ever meet at a
+  // sub-extent gap: consecutive runs ABUT, which is gap 0 and legal, and the
+  // short remainder at the end is its own extent.
+  const cv = out < 0 ? v - 1 : v + D7_WALL;
+  for (let t = 0; t < L - 0.01; t += 6) {
+    const l = Math.min(6, L - t);
+    slab(sim, isX
+      ? { x: u0 + t, y: hy, z: cv, w: l, d: 1, t: 0.25, mat: 'steel', color: pal.canopy }
+      : { x: cv, y: hy, z: u0 + t, w: 1, d: l, t: 0.25, mat: 'steel', color: pal.canopy });
+  }
+}
+
+// Cornice, parapet and coping at the wall head. Coarser than District 1's
+// `capBuilding` by one member — no dentil course — for the same reason the face
+// is coarser: a 1 m dentil pitch on a 60 m tower is a detail nobody standing at
+// grade can resolve, and it is 88 blocks per building to say so.
+//
+// The cornice takes its bearing SIDEWAYS off the parapet at its own level rather
+// than standing on anything: it projects 0.25 m outboard of a wall that stops at
+// the storey below, so there is nothing under it and there never can be. The hop
+// is 0.375 m against concrete's 3 m span.
+function npCap(sim, o) {
+  const { x0, z0, w, d, y, pal } = o;
+  const x1 = x0 + w, z1 = z0 + d;
+  const runX = (z, out) => {
+    cornice(sim, { x: x0, y, z: out, run: w, axis: 'x', t: 0.25, proj: 0.25, mat: 'concrete', color: pal.band });
+    panel(sim, { x: x0, y, z, w, h: 0.75, axis: 'x', t: D7_WALL, mat: 'concrete', color: pal.parapet });
+    beam(sim, { x: x0, y: y + 0.75, z, len: w, axis: 'x', t: 0.25, depth: D7_WALL, mat: 'concrete', color: pal.band });
+  };
+  const runZ = (x, out) => {
+    const u0 = z0 + D7_WALL, len = d - 2 * D7_WALL;
+    cornice(sim, { x: out, y, z: u0, run: len, axis: 'z', t: 0.25, proj: 0.25, mat: 'concrete', color: pal.band });
+    panel(sim, { x, y, z: u0, w: len, h: 0.75, axis: 'z', t: D7_WALL, mat: 'concrete', color: pal.parapet });
+    beam(sim, { x, y: y + 0.75, z: u0, len, axis: 'z', t: 0.25, depth: D7_WALL, mat: 'concrete', color: pal.band });
+  };
+  runX(z0, z0 - 0.25);
+  runX(z1 - D7_WALL, z1);
+  runZ(x0, x0 - 0.25);
+  runZ(x1 - D7_WALL, x1);
+}
+
+// A whole tower: skin, podium, frame, cap, plinth. Seven buildings run through
+// it, from a 6-storey slab to a 22-storey one, and the only things that change
+// are the pane tables, the frame tables, the palette and which faces carry
+// retail. `frameGrid` and `plinthBand` are District 1's, unchanged: the frame's
+// pitch is the same 2.75 and the plinth's ≤5 m cut is the same grade clause.
+function npTower(sim, o) {
+  const { x0, z0, w, d, storeys, xPanes, zPanes, strips, frames, pal, retail = [] } = o;
+  const x1 = x0 + w, z1 = z0 + d;
+  const faces = [
+    { key: 'n', axis: 'x', u0: x0, v: z0, out: -1 },
+    { key: 's', axis: 'x', u0: x0, v: z1 - D7_WALL, out: 1 },
+    { key: 'w', axis: 'z', u0: z0 + D7_WALL, v: x0, out: -1 },
+    { key: 'e', axis: 'z', u0: z0 + D7_WALL, v: x1 - D7_WALL, out: 1 },
+  ];
+  for (let s = 0; s < storeys; s++) {
+    const y = s * D7_STOREY;
+    for (const f of faces) {
+      const panes = f.axis === 'x' ? xPanes : zPanes;
+      const arg = { axis: f.axis, u0: f.u0, v: f.v, out: f.out, y, panes, pal };
+      if (s === 0 && retail.includes(f.key)) npRetailFace(sim, arg);
+      else npFace(sim, arg);
+    }
+  }
+  frameGrid(sim, { x0: x0 + D7_WALL, z0: z0 + D7_WALL, strips, frames, storeys, pal });
+  npCap(sim, { x0, z0, w, d, y: storeys * D7_STOREY, pal });
+  plinthBand(sim, { x0, z0, w, d, color: pal.parapet });
+}
+
+// Roof plant, so seven flat parapets do not read as seven lids. Same argument
+// and the same two clean drum pairs `roofPlant` and the canal pool already
+// found: r 2.0 at 12 facets, r 2.5 at 20.
+//
+// `top` IS THE ROOF PLATE, NOT THE PARAPET HEAD — District 6's 10 Canal Park
+// note, which cost it thirteen blocks standing in the air on the first draft.
+// `npTower` has no roof deck of its own: the top storey's floor plate is the
+// roof, at `storeys * D7_STOREY − 0.25`, and `npCap` stands the parapet on the
+// wall head ABOVE it. Plant set at the parapet head stands 1 m over the plate on
+// nothing at all.
+function npRoofPlant(sim, B, pal) {
+  const top = B.storeys * D7_STOREY;
+  // OPPOSITE CORNERS, AND THE OFFSETS ARE MEASURED OFF THE ROOF RATHER THAN
+  // FIXED. Drawn at a constant (x0+3, z0+3) and (x0+w−7, z0+d−6.5) the two
+  // pieces are 10 m apart on Archstone's 19 x 14 roof and INSIDE each other on
+  // Tango's 12 x 10 one — 32 fine cells in two owners' hands, which is a ghost
+  // placement and comes down on the first frame rather than rendering wrong.
+  pier(sim, {
+    x: B.x0 + 1, y: top, z: B.z0 + 1, w: 2.5, h: 2, d: 2.5,
+    mat: 'concrete', color: pal.deck,
+  });
+  // THE TANK STANDS ON A PLANT DECK, NOT ON THE ROOF PLATE, and the deck is not
+  // decoration. `frameGrid`'s plates are laid strip by strip with a 0.5 m column
+  // line BETWEEN them, so a roof is not a continuous surface — it is three
+  // plates and two half-metre voids. Twenty|20's tank landed with its −x facet
+  // at x[99.75,100] against a void at x[99.5,100], which is one 1 m panel with
+  // nothing under it: `probeIdleStability` caught it falling 55 m on frame one.
+  // A 4.5 m deck bridges the void, takes its own bearing off the plates either
+  // side, and makes the tank's position a design choice again rather than a
+  // question about where this building's column lines happen to fall.
+  slab(sim, {
+    x: B.x0 + B.w - 5.25, y: top, z: B.z0 + B.d - 5.25, w: 4.5, d: 4.5, t: 0.25,
+    mat: 'concrete', color: pal.deck,
+  });
+  // r 2.0 AT 12 FACETS, EVERY TIME. It is the one pair `roofPlant` and the canal
+  // pool have both already proved clean, and the alternative is not a matter of
+  // taste: a drum is a ring of identical panels, so two facets symmetric about
+  // an axis are always collinear with the same extent, and whether they overlap
+  // or leave a sub-extent gap depends on how the facet centres quantise. r 2.5
+  // at 20 facets — the first draft, chosen because Archstone is the biggest roof
+  // in the scene — puts 48 fine cells in two owners' hands at once.
+  drum(sim, {
+    x: B.x0 + B.w - 5, y: top + 0.25, z: B.z0 + B.d - 5, r: 2, h: 2,
+    facets: 12, t: 0.25, mat: 'steel', color: pal.steel,
+  });
+}
+
+function northPointTowers(sim) {
+  const N = NORTH_POINT;
+  // Archstone Northpoint, 22 storeys — `03` §4.7's "tallest thing on the east
+  // side" and the tallest thing in the scene. Retail on the north and west
+  // faces, which are the two that front Child Street and the block's own apron.
+  npTower(sim, {
+    ...N.archstone, pal: NP_ARCHSTONE_PAL,
+    // 17.75 m of glass in four bays. The repeated 4.25 is legal because the 4.5
+    // stands between the two of them: the gap the probe measures is
+    // 0.25 + 4.5 + 0.25 = 5.00 against a 4.25 extent.
+    xPanes: [4.75, 4.25, 4.5, 4.25],
+    zPanes: [4.5, 4, 3.5],
+    strips: [6, 5.75, 5.25],
+    frames: [4.5, 4.5, 4],
+    retail: ['s', 'w'],
+  });
+  npRoofPlant(sim, N.archstone, NP_ARCHSTONE_PAL);
+  // Twenty|20 at Cambridge Crossing, 20 storeys. `03` §4.7 marks it "Ring B
+  // position" — its real radius is 406 m, so `sceneOffset` compressed it and
+  // held its bearing, and the seat below is the law's own answer.
+  npTower(sim, {
+    ...N.twenty20, pal: NP_TOWER_PAL,
+    xPanes: [4, 3.5, 3.75, 3.5],
+    zPanes: [4.5, 4, 3.5],
+    strips: [5, 4.75, 4.25],
+    frames: [4.5, 4.5, 4],
+    retail: ['s', 'w'],
+  });
+  npRoofPlant(sim, N.twenty20, NP_TOWER_PAL);
+  // Tango, 12 storeys, on the Common's east edge.
+  npTower(sim, {
+    ...N.tango, pal: NP_TANGO_PAL,
+    xPanes: [4, 3.75, 3.25],
+    zPanes: [4.25, 4],
+    strips: [5.5, 5],
+    frames: [4.5, 4.5],
+    retail: ['s'],
+  });
+  npRoofPlant(sim, N.tango, NP_TANGO_PAL);
+  // The three 6-storey residential slabs. `02` §2.4 gives all three the same
+  // storey count and the same decade, so they share a palette and differ by
+  // plan — which is what they actually differ by.
+  npTower(sim, {
+    ...N.avaEast, pal: NP_RES_PAL,
+    xPanes: [3.75, 3.25, 3.5, 3.25],
+    zPanes: [4.75, 4.5],
+    strips: [4.75, 4.5, 3.75],
+    frames: [5, 5],
+    retail: ['n', 'w'],
+  });
+  npTower(sim, {
+    ...N.avaWest, pal: NP_RES_PAL,
+    xPanes: [4, 3.5, 3.75, 3.5],
+    zPanes: [4.75, 4.5],
+    strips: [5, 4.75, 4.25],
+    frames: [5, 5],
+    retail: ['e'],
+  });
+  npTower(sim, {
+    ...N.avalon, pal: NP_RES_PAL,
+    xPanes: [4.25, 3.75, 4, 3.75],
+    zPanes: [3.75, 3.5],
+    strips: [5.5, 5, 4.5],
+    frames: [4, 4],
+    retail: ['n'],
+  });
+}
+
+// The Glass Factory and Glassworks Avenue, 90 m west of everything else in this
+// district and 110 m west of the rect `03` §4.7 draws for it. Both are argued in
+// full in the district header; what is built is one 8-storey condo block at
+// `sceneOffset`'s answer for `02` §2.4's Confirmed seat, its forecourt, and the
+// street that serves it running east to North First Street's west kerb.
+function glassFactoryBlock(sim) {
+  const B = NORTH_POINT.glassFact;
+  npTower(sim, {
+    ...B, pal: NP_GLASSFACT_PAL,
+    xPanes: [4, 3.5, 3.75, 3.5],
+    zPanes: [4, 3.5, 2.5],
+    strips: [5, 4.75, 4.25],
+    frames: [4, 4, 3],
+    retail: ['s'],
+  });
+  npRoofPlant(sim, B, NP_GLASSFACT_PAL);
+  // The forecourt between the block and Glassworks Avenue's north kerb. It is
+  // 1.25 m of footway and 0.75 m of plinth, so everything here stands on the
+  // avenue's own verge rather than on the walk.
+  const x1 = B.x0 + B.w;
+  for (const px of [B.x0 + 2, B.x0 + 8, B.x0 + 14]) lampPost(sim, px, -62.75);
+  for (const px of [B.x0 + 5, B.x0 + 11]) bench(sim, px, -62.75);
+  // A bike rack was drafted here and does not fit: this walk is 1.25 m of
+  // footway between the block's plinth course at z −63.25 and the avenue's kerb
+  // at z −62.25, and the rack is 0.75 m deep from its own origin. Two bollards
+  // and a news box are what a 1.25 m walk actually holds.
+  for (const px of [B.x0 + 0.5, B.x0 + 13]) bollard(sim, px, -62.75, C.steelDark);
+  newsBox(sim, B.x0 + 3.5, -62.75, 0xc23b2e);
+  trashBin(sim, x1 - 1, -62.75, 0x40463c);
+  // The block's own north yard: bins, a container and a light mast, which is
+  // what the back of a converted-industrial condo block actually has.
+  for (const px of [B.x0 + 3, B.x0 + 12]) trashBags(sim, px, B.z0 - 1.5, 0x22262c);
+  shippingContainer(sim, B.x0 + 6, 0, B.z0 - 4, 6, 0x4a6b60);
+  lightMast(sim, x1 - 1.5, B.z0 - 2, 5, C.npSteel);
+  for (const pz of [B.z0 + 2, B.z0 + 8]) lampPost(sim, B.x0 - 1.5, pz);
+  for (const pz of [B.z0 + 3, B.z0 + 9]) bollard(sim, x1 + 1.5, pz, C.steelDark);
+  // The yard's tree line stands BEHIND the container, not beside it: at
+  // `B.z0 − 4` the middle canopy was inside the 6 m box, which is 32 fine cells
+  // in two owners' hands and a container that falls on frame one.
+  for (const px of [B.x0 + 2, B.x0 + 9, x1 - 2]) tree(sim, px, B.z0 - 6);
+}
+
+// The four streets' kerbs, and the one place in this district where a line has
+// to be broken rather than drawn. Every kerb below is laid OUTSIDE its own
+// carriageway rect (`rectsOverlap` is open, so an abutting edge is not a
+// conflict) and cut into 6 m runs so nothing at grade approaches the 8 m
+// plan-diagonal cliff.
+//
+// THREE BREAKS, ALL FOR THE SAME REASON AND NONE OF THEM COSMETIC. The
+// boulevard's EAST kerb stands at x[48,48.25], which is inside Child Street's
+// carriageway x[48,106] and inside North Point Way's — so it stops short of both
+// and restarts past them. Child Street's NORTH kerb stands at z[−50.25,−50],
+// which is inside Water Street's x[81,87] z[−86,−50] — so it breaks there too.
+// `probeRoadConflicts` gates a block inside a roadway rect whether or not
+// anything visibly overlaps, and a kerb line carried straight through a junction
+// is the commonest way to earn that failure.
+function npKerbRun(sim, x, z, len, axis) {
+  for (let o = 0; o < len - 0.01; o += 6) {
+    const l = Math.min(6, len - o);
+    beam(sim, axis === 'x'
+      ? { x: x + o, y: 0, z, len: l, axis: 'x', t: 0.25, depth: 0.25, mat: 'concrete', color: C.npKerb }
+      : { x, y: 0, z: z + o, len: l, axis: 'z', t: 0.25, depth: 0.25, mat: 'concrete', color: C.npKerb });
+  }
+}
+
+function northPointStreets(sim) {
+  // North Point Boulevard, z[−92,−8]. The west kerb is continuous for all 84 m —
+  // nothing starts on that side — and it is the rank the excursion drives.
+  npKerbRun(sim, 41.75, -92, 84, 'z');
+  npKerbRun(sim, 48, -86, 36, 'z');
+  npKerbRun(sim, 48, -44, 36, 'z');
+  // Child Street, x[48,106]. North kerb broken at Water Street's junction.
+  //
+  // EVERY x-RUN STARTS AND STOPS ONE CELL CLEAR OF A z-RUN. A kerb drawn to the
+  // full corner shares its last fine cell with the kerb it meets, which is a
+  // ghost placement rather than a corner — District 6's Land Boulevard note, and
+  // this district has eight of these junctions rather than one. The corner cell
+  // belongs to the z-run; the x-run comes up to it and stops.
+  npKerbRun(sim, 48.25, -50.25, 32.5, 'x');
+  npKerbRun(sim, 87.25, -50.25, 18.75, 'x');
+  npKerbRun(sim, 48.25, -44, 57.75, 'x');
+  // Water Street, x[81,87]. Both kerbs run the full 36 m: they stop exactly on
+  // North Point Way's south edge and Child Street's north edge, which abut.
+  npKerbRun(sim, 80.75, -86, 36, 'z');
+  npKerbRun(sim, 87, -86, 36, 'z');
+  // North Point Way, x[48,106]. The north kerb is the map's north edge in this
+  // half of the district and carries `boundsRect`'s content slack there.
+  npKerbRun(sim, 48, -92.25, 58, 'x');
+  npKerbRun(sim, 48.25, -86, 32.5, 'x');
+  npKerbRun(sim, 87.25, -86, 18.75, 'x');
+  // Glassworks Avenue, x[−58,−20]. Its east kerbs stop 0.25 m short of North
+  // First Street's west kerb line for the same reason the three breaks above
+  // exist.
+  npKerbRun(sim, -58, -62.25, 35, 'x');
+  npKerbRun(sim, -58, -56, 35, 'x');
+}
+
+// The street furniture, laid out as one deconflicted schedule per walk rather
+// than as a loop per street. `03` §8.2's second named mitigation is "a
+// continuous kerb and street-tree pitch", and continuity is the operative word:
+// the density probe measures the gap between consecutive eatable pieces along
+// the driving line, so a lamp every 9 m with nothing between is a 9 m gap and a
+// lamp every 9 m with a bollard, a bin and a tree interleaved is a 2 m one.
+//
+// TREES GO ON THE VERGE, NEVER THE WALK. `tree` lays a 2 m canopy; the
+// boulevard's walks are 3 m and its verges wider, so the pitch runs on the
+// verge and the walk carries the light furniture. District 2's shell already
+// records why the alternative fails: a canopy on a 1.5 m walk overhangs either
+// the carriageway (a road conflict) or the building line.
+function northPointStreetscape(sim) {
+  // The boulevard's west walk and verge — the excursion's own rank for 76 m of
+  // its length, and the one continuous line in the district that no building
+  // contributes to.
+  for (let z = -88; z <= -12; z += 8) lampPost(sim, 41, z);
+  for (let z = -84; z <= -16; z += 8) bollard(sim, 41.25, z, C.steelDark);
+  // NOTHING ON THE VERGE BETWEEN z −67 AND z −49. Sierra — District 1's
+  // residential slab at x[19.25,40.75] z[−63.75,−52.25] — stands in it, and a
+  // 2 m canopy at x 39.5 puts sixteen leaf cells inside its east wall. The
+  // verge is this district's ground and Sierra is not, so the trees step round
+  // it rather than the wall moving.
+  // AND NONE BETWEEN z −49 AND z −36 EITHER, for the second half of the same
+  // reason: AVA West's east podium canopy hangs over x[39,40] for the whole of
+  // that band, and a verge canopy at x 39.5 is inside it.
+  for (const z of [-82, -72, -33, -22, -14]) tree(sim, 39.5, z);
+  for (const z of [-70, -46, -26]) bench(sim, 41, z);
+  for (const z of [-66, -34]) trashBin(sim, 41, z, 0x40463c);
+  hydrant(sim, 41, -54);
+  planter(sim, 40.75, -22, 1, 1.5, C.planterSoil);
+  signPost(sim, 41, -90, C.npCanopy, 2, 'z', 1.0);
+  // The boulevard's east walk, which fronts AVA East's podium and the Common's
+  // west gate. Nothing between z −50 and −44, or between z −92 and −86: those
+  // two bands are Child Street's and North Point Way's carriageways, which cross
+  // this walk, and the walk decor that runs through them is the junction's paint
+  // rather than a pavement anything may stand on.
+  for (const z of [-82, -74, -66, -58]) lampPost(sim, 48.5, z);
+  for (const z of [-78, -62]) bollard(sim, 48.5, z, C.steelDark);
+  // AND NOTHING BETWEEN z −39 AND z −27: that band is AVA East's plinth course,
+  // which stands on this walk at x[48.5,49.25]. The walk is 0.25 m wide where
+  // the building fronts it, so the furniture steps round the building rather
+  // than the other way about.
+  for (const z of [-42, -24, -16]) lampPost(sim, 48.25, z);
+  for (const z of [-44, -20]) bench(sim, 48.25, z);
+  newsBox(sim, 48.25, -25, 0xc23b2e);
+  mailbox(sim, 48.25, -12, 0x2a4f9a);
+  // Child Street's two walks. The north walk fronts Tango's podium and the
+  // Common; the south walk fronts Avalon's and the open block Archstone stands
+  // back from, so it takes the seating and the planting.
+  for (const x of [52, 66, 74, 92, 100]) lampPost(sim, x, -50.75);
+  for (const x of [56, 70, 96]) bollard(sim, x, -50.75, C.steelDark);
+  // NO TREES ON CHILD STREET'S NORTH WALK WHERE TANGO STANDS. Its plinth reaches
+  // z −51.25 and the kerb stands at z[−50.25,−50], so the walk is one metre
+  // wide and a 2 m canopy at z −52 lands inside the building's whole south
+  // elevation — glass, head band, canopy and plinth, 40 fine cells of it. East
+  // of x 72 the block behind the walk is open, so the tree line runs there and
+  // sets back to z −53.5 to clear the kerb as well.
+  for (const x of [76, 92, 102]) tree(sim, x, -53.5);
+  for (const x of [60, 94]) bench(sim, x, -50.75);
+  trashBin(sim, 80, -50.75, 0x40463c);
+  for (const x of [50, 58, 68, 76, 90, 98]) lampPost(sim, x, -43.25);
+  for (const x of [54, 72, 94]) bollard(sim, x, -43.25, C.steelDark);
+  for (const x of [64, 86]) bench(sim, x, -43.25);
+  for (const x of [62, 82]) planter(sim, x, -43.25, 1.5, 1, C.planterSoil);
+  hydrant(sim, 104, -43.25);
+  // 78, not 100: Avalon's north podium canopy hangs over z[−41.5,−40.5] for the
+  // whole of x[85.75,102.75], and a 2 m canopy at x 100 is inside it.
+  for (const x of [56, 70, 78]) tree(sim, x, -41.75);
+  // Water Street's two walks, 36 m of connector between the Common and
+  // Twenty|20.
+  for (const z of [-82, -74, -66, -56]) lampPost(sim, 80, z);
+  for (const z of [-78, -62]) bollard(sim, 80, z, C.steelDark);
+  for (const z of [-70, -54]) bench(sim, 80, z);
+  // THE EAST WALK'S FURNITURE STANDS AT x 87.25, ON THE KERB LINE, NOT AT 88.
+  // Twenty|20's west plinth course runs x[88,88.75] for the whole of
+  // z[−83,−67.5], so the nominal middle of this walk is inside a building for
+  // half its length. The kerb is at x[87,87.25] and everything sits just outside
+  // it.
+  for (const z of [-84, -68, -52]) lampPost(sim, 87.25, z);
+  for (const z of [-76, -58]) bollard(sim, 87.25, z, C.steelDark);
+  bikeRack(sim, 87.25, -64, 3, 'z', C.npSteel);
+  // North Point Way's two walks. The south walk is the excursion's line for
+  // 53 m and the Common's north frontage; the north walk is the map edge.
+  // 78, not 84: Water Street's carriageway runs x[81,87] z[−86,−50] and crosses
+  // this walk, so a lamp at x 84 is a physical block standing in a declared
+  // roadway. Same rule District 2's First Street walks and District 5's Second
+  // Street walks already follow.
+  for (const x of [52, 62, 72, 78, 94, 104]) lampPost(sim, x, -85);
+  for (const x of [56, 68, 90, 100]) bollard(sim, x, -85, C.steelDark);
+  for (const x of [58, 76, 96]) bench(sim, x, -85);
+  for (const x of [66, 88]) trashBin(sim, x, -85, 0x40463c);
+  for (const x of [50, 64, 80, 92, 102]) lampPost(sim, x, -93.25);
+  for (const x of [54, 70, 86, 98]) bollard(sim, x, -93.25, C.steelDark);
+  for (const x of [58, 74, 94]) tree(sim, x, -94.5);
+  signPost(sim, 105, -93.25, C.npCanopy, 2, 'x', 1.25);
+  // Twenty|20's east service apron, x[105.5,107]. It is the map's east edge and
+  // the excursion's southbound return, and it exists because the alternative was
+  // a leg down a bare 1.5 m strip: the tower's plinth is the only thing within
+  // reach of it, and a plinth is one piece every 5 m.
+  for (const z of [-80, -72, -66]) lampPost(sim, 106.25, z);
+  for (const z of [-83, -76, -69]) bollard(sim, 106.25, z, C.steelDark);
+  bench(sim, 106.25, -63);
+  trashBin(sim, 106.25, -86, 0x40463c);
+  for (const v of CAMBRIDGE_VEHICLES) {
+    if (v.d !== 7) continue;
+    if (v.kind === 'sedan') sedan(sim, v.x, v.z, v.body, v.roof, v.axis);
+    else if (v.kind === 'boxVan') boxVan(sim, v.x, v.z, v.len, v.cab, v.box, v.axis);
+    else motorcycle(sim, v.x, v.z);
+  }
+}
+
+// The Common at CX — `03` §8.2's third named mitigation and `03` §4.7's own line
+// item. It is the block the four streets leave, and `02` §2.5 puts the real one
+// at exactly that seat.
+//
+// THE LAWN IS DECLARED BECAUSE IT IS FURNISHED, not the other way round.
+// `reportDeadGround` discounts every sample inside a `parks` rect through its
+// BY_DESIGN list, so a lawn drawn over ground nobody furnishes zeroes the census
+// by promising a park rather than building one — District 6's rule, applied to
+// the largest single lawn in the scene. Every quarter of this one carries a tree
+// line, a seating run, a path or the pavilion.
+function cxCommon(sim) {
+  const K = CX_COMMON;
+  const x1 = K.x0 + K.w, z1 = K.z0 + K.d;
+  // The bosque along the north edge, one row in from North Point Way's south
+  // walk so the 2 m canopies clear the kerb and the lamp line both.
+  for (let x = K.x0 + 3; x <= x1 - 3; x += 5) tree(sim, x, K.z0 + 2.5);
+  // The south edge, facing Tango and the Child Street block.
+  for (let x = K.x0 + 5; x <= x1 - 4; x += 6) tree(sim, x, z1 - 2.5);
+  for (const x of [K.x0 + 4, K.x0 + 16, K.x0 + 27]) lampPost(sim, x, z1 - 5);
+  for (const x of [K.x0 + 9, K.x0 + 21]) bench(sim, x, z1 - 5);
+  trashBin(sim, K.x0 + 13, z1 - 5, 0x40463c);
+  // The pergola on the common's spine, which is what stops the lawn reading as a
+  // green rectangle with trees on it. It runs along x because the block is half
+  // again as wide as it is deep.
+  pergola(sim, { x: K.x0 + 8, z: K.z0 + 9, len: 12, axis: 'x', w: 2, h: 2.5, color: 0x5a4a32 });
+  // The east lawn's cafe terrace, on the path between the pergola and Water
+  // Street's west walk.
+  for (const x of [x1 - 9, x1 - 5]) cafeTable(sim, x, K.z0 + 8);
+  for (const x of [x1 - 11, x1 - 3]) lampPost(sim, x, K.z0 + 11.5);
+  drinkingFountain(sim, x1 - 7, K.z0 + 11.5, C.npFence);
+  bikeRack(sim, x1 - 12, K.z0 + 12, 3, 'x', C.npSteel);
+  // The park's fence line along its two street frontages, which is what makes
+  // the lawn read as a common rather than as the ground either side of a road.
+  // BOTH FENCES SIT THREE METRES INSIDE THE LAWN, not on its edge, and they do
+  // not share a corner. Drawn at the boundary the north run stood in the same
+  // fine cells as North Point Way's own lamp, bench and bin line, and the two
+  // runs shared the corner cell with each other — six ghost placements for a
+  // tidier-looking rectangle.
+  fenceRun(sim, { x: K.x0 + 2.5, z: K.z0 + 3, len: 17.5, axis: 'x', h: 1.0, mat: 'steel', color: C.npFence });
+  fenceRun(sim, { x: K.x0 + 2, z: K.z0 + 3.5, len: 15, axis: 'z', h: 1.0, mat: 'steel', color: C.npFence });
+  // The playground on the west lawn, behind the fence and clear of the boulevard
+  // walk's furniture.
+  playgroundSet(sim, { x: K.x0 + 4, z: K.z0 + 13 });
+  // The planters run at x K.x0+23, not K.x0+20: a planter is 1.5 m wide from its
+  // origin and the south seating run's second bench stands at K.x0+21.
+  for (const z of [K.z0 + 5, K.z0 + 15]) planter(sim, K.x0 + 23, z, 1.5, 1, C.planterSoil);
+  for (const x of [K.x0 + 27, K.x0 + 30]) bollard(sim, x, K.z0 + 4, C.steelDark);
+}
+
+// The building aprons: the ground each tower stands its podium on, and the
+// content between a podium and the nearest kerb. This is the third quarter of
+// `03` §8.2's mitigation and the one it does not name, because it is what the
+// other two are for — "the towers are tall, not wide. The ground plane does the
+// density work."
+function northPointAprons(sim) {
+  const N = NORTH_POINT;
+  // ARCHSTONE'S APRONS ARE SOUTH, WEST AND EAST — NEVER NORTH, and that is the
+  // one place in this district where two Confirmed seats crowd each other.
+  // `sceneOffset` puts Archstone's centre at (88,−22) and Avalon's at
+  // (94.25,−36); at the footprints below their plinth courses stand 1.0 m apart
+  // across the whole of x[85.75,97.5]. A 1 m strip cannot carry a 3 m lamp under
+  // a podium canopy that already hangs over it, and the first draft put the
+  // whole north apron inside Avalon's plinth. Neither building moves — both are
+  // at `02` §2.4's Confirmed offsets — so the furniture does, onto the three
+  // sides with 7 m or more of open apron. That is also why Archstone's podium
+  // retail is on its SOUTH and WEST faces: those are the two that front
+  // something a person could stand on.
+  for (const x of [80, 86, 92, 96]) lampPost(sim, x, -12.5);
+  for (const x of [83, 89, 95]) bollard(sim, x, -12.5, C.steelDark);
+  for (const x of [82, 90]) bench(sim, x, -11);
+  for (const x of [84, 94]) planter(sim, x, -11, 1.5, 1, C.planterSoil);
+  bikeRack(sim, 79, -11, 3, 'x', C.npSteel);
+  sandwichBoard(sim, 87, -12.5, 0x2b3038);
+  for (const x of [76, 100]) tree(sim, x, -12);
+  for (const z of [-26, -20]) lampPost(sim, 76.5, z);
+  for (const z of [-23, -17]) bollard(sim, 76.5, z, C.steelDark);
+  for (const z of [-27.5, -18.5]) tree(sim, 74.5, z);
+  for (const z of [-26, -20]) lampPost(sim, 99.5, z);
+  for (const z of [-23, -17]) bollard(sim, 99.5, z, C.steelDark);
+  // Twenty|20's south and west aprons.
+  for (const x of [91, 97, 103]) lampPost(sim, x, -66.5);
+  for (const x of [94, 100]) bench(sim, x, -66.5);
+  for (const x of [92, 102]) tree(sim, x, -65);
+  bikeRack(sim, 98, -65, 3, 'x', C.npSteel);
+  for (const z of [-79, -72]) lampPost(sim, 87.5, z);
+  for (const z of [-76, -70]) bollard(sim, 87.5, z, C.steelDark);
+  cafeTable(sim, 96, -64.5);
+  // TANGO GETS NO SOUTH APRON, and that is the one place in this district where
+  // a mitigation had nowhere to stand. Its plinth reaches z −51.25 and Child
+  // Street's north kerb stands at z[−50.25,−50], so the walk in front of it is
+  // one metre wide — everything drawn on it at z −49.5 stood inside the
+  // carriageway, and everything drawn at z −51 stood a quarter metre from the
+  // street's own lamp line, which is a shared fine cell and therefore a ghost.
+  // The street furniture at z −50.75 serves both, so the apron is the frontage
+  // rather than an extra rank. Tango's own density comes from its podium.
+  bollard(sim, 58.5, -50.75, C.steelDark);
+  // AVA East's north and west aprons.
+  for (const x of [51, 57, 63]) lampPost(sim, x, -39);
+  for (const x of [54, 60]) bollard(sim, x, -39, C.steelDark);
+  bench(sim, 57, -40.5);
+  // AVA EAST GETS NO WEST APRON. Its plinth course stands at x[48.5,49.25] and
+  // the boulevard's east kerb at x[48,48.25], so the walk in front of it is a
+  // quarter of a metre — the first draft's two lamps at x 48.75 stood inside the
+  // plinth. The building is on the back of the pavement, which is what a 6-storey
+  // slab on a boulevard actually does, and its density comes from the podium on
+  // that face rather than from furniture that cannot fit.
+  // AVA West's east apron, facing the boulevard across its verge.
+  for (const z of [-46, -40]) lampPost(sim, 40, z);
+  for (const z of [-43.5, -38.5]) bollard(sim, 40, z, C.steelDark);
+  for (const z of [-47, -39]) tree(sim, 21, z);
+  for (const x of [25, 34]) trashBags(sim, x, -51, 0x22262c);
+  crateStack(sim, 29, -51.5, 2, 0x8a6a44);
+  // Avalon's north apron onto Child Street's south walk.
+  for (const x of [88, 94, 100]) lampPost(sim, x, -42);
+  for (const x of [91, 97]) bollard(sim, x, -42, C.steelDark);
+  hotDogCart(sim, 86.5, -42);
+  // The boulevard's south turning head, which is where the excursion enters the
+  // district and therefore the one apron that cannot be thin.
+  // EVERYTHING HERE IS OUTSIDE THE CARRIAGEWAY AND OFF BOTH KERB LINES. The
+  // first draft put two planters and the market stall inside the boulevard's own
+  // rect and both trees with their 2 m canopies over its kerb runs at
+  // x[41.75,42] and x[48,48.25] — a road conflict and four ghost placements
+  // between them; the second draft cleared the road and put a 3 x 2 m stall
+  // through a tree. The turning head is 6 m of apron either side of a 6 m road
+  // and everything below stands on the apron, one prop per 1.5 m of it.
+  for (const x of [43, 47]) lampPost(sim, x, -6.5);
+  for (const x of [44.5, 46]) bollard(sim, x, -6.5, C.steelDark);
+  // 40, not 40.5: a planter is 1.5 m wide from its own origin, so at 40.5 its
+  // last course stood in the boulevard's west kerb run at x[41.75,42].
+  for (const x of [40, 49]) planter(sim, x, -9, 1.5, 1, C.planterSoil);
+  for (const x of [40.5, 51]) tree(sim, x, -12);
+  bench(sim, 45, -6.5);
+  bikeRack(sim, 49, -12, 3, 'z', C.npSteel);
+  sandwichBoard(sim, 40.5, -6.5, 0x2b3038);
+}
+
+export function northPointDistrict(sim) {
+  northPointTowers(sim);
+  glassFactoryBlock(sim);
+  northPointStreets(sim);
+  northPointStreetscape(sim);
+  northPointAprons(sim);
+  cxCommon(sim);
+}
+
+// The district's ground. `probeBareGround` reads every one of these: a footprint
+// cell that no decor rect covers is a block standing on the void-coloured ground
+// plane, and this district's seven plinth bands, four kerb circuits and one park
+// touch about 5,300 cells between them.
+export const NORTH_POINT_DECOR = {
+  plaza: [
+    // Each building's footprint plus its 0.75 m plinth band and its aprons.
+    { x: 22, z: -52.5, w: 18.5, d: 16.5 },      // AVA West and its yard
+    { x: 48.25, z: -41, w: 17, d: 16 },         // AVA East
+    { x: 58, z: -63.5, w: 14.5, d: 13 },        // Tango
+    { x: 73.5, z: -34.5, w: 27.5, d: 25.5 },    // Archstone and its three aprons
+    { x: 84.75, z: -43.5, w: 19.5, d: 13.5 },   // Avalon Lofts
+    { x: 87.5, z: -84, w: 19.5, d: 20 },        // Twenty|20 and its south apron
+    { x: 105.5, z: -86, w: 1.5, d: 24 },        // its east service apron, the map edge
+    { x: 39.5, z: -14, w: 13, d: 8 },           // the boulevard's south turning head
+    { x: -60, z: -84, w: 21.5, d: 22 },         // the Glass Factory, its yard and forecourt
+  ],
+  parks: [
+    // The Common at CX, and the boulevard's two verges. Every one is furnished —
+    // see `cxCommon` and `northPointStreetscape`.
+    { x: 48, z: -86, w: 31, d: 20 },
+    { x: 38.5, z: -92, w: 3.25, d: 84 },
+    { x: 20.5, z: -50.5, w: 2, d: 14.5 },
+  ],
+  sidewalks: [
+    { x: 40.5, z: -92, w: 1.5, d: 84 },         // North Point Boulevard, west
+    { x: 48, z: -92, w: 1.5, d: 84 },           // North Point Boulevard, east
+    { x: 48, z: -55, w: 58, d: 5 },             // Child Street, north
+    { x: 48, z: -44, w: 58, d: 3.5 },           // Child Street, south
+    { x: 79.5, z: -86, w: 1.5, d: 36 },         // Water Street, west
+    { x: 87, z: -86, w: 1.5, d: 36 },           // Water Street, east
+    { x: 48, z: -95, w: 59, d: 3 },             // North Point Way, north
+    { x: 48, z: -86, w: 58, d: 2 },             // North Point Way, south
+    { x: -58, z: -63.5, w: 35, d: 1.5 },        // Glassworks Avenue, north
+    { x: -58, z: -56, w: 35, d: 1.5 },          // Glassworks Avenue, south
+  ],
+};
+
+export const NORTH_POINT_AMBIENT = {
+  // The podium line, read as one glow along each street face. No lettering
+  // anywhere: `02` §7's "build the buildings, skip the wordmarks" is the whole
+  // instruction for this district, and `03` §4.7 repeats it by name for
+  // Education First.
+  neon: [
+    { x: 78.5, z: -30, w: 19, d: 1.2, color: 0x7fd4e8, period: 4.1 },  // Archstone's podium
+    { x: 88.75, z: -69.5, w: 16, d: 1.2, color: 0xffd166, period: 3.3 }, // Twenty|20's
+    { x: 59, z: -53.5, w: 12, d: 1.2, color: 0x7fd4e8, period: 5.2 },  // Tango's
+    { x: -57.25, z: -65.5, w: 16, d: 1.2, color: 0x8fe0b8, period: 4.7 }, // the Glass Factory's
+  ],
+  pigeons: [
+    { x: 63, z: -78, count: 14 },
+    { x: 45, z: -30, count: 10 },
+    { x: 94, z: -47, count: 11 },
+    { x: -49, z: -60, count: 9 },
+  ],
+  steam: [
+    { x: 76, z: -60, rate: 0.16 },
+    { x: -44, z: -70, rate: 0.21 },
+  ],
+};
+
 // --- THE SHELL ---------------------------------------------------------------
 // Ground, streets, decor, kerbs, street furniture, vehicles, ambient life and
 // camera blockers. IDENTICAL across all three variants by construction: it is
@@ -5608,7 +6838,24 @@ export function cambridgeSpendBack(sim) {
 // belonging to Districts 7, 8 and 9. `03` §4.6's own rect reaches z +116 and
 // this file does not; the reconciliation is P6.10's, and the offset row is
 // already there for whoever builds it.
-export const CAMBRIDGE_BOUNDS = { minX: -120, maxX: 71, minZ: -112, maxZ: 61 };
+// P6.7 MOVES ONE EDGE, EAST FROM +71 TO +107, AND IT IS THE LARGEST MOVE ANY
+// TASK HAS MADE. Nine new 4 m sample columns open over the map's 173 m of z, and
+// only the z[−92,−8] band of each can be filled from this district: north of −92
+// is the map edge and south of −8 is District 8's unbuilt shore (`03` §4.8's
+// x[+20,+132] z[+20,+116]) and District 9's Ring B shelf. Measured rather than
+// estimated, by re-running the census over the same build with the rect clipped
+// back to +71: the nine new columns hold 135 dead samples, and the district's
+// own content takes 292 off inside the map District 6 left (574 → 282). Net,
+// undeclared dead ground falls 574 → 417. That margin is the whole reason Hult
+// House, Education First and Viaduct Courts are deferred — see the district's
+// own header for the six columns beyond x 107 and the 207 samples in them.
+//
+// NORTH, SOUTH AND WEST ALL STAY WHERE DISTRICT 6 LEFT THEM. z −112 is District
+// 3's Inner Belt throat, z +61 District 5's Thorndike Street, x −120 District
+// 4's Silva Park. This district's own north content (North Point Way's kerb at
+// z −92.25) sits 19.75 m inside `minZ`, which is fine because it is not what
+// holds that edge — `03` §4.11's carhouse does, at z −107.5.
+export const CAMBRIDGE_BOUNDS = { minX: -120, maxX: 107, minZ: -112, maxZ: 61 };
 
 export function buildCambridge(sim) {
   cambridgeShell(sim, (s) => {
@@ -5619,10 +6866,11 @@ export function buildCambridge(sim) {
     portugueseSeamDistrict(s);
     thorndikeCivicDistrict(s);
     canalDistrict(s);
+    northPointDistrict(s);
   }, {
     bounds: CAMBRIDGE_BOUNDS,
-    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR, SEAM_DECOR, THORNDIKE_DECOR, CANAL_DECOR),
-    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT, SEAM_AMBIENT, THORNDIKE_AMBIENT, CANAL_AMBIENT),
+    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR, SEAM_DECOR, THORNDIKE_DECOR, CANAL_DECOR, NORTH_POINT_DECOR),
+    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT, SEAM_AMBIENT, THORNDIKE_AMBIENT, CANAL_AMBIENT, NORTH_POINT_AMBIENT),
   });
 }
 
