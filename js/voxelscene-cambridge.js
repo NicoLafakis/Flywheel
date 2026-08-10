@@ -12,6 +12,16 @@
 // hero building at 2 Canal Park, and this scene's registration in
 // AUTHORED_SCENES/FREE_PLAY are Phase 6 and are deliberately absent.
 //
+// THE SCENE IS COMPLETE AS OF P6.10. All ten districts stand, `sim.boundsRect`
+// is `03` §1.1's designed 252 × 228 m extent, and the dead-ground census reads
+// ZERO — P8.3's own target, reached by the district `03` §8.2 calls "the
+// mitigation for the other nine". The paragraphs below are Phase 5's and are
+// preserved as written: they describe District 2, which is still the district
+// this file opens with and still the one the excursion is calibrated against.
+// What is NOT here is Phase 7 — no eggs, no glyphs, no coin anchors. The
+// edge-band gallery's ground is authored and its five marks are not; see the
+// District 10 section for which apron belongs to which `04` item.
+//
 // P6.1 has since added the MAP layer below the plan: `03` §1.2's scale law and
 // `02` §6's real-world offset table, which is the ground the other nine
 // districts get authored against. It is data and one pure function and emits
@@ -577,6 +587,33 @@ const C = {
   gardenPrecast: 0x9b9891,
   gardenBand: 0xb4b1a8,
   gardenRoof: 0x7f8288,
+
+  // --- DISTRICT 10, STREET LIFE, KERB KIT & THE EDGE BAND ----------------
+  // `03` §4's palette column for this district is the only one in the table
+  // that is BLANK — it reads "—", where every other row names a bank. That is
+  // the right entry and it is also the instruction: District 10 is the other
+  // nine districts' ground, so it may not read as a tenth flavour. Every tone
+  // below is either a half-step off an existing key or a straight reuse, and
+  // the district deliberately introduces no new family. Where a colour already
+  // exists for the job (`kerb`, `sleeper`, `railHead`, `ballast`, `steelDark`,
+  // `signalMast`) this section calls that key rather than minting a twin.
+  //
+  // THE THREE CONTAINER TONES ARE THE ONE PLACE IT RAISES CHROMA, and they are
+  // borrowed rather than invented: District 3's yard already stands a run of
+  // 0x3d6b5a containers at the carhouse, and a container yard whose boxes are
+  // all one colour is the one thing nobody has ever seen. They are small,
+  // they are at the map's edge, and they are the only saturated objects in a
+  // band otherwise made of ballast, chain-link and concrete.
+  tenKerb: 0x9a968c,
+  tenApron: 0x8e8b84,
+  tenRevet: 0x8f8b80,
+  tenFence: 0x4a5158,
+  tenYardFence: 0x54604a,
+  tenHut: 0x8a7f6e,
+  tenHutRoof: 0x6d6a62,
+  tenContainerA: 0x3d6b5a,
+  tenContainerB: 0xb4552f,
+  tenContainerC: 0x2f5a7a,
 };
 
 // --- THE MAP -----------------------------------------------------------------
@@ -1120,6 +1157,31 @@ export const CAMBRIDGE_STREETS = [
   // bodies either side of it are exactly what makes the rect legal.
   { name: 'Cambridge Parkway', axis: 'x', x: 71, z: 26, w: 21, d: 6 },
   { name: 'Charles River Dam Road', axis: 'x', x: 72, z: 8, w: 52, d: 6 },
+  // District 10, index 18, and it is the ONLY street this district adds. `03`
+  // §4.10 gives it "the shared curb-furniture pitch, oriented vehicles on
+  // grid-aligned streets, the crossing template" — three things that need a
+  // carriageway to sit on, and eight of the nine districts before it already
+  // furnished their own. The one place the built map has a street that stops
+  // for no reason is Gore Street: District 4 laid it x[−120,−78] to front the
+  // twenty-two triple-deckers and ended it at its own rect's east edge, which
+  // left the block behind Row A as the largest UNBUILT interior hole on the
+  // map — 28 × 32 m with nothing in it, and the only patch of dead ground in
+  // the census that is not at an edge.
+  //
+  // IT IS A CONTINUATION, NOT A NEW STREET, and it is a separate row for
+  // exactly the reason `Cambridge Street West` is: row 7 is addressed by index
+  // (`CAMBRIDGE_CROSSINGS` holds [7,−112] and [7,−86]) and its kerb runs,
+  // footway decor and house frontages were all measured against x[−120,−78] as
+  // written. Widening row 7 in place would silently re-point District 4's two
+  // crossings and move a footway a shipped district was authored against. The
+  // two abut at exactly x −78, which costs nothing: `rectsOverlap` is open.
+  //
+  // IT STOPS AT x −50, and the 2 m short of District 1's rect is not rounding.
+  // 1 Canal Park's outer skin stands at x −39.5 and District 2's rear yard is
+  // south of it; carried further east the carriageway would run at the back of
+  // a block two other districts already own the ground of. A back street that
+  // ends at the works yard it serves is what this street IS.
+  { name: 'Gore Street East', axis: 'x', x: -78, z: -30, w: 28, d: 6 },
 ];
 export const CAM_XW_LEN = 3;
 export const CAMBRIDGE_CROSSINGS = [
@@ -1163,6 +1225,12 @@ export const CAMBRIDGE_CROSSINGS = [
   // spacing — a crossing on a dam is where the two banks have somewhere to go.
   [16, 74], [16, 86],
   [17, 78], [17, 100],
+  // District 10. Two zebras on Gore Street East, both clear of the kerb ranks
+  // below them for the reason every other district's are — a zebra painted
+  // under a parked car is legal to every probe and wrong to every eye. They are
+  // also both placed where something on the block actually wants to cross: the
+  // west one at the works-yard gate, the east one at the car park's entrance.
+  [18, -74], [18, -56],
 ];
 
 // Kerb-parked and moving vehicles. Exported because `probeRoadConflicts` treats
@@ -1340,6 +1408,27 @@ export const CAMBRIDGE_VEHICLES = [
   { kind: 'sedan', x: -36, z: 77, axis: 'x', body: 0x8d2f28, roof: 0x8d2f28, d: 9 },
   { kind: 'sedan', x: 108.5, z: -76, axis: 'x', body: 0x2f6b4f, roof: 0x2f6b4f, d: 9 },
   { kind: 'sedan', x: -118, z: 73, axis: 'x', body: 0xd8d3c6, roof: 0xd8d3c6, d: 9 },
+  // District 10. Four kerb ranks on Gore Street East — the only rows in this
+  // table that stand inside a carriageway this district itself declared — plus
+  // four in the car park and two works vehicles in the yard, which stand on
+  // plaza rather than asphalt and are listed anyway because this table is the
+  // scene's whole vehicle roster and a row that is here can never surprise
+  // `probeRoadConflicts` later.
+  // The north lane parks at z −29.5 and the south lane at z −26, which is the
+  // one that had to be measured rather than mirrored: a sedan is 2 m across, so
+  // a south rank at z −25.5 would have put its outboard row of cells at z −23.5,
+  // half a metre onto the footway. −26 puts its far edge exactly on the kerb
+  // line at z −24. Every x is clear of both zebras' 3 m spans.
+  { kind: 'sedan', x: -68, z: -29.5, axis: 'x', body: 0x3d5a3a, roof: 0x3d5a3a, d: 10 },
+  { kind: 'sedan', x: -62, z: -29.5, axis: 'x', body: 0x8d2f28, roof: 0x8d2f28, d: 10 },
+  { kind: 'sedan', x: -70, z: -26, axis: 'x', body: 0x2f4756, roof: 0x2f4756, d: 10 },
+  { kind: 'sedan', x: -63, z: -26, axis: 'x', body: 0xd8d3c6, roof: 0xd8d3c6, d: 10 },
+  { kind: 'sedan', x: -60, z: -42, axis: 'x', body: 0x4a4f57, roof: 0x4a4f57, d: 10 },
+  { kind: 'sedan', x: -55, z: -42, axis: 'x', body: 0x8a6a2e, roof: 0x8a6a2e, d: 10 },
+  { kind: 'sedan', x: -60, z: -38, axis: 'x', body: 0x8d2f28, roof: 0x8d2f28, d: 10 },
+  { kind: 'sedan', x: -55, z: -38, axis: 'x', body: 0x2f6b4f, roof: 0x2f6b4f, d: 10 },
+  { kind: 'boxVan', x: -70, z: -38, axis: 'x', len: 6, cab: 0xd8d3c6, box: 0xd8d3c6, d: 10 },
+  { kind: 'bigTruck', x: -70, z: -34, box: 0x6a6f76, d: 10 },
 ];
 
 // Overhead spans: the ONE case where a physical block may stand inside a
@@ -1525,6 +1614,24 @@ export const CAMBRIDGE_OPEN_GROUND = [
 // the Zakim channel sits under its own deck (and now under this district's Zakim
 // specifically), and the Charles is water that is built rather than ground that is
 // promised. P6.10 has the reconciliation; there is nothing left here to declare.
+
+// P6.10 DECLARES NOTHING HERE EITHER, AND IT IS THE TASK THAT CLOSES THE LIST.
+// It had the one span District 9 left on the table — the Charles south of the
+// Longfellow line, now inside `maxZ` — and it does not take it, for District 9's
+// reason: the ground is not empty. It also had a fresh candidate of its own, the
+// north edge's 78 × 8 m flat, which held zero blocks and 53 dead-ground samples
+// and would have passed `probeOpenGround` on the day. It is AUTHORED AS `sand`
+// INSTEAD, and that is District 6's finding met a fourth time: a `sand` rect
+// sits in `reportDeadGround`'s BY_DESIGN set exactly as a declared span does, so
+// the census discount is identical — but the flat is a rendered surface that the
+// district then furnishes (a 78 m revetment, a bollard rank, three fences, ten
+// masts and two gallery aprons on its bank), where the span would have been a
+// promise never to build on the emptiest ground on the map. Where both are
+// available the built thing wins, every time this file has been asked.
+//
+// So `03` §1.4's list is settled at ONE span for good: the Inner Belt ballast,
+// declared at P6.3. See the P6.10 RECONCILIATION block in the District 10
+// section, item 9, for the doc edit that follows.
 
 // `probeDistrictDensity` reads these. Districts 1 and 2 exist in this file, so
 // the density-floor clause (half the scene median) is now a real two-row
@@ -2225,6 +2332,90 @@ export const CAMBRIDGE_DISTRICTS = [
                       // one tower and a long kerb line rather than a campus. Mean
                       // gap 0.13 m, worst hole 7.6 m. Zero pieces inside a
                       // neighbour's rect.
+    gapFloor: 15,
+  },
+  // DISTRICT 10 IS THREE ROWS AND NOT ONE, and the full argument is in the
+  // district's own header — `03` §4's rect column for it reads "scene-wide",
+  // which would swallow all 67,121 pieces the other nine stand and could never
+  // fail. District 9 refused that shape and split into bands; this district
+  // holds the same line and splits its content instead: the half that stands
+  // inside another district's rect gets NO row (it counts toward the district
+  // it mitigates, which is §8.2's whole brief for this district), and the half
+  // standing on ground no other district reaches gets these three.
+  //
+  // ALL THREE REPORT "the scripted route never enters it", by construction
+  // rather than by omission: `03` §8.3 defines the edge band as "the ground the
+  // architecture does not reach" and `CAMBRIDGE_ROUTE` is a drive between the
+  // architecture. The mean-gap and worst-hole clauses are unmeasurable on them;
+  // the density clause is not, and it is what these rows are for. `gapFloor` is
+  // carried anyway at the scene ceiling so a future route extension binds them
+  // without a table edit.
+  //
+  // `03` §8.2 GIVES THIS DISTRICT NO FLOOR AND NO GAP TARGET — its row is "n/a"
+  // in both columns, with the mitigation column reading "This district IS the
+  // mitigation for the other nine." Encoded as an absent `gapFloor`, which the
+  // probe reads as the scene-wide 15 m ceiling rather than as an exemption
+  // (`Math.min(maxGap, d.gapFloor ?? maxGap)`); the density clause has no
+  // per-district override at all, so all three sit against half the scene
+  // median like every other row.
+  {
+    id: '10W',
+    name: 'Street life — the Inner Belt west throat',
+    // MEASURED, and the rect stops 1 m short of District 3 on purpose. Its east
+    // edge is −85 rather than −80 because the carhouse's west gable stands at
+    // x −81.25: a rect carried to the declared ballast span's own west edge
+    // would annex District 3's building and read its density instead of this
+    // district's. Measured both ways before it was drawn — x[−118,−80] holds 29
+    // of District 3's pieces, and this rect holds zero.
+    rect: { minX: -118, maxX: -85, minZ: -112, maxZ: -46 },
+    budget: 500,      // `03` §4.10's 1,210 is one figure for the whole district
+                      // and 930 of it is the gallery, which is `04`'s and P7.3's
+                      // — so the district's own non-gallery line is ~280 for all
+                      // ten districts' worth of glue. It is the most obviously
+                      // stale number in §4's table: it prices "the shared curb-
+                      // furniture pitch" for a 252 × 228 m map at less than one
+                      // district's kerb line. This band alone answers 170 of the
+                      // census's 297 dead points, and closing 2,200 m² of empty
+                      // rail land at the 8 m dead-ground reach costs what it
+                      // costs. See the district header's own restatement.
+    gapFloor: 15,
+  },
+  {
+    id: '10Y',
+    name: 'Street life — the Inner Belt yard approach',
+    // MEASURED, and it is a fourth row rather than a wider 10W for one reason:
+    // District 3's carhouse gable stands at x −81 in the band z[−107.5,−99.5]
+    // directly above this ground, so one rect covering both would annex it. The
+    // rect as drawn held zero pieces before this district built in it.
+    rect: { minX: -84, maxX: -66, minZ: -94, maxZ: -56 },
+    budget: 0,        // §4.10 prices no haul road, and no other district's §4
+                      // entry prices one either — this is the northwest quarter's
+                      // share of the ground-plane omission Districts 7, 8 and 9
+                      // each recorded against their own section.
+    gapFloor: 15,
+  },
+  {
+    id: '10G',
+    name: 'Street life — Gore Street East & the back block',
+    // MEASURED. The one interior cluster in the census, and the rect is drawn
+    // to hold this district's content and nothing else: minX −79 rather than
+    // −84 because District 4's Row A and its north verge reach x −80 (33 pieces
+    // measured inside x[−84,−72] z[−44,−22]), and minZ −54 rather than −56
+    // because District 7's Glassworks Avenue south kerb lies at z −55.875. Both
+    // numbers were taken off the built tree, not off `03` §4.
+    rect: { minX: -79, maxX: -48, minZ: -54, maxZ: -22 },
+    budget: 400,
+    gapFloor: 15,
+  },
+  {
+    id: '10N',
+    name: 'Street life — the North Point edge & the mudflat',
+    // MEASURED. Ninety-six metres of north edge that held zero blocks and 53
+    // dead samples. Nothing of District 7's reaches it — its own rect stops at
+    // z −92.5 and its northernmost geometry is North Point Way's kerb at
+    // z −92.25, 5.75 m south of this rect's own south edge.
+    rect: { minX: 8, maxX: 104, minZ: -112, maxZ: -98 },
+    budget: 310,
     gapFloor: 15,
   },
 ];
@@ -9481,6 +9672,717 @@ export const SHELF_AMBIENT = {
   ],
 };
 
+// --- DISTRICT 10: STREET LIFE, KERB KIT & THE EDGE-BAND GALLERY --------------
+// The last district, and the only one whose brief is other districts' ground.
+// `03` §4.10 gives it 1,210 blocks of "scene-wide glue: the shared curb-furniture
+// pitch, oriented vehicles on grid-aligned streets, the crossing template, and
+// the edge-band gallery", and §8.2 gives it the only row in the density table
+// whose every column is blank except the last, which reads in full: *"This
+// district IS the mitigation for the other nine."*
+//
+// WHAT THAT SENTENCE DECIDES, AND IT IS THE FIRST OF P6.10'S TWO OPEN QUESTIONS.
+// `03` §4's rect column for this district says "scene-wide", which is not a rect
+// this file may write down. A scene-wide row would hold all 67,121 pieces the
+// other nine districts stand, would read the scene's own aggregate density, and
+// could not fail `probeDistrictDensity` under any authoring — the row would be
+// green on District 2's brickwork forever, including in the counterfactual where
+// District 10 built nothing at all. District 9 refused exactly that shape for
+// exactly that reason ("a full-map rect would swallow the Ring A core and let the
+// scene's highest-risk district never fail the probe") and split into three
+// measured bands, accepting a lower scene median to keep the check meaningful.
+// This district holds the same line and goes one step further, because its
+// content is genuinely of two kinds and only one of them is rectangle-shaped:
+//
+//   THE EMBEDDED HALF GETS NO ROW AT ALL. Everything District 10 lays inside
+//   another district's rect — the boulevard verge's tree line, the seam clumps,
+//   the kerb kit at a district edge — counts toward the district it mitigates,
+//   which is precisely what §8.2's sentence asks for. Giving those pieces a
+//   second row of their own would double-count them and flatter both rows.
+//   A district whose job is to raise a neighbour's density should raise the
+//   NEIGHBOUR'S number, and it does: that is the whole design.
+//
+//   THE EDGE-BAND HALF GETS THREE MEASURED ROWS, because it is the ground no
+//   other district reaches and therefore the ground no other row can speak for.
+//   Each of 10W/10G/10N is drawn around what THIS district builds, holds no
+//   neighbour's geometry (measured, per row, in the district table below), and
+//   can fail on its own merits. That is the check `03` §4's "scene-wide" would
+//   have thrown away.
+//
+// WHERE THE GALLERY GOES, AND IT IS THE SECOND OPEN QUESTION. `03` §8.3 lays the
+// five marks "inside a declared `CAMBRIDGE_OPEN_GROUND` span or on an authored
+// apron". The first half of that sentence is not buildable: `probeOpenGround`
+// fails any span holding a block, so a mark inside a span un-declares the span
+// the moment it is authored. `CAMBRIDGE_OPEN_GROUND`'s own header already
+// recorded this as a constraint for P7.3; this district discharges it by
+// authoring the aprons ADJACENT to the ground each mark wants and never inside
+// a span. Two aprons are built here and three items need none:
+//
+//   G11 FLYWHEEL SPROCKET (~230, "the Inner Belt rail yard to the north") — the
+//   apron is `tenSprocketApron`, x[−104,−85] z[−112,−107.5]. The declared
+//   ballast span is x[−80,−40] z[−112,−108]; the apron's east edge is 5 m short
+//   of the span's west edge, with the yard's west head-shunt between them. It is
+//   the same ground, the same rail yard and the same north edge, and it is not
+//   inside the span.
+//   G11 COMPASS ROSE (~70, "the northeast mudflat") — the apron is
+//   `tenMudflatApron`, x[+87,+103] z[−112,−100], kerbed on three sides with the
+//   map edge as the fourth, on the northeast corner of the flat this district
+//   authors.
+//   G2 PARTNER ALLEY (~400, "along the river frontage and North Point") — the
+//   North Point half is `tenPartnerAlley`, x[+48,+84] z[−102.75,−99.5], a kerbed
+//   alley with its own lamp and seating line. The RIVER FRONTAGE half needs no
+//   new apron and this is worth stating rather than leaving to P7.3 to
+//   rediscover: District 8's 190 m of promenade and District 9's coping already
+//   ARE an apron, laid flat, on the ground plane, outside every roads/water/parks
+//   rect. Building a second one over them would be the duplicate ground this
+//   file has refused everywhere else.
+//   G5 "UNBOUND" (~180, "on Killian Court") — District 9 built Killian Court as
+//   an 18 × 7 m lawn with a `parks` rect under it. That is the apron.
+//   G11 ROWING-EIGHT WAKE (~50, "the Charles south edge", inert scenery) — sits
+//   on water, which District 8 and District 9 between them authored eight rects
+//   of. Nothing to build.
+//
+// NO GLYPH IS AUTHORED HERE. All five items are `04`'s catalogue and P7.3's
+// work — `03` §8.3 says so in its own last bullet ("the gallery's contents and
+// the achievement each mark unlocks belong to `04`"), and `05`'s P6.10 line
+// repeats it. What this district ships is the GROUND: flat, kerbed, decorated,
+// lit, outside every roads/water/parks rect, and free of blocks in the raster
+// area itself so a mark can be laid on it without moving anything.
+//
+// WHAT THE DISTRICT IS ACTUALLY MEASURED BY, and it is not its block count. The
+// dead-ground census is the number `03` §1.4 hands this district by name — "the
+// edge-band gallery occupies the outer ground that would otherwise be the
+// emptiest on the map ... it is the answer to the dead-ground census at the
+// edges". District 9 left it at 297 undeclared points over a 63 × 57 sample
+// grid, and those 297 are not scattered: they are four clusters, and every one
+// of them is ground no district was ever given.
+//
+//   170 in the NORTHWEST QUADRANT, x[−120,−88] z[−112,−52] plus the band
+//       x[−120,−68] z[−88,−52]. The single emptiest place on the map: 29 blocks
+//       in 34 × 72 m, all of them District 3's carhouse west gable. → 10W.
+//    53 along the NORTH EDGE, x[0,+96] z[−112,−104]. Zero blocks. → 10N.
+//    25 in the INTERIOR HOLE, x[−72,−48] z[−48,−24] — the only cluster in the
+//       census that is not at an edge, and the one a §8.3 edge band cannot
+//       reach. It is the block behind District 4's Row A, and Gore Street stops
+//       at its west corner. → 10G.
+//    13 spread over the NORTH POINT BOULEVARD VERGE (a column at x ≈ +28), the
+//       CANAL/SHELF SEAM (x[0,+8] z +64) and two singletons. → the embedded
+//       half, `tenBoulevardVerge` and `tenSeamClumps`.
+//
+// A NOTE ON THE ROUTE, since all three rows will report "the scripted route
+// never enters it". That is a property of what this district IS rather than a
+// gap in the check: `03` §8.3 defines the edge band as "the ground the
+// architecture does not reach", and `CAMBRIDGE_ROUTE` is a drive between the
+// architecture. The gap and hole clauses are unmeasurable there by construction;
+// the density clause is not, and it is the one that binds these rows. Extending
+// the route to cover them was considered and rejected — the route is 780 s and
+// already the validator's dominant cost (see `CAMBRIDGE_ROUTE`'s own header),
+// every other district's rect and `gapFloor` was tuned against these exact legs,
+// and P8.2's excursion figures are measured on it.
+
+// ============================================================================
+// P6.10 — THE RECONCILIATION
+// ============================================================================
+// `05`'s P6.10 line makes this task the place "where the doc-level
+// reconciliations listed below get folded back into `02` and `03`", and eight
+// districts recorded findings they could not act on alone. This block is the
+// settlement, stated against the built tree. It is IN-FILE rather than in the
+// wiki because a scene file may not edit `.wiki`; each item below names the
+// exact doc edit it wants, so a doc pass can act without re-deriving anything.
+//
+// 1. THE REGISTRY OF DEEDS AND THE OLD MIDDLESEX COUNTY COURTHOUSE (`03` §4.5,
+//    `CAMBRIDGE_OFFSETS` rows 34-35, raised by P6.5). §4.5's contents list names
+//    both as District 5 line items (900 and 700 blocks) and §4.5's own rect,
+//    x[−108,−26] z[+16,+56], excludes both derived seats — (−84,−16.5) and
+//    (−90.75,+9), 32.5 m and 7 m north of its north edge. THE RECT IS RIGHT AND
+//    THE CONTENTS LIST IS WRONG. The rect agrees with `02` §2.4's Confirmed
+//    offsets run through `03` §1.2's own law, and it agrees with the built map:
+//    the two derived footprints hold 759 and 223 blocks of District 4 today,
+//    with Third Street's carriageway through both. A contents list cannot move
+//    a Confirmed offset and a rect can be checked; where the two disagree, the
+//    one derived from `02` wins.
+//    DOC EDIT: strike both buildings from `03` §4.5's contents list and drop
+//    §4.5's estimate by their 1,600; add them to §4.4's District 4 prose as
+//    ground that district already occupies, or to a "derived, seated, not
+//    built" list alongside Costa Lopez and Chang Shing. Rows 34-35 stay exactly
+//    as they are — they are the audit trail.
+//
+// 2. THE GLASS FACTORY (`03` §4.7, `CAMBRIDGE_OFFSETS` row 42, raised by P6.7).
+//    §4.7 describes District 7 as "the ring of new towers immediately east and
+//    northeast" with rect x[+60,+132] z[−90,+16]; `02` §2.4 seats the building
+//    at real E −117 / N +191, which `sceneOffset` puts at (−49.25,−70), 110 m
+//    west of that rect. THE OFFSET IS RIGHT AND THE DISTRICT ASSIGNMENT IS
+//    WRONG, for the same reason as item 1. It is built at the law's seat.
+//    DOC EDIT: move the Glass Factory out of `03` §4.7's contents list. It has
+//    no natural district: it stands 30 m east of this district's 10Y rect and
+//    18 m south of District 3's yard, in the quarter the map had no row for at
+//    all until P6.10. The honest entry is a §4.3 line ("the Glass Factory,
+//    Confirmed, stands on the yard's south flank") plus a note that it is
+//    inside no `CAMBRIDGE_DISTRICTS` rect — see item 6.
+//
+// 3. THE GROUND-PLANE OMISSION (`03` §4.7, §4.8, §4.9, and now §4.10 — raised in
+//    turn by P6.7, P6.8 and P6.9, worst at §4.9). §4.7 prices seven buildings
+//    and no ground; §4.8 gives two streets, two kerb circuits, a 71 m seawall
+//    and a park strip one 1,000-block line; §4.9 prices nine landmarks and zero,
+//    on the district whose §8.2 mitigation is nothing BUT ground. §4.10 is the
+//    fourth and the most complete version of the same error: its 1,210 is 930
+//    of gallery (which is `04`'s and P7.3's, and is NOT built here) plus ~280
+//    for "the shared curb-furniture pitch, oriented vehicles on grid-aligned
+//    streets, the crossing template" across a 252 × 228 m map — less than one
+//    district's kerb line, for the district §8.2 calls the mitigation for the
+//    other nine. This district emits 5,822 blocks, 481% of §4.10 and 2,079% of
+//    its non-gallery share, and every one of them is answering a dead-ground
+//    sample or a density floor rather than a number.
+//    DOC EDIT: `03` §4 needs a GROUND line per district, priced separately from
+//    its buildings, and §4.10 needs to state that its figure covers the gallery
+//    and the crossing template only.
+//
+// 4. `03` §4'S PER-OBJECT FIGURES, RESTATED IN CURRENT-ERA COUNTS. `05`'s
+//    "Notes carried forward" asks P6.10 to do this once the pattern is visible
+//    across all ten. It is, and it is TWO patterns rather than one:
+//      D1 72.6% · D2 66.7% · D3 65.3% · D4 71.2% · D6 47% (87% in scope)
+//      D5 107% · D7 158% · D8 62% (80% in scope) · D9 139% (84% in scope)
+//      D10 481% (of a figure that prices none of what it built)
+//    Districts that built BUILDINGS to §4's list come in at 65-73% of it — one
+//    piece now does what a wall course of cubes used to, and §4's per-object
+//    numbers are a stale unit rather than five underbuilds. Districts that had
+//    to add GROUND §4 never priced come in over. The two are the same finding
+//    seen from either end: §4 measured masonry in cube-era blocks and did not
+//    measure pavement at all.
+//    DOC EDIT: multiply §4's per-object building figures by ~0.7 and add the
+//    ground lines from item 3. Do not touch the 75,000 scene target — the scene
+//    lands at 72,943 against it without either correction.
+//
+// 5. `03` §9.2'S AMBIENT KINDS — `ducks`, `geese`, `trains` (raised by P6.6,
+//    settled by P6.8, handed here). `js/voxelworld.js:1267` enumerates the kinds
+//    it can resolve — gulls, surf, ferries, steam, neon, pigeons — and there is
+//    no deriver, no mesh and no tick for a duck, a goose or a train anywhere in
+//    the renderer. §9.2 lists seven kinds for this scene and three of them do
+//    not exist. P6.8 framed the choice as "either §9.2 reconciles or the kinds
+//    get added to the renderer — the latter is a shared-contract change".
+//    RESOLVED IN FAVOUR OF §9.2. Adding three kinds touches a file four other
+//    scenes share, for ambient decoration, on the last district of a level
+//    build; and declaring them without adding them would let `probeAmbient` go
+//    green on birds that do not exist, which is the exact move District 6 ruled
+//    out. Cambridge's ambient roster is final at FOUR kinds — gulls, steam,
+//    neon, pigeons — and that is what `cambridgeShell` declares and what the
+//    validator asserts.
+//    DOC EDIT: `03` §9.2's list drops `ducks`, `geese` and `trains`, with one
+//    line saying why. If anyone still wants them, they are a `js/voxelworld.js`
+//    task in their own right and belong in Phase 8, not in a scene file.
+//
+// 6. PIECES THAT STAND IN NO DECLARED RECT. `probeCellOwnership`'s "inside a
+//    neighbour's rect" count reads zero for a piece standing in NO rect, so a
+//    zero there proves nothing. Measured across the finished scene, three
+//    bodies of geometry are outside every row:
+//      · DISTRICT 7'S WEST VERGE — x[31,41.5] z[−94,−6] holds 1,961 pieces at
+//        4.98/m², of which 1,557 are District 7's own park strip, footway and
+//        aprons. District 7's rect starts at x 41.5, which is 10.5 m east of its
+//        own westernmost geometry. This district's boulevard verge (~326 pieces)
+//        joins them there deliberately — see `tenBoulevardVerge`.
+//      · THE GLASS FACTORY — item 2. Its block and apron read 874 pieces at
+//        2.96/m² over x[−58,−40] z[−80,−60], which would pass a floor of 1.76
+//        comfortably if anything were measuring it.
+//      · SCATTERED SEAM FURNITURE at four district edges.
+//    None is a defect in what is BUILT; all three are a defect in what is
+//    DECLARED, and none is fixable by a district that may not move a neighbour's
+//    rect. DOC EDIT / TASK: P8.1 should either widen District 7's rect west to
+//    x 31 (measured: it takes that row from 3.996 to 4.30/m², so it does not
+//    weaken the check) or add a §4.7 note that the verge is deliberately
+//    unrowed. Measured, so the choice is not a guess: widening District 7's rect
+//    to x[31,107] z[−94,−8] reads 11,565 pieces over 2,751 cells — 4.204/m²
+//    against the shipped row's 3.996 — so it neither weakens the check nor
+//    flatters the row, it simply counts ground that district built. This file
+//    records the numbers so neither option has to be re-derived.
+//
+// 7. `corbelArch` IS UNUSABLE, AND TWO PHASE 3 DELIVERABLES CONTRADICT EACH
+//    OTHER (raised by P6.2 and P6.9). P3.1 ships `corbelArch` as one of the
+//    twelve primitives; P3.3 ships `probePlacementStep`, which every corbel
+//    course trips, because the "gap" the probe is looking for IS the arch's
+//    opening. The primitive has been imported and never called since Phase 5,
+//    and District 9 declined it for the same reason District 2 did.
+//    NOT FIXED HERE: `js/voxelforms.js` is Phase 3's file and a change to it
+//    re-measures every district. DOC EDIT / TASK: `01` §4 and `05`'s P3.1/P3.3
+//    need one line saying the two are incompatible as shipped, and P8.x needs to
+//    choose — give `corbelArch` a step that equals its extent (the courses stop
+//    being identical boxes), or drop it from the twelve and say so.
+//
+// 8. TWO MORE PRIMITIVES THAT DO NOT DO WHAT THEIR NAME SAYS (raised by P6.9).
+//    `halfDomeShell` builds a semi-dome and cannot close a full one, so a
+//    landmark needing a whole dome has to build it another way; and the kit's
+//    `obelisk` is cube-era, costing 1,480 blocks for a 420-block line item.
+//    Both live in `js/voxelkit.js`/`js/voxelforms.js`. Same disposition as
+//    item 7: recorded, not fixed, and it is a Phase 8 call.
+//
+// 9. `03` §1.4'S OPEN-GROUND LIST IS ONE SPAN, NOT FOUR (raised by P6.3, P6.6,
+//    P6.8 and settled by P6.9). P6.10 declares nothing further and confirms the
+//    settlement: the Inner Belt ballast, declared at P6.3, is the only span in
+//    `CAMBRIDGE_OPEN_GROUND` and the only one that was ever doing work this list
+//    alone could do. The canal basin fell to District 6's argument that
+//    authoring the water is strictly better than promising not to build, the
+//    Zakim channel sits under its own deck, and the Charles is water that is
+//    built rather than ground that is promised. This district adds a fourth
+//    instance of the same argument at the north edge, where it authored a `sand`
+//    mudflat rather than declaring the flat empty.
+//    DOC EDIT: `03` §1.4's "There are four" becomes one, with the three
+//    dispositions named.
+//
+// 10. `03` §1.5'S DECLARED RING A EXCEPTIONS ARE FIVE, NOT FOUR, PLUS A SIXTH
+//    THAT IS A SCALE RULE RATHER THAN A SEAT. §1.5 lists four. The Davenport's
+//    own 15 m east / 7.6 m north offset from the law is a fifth and is recorded
+//    on `sceneOffset`; District 9's TD Garden move (13.2 m from §5.1's seat,
+//    13.9 m from the law's) is a sixth. District 9 also declares a 1:5 PLAN
+//    compression for the whole MIT group, against §1.2's 1:3, because six
+//    landmarks whose real radii differ by 300 m all arrive inside one 50 × 25 m
+//    patch; the height law is untouched at 1:1.5.
+//    DOC EDIT: `03` §1.5 gains the Davenport and TD Garden as declared
+//    exceptions 5 and 6, and §1.2 or §5.2 gains the MIT group's 1:5 plan rule
+//    alongside §1.5's existing Museum of Science 1:5.
+//
+// 11. `03` §1.3 MISFILES FIVE RING B ITEMS AS RING A, `03` §5.4'S GREAT DOME
+//    FIGURE DOES NOT FOLLOW FROM ITS OWN INPUT, `02` §4 QUOTES |E| AS RADIUS IN
+//    AT LEAST THREE PLACES, AND RING A/RING B DISAGREE BY 0.33 m AT THE SEAM.
+//    All four were derived and written up in full by P6.4 and P6.3 at
+//    `CAMBRIDGE_OFFSETS` and `sceneOffset`; nothing here changes them and they
+//    are listed only so a doc pass has one place to find every outstanding item.
+//
+// 12. DISTRICT 2'S IN-FILE "6,532 blocks" IS ITS OWN ISOLATED BUILD. In the
+//    shipped multi-district scene District 2's rect holds 6,535, because three
+//    of District 1's apron pieces at z −12.375 fall inside District 2's
+//    minZ −12.5. Confirmed unchanged at P6.10. No doc edit; the note exists so
+//    the two numbers are never read as a regression.
+// ============================================================================
+
+// The yard's own track, at grade: sleepers on a 1 m pitch with two rails over
+// them. Deliberately District 3's `yardTrack` grammar rather than a new one —
+// this is the same yard, 40 m further west, and `03` §9.2's "a probe that drifts
+// per scene" argument applies to geometry too. Kept local rather than exported
+// from District 3 because that function is nested inside `innerBeltYard` and
+// hoisting it would touch shipped, verified code for no gain.
+function tenTrack(sim, o) {
+  const { x0, z0, n, axis = 'x', len } = o;
+  for (let i = 0; i < n; i++) {
+    const a = i * 1;
+    if (axis === 'z') {
+      slab(sim, { x: x0, y: 0, z: z0 + a, w: 2.25, d: 0.25, t: 0.25, mat: 'wood', color: C.sleeper });
+    } else {
+      slab(sim, { x: x0 + a, y: 0, z: z0, w: 0.25, d: 2.25, t: 0.25, mat: 'wood', color: C.sleeper });
+    }
+  }
+  // 3 m rail runs, contiguous, so the placement step is the extent and the last
+  // (short) run lands in its own group.
+  for (let o2 = 0; o2 < len - 0.01; o2 += 3) {
+    const l = Math.min(3, len - o2);
+    for (const g of [0.5, 1.5]) {
+      beam(sim, axis === 'z'
+        ? { x: x0 + g, y: 0.25, z: z0 + o2, len: l, axis: 'z', t: 0.25, depth: 0.25, mat: 'steel', color: C.railHead }
+        : { x: x0 + o2, y: 0.25, z: z0 + g, len: l, axis: 'x', t: 0.25, depth: 0.25, mat: 'steel', color: C.railHead });
+    }
+  }
+}
+
+// A works hut: the smallest building this file contains, and the only structure
+// District 10 builds. Four wall courses and a plate, because a shed is what
+// stands in a contractor's yard and a yard with no shed reads as a car park.
+function tenWorksHut(sim, o) {
+  const { x0, z0, w, d, color = C.tenHut, roof = C.tenHutRoof } = o;
+  // Courses of different heights so no two stacked panels of one extent share a
+  // group — `probePlacementStep`'s sub-extent case, and the Transportation
+  // Office's own note two districts back.
+  const courses = [{ y: 0, h: 1.25 }, { y: 1.25, h: 1 }];
+  for (const c of courses) {
+    panel(sim, { x: x0, y: c.y, z: z0, w, h: c.h, axis: 'x', t: 0.5, mat: 'panel', color });
+    panel(sim, { x: x0, y: c.y, z: z0 + d - 0.5, w, h: c.h, axis: 'x', t: 0.5, mat: 'panel', color });
+    panel(sim, { x: x0, y: c.y, z: z0 + 0.5, w: d - 1, h: c.h, axis: 'z', t: 0.5, mat: 'panel', color });
+    panel(sim, { x: x0 + w - 0.5, y: c.y, z: z0 + 0.5, w: d - 1, h: c.h, axis: 'z', t: 0.5, mat: 'panel', color });
+  }
+  slab(sim, { x: x0, y: 2.25, z: z0, w, d, t: 0.25, mat: 'steel', color: roof });
+  column(sim, { x: x0 + 0.5, y: 2.5, z: z0 + 0.5, h: 0.75, s: 0.25, mat: 'steel', color: C.steelDark });
+}
+
+// --- 10W: THE INNER BELT WEST THROAT -----------------------------------------
+// x[−118,−85] z[−112,−46]. `03` §8.3's own first named category of edge-band
+// ground ("water, RAIL YARD, highway interchange, mudflat"), and the emptiest
+// 2,200 m² on the map before this task. District 3 built the yard as far west as
+// the carhouse's gable at x −81; what continues past it in life is the throat —
+// storage sidings, a materials yard, a boundary fence and the scrub the rail
+// land runs out into. None of it is a building, all of it is ground, and that is
+// the correct content for a district whose whole brief is ground.
+function tenYardThroat(sim) {
+  // Two sidings running the length of the throat, and a stub running south into
+  // the materials yard. The pitch is District 3's exactly.
+  // THE TWO SIDINGS ARE 2.5 m APART, NOT 1.75, and the extra 0.75 m is a probe
+  // constraint rather than a gauge. A sleeper is 2.25 m across, so two parallel
+  // sidings whose sleeper faces are 1.75 m apart are two collinear identical
+  // boxes with a sub-extent gap between them on z — `probePlacementStep` fails
+  // every x they share, which on the first draft was 25 of them. At 2.5 m the
+  // gap clears the extent and the pair is legal, and a yard's storage roads sit
+  // further apart than a running line's anyway.
+  tenTrack(sim, { x0: -115, z0: -105.5, n: 29, axis: 'x', len: 29 });
+  tenTrack(sim, { x0: -113, z0: -100.75, n: 25, axis: 'x', len: 25 });
+  tenTrack(sim, { x0: -95, z0: -94, n: 18, axis: 'z', len: 18 });
+
+  // The boundary. Chain-link on the west and south, and one run down the
+  // materials yard's east side that separates the stored track from the road.
+  fenceRun(sim, { x: -115.5, z: -95, len: 10, axis: 'z', h: 1.25, color: C.tenFence });
+  fenceRun(sim, { x: -115.5, z: -84, len: 9, axis: 'z', h: 1.25, color: C.tenFence });
+  fenceRun(sim, { x: -88.5, z: -94, len: 12, axis: 'z', h: 1.25, color: C.tenFence });
+  fenceRun(sim, { x: -114, z: -74.5, len: 12, axis: 'x', h: 1.25, color: C.tenFence });
+
+  // Yard lighting. `03` §8.2's line for the district it borrows this from is
+  // that the ground plane carries the density; a mast is 30 pieces standing in
+  // one square metre, which is the cheapest way this vocabulary has of putting
+  // eatable content on open ground without pretending a building is there.
+  // Spaced at ≤ 14 m so the 8 m dead-ground reach closes across the whole band.
+  for (const [mx, mz] of [
+    [-114, -106.5], [-101, -106.5], [-90, -98], [-113, -90], [-101, -90],
+    [-90, -84], [-110, -68], [-101, -62], [-112, -54], [-95, -50],
+  ]) lightMast(sim, mx, mz, 5, C.signalMast);
+
+  // The materials yard: containers, one stacked pair, sleepers and rail bundles.
+  shippingContainer(sim, -114, 0, -93, 6, C.tenContainerA);
+  shippingContainer(sim, -114, 3, -93, 6, C.tenContainerB);
+  shippingContainer(sim, -105, 0, -93, 6, C.tenContainerC);
+  shippingContainer(sim, -114, 0, -88, 6, C.tenContainerB);
+  shippingContainer(sim, -105, 0, -88, 6, C.tenContainerA);
+  // The crate row stands EAST of the stub siding's sleepers (which reach
+  // x −92.75) and WEST of the yard fence at x −88.5. A 1 m crate at x −89 puts
+  // its far cells through the fence line, and one at x −93 through a sleeper —
+  // both were built and both were ghosts before this was measured.
+  for (const [cx, cz] of [[-92, -93], [-90.5, -93], [-92, -90], [-90.5, -90], [-92, -87], [-90.5, -87]]) {
+    crateStack(sim, cx, cz, 2, C.dockTimber);
+  }
+  // Stored rail, in 5 m lengths on the ground. Under the 8 m plan diagonal the
+  // grade probe holds every `gy === 0` piece to.
+  for (let k = 0; k < 3; k++) {
+    for (const g of [0, 1]) {
+      beam(sim, { x: -104, y: 0, z: -80 + k * 1.5 + g * 0.5, len: 5, axis: 'x', t: 0.25, depth: 0.25, mat: 'steel', color: C.railHead });
+    }
+  }
+  tenWorksHut(sim, { x0: -112, z0: -64, w: 5, d: 4 });
+
+  // The scrub verge the rail land runs out into, south of the yard fence. Trees
+  // rather than more track, because 26 m of ground with nothing vertical on it
+  // reads as a field wherever it is, and this one is 40 m from District 4's
+  // north verge.
+  for (const [tx, tz] of [
+    [-113, -70], [-106, -70], [-99, -70], [-92, -70],
+    [-113, -62], [-99, -62], [-90, -58],
+    [-113, -54], [-104, -52], [-94, -50],
+  ]) tree(sim, tx, tz);
+  for (const [bx, bz] of [[-109, -66], [-96, -66], [-108, -56]]) bench(sim, bx, bz);
+  for (const [bx, bz] of [[-104, -66], [-100, -56]]) trashBin(sim, bx, bz, 0x40463c);
+  for (const [lx, lz] of [[-106, -60], [-92, -54]]) lampPost(sim, lx, lz);
+}
+
+// The Flywheel sprocket's ground (`04` G11, `03` §8.3's ~230-piece item), and
+// the reason this apron is where it is rather than in the span next door is the
+// whole of P6.10's second open question — see the district header. Kerbed on its
+// south and both flanks, open to the map edge on the north, and empty inside so
+// P7.3 can lay a raster on it without moving a block.
+function tenSprocketApron(sim) {
+  // The two flank kerbs stand OUTSIDE the raster area and their `plaza` rect is
+  // sized to reach them — a kerb at x −104.25 puts its footprint in the cell
+  // x[−105,−104], and `probeBareGround` fails a footprint cell no decor layer
+  // covers whether or not the piece looks like it is on the apron.
+  shoreRun(sim, { x: -104, z: -108, len: 19, axis: 'x', step: 3, color: C.tenKerb });
+  shoreRun(sim, { x: -104.25, z: -112, len: 4, axis: 'z', step: 2, color: C.tenKerb });
+  shoreRun(sim, { x: -85.25, z: -112, len: 4, axis: 'z', step: 2, color: C.tenKerb });
+  for (const bx of [-102, -98, -94, -90, -88, -86]) bollard(sim, bx, -109, C.steelDark);
+  for (const mx of [-101, -89]) lightMast(sim, mx, -110, 5, C.signalMast);
+}
+
+// --- 10Y: THE YARD APPROACH --------------------------------------------------
+// x[−84,−66] z[−94,−56]. Eighteen by thirty-eight metres holding zero blocks,
+// and the last cluster of the northwest census that 10W's own rect cannot reach:
+// District 3's carhouse gable stands at x −81 in the band ABOVE it (z[−107.5,
+// −99.5]), so a 10W carried east to cover this ground would annex a neighbour's
+// building. It gets its own row instead, which is the same answer District 9
+// gave the same question three times.
+//
+// What is here is the haul road. The Inner Belt yard has two buildings, a fence
+// and five sidings and no way in; a works road down the yard's east flank from
+// the Gore Street end is the thing that was missing, and it is a kerb line, a
+// fence and a lighting pitch — this district's entire vocabulary.
+function tenYardApproach(sim) {
+  shoreRun(sim, { x: -74.25, z: -94, len: 36, axis: 'z', step: 3, color: C.tenKerb });
+  for (const [mx, mz] of [[-82, -92], [-82, -80], [-82, -68], [-76, -86], [-76, -74], [-76, -62]]) {
+    lightMast(sim, mx, mz, 5, C.tenFence);
+  }
+  fenceRun(sim, { x: -83.75, z: -92, len: 12, axis: 'z', h: 1.25, color: C.tenFence });
+  fenceRun(sim, { x: -83.75, z: -70, len: 12, axis: 'z', h: 1.25, color: C.tenFence });
+  shippingContainer(sim, -83, 0, -88, 6, C.tenContainerC);
+  shippingContainer(sim, -83, 0, -64, 6, C.tenContainerA);
+  for (const [tx, tz] of [[-71, -90], [-71, -82], [-71, -74], [-71, -66], [-68, -86], [-68, -70]]) tree(sim, tx, tz);
+  for (const [bx, bz] of [[-70, -78], [-70, -60]]) bench(sim, bx, bz);
+  trashBin(sim, -73, -58, 0x40463c);
+}
+
+// --- 10G: GORE STREET EAST & THE BACK BLOCK ----------------------------------
+// x[−79,−48] z[−54,−22]. The one cluster of dead ground in the census that is
+// not at an edge, and therefore the one §8.3's edge band cannot answer. What is
+// there in life is what is there on any city block whose two street frontages
+// are already built out: the back of it. A contractor's yard, a surface car
+// park, a scrap of green with a play frame on it, and the street that serves
+// all three — which is Gore Street, continued the 28 m District 4 stopped short
+// of its own rect edge.
+function tenGoreStreet(sim) {
+  // Kerbs at 3 m rather than 6, for District 8's seawall reason: the density
+  // probe measures the gap between consecutive eatable pieces, and a 6 m coping
+  // is a 6 m gap that looks identical to a 3 m one.
+  shoreRun(sim, { x: -78, z: -30.25, len: 28, axis: 'x', step: 3, color: C.kerb });
+  shoreRun(sim, { x: -78, z: -24, len: 28, axis: 'x', step: 3, color: C.kerb });
+  for (const lx of [-75, -69, -63, -57, -51]) { lampPost(sim, lx, -31); lampPost(sim, lx, -23); }
+  for (const bx of [-77, -66, -54]) bollard(sim, bx, -31, C.steelDark);
+  for (const bx of [-72, -60, -50.5]) bollard(sim, bx, -23, C.steelDark);
+  for (const bx of [-76, -59]) bench(sim, bx, -23);
+  trashBin(sim, -71, -23, 0x3f4650);
+  trashBin(sim, -58, -31, 0x3f4650);
+  hydrant(sim, -67, -31);
+  mailbox(sim, -53, -23);
+  newsBox(sim, -73, -31, 0xc23b2e);
+}
+
+function tenBackBlock(sim) {
+  // The contractor's yard, fenced on three sides and open to the street.
+  fenceRun(sim, { x: -78, z: -51.75, len: 16, axis: 'x', h: 1.25, color: C.tenYardFence });
+  fenceRun(sim, { x: -77.75, z: -51.5, len: 12, axis: 'z', h: 1.25, color: C.tenYardFence });
+  // The east fence stops at z −44.5, half a metre clear of the car park's own
+  // west kerb. Drawn to the full 14 m it ran x[−62.25,−62] straight down the
+  // kerb's own line — two runs in one fine cell, which is a ghost rather than a
+  // boundary.
+  fenceRun(sim, { x: -62.25, z: -51.5, len: 7, axis: 'z', h: 1.25, color: C.tenYardFence });
+  // The yard is laid in four z-bands so nothing has to be checked against
+  // everything: containers z[−50,−44], crates and bags z[−42,−41], the hut
+  // z[−38,−34], and the vehicles on the apron in front of it.
+  shippingContainer(sim, -77, 0, -50, 6, C.tenContainerB);
+  shippingContainer(sim, -70, 0, -50, 6, C.tenContainerC);
+  shippingContainer(sim, -77, 0, -46, 6, C.tenContainerA);
+  shippingContainer(sim, -70, 0, -46, 6, C.tenContainerB);
+  for (const [cx, cz] of [[-77, -42], [-74, -42], [-71, -42], [-68, -42]]) crateStack(sim, cx, cz, 2, C.dockTimber);
+  trashBags(sim, -65, -42);
+  tenWorksHut(sim, { x0: -77, z0: -38, w: 5, d: 4 });
+  for (const [mx, mz] of [[-73, -47], [-65, -35], [-61.5, -43], [-53, -34]]) lightMast(sim, mx, mz, 5, C.tenFence);
+
+  // The green, and the play frame `03` §4.4's own parks line establishes as this
+  // neighbourhood's vocabulary — District 4 fences its parks and District 9
+  // repeats the pattern at Costa Lopez. The back block gets the small version.
+  playgroundSet(sim, { x: -61, z: -47.5 });
+  for (const [tx, tz] of [[-60, -50], [-56, -50], [-52, -50], [-58, -45.5]]) tree(sim, tx, tz);
+  for (const bx of [-60, -54]) bench(sim, bx, -45.5);
+  lampPost(sim, -51, -48);
+  drinkingFountain(sim, -51, -50.5, 0x2f4a3a);
+
+  // The car park's own edge. A lot with no kerb is a plaza with cars on it.
+  shoreRun(sim, { x: -62, z: -44, len: 12, axis: 'x', step: 3, color: C.tenKerb });
+  shoreRun(sim, { x: -62.25, z: -44, len: 12, axis: 'z', step: 3, color: C.tenKerb });
+  for (const bx of [-61, -57, -53]) bollard(sim, bx, -33, C.steelDark);
+  bikeRack(sim, -51.5, -40, 3, 'z');
+}
+
+// --- 10N: THE NORTH POINT EDGE & THE MUDFLAT ---------------------------------
+// x[+8,+104] z[−112,−98]. Ninety-six metres of the map's north edge with zero
+// blocks on it before this task and 53 dead-ground samples over it — the second
+// worst cluster in the census and the one `03` §8.3 names most directly, since
+// its own list of edge-band ground ends on "mudflat" and its compass rose is
+// sited on "the northeast mudflat".
+//
+// THE FLAT IS AUTHORED AS `sand`, NOT DECLARED AS OPEN GROUND, and that is
+// District 6's finding applied at the last edge that had a choice: "authoring
+// the water is strictly better than declaring the ground empty, because the
+// water is content and the declaration is a promise not to build." A `sand`
+// rect is in `reportDeadGround`'s BY_DESIGN set exactly as `water` is, so it
+// buys the same census discount — but it is a rendered surface rather than a
+// covenant, and this district then earns the discount a second time by
+// furnishing the bank in front of it rather than leaving the flat to do the
+// work alone.
+function tenMudflatBank(sim) {
+  // The revetment: the flat's south bank, in 3 m lengths for the same reason
+  // every kerb in this district is.
+  // BOTH RUNS ARE A WHOLE NUMBER OF STEPS, and that is a probe constraint
+  // rather than tidiness. Two collinear runs at one z with a short remainder
+  // piece between them leave a 2 m gap between two identical 3 m copings —
+  // `probePlacementStep`'s exact sub-extent case, and the first draft's first
+  // failure. 36 and 42 are both divisible by 3, so the whole 78 m bank is one
+  // contiguous course with no gap anywhere in it.
+  shoreRun(sim, { x: 8, z: -104, len: 36, axis: 'x', step: 3, color: C.tenRevet });
+  shoreRun(sim, { x: 44, z: -104, len: 42, axis: 'x', step: 3, color: C.tenRevet });
+  // The bollard rank stops at the west bank: Partner Alley furnishes its own
+  // frontage, and a rank carried the full 78 m stood its last four inside that
+  // alley's lamp posts.
+  for (let bx = 10; bx <= 44; bx += 6) bollard(sim, bx, -103.5, C.steelDark);
+  fenceRun(sim, { x: 10, z: -101, len: 10, axis: 'x', h: 1.25, color: C.tenFence });
+  fenceRun(sim, { x: 24, z: -101, len: 9, axis: 'x', h: 1.25, color: C.tenFence });
+  fenceRun(sim, { x: 35, z: -101, len: 9, axis: 'x', h: 1.25, color: C.tenFence });
+  for (const [mx, mz] of [[12, -101.5], [22, -101.5], [32, -101.5], [42, -101.5], [90, -103], [99, -103]]) {
+    lightMast(sim, mx, mz, 5, C.tenFence);
+  }
+  for (const tx of [16, 26, 36]) tree(sim, tx, -102);
+  for (const bx of [18, 30]) bench(sim, bx, -99.5);
+  trashBin(sim, 40, -100, 0x40463c);
+}
+
+// `04` G2's North Point half (`03` §8.3, ~400 pieces across both halves). A
+// kerbed alley, lit and seated, with its 36 × 3 m raster area left clear.
+function tenPartnerAlley(sim) {
+  shoreRun(sim, { x: 48, z: -102.75, len: 36, axis: 'x', step: 3, color: C.tenKerb });
+  shoreRun(sim, { x: 48, z: -99.5, len: 36, axis: 'x', step: 3, color: C.tenKerb });
+  for (const lx of [50, 58, 66, 74, 82]) lampPost(sim, lx, -103.25);
+  for (const bx of [52, 62, 72, 80]) bench(sim, bx, -99);
+  for (const bx of [56, 68, 78]) bollard(sim, bx, -99, C.steelDark);
+  for (const mx of [54, 70]) lightMast(sim, mx, -103.75, 5, C.tenFence);
+  trashBin(sim, 60, -99, 0x40463c);
+  bikeRack(sim, 76, -103.75, 3, 'x');
+}
+
+// `04` G11's compass rose (~70). The map's northeast corner, kerbed on the three
+// sides that are not the map edge.
+function tenMudflatApron(sim) {
+  shoreRun(sim, { x: 87, z: -100.25, len: 16, axis: 'x', step: 3, color: C.tenKerb });
+  shoreRun(sim, { x: 86.75, z: -112, len: 12, axis: 'z', step: 3, color: C.tenKerb });
+  // 11.75 m, not 12: the east flank and the south kerb meet at the corner, and
+  // at 12 m the flank's last cell and the south run's last cell were the same
+  // fine cell — a ghost, not a corner. It stops on the south kerb's north face.
+  shoreRun(sim, { x: 102.75, z: -112, len: 11.75, axis: 'z', step: 3, color: C.tenKerb });
+  for (const bx of [89, 93, 97, 101]) bollard(sim, bx, -101, C.steelDark);
+  for (const bz of [-110, -106]) bollard(sim, 94, bz, C.steelDark);
+}
+
+// --- THE EMBEDDED HALF: no rect, by design -----------------------------------
+// Everything below stands inside a district that already has a row, and counts
+// toward that district's density rather than toward one of this district's own.
+// See the header: raising the neighbour's number IS §8.2's brief for this
+// district, and a second row over the same pieces would count them twice.
+
+// North Point Boulevard's WEST verge. District 7 built the boulevard, its east
+// footway and a 3.25 m park strip at x[+38.5,+41.75]; the 6.5 m between that
+// strip and District 1's canal terrace is the last unbuilt north-south corridor
+// on the map, and the dead-ground census reads a column of samples down it at
+// x ≈ +28. Two bands rather than one continuous strip: District 7's own aprons
+// occupy z[−64,−36] across this x range already, and a verge drawn through them
+// would be ground laid over ground.
+function tenBoulevardVerge(sim) {
+  for (const tz of [-90, -84, -78, -72, -66, -34, -28, -22, -16, -10]) tree(sim, 34.5, tz);
+  for (const bz of [-86, -70, -32, -14]) bench(sim, 34, bz);
+  for (const lz of [-88, -68, -30, -12]) lampPost(sim, 36.5, lz);
+  for (const bz of [-76, -20]) trashBin(sim, 36.5, bz, 0x40463c);
+  for (const bz of [-80, -24]) bollard(sim, 36.5, bz, C.steelDark);
+}
+
+// The two remaining census clusters, both inside a neighbour's rect and both
+// therefore embedded rather than rowed. The canal/shelf seam at x[0,+8] z +64 is
+// 5 m of ground between District 6's south lawn and District 9's river band that
+// neither district's decor reaches. The North Point square is a 22 × 14 m hole
+// INSIDE District 7's own rect — the block between North Point Boulevard's south
+// end and Twenty|20's apron, which that district's seven towers and one circuit
+// of streets happen to leave empty. `probeCellOwnership` cannot see it and
+// District 7's density row does not either, because a rect scores the cells its
+// pieces occupy and never the cells they do not; only the dead-ground census
+// finds it. That is exactly the case §8.2 wrote this district for.
+function tenSeamClumps(sim) {
+  for (const tx of [2, 10, 18, 26]) tree(sim, tx, 63.5);
+  for (const bx of [6, 22]) bench(sim, bx, 62.5);
+  for (const lx of [14, 27]) lampPost(sim, lx, 62.5);
+
+  shoreRun(sim, { x: 50, z: -24.25, len: 21, axis: 'x', step: 3, color: C.tenKerb });
+  shoreRun(sim, { x: 50, z: -10, len: 21, axis: 'x', step: 3, color: C.tenKerb });
+  // The tree line starts at x 54, not 52: District 7's turning-head apron already
+  // stands a tree at (51,−12), and a 2 m canopy at x 52 shares a leaf cell with
+  // it. The square's west edge is its kerb, not its planting.
+  for (const [tx, tz] of [
+    [54, -22], [60, -22], [66, -22], [70, -22],
+    [54, -13], [60, -13], [66, -13], [70, -13],
+  ]) tree(sim, tx, tz);
+  for (const bx of [57, 67]) { bench(sim, bx, -17.5); bench(sim, bx, -15.5); }
+  for (const lx of [52, 61, 71]) lampPost(sim, lx, -17);
+  for (const bx of [56, 66]) bollard(sim, bx, -11, C.steelDark);
+  trashBin(sim, 61, -11, 0x40463c);
+}
+
+function tenVehicles(sim) {
+  for (const v of CAMBRIDGE_VEHICLES) {
+    if (v.d !== 10) continue;
+    if (v.kind === 'sedan') sedan(sim, v.x, v.z, v.body, v.roof, v.axis);
+    else if (v.kind === 'boxVan') boxVan(sim, v.x, v.z, v.len, v.cab, v.box, v.axis);
+    else if (v.kind === 'bus') bus(sim, v.x, v.z, v.body, v.axis);
+    else bigTruck(sim, v.x, v.z, v.box);
+  }
+}
+
+export function streetLifeDistrict(sim) {
+  tenYardThroat(sim);
+  tenSprocketApron(sim);
+  tenYardApproach(sim);
+  tenGoreStreet(sim);
+  tenBackBlock(sim);
+  tenMudflatBank(sim);
+  tenPartnerAlley(sim);
+  tenMudflatApron(sim);
+  tenBoulevardVerge(sim);
+  tenSeamClumps(sim);
+  tenVehicles(sim);
+}
+
+// District 10's ground. Every rect is either the surface under something this
+// district builds or one of the three gallery aprons, and none of them overlaps
+// a neighbour's: `probeBareGround` fails a footprint cell that no layer covers,
+// so a district that lays furniture on unclaimed ground has to claim it first.
+export const TEN_DECOR = {
+  parks: [
+    { x: -116, z: -74, w: 30, d: 27 },      // 10W, the scrub verge south of the yard fence
+    { x: -62, z: -52, w: 12, d: 8 },        // 10G, the back block's green
+    { x: 8, z: -104, w: 38, d: 5 },         // 10N, the mudflat's west bank
+    // The boulevard verge, in two bands with District 7's aprons between them.
+    { x: 32, z: -92, w: 6.5, d: 28 },
+    { x: 32, z: -36, w: 6.5, d: 28 },
+    { x: -1, z: 61, w: 30, d: 5 },          // the canal/shelf seam
+    { x: 50, z: -24.5, w: 22, d: 15 },      // the North Point square, inside District 7
+    { x: -74, z: -94, w: 8, d: 38 },        // 10Y, the haul road's east verge
+  ],
+  sand: [
+    // The Millers River flat. `03` §8.3's fourth named category of edge-band
+    // ground, and the only `sand` rect in the scene — the Charles is a dammed
+    // basin with a seawall, so nothing else on this map has a beach.
+    { x: 8, z: -112, w: 78, d: 8 },
+  ],
+  plaza: [
+    { x: -105, z: -112, w: 20, d: 4.5 },    // the sprocket apron (G11), sized to
+                                            // reach both flank kerbs' footprint cells
+    { x: -116, z: -96, w: 29, d: 22 },      // 10W, the materials yard
+    { x: -84, z: -94, w: 10, d: 38 },       // 10Y, the haul road
+    { x: -78, z: -52, w: 16, d: 20.25 },    // 10G, the contractor's yard
+    { x: -62, z: -44, w: 12, d: 12.25 },    // 10G, the car park
+    { x: 46, z: -104, w: 40, d: 6 },        // Partner Alley and its bank (G2)
+    { x: 86.5, z: -112, w: 16.75, d: 12 },  // the compass-rose apron (G11), same
+                                            // half-metre allowance for its flank kerbs
+  ],
+  sidewalks: [
+    { x: -78, z: -31.75, w: 28, d: 1.75 },  // Gore Street East, north
+    { x: -78, z: -24, w: 28, d: 1.75 },     // and south
+  ],
+  rail: [
+    { x: -118, z: -108, w: 32, d: 12 },     // 10W, the siding ladder
+  ],
+};
+
+export const TEN_AMBIENT = {
+  // Gulls over the flat, which is the one place on the map they have anything
+  // to stand on that is not the Charles. `voxelworld.js` derives them against
+  // the scene's `water`/`sand`/`boardwalk` rects, and this district authors the
+  // scene's only `sand`.
+  gulls: [
+    { x: 30, z: -108, count: 9 },
+    { x: 72, z: -108, count: 7 },
+  ],
+  pigeons: [
+    { x: -70, z: -34, count: 11 },          // the works yard
+    { x: 64, z: -101, count: 9 },           // Partner Alley
+    { x: -100, z: -60, count: 8 },          // the scrub verge
+  ],
+  steam: [
+    { x: -110, z: -62, rate: 0.16 },        // the works hut's flue
+  ],
+};
+
 // --- THE SHELL ---------------------------------------------------------------
 // Ground, streets, decor, kerbs, street furniture, vehicles, ambient life and
 // camera blockers. IDENTICAL across all three variants by construction: it is
@@ -9706,6 +10608,16 @@ export function cambridgeShell(sim, buildings, opts = {}) {
   //   Adding the two kinds to the renderer is a change to a file this task may not
   //   touch and to a contract four other scenes share; it belongs to whoever
   //   revisits `03` §9.2 at P6.10, and the note is here so it is not re-derived.
+  //
+  //   P6.10 ANSWERS IT, AND THE ANSWER IS THAT §9.2 RECONCILES. `trains` is in
+  //   the same position as `ducks` and `geese` — named by §9.2, absent from
+  //   `voxelworld.js:1267`, and this scene has two rail yards and a Green Line
+  //   car standing on the viaduct without one. The roster is FINAL at the four
+  //   kinds below. Adding three to the renderer is a shared-contract change to a
+  //   file four other scenes share, made for ambient decoration, on the last
+  //   district of a level build; declaring them without adding them would make
+  //   `probeAmbient` green on birds that do not exist. Full argument and the doc
+  //   edit it wants: the P6.10 RECONCILIATION block, item 5.
   sim.sceneAmbient = {
     gulls: [],
     steam: [
@@ -9725,6 +10637,19 @@ export function cambridgeShell(sim, buildings, opts = {}) {
   };
   for (const [k, items] of Object.entries(opts.ambient ?? {})) sim.sceneAmbient[k].push(...items);
 
+  // P6.11, and it needed no edit — this line has been the shell's last statement
+  // since Phase 5 and it runs after `buildings(sim)`, so it has always been
+  // generated over the FINISHED geometry rather than typed. `03` §9.4's rule
+  // ("camera blockers never hand-written") holds by construction: there is no
+  // literal blocker anywhere in this file to drift.
+  //
+  // WHAT DISTRICT 10 DID TO THE COUNT: 813 → 814, one new rect. `generateBlockers`
+  // takes everything ≥ 6 m tall and the whole district has exactly one thing that
+  // is — the stacked container pair in the Inner Belt materials yard, whose top
+  // course tops out at 6.0 m. Every mast is 5.25, every fence 1.5, every tree 2.5.
+  // A district made of ground does not occlude a camera, which is the correct
+  // outcome and worth recording as a check on the content rather than a curiosity:
+  // if this number had jumped, something here would have been a building.
   sim.cameraBlockers = generateBlockers(sim);
 }
 
@@ -10107,10 +11032,11 @@ export function buildCambridge(sim) {
     northPointDistrict(s);
     charlesShoreDistrict(s);
     landmarkShelfDistrict(s);
+    streetLifeDistrict(s);
   }, {
     bounds: CAMBRIDGE_BOUNDS,
-    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR, SEAM_DECOR, THORNDIKE_DECOR, CANAL_DECOR, NORTH_POINT_DECOR, CHARLES_DECOR, SHELF_DECOR),
-    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT, SEAM_AMBIENT, THORNDIKE_AMBIENT, CANAL_AMBIENT, NORTH_POINT_AMBIENT, CHARLES_AMBIENT, SHELF_AMBIENT),
+    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR, SEAM_DECOR, THORNDIKE_DECOR, CANAL_DECOR, NORTH_POINT_DECOR, CHARLES_DECOR, SHELF_DECOR, TEN_DECOR),
+    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT, SEAM_AMBIENT, THORNDIKE_AMBIENT, CANAL_AMBIENT, NORTH_POINT_AMBIENT, CHARLES_AMBIENT, SHELF_AMBIENT, TEN_AMBIENT),
   });
 }
 
