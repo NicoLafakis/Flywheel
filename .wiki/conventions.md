@@ -128,5 +128,10 @@
 - `STATUS.md` is a lean board (planned / doing / done), budget ≤ 5,000 tokens:
   a shipped item is ONE line there. The detailed dated entry goes in
   `CHANGELOG.md`; build narrative never accretes on the board.
+- **Every STATUS.md entry carries a date** (`YYYY-MM-DD`, added or last
+  materially updated) — open items included, not just shipped ones. The date is
+  what makes an entry traceable to commits and makes staleness visible; an
+  undated entry can't be pruned with confidence. When touching an old undated
+  entry, date it from `git log -- STATUS.md` rather than guessing.
 - `covers:` globs must keep matching real paths.
 - ADRs are append-only; supersede, never edit an accepted one.
