@@ -11,8 +11,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Flywheel - A sprocket's story</title>
 <link rel="stylesheet" href="css/main.css">
+<!-- three is VENDORED, not fetched. It used to point at cdn.jsdelivr.net, which
+     made a third-party host a hard dependency of the boot: when that fetch failed
+     (observed live as ERR_CONNECTION_RESET, succeeded on retry minutes later) no
+     module in js/ ever evaluated, nothing removed #boot-splash, and the game sat
+     on LOADING… forever with no error. Conference/venue wifi makes that likely,
+     not theoretical. js/vendor/ holds third-party code that ships as-is and is
+     never edited, which keeps it out of the hand-authored js/ namespace while
+     still being a plain same-origin path this no-build static site can serve.
+     Pinned at 0.160.0; tools/validate.mjs fails the build if this ever points
+     off-origin again. -->
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+{ "imports": { "three": "./js/vendor/three.module.js" } }
 </script>
 </head>
 <body>
@@ -52,6 +62,66 @@
   </div>
   <div id="screen-root"></div>
 </div>
+<!-- Boot watchdog. Deliberately a CLASSIC inline script, not a module and not an
+     import: the failure it exists to report is "module loading itself broke", so
+     anything that needs the module graph to run is useless here. It is inline for
+     the same reason — a separate file is one more fetch that can be the thing
+     that failed.
+
+     The splash covers the slow case; this covers the FAILED case. Two triggers:
+
+       (a) 20 s elapsed and #boot-splash is still in the DOM. The splash comment
+           above cites 10-15 s cold loads from playtest, so anything at or under
+           that would fire on a working-but-slow boot and tell the player a lie.
+           20 s clears the observed worst case with margin while still being
+           inside the span a person will actually keep waiting. The engine is
+           same-origin now, so a real cold load is well under this.
+
+       (b) an uncaught error or rejection while the splash is still up. A hard
+           module failure surfaces immediately rather than making the player wait
+           out the full 20 s for news that already arrived.
+
+     js/main.js is NOT modified and does not know this exists. The contract runs
+     one way: main.js removes #boot-splash when the first screen can mount, and
+     every path here re-queries the live DOM for that element and does nothing if
+     it is gone. There is no shared reference to go stale and no ordering to get
+     wrong — after a successful boot the element is absent, so a later gameplay
+     error hits the same guard and is correctly ignored. -->
+<script>
+(function () {
+  var TIMEOUT_MS = 20000;
+  var done = false;
+  function bootFailed() {
+    if (done) return;
+    var splash = document.getElementById('boot-splash');
+    if (!splash) { done = true; return; }   // main.js got there — boot is fine
+    done = true;
+    var line = splash.querySelector('span');
+    if (!line) { line = document.createElement('span'); splash.appendChild(line); }
+    line.textContent = 'The game could not start. Please reload the page to try again.';
+    line.style.opacity = '1';
+    line.style.letterSpacing = '1px';
+    line.style.maxWidth = '22em';
+    line.style.textAlign = 'center';
+    line.style.lineHeight = '1.5';
+  }
+  // Capture phase on purpose: a module script that cannot fetch itself (or its
+  // "three" import) fires a NON-bubbling error on the <script> element, which a
+  // plain bubble-phase window listener never sees — and that is precisely the
+  // failure being watched for. Capture also surfaces every other resource error,
+  // so the target is filtered: element targets count only when they are the
+  // script tag, while a genuine uncaught exception (target === window) always
+  // does. Without that filter a single missing texture would claim the whole
+  // game had failed to start.
+  window.addEventListener('error', function (e) {
+    var t = e.target;
+    if (t && t !== window && t.tagName !== 'SCRIPT') return;
+    bootFailed();
+  }, true);
+  window.addEventListener('unhandledrejection', bootFailed);
+  setTimeout(bootFailed, TIMEOUT_MS);
+})();
+</script>
 <script type="module" src="js/main.js"></script>
 </body>
 </html>

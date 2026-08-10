@@ -1375,6 +1375,69 @@ function validateSaveSchema() {
   console.log(`  save schema: v1->v${CURRENT_VERSION} chain and freshSave() agree on ${freshKeys.size} top-level key(s) and ${freshSettingKeys.size} setting(s)`);
 }
 
+// --- offline-boot guard -------------------------------------------------------
+// index.html must not reach off-origin for anything the boot needs. This is a
+// regression guard with a live incident behind it: the import map used to
+// resolve "three" to cdn.jsdelivr.net, so the entire 3D engine arrived over a
+// third-party host at runtime. When that fetch failed — observed as
+// ERR_CONNECTION_RESET, then succeeding on retry minutes later — no module in
+// js/ ever evaluated, js/main.js never reached the line that removes
+// #boot-splash, and the game sat on "FLYWHEEL / LOADING…" indefinitely with no
+// error anywhere a player could see. The splash was built for a SLOW load; a
+// FAILED load had no path at all.
+//
+// The engine is vendored at js/vendor/three.module.js and the map points there,
+// which is why this check exists rather than a comment: the CDN URL is a
+// one-line edit away and the symptom of reintroducing it is invisible on a good
+// connection. It only shows up on the connection we cannot control — the venue
+// wifi at a conference demo — which is the worst possible discovery surface.
+//
+// Every reference is checked, not just the map: a <script src> or a stylesheet
+// on a remote host is the same dependency wearing a different tag. Relative,
+// root-relative and same-document paths all pass; anything with a scheme or a
+// protocol-relative "//host" prefix fails.
+const OFFSITE_RE = /^(?:[a-z][a-z0-9+.-]*:)?\/\//i;
+function validateOfflineBoot() {
+  console.log('Validating offline boot (index.html has no off-origin dependencies)...');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  let refs = 0, offsite = 0;
+
+  const map = /<script[^>]*type=["']importmap["'][^>]*>([\s\S]*?)<\/script>/i.exec(html);
+  if (!map) {
+    fail('offline boot: index.html has no importmap — js/*.js import "three" as a bare specifier and nothing resolves it');
+  } else {
+    let imports;
+    try {
+      imports = JSON.parse(map[1]).imports || {};
+    } catch (e) {
+      fail(`offline boot: the importmap in index.html is not valid JSON (${e.message}) — the browser drops the whole map and every bare import fails`);
+      imports = {};
+    }
+    for (const [spec, target] of Object.entries(imports)) {
+      refs++;
+      if (OFFSITE_RE.test(target)) {
+        offsite++;
+        fail(`offline boot: importmap resolves "${spec}" to ${target} — the game cannot boot without that host, so a flaky connection (venue wifi, a CDN blip) leaves the player stuck on the LOADING splash forever. Vendor it under js/vendor/ and point the map at the local path.`);
+      }
+    }
+  }
+
+  for (const [re, what] of [
+    [/<script[^>]*\ssrc=["']([^"']+)["']/gi, 'script'],
+    [/<link[^>]*\shref=["']([^"']+)["']/gi, 'stylesheet/link'],
+  ]) {
+    for (const m of html.matchAll(re)) {
+      refs++;
+      if (OFFSITE_RE.test(m[1])) {
+        offsite++;
+        fail(`offline boot: index.html loads a ${what} from ${m[1]} — an off-origin fetch the page cannot boot (or cannot render) without. Vendor it into the repo and reference it by relative path.`);
+      }
+    }
+  }
+
+  console.log(`  offline boot: ${refs} index.html reference(s), ${offsite === 0 ? 'all same-origin' : `${offsite} OFF-ORIGIN`}`);
+}
+
 console.log(`Validating ${levelsToCheck.length} level(s)...`);
 let minMargin = Infinity, minMarginLevel = 0;
 let maxTimeToFirstEat = 0;
@@ -1402,6 +1465,7 @@ for (const level of levelsToCheck) {
   }
 }
 
+validateOfflineBoot();
 validateSaveSchema();
 validateVoxelSandbox();
 validateVoxelCollisions();
