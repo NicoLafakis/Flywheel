@@ -10,8 +10,9 @@ covers:
 ---
 # Cambridge sandbox — the build tasks
 
-**Status:** in flight. Phases 0–5 are shipped, and Districts 1–4 (P6.1–P6.4)
-are landed. Next up is P6.5.
+**Status:** in flight. Phases 0–5 are shipped, Districts 1–5 (P6.1–P6.5) are
+landed, and P6.12 (scene registration) was pulled forward out of order. Next up
+is P6.6.
 **Date:** 2026-08-06, kept current as tasks land.
 **Reads with:** every other doc in this package — this page sequences their
 decisions rather than re-arguing them. The owning-doc convention from `03`/`04`
@@ -183,7 +184,8 @@ than a half-built one. Ordered to follow `03` §7.4's intended route where
 possible — District 1 first because it is the spawn/climax anchor and the first
 thing `probeHeroIdentity` needs real geometry to check.
 
-**Districts 1–4 are landed.** P6.5 is next.
+**Districts 1–5 are landed.** P6.6 is next. P6.12 was pulled forward and landed
+early — see the note under the table.
 
 | ID | State | Done when | Files / surfaces | Deps | Size |
 |---|---|---|---|---|---|
@@ -191,31 +193,40 @@ thing `probeHeroIdentity` needs real geometry to check.
 | P6.2 | **done** (`21171cd`) | **District 1 — Canal Park, the Hero Block.** 2 Canal Park member-by-member (`03` §6.1), 1 Canal Park, the front-door ring, spawn seating at (0, −14). `probeHeroIdentity`'s AABB pair gets real geometry. `HERO_SIGNAGE` authored to the `'entry'` default seam (`03` §6.5) — see the outside-information note below. Adds District 1's row to `CAMBRIDGE_DISTRICTS` and widens `sim.boundsRect` to hug Districts 1+2. | `js/voxelscene-cambridge.js` | P6.1, P3.5 | L |
 | P6.3 | **done** (`860919f`) | **District 3 — Lechmere & the Viaduct.** First route leg; the local-recognition beat. Includes the Inner Belt yard geometry and that district's `CAMBRIDGE_OPEN_GROUND` ballast span. Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect` to hug whatever districts exist by that point. | `js/voxelscene-cambridge.js` | P6.2 | M |
 | P6.4 | **done** (`d0a83e9`) | **District 4 — Cambridge Street & the Portuguese Seam.** The density reservoir. Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
-| P6.5 | next | **District 5 — Thorndike Civic.** The First Street Garage needs all three of `03` §8.2's density mitigations; with fewer, a 123 × 75 m parking deck reads as a dead zone in the middle of the district, and the density probe will say so. Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
-| P6.6 | | **District 6 — The Canal & CambridgeSide.** Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
+| P6.5 | **done** (`dfb50ac`) | **District 5 — Thorndike Civic.** The First Street Garage needs all three of `03` §8.2's density mitigations; with fewer, a 123 × 75 m parking deck reads as a dead zone in the middle of the district, and the density probe will say so. Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
+| P6.6 | next | **District 6 — The Canal & CambridgeSide.** Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
 | P6.7 | | **District 7 — North Point & Cambridge Crossing.** District 3 already built both of `03` §4.11's named buildings, so this district's share of that frontage is already on the map — see "Notes carried forward". Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
 | P6.8 | | **District 8 — The Charles Shore.** Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`, and declares `CAMBRIDGE_OPEN_GROUND`'s other declarable span (the Charles south of the Longfellow line). | `js/voxelscene-cambridge.js` | P6.1 | M |
 | P6.9 | | **District 9 — The Landmark Shelf.** Stata Center (`03` §5.2, watch the grade-clause clarification on plinth-run sizing), Great Dome + Killian Court, Longfellow, Zakim, Bunker Hill, MIT Green Building, Kendall/MIT, NECCO water tower. `03` §4 gives this district no rect — it is described as "the Ring B annulus, all edges" — so this task decides between per-edge-band rows and extending `probeDistrictDensity` to an annulus shape. A full-map rect would swallow the Ring A core and let the scene's highest-risk district never fail the probe, which is the outcome to avoid. Also resolves the TD Garden law-vs-doc 0.25 m gap (declare a `03` §1.5-style exception or nudge the position in). | `js/voxelscene-cambridge.js` | P6.1 | L |
 | P6.10 | | **District 10 — Street life, kerb kit & the edge-band gallery.** All five gallery items belong to `04`'s catalogue (`03` §8.3), so coordinate with P7.3 rather than authoring them here. `03` §4 calls this district's extent "scene-wide" rather than giving it a rect; decide whether it gets a probed `CAMBRIDGE_DISTRICTS` row at all or folds into the other nine as embedded props. The gallery's marks sit on an apron *adjacent* to a declared `CAMBRIDGE_OPEN_GROUND` span rather than inside one — `probeOpenGround` checks a span for emptiness, so a span holding content is no longer open ground. Finally widens `sim.boundsRect` to `03` §1.1's full map rect, now that every district exists to justify it. This is also where the doc-level reconciliations listed below get folded back into `02` and `03`. | `js/voxelscene-cambridge.js` | P6.2–P6.9 | S |
 | P6.11 | | `generateBlockers(sim)` run over the finished geometry; camera blockers never hand-written. | `js/voxelscene-cambridge.js` | P6.2–P6.10 | S |
-| P6.12 | | Scene wired in so it is both reachable and checked, at four points. (1) `js/voxelsim.js`: an `import { buildCambridge }` line, a `cambridge` branch in the scene dispatch alongside `manhattan`/`brooklyn`/`boston`, and a `cambridge` entry in `GOALS` (name + `targetFraction`, matching the other scenes). Nothing in the codebase imports `js/voxelscene-cambridge.js` today, so until this lands the sim cannot build the scene at all. (2) `tools/validate.mjs`: a Cambridge validation block modelled on the boston one — import the scene's exported tables, construct the sim, run the full probe list including `probeDistrictDensity` and `probeHeroIdentity` with Cambridge's real district rows and hero pair, plus the grade-diagonal and placement-step probes and a deterministic excursion check. The validator currently covers voxel/manhattan/upper-manhattan/brooklyn/boston only. (3) `js/main.js`: a `cambridge` entry in `AUTHORED_SCENES` (label/hud/intro subtitle, matching the existing entries' shape). (4) `js/ui/screens.js`: a `cambridge` row in `FREE_PLAY`, without which the finished scene has no way to load from the landing screen's free-play picker. | `js/voxelsim.js`, `tools/validate.mjs`, `js/main.js`, `js/ui/screens.js` | P6.11 | M — was S when this task was only the two registration entries; the validator block alone is ~40 lines of probe calls plus the excursion determinism check, and the sim dispatch is what first makes the scene runnable at all. |
+| P6.12 | **done** (`2a7e0cc`), out of order | Scene wired in so it is both reachable and checked, at four points. (1) `js/voxelsim.js`: an `import { buildCambridge }` line, a `cambridge` branch in the scene dispatch alongside `manhattan`/`brooklyn`/`boston`, and a `cambridge` entry in `GOALS` (name + `targetFraction`, matching the other scenes). Before this landed nothing in the codebase imported `js/voxelscene-cambridge.js`, so the sim could not build the scene at all. (2) `tools/validate.mjs`: a Cambridge validation block modelled on the boston one — import the scene's exported tables, construct the sim, run the full probe list including `probeDistrictDensity` and `probeHeroIdentity` with Cambridge's real district rows and hero pair, plus the grade-diagonal and placement-step probes and a deterministic excursion check. (3) `js/main.js`: a `cambridge` entry in `AUTHORED_SCENES` (label/hud/intro subtitle, matching the existing entries' shape). (4) `js/ui/screens.js`: a `cambridge` row in `FREE_PLAY`, without which the finished scene has no way to load from the landing screen's free-play picker. | `js/voxelsim.js`, `tools/validate.mjs`, `js/main.js`, `js/ui/screens.js` | P6.11 | M — was S when this task was only the two registration entries; the validator block alone is ~40 lines of probe calls plus the excursion determinism check, and the sim dispatch is what first makes the scene runnable at all. |
 
 **Gate, per district:** `probeCellOwnership`, P3.2 (grade diagonal), P3.3
 (placement step) clean; that district's own `gapFloor` from `03` §8.2 met.
 **Gate, phase-end:** the map is complete, driveable, and goal-completable
 (50% of `totalMass`) even with Phase 7 not yet started.
 
-**The validator does not cover Cambridge yet, and will not until P6.12.**
-`js/voxelscene-cambridge.js` is not imported by anything: `js/voxelsim.js` has no
-`cambridge` branch in its scene dispatch, and `tools/validate.mjs` validates
-voxel, manhattan, upper-manhattan, brooklyn and boston only. So the probes this
-package leans on — `probeDistrictDensity`, `probeHeroIdentity`, the
-grade-diagonal and placement-step probes — have never run against Cambridge in a
-validator pass. Every density figure, piece count and gap measurement quoted in
-this package and in `02`/`03` came from ad-hoc harnesses written for that one
-check, not from the standing validator, which is why they are worth re-taking
-rather than trusting once P6.12 lands. Read the validator's ALL PASS as saying
-nothing at all about Cambridge until then.
+**P6.12 was pulled forward, so the validator now covers Cambridge.** It was
+scheduled last, after all ten districts, and moved because the scene was
+reachable by nothing — no import, no dispatch branch, no validator block — so
+the four districts standing at the time had never been through a single probe
+and every density figure, piece count and gap measurement in this package and in
+`02`/`03` came from ad-hoc harnesses rather than the standing validator.
+Building six more districts on that footing would have meant six more unverified
+ones. `js/voxelsim.js` now imports `buildCambridge`, dispatches on `cambridge`
+and carries its `GOALS` row; `tools/validate.mjs` has a `validateCambridge()`
+block modelled on `validateBoston()`; `js/main.js` and `js/ui/screens.js` carry
+the `AUTHORED_SCENES` and `FREE_PLAY` entries, so the scene loads from the
+free-play picker. `probeDistrictDensity` takes `CAMBRIDGE_DISTRICTS` rather than
+the `[]` every other scene passes, and `probeHeroIdentity` takes the real
+hero/not-hero pairs — the first time either has run against real tables in this
+repo. The excursion drives `CAMBRIDGE_ROUTE` itself instead of a validator-local
+waypoint copy, because the district rects and `gapFloor`s were authored against
+those exact legs, and it holds the same `≥ 300` eaten and `≥ 4` SIZE floors as
+every other scene. Figures quoted in this package that predate `2a7e0cc` are
+still worth re-taking against the validator rather than trusting, but from here
+`ALL PASS` does say something about Cambridge.
 
 **Waiting on outside information.** `02` §8 leaves HubSpot's exterior signage on
 2 Canal Park Unverified, along with whether both buildings are still
@@ -263,6 +274,19 @@ exactly the same way missing content does:
 
 Findings from the districts already landed that change what a later task should
 do. Each is measured against the built tree, not inferred from the docs.
+
+**The SIZE-ladder multiplier is now pinned at its ×10 cap, so from here mass
+buys SIZE monotonically.** District 5 took `totalMass` past 42,000, which is
+where `voxelsim.js:316`'s `Math.min(10, …)` stops rising. The crossing is worth
+knowing because it happened *during* the district that also added the mass: the
+first draft of route leg 5 still read SIZE 4, not because the content was thin
+but because the ladder got 2× more expensive at the same moment the mass
+arrived. Three passes through the garage deck instead of one closed it, and the
+excursion now reaches SIZE 5 against P8.2's `≥ 4` floor — off the floor it had
+been sitting on with zero margin. Every district from P6.6 on is measured
+against a multiplier that can no longer move, so a SIZE reading that fails to
+improve after adding a district is a real content signal rather than the ladder
+re-scaling underneath the measurement.
 
 **District rects are measured, not copied from `03` §4.** A rect that borrows a
 neighbour's tower flatters its own density. District 3 built as `03` §4.3 writes
@@ -359,6 +383,18 @@ from District 5's expected reach once §4.5 lands, so whichever of P6.5/P6.10 is
 genuinely adjacent picks it up. Chang Shing is a real outlier (66 m out, nothing
 near it) and is flagged for P8.5-style owner review rather than pre-assigned.
 
+**Two District 5 items are not built, and `03` §4.5 contradicts itself about
+them — for P6.10 to reconcile.** The Registry of Deeds and the old Middlesex
+County Courthouse both derive into ground District 4 already occupies (759 and
+223 existing blocks inside their footprints, with Third Street's carriageway
+running through both), and §4.5's own rect excludes both seats — so its contents
+list and its rect disagree before this file is consulted. Building them would
+have meant demolishing built, verified District 4 geometry to satisfy a list the
+same section's rect already rules out. They ship as `CAMBRIDGE_OFFSETS` rows
+34–35 with the plan recorded and no district claim, which keeps the derivation
+auditable without putting geometry in contested ground. P6.10 decides which half
+of §4.5 is wrong: the contents list, the rect, or the seats.
+
 **One known offset mismatch, left as-is.** `03` §1.2's law places the Davenport
 15 m east / 7.6 m north of where District 2 actually ships, because Phase 5
 built to `03` §4's approximate rect rather than to the law. District 2 is frozen
@@ -418,9 +454,10 @@ this._sizeLadder = SIZE_MASS.map((m) => m * 0.3 * Math.min(10, Math.max(1,
 ```
 
 District 2 alone (totalMass 9,299) multiplies ×2; Districts 1+2 (totalMass
-21,783) already multiplies ×5 — every rung 2.5× more expensive — and the
-finished ten-district map will likely hit the ×10 cap, another 2× on top.
-Measured on Districts 1+2 at ×5, the Davenport excursion reaches SIZE 3 against
+21,783) already multiplies ×5 — every rung 2.5× more expensive — and District 5
+took `totalMass` past 42,000, which pins the multiplier at its ×10 cap for the
+rest of the build. Measured on Districts 1+2 at ×5, the Davenport excursion
+reaches SIZE 3 against
 P8.2's `≥ 4`, and not because of a content regression: holding the multiplier
 and the route fixed, District 1 strictly *improves* the excursion. That is the
 ladder's own design working as intended.
@@ -462,8 +499,8 @@ order among these is flexible) → P6.10–P6.12 (glue, blockers & scene
 registration) → P7.1–P7.2b (registry fields) → P7.3–P7.4b (hidden content) →
 P8.1–P8.5 (sign-off).
 
-Everything up to and including P6.4 is done, so the live critical path now runs
-P6.5 → P6.6–P6.9 → P6.10–P6.12 → P7 → P8.
+Everything up to and including P6.5 is done, and P6.12 came early, so the live
+critical path now runs P6.6–P6.9 → P6.10, P6.11 → P7 → P8.
 
 The longest pole was Phase 2, the engine change, and it has landed. What remains
 is authoring effort, which scales with people.

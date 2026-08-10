@@ -1,15 +1,15 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-09T22:42:11+00:00",
+    "generatedAt": "2026-08-10T03:27:09+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
-      "files": 34,
-      "symbols": 153,
-      "edges": 33,
+      "files": 35,
+      "symbols": 122,
+      "edges": 8,
       "modules": 2,
-      "reusedFromCache": 34
+      "reusedFromCache": 26
     }
   },
   "files": {
@@ -60,163 +60,11 @@
     },
     "js/main.js": {
       "lang": "javascript",
-      "hash": "eafd0bf2dc13b03a33888e3c60befd68cf92e300dbcc73d8d9f1f62ec75f3191",
-      "loc": 653,
+      "hash": "5a009e950722a2c6496945d9c2d0079d18010d1fc80383a6dd39e0169782f212",
+      "loc": 671,
       "module": "js",
-      "symbols": [
-        {
-          "name": "blip",
-          "kind": "function",
-          "line": 22,
-          "exported": false
-        },
-        {
-          "name": "wantedTier",
-          "kind": "function",
-          "line": 86,
-          "exported": false
-        },
-        {
-          "name": "applyQuality",
-          "kind": "function",
-          "line": 93,
-          "exported": false
-        },
-        {
-          "name": "startQuality",
-          "kind": "function",
-          "line": 108,
-          "exported": false
-        },
-        {
-          "name": "computeShopBonus",
-          "kind": "function",
-          "line": 113,
-          "exported": false
-        },
-        {
-          "name": "equippedSkinId",
-          "kind": "function",
-          "line": 122,
-          "exported": false
-        },
-        {
-          "name": "applyVoxTuning",
-          "kind": "function",
-          "line": 183,
-          "exported": false
-        },
-        {
-          "name": "startLevel",
-          "kind": "function",
-          "line": 194,
-          "exported": false
-        },
-        {
-          "name": "sunDirOf",
-          "kind": "function",
-          "line": 241,
-          "exported": false
-        },
-        {
-          "name": "startVoxelSandbox",
-          "kind": "function",
-          "line": 304,
-          "exported": false
-        },
-        {
-          "name": "teardownWorld",
-          "kind": "function",
-          "line": 443,
-          "exported": false
-        },
-        {
-          "name": "endLevel",
-          "kind": "function",
-          "line": 449,
-          "exported": false
-        },
-        {
-          "name": "frame",
-          "kind": "function",
-          "line": 468,
-          "exported": false
-        },
-        {
-          "name": "endSandbox",
-          "kind": "function",
-          "line": 616,
-          "exported": false
-        },
-        {
-          "name": "resize",
-          "kind": "function",
-          "line": 627,
-          "exported": false
-        }
-      ],
-      "imports": [
-        {
-          "raw": "./camera.js",
-          "resolved": "js/camera.js",
-          "external": false
-        },
-        {
-          "raw": "./controls.js",
-          "resolved": "js/controls.js",
-          "external": false
-        },
-        {
-          "raw": "./levels.js",
-          "resolved": "js/levels.js",
-          "external": false
-        },
-        {
-          "raw": "./quality.js",
-          "resolved": "js/quality.js",
-          "external": false
-        },
-        {
-          "raw": "./save.js",
-          "resolved": "js/save.js",
-          "external": false
-        },
-        {
-          "raw": "./sim.js",
-          "resolved": "js/sim.js",
-          "external": false
-        },
-        {
-          "raw": "./ui/hud.js",
-          "resolved": "js/ui/hud.js",
-          "external": false
-        },
-        {
-          "raw": "./ui/ready.js",
-          "resolved": "js/ui/ready.js",
-          "external": false
-        },
-        {
-          "raw": "./ui/screens.js",
-          "resolved": "js/ui/screens.js",
-          "external": false
-        },
-        {
-          "raw": "./voxelsim.js",
-          "resolved": "js/voxelsim.js",
-          "external": false
-        },
-        {
-          "raw": "./voxelworld.js",
-          "resolved": "js/voxelworld.js",
-          "external": false
-        },
-        {
-          "raw": "./world3d.js",
-          "resolved": "js/world3d.js",
-          "external": false
-        }
-      ]
+      "symbols": [],
+      "imports": []
     },
     "js/quality.js": {
       "lang": "javascript",
@@ -236,59 +84,10 @@
     },
     "js/save.js": {
       "lang": "javascript",
-      "hash": "349b52fea335dedf647dd8df70295d591289484e2b4ccfebe2fd476a93b52e96",
-      "loc": 327,
+      "hash": "e86b2774596252d4d7650e305d447ae6aa24c3b0b13448cc0ab3053042edc9f2",
+      "loc": 336,
       "module": "js",
-      "symbols": [
-        {
-          "name": "defaultSettings",
-          "kind": "function",
-          "line": 10,
-          "exported": false
-        },
-        {
-          "name": "freshSave",
-          "kind": "function",
-          "line": 60,
-          "exported": false
-        },
-        {
-          "name": "loadSave",
-          "kind": "function",
-          "line": 239,
-          "exported": true
-        },
-        {
-          "name": "quarantine",
-          "kind": "function",
-          "line": 276,
-          "exported": false
-        },
-        {
-          "name": "storeSave",
-          "kind": "function",
-          "line": 280,
-          "exported": true
-        },
-        {
-          "name": "recordLevelResult",
-          "kind": "function",
-          "line": 293,
-          "exported": true
-        },
-        {
-          "name": "recordSandboxResult",
-          "kind": "function",
-          "line": 306,
-          "exported": true
-        },
-        {
-          "name": "isLevelUnlocked",
-          "kind": "function",
-          "line": 323,
-          "exported": true
-        }
-      ],
+      "symbols": [],
       "imports": []
     },
     "js/sim.js": {
@@ -301,8 +100,8 @@
     },
     "js/skins.js": {
       "lang": "javascript",
-      "hash": "8312afe9e6facd381ec4c04bef407cc12f86f301e55cdb408112a4b13ba7a491",
-      "loc": 2324,
+      "hash": "7d80f8ae62658e39ab11094a57c90a7e94ce3bb7660eb89d23a988a4e2c819eb",
+      "loc": 2341,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -384,60 +183,24 @@
     },
     "js/ui/screens.js": {
       "lang": "javascript",
-      "hash": "d1a0be433abb506229ed696527dda8f95cf4a675e631321c688af807b68570ff",
-      "loc": 491,
+      "hash": "66dce4bc45d41f42b91545d6f1473604ca2e6d07b9a304a2fc9e6b92b2fad54c",
+      "loc": 514,
       "module": "js",
-      "symbols": [
-        {
-          "name": "el",
-          "kind": "function",
-          "line": 40,
-          "exported": false
-        },
-        {
-          "name": "Screens",
-          "kind": "class",
-          "line": 46,
-          "exported": true
-        }
-      ],
-      "imports": [
-        {
-          "raw": "../controls.js",
-          "resolved": "js/controls.js",
-          "external": false
-        },
-        {
-          "raw": "../levels.js",
-          "resolved": "js/levels.js",
-          "external": false
-        },
-        {
-          "raw": "../save.js",
-          "resolved": "js/save.js",
-          "external": false
-        },
-        {
-          "raw": "../skins.js",
-          "resolved": "js/skins.js",
-          "external": false
-        },
-        {
-          "raw": "./blockword.js",
-          "resolved": "js/ui/blockword.js",
-          "external": false
-        },
-        {
-          "raw": "./sprocket.js",
-          "resolved": "js/ui/sprocket.js",
-          "external": false
-        }
-      ]
+      "symbols": [],
+      "imports": []
     },
     "js/ui/sprocket.js": {
       "lang": "javascript",
       "hash": "cf1c79bddffd4699dc9f97442faa3d47297b0e5aac2dc31fce1ecbbc69b6aa40",
       "loc": 46,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/vendor/three.module.js": {
+      "lang": "javascript",
+      "hash": "76dea8151bc9352aef3528b4262e249b2604f62543828328db978d060d61a495",
+      "loc": 53044,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -1065,8 +828,8 @@
     },
     "js/voxelscene-cambridge.js": {
       "lang": "javascript",
-      "hash": "e0c7c0b6ee21081149523a76c11495e201d611a3a8a8e92385ce4da4349c35ee",
-      "loc": 3956,
+      "hash": "70b518d051f055922510152e93d940ed360aaa54b1317ee2ea25a8522b8a0b19",
+      "loc": 4961,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -1102,84 +865,11 @@
     },
     "js/voxelsim.js": {
       "lang": "javascript",
-      "hash": "4aa0d17b0a16a6f0866e721271dbda8946fd6fac8b4eec25dd1a9b4b5879f05b",
-      "loc": 2470,
+      "hash": "154f82bfdb0ecb0534fe46fa90669e39fba3cfaa5921bf295af0d5b99c4ae049",
+      "loc": 2473,
       "module": "js",
-      "symbols": [
-        {
-          "name": "comboMult",
-          "kind": "function",
-          "line": 97,
-          "exported": false
-        },
-        {
-          "name": "sandboxSizeProgress",
-          "kind": "function",
-          "line": 111,
-          "exported": true
-        },
-        {
-          "name": "key",
-          "kind": "function",
-          "line": 145,
-          "exported": false
-        },
-        {
-          "name": "cellKey",
-          "kind": "function",
-          "line": 148,
-          "exported": false
-        },
-        {
-          "name": "mCellKey",
-          "kind": "function",
-          "line": 152,
-          "exported": false
-        },
-        {
-          "name": "VoxelSandboxSim",
-          "kind": "class",
-          "line": 165,
-          "exported": true
-        }
-      ],
-      "imports": [
-        {
-          "raw": "./rng.js",
-          "resolved": "js/rng.js",
-          "external": false
-        },
-        {
-          "raw": "./tiers.js",
-          "resolved": "js/tiers.js",
-          "external": false
-        },
-        {
-          "raw": "./voxelkit.js",
-          "resolved": "js/voxelkit.js",
-          "external": false
-        },
-        {
-          "raw": "./voxelscene-boston.js",
-          "resolved": "js/voxelscene-boston.js",
-          "external": false
-        },
-        {
-          "raw": "./voxelscene-brooklyn.js",
-          "resolved": "js/voxelscene-brooklyn.js",
-          "external": false
-        },
-        {
-          "raw": "./voxelscene-manhattan.js",
-          "resolved": "js/voxelscene-manhattan.js",
-          "external": false
-        },
-        {
-          "raw": "./voxelscene-upper-manhattan.js",
-          "resolved": "js/voxelscene-upper-manhattan.js",
-          "external": false
-        }
-      ]
+      "symbols": [],
+      "imports": []
     },
     "js/voxelsurfaces.js": {
       "lang": "javascript",
@@ -1199,8 +889,8 @@
     },
     "js/voxelworld.js": {
       "lang": "javascript",
-      "hash": "afed5da2b72f14ae2f1fab6e97f5f0e327fc302124663495d0a9f9055f921835",
-      "loc": 2472,
+      "hash": "499b5a7fee269c294b1dcbb86bd4722e0cc8f5d13a2f8cbe5ee11b68876efac8",
+      "loc": 2526,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -1385,8 +1075,8 @@
     },
     "tools/validate.mjs": {
       "lang": "javascript",
-      "hash": "37cb8233cc2a7df300f9c8b7320608d9838f8eff8737724bd1ce392bc57357a3",
-      "loc": 1343,
+      "hash": "22d8e93ea1f03bd4fb25d1c83f81f843fe2ea4d86b0dacf81b3c6d7687eaf736",
+      "loc": 1484,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1399,98 +1089,8 @@
       "kind": "imports"
     },
     {
-      "from": "js/main.js",
-      "to": "js/camera.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/main.js",
-      "to": "js/controls.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/main.js",
-      "to": "js/levels.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/main.js",
-      "to": "js/quality.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/main.js",
-      "to": "js/save.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/main.js",
-      "to": "js/sim.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/main.js",
-      "to": "js/ui/hud.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/main.js",
-      "to": "js/ui/ready.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/main.js",
-      "to": "js/ui/screens.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/main.js",
-      "to": "js/voxelsim.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/main.js",
-      "to": "js/voxelworld.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/main.js",
-      "to": "js/world3d.js",
-      "kind": "imports"
-    },
-    {
       "from": "js/ui/ready.js",
       "to": "js/ui/blockword.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/ui/screens.js",
-      "to": "js/controls.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/ui/screens.js",
-      "to": "js/levels.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/ui/screens.js",
-      "to": "js/save.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/ui/screens.js",
-      "to": "js/skins.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/ui/screens.js",
-      "to": "js/ui/blockword.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/ui/screens.js",
-      "to": "js/ui/sprocket.js",
       "kind": "imports"
     },
     {
@@ -1501,41 +1101,6 @@
     {
       "from": "js/voxelscene-manhattan.js",
       "to": "js/voxelkit.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/voxelsim.js",
-      "to": "js/rng.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/voxelsim.js",
-      "to": "js/tiers.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/voxelsim.js",
-      "to": "js/voxelkit.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/voxelsim.js",
-      "to": "js/voxelscene-boston.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/voxelsim.js",
-      "to": "js/voxelscene-brooklyn.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/voxelsim.js",
-      "to": "js/voxelscene-manhattan.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/voxelsim.js",
-      "to": "js/voxelscene-upper-manhattan.js",
       "kind": "imports"
     },
     {
@@ -1578,6 +1143,7 @@
         "js/ui/ready.js",
         "js/ui/screens.js",
         "js/ui/sprocket.js",
+        "js/vendor/three.module.js",
         "js/voxelforms.js",
         "js/voxelkit.js",
         "js/voxelscene-boston.js",

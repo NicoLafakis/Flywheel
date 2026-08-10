@@ -6,9 +6,10 @@ covers:
 ---
 # Architecture
 
-Plain ES modules, no build step. Three.js loads from a CDN importmap. The same
-simulation modules run in the browser (rendered) and in Node (headless
-validator) — rendering is a thin layer over a pure sim.
+Plain ES modules, no build step. Three.js is vendored into the repo and
+resolved by a same-origin importmap. The same simulation modules run in the
+browser (rendered) and in Node (headless validator) — rendering is a thin layer
+over a pure sim.
 
 ## Data flow
 
@@ -56,11 +57,72 @@ scene, [features/cambridge-sandbox/](features/cambridge-sandbox/README.md).
 The engine change, the primitive layer, the coin-anchor change, the new
 validator probes (`tools/probe-aniso.mjs`, `tools/probe-buildcost2.mjs` — see
 `runbooks/run-and-validate.md`'s "Other tools" section; neither runs as part
-of `tools/validate.mjs`'s own `ALL PASS`) and Districts 1, 2, 3 and 4 are
-committed in `js/voxelscene-cambridge.js`. Districts 5 through 10, Phase 7's hidden content
-and achievements, and the Phase 8 sign-off are still ahead. The scene is not
-yet registered in `AUTHORED_SCENES` or `FREE_PLAY` (task P6.12), so it cannot
-be loaded from the menu yet.
+of `tools/validate.mjs`'s own `ALL PASS`) and Districts 1 through 5 are
+committed in `js/voxelscene-cambridge.js`. Districts 6 through 10, Phase 7's
+hidden content and achievements, and the Phase 8 sign-off are still ahead. The
+scene registration (task P6.12) was pulled forward out of order, so the scene
+dispatches from `voxelsim.js`, has its own `validateCambridge()` block in the
+validator, and loads from the free-play picker.
+
+## Boot
+
+**Third-party runtime code lives in `js/vendor/` and ships with the game.**
+Today that is one file, `js/vendor/three.module.js` — three@0.160.0, 1,272,972
+bytes, `REVISION '160'`, 416 named exports — and `index.html`'s import map
+resolves the bare specifier `three` to `./js/vendor/three.module.js`. The
+directory exists to keep code we do not author out of the hand-written `js/`
+namespace: nothing under `js/vendor/` is edited, and a version change means
+replacing the file wholesale rather than patching it. The version stays pinned;
+vendoring was not an occasion to upgrade.
+
+It used to point at `cdn.jsdelivr.net`, which made a third-party host a hard
+dependency of the boot. That fetch failed live (`ERR_CONNECTION_RESET`, and
+succeeded on a retry minutes later), no module in `js/` ever evaluated, and the
+game sat on its LOADING splash indefinitely. Venue wifi at a conference makes
+that a likely failure rather than a theoretical one, and it is the whole reason
+the engine is now same-origin. See
+[ADR-0014](adr/0014-vendored-same-origin-runtime.md).
+
+**There is no `package.json`, no lockfile and no build step, and that constraint
+is load-bearing rather than incidental.** What sits in the repo is byte-for-byte
+what the browser gets, which is what makes the deploy story "copy the repo root
+to a static host" (`runbooks/run-and-validate.md`) and what lets `tools/` and
+`tools/validate.mjs` import the same pure-sim modules under Node with no
+transform in between. Vendoring is compatible with all of that — a committed
+file is not a build step — where a package manager plus a bundler would put a
+generated artifact between the source and both consumers.
+
+**The failure path is explicit, because a slow boot and a broken boot look
+identical to a player.** `#boot-splash` is pure HTML/CSS with no JS dependency,
+so a 10-15 s cold load never reads as a crashed tab; `js/main.js` removes it
+just before the first screen mounts. An inline boot watchdog in `index.html`
+covers the case the splash was never designed for. It is deliberately a classic
+script rather than a module — the failure it reports is "module loading itself
+broke", so anything needing the module graph is useless — and it replaces the
+splash text with "The game could not start. Please reload the page to try
+again." on either of two triggers: 20 s elapsed with the splash still in the
+DOM, or an uncaught error/rejection while it is up. The error listener runs in
+the **capture** phase because a module script that cannot fetch itself fires a
+non-bubbling error on its own element, which is precisely the case being
+watched; targets are filtered to scripts so one missing texture cannot claim the
+game failed to start. The contract with `main.js` runs one way and `main.js`
+does not know the watchdog exists: every path re-queries the live DOM for the
+splash and no-ops if it is already gone, so there is no shared reference to go
+stale and no ordering to get wrong.
+
+**`validateOfflineBoot()` in `tools/validate.mjs` keeps it that way.** It parses
+`index.html` and fails on any external-origin runtime dependency — an import-map
+target, a `<script src>`, or a `<link href>` — and also on a missing or
+unparseable import map, since the browser drops a malformed map whole and every
+bare `three` import then fails. It was proved in both directions rather than
+assumed: pointed back at jsdelivr it exits 1, restored it passes.
+
+**No existing gate can see a broken renderer.** `validate.mjs` drives the pure
+sim and never loads `js/voxelworld.js` or the rest of the render ring, so both
+`node --check` and a full `ALL PASS` were observed on a renderer file the
+browser refuses to parse. The watchdog above is currently the only thing that
+surfaces that class of breakage, and confirming a boot means loading the module
+graph in a browser — see `runbooks/run-and-validate.md`.
 
 ## Key decisions
 
@@ -70,7 +132,9 @@ implemented): 0009 Supabase backend, 0010 host-authoritative arena, 0011
 guest-first identity with deferred claim, 0012 replay-validated leaderboard
 trust — see [features/online-flywheel/](features/online-flywheel/README.md).
 Accepted and shipped: 0013 anisotropic voxel primitives — see
-[features/cambridge-sandbox/](features/cambridge-sandbox/README.md).
+[features/cambridge-sandbox/](features/cambridge-sandbox/README.md); 0014
+vendored, same-origin runtime code and the no-build constraint — see "Boot"
+above.
 
 ## Performance notes
 

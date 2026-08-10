@@ -10,6 +10,35 @@ ship to static hosting.
 1. `python -m http.server 8000` from repo root (or `npx serve`).
 2. Open `http://localhost:8000/`.
 
+## Confirm the game actually boots
+
+`node tools/validate.mjs` cannot tell you this, and neither can `node --check`.
+Both were observed passing on a renderer file the browser refuses to parse: the
+validator drives the pure sim and never imports `js/voxelworld.js` or anything
+else in the render ring, and `node --check` parses a file in isolation under
+Node's rules rather than loading the module graph a browser would. No gate in
+this repo can see a broken renderer, so a render-side change needs a browser
+before it is believed.
+
+The reliable check, against the static server from "Run locally":
+
+1. Open `http://localhost:8000/` and watch the splash. It should be replaced by
+   the first screen. If it instead reads "The game could not start. Please
+   reload the page to try again.", the boot watchdog in `index.html` fired —
+   either a module threw or 20 s elapsed with the splash still up. The console
+   has the real error.
+2. In the browser console, load the render ring directly:
+
+   ```js
+   await import('/js/voxelworld.js?cb=' + Date.now())
+   ```
+
+   A parse error prints with its file and line; success resolves to the module
+   namespace. The cache-buster is not optional — a module already in the page's
+   module map is never re-fetched or re-parsed, so without it a stale copy
+   answers and a live syntax error stays hidden. Point it at whichever module
+   the change touched; `js/voxelworld.js` is the one no other gate reaches.
+
 ## Validate (required before commits touching sim/citygen/levels/tiers/voxelsim)
 
 1. `node tools/validate.mjs` — expect `ALL PASS` (~30 s for 100 levels + voxel).
@@ -28,6 +57,15 @@ ship to static hosting.
      object inside the spawn removal disc (see `.wiki/modules/voxel.md`)
    - `not progressive` / `< 20 consumed` → support/failure-model regression
    - `non-finite positions` → physics NaN (usually a divide-by-zero)
+4. Offline-boot failures (`validateOfflineBoot`):
+   - `importmap resolves "three" to https://…` / `index.html loads a script
+     from …` → a runtime dependency moved off-origin. Vendor it under
+     `js/vendor/` and point the reference at the local path; a third-party host
+     in the boot path leaves the player on the LOADING splash when that host
+     blips (ADR-0014).
+   - `index.html has no importmap` / `the importmap … is not valid JSON` → the
+     browser drops a malformed map whole, so every bare `three` import fails and
+     nothing in `js/` evaluates.
 
 ## Other tools (`tools/`)
 
@@ -94,8 +132,11 @@ ship to static hosting.
 
 Static files only — copy repo root (minus `.wiki/`, `docs/`, `tools/` if you
 want it lean; they're harmless if included) to any static host (GitHub Pages,
-Netlify, S3+CDN). No server code, no env vars. The only external dependency is
-the three.js CDN importmap in `index.html`.
+Netlify, S3+CDN). No server code, no env vars, no build step, and **no external
+runtime dependency at all** — three.js is vendored at
+`js/vendor/three.module.js` and the importmap in `index.html` resolves it
+same-origin, which `validateOfflineBoot` enforces (ADR-0014). `js/vendor/` must
+ship; leaving it out is the one omission that breaks the deploy outright.
 
 ## Rollback / recovery
 
@@ -107,8 +148,12 @@ the three.js CDN importmap in `index.html`.
 
 ## Common failures
 
-- **Blank page, import errors** → CDN unreachable or served over `file://`;
-  must use an HTTP server.
+- **Blank page, import errors** → served over `file://` (importmaps and module
+  imports need a real origin; must use an HTTP server), or `js/vendor/` missing
+  from the deployed bundle.
+- **Stuck on the LOADING splash, then "The game could not start"** → the boot
+  watchdog fired. Something in the module graph failed to load or threw; the
+  console has it, and the direct-import check above narrows it to a file.
 - **World map shows no cards / click does nothing** → a screen render threw;
   check console. (History: `append()` chaining bug.)
 - **All levels locked** → corrupt save was quarantined; check
