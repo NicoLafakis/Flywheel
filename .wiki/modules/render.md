@@ -20,7 +20,7 @@ mutates sim state.
 | `js/world3d.js` | Scene build from city data, mesh caches, eat/flood anims, event sync |
 | `js/camera.js` | `ChaseCamera`: follow, orbit, zoom, building-occlusion pull-in, opt-in follow-direction yaw |
 | `js/controls.js` | Keyboard + touch joystick/orbit + optional world-space point-to-move → camera-relative move intents |
-| `js/skins.js` | Hole skin registry (17 skins) + geometry primitives + per-frame runtime; consumed by `world3d.js`/`voxelworld.js` for the mesh and re-exported by `js/ui/screens.js` for the shop |
+| `js/skins.js` | Hole skin registry (25 skins) + heading-indicator registry (`INDICATOR_SKINS`, 6 rows) + geometry primitives + per-frame runtime; consumed by `world3d.js`/`voxelworld.js` for the mesh and re-exported by `js/ui/screens.js` for the shop |
 
 ## Talks To
 
@@ -96,11 +96,37 @@ mutates sim state.
   direct, 0 strafe). The player picked TANK — the roundabout was never the
   scheme, it was that an unmarked circle never shows the heading, so the
   wind-up was invisible. The fix is the **heading pointer** in
-  `voxelworld.js`: a paper-plane arrow (dark outline plate + brand-orange
-  face, depth test off like the hole ring) welded to `controls.heading`,
-  scaling with the hole radius, identical on every skin — gameplay
-  legibility, deliberately not part of `skins.js`. The rig was removed in the
-  same pass.
+  `voxelworld.js`: a flat arrow outline lying on the ground just above the
+  void, welded to the hole's heading and scaling with its radius, so the
+  wind-up is something you watch rather than something you infer. The rig was
+  removed in the same pass.
+- **The pointer's shape and colour are a shop item (`INDICATOR_SKINS`).** The
+  arrow is two coplanar `ShapeGeometry` meshes sharing one geometry: a dark
+  `0x0b0d14` outline plate at y=0.045 scaled 1.24× (`renderOrder` 998) under a
+  face at y=0.05 in the row's colour (`renderOrder` 999). Both run
+  `depthTest: false`, the same trick as the hole ring, so a collapsing facade
+  can never hide the one thing that says which way you are about to drive.
+  Per frame `update()` sets only `rotation.y = h.heading` and
+  `scale = max(0.001, h.radius × 1.15)` — the pointer follows the SIM's hole
+  heading, not `controls.heading` directly, so anything that moves the hole
+  moves the arrow. It does not hide when the hole is parked; the heading is
+  meaningful at rest under tank steering, which is the whole reason it exists.
+  Six outlines live in `indicatorShape(id)` (`voxelworld.js`, near line 418) —
+  baseline chevron, plasma wedge, Supered lightning bolt, inferno flame, cyber
+  prism, cosmic starburst — and every one of them keeps its tip at local y=+1.0
+  and its tail near y=-0.55, which is what lets the per-frame scale above stay
+  a single expression: an indicator changes what the pointer looks like, never
+  how far past the rim it reaches. The registry row (id, name, price, `color`,
+  `css` for the shop swatch, blurb) lives in `js/skins.js`; the equipped id
+  reaches the renderer as `opts.indicatorId` on the `VoxelWorld3D` constructor
+  (`main.js:342`, from `save.equippedIndicator`, added by `save.js`
+  `CURRENT_VERSION` 15) and resolves through `INDICATOR_BY_ID` with
+  `ind-default` as the fallback, so an unknown or missing id degrades to the
+  baseline chevron instead of throwing. This is the one piece of hole dressing
+  that is a shop item AND gameplay legibility at once — the geometry stays in
+  `voxelworld.js` rather than becoming a skin builder, because it has to look
+  the same on every hole skin including the flat ones that carry no
+  directionality of their own.
 - **Touch: direct steer + pinch zoom (2026-08-06).** The stick's ANGLE names a
   direction on screen; the heading turns toward it at a capped rate and stops
   itself when the error reaches zero. Screen→world is
@@ -463,6 +489,61 @@ mutates sim state.
 - Performance Mode (`perfMode`): caps particle effects, crumble voxel count, and debris physics relaxation passes for smoother gameplay on lower-resource devices. **In the voxel sandbox specifically**, `VoxelWorld3D.setPerfMode(on)` was a silent no-op until 2026-08-05 — it existed only on the campaign's `World3D` (`world3d.js:429`), so `main.js:101`'s guarded call (`world.setPerfMode && …`) never reached the sandbox renderer. It now exists there too, matching `World3D`'s signature, and does two sandbox-specific things: pins device pixel ratio to 1 (a no-op on a 1× desktop panel by construction, the biggest lever on a 2×/3× screen) and freezes ambient life (gulls/pigeons/steam/ferries/surf/neon) through the same `_ambientFrozen` flag Reduced Motion uses, independently of it. Measured −35% median idle frame time on a 1× panel, −36% plus a 13× p95 collapse on a 2× panel. It does **not** cull or LOD the block field — that is a real look cost, deliberately left for a pass that can prove it rather than a toggle that silently degrades the city. Be honest about scale: this is ~0.9 ms/frame of renderer/ambient cost, not a fix for a sim-bound frame (see `.wiki/modules/voxel.md`'s structural-zones note).
 - The ground plane is **sized to the scene, not a fixed constant.** `contentExtent(sim)` (`voxelworld.js`) measures every block's footprint, every decor rect, and the hole clamp, and the plane is centred on that and grown by `GROUND_MARGIN = 600` (== `camera.js`'s `CAM_FAR`) on every side, so no camera pose can frame the plane's edge. Before 2026-08-05 the plane was a fixed `PlaneGeometry(240, 240)` at the origin — harmless for scenes that fit inside it, but Upper Manhattan's `z[-149,116]` extent left 8.5% of its blocks standing past the plane's north rim with nothing behind them. The far edge (where the plane still gets clipped by the camera's far plane) is hidden with `scene.fog` riding `camera.far` (`fog.near = far × 0.7`, `fog.far = far × 0.995`) rather than a fixed-distance band, so the fog only ever eats what was about to be clipped anyway and doesn't grey out a stretched establishing shot. The plane is segmented into ~64 m cells (not one giant quad) with `polygonOffset` pushing it away from the camera, both needed so `sceneDecor` rects (which sit 1.2-8.9 mm above it with `depthWrite: false`) don't lose the depth test at distance.
 - Blocks render at their **full cell size**, not 95% of it. Before 2026-08-05 every instance was inset by `min(0.05, s × 0.05)` to fake a mortar gap between courses — since a wall here is one block thick, that inset was a literal hole through the wall, visible as a see-through horizontal slot at any camera height that lined up with a course boundary. The course line is now painted: a shared 128×128 `DataTexture` (`mortarTexture()` in `voxelworld.js`) applied as `map` on the block material, proportional in face-UV space so a 0.25 m brick and a 1 m brick both show the same ~2.3%-of-face border. Zero extra draw calls, one 64 KB texture shared across every scene.
+- **Buildings clip against the hole rim, in the fragment shader
+  (`applyHoleClipping`, `voxelworld.js:87-135`).** A block that has sunk below
+  ground used to keep drawing through the ground plane, so a tower being eaten
+  read as a tower sliding through a floor rather than one going down a hole.
+  The hook injects two lines into every block material: the vertex stage writes
+  world position into a varying, and the fragment stage discards anything with
+  `y < 0.01` further than `uHoleRadius` from `uHolePos`. Both uniforms are
+  module-level singletons refreshed once per frame from `sim.hole` (radius ×
+  0.96, so the cut sits just inside the visible rim), which is why adding a new
+  block material costs one `applyHoleClipping(m)` call and nothing else. The
+  campaign renderer does not use it — this is a sandbox path.
+- **The varying is called `vHoleWorldPos` on purpose, and the obvious
+  alternative bricks the whole city.** three's own `vWorldPosition` looks like
+  the natural thing to reuse, and a `shader.vertexShader.includes('vWorldPosition')`
+  guard looks like the natural way to check whether it is already there. It is
+  not decidable that way: r160's meshphysical vertex program spells the
+  declaration `#ifdef USE_TRANSMISSION / varying vec3 vWorldPosition; / #endif`,
+  so a plain `MeshStandardMaterial` MATCHES the string while its compiled
+  vertex stage declares nothing at all. The guard then skips the vertex half,
+  keeps the fragment half, and every block material fails to LINK with
+  "FRAGMENT varying vWorldPosition does not match any VERTEX varying" — the
+  cities render ground, water and birds, and not one building. A private name
+  is decidable without inspecting preprocessor state, which is the whole reason
+  it is private. The injection is anchored after `#include <worldpos_vertex>`
+  and `#include <clipping_planes_fragment>`, and returns with the program
+  untouched if either anchor is missing, so an unfamiliar material links
+  without the clip rather than not linking at all.
+- **`tools/validate.mjs` cannot see the renderer at all, so a browser is the
+  only gate it has.** The validator drives the pure sim and never constructs
+  `VoxelWorld3D`; twice on 2026-08-09 a completely unloadable renderer passed
+  both `node --check` and a full ALL PASS run. `.wiki/runbooks/run-and-validate.md`
+  has the procedure (serve the repo, then
+  `await import('/js/voxelworld.js?cb=' + Date.now())` in the console). Worth
+  adding here, because a linked-but-blank program is a step past the parse
+  errors that check was written for: `renderer.info.render`'s draw-call count is
+  **not** a discriminator. It counts draws SUBMITTED, not draws that produced
+  pixels, and it was identical before and after the invisible-buildings fix
+  above. Only looking at the picture caught it, so look at the picture.
+- **Falling blocks are sucked toward the hole centre as they go down.** In the
+  per-block matrix pass, a block below `y = 0.45` and within `1.25 ×` the hole
+  radius is pulled along XZ toward `(h.x, h.z)` and reshaped on a single
+  `suckFrac` ramp derived from its height (`(py - 0.15) / 0.3`, clamped):
+  position lerps from a quarter of its offset at the bottom to full offset at
+  the top, X/Z scale narrows to 0.35, and Y scale stretches to 1.2. So a block
+  tapers and elongates into a funnel as it descends instead of dropping as a
+  rigid cube. It is purely render-side — the sim's positions are untouched, and
+  it rides the existing `matrixChanged` path, so a block that is not moving
+  still costs nothing.
+- **`_spawnEatParticles` throws debris on every `eat` event.** 2-4 small boxes
+  spawn on the rim at a random bearing, kicked inward and up with tumble, warm
+  hue, gravity and one damped bounce off `y = 0.06`, on a 0.3-0.5 s life. They
+  reuse the existing particle list and its update loop (shared `boxGeo()`, one
+  material per particle disposed on death) and bail entirely above 60 live
+  particles, so a fast eat chain thickens the effect until the cap and then
+  stops costing anything.
 - **Skins (`js/skins.js`, 2026-08-05): 25 hole skins replacing the single
   circle** — 12 core, 5 creature, 8 partner (agency) skins — themed on
   marketing/B2B without borrowing branding. A skin is a registry row plus at

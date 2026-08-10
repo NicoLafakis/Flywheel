@@ -7,13 +7,15 @@ covers:
 ---
 # Cambridge sandbox — the level design
 
-**Status:** the build spec, and partly built. ADR-0013's engine change, the
-primitive layer (`js/voxelforms.js`), the coin-anchor and chain changes, the new
-validator probes, and Districts 1, 2, 3 and 4 are committed. Districts 5 through
-10, Phase 7's hidden content and achievements, and the Phase 8 sign-off are
-still ahead, and the scene is not yet registered in `AUTHORED_SCENES` or the
-free-play picker (P6.12), so it cannot be loaded from the menu yet. The rest of
-this page still reads as the plan it was written as.
+**Status:** the build spec, and built. ADR-0013's engine change, the primitive
+layer (`js/voxelforms.js`), the coin-anchor and chain changes, the new validator
+probes, all ten districts and the scene's registration are committed; the map is
+complete and playable from the free-play picker, `node tools/validate.mjs`
+reaches `ALL PASS`, and the scene lands at 72,943 blocks against the under-75,000
+target with the dead-ground census at zero. Phase 7's hidden content, glyphs and
+achievements and the Phase 8 sign-off are still ahead. Where this page describes
+what was built, it has been reconciled against the built tree; where it describes
+what a later phase will do, it still reads as the plan it was written as.
 **Date:** 2026-08-06.
 **Toolkit:** `01-voxel-primitive-vocabulary.md`. **Facts:**
 `02-cambridge-reference.md`. **Decision:** `adr/0013-anisotropic-voxel-primitives.md`.
@@ -86,6 +88,25 @@ walk from the Museum of Science to the Longfellow, which is 700 m in life, is
 10 m in the scene. §5.4 states what that costs in credibility and why it is
 still the right trade.
 
+**The two rings disagree by 0.33 m at the seam, permanently.** At real r = 340
+Ring A gives 113.333 and Ring B gives 113.000, so scene radius is briefly
+non-monotonic across real r ∈ (339, 340] against (340, 354]. No landmark falls in
+that window — the closest is the Third Congregational Church at 336.9 m real,
+3.1 m of margin — but a future one could, and an author who meets it should know
+it is the law rather than an error. Everything else about the Ring B branch
+checks out against §5.4: worst radius error 0.109 m, inside the 0.25 m
+quantisation step, and worst bearing error 0.056°.
+
+**One plan compression is declared for a group rather than a landmark: the MIT
+shelf runs at 1:5 in plan, not 1:3.** Six landmarks whose real radii spread over
+1,000 m — the Great Dome at 1,706, Killian Court at 1,778, the Green Building at
+1,530, Stata at 1,519, Kendall/MIT at 1,156, the NECCO tower at 2,054 — all
+arrive inside one 50 × 25 m patch once Ring B has compressed the radius, and at
+1:3 the Great Dome's range alone is 40 × 13 m of it. The height law is untouched
+at 1:1.5, so the group keeps its silhouette and only its plan tightens. It sits
+alongside §1.5's Museum of Science 1:5 as the second declared plan exception, and
+it is a scale rule rather than a re-seating: no bearing moves.
+
 **Why this law and not a smooth one.** A continuous log compression avoids the
 seam but makes every position un-recomputable by hand and un-checkable by eye —
 and `02`'s whole point is that the layout must stay checkable. Two rings with
@@ -118,8 +139,7 @@ basin · 10 Canal Park · 40 Thorndike · the First Street Garage · the Middles
 South Registry of Deeds · the old Middlesex County Courthouse · the Glass
 Factory · Sierra · Thomas Graves Landing · Archstone Northpoint · AVA East and
 West · Avalon North Point Lofts · Tango · the Third Congregational Church ·
-Centanni, Costa Lopez, Silva and Timothy J. Toomey parks · the Chang Shing Tofu
-Factory · American Twine · the Athenæum Press.
+Centanni Park · the Athenæum Press.
 
 **In, at Ring B (true bearing, compressed radius):** CambridgeSide · the Royal
 Sonesta · 55 Cambridge Parkway · the Museum of Science and its garage · the
@@ -128,7 +148,17 @@ Longfellow Bridge · the Zakim · TD Garden · the Bunker Hill Monument · the S
 Center · the MIT Green Building · the Great Dome and Killian Court ·
 Kendall/MIT · the NECCO water tower · Twenty|20 at Cambridge Crossing · Hult
 House · Education First · the East Cambridge Savings Bank · the Green Line
-carhouse and the Inner Belt yard · Rivercourt · the Lofts at Kendall Square.
+carhouse and the Inner Belt yard · Rivercourt · the Lofts at Kendall Square ·
+Costa Lopez, Silva and Timothy J. Toomey parks · the Chang Shing Tofu Factory ·
+American Twine.
+
+Those last five sit in Ring B because §1.2's own seam puts them there: their real
+radii are 402.0, 418.2, 541.4, 494.1 and 473.9 m, every one past 340. It is worth
+saying which way the difference cuts, because the two rings do not merely seat
+them differently — Ring A would put Silva Park at (−139.5, −12.25), 24.8 m from
+its Ring B seat and 19.5 m outside `maxX`, and the other four at deltas of 19.5,
+41.8, 48.1 and 62.6 m. `sceneOffset` implements §1.2 and returns the Ring B seats,
+which is what is built.
 
 **Out, and why:**
 
@@ -162,10 +192,16 @@ adds nothing new:
   ground that is empty *on purpose*, exactly as `BROOKLYN_OPEN_GROUND` is. The
   validator checks each one is genuinely block-free and edge-touching; "the edge
   of the map trails off" is the rationale that has held up in the shipped scenes,
-  and it is the one we lean on here. There are four, all water or rail: the
-  Charles surface south of
-  the Longfellow line, the canal basin's water, the Inner Belt yard's ballast,
-  and the Zakim's river channel.
+  and it is the one we lean on here. **There is one: the Inner Belt yard's
+  ballast**, and it is the only span this mechanism alone could ever have done
+  work for. The three that were sketched alongside it are each better served
+  another way. The canal basin's water is authored rather than promised —
+  building the water is strictly better than declaring the ground empty, and it
+  is the same reason District 10 laid a `sand` mudflat on the north edge instead
+  of declaring the flat bare. The Zakim's channel sits under its own bridge deck,
+  and the probe's emptiness check is 2D, so nothing there can read empty. The
+  Charles is water that is built. A declaration is a promise; a built thing is a
+  thing, and where both are available the built thing wins.
 - **`sceneDecor.water` carries the Charles and the canal**, so the south and
   southeast edges terminate in water rather than in a cut. The far bank is *not*
   built: Boston is a landmark shelf here, not a shore.
@@ -176,7 +212,10 @@ adds nothing new:
 
 ### 1.5 Declared Ring A exceptions
 
-Four, in Boston's tradition of declaring rather than hiding them.
+Six, in Boston's tradition of declaring rather than hiding them. Four were
+declared when this page was written; two more were derived from the built tree
+and belong here rather than in a scene-file comment, because an undeclared
+hand-placement is exactly what this section exists to prevent.
 
 1. **2 Canal Park's and 1 Canal Park's OSM bounding boxes overlap** (104 × 71 at
    offset 0 versus 56 × 67 at offset −40 E). A bbox over-estimates a
@@ -198,6 +237,22 @@ Four, in Boston's tradition of declaring rather than hiding them.
 4. **The Green Line carhouse and the Inner Belt yard are pulled radially in**
    to z ≈ −100…−108 from a computed z ≈ −128, so the north edge carries content
    inside the `boundsRect` slack. Declared, not silently nudged.
+5. **The Davenport stands 15 m east and 7.6 m north of the law's own seat.**
+   §1.2's formula puts it at (−38.25, +6.0); District 2 as shipped occupies
+   x[−71.5,−35] z[+3,+24.5], centred (−53.25, +13.75), and the law's answer would
+   carry the block across First Street at x −33. Phase 5 built to §4's approximate
+   district rect, which is not the same placement as §1.2's law, and District 2 is
+   shipped, measured and frozen. The offset is recorded on `sceneOffset` and the
+   exception is declared here rather than left as a discrepancy between two
+   sections.
+6. **TD Garden is pulled 13.2 m in from §5.1's seat** (13.9 m from the law's).
+   The law puts it at (+132.25, +10.25), a quarter-metre outside `maxX` 132, so
+   something had to move; the shelf's east band is where it moved to. Declared
+   rather than quietly reproduced.
+
+A seventh entry would be a category error and is deliberately not on this list:
+the MIT group's 1:5 plan compression is a **scale rule**, not a seat, and it lives
+in §1.2 with the Ring B law it modifies.
 
 ---
 
@@ -310,11 +365,41 @@ one sketched at 5,000. Nothing downstream reads these numbers: the `budget` fiel
 each district row is an authoring annotation, and `tools/validate.mjs` has no
 block-count check of any kind.
 
-The districts built so far have come in around 67–71% of their estimates. That
-is fine, and it is roughly what we expect — the estimates were sketched from
-massing, and the vocabulary consistently gets a given look for less than the
-sketch assumed. Coming in low is not a signal that something is missing, and
-there is nothing to "spend back."
+**How to read these figures now that all ten districts are built.** They are
+wrong in two distinct directions, and both are properties of the unit rather than
+of the districts:
+
+| District | Shipped, against its figure | | District | Shipped, against its figure |
+|---|---|---|---|---|
+| 1 Canal Park | 72.6% | | 6 Canal & CambridgeSide | 47% (87% in scope) |
+| 2 The Davenport | 66.7% | | 7 North Point | 158% |
+| 3 Lechmere | 65.3% | | 8 Charles Shore | 62% (80% in scope) |
+| 4 Cambridge Street | 71.2% | | 9 Landmark Shelf | 139% (84% in scope) |
+| 5 Thorndike Civic | 107% | | 10 Street life | 481% |
+
+Districts that built **buildings** to a §4 contents list land at 65–73% of it,
+every time, while shipping every line item — one primitive now does what a whole
+wall course of cubes used to, so §4's per-object figures are a stale unit rather
+than five underbuilds. §4.4 prices a triple-decker at ~150 blocks; the built one
+is 71, and it is not thinner, it is the same house in anisotropic primitives.
+**To convert a building line below into a current-era expectation, multiply it by
+about 0.7.** The "in scope" figures parenthesised above are the same comparison
+made fair, adding back the line items a district inherited from a neighbour's
+section; every district lands inside the same band once that is done.
+
+Districts that had to add **ground** land over, and for the opposite reason: §4
+under-priced pavement and in three places did not price it at all. §4.7 priced
+seven buildings and no ground; §4.8 gave one 1,000-block line to two streets, two
+kerb circuits, a 71 m seawall and a park strip; §4.9 priced nine landmarks and
+zero, on the district whose §8.2 mitigation is nothing *but* ground; and §4.10
+priced a whole map's connective tissue at less than one district's kerb line. So
+**every district carries a ground line below, named as such and priced separately
+from its buildings** — six already had one under another name, and the rest now
+do. The two findings are one finding seen from either end: §4 measured masonry in
+cube-era blocks and did not measure pavement.
+
+Neither correction touches the 75,000 scene target. The finished scene lands at
+72,943 without them.
 
 | # | District | Scene rect (approx) | Est. blocks | Dominant primitives | Palette bank | Role in play |
 |---|---|---|---|---|---|---|
@@ -322,18 +407,20 @@ there is nothing to "spend back."
 | 2 | **First Street & The Davenport** | x[−72,−26] z[−12,+26] | **9,800** | panel · beam · column · slab · cornice | mill brick, timber | The densest, most texturally rich district; the validator's excursion |
 | 3 | **Lechmere & the Viaduct** | x[−40,+40] z[−80,−36] | **5,000** | pier · beam · slab · panel · tread | concrete + transit green | The first thing you drive to; the local-recognition beat |
 | 4 | **Cambridge Street & the Portuguese Seam** | x[−120,−58] z[−28,+30] | **8,600** | panel · tread · slab · small props | mill brick, painted timber, awning chroma | The human-scale, high-object-count, low-block-per-object district |
-| 5 | **Thorndike Civic** | x[−108,−26] z[+16,+56] | **6,800** | plinth · pier · slab · panel · mullion | cast stone, concrete, new glass | The tall-slab landmark; the mid-game growth engine |
+| 5 | **Thorndike Civic** | x[−108,−26] z[+16,+56] | **5,200** | plinth · pier · slab · panel · mullion | cast stone, concrete, new glass | The tall-slab landmark; the mid-game growth engine |
 | 6 | **The Canal & CambridgeSide** | x[+20,+90] z[+14,+116] | **7,600** | plinth · panel · slab · drum · tread | water, precast, glass podium | Water, the fountain basin, the south gateway |
-| 7 | **North Point & Cambridge Crossing** | x[+60,+132] z[−90,+16] | **7,400** | slab · column · mullion · panel · cornice | low-chroma glass, precast | The tall glass ring; the late-game height |
+| 7 | **North Point & Cambridge Crossing** | x[+60,+132] z[−90,+16] | **6,800** | slab · column · mullion · panel · cornice | low-chroma glass, precast | The tall glass ring; the late-game height |
 | 8 | **The Charles Shore** | x[+20,+132] z[+20,+116] | **7,800** | pier · beam · slab · tread · drum | concrete, granite, water | The long horizontal infrastructure showcase |
-| 9 | **The Landmark Shelf** | the Ring B annulus, all edges | **8,580** | whatever the landmark is: mostly slab · pier · drum · corbel-arch | per landmark | The horizon, the recognition payoff, the endgame drive |
+| 9 | **The Landmark Shelf** | the Ring B annulus, all edges | **8,580** | whatever the landmark is: mostly slab · pier · drum | per landmark | The horizon, the recognition payoff, the endgame drive |
 | 10 | **Street life, kerb kit & the edge-band gallery** | scene-wide | **1,210** | panel (marks) · props (kit reuse) | — | Density glue; the ≤15 m insurance |
 
-Added up, the ten estimates land in the mid-70,000s, which sits inside `01`
+Added up, the ten estimates land just under 72,000, which sits inside `01`
 §4.4's 40–80k band with room on both sides. We would like the finished scene to
 come in under 75,000; lower is better. If it lands over, that is the cue to look
 at which buildings could be built more efficiently — it is a prompt to go
-looking, not a failure.
+looking, not a failure. It landed at 72,943, which is over the sum of the
+estimates and under the target, and the paragraphs above explain why both of
+those are true at once.
 
 > **Why a soft target and not a contract.** A level authored toward an exact
 > block count starts making decisions for arithmetic reasons, and the geometry
@@ -369,7 +456,7 @@ Thomas Graves Landing, both 8 storeys (Confirmed OSM).
 | **2 Canal Park** (§6) | 2,300 | The hero. Member-by-member breakdown in §6.1 |
 | **The glass-and-steel entry court** | 380 | Counted separately because it is the scene's first interior |
 | **1 Canal Park** | 1,150 | Lab conversion. Very-low-chroma glass, precast. **No mark, no orange, no sprocket** (§6.5) |
-| **Canal Park street, kerbs, crossings, sidewalks** | 700 | Kit reuse: `zebra`, `laneDashes`, curb furniture at a 5 m pitch |
+| **Ground plane** — Canal Park street, kerbs, crossings, sidewalks | 700 | Kit reuse: `zebra`, `laneDashes`, curb furniture at a 5 m pitch |
 | **The front-door ring** (§7.2) | 900 | The SIZE-1 snack ring. 0.25 and 0.5 m only |
 | **The canal forecourt and terrace** | 620 | Plinth steps down to the water, planters, the outdoor patio nod from HubSpot's own announcement |
 | **Sierra** (8 storeys) | 1,500 | |
@@ -399,7 +486,7 @@ street (Confirmed).
 | **The Davenport, seven sections** (§6.2) | 3,600 | |
 | **The 1987 lobby link and the 2008 courtyard** | 620 | |
 | **Loading docks, freight canopy, fire escapes, rear yard** | 780 | `fireEscape` reused from the kit |
-| **First Street: roadway, kerbs, crossings, transit stop** | 850 | First Street is the *z* axis — the grid spine |
+| **Ground plane** — First Street: roadway, kerbs, crossings, transit stop | 850 | First Street is the *z* axis — the grid spine |
 | **161 First Street** | 900 | Ordinary 1907 brick block. `04` owns whether anything is hidden in it |
 | **The block's remaining Cambridge Street frontage** | 1,500 | Storefronts at grade, mill above |
 | **Yard clutter, dumpsters, bike shelter, transformers, vehicles** | 1,050 | Hand-2 spend |
@@ -418,7 +505,15 @@ of the hero building (Confirmed). Opened 21 March 2022 as part of the Green Line
 Extension. **Elevated** on a viaduct — the old ground-level station was
 demolished and rebuilt in the air. Single **curved island platform, 108 m long,
 10–11 m wide** (Confirmed). Adjacent: the Lechmere Busway, the MBTA Green Line
-Transportation Office, and the Michael Capuano Inner Belt Carhouse.
+Transportation Office, and the Michael Capuano Inner Belt Carhouse. **The Glass
+Factory condos** (Confirmed, OSM, 8 storeys) stand on the yard's south flank —
+`02` §2.4 seats them at real E −117 / N +191, which §1.2's law puts at
+(−49.25, −70), 18 m south of this district's yard and 30 m west of District 7's
+edge-band ground. §4.7 used to claim them and could not: they are 110 m west of
+that district's rect. They belong to this quarter of the map by position and to
+no district by declaration — 874 pieces at 2.96/m² over x[−58,−40] z[−80,−60],
+which is comfortably above the scene's own density floor if anything were
+measuring it. See §4.7's note on pieces that stand in no declared rect.
 
 | Item | Blocks | Note |
 |---|---|---|
@@ -426,7 +521,7 @@ Transportation Office, and the Michael Capuano Inner Belt Carhouse.
 | **The curved island platform** (36 × 3.7 m scene) | 700 | Curve as three shallow chords, per ADR-0013's stepped-approximation rule |
 | **Canopy, headhouse, stairs, lifts, faregates** | 800 | `tread` runs for the stairs |
 | **A green-and-white Green Line train, two cars** | 420 | Very-high-chroma transit accent, tiny area |
-| **Busway, shelters, buses, North First Street** | 900 | |
+| **Ground plane** — busway, shelters, buses, North First Street | 900 | |
 | **Track, catenary, signals, the retaining wall north** | 730 | |
 
 **Role.** `02` ranks Lechmere Tier 1 *"not because tourists know it but because
@@ -456,14 +551,30 @@ Congregational Church anchor the west end.
 | **Third Congregational Church** | 620 | `naveChurch` from the kit, re-proportioned |
 | **Costa Lopez Park, Silva Park, Centanni Park** | 700 | Named on the ground plane. Play equipment, benches, fencing |
 | **The Chang Shing Tofu Factory** | 260 | One storey, genuinely there, genuinely a tofu factory (Confirmed, OSM) |
-| **Street, kerbs, crossings, awnings, vehicles, trees** | 1,340 | |
+| **Ground plane** — street, kerbs, crossings, awnings, vehicles, trees | 1,340 | Gore Street and Third Street are part of this and neither has an offset in `02`, so both are placed on the pitch the built map implies rather than derived |
 
 **Role.** This is the **high-object-count, low-blocks-per-object** district and
 therefore the scene's density reservoir: it holds the mean inter-piece gap down
 in the map's west half without a single large mass. It is also the emotional
 counterweight to the lab towers, and `04`'s richest seam.
 
-### 4.5 District 5 — Thorndike Civic · 6,800
+**Derived, seated, not built by this district.** Four features have a Confirmed
+offset, a derived seat, a `CAMBRIDGE_OFFSETS` row and no geometry of this
+district's own, and it is worth keeping them in one list rather than scattering
+them across four sections. **Costa Lopez Park** and the **Chang Shing Tofu
+Factory** derive to (−76, +71.75) and (−38, +96.25) — 42 m and 66 m south of this
+district's rect, outside the map as it stood when this district was built —
+and were picked up later by the district whose own ground reached them. The
+**Middlesex South Registry of Deeds** and the **old Middlesex County Courthouse**
+derive to (−84, −16.5) and (−90.75, +9), which is ground *this* district already
+occupies: their footprints hold 759 and 223 of its blocks today, with Third
+Street's carriageway running through both. They stay data. Building them would
+have meant demolishing built, measured geometry to satisfy a contents list that
+§4.5's own rect already ruled out, and a hand-placed seat 80 m from the derived
+one is a number nobody can check against a source. The offset rows are the audit
+trail and they stay exactly as they are.
+
+### 4.5 District 5 — Thorndike Civic · 5,200
 
 **Real identity.** 40 Thorndike Street, the former Edward J. Sullivan
 Courthouse: originally a Brutalist concrete courthouse and jail, vacant for
@@ -471,16 +582,23 @@ years, re-clad and reopened 2024. Footprint 86 × 57 m (Confirmed).
 **Height conflict, carried forward: OSM says 22 levels, the developer's own
 release says 20 storeys.** `02` says use 20 and note the conflict, so the scene
 uses 20 (~86 m real → 57.3 m scene) and records both numbers in the scene file.
-Plus the Middlesex South Registry of Deeds, the old Middlesex County Courthouse,
-and the First Street Garage — 123 × 75 m of blank-walled parking deck.
+Plus the First Street Garage — 123 × 75 m of blank-walled parking deck.
+
+**The Registry of Deeds and the old Middlesex County Courthouse are not this
+district's**, though an earlier draft of this section listed them as line items
+worth 900 and 700 blocks. The rect above is right and that contents list was
+wrong: both derive to seats 32.5 m and 7 m *north* of this district's own north
+edge, on ground District 4 already occupies. A contents list cannot move a
+Confirmed offset and a rect can be checked, so where the two disagree the one
+derived from `02` wins. They are described with the rest of District 4's derived
+seats at §4.4, and this section's estimate is 1,600 lower than it was for their
+removal.
 
 | Item | Blocks | Note |
 |---|---|---|
 | **40 Thorndike** | 2,600 | 20 storeys. `setbackTower`-family massing rebuilt in the vocabulary: a wide base, a strong vertical rhythm of narrow window bays, a re-clad slab above |
 | **First Street Garage** | 1,500 | Seven open decks. **The scene's biggest ≤15 m risk** — see §7.6 |
-| **Middlesex South Registry of Deeds** | 900 | 89 × 50 m of civic masonry |
-| **Old Middlesex County Courthouse** | 700 | 32 × 49 m |
-| **Thorndike/Otis/Spring street grid, kerbs, crossings** | 900 | |
+| **Ground plane** — the Thorndike/Otis/Spring street grid, kerbs, crossings | 900 | Two of those three names turned out unbuildable on the map as it stands: Otis Street's own block is where District 4's church, Row D and the storefront row already stand, and Spring Street's is past the built map's south edge. The grid ships as Thorndike Street plus the Second Street connector, both fully kerbed and furnished |
 | **Glyph reserve — G1 sprocket + centre disc** | 200 | On the First Street Garage's top deck (`04` G1) |
 
 **Role.** The tall thing to the west. `02` notes 40 Thorndike is 288 m from
@@ -511,7 +629,7 @@ of lab in the former Sears, with retail still operating on the lower levels
 | **10 Canal Park** | 950 | |
 | **20 CambridgeSide** (10 storeys) | 2,100 | Big glassy podium block, retail base, lab floors above |
 | **100 CambridgeSide** | 1,200 | |
-| **Land Boulevard's diagonal, kerbs, crossings** | 670 | The 25.9° diagonal, as decor plus stepped kerbs (§2.2) |
+| **Ground plane** — Land Boulevard's diagonal, kerbs, crossings | 670 | The 25.9° diagonal, as decor plus stepped kerbs (§2.2). The canal-edge kerb, rim, bollard and seating run §8.2 names as this district's mitigation is ground too, and is priced with the basin above |
 | **Glyph reserve — G9 food court ghost + G10 canal flywheel** | 200 | Roof paving pattern + park arcs (`04` G9/G10) |
 
 **Role.** Water, the south gateway, and the district that gives the map a
@@ -520,14 +638,16 @@ the building before ~2020 remembers a mall with a food court; anyone after
 remembers lab buildings. Both memories are in the room. The podium is authored as
 now, with a mall-era nod reserved for `04`.
 
-### 4.7 District 7 — North Point & Cambridge Crossing · 7,400
+### 4.7 District 7 — North Point & Cambridge Crossing · 6,800
 
 **Real identity.** The ring of new towers immediately east and northeast, all
 Confirmed from OSM `building:levels`: Archstone Northpoint (22), Twenty|20 at
 Cambridge Crossing (20), Tango (12), Hult House (12), Education First HQ (12),
-AVA East and West (6/6), Avalon North Point Lofts (6), the Glass Factory condos
-(8) — whose name is a genuine East Cambridge glassworks reference — and
-Glassworks Avenue, a real street 400 m out.
+AVA East and West (6/6), Avalon North Point Lofts (6) — and Glassworks Avenue, a
+real street 400 m out, whose name is a genuine East Cambridge glassworks
+reference. The Glass Factory condos share that reference and were once listed
+here, but `02` §2.4 seats them 110 m west of this district's rect: they are
+described at §4.3, next to the yard they actually stand on.
 
 | Item | Blocks | Note |
 |---|---|---|
@@ -535,8 +655,8 @@ Glassworks Avenue, a real street 400 m out.
 | **Twenty\|20 at Cambridge Crossing** (20) | 1,450 | Ring B position |
 | **Tango** (12), **Hult House** (12), **Education First** (12) | 1,900 | EF is the distinctive glassy one; massing only, **no wordmark** |
 | **AVA East, AVA West, Avalon Lofts** (6/6/6) | 1,050 | |
-| **The Glass Factory** (8) | 600 | |
 | **The Common at CX, Viaduct Courts, Glassworks Avenue** | 500 | |
+| **Ground plane** — the tower ring's streets, kerbs, crossings, footways, aprons, the park strip, podium paving and parked vehicles | *unpriced above; see below* | The lines above price seven buildings and no ground at all, which is why this district ships at 158% of the figure in §4's table. Tower-and-plaza is the scene's classic dead-zone geometry (§8.2), and the mitigation §8.2 names for it — podium retail, a continuous kerb and street-tree pitch, the Common's furniture — is ground. A district authored to the building lines alone would be seven towers on bare earth and would fail its own density floor |
 | **Glyph reserve — G2 Partner Alley, North Point half** | 200 | Half the partner-mark run on the container stacks (`04` G2) |
 
 **Role.** `02`'s reading of the skyline is the design brief for this district and
@@ -545,6 +665,21 @@ shortest things in its own neighbourhood… HubSpot's five-storey brick slab sit
 in a bowl between them. That is the honest silhouette and it is more interesting
 than a hero tower would be."* The player's sense of scale comes from here: you
 grow until these stop being tall.
+
+**The rect above starts 10.5 m east of this district's own westernmost geometry,
+and that is worth fixing.** `probeCellOwnership` reports how many of a district's
+pieces stand inside a *neighbour's* rect and reads zero for a piece standing in no
+rect at all, so a green result there proves nothing about ground nobody declared.
+Measured across the finished scene, x[31,41.5] z[−94,−6] holds 1,961 pieces at
+4.98/m², of which 1,557 are this district's own park strip, footway and aprons.
+The remedy is measured rather than guessed: widening the rect to x[31,107]
+z[−94,−8] reads 11,565 pieces over 2,751 cells — 4.204/m² against the shipped
+row's 3.996 — so it neither weakens the check nor flatters the row, it counts
+ground this district built. Two other bodies of geometry sit outside every
+declared rect for the same structural reason: the Glass Factory (§4.3) and
+scattered seam furniture at four district edges. District 10's boulevard verge
+joins the west verge there deliberately. The choice between widening the rect and
+declaring the verge deliberately unrowed is P8.1's.
 
 ### 4.8 District 8 — The Charles Shore · 7,800
 
@@ -562,8 +697,8 @@ foot in Cambridge (all Confirmed).
 | **Museum of Science garage** (4 decks) | 700 | |
 | **Royal Sonesta** (11), **55 Cambridge Parkway** (9) | 1,500 | |
 | **North Point Park + the curving footbridge** | 900 | `archBridge` reused |
-| **Cambridge Parkway, park strip, boathouses, seawall** | 1,000 | |
-| **Duck Boat ramp, rowing shells, geese** | 400 | `02`: Duck Tours launch **at the Museum of Science**, Confirmed. Geese are universally observed and Unverified as a citation — *"nobody will fact-check a goose."* Both go in `sceneAmbient` |
+| **Ground plane** — Cambridge Parkway, the park strip, boathouses, seawall | 1,000 | One line for two streets, two kerb circuits, a 71 m seawall and a park strip, which is a fraction of what that ground actually costs. §8.2's mitigation for this district is a continuous eatable spine along the whole shore, and a spine is ground |
+| **Duck Boat ramp, rowing shells** | 400 | `02`: Duck Tours launch **at the Museum of Science**, Confirmed. The coach is a real vehicle in `CAMBRIDGE_VEHICLES` waiting at the ramp rather than an ambient effect. Canada geese are universally observed and Unverified as a citation — *"nobody will fact-check a goose"* — but the renderer has no goose to draw, so they are absent rather than declared (§9.2) |
 | **Glyph reserve — G2 Partner Alley, Cambridge Parkway half** | 200 | Half the partner-mark run on the river frontage (`04` G2) |
 
 **Role.** The long horizontal showcase, and the district that most obviously
@@ -576,6 +711,17 @@ sailboat scatter would be the postcard, not the place.
 
 Ring B. Detailed in §5, where the estimate is broken out landmark by landmark.
 
+**The ground line §5's table does not carry.** §5.1 prices nine landmarks and not
+one kerb, lawn edge, fence run, apron, walk or parked car — on the one district
+whose §8.2 mitigation is *nothing but* ground: *"the shelf is not free-standing.
+Each landmark sits on an authored block."* A district authored to 8,580 alone
+would be nine objects on bare earth and would fail the floor §8.2 wrote for it.
+Read the 8,580 as the landmarks only; the shelf's campus ground, coping,
+promenade and lawn edges are additional and are what take the district to 139% of
+it (84% once the five deferrals it inherited from four other districts are priced
+in — both CambridgeSide blocks, the Royal Sonesta, 55 Cambridge Parkway, Hult
+House's share and the tofu factory).
+
 ### 4.10 District 10 — Street life, kerb kit & the edge-band gallery · 1,210
 
 Scene-wide glue: the shared curb-furniture pitch, oriented vehicles on
@@ -585,6 +731,21 @@ line item because the density probe needs somewhere to attribute the scene's
 connective tissue, and because `01`'s hand 2 is easiest to drop precisely on the
 things nobody thinks to count.
 
+**The 1,210 covers the gallery and the crossing template, and nothing else.**
+930 of it is `04`'s five gallery marks, which are P7.3's work and are not built
+here; what remains is about 280 for the shared curb-furniture pitch, the oriented
+vehicles and the crossing template across a 252 × 228 m map — less than one
+district's kerb line. The district as built emits 5,822 blocks, and every one of
+them is answering a dead-ground sample or a density floor rather than a number:
+it is the district §8.2 calls the mitigation for the other nine, and closing
+2,200 m² of empty rail land at the census's 8 m reach costs what it costs. It
+also does not fit one rect. What it lays inside another district's rect gets no
+row at all, because raising the neighbour's density *is* its brief and a second
+row over the same pieces would count them twice; the edge-band half it builds on
+ground no other district reaches carries four measured rows of its own, each
+drawn to hold nothing but this district's content so it can fail on its own
+merits.
+
 ### 4.11 The north edge
 
 Not a district in its own right — it is the north tail of districts 3 and 7 —
@@ -593,7 +754,10 @@ Carhouse** and the **MBTA Green Line Transportation Office** (both Confirmed,
 OSM) are pulled radially in to z ≈ −100…−108 under the §1.5 exception so the
 scene's content reaches within the 12 m slack of `minZ: −112`. They run to about
 600 blocks, which sits inside districts 3 and 7 rather than adding an eleventh
-line.
+line. In the event District 3 built both, and reads 926 pieces north of z −88
+against the combined D3+D7 estimate of ~900 — so District 7's share of this
+frontage was already on the map before that district started, and its content
+went elsewhere.
 
 ---
 
@@ -611,9 +775,9 @@ offset table.
 | **Museum of Science** | 1 | (+106, +36) | Ring B, plan 1:5 | in district 8 |
 | **Longfellow Bridge** | 1 | Cambridge end (+10.5, +113) | Ring B, **length 1:8** | 1,700 |
 | **Stata Center** | 1 | (−93, +92) | Ring B, plan **1:4** | 2,000 |
-| **MIT Great Dome + Killian Court** | 1 | dome (−92, +99), court (−84, +107) | Ring B, plan 1:3 | 1,900 |
+| **MIT Great Dome + Killian Court** | 1 | dome (−92, +99), court (−84, +107) | Ring B, plan **1:5** (MIT group, §1.2) | 1,900 |
 | **Zakim Bridge** | 2 | (+131, −16) | Ring B, **length 1:6** | 1,300 |
-| **Bunker Hill Monument** | 2 | (+110, −100) | Ring B, `obelisk` reuse | 420 |
+| **Bunker Hill Monument** | 2 | (+110, −100) | Ring B; stacked `pier`s, not the kit's cube-era `obelisk` (§5.3) | 420 |
 | **TD Garden** | 2 | (+130, +10) | Ring B, massing only | 700 |
 | **40 Thorndike** | 2 | (−84, +33) | Ring A, near-literal | in district 5 |
 | **CambridgeSide** | 2 | (+15, +98) | Ring B (r 352, just over the seam) | in district 6 |
@@ -622,6 +786,12 @@ offset table.
 | **NECCO water tower** | 3 | (−120, +83) | Ring B, tower + a slice of factory | 340 |
 | **North Point Park** | 3 | (+119, −7) | Ring B | in district 8 |
 | **Charles River Dam locks** | 3 | (+114, +26) | Ring B | in district 8 |
+
+**The MIT group runs at 1:5 in plan**, per §1.2 — the Great Dome and Killian
+Court, the Green Building, Kendall/MIT and the NECCO tower, alongside Stata's own
+declared 1:4. Once Ring B has compressed the radius, six landmarks spread over
+1,000 real metres all arrive inside one 50 × 25 m patch, and at 1:3 the Dome's
+range alone would take 40 × 13 m of it. Heights are untouched at 1:1.5.
 
 The shelf's own items come to 1,700 + 2,000 + 1,900 + 1,300 + 420 + 700 + 380 +
 260 + 340 = 9,000. Six hundred of that sits inside districts 6 and 8, where a
@@ -689,18 +859,29 @@ harden it.
   pair — which is why both are on the northeast/east edge, ~30 m apart in scene
   terms, where they can be seen together.
 - **Bunker Hill Monument** — a tapering grey granite needle on a square green
-  hill. `obelisk` from the kit, re-proportioned. Height 67 m real (Likely, widely
-  cited, not re-verified) → 44.7 m scene. Two shapes, ~420 blocks, very high
-  recognition per block: the best value on the shelf.
+  hill. Height 67 m real (Likely, widely cited, not re-verified) → 44.7 m scene.
+  Two shapes, ~420 blocks, very high recognition per block: the best value on the
+  shelf. Not the kit's `obelisk`, which is cube-era and lays about 1,480 half-metre
+  cubes over that height for the 420-block line item priced here; the needle is
+  nine stacked `pier`s of shrinking plan plus a four-course pyramidion — sixteen
+  blocks for the same silhouette, which is ADR-0013's whole argument stated on the
+  simplest object in the scene. The kit function is left alone because four other
+  scenes call it.
 - **Great Dome and Killian Court** — a wide limestone-grey classical block, a
   colonnade of tall `column`s across its front, a **shallow hemispherical dome
-  with an oculus** (`halfDomeShell` reused, which is why this landmark is cheap),
-  and a big open rectangle of lawn running from its base toward the river. `02`'s
+  with an oculus**, and a big open rectangle of lawn running from its base toward
+  the river. The dome is a stack of four shrinking `drum`s on plates, not the
+  kit's `halfDomeShell`: that builder skips every cell on one side of the centre,
+  so it is an apse against a wall rather than a dome on a rotunda, and the two
+  mirrored calls that would close it write the same cells twice. Shrinking drums
+  are full-round, leave the Confirmed oculus open at the crown by construction,
+  and cost 32 facets and four plates against `halfDomeShell`'s ~300 cubes at this
+  radius — cheaper as well as correct. `02`'s
   warning is a hard authoring constraint: *the dome is low and broad, not tall and
   pointed — get that ratio wrong and it reads as a capitol building.* Dome
   diameter 30.5 m and height 46 m are both Confirmed, so the ratio is not a guess.
   The Killian-Court-to-2-Canal-Park sightline is, literally, HubSpot's own founding
-  story — 1.8 km in life, 155 m here, and both ends are on the map.
+  story — 1.8 km in life, 145 m here, and both ends are on the map.
 - **MIT Green Building** — the tallest building in Cambridge (84 m architectural,
   Confirmed). A narrow concrete slab on **open pilotis** at the base with a radar
   `drum` on the roof. Three shapes.
@@ -715,10 +896,12 @@ harden it.
 
 ### 5.4 What compressing distance costs, stated honestly
 
-The Ring B law puts the Great Dome 155 m from HubSpot's front door instead of
-1,706 m. **A person who works in this building knows that is an eleven-fold lie.**
-It is the single largest liberty this design takes and it should be named rather
-than buried.
+The Ring B law puts the Great Dome **145.5 m** from HubSpot's front door instead
+of 1,706 m. **A person who works in this building knows that is a lie of nearly
+twelve to one.** It is the single largest liberty this design takes and it should
+be named rather than buried. The 145.5 is what §1.2's own law returns —
+`113 + (1,706 − 340) / 41.9` — and `sceneOffset` reproduces it at 145.49, so the
+figure is checkable against the table rather than quoted.
 
 Three things make it the right trade anyway:
 
@@ -1241,11 +1424,18 @@ building rather than against open ground.
 Four things shape how the gallery gets built, each of them following from
 something already established elsewhere:
 
-- Flat and on the ground plane, laid at each item's own declared raster pitch,
-  inside a declared `CAMBRIDGE_OPEN_GROUND` span or on an authored apron — not
-  inside a `roads`, `water` or `parks` rect. The road-conflict and
-  water-over-surfaces probes would catch that anyway, but it is worth writing
-  down so nobody has to learn it from a red build.
+- Flat and on the ground plane, laid at each item's own declared raster pitch, on
+  an authored apron and not inside a `roads`, `water` or `parks` rect. The
+  road-conflict and water-over-surfaces probes would catch that anyway, but it is
+  worth writing down so nobody has to learn it from a red build. An earlier
+  version of this bullet also offered "inside a declared `CAMBRIDGE_OPEN_GROUND`
+  span", and that half is not buildable: `probeOpenGround` fails any span holding
+  a block, so a mark laid inside a span un-declares the span the moment it is
+  authored. District 10 discharged this by building the aprons **adjacent** to
+  the ground each mark wants — its own header names which apron belongs to which
+  `04` item, and three of the five items need no new apron at all, because
+  District 8's promenade, District 9's Killian Court lawn and the Charles's own
+  water already are the ground those marks sit on.
 - No third-party trademarks. `02` §7 draws the line well: HubSpot's own mark is
   the point of the exercise, a competitor's would read as a jab, and a small
   local business did not ask to be in a game.
@@ -1293,12 +1483,12 @@ that drifts per scene stops being a contract.*
 | `probeParkUnderWater` | No park rect fully inside water. The canal park wraps the basin, so this is a real risk here |
 | `probeRimmedWater` | The canal basin's rim must match the water interior. Union-aware: the channel and the basin are two lobes of one body |
 | `probeBareGround` | Every footprint cell on a decor surface. Cambridge targets **zero dead ground**, Boston's standard |
-| `probeOpenGround` | `CAMBRIDGE_OPEN_GROUND` — four spans (§1.4), each genuinely block-free **and edge-touching** |
+| `probeOpenGround` | `CAMBRIDGE_OPEN_GROUND` — one span, the Inner Belt yard's ballast (§1.4), genuinely block-free **and edge-touching** |
 | `reportDeadGround` | Printed, not gated. **Target: 0**, checked cell-by-cell rather than by the 4 m sampled probe, which has 8 m of reach and walks past an 8 m bare stripe |
 | `probeCrosswalkStripes` | From `zebra`, never hand-rolled |
 | `probeCrossingsOnDeclaredStreet` | `CAMBRIDGE_CROSSINGS` inside `CAMBRIDGE_STREETS` spans |
 | `probeDecorKeyOrder` | `sceneDecor` key order matches draw order — water wins overlaps, markings above asphalt |
-| `probeAmbient` | Kinds: `gulls`, `geese`, `ducks` (the Duck Boat ramp), `trains` (Green Line and Red Line), `steam`, `neon`, `pigeons`. Render-only, never physical |
+| `probeAmbient` | Kinds: `gulls`, `steam`, `neon`, `pigeons`, and the roster is final at those four. Render-only, never physical. `ducks`, `geese` and `trains` were listed here and are dropped: `js/voxelworld.js` enumerates the kinds it can resolve and there is no deriver, no mesh and no tick for any of the three, so declaring them would make this probe go green on birds that do not exist. Adding them is a change to a file four other scenes share, made for ambient decoration — a Phase 8 decision in its own right, not a rider on a scene |
 | `probeIdleStability` | 3 s spawn-idle with nothing moving |
 | `probeFinitePositions` | Before and after the excursion |
 | Excursion determinism | Two identical runs (§9.5) |
@@ -1373,12 +1563,29 @@ wall's *footprint* rather than re-excavating the same crater twice) and Boston's
 (end-to-end legs, deliberately not orbiting a point, so the hole never
 re-harvests footprint it already took).
 
-**Route: the Davenport's long axis and back along First Street.** 62 s, five
-waypoints, entering at the block's west end, running the full 36.5 m of the mill
-range along its spine, out onto First Street, and back north — legs, not an
-orbit. The Davenport is chosen because it is the densest district and because it
-is the district whose grain the vocabulary changes most, so the excursion is also
-the vocabulary's own regression test.
+**Route: the Davenport's long axis and back along First Street.** It began at
+62 s and five waypoints, entering at the block's west end, running the full
+36.5 m of the mill range along its spine, out onto First Street, and back north —
+legs, not an orbit. The Davenport is chosen because it is the densest district
+and because it is the district whose grain the vocabulary changes most, so the
+excursion is also the vocabulary's own regression test. Each district then
+appended its own legs, because the density probe measures inter-piece gaps *along
+this route* and a district the route never enters cannot be measured by it; the
+finished route is 134 legs, 2,178.0 m of arc and 780 s, and the run reaches
+SIZE 7.
+
+**The route is now the validator's dominant cost, and anyone appending to it
+should know that before they do.** `tools/validate.mjs` drives it twice for the
+determinism check, and the cost per second of route is superlinear in the hole's
+own SIZE — the removal disc and the loose-body count both grow with it. Timed in
+a quiet process: the first 180 s of route cost 21 s of wall, the next 180 cost
+217, and the last stretch cost more again. A longer route is therefore not
+proportionally dearer, it is several times dearer, and two more districts of
+appended loops would put a full run past what a laptop finishes between edits.
+The cheap lever is **time rather than geometry**: the density probe reads gaps
+along the route's *arc* and never reads a leg's duration, so tightening the
+`until` values on the early low-SIZE legs costs the probe nothing and moves only
+the excursion's own eaten and SIZE figures.
 
 **Floors:** determinism across two runs (identical `eatenCount` and `mass` to six
 decimal places), `eatenCount ≥ 300`, `size ≥ 4`. The SIZE floor is held to the
@@ -1386,12 +1593,15 @@ same `≥ 4` as every other scene; the ladder's ×10 cap exists precisely so the
 largest scenes are not held to a lower standard than the ones they were built to
 surpass.
 
-**One thing to watch, and to measure rather than assume.** `01` §3.5 is explicit
-that consolidation reduces bites *per object*. A 62 s excursion through a
-vocabulary-built district could plausibly come in under 300 eats where its
-brick-built twin cleared it easily. If that happens, the fix is more content, not
-a lower floor — the same instinct behind Brooklyn's declared open ground. We do
-not narrow a probe to get it green.
+**One thing to watch, and it happened.** `01` §3.5 is explicit that consolidation
+reduces bites *per object*, and this section predicted that a 62 s excursion
+through a vocabulary-built district could come in under 300 eats where its
+brick-built twin cleared it easily. It came in at 289. The fix was the one stated
+in advance — more content, not a lower floor: ground-storey clutter down the
+mill, at grade, in the two strips either side of the post line that nothing
+structural occupies, sitting directly under the route's spine leg. That is the
+same instinct behind Brooklyn's declared open ground. We do not narrow a probe to
+get it green.
 
 ---
 
@@ -1421,6 +1631,16 @@ The twelve primitives of `01` §4.1, and nothing beyond them: `slab`, `column`,
 `pier`, `beam`, `panel`, `mullion`, `cornice`, `plinth`, `tread`, plus the
 `corbelArch`, `drum` and stepped-wedge approximations. Pure geometry over
 `sim._block`. No named buildings, no street semantics, no colours.
+
+Eleven of the twelve are in use. **`corbelArch` is not usable as shipped**, and
+it is a straight contradiction between two Phase 3 deliverables rather than an
+authoring preference: every corbel course trips `probePlacementStep`, because the
+"gap" the probe looks for *is* the arch's opening. The primitive has been
+imported and never called since Phase 5, and two districts declined it for that
+reason. Phase 8 chooses between giving it a step that equals its extent — which
+stops the courses being identical boxes — and dropping it from the twelve and
+saying so. Either is a change to `js/voxelforms.js`, which re-measures every
+district, so neither belongs in a district task.
 
 This is a *lower* layer than `voxelkit.js`: the kit may eventually consume it;
 `voxelforms` never imports the kit. **Being a separate file is what stops it
@@ -1478,15 +1698,23 @@ already exists and is already validated:
 - **Structure:** `fireEscape`, `stoop`, `streetWall`, `rowBlock`, `setbackTower`,
   `naveChurch`, `museumBlock`, `scaffoldShed`, `gantryCrane`, `trussViaduct`,
   `grandStair`, `balustrade`, `crenellation`.
-- **Landmark reuse, the high-value cases:** **`obelisk`** for the Bunker Hill
-  Monument, **`halfDomeShell`** for the Great Dome *and* the salt-and-pepper
-  tower caps, **`archBridge`** for North Point Park's curving footbridge,
-  **`tieredFountain`** for the canal basin's fountain, **`stoneArch`** for the
-  lock channel, **`mosaicDisc`** as the pattern the edge-band gallery's marks
-  follow.
+- **Landmark reuse, the high-value cases:** **`archBridge`** for North Point
+  Park's curving footbridge, **`tieredFountain`** for the canal basin's fountain,
+  **`stoneArch`** for the lock channel, **`mosaicDisc`** as the pattern the
+  edge-band gallery's marks follow.
 
 That is roughly sixty existing builders doing real work in Cambridge, which is
 the strongest available argument that the kit *is* a kit and not just a pile.
+
+**Two kit builders this section proposed do not do what their names say, and the
+landmarks that needed them were built another way.** `halfDomeShell` builds a
+semi-dome and cannot close a full one, so a landmark needing a whole dome — the
+Great Dome, and the salt-and-pepper tower caps — has to compose it. The kit's
+`obelisk` is cube-era, costing 1,480 blocks against a 420-block line item, which
+is the same stale unit §4 carries, in a shared file. Both live in
+`js/voxelkit.js`/`js/voxelforms.js` and both are recorded rather than fixed here,
+for the same reason `corbelArch` is: touching those files re-measures every
+district. Phase 8's call.
 
 ### 10.5 Documentation obligations, same commit
 
@@ -1521,6 +1749,18 @@ open, with the thing that would close each one written down next to it.
 | **The Lechmere Canal channel's extent** | Whether the hero building genuinely fronts water | §1.5's declared inference |
 | **How big one bite should feel** (`01` §8) | Bay size everywhere | The owner, by playing. The 4 m bay is this design's proposal, not a finding |
 | **Crumble or collapse** (`01` §8) | Bay size again, tuned the other way | Same |
+
+Four more are open for a different reason: they are defects in shared code or in
+what this page *declares*, found while building, and each is fixable only by
+touching a file that would re-measure districts already verified. They are Phase
+8's, and every number they need is already recorded so nobody re-derives them.
+
+| Item | Where it bites | What closes it |
+|---|---|---|
+| **District 7's rect starts 10.5 m east of its own westernmost geometry** | 1,961 pieces stand in no declared rect, which `probeCellOwnership` cannot see (§4.7) | P8.1 either widens the rect to x[31,107] z[−94,−8] — measured at 4.204/m² against the shipped 3.996 — or declares the verge deliberately unrowed |
+| **`corbelArch` and `probePlacementStep` are incompatible as shipped** | One of the twelve primitives is unusable and has never been called (§10.2) | Give the primitive a step equal to its extent, or drop it from the twelve and say so |
+| **`halfDomeShell` builds only a semi-dome; the kit's `obelisk` is cube-era** | Whole domes have to be composed; the obelisk costs 1,480 blocks for a 420-block line item (§10.4) | The same Phase 8 pass, in the same two files |
+| **The excursion is the validator's dominant cost** | A full run at 780 s of route, driven twice, is past what a laptop finishes between edits (§9.5) | Tightening `until` values on the early low-SIZE legs — the density probe reads arc, never duration, so it costs the probe nothing |
 
 ## Related
 

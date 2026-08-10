@@ -9,9 +9,9 @@
 > `tools/gen-partner-logo.mjs`; three.js vendored to `js/vendor/three.module.js`
 > behind a same-origin import map, with `validateOfflineBoot()` in
 > `tools/validate.mjs` holding the boot to it
-> ([ADR-0014](adr/0014-vendored-same-origin-runtime.md)); the Cambridge sandbox
-> is part-built and playable, the online Flywheel package is still documentation
-> only).
+> ([ADR-0014](adr/0014-vendored-same-origin-runtime.md)); the Cambridge sandbox's
+> map is complete and playable with hidden content still ahead, the online
+> Flywheel package is still documentation only).
 
 ## What is this?
 
@@ -20,6 +20,10 @@ read by both humans and AI agents. Product/design requirements live in `docs/`;
 this wiki is the engineering companion.
 
 ## Quickstart
+
+**Wondering what is actually built?** → [roadmap.md](roadmap.md). Several
+systems in [features/](features/) are documentation only; that page says which,
+what each is waiting on, and what could start today.
 
 **New developer?**
 1. [onboarding.md](onboarding.md)
@@ -38,6 +42,7 @@ this wiki is the engineering companion.
 
 | Section | Purpose |
 |---------|---------|
+| [roadmap.md](roadmap.md) | **What is real vs. what is only designed** — every planned system, whether it exists today, what it is blocked on, and rough size. Start here if you are wondering whether something is built |
 | [architecture.md](architecture.md) | System design, data flow, sim/render split |
 | [onboarding.md](onboarding.md) | Setup, run, validate |
 | [conventions.md](conventions.md) | Coding standards, naming, determinism rules |
@@ -46,7 +51,7 @@ this wiki is the engineering companion.
 | [modules/](modules/) | Per-module docs with `covers:` globs: [campaign](modules/campaign.md), [citygen](modules/citygen.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
 | [adr/](adr/) | Architecture Decision Records |
 | [runbooks/](runbooks/) | Run/validate/deploy playbooks |
-| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (planning only — accounts, live shared arena, leaderboards; nothing built yet), [cambridge-sandbox](features/cambridge-sandbox/README.md) (partly built — sixth voxel scene + anisotropic voxel-primitive vocabulary; engine change, primitive layer, scene registration and Districts 1–5 committed, Districts 6–10 and Phase 7 ahead) |
+| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (planning only — accounts, live shared arena, leaderboards; nothing built yet), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary; engine change, primitive layer, scene registration and all ten districts committed, Phase 7's hidden content and the Phase 8 sign-off ahead) |
 
 ## Feature planning packages
 
@@ -61,13 +66,14 @@ this wiki is the engineering companion.
   plan for a sixth voxel sandbox scene centred on HubSpot's real Cambridge, MA
   HQ (2 Canal Park + the Davenport), and the debut vehicle for a new
   anisotropic voxel-primitive vocabulary ([ADR-0013](adr/0013-anisotropic-voxel-primitives.md)).
-  **Partly built** — the engine change, `js/voxelforms.js`, the new validator
-  probes and Districts 1–5 are committed in `js/voxelscene-cambridge.js`;
-  Districts 6–10, Phase 7's hidden content and the Phase 8 sign-off are ahead.
-  P6.12 was pulled forward ahead of the remaining districts, so the scene is
-  registered and loadable from the free-play picker and `validateCambridge()`
-  runs in `tools/validate.mjs` — each district can be played and gated as it
-  lands rather than all at once at the end. Start at the
+  **The map is complete and playable** — the engine change, `js/voxelforms.js`,
+  the new validator probes and all ten districts are committed in
+  `js/voxelscene-cambridge.js`, the scene is registered and loadable from the
+  free-play picker, and `validateCambridge()` runs in `tools/validate.mjs` to
+  `ALL PASS` (72,943 blocks against an under-75,000 target, dead ground zero).
+  Phase 7's hidden content, glyphs and achievements and the Phase 8 sign-off are
+  ahead; Phase 7's achievement rows are blocked on the online-Flywheel backend
+  rather than on anything in this package. Start at the
   [README](features/cambridge-sandbox/README.md), which points at
   [00-objective-overview.md](features/cambridge-sandbox/00-objective-overview.md).
 

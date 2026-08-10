@@ -404,6 +404,17 @@ scene is explicitly trying not to make.
 Aim wide; the designer picks. Confidence is marked because some of these are
 neighbourhood lore rather than documented fact.
 
+**On the distances in this section.** Where a prose entry below gives a distance,
+it is the straight-line radius from 2 Canal Park and it agrees with §6's `Dist`
+column. Several of them originally quoted the **east component alone** (|E| from
+§6's table) instead — the tofu factory as "240 m southwest" against a real 494,
+the Portuguese parks as "300 m" against 402 and 418, the Glass Factory as "117 m
+WNW" against 224. That is one transcription habit rather than three separate
+errors, and it matters because a designer reading a prose distance is deciding
+which side of `03` §1.2's 340 m ring seam a feature falls on: at |E| all three
+read Ring A and at their true radii all three are Ring B. **§6's table is the
+authority for any distance; the prose is a description.**
+
 ### East Cambridge, specifically
 
 - **The Portuguese neighbourhood.** East Cambridge has had a Portuguese and
@@ -414,7 +425,7 @@ neighbourhood lore rather than documented fact.
   oldest fish markets in the city — plus Portuguese bakeries. **Confirmed**
   ([Boston Magazine](https://www.bostonmagazine.com/property/east-cambridge-neighborhood-guide/),
   [History Cambridge](https://historycambridge.org/history-hubs/culinary-history-hub/)).
-  Two parks 300 m from HubSpot are named **Costa Lopez** and **Silva**.
+  Two parks 402 m and 418 m from HubSpot are named **Costa Lopez** and **Silva**.
   This is the most under-used, most genuinely local seam in the whole map — a
   fish market and a bakery on Cambridge Street say "East Cambridge" far louder
   than another glass lab block does.
@@ -424,9 +435,9 @@ neighbourhood lore rather than documented fact.
 - **The glass and furniture industries.** The New England Glass Company and the
   Davenport furniture works were the neighbourhood's industry. Surviving traces:
   **Glassworks Avenue** (a real street, 400 m out) and **The Glass Factory**
-  condos (117 m WNW). **Confirmed** (OSM + History Cambridge).
+  condos (224 m NNW). **Confirmed** (OSM + History Cambridge).
 - **The tofu factory.** Chang Shing Tofu Factory, a one-storey industrial
-  building 240 m southwest, still operating in a district of lab towers.
+  building 494 m southwest, still operating in a district of lab towers.
   **Confirmed** (OSM). This is the kind of detail that makes a local laugh.
 - **The courthouse saga.** 40 Thorndike sat empty and contested for a decade;
   in 2025 contractors who broke environmental law clearing it were still paying

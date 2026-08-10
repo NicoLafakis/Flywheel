@@ -6,12 +6,14 @@ covers:
 ---
 # Cambridge sandbox — objective overview
 
-**Status:** the spine, and partly built. ADR-0013's engine change, the primitive
-layer (`js/voxelforms.js`), the coin-anchor and chain changes, the new validator
-probes, and Districts 1, 2, 3 and 4 are committed. Districts 5 through 10,
-Phase 7's hidden content and achievements, and the Phase 8 sign-off are still
-ahead, and the scene is not yet registered in `AUTHORED_SCENES` or the free-play
-picker (P6.12), so it cannot be loaded from the menu yet.
+**Status:** the spine, and the map is built. ADR-0013's engine change, the
+primitive layer (`js/voxelforms.js`), the coin-anchor and chain changes, the new
+validator probes, all ten districts and the scene's registration are committed:
+Cambridge is complete, playable from the free-play picker and `ALL PASS` on
+`node tools/validate.mjs`. Phase 7's hidden content, glyphs and achievements and
+the Phase 8 sign-off are still ahead; Phase 7's achievement rows remain blocked
+on the online-Flywheel backend, which is an inherited blocker rather than a new
+one.
 **Date:** 2026-08-06.
 **Reads with:** `01-voxel-primitive-vocabulary.md` (the toolkit),
 `02-cambridge-reference.md` (the facts), `03-level-design.md` (the design),

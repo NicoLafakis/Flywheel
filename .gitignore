@@ -5,3 +5,7 @@ Thumbs.db
 playtests/
 # Agent verification output: screenshots, probe scripts, measurement reports.
 _*-deliverables/
+# Playwright MCP recreates this scratch dir on every browser session.
+.playwright-mcp/
+# Reference imagery used while authoring the wiki; not part of the shipped game.
+.wiki/references/

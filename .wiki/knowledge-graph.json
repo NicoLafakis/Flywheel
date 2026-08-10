@@ -1,7 +1,7 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-10T03:27:09+00:00",
+    "generatedAt": "2026-08-10T14:31:19+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
@@ -9,7 +9,7 @@
       "symbols": 122,
       "edges": 8,
       "modules": 2,
-      "reusedFromCache": 26
+      "reusedFromCache": 34
     }
   },
   "files": {
@@ -60,7 +60,7 @@
     },
     "js/main.js": {
       "lang": "javascript",
-      "hash": "5a009e950722a2c6496945d9c2d0079d18010d1fc80383a6dd39e0169782f212",
+      "hash": "eefba58b53041ff793c1d671559cafa5205231d86ab8f6501d833a8ac4859985",
       "loc": 671,
       "module": "js",
       "symbols": [],
@@ -828,8 +828,8 @@
     },
     "js/voxelscene-cambridge.js": {
       "lang": "javascript",
-      "hash": "70b518d051f055922510152e93d940ed360aaa54b1317ee2ea25a8522b8a0b19",
-      "loc": 4961,
+      "hash": "649d5020cd7ca6f9064e757d962aabcc023c0f514a112bdb71120a813a2e38d6",
+      "loc": 11052,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -889,8 +889,8 @@
     },
     "js/voxelworld.js": {
       "lang": "javascript",
-      "hash": "499b5a7fee269c294b1dcbb86bd4722e0cc8f5d13a2f8cbe5ee11b68876efac8",
-      "loc": 2526,
+      "hash": "862d2849851c483b8580bf69bf5d221d78240d6d248ba566e28a886cf75215cf",
+      "loc": 2580,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -1075,8 +1075,8 @@
     },
     "tools/validate.mjs": {
       "lang": "javascript",
-      "hash": "22d8e93ea1f03bd4fb25d1c83f81f843fe2ea4d86b0dacf81b3c6d7687eaf736",
-      "loc": 1484,
+      "hash": "ae3db78deb755397e715f59820e9d3732ee85acb7e5d70421efe774c8018b787",
+      "loc": 1489,
       "module": "tools",
       "symbols": [],
       "imports": []

@@ -101,7 +101,7 @@ Building it is blocked on three things only Nico can do:
    `11-risk-register.md`) depend on how long the booth runs and haven't been
    pinned to real dates yet.
 
-### Cambridge sandbox — engine and four districts built, six to go
+### Cambridge sandbox — the map is complete and playable
 
 A sixth voxel sandbox scene centred on HubSpot's real Cambridge, MA HQ (2 Canal
 Park + the Davenport) for UNBOUND, planned in `.wiki/features/cambridge-sandbox/`
@@ -112,12 +112,15 @@ Built and committed: the anisotropic-extent change through `voxelsim.js` /
 `voxelworld.js` / the validator, the twelve-primitive layer `js/voxelforms.js`,
 the render bucket-key win, scene-declared coin anchors, the four new validator
 probes (grade diagonal, placement step, per-district density, hero identity),
-and Districts 1–4 — `js/voxelscene-cambridge.js` is ~3,900 lines.
+the scene's registration, and **all ten districts** —
+`js/voxelscene-cambridge.js` is ~11,000 lines. The scene loads from the landing
+screen's free-play picker and `node tools/validate.mjs` reaches `ALL PASS`:
+72,943 blocks against the under-75,000 target, dead ground zero, 814 generated
+camera blockers, and the scripted excursion reaching SIZE 7 against a floor of 4.
 
-Ahead: Districts 5–10 (P6.5–P6.10), then Phase 7's hidden content, glyphs and
-achievement rows, then the Phase 8 sign-off. Note that P6.12 — the
-`AUTHORED_SCENES` / `FREE_PLAY` registration — has not been done, so the scene
-cannot be loaded from the landing screen yet.
+Ahead: Phase 7's hidden content, glyphs and achievement rows, then the Phase 8
+sign-off. Phase 7's achievement and belt rows are blocked on the online-Flywheel
+backend prerequisites already tracked above, not on anything in this scene.
 
 The vocabulary page carries the owner's **scale rule** (2026-08-07): piece size
 follows building size — a landmark tower is solid columns + per-bay slabs +
@@ -307,7 +310,8 @@ district sweep).
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
 
-- 2026-08-09: Sandbox travel cue is now a compact Flywheel compass puck at the moving rim (gold bezel + orange needle); it follows real travel, not tank heading, and hides while stopped
+- 2026-08-09: Nav Indicator Skins & Shop expansion: added 6 incremental indicator skins to Shop (Baseline Chevron, Plasma Wedge, Supered Hot Pink Lightning, Inferno Flame, Cyber Prism, Cosmic Star Vector) with save schema v14 → v15 migration and custom 3D geometries/pulsing animations
+- 2026-08-09: Floating nav indicator in Sandbox updated: bold rim-welded chevron arrow pointer (electric cyan body, dark outline, glowing white core) welded to outer hole rim (reference indicator-02.webp / movement-01.webp), dynamically gliding along moving perimeter in real-time
 - 2026-08-08: Quality settings collapsed to a strict HIGH/LOW binary, player-chosen only — device auto-detection and the live frame-time watchdog are gone (`js/quality.js` 314 → 58 lines); save schema v13 → v14 remaps every legacy tier value
 - 2026-08-07: Tank controls stay, now readable: player A/B-tested four keyboard schemes live (direct / tank / strafe-snap / mouse-follow) and picked tank — the "roundabout" was an INVISIBLE heading, not the scheme. New heading pointer welded to the hole (paper-plane arrow, brand orange, all skins); rig removed same pass
 - 2026-08-07: Voxel physics: `_capDebris` stops sleeping blocks onto loose supports (no more mid-air hangs), contact-budget-excluded debris parks instead of sinking into itself (no more re-entry fountain / rim knocking bricks sky-high)
@@ -316,6 +320,8 @@ git log, not here. This section is NOT a changelog.
 - 2026-08-06: Tank controls everywhere (W/S throttle along a persistent heading, A/D steer the heading — spin in place parked), sandbox camera chases the control heading directly, basis latch + `recentre()` retired (ADR-0008)
 - 2026-08-05: Upper Manhattan full rebuild (8,442 → 73,393 blocks, full Central Park + UWS + Museum Mile + Harlem geography) + structural-zone sim fix (playable at 60 fps) + renderer/input fixes (ground plane, mortar seam, steering, setPerfMode) — ALL PASS
 - 2026-08-04: Rebrand to Flywheel - A sprocket's story (shared `fw-*` brand layer, branded landing screen, world map untouched)
+- 2026-08-09: Generic SANDBOX (`gallery`) 100% consumption goal + Hole rim building clipping GLSL shader (`applyHoleClipping`) + Funnel suction FX & crumble dust particles — ALL PASS
+- 2026-08-09: Nav Indicator Skins System (6 tiered skins, supered glowing hot pink lightning bolt, schema v15 migration) & Shop expansion — ALL PASS
 - 2026-08-04: Brooklyn sandbox scene + intro camera + READY gate + performance pass (schema v10) — ALL PASS
 - 2026-08-04: Upper Manhattan realism + graphics pass (park geography, streets/furniture, renderer batching) — ALL PASS
 - 2026-08-04: Upper Manhattan grid + object alignment scrub (intersection template, footprints off roads, validator guard)

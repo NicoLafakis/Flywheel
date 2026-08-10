@@ -10,9 +10,11 @@ covers:
 ---
 # Cambridge sandbox — the build tasks
 
-**Status:** in flight. Phases 0–5 are shipped, Districts 1–5 (P6.1–P6.5) are
-landed, and P6.12 (scene registration) was pulled forward out of order. Next up
-is P6.6.
+**Status:** in flight. **Phases 0–6 are complete** — all ten districts stand, the
+scene is registered and loadable, `node tools/validate.mjs` reaches `ALL PASS`,
+and the map is driveable and goal-completable. Next up is Phase 7 (hidden
+content, glyphs, achievements), whose achievement and belt rows remain blocked on
+the online-Flywheel backend, and then the Phase 8 sign-off.
 **Date:** 2026-08-06, kept current as tasks land.
 **Reads with:** every other doc in this package — this page sequences their
 decisions rather than re-arguing them. The owning-doc convention from `03`/`04`
@@ -117,9 +119,9 @@ authored against a probe that does not exist yet has nothing checking it.
 
 | ID | Done when | Files / surfaces | Deps | Size |
 |---|---|---|---|---|
-| P3.1 | `js/voxelforms.js` exists: the twelve primitives (`slab`, `column`, `pier`, `beam`, `panel`, `mullion`, `cornice`, `plinth`, `tread`, `corbelArch`, `drum`, the stepped-wedge convention), pure geometry over `sim._block`, one `put()` site per builder, no import of `voxelkit.js`. | `js/voxelforms.js` (new) | P2.* | M |
+| P3.1 | `js/voxelforms.js` exists: the twelve primitives (`slab`, `column`, `pier`, `beam`, `panel`, `mullion`, `cornice`, `plinth`, `tread`, `corbelArch`, `drum`, the stepped-wedge convention), pure geometry over `sim._block`, one `put()` site per builder, no import of `voxelkit.js`. **`corbelArch` as shipped is incompatible with P3.3** — see that row — so eleven of the twelve are in use and the twelfth has never been called. | `js/voxelforms.js` (new) | P2.* | M |
 | P3.2 | Grade-diagonal probe (shared): no `gy === 0` block with plan diagonal > 8 m. `01` §4.2 clause 1 made enforceable. | `tools/validate.mjs` | P2.* | S |
-| P3.3 | Placement-step probe (shared): placement step equals piece extent on every axis. `.wiki/modules/voxel.md` rule 10, generalised to anisotropic pieces. | `tools/validate.mjs` | P2.* | S |
+| P3.3 | Placement-step probe (shared): placement step equals piece extent on every axis. `.wiki/modules/voxel.md` rule 10, generalised to anisotropic pieces. **This probe and P3.1's `corbelArch` contradict each other as shipped**: every corbel course trips it, because the "gap" the probe looks for is the arch's opening. Two districts wanted an arch and both declined the primitive for that reason. Phase 8 chooses — give `corbelArch` a step equal to its extent, or drop it from the twelve and say so. | `tools/validate.mjs` | P2.* | S |
 | P3.4 | Per-district density probe (shared): takes a `{ id, name, rect, gapFloor }` table, iterates it, asserts mean gap between consecutive eatable pieces along the scene's scripted route stays under 15 m and no district falls below half the scene's median eatable-pieces-per-m². Excludes coins from the eatable-piece count (see P4.3 — landing these two together is what makes the exclusion tested rather than assumed). | `tools/validate.mjs` | P2.*, P3.1 | M |
 | P3.5 | `probeHeroIdentity`: takes a hero/not-hero AABB pair and a colour key; asserts every signage block is inside the hero AABB and zero matching-colour blocks are inside the not-hero AABB. Written generically (table-parameterised) even though Cambridge is its first caller, per `03` §9.4's note that a future scene may have the same problem. | `tools/validate.mjs` | P2.* | S |
 
@@ -177,15 +179,17 @@ below A on block count, which is the outcome the whole change was for.
 
 ---
 
-## Phase 6 — Scene authoring: the remaining nine districts
+## Phase 6 — Scene authoring: the remaining nine districts — **complete**
 
 District by district, so a partial Cambridge stops at a coherent edge rather
 than a half-built one. Ordered to follow `03` §7.4's intended route where
 possible — District 1 first because it is the spawn/climax anchor and the first
 thing `probeHeroIdentity` needs real geometry to check.
 
-**Districts 1–5 are landed.** P6.6 is next. P6.12 was pulled forward and landed
-early — see the note under the table.
+**All ten districts are landed.** P6.12 was pulled forward and landed early —
+see the note under the table. The finished scene is 72,943 blocks against the
+under-75,000 target, dead ground zero, 814 generated camera blockers, and the
+scripted excursion reaches SIZE 7 against P8.2's floor of 4.
 
 | ID | State | Done when | Files / surfaces | Deps | Size |
 |---|---|---|---|---|---|
@@ -194,12 +198,12 @@ early — see the note under the table.
 | P6.3 | **done** (`860919f`) | **District 3 — Lechmere & the Viaduct.** First route leg; the local-recognition beat. Includes the Inner Belt yard geometry and that district's `CAMBRIDGE_OPEN_GROUND` ballast span. Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect` to hug whatever districts exist by that point. | `js/voxelscene-cambridge.js` | P6.2 | M |
 | P6.4 | **done** (`d0a83e9`) | **District 4 — Cambridge Street & the Portuguese Seam.** The density reservoir. Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
 | P6.5 | **done** (`dfb50ac`) | **District 5 — Thorndike Civic.** The First Street Garage needs all three of `03` §8.2's density mitigations; with fewer, a 123 × 75 m parking deck reads as a dead zone in the middle of the district, and the density probe will say so. Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
-| P6.6 | next | **District 6 — The Canal & CambridgeSide.** Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
-| P6.7 | | **District 7 — North Point & Cambridge Crossing.** District 3 already built both of `03` §4.11's named buildings, so this district's share of that frontage is already on the map — see "Notes carried forward". Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. | `js/voxelscene-cambridge.js` | P6.1 | M |
-| P6.8 | | **District 8 — The Charles Shore.** Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`, and declares `CAMBRIDGE_OPEN_GROUND`'s other declarable span (the Charles south of the Longfellow line). | `js/voxelscene-cambridge.js` | P6.1 | M |
-| P6.9 | | **District 9 — The Landmark Shelf.** Stata Center (`03` §5.2, watch the grade-clause clarification on plinth-run sizing), Great Dome + Killian Court, Longfellow, Zakim, Bunker Hill, MIT Green Building, Kendall/MIT, NECCO water tower. `03` §4 gives this district no rect — it is described as "the Ring B annulus, all edges" — so this task decides between per-edge-band rows and extending `probeDistrictDensity` to an annulus shape. A full-map rect would swallow the Ring A core and let the scene's highest-risk district never fail the probe, which is the outcome to avoid. Also resolves the TD Garden law-vs-doc 0.25 m gap (declare a `03` §1.5-style exception or nudge the position in). | `js/voxelscene-cambridge.js` | P6.1 | L |
-| P6.10 | | **District 10 — Street life, kerb kit & the edge-band gallery.** All five gallery items belong to `04`'s catalogue (`03` §8.3), so coordinate with P7.3 rather than authoring them here. `03` §4 calls this district's extent "scene-wide" rather than giving it a rect; decide whether it gets a probed `CAMBRIDGE_DISTRICTS` row at all or folds into the other nine as embedded props. The gallery's marks sit on an apron *adjacent* to a declared `CAMBRIDGE_OPEN_GROUND` span rather than inside one — `probeOpenGround` checks a span for emptiness, so a span holding content is no longer open ground. Finally widens `sim.boundsRect` to `03` §1.1's full map rect, now that every district exists to justify it. This is also where the doc-level reconciliations listed below get folded back into `02` and `03`. | `js/voxelscene-cambridge.js` | P6.2–P6.9 | S |
-| P6.11 | | `generateBlockers(sim)` run over the finished geometry; camera blockers never hand-written. | `js/voxelscene-cambridge.js` | P6.2–P6.10 | S |
+| P6.6 | **done** (`41d4c9f`) | **District 6 — The Canal & CambridgeSide.** Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. Authored the canal's water rather than declaring its ground open, which is the argument that settled `03` §1.4 down to a single span. | `js/voxelscene-cambridge.js` | P6.1 | M |
+| P6.7 | **done** (`26e1464`) | **District 7 — North Point & Cambridge Crossing.** District 3 already built both of `03` §4.11's named buildings, so this district's share of that frontage is already on the map — see "Notes carried forward". Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`. Its rect starts 10.5 m east of its own westernmost geometry; the measured fix is P8.1's. | `js/voxelscene-cambridge.js` | P6.1 | M |
+| P6.8 | **done** (`b4e48c5`) | **District 8 — The Charles Shore.** Adds its own `CAMBRIDGE_DISTRICTS` row and widens `sim.boundsRect`, and declares `CAMBRIDGE_OPEN_GROUND`'s other declarable span (the Charles south of the Longfellow line). | `js/voxelscene-cambridge.js` | P6.1 | M |
+| P6.9 | **done** (`7a29fe2`) | **District 9 — The Landmark Shelf.** Stata Center (`03` §5.2, watch the grade-clause clarification on plinth-run sizing), Great Dome + Killian Court, Longfellow, Zakim, Bunker Hill, MIT Green Building, Kendall/MIT, NECCO water tower. `03` §4 gives this district no rect — it is described as "the Ring B annulus, all edges" — so this task decides between per-edge-band rows and extending `probeDistrictDensity` to an annulus shape. A full-map rect would swallow the Ring A core and let the scene's highest-risk district never fail the probe, which is the outcome to avoid. Also resolves the TD Garden law-vs-doc 0.25 m gap (declare a `03` §1.5-style exception or nudge the position in). **Landed as three measured bands rather than one annulus row**, and the TD Garden move is now `03` §1.5's declared exception 6. | `js/voxelscene-cambridge.js` | P6.1 | L |
+| P6.10 | **done** (`a9090bf`) | **District 10 — Street life, kerb kit & the edge-band gallery.** All five gallery items belong to `04`'s catalogue (`03` §8.3), so coordinate with P7.3 rather than authoring them here. `03` §4 calls this district's extent "scene-wide" rather than giving it a rect; decide whether it gets a probed `CAMBRIDGE_DISTRICTS` row at all or folds into the other nine as embedded props. The gallery's marks sit on an apron *adjacent* to a declared `CAMBRIDGE_OPEN_GROUND` span rather than inside one — `probeOpenGround` checks a span for emptiness, so a span holding content is no longer open ground. Finally widens `sim.boundsRect` to `03` §1.1's full map rect, now that every district exists to justify it. This is also where the doc-level reconciliations listed below get folded back into `02` and `03`. **Landed as four measured edge-band rows plus an embedded half that gets no row at all** — raising a neighbour's density *is* this district's brief, so its embedded pieces count toward the district they mitigate rather than toward a row of their own. It took the dead-ground census from 297 undeclared points to zero, which is P8.3's target reached inside Phase 6. Size was S in the plan and was not: 5,822 blocks. | `js/voxelscene-cambridge.js` | P6.2–P6.9 | S — in the event M, for the reason `03` §4.10 now records: the district was priced at 1,210 for a whole map's connective tissue |
+| P6.11 | **done** (`a9090bf`), no edit needed | `generateBlockers(sim)` run over the finished geometry; camera blockers never hand-written. This needed no change at all: the call has been `cambridgeShell`'s last statement since Phase 5 and it runs after `buildings(sim)`, so it has always generated over the finished geometry rather than being typed. `03` §9.4's rule holds by construction — there is no literal blocker anywhere in the file to drift. The count went 813 → 814 over District 10, one rect, for the only thing that district builds taller than 6 m. | `js/voxelscene-cambridge.js` | P6.2–P6.10 | S |
 | P6.12 | **done** (`2a7e0cc`), out of order | Scene wired in so it is both reachable and checked, at four points. (1) `js/voxelsim.js`: an `import { buildCambridge }` line, a `cambridge` branch in the scene dispatch alongside `manhattan`/`brooklyn`/`boston`, and a `cambridge` entry in `GOALS` (name + `targetFraction`, matching the other scenes). Before this landed nothing in the codebase imported `js/voxelscene-cambridge.js`, so the sim could not build the scene at all. (2) `tools/validate.mjs`: a Cambridge validation block modelled on the boston one — import the scene's exported tables, construct the sim, run the full probe list including `probeDistrictDensity` and `probeHeroIdentity` with Cambridge's real district rows and hero pair, plus the grade-diagonal and placement-step probes and a deterministic excursion check. (3) `js/main.js`: a `cambridge` entry in `AUTHORED_SCENES` (label/hud/intro subtitle, matching the existing entries' shape). (4) `js/ui/screens.js`: a `cambridge` row in `FREE_PLAY`, without which the finished scene has no way to load from the landing screen's free-play picker. | `js/voxelsim.js`, `tools/validate.mjs`, `js/main.js`, `js/ui/screens.js` | P6.11 | M — was S when this task was only the two registration entries; the validator block alone is ~40 lines of probe calls plus the excursion determinism check, and the sim dispatch is what first makes the scene runnable at all. |
 
 **Gate, per district:** `probeCellOwnership`, P3.2 (grade diagonal), P3.3
@@ -259,16 +263,18 @@ exactly the same way missing content does:
   empty rows always fail against it. Each row is also refined against the
   district's actual built shell rather than shipped as `03` §4's approximate
   figure, the same way District 2's was.
-- **`CAMBRIDGE_OPEN_GROUND` has two declarable spans, not four.** Of `03`
-  §1.4's four, the canal basin's real offset maps to an interior scene position,
-  which `probeOpenGround` rejects regardless of `boundsRect` size, and the Zakim
+- **`CAMBRIDGE_OPEN_GROUND` ends up with one span, not four.** Of `03` §1.4's
+  four, the canal basin's real offset maps to an interior scene position, which
+  `probeOpenGround` rejects regardless of `boundsRect` size, and the Zakim
   channel sits under its own bridge deck (the probe's emptiness check is 2D, so
   nothing there can read empty). Both are structurally undeclarable in any
-  district. The other two are fine: the Inner Belt yard's ballast (rail, not
-  water, so it needs the declaration) lands with P6.3, and the Charles south of
-  the Longfellow line lands with P6.8. The Charles span is redundant with
-  `reportDeadGround`'s own `sceneDecor.water` `BY_DESIGN` exemption and does no
-  extra work for the census; it is declared anyway for documentation clarity.
+  district. That left two: the Inner Belt yard's ballast (rail, not water, so it
+  needs the declaration), which lands with P6.3 and is the one span this
+  mechanism alone could do work for; and the Charles south of the Longfellow
+  line, which is redundant with `reportDeadGround`'s own `sceneDecor.water`
+  `BY_DESIGN` exemption. The Charles is water that is *built*, so it needs no
+  promise, and the same argument retired the canal basin — authoring the water
+  beats declaring the ground empty. `03` §1.4 now says one.
 
 ### Notes carried forward
 
@@ -305,13 +311,18 @@ reads 926 pieces north of z −88, against §4.11's combined D3+D7 estimate of ~
 (D3 ~600 + D7 ~300). P6.7's content should go somewhere that is not already
 built.
 
-**`03` §4's per-object piece figures predate the anisotropic primitives.** All
-four landed districts sit at 65–73% of their §4 figure (D1 72.6%, D2 66.7%,
-D3 65.3%, D4 71.2%) while shipping every in-scope line item — one piece now does
-what used to take a whole wall course of cubes. Those figures are a stale unit,
-not four underbuilds, and padding to hit them would make the level worse to make
-a number right. Restate them in current-era piece counts at P6.10/P8.x, once the
-pattern is visible across all ten districts.
+**`03` §4's per-object piece figures predate the anisotropic primitives, and §4
+never priced ground at all.** Across all ten districts the pattern is two
+patterns. Districts that built *buildings* to a §4 contents list sit at 65–73% of
+it while shipping every in-scope line item (D1 72.6%, D2 66.7%, D3 65.3%,
+D4 71.2%, D6 47% and 87% in scope, D8 62% and 80% in scope, D9 139% and 84% in
+scope) — one piece now does what used to take a whole wall course of cubes, so
+those figures are a stale unit rather than five underbuilds, and padding to hit
+them would make the level worse to make a number right. Districts that had to add
+*ground* land over (D5 107%, D7 158%, D10 481%), because §4 measured masonry and
+did not measure pavement. `03` §4 now carries both corrections: multiply a
+building line by ~0.7, and every district has a named ground line. The 75,000
+scene target is untouched — the scene lands at 72,943 without either correction.
 
 **A green route-density number does not prove a leg reaches the buildings its
 own doc names.** District 4's route leg 4 read a 0.08 m mean gap while the two
@@ -341,35 +352,90 @@ render as a solid strip.
 gives 113.333 and Ring B gives 113.000, so scene radius is briefly
 non-monotonic for real r ∈ (339, 340] vs (340, 354]. No landmark falls in that
 window today — the closest is Third Congregational Church (District 4) at
-336.9 m real, 3.1 m of margin — but a future district's landmark could, so it
-belongs as a permanent note in `03` §1.2. Otherwise the Ring B branch checks out
+336.9 m real, 3.1 m of margin — but a future district's landmark could, so it is
+now a permanent note in `03` §1.2. Otherwise the Ring B branch checks out
 against `03` §5.4: worst radius error 0.109 m (inside the 0.25 m quantisation
 step), worst bearing error 0.056°.
 
-**Doc-level corrections to fold in at P6.10.** These are facts about `02`/`03`,
-not about the build:
+**The scripted excursion is now the validator's dominant cost.** Every district
+appended legs to it, because `probeDistrictDensity` measures gaps along the route
+and a district the route never enters cannot be measured by it — so the route
+went from 62 s at Phase 5 to 134 legs, 2,178 m of arc and 780 s at P6.9. The
+validator drives it twice for the determinism check, and cost per second of route
+is superlinear in the hole's own SIZE, because the removal disc and the loose-body
+count both grow with it: timed in a quiet process, the first 180 s of route cost
+21 s of wall, the next 180 cost 217, and the last stretch cost more again. A
+longer route is not proportionally dearer, it is several times dearer. **The free
+lever is time, not geometry** — District 8 established that the density probe
+reads gaps along the route's *arc* and never reads a leg's duration, so tightening
+the `until` values on the early low-SIZE legs costs the probe nothing and moves
+only the excursion's own eaten and SIZE figures. Reach for that before reshaping
+the route.
 
-- `03` §1.3's prose puts Costa Lopez, Silva and Toomey parks, the Chang Shing
+**Doc-level corrections, and where each one now lives.** These are facts about
+`02`/`03` rather than about the build. Every district that found one recorded it
+in the scene file and could not act on it alone; the settlement was made at P6.10
+against the built tree and is carried in `01`, `02` and `03` now. The list stays
+because it is the audit trail — it says which section moved and why, so nobody
+re-derives any of it:
+
+- `03` §1.3's prose put Costa Lopez, Silva and Toomey parks, the Chang Shing
   Tofu Factory and American Twine "In, at Ring A". Their real radii (402–541 m)
   are all past §1.2's own 340 m seam, so `sceneOffset` — which implements §1.2 —
   correctly seats all five in Ring B. Ring A would seat Silva Park 19.5 m
-  outside `maxX`. The law and the code agree; §1.3's list is what needs fixing.
-- `03` §5.4's Great Dome figure of "155 m" does not follow from its own
+  outside `maxX`. The law and the code agreed; §1.3's list was the thing that was
+  wrong, and the five have moved to its Ring B list with the deltas recorded.
+- `03` §5.4's Great Dome figure of "155 m" did not follow from its own
   real-world 1,706 m; the law gives 145.5 m (`sceneOffset` returns 145.49). The
-  155 looks borrowed from NECCO's 154 m. §5.4's "eleven-fold lie" argument is
-  unaffected — the ratio is still ~11.7×.
-- `02` §4 quotes several prose distances that are |E| (east component) rather
-  than radius — the tofu factory is called "240 m southwest" (|E| = 238) against
-  a real radius of 494 m. It has now recurred three times, so it wants one `02`
-  fix rather than per-row corrections.
+  155 looks borrowed from NECCO's 154 m. §5.4 now states 145.5 with the
+  derivation beside it, and its argument is unaffected — the ratio is ~11.7×.
+- `02` §4 quoted several prose distances that are |E| (east component) rather
+  than radius — the tofu factory as "240 m southwest" (|E| = 238) against a real
+  radius of 494, the Portuguese parks as "300 m" against 402 and 418, the Glass
+  Factory as "117 m WNW" against 224. It recurred three times, so it took one
+  `02` fix: §4 now opens with a note that §6's table is the authority for any
+  distance, and the three prose figures are corrected. It matters because a
+  designer reading a prose distance is deciding which side of the 340 m ring seam
+  a feature falls on, and at |E| all three read Ring A.
 - District 2's in-file "6,532 blocks" comment is its own isolated build
   (`buildVariant('B2')`). In the shipped multi-district scene District 2's rect
   holds 6,535 — three of District 1's apron pieces at z −12.375 fall inside
-  District 2's `minZ −12.5`. Worth a word when P6.10 reconciles `03` §4 against
-  `03` §6.
-- `corbelArch` is imported and not yet called, and `tread` is only re-exported
-  via `FORMS`. Both are fine as they stand; noted because the import line is
-  shared.
+  District 2's `minZ −12.5`. Confirmed unchanged at P6.10, and `01` §7.1 now
+  says so, so the two numbers are never read as a regression.
+- `03` §4.5 named the Registry of Deeds and the old Middlesex County Courthouse
+  as District 5 line items worth 900 and 700 blocks, and §4.5's own rect excludes
+  both derived seats. The rect is right and the contents list was wrong — a
+  contents list cannot move a Confirmed offset and a rect can be checked. Both
+  are struck from §4.5, its estimate is 1,600 lower, and they are described with
+  District 4's other derived-but-unbuilt seats at §4.4. `CAMBRIDGE_OFFSETS` rows
+  34–35 stay exactly as they are.
+- `03` §4.7 claimed the Glass Factory, whose Confirmed offset seats it 110 m west
+  of that district's rect. Same class of error, same resolution: the offset is
+  right and the district assignment was wrong. It moves to §4.3, which is the
+  quarter of the map it actually stands in, with a note that it is inside no
+  `CAMBRIDGE_DISTRICTS` rect at all (874 pieces, 2.96/m²).
+- `03` §9.2 listed seven ambient kinds and three of them — `ducks`, `geese`,
+  `trains` — have no deriver, no mesh and no tick anywhere in the renderer.
+  Resolved in favour of §9.2: Cambridge's roster is final at four kinds (gulls,
+  steam, neon, pigeons). Adding three kinds touches a file four other scenes
+  share, for ambient decoration, and declaring them without adding them would let
+  `probeAmbient` go green on birds that do not exist. If anyone still wants them
+  they are a `js/voxelworld.js` task in Phase 8, not a scene-file change.
+- **Pieces that stand in no declared rect.** `probeCellOwnership` counts a
+  district's pieces inside a *neighbour's* rect and reads zero for a piece inside
+  no rect at all, so a green there proves nothing. Three bodies of geometry are
+  outside every row: District 7's west verge (1,961 pieces at 4.98/m² over
+  x[31,41.5] z[−94,−6], of which 1,557 are that district's own), the Glass
+  Factory, and scattered seam furniture at four district edges. None is a defect
+  in what is built and all three are defects in what is declared, and no district
+  may move a neighbour's rect. P8.1's, with the numbers measured so the choice is
+  not a guess — see that task.
+- `corbelArch` is imported and has never been called, and it cannot be: it and
+  P3.3's `probePlacementStep` are incompatible as shipped. `halfDomeShell` builds
+  only a semi-dome and the kit's `obelisk` is cube-era at 1,480 blocks for a
+  420-block line item. All three are recorded in `01` §4 and `03` §10, and all
+  three are Phase 8 calls, because `js/voxelforms.js` and `js/voxelkit.js` are
+  shared files and a change to either re-measures every district.
 
 **Two District 4 items are deferred, by design.** Costa Lopez Park and the Chang
 Shing Tofu Factory are genuine Ring B seats that land 40–66 m outside both `03`
@@ -377,11 +443,12 @@ Shing Tofu Factory are genuine Ring B seats that land 40–66 m outside both `03
 push `CAMBRIDGE_BOUNDS.maxZ` from +36 to ~+100 and open a 38 m dead band between
 District 2's rear yard and the nearer of the two. `probeBoundsRect` would still
 pass — it checks the perimeter — which is exactly the failure worth avoiding: a
-green gate over a dead patch of playable map. Both ship as `CAMBRIDGE_OFFSETS`
-rows only (`plan: null`), no geometry, no district claim. Costa Lopez sits 16 m
-from District 5's expected reach once §4.5 lands, so whichever of P6.5/P6.10 is
-genuinely adjacent picks it up. Chang Shing is a real outlier (66 m out, nothing
-near it) and is flagged for P8.5-style owner review rather than pre-assigned.
+green gate over a dead patch of playable map. Both shipped as `CAMBRIDGE_OFFSETS`
+rows only (`plan: null`), no geometry, no district claim, until a district's own
+ground reached them. **P6.9 built both** — Costa Lopez as a lawn centred (−71,+69)
+and Chang Shing at (−40,+96), 5.7 m and 2.0 m from their seats — because the
+landmark shelf's south band is the district that finally stands on that ground.
+The owner review Chang Shing was flagged for is moot: the map reaches it.
 
 **Two District 5 items are not built, and `03` §4.5 contradicts itself about
 them — for P6.10 to reconcile.** The Registry of Deeds and the old Middlesex
@@ -392,26 +459,32 @@ list and its rect disagree before this file is consulted. Building them would
 have meant demolishing built, verified District 4 geometry to satisfy a list the
 same section's rect already rules out. They ship as `CAMBRIDGE_OFFSETS` rows
 34–35 with the plan recorded and no district claim, which keeps the derivation
-auditable without putting geometry in contested ground. P6.10 decides which half
-of §4.5 is wrong: the contents list, the rect, or the seats.
+auditable without putting geometry in contested ground. **P6.10 decided: the
+contents list is what is wrong**, and §4.5 has been corrected accordingly.
 
 **One known offset mismatch, left as-is.** `03` §1.2's law places the Davenport
 15 m east / 7.6 m north of where District 2 actually ships, because Phase 5
 built to `03` §4's approximate rect rather than to the law. District 2 is frozen
 and correct as shipped; the mismatch is a fifth instance of the pattern `03`
-§1.5 already establishes with its four declared Ring A exceptions — a
-hand-placed position overriding the raw formula — and is recorded in the
-scale-law function's own header. District 1 has no equivalent ambiguity: `03`
-§1.4 hand-seats 2 Canal Park's centre at (0, −14) directly.
+§1.5 already establishes with its declared Ring A exceptions — a hand-placed
+position overriding the raw formula — and it is now **declared as exception 5**
+there rather than left as a disagreement between two sections. District 1 has no
+equivalent ambiguity: `03` §1.4 hand-seats 2 Canal Park's centre at (0, −14)
+directly. TD Garden's own 13.2 m move is exception 6, for the same reason.
 
 ---
 
 ## Phase 7 — Hidden content, glyphs, and achievements
 
-Can start once its target districts exist (P6.*) and P4.* has landed. Eggs tied
-to a specific district (§2.2–§2.8 of `04`) can be authored alongside that
-district's own Phase 6 task rather than waiting for all ten — the phase's main
-parallelisation opportunity, noted again below.
+**This is the next phase, and every district it targets now exists.** Eggs tied
+to a specific district (§2.2–§2.8 of `04`) could have been authored alongside
+that district's own Phase 6 task; none were, so the whole catalogue is ahead. The
+edge-band gallery's *ground* is authored and kerbed and its five marks are not —
+District 10 built the aprons adjacent to the ground each mark wants, and its
+header names which apron belongs to which `04` item, so P7.3 does not have to
+rediscover that. The one thing not unblocked by Phase 6 is P7.5 and P7.7:
+achievement and belt content rows are still waiting on the online-Flywheel
+backend, which is an inherited blocker rather than a new one.
 
 | ID | Done when | Files / surfaces | Deps | Size |
 |---|---|---|---|---|
@@ -435,11 +508,12 @@ metric-and-direction) re-checked after P7.7.
 
 | ID | Done when | Files / surfaces | Deps | Size |
 |---|---|---|---|---|
-| P8.1 | Full shared 19-probe contract plus the four new probes (P3.2–P3.5) pass against the complete scene, Cambridge's own tables supplied (`CAMBRIDGE_OFFSETS`, `CAMBRIDGE_DISTRICTS`, `CAMBRIDGE_COIN_ANCHORS`, `CAMBRIDGE_VEHICLES`, `CAMBRIDGE_ROAD_SPANS`, `CAMBRIDGE_STREETS`/`CROSSINGS`). | `tools/validate.mjs`, `js/voxelscene-cambridge.js` | P6.*, P7.* | S |
-| P8.2 | The scripted excursion (Davenport long axis + First Street, `03` §9.5) passes: determinism across two runs, `eatenCount ≥ 300`, `size ≥ 4`. If eats fall short of 300 on the vocabulary-built district, the answer is content rather than a lowered floor (`03` §9.5's own instruction). Measured against the **complete** ten-district scene — see the ladder-scaling note below. | `tools/validate.mjs` | P6.4/P5.5 | S |
-| P8.3 | Dead-ground census at zero, checked cell-by-cell (not the 4 m sampled probe). | `tools/validate.mjs` | P6.* | S |
+| P8.1 | Full shared 19-probe contract plus the four new probes (P3.2–P3.5) pass against the complete scene, Cambridge's own tables supplied (`CAMBRIDGE_OFFSETS`, `CAMBRIDGE_DISTRICTS`, `CAMBRIDGE_COIN_ANCHORS`, `CAMBRIDGE_VEHICLES`, `CAMBRIDGE_ROAD_SPANS`, `CAMBRIDGE_STREETS`/`CROSSINGS`). It passes today against the ten-district scene without `CAMBRIDGE_COIN_ANCHORS`, which is P7.4b's; the remaining work is re-running it once Phase 7's tables exist. **Also settles the pieces that stand in no declared rect** (see "Notes carried forward"): either widen District 7's rect west to x[31,107] z[−94,−8] — measured at 11,565 pieces over 2,751 cells, 4.204/m² against the shipped row's 3.996, so it neither weakens the check nor flatters the row — or add a `03` §4.7 note that the verge is deliberately unrowed. No district could do this, because none may move a neighbour's rect. | `tools/validate.mjs`, `js/voxelscene-cambridge.js` | P6.*, P7.* | S |
+| P8.2 | The scripted excursion (Davenport long axis + First Street, `03` §9.5) passes: determinism across two runs, `eatenCount ≥ 300`, `size ≥ 4`. If eats fall short of 300 on the vocabulary-built district, the answer is content rather than a lowered floor (`03` §9.5's own instruction). Measured against the **complete** ten-district scene — see the ladder-scaling note below. The eats shortfall predicted here did happen (289) and was answered with content rather than a lower floor; the finished run reaches SIZE 7, three rungs above the floor. | `tools/validate.mjs` | P6.4/P5.5 | S |
+| P8.3 | Dead-ground census at zero, checked cell-by-cell (not the 4 m sampled probe). **Reached at P6.10**, by the district `03` §8.2 calls the mitigation for the other nine: District 9 left the census at 297 undeclared points in four clusters, and District 10 was drawn around those exact clusters and took it to zero. What remains for this task is confirming it holds once Phase 7 adds content. | `tools/validate.mjs` | P6.* | S |
 | P8.4 | Doc hygiene, same commit as the last code change: `.wiki/modules/voxel.md` gains `js/voxelforms.js` and `js/voxelscene-cambridge.js` in `covers:` and a Cambridge Scenes entry; `AGENTS.md`'s validate-required file list gains both; `STATUS.md` gets one line. | `.wiki/modules/voxel.md`, `AGENTS.md`, `STATUS.md` | P8.1 | S |
 | P8.5 | The 12-fixed-pose apparent-richness capture (`01` §7.3): Sobel edge density, distinct roofline heights per 10 m of frontage, mean luminance, visible-piece count, compared A vs. B2 from Phase 5. Owner reviews both variants behind the free-play picker — the one gate whose pass/fail is a judgement call rather than a number. | screenshots + measurement notes | P8.1 | M |
+| P8.6 | The three shared-file items Phase 6 recorded and could not fix, decided together because they touch the same two files and each change re-measures every district. (a) `corbelArch` and `probePlacementStep` are incompatible as shipped — give the primitive a step equal to its extent, or drop it from the twelve and say so in `01` §4.1. (b) `halfDomeShell` builds only a semi-dome. (c) The kit's `obelisk` is cube-era, 1,480 blocks for a 420-block line item. Optionally also (d): whether `ducks`, `geese` and `trains` get derivers, meshes and ticks in `js/voxelworld.js` — Cambridge's ambient roster is final at four kinds either way, so this is a shared-contract question rather than a Cambridge one. | `js/voxelforms.js`, `js/voxelkit.js`, `tools/validate.mjs`, `js/voxelworld.js` | P8.1 | M |
 
 **Gate:** `node tools/validate.mjs` → `ALL PASS`. Both of `01` §8's open owner
 questions (bite size, crumble-vs-collapse) get answered by playing rather than
@@ -497,10 +571,11 @@ proves the vocabulary and ships as the first real district) → P6.1 (map
 scaffolding) → P6.2 (hero district) → P6.3, P6.5–P6.9 (remaining districts,
 order among these is flexible) → P6.10–P6.12 (glue, blockers & scene
 registration) → P7.1–P7.2b (registry fields) → P7.3–P7.4b (hidden content) →
-P8.1–P8.5 (sign-off).
+P8.1–P8.6 (sign-off).
 
-Everything up to and including P6.5 is done, and P6.12 came early, so the live
-critical path now runs P6.6–P6.9 → P6.10, P6.11 → P7 → P8.
+**All of Phase 6 is done**, so the live critical path now runs P7.1 → P7.2/P7.2b
+→ P7.3/P7.4/P7.4b → P8. P7.5 and P7.7 sit outside it, waiting on the
+online-Flywheel backend rather than on anything here.
 
 The longest pole was Phase 2, the engine change, and it has landed. What remains
 is authoring effort, which scales with people.
@@ -510,14 +585,15 @@ is authoring effort, which scales with people.
 - **P3.* and P4.* were mostly independent** and ran side by side once P2
   landed — the one join point was P4.3, which needed P3.4's density probe to
   exist before it could wire in the coin-exclusion clause.
-- **Districts P6.5–P6.9 have no dependency on one another**, only on P6.1
-  (scaffolding). With enough authors, five districts can be in progress at once.
-- **P7.4 (the egg catalogue) parallelises with P6.5–P6.9 directly**: each egg in
-  `04` §2 is scoped to one district, so an author finishing a district can
-  immediately author that district's eggs rather than waiting for Phase 7 to
-  formally start. The only hard sequencing is that P7.1 (the `discoveries`
-  field) needs to exist before any egg's discovery bit can be wired up — so land
-  P7.1 early, against whichever district finishes first.
+- **Districts P6.5–P6.9 had no dependency on one another**, only on P6.1
+  (scaffolding), and in the event they ran in order anyway.
+- **P7.4 (the egg catalogue) was meant to parallelise with P6.5–P6.9 directly**:
+  each egg in `04` §2 is scoped to one district, so an author finishing a
+  district could have authored that district's eggs immediately. That did not
+  happen, so the whole catalogue is Phase 7 work now and it parallelises across
+  districts instead of alongside them. The hard sequencing is unchanged: P7.1
+  (the `discoveries` field) has to exist before any egg's discovery bit can be
+  wired up, so land P7.1 first.
 - **P7.4b (coin anchors) does not parallelise the same way.** Its bridging coins
   are placed by measuring real gaps along the scripted route, so unlike P7.4 it
   needs the districts it measures substantially finished, not just started —

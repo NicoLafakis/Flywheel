@@ -584,6 +584,26 @@ matching `_block`'s existing convention (`voxelsim.js:461-466`).
 Everything in that table is **one call to `_block` with three extents**. Nothing
 needs a new shape, a new geometry, or a new material.
 
+**Eleven of the twelve are usable as shipped. `corbel-arch` is not**, and the
+reason is a contradiction between two deliverables of the same phase rather than
+an authoring preference: every corbel course fails `probePlacementStep`, because
+the "gap" that probe is looking for *is* the arch's opening. The primitive has
+been imported and never called since the first district shipped, and two
+districts that wanted an arch declined it for exactly this reason and built the
+opening another way. The two cannot both stand as written — either `corbelArch`
+gets a placement step equal to its own extent, which stops the courses being
+identical collinear boxes, or it comes out of the twelve and this table says so.
+That is a change to `js/voxelforms.js` and it re-measures every district that
+uses the file, so it is a sign-off decision rather than a district's.
+
+Two kit builders in `js/voxelkit.js` are in the same position, recorded here
+because a scene author reaching for them should know before they do:
+`halfDomeShell` builds a semi-dome and cannot close a full one, so a whole dome
+has to be composed; and `obelisk` is cube-era, costing 1,480 blocks for what this
+vocabulary prices at 420. Neither is a defect in what was built — both landmarks
+stand — and both are the same stale-unit problem this page's own cost model
+predicts, sitting in a shared file.
+
 ### 4.2 The grain rule
 
 A player should be able to read *"I am eating a building"* rather than *"the
@@ -921,7 +941,11 @@ A is a cube-diced upper bound on the same plan rather than a shippable size —
 it is 5.6× what `03` sketches for this district — so it is a reference point for
 what cubes cost, not a figure B2 should have been chasing. B2 shipped unpadded
 at 6,532 with 159 identifiable objects and 4.29 eatable pieces/m², which is the
-outcome the whole exercise was for.
+outcome the whole exercise was for. That 6,532 is District 2 built *alone*. In
+the shipped ten-district scene the same rect reads 6,535, because three of
+District 1's apron pieces at z −12.375 fall inside District 2's `minZ` of −12.5.
+The two figures are the same district measured in two different scenes and
+neither is a regression against the other.
 
 ### 7.2 Counts — exact, noise-free, quotable immediately
 
@@ -947,8 +971,9 @@ wrong regardless of what the block count says.
 **E2 targets.** These are about density and richness, not about a total:
 
 - Block count: comfortably inside §4.4's headroom, aiming under 75,000 for the
-  whole scene. *Measured: District 2 shipped at 6,532.* There is no per-district
-  figure to match to the block, and coming in low is not a shortfall.
+  whole scene. *Measured: District 2 shipped at 6,532, and the whole scene at
+  72,943.* There is no per-district figure to match to the block, and coming in
+  low is not a shortfall.
 - Distinct identifiable objects: **up by ≥ 50%** over A. *Measured: 49 → 159,
   +224%. Met.*
 - Eatable pieces per m² of built footprint: the district's own density target
@@ -1027,6 +1052,25 @@ Only after the tree is still (no agents running, nothing else building):
    median eatable-pieces-per-m² by more than half. That makes the combo dead
    zone (§3.5) and the empty diorama measurable, and like every other scene
    contract it lives in the shared probe set.
+
+**What this list costs to run, now that a scene has been authored against it.**
+Gate 6 is why the scripted excursion grows: a district the route never enters
+cannot be measured by it, so every district appends its own legs. Cambridge's
+route reached 134 legs, 2,178 m of arc and 780 s, and at that length **the
+excursion is the dominant cost of the whole validator run** — gate 1 drives it
+twice for the determinism check in gate 2, and the cost per second of route is
+superlinear in the hole's own SIZE, because the removal disc and the loose-body
+count both grow with it. Timed in a quiet process on that scene: the first 180 s
+of route cost 21 s of wall, the next 180 cost 217, and the last stretch cost more
+again. A route twice as long is several times dearer, not twice as dear, and a
+full run can land past what a laptop finishes between edits.
+
+The lever that costs nothing is **time rather than geometry**. Gate 6 measures
+gaps along the route's *arc* and never reads a leg's duration, so tightening the
+`until` values on the early low-SIZE legs leaves every district's density figure
+untouched and moves only the excursion's own eaten and SIZE readings. A scene
+that needs its validator run back under a working attention span should reach for
+that before it reaches for the route's shape.
 
 ---
 
