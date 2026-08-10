@@ -315,6 +315,60 @@ const C = {
   parkFence: 0x37503f,
   parkPath: 0xa89f8e,
   benchWood: 0x7d6a52,
+
+  // --- DISTRICT 5, THORNDIKE CIVIC --------------------------------------
+  // `03` §4's palette bank here is "cast stone, concrete, new glass", and `02`
+  // §5 files BOTH of this district's masses under **concrete, weathered — low
+  // chroma**. So this is the least saturated district on the map by design, and
+  // that is the point rather than an accident: it is the civic block, made of
+  // the one material nobody chose for its colour.
+  //
+  // TWO ERAS IN ONE BUILDING. 40 Thorndike was a Brutalist board-formed
+  // concrete slab and was re-clad in 2024 (`02` §3.9). The base keeps the old
+  // grey; everything above it is the new skin, half a step lighter and half a
+  // step cooler. The garage never got a re-clad and is the raw grey the tower
+  // used to be — which is why `garageCol` sits between `civicBase` and
+  // `civicPrecast` rather than beside either.
+  //
+  // The two colours that alternate — `civicPrecast`/`civicPrecastDeep`, and the
+  // two deck tones — are not a pattern anyone will read as a pattern. They are
+  // there because `probePlacementStep` groups collinear identical boxes BY
+  // COLOUR, and a 20-storey tower of identical bays on a 4.75 m pitch is that
+  // probe's exact defect unless consecutive bays land in different groups.
+  civicBase: 0x777571,        // the surviving board-formed concrete base
+  civicPrecast: 0xb9b3a6,     // re-clad spandrel band
+  civicPrecastDeep: 0xa79f92, // its alternate — see the note above
+  civicPier: 0xcac4b6,        // the cast-stone pier runs: the vertical rhythm
+  civicGlass: sp(0x66787f),   // 2024 curtain wall, cool and pale
+  civicGlassAlt: sp(0x5c6e75),
+  civicMullion: 0x4d555c,
+  civicMullionAlt: 0x585f66,
+  civicDeck: 0x9c9a94,
+  civicDeckAlt: 0x8f8d87,
+  civicParapet: 0x8e8981,
+  civicRoofPlant: 0x6c6f73,
+  // The grade retail that wraps three street faces. `02` §3.9's own line item
+  // ("retail at grade") and `03` §8.2's mitigation (c) are the same thing.
+  retailFrame: 0x4b5157,
+  retailGlass: sp(0x4a5a62),
+  retailSoffit: 0xa8a49a,
+  retailStall: 0x8d8880,
+  awningCivic: 0x2f5c6b,
+  awningCivicAlt: 0x6b4b3a,
+  // The First Street Garage. Every one of these is on the deck side of the
+  // ramp: a garage is a grey object with painted lines on it and nothing else.
+  garageCol: 0x8d8b85,
+  garageDeck: 0x9a9892,
+  garageDeckAlt: 0x8c8a84,
+  garageEdge: 0x82807a,       // the deck-edge upstand, one step down so the
+                              // seven decks read as seven lines at distance
+  garageCore: 0x6f6d68,       // the stair/lift core
+  garageStripe: 0xd8d3c6,     // ramp edge line and the top deck's kerb
+  garageBooth: 0x3f4a52,
+  boothGlass: sp(0x6b7d84),
+  civicVerge: 0x4f5a44,       // the block's landscaped west edge
+  civicKerb: 0x9d9a92,
+  carGlassDeck: sp(0x39434a), // the deck cars' glazing
 };
 
 // --- THE MAP -----------------------------------------------------------------
@@ -493,6 +547,31 @@ export const CAMBRIDGE_OFFSETS = [
     conf: 'Position: Confirmed (OSM, `02` §2.5). Extent: `02` gives none (ground)' },
   { id: 33, name: 'American Twine Office Park', plan: null, height: 10.5, E: -328, N: -342,
     conf: 'Position: Confirmed (OSM). Storeys: Confirmed (3). Height: est. (3 × 3.5, converted mill). Footprint: `02` gives none' },
+  // ROWS 34-35 ADDED AT P6.5, and both are transcribed rather than built. `03`
+  // §4.5 names them as District 5 line items (900 and 700 blocks); `02` §2.4
+  // gives both a Confirmed offset and a footprint; and `sceneOffset` puts both
+  // of them inside ground District 4 already occupies. Measured against the
+  // built tree rather than argued: the Registry's derived footprint holds 759
+  // existing blocks and the old courthouse's holds 223 — Third Street's
+  // carriageway runs through both, and Rows C and D of the triple-deckers stand
+  // in them. Neither can be built without moving shipped geometry, which P6.5
+  // may not do, so both land here as data with no `plan` claim in any district
+  // rect. This is the same disposition District 4 gave Costa Lopez Park and the
+  // Chang Shing Tofu Factory, and for the same reason.
+  //
+  // `03` §4.5's OWN RECT ALREADY EXCLUDES THEM. It gives District 5
+  // x[−108,−26] z[+16,+56], and the two derived seats are (−84,−16.5) and
+  // (−90.75,+9) — 32.5 m and 7 m north of that rect's own north edge. So the
+  // doc's contents list and the doc's rect disagree with each other before this
+  // file is consulted at all; it is the same class of error `02`/`03` already
+  // carry at §1.3, and it belongs in P6.10's reconciliation rather than in a
+  // re-seating invented here. A hand-placed seat 80 m from the derived one would
+  // be a number nobody can check against a source, which is the one thing `02`
+  // §6 asks this file never to produce.
+  { id: 34, name: 'Middlesex South Registry of Deeds', plan: [89, 50], height: null, E: -247, N: 50,
+    conf: 'Position: Confirmed (OSM, `02` §2.4). Footprint: Confirmed (89 × 50). Storeys/height: `02` gives none. DEFERRED — derived seat (−84,−16.5) is inside District 4\'s built block (759 blocks)' },
+  { id: 35, name: 'Middlesex County Courthouse (old, 41 Second St)', plan: [32, 49], height: null, E: -280, N: -22,
+    conf: 'Position: Confirmed (OSM, `02` §2.4). Footprint: Confirmed (32 × 49). Storeys/height: `02` gives none. DEFERRED — derived seat (−90.75,+9) straddles Third Street and Row D (223 blocks)' },
 ];
 
 // `03` §1.2's law, in one function: real (E, N) offset in true-north metres →
@@ -673,6 +752,35 @@ export const CAMBRIDGE_STREETS = [
   // overlapped Gore Street's would make every block in the junction interior to
   // two carriageways at once.
   { name: 'Third Street', axis: 'z', x: -96, z: -24, w: 6, d: 50 },
+  // District 5, indices 9-10. `03` §4.5's line item is the "Thorndike/Otis/
+  // Spring street grid" and TWO of those three are unbuildable on the map as it
+  // stands, which is worth writing down rather than leaving as a silent
+  // shortfall. Otis Street's own block is z ≈ +8..+26 west of First Street, and
+  // District 4's church, Row D and the storefront row stand across the whole of
+  // it; Spring Street's is south of Thorndike Street, past the built map's edge
+  // and 20 m into ground no district has been authored for. Building either
+  // would mean either moving shipped geometry or carrying `boundsRect` another
+  // 20 m south over empty ground — the exact green-but-wrong trade District 4
+  // refused with Costa Lopez Park. So the grid ships as Thorndike Street plus
+  // the Second Street connector, both fully kerbed and furnished, and the two
+  // missing names go to P6.10 with the rest of the reconciliation.
+  //
+  // THORNDIKE STREET STOPS AT SECOND STREET'S WEST KERB rather than running on
+  // to First Street. Not a choice: the First Street Garage occupies x[−60,−19.5]
+  // across the whole z band this street would continue into, and a carriageway
+  // rect drawn through it puts 2,000 blocks inside a declared roadway.
+  { name: 'Thorndike Street', axis: 'x', x: -108, z: 52.5, w: 41, d: 6 },
+  // The north-south connector, between 40 Thorndike's block and the garage.
+  // Second Street is the real N-S street of this quarter (the old courthouse's
+  // own address is 41 Second St) and it is placed on the pitch the built map
+  // implies rather than derived: First Street stands at x −33 and Third Street
+  // at x −96, so the street between them lands at −64.5 and at −67..−61 once its
+  // 6 m carriageway is centred on the gap the two masses actually leave.
+  //
+  // IT STARTS AT z 30.5, NOT AT CAMBRIDGE STREET. District 2's rear yard runs to
+  // z 30 across x[−71.5,−26.25]; a rect carried north of 30.25 would have the
+  // freight spur, the dock and the yard clutter inside its own asphalt.
+  { name: 'Second Street', axis: 'z', x: -67, z: 30.5, w: 6, d: 29.5 },
 ];
 export const CAM_XW_LEN = 3;
 export const CAMBRIDGE_CROSSINGS = [
@@ -694,6 +802,13 @@ export const CAMBRIDGE_CROSSINGS = [
   [6, -117], [6, -87],
   [7, -112], [7, -86],
   [8, -20], [8, 10],
+  // District 5. Both Thorndike Street zebras clear the two kerb ranks below
+  // (x −90..−85 north, x −105..−99 south) and both Second Street ones clear
+  // theirs (z 41..46 west, z 55..60 east), for the reason every other district's
+  // do: a zebra painted under a parked car is legal to every probe and wrong to
+  // every eye.
+  [9, -96], [9, -78],
+  [10, 36], [10, 50],
 ];
 
 // Kerb-parked and moving vehicles. Exported because `probeRoadConflicts` treats
@@ -769,6 +884,26 @@ export const CAMBRIDGE_VEHICLES = [
   // Gore Street.
   { kind: 'sedan', x: -105, z: -30, axis: 'x', body: 0xd8d3c6, roof: 0xd8d3c6, d: 4 },
   { kind: 'sedan', x: -92, z: -26.5, axis: 'x', body: 0x2f6b4f, roof: 0x2f6b4f, d: 4 },
+  // District 5. The Thorndike Street north rank sits at z 53, so an axis-'x'
+  // sedan occupies z[53,55] and its body is 0.5–2 m off leg 5's own line at
+  // z 53 — inside the density probe's 2.6 m corridor rather than beside it,
+  // which is the same placement rule District 4's ranks follow and for the same
+  // reason: on a street with two large masses at either end, a parked car is
+  // the cheapest continuous content the ground plane has.
+  { kind: 'sedan', x: -90, z: 53, axis: 'x', body: 0x30343b, roof: 0x30343b, d: 5 },
+  { kind: 'sedan', x: -74, z: 53, axis: 'x', body: 0xd8d3c6, roof: 0x8d2f28, d: 5 },
+  // The south rank. −105 rather than −104: a box van is 6 m long from its own
+  // origin and the zebra at x −96 runs −96..−93, so anything east of −99 parks
+  // itself on the crossing.
+  { kind: 'boxVan', x: -105, z: 56.5, axis: 'x', len: 6, cab: 0xd8d3c6, box: 0x2f6b7a, d: 5 },
+  { kind: 'sedan', x: -88, z: 56.5, axis: 'x', body: 0x8a6a2e, roof: 0x8a6a2e, d: 5 },
+  { kind: 'sedan', x: -73, z: 56.5, axis: 'x', body: 0x3d5a3a, roof: 0x3d5a3a, d: 5 },
+  // Second Street, both lanes. A z-axis sedan is 2 m across x from its origin,
+  // so −65.5 and −63.5 are the two lanes of the x[−67,−61] carriageway with
+  // 0.5 m of kerb clearance each side.
+  { kind: 'sedan', x: -65.5, z: 41, axis: 'z', body: 0x2f4756, roof: 0x2f4756, d: 5 },
+  { kind: 'sedan', x: -63.5, z: 55, axis: 'z', body: 0x4a4f57, roof: 0x4a4f57, d: 5 },
+  { kind: 'motorcycle', x: -65.5, z: 33, axis: 'x', d: 5 },
 ];
 
 // Overhead spans: the ONE case where a physical block may stand inside a
@@ -869,6 +1004,16 @@ export const CAMBRIDGE_OPEN_GROUND = [
     why: 'Inner Belt yard ballast, north of the carhouse throat, at the level edge',
   },
 ];
+
+// P6.5 DECLARES NOTHING HERE, and that is a finding rather than an omission.
+// District 5's south edge is the map's new south edge, and every metre of it is
+// either Thorndike Street's carriageway and footway or the First Street
+// Garage's own deck — built ground, not empty ground, so a span there would fail
+// this probe's emptiness test on the first block it met. The district's one
+// genuinely open surface is the landscaped west verge, which is `parks` decor
+// (and therefore already discounted by `reportDeadGround`'s BY_DESIGN set)
+// rather than declared-empty level edge. `03` §1.4's count is unchanged and the
+// second declarable span still lands with P6.8.
 
 // `probeDistrictDensity` reads these. Districts 1 and 2 exist in this file, so
 // the density-floor clause (half the scene median) is now a real two-row
@@ -1080,6 +1225,84 @@ export const CAMBRIDGE_DISTRICTS = [
                       // separately-eatable members on a 3 m frontage, which is
                       // what makes an 8 m ceiling reachable without a mass.
   },
+  {
+    id: 5,
+    name: 'Thorndike Civic',
+    // REFINED AGAINST WHAT STANDS, and this is the FIRST ROW IN THE SCENE THAT
+    // SHARES NO GROUND WITH ANY NEIGHBOUR. `03` §4.5 writes the rect as
+    // x[−108,−26] z[+16,+56]; as written it reaches 14 m into District 2's rear
+    // yard and 10 m into District 4's, and it stops 6.5 m short of the garage's
+    // own east face. Every edge below is measured off built geometry.
+    //
+    // NORTH: +30.5, not §4.5's +16. The whole 14 m §4.5 claims north of that is
+    // already occupied — District 2's rear yard, freight spur and dock run to
+    // z 30 across x[−71.5,−26.25], and District 4's Row D and the church run to
+    // z 26 across x[−114,−96].
+    //
+    // MEASURED BOTH WAYS, for P6.10. §4.5's rect as written reports 8,657
+    // pieces over 2,481 cells (3.489/m²) — but 2,846 of those pieces stand
+    // inside another district's rect, which is a third of the count and all of
+    // it borrowed. The rect below reports 6,798 over 2,154 (3.156/m²) with
+    // ZERO pieces shared with any neighbour: the first row in this table for
+    // which that number is zero. District 1 carries 1,359 of District 2's,
+    // District 3 would have carried 1,662 of District 1's at §4.3's rect, and
+    // District 4 got the count to zero only by abutting. This one is disjoint
+    // from all four on both axes.
+    //
+    // SOUTH: +60, not +56. Thorndike Street's south footway is the block's own
+    // south frontage and its kerb stands at 58.5.
+    //
+    // EAST: −19, not −26. That is the First Street Garage's east deck edge, and
+    // the garage is the reason the district exists in the ladder at all
+    // (`03` §7.4 leg 5). A rect that stops at −26 leaves 6.5 m of the scene's
+    // single largest blank mass outside the probe that was written for it.
+    //
+    // WEST: −108, not the map edge. Nothing is built west of 40 Thorndike's
+    // service lot; the landscaped verge beyond it is `parks` decor and a tree
+    // line, and pulling the rect out to −120 would add 12 m of thin ground to
+    // the denominator for eleven trees.
+    rect: { minX: -108, maxX: -19, minZ: 30.5, maxZ: 60 },
+    budget: 6800,     // `03` §4.5's starting estimate. The district ships at
+                      // 7,261 blocks — 107% of it, and the first district in
+                      // the scene to come in OVER rather than at D1's 72.6%,
+                      // D2's 66.7%, D3's 65.3% or D4's 71.2%. Stated plainly
+                      // rather than dressed up, with the line items measured:
+                      // 40 Thorndike 2,854 against §4.5's 2,600; the garage
+                      // 2,240 against 1,500; the street grid, the service lot
+                      // and the west verge together 2,167 against 900.
+                      //
+                      // The garage is where the overshoot is, and it is where
+                      // §8.2 put it: "three mitigations, and it takes all three
+                      // to get there ... drop any one of them and the district
+                      // comes in under its floor." An open deck with a 4 m
+                      // column grid and edge kerbs is 2,240 blocks; a blank
+                      // plate would be about 300. The other two mitigations are
+                      // the ground-plane content §4.5's 900-block street-grid
+                      // line never priced. The efficiency pass that belongs
+                      // with an overshoot was run and it found one thing: the
+                      // deck plates were drawn at 1.75 m and are now 3.5 m,
+                      // which cost 564 blocks and changed nothing about how the
+                      // deck reads or fails. Nothing else here is cheaper
+                      // without deleting a mitigation.
+                      //
+                      // Two of §4.5's six line items are NOT built — the
+                      // Registry of Deeds (900) and the old courthouse (700),
+                      // both undeliverable at their derived seats, see
+                      // `CAMBRIDGE_OFFSETS` rows 34-35 — so the honest
+                      // comparison is 7,261 against an in-scope 5,200. The
+                      // scene total is 35,105 blocks with five of ten districts
+                      // standing, against a whole-scene target of "under
+                      // 75,000". There is room, and none of this was padded to
+                      // reach a number: the density clause is what was being
+                      // aimed at, and it lands at 3.156/m² against a floor of
+                      // 1.99.
+    gapFloor: 14,     // `03` §8.2's floor for District 5, joint most forgiving
+                      // with District 7, and §8.2 says exactly why: "the First
+                      // Street Garage is 1,025 m² of blank deck." All three of
+                      // the mitigations it names are built and each is
+                      // load-bearing — see `firstStreetGarage`,
+                      // `garageGroundLot` and `thorndikeArcade`.
+  },
 ];
 
 // The scripted excursion, `03` §9.5: the Davenport's long axis and back along
@@ -1118,12 +1341,12 @@ export const CAMBRIDGE_DISTRICTS = [
 // here hug furnished ground harder: the Canal Park leg runs 0.75 m off the
 // food-truck row rather than down the crown of the carriageway.
 //
-// CURRENT LENGTH, kept here so nothing downstream has to count: 43 legs, 580.1 m
-// of arc, 256 s. It was 62 s at P5, 105 at P6.2, 185 at P6.3, 245 at P6.4's first
-// draft and 256 once leg 4 was extended to the savings bank's park front. `03`
-// §7.4's own column says leg 4 should LEAVE at ~3 min; the drift is P6.2's and
-// P6.3's prepends, not this leg's pace, and it compounds with every district
-// added ahead of the ones already written.
+// CURRENT LENGTH, kept here so nothing downstream has to count: 57 legs, 815.8 m
+// of arc, 337 s. It was 62 s at P5, 105 at P6.2, 185 at P6.3, 245 at P6.4's first
+// draft, 256 once leg 4 was extended to the savings bank's park front, and 337
+// once P6.5 added leg 5. `03` §7.4's own column says leg 4 should LEAVE at
+// ~3 min; the drift is P6.2's and P6.3's prepends, not any one leg's pace, and it
+// compounds with every district added ahead of the ones already written.
 export const CAMBRIDGE_ROUTE = [
   { until: 4, x: 0, z: 20.5 },     // south out of the front-door ring
   { until: 8, x: 2.5, z: 25 },     // southeast across the forecourt
@@ -1233,6 +1456,66 @@ export const CAMBRIDGE_ROUTE = [
   // across, because the diagonal drives through the bank's own footprint.
   { until: 252, x: -119, z: -16 },     // south past the bank's west flank
   { until: 256, x: -108, z: -16 },     // east along its park front, and out toward leg 5
+  // --- `03` §7.4 LEG 5: back east into Thorndike Civic — 40 Thorndike and the
+  // garage. "Mass, not detail. This is the growth engine." APPENDED, like leg 4
+  // and for the same reason: §7.4 puts this leg fifth and the file already has
+  // the first four in order, so nothing above moves in time or in geometry.
+  //
+  // IT LEAVES DISTRICT 4 SOUTHWARD ON x −102, and the line is chosen against
+  // the probe's arithmetic rather than by eye. Clause 3 scores a district's
+  // lead-in and run-out as gaps, so the 42 m between leg 4's end and District
+  // 4's own south edge has to be spent on furnished ground or it becomes that
+  // district's worst hole. x −102 is the one southbound line that is inside the
+  // 2.6 m corridor of District 4 content for almost all of it: the storefront
+  // row's south face at z 3..8, then the church's east flank (x −102) and Row
+  // D's west wall (x −101.5) side by side from z 9 to 26.5. The east exit at
+  // x −72 was measured and rejected — 36 m of the pocket at x[−85,−72] is empty
+  // by construction, and a line down it opens a 40 m hole in District 4 while
+  // grazing District 2's west gable at 0.5 m and stealing it.
+  //
+  // It costs District 4's earlier legs a 5 m window of the storefront row: at
+  // x −102 this leg is nearer to those shops than the z 0.5 leg is, so
+  // `projectOnRoute` reassigns the pieces inside x[−104.5,−99.5]. Measured
+  // rather than assumed — the row is continuous at ~1 m, so the leg it takes
+  // them from closes over the hole without a gap worth reporting.
+  { until: 259, x: -102, z: -12 },     // southeast off the bank's park front
+  { until: 264, x: -102, z: 4 },       // south across Cambridge Street West, into the storefront row
+  { until: 271, x: -102, z: 24 },      // south between the church's east flank and Row D's west wall
+  { until: 274, x: -100, z: 32 },      // over the district seam onto 40 Thorndike's west arcade
+  { until: 279, x: -100, z: 48 },      // south down the arcade's shopfronts
+  { until: 281, x: -97, z: 53 },       // round the southwest corner onto Thorndike Street
+  // THE STREET LEG RUNS AT z 53, NOT ON THE CROWN AT 55.5. Two ranks are inside
+  // the corridor from here and neither is from the crown: the south arcade's
+  // shopfront glass at z 51 (2.0 m) and the north kerb and its parked rank at
+  // z 52.25–53 (0.75 m). A leg down the middle of a 6 m carriageway measures a
+  // hole the width of the street, which is the lesson District 2's own First
+  // Street legs already paid for.
+  { until: 290, x: -70, z: 53 },       // east along the arcade, past 40 Thorndike's whole south frontage
+  { until: 292, x: -63.5, z: 51 },     // across Second Street, between the two masses
+  { until: 295, x: -58, z: 45 },       // in through the garage's west entry
+  // STRAIGHT THROUGH THE GROUND DECK, which is `03` §8.2 mitigation (a) being
+  // measured rather than described: the deck's column lines stand at a 4 m
+  // pitch on x, so a pass along z 45 meets eleven of them plus the parked rank
+  // between them. A route that went round the garage instead would read the
+  // 1,025 m² of deck as exactly the dead zone §8.2 warns it is.
+  { until: 307, x: -22, z: 45 },       // east through the working lot, column line by column line
+  // AND OUT AT THE NORTHEAST CORNER, on a line 6 m off the one it came in on so
+  // the two passes cannot share a rank. `projectOnRoute` gives each piece to
+  // exactly one leg, so an out-and-back down the same aisle starves the return
+  // — the trap P6.3 hit at Lechmere and P6.4 hit on Cambridge Street.
+  // AND BACK WEST ALONG THE NORTH AISLE BEFORE IT LEAVES. Three passes through
+  // the deck rather than one, on lines 8 and 5 m apart so no two of them can
+  // reach the same rank — `projectOnRoute` gives each piece to exactly one leg,
+  // and 2.6 m of corridor either side of z 32 and z 37 just fails to meet in
+  // the middle. `03` §7.4 calls this leg the growth engine and the arithmetic
+  // agrees: the excursion's eaten mass runs 545 to 1,389 across it, which is the
+  // whole distance from the SIZE-4 rung (540) past the SIZE-5 one (1,200). One
+  // pass through the deck reached SIZE 4 and stopped there at 1,042; three reach
+  // SIZE 5 with 16% of the next rung in hand.
+  { until: 310, x: -21, z: 37 },       // north up the garage's east bay
+  { until: 321, x: -56, z: 37 },       // west along the north aisle
+  { until: 325, x: -58, z: 32 },       // out to the north edge upstand
+  { until: 337, x: -22, z: 32 },       // east along it, to the corner facing 2 Canal Park
 ];
 
 // "Do not put the mark on the wrong building." The Davenport carries a painted
@@ -3456,6 +3739,705 @@ export const SEAM_AMBIENT = {
   steam: [{ x: -108, z: 4.5, rate: 0.18 }],
 };
 
+// --- DISTRICT 5 — THORNDIKE CIVIC (P6.5) -------------------------------------
+// `03` §4.5. Two masses and the ground between them: 40 Thorndike, the former
+// Edward J. Sullivan Courthouse, re-clad and reopened in 2024; and the First
+// Street Garage, 123 x 75 real metres of blank-walled parking deck. In play it
+// is §7.4's leg 5, the mid-game growth engine — "mass, not detail" — and it is
+// also the district `03` §8.2 rates HIGH risk, the only one whose mitigations
+// the design names one by one because it does not think two of the three will
+// be enough.
+//
+// THE HEIGHT CONFLICT, CARRIED RATHER THAN RESOLVED. `02` §3.9 has OSM at 22
+// levels and the developer's own release at 20 storeys, and instructs: use 20
+// and note the conflict. Twenty storeys is ~86 real metres, which at `03`
+// §1.2's 1:1.5 is 57.3 scene metres. THE BUILT TOWER IS 55.75 m — twenty
+// storeys at a 2.75 m pitch plus its parapet — because 57.3 / 20 is 2.865 and
+// nothing off the 0.25 m fine grid can be built at all (ADR-0006). 2.75 is the
+// nearest grid pitch that keeps twenty legible storeys; 3.0 would have put the
+// tower 2.7 m OVER the doc rather than 1.5 m under it, and short is the safer
+// direction for the one object on this map that sets the skyline. The 22-storey
+// reading would give 63.1 m; it is recorded here and not built.
+//
+// WHERE IT STANDS, AND WHY IT IS NOT WHERE THE LAW PUTS IT. `sceneOffset`
+// returns (−84, +32.75) for `02` §6 row 6, so the law's footprint is
+// x[−98.375,−69.625] z[+23.25,+42.25]. Measured against the built tree, that
+// footprint holds 122 existing blocks: District 4's Row D porches and the
+// church's entry stair run to z 26 across its west end. The tower therefore
+// ships 7.25 m south of the law, at z[+30.5,+49.5], which also clears District
+// 2's rear yard at z 30. That 7.25 m is very close to the 7.6 m southward
+// mis-seat District 2 itself carries (see `sceneOffset`'s own note): the two
+// shipped districts either side of this one were both placed to `03` §4's
+// approximate rects rather than to §1.2's law, and this building is where the
+// two conventions finally meet. Recorded rather than absorbed — the bearing and
+// the footprint are the law's, only the radius along it is not.
+//
+// The garage moves for the same reason and further: law seat (−42.75,+35.75),
+// footprint x[−63.25,−22.25] z[+23.25,+48.25], which holds 1,285 existing
+// blocks — all of District 2's rear yard, dock, freight spur and clutter. It
+// ships at x[−60,−19.5] z[+31,+56]: 3 m east so Second Street has a block to
+// run in, 7.75 m south so the yard stands clear.
+//
+// TWO OF `03` §4.5'S SIX LINE ITEMS ARE NOT BUILT, both for the same measured
+// reason, and both are recorded as data instead: see `CAMBRIDGE_OFFSETS` rows
+// 34-35. The sixth, the G1 sprocket on the garage's top deck, is `04`'s and
+// P7.3's — the deck is plated flat and clear at y 14.0 and needs no reservation
+// beyond this sentence.
+//
+// SENSITIVITY, from `02` §7 and repeated by `03` §4.5: 40 Thorndike was a jail
+// and its clearance is still in the courts. Build the building. There are no
+// bars, no cells, no prisoner props and no jokes anywhere in this district, and
+// `04` holds the same line.
+
+const D5_STOREY = 2.75;                 // 20 of these is the tower, see above
+const D5_WALL = 0.5;                    // facade wall zone
+const D5_PIER = 0.5;                    // the cast-stone pier between two bays
+
+// 40 Thorndike. `w` and `d` are the OUTER envelope including the wall zone, and
+// both are `02` §6 row 6's footprint at `03` §1.2's 1:3 (86 x 57 real → 28.67 x
+// 19.0, quantised to 29 x 19).
+const THORNDIKE = { x0: -98.5, z0: 30.5, w: 29, d: 19, storeys: 20 };
+
+// The bay tables. Both sum EXACTLY to the face they run across, piers included,
+// because a bay computed as `w / n` lands off the fine grid and walks the run
+// off its own extent a cell at a time — `probePlacementStep`'s named defect.
+//   x-face: 7 piers x 0.5 + 6 bays x 4.25 = 29.0
+//   z-face: 3 piers x 0.5 + [4.25,4,4,4.25]  = 18.0, between the corner piers
+const T5_XBAYS = [4.25, 4.25, 4.25, 4.25, 4.25, 4.25];
+const T5_ZBAYS = [4.25, 4.0, 4.0, 4.25];
+
+// One bay's two lights and the steel between them. UNEQUAL on purpose, the same
+// way District 1's `bayLights` is and for a sharper reason here: two identical
+// lights either side of a 0.25 m mullion are collinear identical boxes with a
+// 0.25 m gap, which is exactly what `probePlacementStep` fails. Different
+// extents put them in different groups, so the rhythm survives the probe.
+const d5Lights = (bw) => [bw - 2.0, 1.75];   // 4.25 → [2.25, 1.75]; 4.0 → [2.0, 1.75]
+
+// One face of one storey. `axis` is the direction the face RUNS; `v` is the min
+// coordinate of its 0.5 m wall zone on the other plan axis; `u0` where the face
+// starts along its own; `pierEnds` says whether this face owns the piers at
+// both of its ends (the two x-faces do; the z-faces borrow the corners).
+//
+// EVERY COLOUR HERE ALTERNATES, and none of it is decoration. The spandrel band
+// alternates on the BAY index because consecutive bands are 4.25 m boxes on a
+// 4.75 m pitch — a 0.5 m sub-extent gap, gated. The glass and the mullion
+// alternate on the STOREY index because the same box repeats every 2.75 m up a
+// 55 m tower against a 2.0 m extent — a 0.75 m sub-extent gap, gated. Alternate
+// both and every same-group neighbour is 9.5 m away on plan and 5.5 m away in
+// height, which is clear of both extents with room to spare.
+function civicFace(sim, o) {
+  const { axis, u0, v, y, bays, s, pierEnds } = o;
+  const band = [C.civicPrecast, C.civicPrecastDeep];
+  const lite = [C.civicGlass, C.civicGlassAlt][s % 2];
+  const mul = [C.civicMullion, C.civicMullionAlt][s % 2];
+  const runPier = s % 4 === 0;
+  const pierH = 4 * D5_STOREY;
+  const put = (kind, u, w, yy, h, color) => {
+    const p = axis === 'x' ? { x: u0 + u, y: yy, z: v } : { x: v, y: yy, z: u0 + u };
+    if (kind === 'pier') {
+      pier(sim, axis === 'x'
+        ? { ...p, w, h, d: D5_WALL, mat: 'concrete', color }
+        : { ...p, w: D5_WALL, h, d: w, mat: 'concrete', color });
+    } else if (kind === 'glass') {
+      panel(sim, { ...p, w, h, axis, t: D5_WALL, mat: 'glass', color });
+    } else {
+      mullion(sim, { ...p, h, s: 0.25, mat: 'steel', color });
+    }
+  };
+  let u = 0;
+  if (pierEnds) {
+    if (runPier) put('pier', u, D5_PIER, y, pierH, C.civicPier);
+    u += D5_PIER;
+  }
+  for (let b = 0; b < bays.length; b++) {
+    const bw = bays[b];
+    // The spandrel apron: 0.75 m of precast under every opening, which is what
+    // the storey line reads as from the street.
+    put('pier', u, bw, y, 0.75, band[b % 2]);
+    const [la, lb] = d5Lights(bw);
+    put('glass', u, la, y + 0.75, 2.0, lite);
+    put('mullion', u + la, 0.25, y + 0.75, 2.0, mul);
+    put('glass', u + la + 0.25, lb, y + 0.75, 2.0, lite);
+    u += bw;
+    if (b < bays.length - 1 || pierEnds) {
+      if (runPier) put('pier', u, D5_PIER, y, pierH, C.civicPier);
+      u += D5_PIER;
+    }
+  }
+}
+
+// The tower's interior: six strips of floor plate on five lines of stub wall.
+// STUB WALLS RATHER THAN POINT COLUMNS, and it is a support decision. A plate
+// standing between four point columns touches none of them — corners meet along
+// an edge, not a face — so it would hang on nothing. A 0.5 m wall running the
+// full depth of a frame is face-adjacent to the plate beside it for the plate's
+// whole width, and the hop it costs is (4.25 + 0.5) / 2 = 2.375 m, comfortably
+// inside concrete's 3 m `maxSpan` rather than shaving it.
+function civicFloors(sim, o) {
+  const { x0, z0, storeys } = o;
+  const STRIP = 4.25, FRAME = 4.5, LINE = 0.5;
+  const ix = x0 + D5_WALL, iz = z0 + D5_WALL;
+  const deck = [C.civicDeck, C.civicDeckAlt];
+  for (let s = 0; s < storeys; s++) {
+    const y = s * D5_STOREY;
+    for (let i = 0; i < 6; i++) {
+      const sx = ix + i * (STRIP + LINE);
+      for (let j = 0; j < 4; j++) {
+        const sz = iz + j * FRAME;
+        if (i < 5) {
+          pier(sim, { x: sx + STRIP, y, z: sz, w: LINE, h: D5_STOREY, d: FRAME, mat: 'concrete', color: C.civicBase });
+        }
+        slab(sim, {
+          x: sx, y: y + D5_STOREY - 0.25, z: sz, w: STRIP, d: FRAME, t: 0.25,
+          mat: 'concrete', color: deck[(i + j + s) % 2],
+        });
+      }
+    }
+  }
+}
+
+function thorndikeTower(sim) {
+  const { x0, z0, w, d, storeys } = THORNDIKE;
+  const x1 = x0 + w, z1 = z0 + d;
+  for (let s = 0; s < storeys; s++) {
+    const y = s * D5_STOREY;
+    civicFace(sim, { axis: 'x', u0: x0, v: z0, y, bays: T5_XBAYS, s, pierEnds: true });
+    civicFace(sim, { axis: 'x', u0: x0, v: z1 - D5_WALL, y, bays: T5_XBAYS, s, pierEnds: true });
+    civicFace(sim, { axis: 'z', u0: z0 + D5_WALL, v: x0, y, bays: T5_ZBAYS, s, pierEnds: false });
+    civicFace(sim, { axis: 'z', u0: z0 + D5_WALL, v: x1 - D5_WALL, y, bays: T5_ZBAYS, s, pierEnds: false });
+  }
+  civicFloors(sim, { x0, z0, storeys });
+
+  // The wall head. Coping on the parapet rather than a projecting cornice: the
+  // 2024 re-clad is a flush skin and a dentil course on it would be the wrong
+  // building. The parapet stands ON the wall head, which is also the only place
+  // it has anything under it.
+  const top = storeys * D5_STOREY;
+  for (const [ax, u0, len, v] of [
+    ['x', x0, w, z0], ['x', x0, w, z1 - D5_WALL],
+    ['z', z0 + D5_WALL, d - 2 * D5_WALL, x0], ['z', z0 + D5_WALL, d - 2 * D5_WALL, x1 - D5_WALL],
+  ]) {
+    for (let o2 = 0; o2 < len - 0.01; o2 += 7.25) {
+      const l = Math.min(7.25, len - o2);
+      const p = ax === 'x' ? { x: u0 + o2, y: top, z: v } : { x: v, y: top, z: u0 + o2 };
+      panel(sim, { ...p, w: l, h: 0.5, axis: ax, t: D5_WALL, mat: 'concrete', color: C.civicParapet });
+      beam(sim, { ...p, y: top + 0.5, len: l, axis: ax, t: 0.25, depth: D5_WALL, mat: 'concrete', color: C.civicPier });
+    }
+  }
+  // Roof plant. Four pieces, and they are what stops a 29 x 19 m parapet reading
+  // as a lid: the lift overrun, the tank and its two AHU housings.
+  pier(sim, { x: x0 + 11, y: top, z: z0 + 7, w: 4, h: 3, d: 4, mat: 'concrete', color: C.civicRoofPlant });
+  drum(sim, { x: x0 + 18, y: top, z: z0 + 6, r: 2, h: 3, facets: 12, t: 0.25, mat: 'steel', color: C.civicRoofPlant });
+  for (const px of [x0 + 4, x0 + 22.5]) {
+    pier(sim, { x: px, y: top, z: z0 + 13, w: 3, h: 1.5, d: 3, mat: 'steel', color: C.civicRoofPlant });
+  }
+  // The north plinth. The other three faces stand behind the arcade, which is
+  // its own base; this one fronts the setback verge and needs a course of its
+  // own or the tower meets grass at a butt joint. Cut into 5 m runs — `plinth`'s
+  // own grade-clause limit, and `probeGradeDiagonal` fails anything past 8 m of
+  // plan diagonal at gy 0.
+  for (let o2 = 0; o2 < w - 0.01; o2 += 5) {
+    const l = Math.min(5, w - o2);
+    plinth(sim, { x: x0 + o2, y: 0, z: z0 - 0.5, w: l, d: 0.5, h: 0.5, mat: 'concrete', color: C.civicBase });
+  }
+}
+
+// `03` §8.2 MITIGATION (c), and the third of the three the design says it takes
+// all of: "40 Thorndike's grade retail wraps the block's street faces." `02`
+// §3.9's own line item is "retail at grade", so this is the building's real
+// programme and not a density device that happens to be defensible.
+//
+// It projects 1.5 m outboard on the three faces that front something — the west
+// service lot, the south street, the east connector — and is flush on the north,
+// where the block's neighbour is District 4's back gardens. Two storeys of
+// shopfront under one soffit, on the tower's own 4.75 m bay pitch so the
+// colonnade lines up with the piers above it rather than fighting them.
+function thorndikeArcade(sim) {
+  const { x0, z0, w, d } = THORNDIKE;
+  const H = 2 * D5_STOREY;              // 5.5 m to the soffit
+  const P = 1.5;                        // projection outboard of the tower skin
+  // Every one of these alternates on the bay index for the reason `civicFace`
+  // gives at length: a 4.25 m member on a 4.75 m pitch is a 0.5 m sub-extent
+  // gap, which `probePlacementStep` gates. Alternating puts same-group
+  // neighbours 9.5 m apart.
+  const awn = [C.awningCivic, C.awningCivicAlt];
+  const stall = [C.retailStall, C.civicPrecastDeep];
+  const rail = [C.retailFrame, C.civicMullionAlt];
+  const mezz = [C.civicGlass, C.civicGlassAlt];
+  // `face` runs `n` bays of 4.75 from `u0` along `axis`, on the strip between
+  // `v` and `v + P` across it. `outer` says which side of that strip the
+  // shopfront faces: true for a face whose street is at the higher coordinate.
+  const face = (axis, u0, n, v, outer) => {
+    const at = (uu, vv) => (axis === 'x' ? { x: uu, z: vv } : { x: vv, z: uu });
+    for (let b = 0; b < n; b++) {
+      const u = u0 + b * (D5_PIER + 4.25);
+      const gu = u + D5_PIER;
+      const gv = outer ? v + P - 0.25 : v;
+      // The colonnade pier, full depth of the projection.
+      pier(sim, {
+        ...at(u, v), y: 0,
+        w: axis === 'x' ? D5_PIER : P, h: H, d: axis === 'x' ? P : D5_PIER,
+        mat: 'concrete', color: C.civicPier,
+      });
+      // Stall riser, two shopfront lights and the transom over them, in the
+      // outer 0.25 m of the strip so the colonnade reads as a colonnade.
+      pier(sim, {
+        ...at(gu, gv), y: 0,
+        w: axis === 'x' ? 4.25 : 0.25, h: 0.75, d: axis === 'x' ? 0.25 : 4.25,
+        mat: 'concrete', color: stall[b % 2],
+      });
+      const [la, lb] = d5Lights(4.25);
+      panel(sim, { ...at(gu, gv), y: 0.75, w: la, h: 2.5, axis, t: 0.25, mat: 'glass', color: C.retailGlass });
+      mullion(sim, { ...at(gu + la, gv), y: 0.75, h: 2.5, s: 0.25, mat: 'steel', color: C.retailFrame });
+      panel(sim, { ...at(gu + la + 0.25, gv), y: 0.75, w: lb, h: 2.5, axis, t: 0.25, mat: 'glass', color: C.retailGlass });
+      beam(sim, { ...at(gu, gv), y: 3.25, len: 4.25, axis, t: 0.5, depth: 0.25, mat: 'steel', color: rail[b % 2] });
+      // The awning, hung off the transom and projecting into the colonnade.
+      panel(sim, {
+        ...at(gu, outer ? v + 0.5 : v + P - 1.25), y: 3.75,
+        w: 4.25, h: 0.25, axis, t: 0.75, mat: 'panel', color: awn[b % 2],
+      });
+      // The mezzanine light above it — `02` §3.9 puts apartments on levels 2-3,
+      // so the arcade's upper storey is glazed rather than blank. SPLIT, like
+      // every other opening in this district: one 4.25 m pane hops 2.375 m to
+      // reach the nearest pier, which is inside concrete's `maxSpan` but past
+      // glass's, so the single pane fell on frame one. Two lights either side of
+      // a mullion put every glass column against something that is not glass.
+      mullion(sim, { ...at(gu + la, gv), y: 3.75, h: 1.25, s: 0.25, mat: 'steel', color: C.retailFrame });
+      panel(sim, { ...at(gu, gv), y: 3.75, w: la, h: 1.25, axis, t: 0.25, mat: 'glass', color: mezz[b % 2] });
+      panel(sim, { ...at(gu + la + 0.25, gv), y: 3.75, w: lb, h: 1.25, axis, t: 0.25, mat: 'glass', color: mezz[b % 2] });
+      // Soffit, one plate per bay, resting on the colonnade piers.
+      slab(sim, {
+        ...at(u, v), y: H,
+        w: axis === 'x' ? 4.75 : P, d: axis === 'x' ? P : 4.75, t: 0.25,
+        mat: 'concrete', color: C.retailSoffit,
+      });
+    }
+  };
+  // South, onto Thorndike Street: six bays, the whole 28.5 m of the tower's own
+  // pier pitch. East, onto Second Street, and west, onto the service lot: four
+  // bays each, which is exactly the 19 m depth.
+  face('x', x0, 6, z0 + d, true);
+  face('z', z0, 4, x0 + w, true);
+  face('z', z0, 4, x0 - P, false);
+}
+
+// --- The First Street Garage -------------------------------------------------
+// `03` §8.2 rates this district HIGH risk and names the building: "the First
+// Street Garage is 1,025 m² of blank deck. Three mitigations, and it takes all
+// three to get there ... drop any one of them and the district comes in under
+// its floor." All three are here and each one is labelled where it is built,
+// because the next author's temptation will be to simplify exactly one of them.
+//
+//   (a) THE DECKS ARE OPEN DECKS WITH A COLUMN GRID AND EDGE KERBS, not solid
+//       plates — `firstStreetGarage` below. Column lines at a 4 m pitch on x, so
+//       a pass through any one deck meets a column every 4 m, which is the
+//       number §8.2 states and the number leg 5's own pass is measured against.
+//   (b) THE GROUND LEVEL IS A WORKING LOT — `garageGroundLot`: parked vehicles,
+//       ticket booths, barriers, light masts.
+//   (c) 40 THORNDIKE'S GRADE RETAIL WRAPS THE BLOCK'S STREET FACES —
+//       `thorndikeArcade` above.
+//
+// SEVEN DECKS, and the pitch is not uniform. Six elevated decks at 2.25 m sit
+// on a ground level at 3.0 m, because the ground level is the one a van has to
+// get into and 2.25 m of clear height is a garage nothing can park in. Total
+// 14.25 m against `02` §6 row 7's estimated 20 real metres → 13.33 scene: 0.92 m
+// over, all of it in the ground storey, and recorded rather than shaved off the
+// clearance that made it necessary.
+//
+// THE PLAN IS 40.5 x 25, not the 41 x 25 that `02` §6 row 7's 123 x 75 gives at
+// 1:3. Half a metre came off the width so the column grid closes on eleven lines
+// at an exact 4 m pitch, which is the number `03` §8.2's mitigation (a) states.
+// `02` §6 method note 3 already warns that row is a bounding box and therefore
+// an over-estimate, so trimming into it rather than out of it is the safe
+// direction.
+const FIRST_ST_GARAGE = {
+  x0: -60, z0: 31, w: 40.5, d: 25,
+  grade: 3.0, pitch: 2.25, decks: 6,
+  bays: 10,       // x bays of 4.0 between 11 column lines
+  frames: 5,      // z frames of 5.0
+};
+
+function firstStreetGarage(sim) {
+  const G = FIRST_ST_GARAGE;
+  const deckY = (k) => (k === 0 ? 0 : G.grade + (k - 1) * G.pitch);
+  const tone = [C.garageDeck, C.garageDeckAlt];
+  for (let k = 0; k <= G.decks - 1; k++) {
+    const y = deckY(k);
+    const h = k === 0 ? G.grade : G.pitch;
+    // (a) THE COLUMN GRID. Stub walls one frame deep rather than point columns,
+    // for the same support reason the tower's are: a plate between four point
+    // columns is face-adjacent to none of them.
+    for (let i = 0; i <= G.bays; i++) {
+      for (let j = 0; j < G.frames; j++) {
+        pier(sim, {
+          x: G.x0 + i * 4, y, z: G.z0 + j * 5, w: 0.5, h, d: 5,
+          mat: 'concrete', color: C.garageCol,
+        });
+      }
+    }
+    // The deck this level carries, one plate per bay per half-frame: 3.5 x 2.5 m,
+    // which is a parking bay and a half and well inside the bite clause's ~6 m
+    // cap. It was drawn at 1.75 m first and halving it back cost the district
+    // 600 blocks for no change in how the deck reads or comes apart — the deck
+    // fails or holds per bay either way, because the bay is what the column grid
+    // defines. Cheaper is better where the read is identical.
+    //
+    // The two tones alternate on `(i + j)`, which is `probePlacementStep` again:
+    // a 3.5 m plate on a 4 m pitch leaves 0.5 m, and a checkerboard puts
+    // same-group neighbours 8 m apart on x and 5 m on z.
+    const dy = y + h - 0.25;
+    for (let i = 0; i < G.bays; i++) {
+      for (let j = 0; j < G.frames; j++) {
+        // The two cores and the ramp own a whole bay-and-frame each, all the way
+        // up. A plate laid over one of them is two blocks in the same cells,
+        // which is a ghost rather than a floor — so the deck is cut around them
+        // here rather than the cores being squeezed between plates.
+        if (j === 2 && (i === 0 || i === G.bays - 1)) continue;
+        if (j === G.frames - 1 && i === G.bays - 2) continue;
+        for (let b = 0; b < 2; b++) {
+          slab(sim, {
+            x: G.x0 + i * 4 + 0.5, y: dy, z: G.z0 + j * 5 + b * 2.5,
+            w: 3.5, d: 2.5, t: 0.25, mat: 'concrete',
+            color: tone[(i + j + b) % 2],
+          });
+        }
+      }
+    }
+    // (a) THE EDGE KERBS. An upstand round all four sides of every deck, laid in
+    // 4 and 5 m runs. It is what stops a deck reading as a floating plate, and
+    // it is also 30 more eatable pieces per level standing exactly where a
+    // player driving the perimeter meets them.
+    //
+    // IT SITS AT THE PLATE'S OWN y, NOT ON TOP OF IT. An upstand at `dy + 0.25`
+    // starts exactly where the plate ends, so the two meet along an edge rather
+    // than across a face — no support passes an edge, and thirty of them fell
+    // on the first frame. At `dy` the upstand overlaps the plate's whole
+    // thickness and takes its support sideways in one 1.375 m hop.
+    const eh = 0.5;
+    for (let i = 0; i < G.bays; i++) {
+      for (const ez of [G.z0 - 0.25, G.z0 + G.d]) {
+        beam(sim, { x: G.x0 + i * 4, y: dy, z: ez, len: 4, axis: 'x', t: eh, depth: 0.25, mat: 'concrete', color: C.garageEdge });
+      }
+    }
+    for (let j = 0; j < G.frames; j++) {
+      for (const ex of [G.x0 - 0.25, G.x0 + G.w]) {
+        beam(sim, { x: ex, y: dy, z: G.z0 + j * 5, len: 5, axis: 'z', t: eh, depth: 0.25, mat: 'concrete', color: C.garageEdge });
+      }
+    }
+    // Parked cars on every deck but the top one. A garage with empty decks is
+    // the wrong building, and these cost the district's plan area nothing:
+    // every one of them stands on a cell the deck already occupies.
+    if (k > 0) garageDeckCars(sim, y, k);
+  }
+  garageCores(sim);
+  garageRamp(sim);
+  garageGroundLot(sim);
+}
+
+// A parked car at deck level, in three pieces. `voxelkit`'s `sedan` takes no y
+// and lays itself on the ground plane, so a deck needs its own — and three
+// pieces is the right grain for a thing the player meets at SIZE 6.
+//
+// IT PARKS ALONG z, ALWAYS. The deck's clear bay is 3.5 m between column lines
+// and a car is 4.5 m long, so a car nose-on to the aisle stands inside the
+// column it is parked beside. Along z the frame is a full 5 m and it fits with
+// room, which is also why the two ranks below are at the frames rather than at
+// the bays.
+function deckCar(sim, x, y, z, body) {
+  pier(sim, { x, y, z, w: 1.75, h: 0.75, d: 4.5, mat: 'panel', color: body });
+  pier(sim, { x, y: y + 0.75, z: z + 1.25, w: 1.75, h: 0.75, d: 2.25, mat: 'glass', color: C.carGlassDeck });
+  beam(sim, { x: x - 0.25, y, z, len: 4.5, axis: 'z', t: 0.25, depth: 0.25, mat: 'steel', color: C.garageCore });
+}
+
+const D5_CAR_TONES = [0x2f4756, 0x8d2f28, 0xd8d3c6, 0x3d5a3a, 0x4a4f57, 0x8a6a2e];
+
+// Two ranks per deck, against the north and south frames, with the three middle
+// frames left as the aisle the ramp feeds. Deliberately not full, and the
+// pattern walks with the deck index so no two decks read as the same
+// photograph. `03` §8.2 asks for parked vehicles at the ground level; putting
+// them on every deck costs the district's plan area nothing — each car stands
+// on a cell the deck already occupies — and a garage with five empty decks is
+// simply the wrong building.
+function garageDeckCars(sim, y, k) {
+  const G = FIRST_ST_GARAGE;
+  for (const j of [0, G.frames - 1]) {
+    for (let i = 0; i < G.bays; i++) {
+      if ((i + k + j) % 3 === 0) continue;
+      if (j === G.frames - 1 && i === G.bays - 2) continue;   // the ramp's bay
+      deckCar(sim, G.x0 + i * 4 + 1.25, y, G.z0 + j * 5 + 0.25, D5_CAR_TONES[(i + k) % 6]);
+    }
+  }
+}
+
+// The stair/lift cores, one at each end. They are the only solid element in the
+// building and they run the full height, which is what a garage core does and
+// also what gives the six decks something to be hung beside.
+function garageCores(sim) {
+  const G = FIRST_ST_GARAGE;
+  const top = G.grade + (G.decks - 1) * G.pitch;
+  const levelY = (k) => (k === 0 ? 0 : G.grade + (k - 1) * G.pitch);
+  // Bay 0 and bay 9, frame 2 — the two footprints the deck loop above skips.
+  for (const [cx, open] of [[G.x0 + 0.5, 1], [G.x0 + 36.5, -1]]) {
+    for (let k = 0; k < G.decks; k++) {
+      const y = levelY(k);
+      const h = k === 0 ? G.grade : G.pitch;
+      // Three walls and an open side, so it is a shaft rather than a solid.
+      pier(sim, { x: cx, y, z: G.z0 + 10, w: 3.5, h, d: 0.5, mat: 'concrete', color: C.garageCore });
+      pier(sim, { x: cx, y, z: G.z0 + 14.5, w: 3.5, h, d: 0.5, mat: 'concrete', color: C.garageCore });
+      pier(sim, {
+        x: open > 0 ? cx : cx + 3, y, z: G.z0 + 10.5, w: 0.5, h, d: 4,
+        mat: 'concrete', color: C.garageCore,
+      });
+      // The landing this level lands on, inside the shaft.
+      slab(sim, {
+        x: cx + (open > 0 ? 0.5 : 0), y: y + h - 0.25, z: G.z0 + 10.5,
+        w: 3, d: 4, t: 0.25, mat: 'concrete', color: C.garageStripe,
+      });
+    }
+  }
+}
+
+// The ramp, one straight flight per level in the southeast bay — the one
+// footprint the deck loop above skips at frame 4. A helix is not buildable
+// here (no rotation in sim, ever) and a switchback pair would cost two bays of
+// deck, so it alternates direction level by level, which is what a real
+// two-way ramp does anyway.
+function garageRamp(sim) {
+  const G = FIRST_ST_GARAGE;
+  const rx = G.x0 + (G.bays - 2) * 4 + 0.5, rz = G.z0 + (G.frames - 1) * 5 + 0.5;
+  for (let k = 0; k < G.decks; k++) {
+    const y0 = k === 0 ? 0 : G.grade + (k - 1) * G.pitch;
+    const rise = k === 0 ? G.grade : G.pitch;
+    wedge(sim, {
+      x: rx, y: y0, z: rz, w: 3.5, d: 4, h: rise,
+      axis: 'x', from: k % 2 ? 'max' : 'min', riser: 0.25, mat: 'concrete', color: C.garageCol,
+    });
+  }
+  // The ramp's edge line, at every deck it delivers to.
+  for (let k = 1; k <= G.decks; k++) {
+    beam(sim, {
+      x: rx, y: G.grade + (k - 1) * G.pitch - 0.25, z: rz - 0.25, len: 3.5, axis: 'x',
+      t: 0.25, depth: 0.25, mat: 'concrete', color: C.garageStripe,
+    });
+  }
+}
+
+// `03` §8.2 MITIGATION (b), in full: "the ground level is a working lot with
+// parked vehicles, ticket booths, barriers and light masts." Every one of those
+// four is here, and the reason it matters more than it looks is arithmetic: the
+// ground deck is the level leg 5 drives through, so this is the content the
+// mean-gap clause actually measures. The masts are on the TOP deck rather than
+// inside — the ground level has 3.0 m of clear height and a 5 m mast does not
+// fit under a slab — which is where a real deck's lighting is anyway.
+function garageGroundLot(sim) {
+  const G = FIRST_ST_GARAGE;
+  const top = G.grade + (G.decks - 1) * G.pitch;
+  // Two ticket booths at the west entry, one on each of the in and out lanes,
+  // both inside bay 1 so neither stands in a column line.
+  for (const bz of [G.z0 + 7, G.z0 + 16]) {
+    const bx = G.x0 + 5;
+    pier(sim, { x: bx, y: 0, z: bz, w: 2, h: 1.0, d: 2, mat: 'concrete', color: C.garageBooth });
+    panel(sim, { x: bx + 0.25, y: 1.0, z: bz, w: 1.5, h: 1.25, axis: 'x', t: 0.25, mat: 'glass', color: C.boothGlass });
+    panel(sim, { x: bx + 0.25, y: 1.0, z: bz + 1.75, w: 1.5, h: 1.25, axis: 'x', t: 0.25, mat: 'glass', color: C.boothGlass });
+    // Two corner posts, and they are the load path rather than the detail:
+    // nothing rests on glass, so a roof over two glazed faces has to come down
+    // to the base on something that is not glass.
+    for (const px of [bx, bx + 1.75]) {
+      for (const pz of [bz, bz + 1.75]) {
+        mullion(sim, { x: px, y: 1.0, z: pz, h: 1.25, s: 0.25, mat: 'steel', color: C.garageBooth });
+      }
+    }
+    slab(sim, { x: bx - 0.25, y: 2.25, z: bz - 0.25, w: 2.5, d: 2.5, t: 0.25, mat: 'steel', color: C.garageBooth });
+    // The barrier arm, up.
+    column(sim, { x: bx + 2.5, y: 0, z: bz + 0.75, h: 1.0, s: 0.25, mat: 'steel', color: C.garageStripe });
+    beam(sim, { x: bx + 2.5, y: 1.0, z: bz + 0.75, len: 3, axis: 'z', t: 0.25, depth: 0.25, mat: 'steel', color: C.garageStripe });
+  }
+  // Parked ranks on the ground deck. Kit vehicles this time — the ground level
+  // is the one a `sedan` can stand on — and along z for the same clear-bay
+  // reason `deckCar` is.
+  for (let i = 2; i < G.bays; i++) {
+    if (i % 3 === 1) continue;
+    sedan(sim, G.x0 + i * 4 + 1.25, G.z0 + 0.25, D5_CAR_TONES[i % 6], D5_CAR_TONES[i % 6], 'z');
+    if (i % 2 === 0 && i !== G.bays - 2) {
+      sedan(sim, G.x0 + i * 4 + 1.25, G.z0 + 20.25, D5_CAR_TONES[(i + 3) % 6], D5_CAR_TONES[(i + 3) % 6], 'z');
+    }
+  }
+  // LIGHT MASTS ON THE TOP DECK, NOT INSIDE. `03` §8.2's mitigation (b) asks
+  // for them and the ground level cannot hold one: the clear height under the
+  // first deck is 2.75 m and `voxelkit`'s `lightMast` is 5 m with no `y`
+  // parameter at all. So the deck lighting inside is a 2 m column-and-lantern
+  // per aisle bay, and the real masts stand on the open top deck, which is
+  // where a garage's floodlights actually are.
+  for (const j of [1, 3]) {
+    for (let i = 3; i < G.bays; i += 3) {
+      const lx = G.x0 + i * 4 + 1.75, lz = G.z0 + j * 5 + 2.25;
+      column(sim, { x: lx, y: 0, z: lz, h: 2.0, s: 0.25, mat: 'steel', color: C.garageCore });
+      panel(sim, { x: lx - 0.75, y: 1.75, z: lz, w: 0.75, h: 0.25, axis: 'x', t: 0.25, mat: 'glass', color: C.boothGlass });
+    }
+  }
+  for (const mx of [G.x0 + 6, G.x0 + 18, G.x0 + 30]) {
+    for (const mz of [G.z0 + 1.5, G.z0 + 22.5]) {
+      column(sim, { x: mx, y: top, z: mz, h: 3.5, s: 0.25, mat: 'steel', color: C.garageCore });
+      beam(sim, { x: mx - 1.25, y: top + 3.25, z: mz, len: 1.25, axis: 'x', t: 0.25, depth: 0.25, mat: 'steel', color: C.garageCore });
+      panel(sim, { x: mx - 1.25, y: top + 3.0, z: mz, w: 1.25, h: 0.25, axis: 'x', t: 0.25, mat: 'glass', color: C.boothGlass });
+    }
+  }
+  // Bollards along the ground deck's open west face, which is what stops the
+  // working lot from reading as a hole in the elevation.
+  for (let j = 0; j < 5; j++) bollard(sim, G.x0 - 0.75, G.z0 + 2 + j * 5, C.garageStripe);
+}
+
+// 40 Thorndike's west service lot, and the landscaped edge beyond it. `03` §8.2
+// again: "in a district built from large primitives, the ground plane carries
+// the density." This strip is the only ground in the district that neither
+// building nor street claims, and leaving it as a paved rectangle would put a
+// 20 m hole immediately behind the leg that runs down the arcade.
+function thorndikeServiceLot(sim) {
+  const { x0, z0, d } = THORNDIKE;
+  const lx = x0 - 9.5;                     // the lot runs x −108 .. −100
+  // The lot is read in z-bands so nothing has to be checked against everything,
+  // the same discipline District 2's rear yard uses:
+  //   z 32..38   the service bay: a van and a car against the fence
+  //   z 39..43   the loading dock, with its vehicle ramp on the fence side
+  //   z 44..49   yard clutter and the container stack
+  boxVan(sim, lx + 0.5, z0 + 1.5, 6, 0xd8d3c6, 0x4a4f57, 'z');
+  sedan(sim, lx + 3, z0 + 1.5, 0x30343b, 0x30343b, 'z');
+  sedan(sim, lx + 5.5, z0 + 1.5, 0xd8d3c6, 0xd8d3c6, 'z');
+  plinth(sim, { x: lx + 4, y: 0, z: z0 + 8.5, w: 3.5, d: 4, h: 1.0, mat: 'concrete', color: C.civicBase });
+  wedge(sim, { x: lx + 0.5, y: 0, z: z0 + 8.5, w: 3.5, d: 4, h: 1.0, axis: 'x', from: 'max', riser: 0.25, mat: 'concrete', color: C.civicBase });
+  for (const cz of [z0 + 14, z0 + 16]) shippingContainer(sim, lx + 1, 0, cz, 5, 0x5d6a5a);
+  for (const cz of [z0 + 14, z0 + 16]) crateStack(sim, lx + 6.5, cz, 3, 0x7d6340);
+  trashBin(sim, lx + 6.5, z0 + 18, 0x40463c);
+  lightMast(sim, lx + 7, z0 + 0.25, 4, C.garageCore);
+  lightMast(sim, lx + 1, z0 + 18, 4, C.garageCore);
+  // The yard fence on the lot's west boundary, which is the district's own edge
+  // and the thing that makes the verge beyond it read as landscape rather than
+  // as ground nobody finished.
+  fenceRun(sim, { x: lx, z: z0, len: d, axis: 'z', h: 1.25, mat: 'steel', color: C.parkFence });
+  // The landscaped verge, west of the fence and OUTSIDE the district's rect —
+  // eleven trees, two benches and a lamp line on ground no building reaches.
+  // Declared `parks` in `THORNDIKE_DECOR`, which is what stops `reportDeadGround`
+  // reading a landscaped setback as unbuilt map. It stays out of the rect on
+  // purpose: twelve metres of thin ground in the denominator for eleven trees
+  // would cost the density clause more than the trees are worth to it.
+  for (let i = 0; i < 6; i++) tree(sim, lx - 2.5, z0 - 3 + i * 5);
+  for (let i = 0; i < 5; i++) tree(sim, lx - 8, z0 + i * 6);
+  for (const bz of [z0 + 3, z0 + 12]) bench(sim, lx - 5.5, bz);
+  for (const lz of [z0 - 1, z0 + 9, z0 + 19]) lampPost(sim, lx - 1, lz);
+  // The tower's north setback verge: four trees on the strip between District
+  // 4's back gardens and 40 Thorndike's north plinth.
+  for (let i = 0; i < 4; i++) tree(sim, x0 + 4 + i * 7, z0 - 2.5);
+}
+
+// The street grid: kerbs, footway furniture and this district's kerb ranks.
+// Same rule as District 4's — every run below is placed against leg 5's own
+// 2.6 m corridor rather than by eye, which is why the north rank sits at z 53
+// and not on the crown of the carriageway at 55.5.
+function civicKerb(sim, x, z, len, axis) {
+  for (let o = 0; o < len - 0.01; o += 6) {
+    const l = Math.min(6, len - o);
+    beam(sim, axis === 'x'
+      ? { x: x + o, y: 0, z, len: l, axis: 'x', t: 0.25, depth: 0.25, mat: 'concrete', color: C.civicKerb }
+      : { x, y: 0, z: z + o, len: l, axis: 'z', t: 0.25, depth: 0.25, mat: 'concrete', color: C.civicKerb });
+  }
+}
+
+function thorndikeStreetscape(sim) {
+  // Thorndike Street, both kerbs. They stop 0.25 m short of Second Street's
+  // west kerb line: a kerb carried into the junction stands inside the other
+  // street's carriageway rect, which `probeRoadConflicts` gates whether or not
+  // anything overlaps.
+  civicKerb(sim, -108, 52.25, 40.75, 'x');
+  civicKerb(sim, -108, 58.5, 40.75, 'x');
+  // Second Street, both kerbs, broken at the Thorndike Street junction.
+  civicKerb(sim, -67.25, 30.5, 21.75, 'z');
+  civicKerb(sim, -61, 30.5, 21.75, 'z');
+  civicKerb(sim, -67.25, 58.75, 1.25, 'z');
+  civicKerb(sim, -61, 58.75, 1.25, 'z');
+
+  // Thorndike Street's north footway. NO STREET TREES: the walk is 1.5 m and
+  // `tree` lays a 2 m canopy, which would overhang either the carriageway (a
+  // road conflict) or the arcade's own colonnade.
+  for (const x of [-104, -95, -86, -77, -70]) lampPost(sim, x, 51.5);
+  for (const x of [-99, -81]) trashBin(sim, x, 51.5, 0x40463c);
+  hydrant(sim, -91, 51.5);
+  for (const x of [-107, -73]) bikeRack(sim, x, 51.5, 3, 'x', C.retailFrame);
+  signPost(sim, -102, 51.5, C.awningCivic, 2, 'x', 1.0);
+  // The south footway, which fronts nothing — so it carries the seating and the
+  // planting that the arcade side cannot.
+  for (const x of [-106, -97, -85, -76]) lampPost(sim, x, 59.5);
+  for (const x of [-102, -80]) bench(sim, x, 59.5);
+  for (const x of [-93, -71]) planter(sim, x, 59.5, 1.5, 1, C.planterSoil);
+  mailbox(sim, -89, 59.5, 0x2a4f9a);
+  drinkingFountain(sim, -69, 59.5, C.parkFence);
+
+  // Second Street's two walks.
+  // BOTH WALKS ARE 1 m WIDE AND THE KERB TAKES A QUARTER OF EACH, so every
+  // prop below is placed off the kerb line rather than on the walk's nominal
+  // centre: the west kerb stands at x[−67.25,−67] and the east at
+  // x[−61,−60.75], and a prop drawn from its own 0.25 m cells is wider than its
+  // nominal position suggests.
+  // NOTHING ON THE WEST WALK BETWEEN z 52.5 AND 58.5. That band is Thorndike
+  // Street's carriageway: its road rect spans x[-108,-67], so it crosses this
+  // walk, and a lamp standing in it is a physical block inside a declared
+  // roadway. Same rule District 2's First Street walks already follow.
+  for (const z of [33, 41, 49, 59]) lampPost(sim, -67.75, z);
+  for (const z of [37, 51]) bollard(sim, -67.75, z, C.steelDark);
+  for (const z of [35, 47]) lampPost(sim, -60.5, z);
+  for (const z of [43, 55]) bollard(sim, -60.5, z, C.steelDark);
+  newsBox(sim, -68, 44, 0xc23b2e);
+  trashBin(sim, -60.75, 35.5, 0x40463c);
+
+  for (const v of CAMBRIDGE_VEHICLES) {
+    if (v.d !== 5) continue;
+    if (v.kind === 'sedan') sedan(sim, v.x, v.z, v.body, v.roof, v.axis);
+    else if (v.kind === 'boxVan') boxVan(sim, v.x, v.z, v.len, v.cab, v.box, v.axis);
+    else motorcycle(sim, v.x, v.z);
+  }
+}
+
+export function thorndikeCivicDistrict(sim) {
+  thorndikeTower(sim);
+  thorndikeArcade(sim);
+  firstStreetGarage(sim);
+  thorndikeServiceLot(sim);
+  thorndikeStreetscape(sim);
+}
+
+export const THORNDIKE_DECOR = {
+  plaza: [
+    { x: -100, z: 30, w: 32, d: 21.5 },          // 40 Thorndike and its three arcades
+    { x: -108, z: 30.5, w: 8, d: 19 },           // the west service lot
+    { x: -60.75, z: 30.75, w: 42, d: 25.5 },     // the garage's ground lot and its kerb line
+  ],
+  parks: [
+    { x: -120, z: 26, w: 12, d: 34 },            // the block's landscaped west edge
+    { x: -98.5, z: 26.5, w: 26.5, d: 4 },        // the tower's north setback verge
+  ],
+  sidewalks: [
+    { x: -108, z: 51, w: 41, d: 1.5 },           // Thorndike Street, north
+    { x: -108, z: 58.5, w: 41, d: 2 },           // Thorndike Street, south
+    { x: -68, z: 30.5, w: 1, d: 29.5 },          // Second Street, west
+    { x: -61, z: 30.5, w: 1, d: 29.5 },          // Second Street, east
+  ],
+};
+
+export const THORNDIKE_AMBIENT = {
+  // The arcade's shopfront line, read as one glow. There is no lettering
+  // anywhere in this district and none here either — `02` §7's "evoke, do not
+  // name" applies to a civic block as much as to a fish market.
+  neon: [
+    { x: -97, z: 50.5, w: 26, d: 1.2, color: 0x7fd4e8, period: 4.3 },
+    { x: -69.5, z: 34, w: 1.2, d: 12, color: 0xffd166, period: 5.1 },
+  ],
+  pigeons: [
+    { x: -84, z: 28.5, count: 10 },
+    { x: -90, z: 55.5, count: 12 },
+    { x: -40, z: 43, count: 9 },
+  ],
+  steam: [{ x: -103, z: 34, rate: 0.2 }],
+};
+
 // --- THE SHELL ---------------------------------------------------------------
 // Ground, streets, decor, kerbs, street furniture, vehicles, ambient life and
 // camera blockers. IDENTICAL across all three variants by construction: it is
@@ -3928,7 +4910,29 @@ export function cambridgeSpendBack(sim) {
 // +100 passes `probeBoundsRect` — it only measures the edges — and leaves 38 m
 // of empty ground in the middle of the playable map, which is precisely the
 // class of green-but-wrong this file keeps refusing.
-export const CAMBRIDGE_BOUNDS = { minX: -120, maxX: 66, minZ: -112, maxZ: 36 };
+// P6.5 MOVES ONE EDGE, SOUTH FROM +36 TO +61, AND IT IS THE EXPENSIVE ONE.
+// District 5's own content sets it: Thorndike Street's south footway furniture
+// stands at z 59.75, so the rect has to reach 61 to hold it with the slack
+// `probeBoundsRect` allows. The garage is why the street is that far south —
+// its 25 m depth cannot start north of z 31 without standing in District 2's
+// rear yard, and `03` §8.2's whole argument for this district rests on that
+// depth being real (its "1,025 m² of blank deck" is the same number).
+//
+// THAT EDGE COSTS DEAD GROUND AND THE COST IS REPORTED RATHER THAN DRESSED UP.
+// The new band is 186 m wide and 25 m deep, and District 5 fills the western
+// half of it; the eastern half — x[−19,+66] — is District 6's canal and
+// District 8's shore, neither of which is authored yet. So the dead-ground
+// census RISES at this task rather than falling, for the first time since
+// District 1. Every point of the rise is inside a rect a later district is
+// already committed to filling (P6.6 owns x[+20,+90] z[+14,+116]), and none of
+// it is inside District 5's own rect. The alternative was to leave the rect at
+// +36 and put the garage somewhere the offsets do not put it, which is the
+// trade this file has refused four times already.
+//
+// The other three edges are unchanged and still hug what is built: minX −120 is
+// Silva Park's west railing (P6.4), minZ −112 is the Inner Belt ballast span's
+// own edge (P6.3), maxX +66 is Thomas Graves Landing (P6.2).
+export const CAMBRIDGE_BOUNDS = { minX: -120, maxX: 66, minZ: -112, maxZ: 61 };
 
 export function buildCambridge(sim) {
   cambridgeShell(sim, (s) => {
@@ -3937,10 +4941,11 @@ export function buildCambridge(sim) {
     canalParkDistrict(s);
     lechmereDistrict(s);
     portugueseSeamDistrict(s);
+    thorndikeCivicDistrict(s);
   }, {
     bounds: CAMBRIDGE_BOUNDS,
-    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR, SEAM_DECOR),
-    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT, SEAM_AMBIENT),
+    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR, SEAM_DECOR, THORNDIKE_DECOR),
+    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT, SEAM_AMBIENT, THORNDIKE_AMBIENT),
   });
 }
 
