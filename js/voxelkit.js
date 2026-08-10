@@ -2769,3 +2769,415 @@ export function scaffoldShed(sim, o) {
     put(i, h + s, 0, 'panel', fascia);
   }
 }
+
+// --- PASS 4: the sandbox gallery's city-object backlog -------------------------
+// The gallery (VoxelSandboxSim._buildScene) is the kit's SHOWROOM: one of every
+// object kind, at the grain that kind is supposed to be built at. Everything
+// below exists to fill the gaps that showroom still has — a delivery truck, a
+// school bus, a roadside billboard, a subway entrance that actually descends, a
+// waterfront, an aircraft, and two density re-skins of buildings the gallery
+// already carries at a coarser grain.
+//
+// Two of these (subwayStairEntrance, pierDeck, helipad) reach for ADR-0013's
+// anisotropic extents where a member genuinely IS one piece — a stair step, a
+// deck bay, a pad plate. Everything else stays on the cube ladder the rest of
+// this file uses, because a truck's panels are a SKIN and consolidating a skin
+// buys nothing (voxelforms.js, "hand 1").
+
+// 0.5 m delivery truck: a short cab and a tall box body on a shared chassis,
+// with a ribbed roller shutter across the back. Distinct from `boxVan` on
+// purpose — the van is one continuous 2 m-tall body, this is a 2 m cab with a
+// 3 m box standing proud of it, which is the silhouette that reads as freight.
+//
+// The box's front and rear walls both stand on the chassis plate, so the roof
+// over them is carried vertically at its edges and horizontally (0.5 m, far
+// inside panel's 3 m span) across the middle.
+export function deliveryTruck(sim, ox, oz, cabColor = 0xe8ecf2, boxColor = 0x2a5f9a, axis = 'x', len = 8) {
+  const S = 0.5;
+  const put = (x, y, z, m, c) => (axis === 'z'
+    ? sim._block(ox + z, y, oz + x, m, S, c)
+    : sim._block(ox + x, y, oz + z, m, S, c));
+  const cab = 2;                                  // cab length; the box takes the rest
+  for (const [wx, wz] of [[0.5, 0], [0.5, 1.5], [len - 2.5, 0], [len - 2.5, 1.5], [len - 1.5, 0], [len - 1.5, 1.5]]) {
+    put(wx, 0, wz, 'rubber');
+  }
+  for (let x = 0; x < len; x += S) {              // chassis plate
+    for (let z = 0; z < 2; z += S) {
+      const edge = x === 0 || x >= len - S || z === 0 || z >= 1.5;
+      put(x, 0.5, z, edge ? 'steel' : 'panel', edge ? undefined : cabColor);
+    }
+  }
+  for (let x = 0; x < cab; x += S) {              // cab: windshield course on top
+    for (let z = 0; z < 2; z += S) {
+      const edge = x === 0 || z === 0 || z >= 1.5;
+      if (edge) { put(x, 1, z, 'panel', cabColor); put(x, 1.5, z, x === 0 ? 'glass' : 'panel', x === 0 ? undefined : cabColor); }
+      put(x, 2, z, 'panel', cabColor);            // cab roof (full, so it reads as a step down)
+    }
+  }
+  for (let x = cab; x < len; x += S) {            // box body
+    for (let z = 0; z < 2; z += S) {
+      const edge = x === cab || x >= len - S || z === 0 || z >= 1.5;
+      for (const y of [1, 1.5, 2, 2.5]) {
+        if (!edge) continue;
+        // Roller shutter: the rear wall gets alternating steel ribs.
+        const shutter = x >= len - S && z > 0 && z < 1.5;
+        put(x, y, z, shutter && y % 1 === 0 ? 'steel' : 'panel', shutter && y % 1 === 0 ? undefined : boxColor);
+      }
+      put(x, 3, z, 'panel', boxColor);            // box roof
+    }
+  }
+}
+
+// 0.5 m school bus: a flat-nose transit body with a dark beltline, a pillared
+// glass band, roof hatches, and a fold-out stop arm.
+//
+// The stop arm hangs OUTBOARD of the body at the glass band's own level, so it
+// is carried horizontally across a single 0.5 m hop. Hung a course higher — the
+// obvious place for it — it would have nothing at its own level and nothing
+// beneath it, and it would drop the instant the scene spawned.
+export function schoolBus(sim, ox, oz, axis = 'x', len = 10.5, body = 0xf7c948, stripe = 0x1a1a1e) {
+  const S = 0.5;
+  const put = (x, y, z, m, c) => (axis === 'z'
+    ? sim._block(ox + z, y, oz + x, m, S, c)
+    : sim._block(ox + x, y, oz + z, m, S, c));
+  // THREE axles, evenly spread rather than a front pair and a rear tandem. The
+  // chassis plate's interior cells are `panel` and reach 3 m; a real bus's
+  // 6.5 m wheelbase leaves the middle of a 10.5 m plate 3.25 m from the nearest
+  // wheel and the four cells over the aisle drop the moment the scene spawns.
+  const axles = [1, Math.round(len) / 2, len - 2];
+  for (const wx of axles) for (const wz of [0, 1.5]) put(wx, 0, wz, 'rubber');
+  for (let x = 0; x < len; x += S) {
+    for (let z = 0; z < 2; z += S) {
+      const edge = x === 0 || x >= len - S || z === 0 || z >= 1.5;
+      put(x, 0.5, z, edge ? 'steel' : 'panel', edge ? undefined : body);
+      if (edge) {
+        // Pillars every 2 m plus both ends; glass only ever sits beside one.
+        const along = (z === 0 || z >= 1.5) ? x : z;
+        const pillar = x === 0 || x >= len - S || Math.round(along * 2) % 4 === 0;
+        put(x, 1, z, 'panel', stripe);
+        put(x, 1.5, z, pillar ? 'steel' : 'glass');
+        put(x, 2, z, 'panel', body);
+      }
+      // Roof, with two paler emergency hatches so the top face is not one flat wash.
+      const hatch = (x > len * 0.3 && x < len * 0.3 + S) || (x > len * 0.7 && x < len * 0.7 + S);
+      put(x, 2.5, z, 'panel', hatch && z > 0 && z < 1.5 ? 0xe8ecf2 : body);
+    }
+  }
+  put(len * 0.4 - (len * 0.4) % S, 1.5, -S, 'steel');             // stop-arm bracket
+  put(len * 0.4 - (len * 0.4) % S, 1, -S, 'panel', 0xc23b2e);     // the arm itself
+}
+
+// Roadside billboard: two steel legs, a spine beam on their tops, mullions, a
+// painted face between them, a maintenance catwalk and floodlights.
+//
+// The legs are set INBOARD of the face's ends, which is both how a real
+// billboard is built and what the span maths wants: a 0.5 m spine cell reaches
+// 3 m from its support, so an 8 m face on legs at 1.5 m and 6 m has every cell
+// within 1.5 m of a leg. Legs at the extreme ends would put the middle 4 m of
+// the beam 2 m out from each — still legal, but with nothing left over.
+export function billboard(sim, o) {
+  const {
+    x, z, axis = 'x', w = 8, h = 5, boardH = 2.5, s = 0.5,
+    face = 0xe8e4da, frame = 0x39414d, post = 0x5a6472,
+    lights = true, legInset = 1.5,
+  } = o;
+  const put = (u, y, v, m, c) => (axis === 'x'
+    ? sim._block(x + u, y, z + v, m, s, c)
+    : sim._block(x + v, y, z + u, m, s, c));
+  const F = (u, y, v, m, c) => (axis === 'x'
+    ? sim._block(x + u, y, z + v, m, 0.25, c)
+    : sim._block(x + v, y, z + u, m, 0.25, c));
+  const legs = [legInset, w - legInset - s];
+  for (const lu of legs) for (let y = 0; y < h; y += s) put(lu, y, 0, 'steel', post);
+  for (let u = 0; u < w; u += s) put(u, h, 0, 'steel', frame);          // spine beam
+  const mull = new Set();
+  for (let u = 0; u < w; u += 1) mull.add(u);
+  mull.add(w - s);
+  for (let u = 0; u < w; u += s) {
+    for (let y = h + s; y < h + s + boardH; y += s) {
+      put(u, y, 0, mull.has(u) ? 'steel' : 'panel', mull.has(u) ? frame : face);
+    }
+  }
+  for (let u = 0; u < w; u += s) put(u, h + s + boardH, 0, 'steel', frame);   // top cap
+  for (let u = 0; u < w; u += s) put(u, h, s, 'steel', frame);                // catwalk
+  if (lights) {
+    for (const lu of [w * 0.25, w * 0.5, w * 0.75]) {
+      const u = Math.round(lu * 4) / 4;
+      F(u, h + s, s, 'steel', post);
+      F(u, h + s + 0.25, s, 'glass', 0xf2c14e);
+    }
+  }
+}
+
+// Subway entrance that actually DESCENDS: a flight of steps cut into a raised
+// podium, a headhouse kiosk on the podium, and the green globe on its post.
+//
+// The sim has no negative y, so a stair going down into the street is
+// impossible as drawn — the entrance is built as a podium the street level
+// stands ON instead, with the flight climbing back out of it. That is the same
+// object read from the other end, and it is the only version that stands up.
+//
+// Each step is ONE anisotropic piece (`w × riseToHere × going`) rather than a
+// solid column field of 0.25 m cubes: a six-step flight is 6 blocks instead of
+// ~500, and each step still rests on the ground exactly as a solid mass does.
+// Grade clause: a 3 m × 0.5 m step is a 3.04 m plan diagonal, well inside 8 m.
+export function subwayStairEntrance(sim, o) {
+  const {
+    x, z, w = 3, steps = 6, rise = 0.25, going = 0.5,
+    stone = 0x8d8377, kiosk = 0x2e4d3a, globe = 0x3ddc84, rail = 0x39414d,
+  } = o;
+  const put = (px, py, pz, m, ext, c) => sim._block(px, py, pz, m, ext, c);
+  const podH = steps * rise;
+  for (let i = 0; i < steps; i++) {
+    put(x, 0, z + i * going, 'concrete', [w, (i + 1) * rise, going], stone);
+  }
+  put(x, 0, z + steps * going, 'concrete', [w, podH, 1.5], stone);          // podium
+  // Handrails: one post per step at each cheek, each carrying its own cap rail.
+  // A single continuous rail would have to descend, and a descending run has
+  // nothing under its lower cells.
+  for (let i = 0; i < steps; i++) {
+    const y = (i + 1) * rise;
+    for (const rx of [x, x + w - 0.25]) {
+      put(rx, y, z + i * going, 'steel', [0.25, 0.75, going], rail);
+    }
+  }
+  // Kiosk: four mullions, three walls, a glazed front course, a shading roof.
+  const kx = x + (w - 1.5) / 2, kz = z + steps * going + 0.125, kh = 2;
+  for (const mx of [kx, kx + 1.25]) for (const mz of [kz, kz + 1]) put(mx, podH, mz, 'steel', [0.25, kh, 0.25], rail);
+  put(kx + 0.25, podH, kz + 1, 'panel', [1, kh, 0.25], kiosk);              // back wall
+  for (const mx of [kx, kx + 1.25]) put(mx, podH, kz + 0.25, 'panel', [0.25, kh, 0.75], kiosk);
+  put(kx + 0.25, podH, kz, 'panel', [1, 1, 0.25], kiosk);                   // front spandrel
+  put(kx + 0.25, podH + 1, kz, 'glass', [1, 1, 0.25]);                      // glazed head
+  put(kx - 0.25, podH + kh, kz - 0.25, 'panel', [2, 0.25, 1.75], kiosk);    // roof
+  // Globe lamp at the foot of the flight — steel plate under the glass, never
+  // glass on glass.
+  const gx = x - 0.5, gz = z;
+  put(gx, 0, gz, 'steel', [0.25, 1.5, 0.25], rail);
+  put(gx - 0.125, 1.5, gz - 0.125, 'steel', [0.5, 0.25, 0.5], rail);
+  put(gx - 0.125, 1.75, gz - 0.125, 'glass', [0.5, 0.25, 0.5], globe);
+  return { podiumTop: podH, kiosk: { x: kx, z: kz }, depth: steps * going + 1.5 };
+}
+
+// Pier deck on timber piles. Piles on a square pitch, one deck bay per pile —
+// each bay's MIN CORNER sits directly on its pile, so every plate is carried
+// vertically and no plate ever has to reach horizontally to the next one
+// (which, at a 2 m pitch, would cost exactly wood's whole 2 m span).
+//
+// Returns the deck's top face and outer rect so the caller can stand moorings,
+// boats and lamps on it without re-deriving either.
+export function pierDeck(sim, o) {
+  const {
+    x, z, w = 14, d = 6, y = 1.5, pitch = 2, pileS = 0.5, deckT = 0.25,
+    pile = 0x6d5a4a, deck = 0x8a7f70, rail = 0x39414d, railStep = 2, railH = 0.75,
+  } = o;
+  const put = (px, py, pz, m, ext, c) => sim._block(px, py, pz, m, ext, c);
+  const nx = Math.round(w / pitch), nz = Math.round(d / pitch);
+  for (let i = 0; i < nx; i++) {
+    for (let k = 0; k < nz; k++) {
+      put(x + i * pitch, 0, z + k * pitch, 'wood', [pileS, y, pileS], pile);
+      put(x + i * pitch, y, z + k * pitch, 'wood', [pitch, deckT, pitch], deck);
+    }
+  }
+  if (railStep > 0) {
+    const top = y + deckT;
+    const edges = [];
+    for (let u = 0; u <= w - 0.25; u += 0.25) { edges.push([x + u, z]); edges.push([x + u, z + d - 0.25]); }
+    for (let v = 0.25; v <= d - 0.5; v += 0.25) { edges.push([x, z + v]); edges.push([x + w - 0.25, z + v]); }
+    for (const [rx, rz] of edges) {
+      const onPost = Math.round(((rx - x) + (rz - z)) * 4) % Math.round(railStep * 4) === 0;
+      if (onPost) for (let h = 0; h < railH; h += 0.25) put(rx, top + h, rz, 'steel', 0.25, rail);
+      put(rx, top + railH, rz, 'steel', 0.25, rail);
+    }
+  }
+  return { top: y + deckT, rect: { x, z, w, d } };
+}
+
+// Cast-iron mooring bollard: a squat 2×2 shaft with a flared head. `y` is the
+// surface it stands on — grade, or a pier deck's top face.
+export function mooringBollard(sim, x, z, y = 0, color = 0x2f3640) {
+  B25(sim, x, y, z, 2, 3, 2, 'steel', color);
+  B25(sim, x - 0.125, y + 0.75, z - 0.125, 3, 1, 3, 'steel', 0x8f97a4);
+}
+
+// Dock cleat: a low base plate with a horn at each end. The horns sit at the
+// plate's own level rather than above it — a horn on top of a single 0.25 m
+// cell would be the whole cleat's mass on one bond.
+export function dockCleat(sim, x, z, y = 0, axis = 'x', color = 0x4a525c) {
+  const [dx, dz] = axis === 'x' ? [0.25, 0] : [0, 0.25];
+  for (let i = 0; i < 3; i++) F(sim, x + dx * i, y, z + dz * i, 'steel', color);
+  F(sim, x, y + 0.25, z, 'steel', 0x8f97a4);
+  F(sim, x + dx * 2, y + 0.25, z + dz * 2, 'steel', 0x8f97a4);
+}
+
+// 0.5 m motor launch: a 5-cell hull with a raised cabin and a stub mast. Sits
+// at grade INSIDE a water rect the same way `rowBoat` does — the water plane is
+// render-only decor, so the hull reads as afloat while physics has it on the
+// harbour bed.
+export function motorLaunch(sim, x, z, axis = 'x', hull = 0xe8ecf2, trim = 0x2a5f9a) {
+  const S = 0.5;
+  const put = (u, y, v, m, c) => (axis === 'x'
+    ? sim._block(x + u * S, y, z + v * S, m, S, c)
+    : sim._block(x + v * S, y, z + u * S, m, S, c));
+  for (let u = 0; u < 5; u++) for (let v = 0; v < 2; v++) put(u, 0, v, 'wood', hull);
+  for (let u = 0; u < 5; u++) for (let v = 0; v < 2; v++) {
+    // Second course: a gunwale strake fore and aft, a full cabin sole amidships.
+    if (u >= 1 && u <= 2) put(u, S, v, 'panel', hull);
+    else put(u, S, v, 'panel', trim);
+  }
+  for (let u = 1; u <= 2; u++) { put(u, 1, 0, 'glass'); put(u, 1, 1, 'panel', hull); }
+  for (let u = 1; u <= 2; u++) for (let v = 0; v < 2; v++) put(u, 1.5, v, 'panel', trim);
+  put(2, 2, 0, 'steel');                                            // stub mast
+}
+
+// Helipad: a raised concrete pad of 2 m plates with a painted H and perimeter
+// lights. One plate per bay rather than a field of cubes — a pad IS a slab —
+// and 2×2 m keeps every plate's plan diagonal (2.83 m) far inside the 8 m
+// grade clause, so the whole pad stays edible.
+export function helipad(sim, o) {
+  const {
+    x, z, w = 8, d = 8, t = 0.5, bay = 2,
+    pad = 0x66625b, mark = 0xe8e4da, lights = true, lightColor = 0xf2c14e,
+  } = o;
+  const put = (px, py, pz, m, ext, c) => sim._block(px, py, pz, m, ext, c);
+  for (let i = 0; i < Math.round(w / bay); i++) {
+    for (let k = 0; k < Math.round(d / bay); k++) put(x + i * bay, 0, z + k * bay, 'concrete', [bay, t, bay], pad);
+  }
+  // The H, in 0.5 m paint on the pad's top face. `arm` is quantised onto the
+  // fine grid before use — an un-rounded 0.3 × 8 = 2.4 would put the strokes at
+  // 1.6 m, which `_block` silently rounds to 1.5 and which then overlaps the
+  // crossbar it was supposed to bracket.
+  const cx = x + w / 2, cz = z + d / 2;
+  const arm = Math.max(1, Math.round(Math.min(w, d) * 0.3 * 2) / 2);
+  for (const sx of [cx - arm, cx + arm - 0.5]) put(sx, t, cz - arm, 'panel', [0.5, 0.25, arm * 2], mark);
+  put(cx - arm + 0.5, t, cz - 0.25, 'panel', [arm * 2 - 1, 0.25, 0.5], mark);
+  if (lights) {
+    for (let u = 0; u < w; u += w / 4) {
+      for (const v of [0, d - 0.25]) {
+        sim._block(x + u, t, z + v, 'steel', 0.25, 0x5a6472);
+        sim._block(x + u, t + 0.25, z + v, 'glass', 0.25, lightColor);
+      }
+    }
+  }
+}
+
+// 0.5 m light helicopter: skids, a glazed cabin, a tail boom with fin and tail
+// rotor, and a four-blade main rotor.
+//
+// Both rotors are the interesting part. Support never flows downward here, so a
+// blade cannot hang off a hub — it is carried HORIZONTALLY from it, and steel's
+// 3 m span is therefore the blade's hard length limit (each 0.5 m hop costs
+// 0.5 m, so 5 cells reach 2.5 m and a sixth would fall). The tail boom obeys the
+// same budget from the cabin wall, which is why it is 2.5 m and not 4.
+export function helicopter(sim, o) {
+  const {
+    x, z, y = 0, axis = 'x', body = 0xc23b2e, trim = 0xe8ecf2,
+    rotor = 0x39414d, boomLen = 2.5, blade = 2.5, s = 0.5,
+  } = o;
+  const put = (u, py, v, m, c) => (axis === 'x'
+    ? sim._block(x + u, y + py, z + v, m, s, c)
+    : sim._block(x + v, y + py, z + u, m, s, c));
+  for (let u = 0; u < 2; u += s) for (const v of [0, 1.5]) put(u + 0.5, 0, v, 'rubber');   // skids
+  for (let u = 0; u < 2.5; u += s) for (let v = 0; v < 2; v += s) put(u, s, v, 'panel', trim);
+  for (let u = 0; u < 2.5; u += s) {                                    // cabin ring
+    for (let v = 0; v < 2; v += s) {
+      const edge = u === 0 || u >= 2, ed2 = v === 0 || v >= 1.5;
+      if (!edge && !ed2) continue;
+      put(u, 1, v, u === 0 ? 'glass' : 'panel', u === 0 ? undefined : body);
+    }
+  }
+  for (let u = 0; u < 2.5; u += s) for (let v = 0; v < 2; v += s) put(u, 1.5, v, 'panel', body);
+  for (let u = 2.5; u < 2.5 + boomLen; u += s) for (const v of [0.5, 1]) put(u, 1, v, 'panel', trim);
+  const tailU = 2.5 + boomLen - s;
+  for (const py of [1.5, 2]) put(tailU, py, 0.5, 'panel', body);        // fin
+  for (const py of [1.5, 2]) put(tailU, py, 1, 'steel', rotor);         // tail rotor disc
+  put(1, 2, 0.5, 'steel', rotor); put(1, 2, 1, 'steel', rotor);         // mast
+  const n = Math.round(blade / s);                                     // main rotor
+  for (let i = 1; i <= n; i++) {
+    put(1 + i * s, 2.5, 0.75, 'steel', rotor);
+    put(1 - i * s, 2.5, 0.75, 'steel', rotor);
+    put(1, 2.5, 0.75 + i * s, 'steel', rotor);
+    put(1, 2.5, 0.75 - i * s, 'steel', rotor);
+  }
+  put(1, 2.5, 0.75, 'steel', rotor);                                   // hub
+}
+
+// --- density re-skins ----------------------------------------------------------
+// Same silhouette, finer brick. The gallery's job is to show what a grain choice
+// COSTS, and the only honest way to show that is to stand the coarse original
+// next to a fine copy of exactly the same shape. These are deliberately
+// expensive: `fineTower` at s = 0.5 is ~3.1k blocks against the 1 m original's
+// ~1.1k, and at s = 0.25 it is ~25k, which is the demonstration.
+
+// The reference tower's silhouette (10 × 12 × 10 m by default) at any grain.
+// Corner columns, a perimeter wall with a glass pane rhythm, floor slabs on a
+// metre pitch, and an interior column grid on the same quarter points the 1 m
+// original uses.
+export function fineTower(sim, o) {
+  const {
+    x, z, w = 10, d = 12, h = 10, s = 0.5, slabEvery = 4,
+    wall = 'concrete', wallColor, colColor, roof = 'wood',
+  } = o;
+  const put = (px, py, pz, m, c) => sim._block(px, py, pz, m, s, c);
+  const nx = Math.round(w / s), nz = Math.round(d / s), ny = Math.round(h / s);
+  const per = Math.round(slabEvery / s), top = ny - 1;
+  // Interior columns on a 2.5 m grid, derived from the grain rather than from
+  // fractions of the cell count. Quarter points work at 1 m and fail at 0.5 m:
+  // three columns across a 12 m axis leaves the worst slab cell 1.5 m out on
+  // each axis, and 1.5 + 1.5 is concrete's whole 3 m span with nothing spare.
+  const step = Math.max(1, Math.round(2.5 / s));
+  const grid = (n) => { const a = []; for (let i = step; i < n - 1; i += step) a.push(i); return a; };
+  const colX = grid(nx), colZ = grid(nz);
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      for (let k = 0; k < nz; k++) {
+        const corner = (i === 0 || i === nx - 1) && (k === 0 || k === nz - 1);
+        const outer = i === 0 || i === nx - 1 || k === 0 || k === nz - 1;
+        const slab = j % per === 0;
+        const col = colX.includes(i) && colZ.includes(k);
+        if (!outer && !slab && !col) continue;
+        let mat = wall, color = wallColor;
+        if (corner || col) { mat = 'steel'; color = colColor; }
+        else if (j === top) { mat = roof; color = undefined; }
+        else if (outer && !slab) {
+          // Glass never carries load, so a pane only goes where the cell beside
+          // it at its OWN level is wall. Panes on a 1 m rhythm regardless of
+          // grain: at s = 0.25 that is one pane in four, not one in two.
+          const along = (k === 0 || k === nz - 1) ? i : k;
+          if (Math.round(along * s * 2) % 2 === 1) { mat = 'glass'; color = undefined; }
+        }
+        put(x + i * s, j * s, z + k * s, mat, color);
+      }
+    }
+  }
+}
+
+// The 2 m warehouse's silhouette (8 × 6 m footprint, 6 m walls, roof plate) at
+// a finer grain — the cheaper half of the density demo, and the one that shows
+// a corner column reading as a column rather than as a quarter of the building.
+export function fineWarehouse(sim, o) {
+  const {
+    x, z, w = 8, d = 6, h = 6, s = 0.5,
+    wall = 'concrete', wallColor, roof = 'wood', roofColor, colColor,
+  } = o;
+  const put = (px, py, pz, m, c) => sim._block(px, py, pz, m, s, c);
+  const nx = Math.round(w / s), nz = Math.round(d / s), ny = Math.round(h / s);
+  // The 2 m original's roof is a 4 × 3 plate with no interior cells at all, so
+  // its middle bricks reach the wall in one 2 m hop — exactly wood's span. Re-cut
+  // at 0.5 m that plate has 140 interior cells and the middle of it is 4 m from
+  // any wall, so the fine copy needs the posts the coarse one never did. They are
+  // invisible from outside: same silhouette, different insides.
+  const step = Math.max(1, Math.round(2 / s));
+  for (let i = 0; i < nx; i++) {
+    for (let k = 0; k < nz; k++) {
+      const outer = i === 0 || i === nx - 1 || k === 0 || k === nz - 1;
+      const corner = (i < 2 || i >= nx - 2) && (k < 2 || k >= nz - 2);
+      const post = !outer && i % step === 0 && k % step === 0;
+      if (outer || post) {
+        for (let j = 0; j < ny; j++) {
+          put(x + i * s, j * s, z + k * s, corner || post ? 'steel' : wall, corner || post ? colColor : wallColor);
+        }
+      }
+      put(x + i * s, h, z + k * s, roof, roofColor);
+    }
+  }
+}
