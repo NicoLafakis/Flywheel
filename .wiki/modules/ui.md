@@ -17,12 +17,12 @@ tying everything together.
 | File | Purpose |
 |------|---------|
 | `js/main.js` | Boot, state machine (menu/intro/playing/paused/results), loop, audio; branches campaign vs voxel sandbox (`isVoxelSandbox`) |
-| `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, toasts, `#big-pop` celebrations; `updateSandbox()` variant for the voxel mode (live `CLEARED x% / 50% · SIZE n` readout, dimmed coin pill via `body.mode-sandbox`, combo pill gated at a real x2) |
+| `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, toasts, `#big-pop` celebrations; `updateSandbox()` variant for the voxel mode (live `CLEARED x% / 50% · SIZE n` readout, dimmed coin pill via `body.mode-sandbox`, sandbox combo pill labeled off a 25-chain "combo level" ladder that does not track the sim's real multiplier — see the Planned note below) |
 | `js/ui/screens.js` | Title (branded landing: sprocket + `FLYWHEEL` wordmark + tagline plate, PLAY BROOKLYN CTA, coin bank, `FREE_PLAY`-driven voxel-scene chip shelf with per-city cleared/best records, quiet SHOP/SETTINGS), shop, results, pause (two-step confirms for run-discarding buttons), mechanic intro |
 | `js/ui/ready.js` | Level-start "READY?" gate overlay (`mountReadyGate`) — the visual reference for the brand layer; renders the shared wordmark at gate scale over the live 3D establishing shot |
 | `js/ui/blockword.js` | Shared block-wordmark builder (`buildBlockWord`) — per-character gold slab letters with outline ring, extrude, deterministic index-derived tilt/stagger/bob. Used by both `screens.js` (`FLYWHEEL`) and `ready.js` (`READY?`) so the two never drift apart. See `.wiki/adr/0005-shared-brand-layer.md` |
 | `js/ui/sprocket.js` | Brand mark builder (`buildSprocket`) — rotating 12-tooth wheel with an empty center (the hole/protagonist), used on the landing screen |
-| `index.html` | Canvas, HUD skeleton, importmap (three from CDN) |
+| `index.html` | Canvas, HUD skeleton, importmap (three vendored same-origin, `js/vendor/three.module.js` — see `architecture.md`'s Boot section and [ADR-0014](../adr/0014-vendored-same-origin-runtime.md)), inline boot watchdog |
 | `css/main.css` | HUD + screen styling, plus the unscoped `--fw-*`/`.fw-*` brand layer (tokens, wordmark/sprocket/glow/spark/CTA-pill primitives, keyframes) consumed by both `screens.js` and `ready.js` |
 
 ## Gotchas
@@ -44,10 +44,13 @@ tying everything together.
   shelf's order/labels/tags live; `startVoxelSandbox(scene)` takes the
   `scene` id straight from it, and the sandbox's own `'gallery'` default
   covers the one entry (`SANDBOX`) that omits `scene`.
-- `screens.js` imports `SKINS` from `js/skins.js` and re-exports it — the
-  shop shelf **is** the skin registry, not a separate list, so a new skin is
-  a row in `skins.js` and nothing here changes. Geometry/animation for all 25
-  skins lives in `skins.js`; see `.wiki/modules/render.md`.
+- `screens.js` imports `SKINS` and `INDICATOR_SKINS` from `js/skins.js` and
+  re-exports both — the shop shelf **is** the skin registry, not a separate
+  list, so a new skin (or a new nav-indicator skin) is a row in `skins.js`
+  and nothing here changes. `SKINS` (25 rows) is the ball's own look;
+  `INDICATOR_SKINS` (6 rows) is a separate shelf for the nav arrow's shape,
+  read by `voxelworld.js`'s `indicatorShape()`/`INDICATOR_BY_ID`. Geometry/
+  animation for both lives in `skins.js`; see `.wiki/modules/render.md`.
 - Pause-screen buttons that discard the run (RESTART, CITIES) use a two-step
   inline confirm (`armable` in `showPause`): first click arms red, second
   acts, any other click disarms. No modals — the pause style is dialog-free.
@@ -82,3 +85,11 @@ trophy-room screens on top of this module. See
 [05-identity-and-accounts.md](../features/online-flywheel/05-identity-and-accounts.md)
 and [06-belts-and-achievements.md](../features/online-flywheel/06-belts-and-achievements.md).
 None of these screens exist yet.
+
+**Also planned, not built:** the score-combo-and-hype package
+(`.wiki/features/score-combo-and-hype/`) plans a real score meter (the sandbox
+has kept a score since it was built and never shown it) and a combo meter that
+reports the sim's actual multiplier instead of `hud.js`'s current 25-chain
+label, plus a staged consumption celebration. See
+[README.md](../features/score-combo-and-hype/README.md). Nothing in
+`hud.js` has changed for this yet.

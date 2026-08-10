@@ -1,7 +1,7 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-10T14:31:19+00:00",
+    "generatedAt": "2026-08-10T14:57:15+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
@@ -9,7 +9,7 @@
       "symbols": 122,
       "edges": 8,
       "modules": 2,
-      "reusedFromCache": 34
+      "reusedFromCache": 35
     }
   },
   "files": {

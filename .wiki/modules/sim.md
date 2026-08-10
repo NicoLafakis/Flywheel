@@ -31,6 +31,17 @@ validator can prove levels beatable on the exact shipping code.
 
 - `step(dt)` must only ever be called with `1/60` (fixed timestep; rival
   retarget cadence and deterministic replays depend on it).
+- **Combo multiplier is campaign-only math and does not match the sandbox.**
+  `comboMultiplier(chain)` here (`sim.js:11-13`) is
+  `min(3, 1 + 0.1·(chain − 1))`, reaching the 3× cap at chain **21**. The
+  voxel sandbox's own curve, `comboMult` in `voxelsim.js`, reaches the same 3×
+  cap at chain **501** — a chain 25× longer, because it steps in 25-chain
+  bands instead of per-chain. They read the same on paper ("a combo
+  multiplier capped at 3×") but are not the same tuning; do not port one
+  file's constant into the other expecting parity. See
+  `.wiki/features/score-combo-and-hype/00-objective-overview.md`, which is
+  what surfaced the gap and proposes reconciling the two curves (planning
+  only — neither file has changed for it).
 - **Fit & throughput model** (2026-07-31): edibility is
   `hole.radius > tier.radius * FIT_MARGIN` (1.12) — the hole opening must fit
   the object, not just out-class it. Movable props (tier ≤ 4) that touch the

@@ -16,8 +16,8 @@ beatable headlessly.
 | File | Purpose |
 |------|---------|
 | `js/levels.js` | `METROS`, `MECHANICS`, `levelDef(i)` formulas, stars/coins |
-| `js/save.js` | localStorage schema v14 (+settings), migrations v1→v14, quarantine |
-| `tools/validate.mjs` | Overlap + snack-ring + greedy-bot margin proof |
+| `js/save.js` | localStorage schema v15 (+settings), migrations v1→v15, quarantine |
+| `tools/validate.mjs` | Overlap + snack-ring + greedy-bot margin proof for every campaign level, plus `validateCambridge()` (drives the voxel-sandbox Cambridge scene through the same kind of greedy bot) and `validateOfflineBoot()` (parses `index.html` and fails on any external-origin runtime dependency — see `architecture.md`'s Boot section) |
 
 ## Talks To
 
@@ -33,7 +33,9 @@ beatable headlessly.
 - Mechanic rollout schedule: golden L6, rivals L21, tide L41, landmark L20;
   landmark also on all metro finales + L91–100.
 - Save version bumps need a `MIGRATIONS[oldV]` entry; future-version saves
-  are quarantined, not read.
+  are quarantined, not read. v15's migration adds `equippedIndicator`
+  (defaults to `'ind-default'`) for the shop's nav-indicator skins — see
+  `.wiki/modules/ui.md`'s `INDICATOR_SKINS` gotcha.
 - `starsForResult`: 1★ win, 2★ ≥20% time left, 3★ ≥35%.
 
 **Planned, not built:** the online-Flywheel package
