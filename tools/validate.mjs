@@ -1281,9 +1281,14 @@ function validateCambridge() {
   probeCrosswalkStripes(sim, 'cambridge');                                              // 8
   probeCrossingsOnDeclaredStreet('cambridge', CAMBRIDGE_CROSSINGS, CAMBRIDGE_STREETS, CAM_XW_LEN); // 8b
   probeDecorKeyOrder(sim, 'cambridge');                                                 // 9
-  // The three kinds the shell actually declares. No gulls, no surf, no ferries:
-  // nothing in the built map fronts open water yet.
-  probeAmbient(sim, 'cambridge', ['steam', 'neon', 'pigeons']);                         // 10
+  // The four kinds the shell declares. `gulls` joined the list at P6.8, when
+  // District 8 authored the Charles and the map first fronted open water; no
+  // surf and no ferries, because a dammed river basin has neither. `03` §9.2
+  // also lists `ducks`, `geese` and `trains`, and none of the three is a kind
+  // `voxelworld.js` can resolve — see the note at `cambridgeShell`'s own
+  // `sceneAmbient` for why declaring them would make this probe green on birds
+  // that do not exist.
+  probeAmbient(sim, 'cambridge', ['gulls', 'steam', 'neon', 'pigeons']);                // 10
   probeGradeDiagonal(sim, 'cambridge');                                                 // 10b
   probePlacementStep(sim, 'cambridge');                                                 // 10c
   probeDistrictDensity(sim, 'cambridge', CAMBRIDGE_DISTRICTS, WP);                      // 10d — real rows

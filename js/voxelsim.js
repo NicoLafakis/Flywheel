@@ -97,13 +97,11 @@ const COMBO_WINDOW = 1.5;
 // the counter readable and makes a chain feel like an achievement.
 const comboMult = (chain) => Math.min(3, 1 + 0.1 * Math.floor(Math.max(0, chain - 1) / 25));
 const GOALS = {
-  gallery: { name: 'CLEAR THE COLLECTION', targetFraction: 0.5 },
+  gallery: { name: 'CLEAR THE COLLECTION', targetFraction: 1.0 },
   manhattan: { name: 'OPEN THE FINANCIAL DISTRICT', targetFraction: 0.5 },
   'upper-manhattan': { name: 'RECLAIM CENTRAL PARK', targetFraction: 0.5 },
   brooklyn: { name: 'CONNECT THE BOROUGHS', targetFraction: 0.5 },
   boston: { name: 'SWALLOW THE SEAPORT', targetFraction: 0.5 },
-  // `.wiki/features/cambridge-sandbox/03-level-design.md` §1.1, verbatim. Same
-  // 50% as every other scene — the fraction is the ladder's, not the scene's.
   cambridge: { name: 'SWALLOW THE SPROCKET', targetFraction: 0.5 },
 };
 export const SANDBOX_COIN_COUNT = 60;

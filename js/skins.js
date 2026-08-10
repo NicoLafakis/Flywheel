@@ -674,6 +674,23 @@ export const SKINS = [
 
 export const SKIN_BY_ID = new Map(SKINS.map((s) => [s.id, s]));
 
+export const INDICATOR_SKINS = [
+  { id: 'ind-default', name: 'Baseline Chevron', price: 0, color: 0x38bdf8, css: '#38bdf8',
+    blurb: 'The classic sharp chevron pointer. Precise, high-contrast, dependable.' },
+  { id: 'ind-plasma', name: 'Plasma Wedge', price: 150, color: 0x39ff14, css: '#39ff14',
+    blurb: 'Ionized neon plasma beam extending forward from the rim.' },
+  { id: 'ind-supered', name: 'Supered Lightning', price: 300, color: 0xff007f, css: '#ff007f',
+    blurb: 'The iconic Supered branding lightning bolt! Hot pink, glowing, unstoppable.' },
+  { id: 'ind-inferno', name: 'Inferno Flame', price: 500, color: 0xff5a1f, css: 'linear-gradient(90deg,#ff5a1f 50%,#ffd23f 50%)',
+    blurb: 'A jagged flickering flame blade that burns across the asphalt.' },
+  { id: 'ind-cyber', name: 'Cyber Prism', price: 750, color: 0xff00db, css: 'linear-gradient(90deg,#ff00db 50%,#00f0ff 50%)',
+    blurb: 'Split-spectrum synthwave chevron with pulsing dual neon cores.' },
+  { id: 'ind-cosmic', name: 'Cosmic Star Vector', price: 1000, color: 0xb44bff, css: 'linear-gradient(90deg,#b44bff 50%,#ffd23f 50%)',
+    blurb: 'A celestial starburst spear forged from dark matter and starlight.' },
+];
+
+export const INDICATOR_BY_ID = new Map(INDICATOR_SKINS.map((i) => [i.id, i]));
+
 // ------------------------------------------------------------------- builders
 //
 // Every builder returns { parts, world, update(st), onEat(st, bearing) }.

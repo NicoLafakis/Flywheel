@@ -9,7 +9,7 @@ import { VoxelWorld3D } from './voxelworld.js';
 import { ChaseCamera } from './camera.js';
 import { Controls } from './controls.js';
 import { HUD } from './ui/hud.js';
-import { Screens, SKINS } from './ui/screens.js';
+import { Screens, SKINS, INDICATOR_SKINS } from './ui/screens.js';
 import { mountReadyGate } from './ui/ready.js';
 import { TIERS } from './quality.js';
 
@@ -124,6 +124,11 @@ function equippedSkinId() {
   return s ? s.id : 'classic';
 }
 
+function equippedIndicatorId() {
+  const i = INDICATOR_SKINS.find((k) => k.id === save.equippedIndicator);
+  return i ? i.id : 'ind-default';
+}
+
 const screens = new Screens(document.getElementById('screen-root'), save, {
   play(lvl) {
     if (!isLevelUnlocked(save, lvl.index)) return;
@@ -154,6 +159,10 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
   },
   equip(id) {
     save.equippedSkin = id;
+    storeSave(save);
+  },
+  equipIndicator(id) {
+    save.equippedIndicator = id;
     storeSave(save);
   },
   toggleMute() { save.muted = !save.muted; storeSave(save); },
@@ -330,7 +339,7 @@ function startVoxelSandbox(scene = 'gallery') {
     document.body.classList.add('mode-sandbox');
     sim = new VoxelSandboxSim({ scene });
     window.__sim = sim; // debug/validator hook
-    world = new VoxelWorld3D(canvas, sim, equippedSkinId());
+    world = new VoxelWorld3D(canvas, sim, equippedSkinId(), { indicatorId: equippedIndicatorId() });
     // The renderer reads the persisted setting at construction, but a mid-session
     // toggle has to reach it too or the ambient layer keeps animating. Guarded
     // to match the setShadows guard in applySettings.

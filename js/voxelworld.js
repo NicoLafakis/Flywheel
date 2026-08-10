@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { loadSave } from './save.js';
 import { surfaceMaterial, isSurface, disposeSurfaces } from './voxelsurfaces.js';
-import { makeSkin } from './skins.js';
+import { makeSkin, INDICATOR_BY_ID } from './skins.js';
 
 // Read-only peek at the persisted SETTINGS block, so player preferences apply
 // from the first frame with no wiring in main.js. save.js owns the schema and
@@ -81,13 +81,70 @@ const bandQuadGeo = () => rampQuadGeo('bandq', 14, 6, (x, z) =>
 // four scenes at three camera poses each: mean framebuffer luminance rose
 // 0.3-2.6 (up to +4.0%) when it went to 0. The city was being quietly dimmed by
 // a value that was never a deliberate look.
+const uHolePos = { value: new THREE.Vector2(0, 16) };
+const uHoleRadius = { value: 1.1 };
+
+export function applyHoleClipping(material) {
+  if (!material || material._holeClipped) return;
+  material._holeClipped = true;
+
+  const prevOnBeforeCompile = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (prevOnBeforeCompile) prevOnBeforeCompile(shader, renderer);
+
+    // Carry world position in a varying of OUR OWN, never three's vWorldPosition.
+    // Sniffing for `vWorldPosition` in the shader source cannot answer whether it
+    // is actually declared: r160's meshphysical vertex program spells it
+    // `#ifdef USE_TRANSMISSION / varying vec3 vWorldPosition; / #endif`, so a
+    // plain MeshStandardMaterial matches the string while the compiled vertex
+    // stage declares nothing. The old guard therefore skipped the vertex half and
+    // kept the fragment half, and every block material failed to LINK
+    // ("FRAGMENT varying vWorldPosition does not match any VERTEX varying"),
+    // which is why the cities rendered ground and birds but no buildings. A
+    // private name is decidable without inspecting preprocessor state.
+    const V = 'vHoleWorldPos';
+    const vs = shader.vertexShader.replace(
+      '#include <worldpos_vertex>',
+      `#include <worldpos_vertex>
+      #ifdef USE_INSTANCING
+        ${V} = ( modelMatrix * instanceMatrix * vec4( transformed, 1.0 ) ).xyz;
+      #else
+        ${V} = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
+      #endif
+      `
+    );
+    const fs = shader.fragmentShader.replace(
+      '#include <clipping_planes_fragment>',
+      `#include <clipping_planes_fragment>
+      if (${V}.y < 0.01 && length(${V}.xz - uHolePos) > uHoleRadius) {
+        discard;
+      }
+      `
+    );
+    // Fail safe: if either anchor chunk is absent this is not a lit mesh material
+    // we know how to extend. Leave the program untouched so it still links — a
+    // visible world without the clip beats an invisible one with it.
+    if (vs === shader.vertexShader || fs === shader.fragmentShader) return;
+
+    shader.uniforms.uHolePos = uHolePos;
+    shader.uniforms.uHoleRadius = uHoleRadius;
+    shader.vertexShader = `varying vec3 ${V};\n${vs}`;
+    shader.fragmentShader = `varying vec3 ${V};
+      uniform vec2 uHolePos;
+      uniform float uHoleRadius;
+      ${fs}`;
+  };
+}
+
 const matCache = new Map();
 function mat(color) {
   if (!matCache.has(color)) {
-    matCache.set(color, new THREE.MeshStandardMaterial({
+    const m = new THREE.MeshStandardMaterial({
       color, roughness: 0.8, metalness: 0.0, flatShading: true,
       map: mortarTexture(),
-    }));
+    });
+    applyHoleClipping(m);
+    matCache.set(color, m);
   }
   return matCache.get(color);
 }
@@ -355,6 +412,45 @@ function mortarTexture() {
   return mortarTex;
 }
 
+// The heading pointer's outline, one per shop indicator row. Local +y is the
+// heading direction (the mesh is laid flat by rotation.x = -PI/2), tip at +1.0,
+// tail around -0.55, so all six are interchangeable at the same scale.
+function indicatorShape(id) {
+  const s = new THREE.Shape();
+  const poly = (pts) => {
+    s.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0], pts[i][1]);
+    s.closePath();
+    return s;
+  };
+  switch (id) {
+    // Ionized beam: long and narrow, reaching further forward than it is wide.
+    case 'ind-plasma':
+      return poly([[0, 1.0], [0.3, 0.1], [0.18, -0.55], [0, -0.3], [-0.18, -0.55], [-0.3, 0.1]]);
+    // Lightning bolt: the branded zig-zag, offset left/right down the shaft.
+    case 'ind-supered':
+      return poly([[0.05, 1.0], [0.5, 0.12], [0.16, 0.12], [0.44, -0.55],
+                   [-0.16, 0.06], [0.1, 0.06], [-0.32, 0.5]]);
+    // Flame blade: an asymmetric jagged tongue with licks off both edges.
+    case 'ind-inferno':
+      return poly([[0, 1.0], [0.22, 0.45], [0.5, 0.5], [0.4, 0.0], [0.6, -0.5],
+                   [0.1, -0.28], [0, -0.55], [-0.1, -0.28], [-0.6, -0.5],
+                   [-0.4, 0.0], [-0.5, 0.5], [-0.22, 0.45]]);
+    // Split-spectrum prism: a chevron cut by a deep central slot.
+    case 'ind-cyber':
+      return poly([[0, 1.0], [0.6, -0.2], [0.5, -0.55], [0.12, -0.1], [0.12, -0.55],
+                   [-0.12, -0.55], [-0.12, -0.1], [-0.5, -0.55], [-0.6, -0.2]]);
+    // Starburst spear: a four-point star stretched along the heading.
+    case 'ind-cosmic':
+      return poly([[0, 1.0], [0.16, 0.16], [0.62, 0.02], [0.16, -0.14],
+                   [0.28, -0.62], [0, -0.24], [-0.28, -0.62], [-0.16, -0.14],
+                   [-0.62, 0.02], [-0.16, 0.16]]);
+    // Baseline paper-plane chevron — the original, unchanged.
+    default:
+      return poly([[0, 1.0], [0.55, -0.55], [0, -0.22], [-0.55, -0.55]]);
+  }
+}
+
 export class VoxelWorld3D {
   // The third parameter is a SKIN ID, not a colour. A colour is a lossy key —
   // two registry rows may legitimately share a rim hex, and resolving back
@@ -546,19 +642,22 @@ export class VoxelWorld3D {
     // facade can never hide it; scale and rotation are set per frame in
     // update(). Local -z is the heading direction (rotation.y = +heading
     // holds local +z AT the camera — see skins.js's measured note).
-    const arrowShape = new THREE.Shape();
-    arrowShape.moveTo(0, 1.0);        // tip
-    arrowShape.lineTo(0.55, -0.55);   // right wing
-    arrowShape.lineTo(0, -0.22);      // tail notch
-    arrowShape.lineTo(-0.55, -0.55);  // left wing
-    arrowShape.closePath();
+    //
+    // The SHAPE and the colour come from the equipped indicator row
+    // (js/skins.js INDICATOR_SKINS, sold on the shop's NAV INDICATOR shelf).
+    // Every outline keeps its tip at y=+1 and its tail near y=-0.55 so the
+    // per-frame scale/rotation below is identical whichever one is equipped —
+    // the skin only changes what the pointer LOOKS like, never how far past the
+    // rim it reaches.
+    const indRow = INDICATOR_BY_ID.get(opts && opts.indicatorId) || INDICATOR_BY_ID.get('ind-default');
+    const arrowShape = indicatorShape(indRow ? indRow.id : 'ind-default');
     const arrowGeo = new THREE.ShapeGeometry(arrowShape);
     const arrowBack = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0x0b0d14, depthTest: false }));
     arrowBack.rotation.x = -Math.PI / 2;
     arrowBack.position.y = 0.045;
     arrowBack.scale.setScalar(1.24);  // the outline: a slightly larger dark plate
     arrowBack.renderOrder = 998;
-    const arrowFace = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xff5a1f, depthTest: false }));
+    const arrowFace = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: (indRow ? indRow.color : 0xff5a1f), depthTest: false }));
     arrowFace.rotation.x = -Math.PI / 2;
     arrowFace.position.y = 0.05;
     arrowFace.renderOrder = 999;
@@ -684,6 +783,7 @@ export class VoxelWorld3D {
       } else {
         bMat = mat(0xffffff);
       }
+      applyHoleClipping(bMat);
       const im = new THREE.InstancedMesh(boxG, bMat, list.length);
       this._registerShadow(im, true, true);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -2022,16 +2122,25 @@ export class VoxelWorld3D {
     this.time += dt;
     const h = this.sim.hole;
     this.holeMesh.position.set(h.x, 0, h.z);
+    // The void grows with the hole. Full h.radius, matching the skin's own
+    // `local.scale.setScalar(st.radius)`, so the black disc always reaches the
+    // rim; the ground clips 4% tighter (0.96) so the disc overlaps the cut edge
+    // rather than leaving a sliver of ground showing inside the rim.
     this.holeMesh.userData.disc.scale.setScalar(h.radius);
+    uHolePos.value.set(h.x, h.z);
+    uHoleRadius.value = h.radius * 0.96;
     // The tank scheme's heading made visible: the pointer turns with the
     // player's heading and grows with the hole, tip reaching just past the
     // rim so it points at what you are about to drive into.
     this.headingArrow.rotation.y = h.heading || 0;
     this.headingArrow.scale.setScalar(Math.max(0.001, h.radius * 1.15));
     for (const ev of events || []) {
-      if (ev.type !== 'coin') continue;
-      const mesh = this.coinMeshes.get(ev.coin.id);
-      if (mesh) { this.scene.remove(mesh); this.coinMeshes.delete(ev.coin.id); }
+      if (ev.type === 'coin') {
+        const mesh = this.coinMeshes.get(ev.coin.id);
+        if (mesh) { this.scene.remove(mesh); this.coinMeshes.delete(ev.coin.id); }
+      } else if (ev.type === 'eat') {
+        this._spawnEatParticles(h.x, h.z, h.radius);
+      }
     }
 
     // rim glow: builds with combo intensity; blinks when the chain is about
@@ -2092,6 +2201,42 @@ export class VoxelWorld3D {
     this._syncBlocks(h, matrixMeshes, colorMeshes);
     for (const im of matrixMeshes) this._flushRange(im.instanceMatrix, im.userData, 'mLo', 'mHi', 16, 'mIdx');
     for (const im of colorMeshes) this._flushRange(im.instanceColor, im.userData, 'cLo', 'cHi', 3, 'cIdx');
+  }
+
+  _spawnEatParticles(hx, hz, hradius) {
+    if (this.particles.length > 60) return;
+    const count = 2 + Math.floor(Math.random() * 3);
+    const particleGeo = boxGeo();
+    const c = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = hradius * (0.85 + Math.random() * 0.2);
+      const px = hx + Math.cos(angle) * r;
+      const pz = hz + Math.sin(angle) * r;
+      const py = 0.08 + Math.random() * 0.2;
+
+      const mat = new THREE.MeshBasicMaterial({
+        color: c.setHSL(0.08 + Math.random() * 0.05, 0.9, 0.5 + Math.random() * 0.2),
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(particleGeo, mat);
+      mesh.position.set(px, py, pz);
+      const s = 0.12 + Math.random() * 0.15;
+      mesh.scale.set(s, s, s);
+      mesh.renderOrder = 9000;
+      this.scene.add(mesh);
+      this.particles.push({
+        mesh,
+        vx: -Math.cos(angle) * (1.2 + Math.random() * 1.5),
+        vy: 1.0 + Math.random() * 1.5,
+        vz: -Math.sin(angle) * (1.2 + Math.random() * 1.5),
+        vr: (Math.random() - 0.5) * 8,
+        life: 0.3 + Math.random() * 0.2,
+        maxLife: 0.5,
+      });
+    }
   }
 
   // ---------------------------------------------------------- block sync pass
@@ -2212,12 +2357,21 @@ export class VoxelWorld3D {
       b._renderRx !== rx || b._renderRz !== rz;
     if (matrixChanged) {
       this._q.setFromEuler(this._e);
+      let sx = b.sx, sy = b.sy, sz = b.sz;
+      if (py < 0.45) {
+        const dx = px - h.x, dz = pz - h.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < h.radius * 1.25) {
+          const suckFrac = Math.max(0, Math.min(1, (py - 0.15) / 0.3));
+          px = h.x + dx * (0.25 + 0.75 * suckFrac);
+          pz = h.z + dz * (0.25 + 0.75 * suckFrac);
+          sx *= 0.35 + 0.65 * suckFrac;
+          sz *= 0.35 + 0.65 * suckFrac;
+          sy *= 1.2 - 0.2 * suckFrac;
+        }
+      }
       this._v.set(px, py, pz);
-      // Blocks fill their cell exactly. The mortar course used to be a
-      // physical 5 cm shortfall, which is a see-through slot in a wall one
-      // block thick — it is painted now (see mortarTexture), so the seam
-      // survives and the hole does not.
-      this._s.set(b.sx, b.sy, b.sz);
+      this._s.set(sx, sy, sz);
       this._m4.compose(this._v, this._q, this._s);
       b._im.setMatrixAt(b._imIndex, this._m4);
       b._renderMatrixReady = true;

@@ -2,7 +2,7 @@
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 14;
+export const CURRENT_VERSION = 15;
 
 // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
 export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2 };
@@ -67,6 +67,7 @@ function freshSave() {
     sandbox: {},
     ownedItems: [],       // shop item ids
     equippedSkin: 'classic',
+    equippedIndicator: 'ind-default',
     muted: false,
     settings: defaultSettings(),
   };
@@ -83,6 +84,7 @@ const MIGRATIONS = {
     ),
     ownedItems: [],
     equippedSkin: 'classic',
+    equippedIndicator: 'ind-default',
     muted: false,
   }),
   2: (s) => ({
@@ -91,6 +93,7 @@ const MIGRATIONS = {
     levels: s.levels || {},
     ownedItems: s.ownedItems || [],
     equippedSkin: s.equippedSkin || 'classic',
+    equippedIndicator: s.equippedIndicator || 'ind-default',
     muted: !!s.muted,
   }),
   3: (s) => ({ ...s, version: 4, settings: s.settings || defaultSettings() }),
@@ -233,6 +236,12 @@ const MIGRATIONS = {
       ...(s.settings || {}),
       quality: (s.settings && (s.settings.quality === 'low' || s.settings.quality === 'potato')) ? 'low' : 'high',
     },
+  }),
+  // v15: add equippedIndicator key for shop indicator skins
+  14: (s) => ({
+    ...s,
+    version: 15,
+    equippedIndicator: s.equippedIndicator || 'ind-default',
   }),
 };
 

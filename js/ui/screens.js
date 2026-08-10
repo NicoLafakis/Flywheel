@@ -12,8 +12,8 @@ import { buildSprocket } from './sprocket.js';
 // change, and so there is exactly one list of ids and prices in the codebase.
 // (Imported AND re-exported: a bare `export ... from` would not create the
 // local binding this file's own shop renderer needs.)
-import { SKINS, bakeSkinThumbnails } from '../skins.js';
-export { SKINS };
+import { SKINS, INDICATOR_SKINS, bakeSkinThumbnails } from '../skins.js';
+export { SKINS, INDICATOR_SKINS };
 
 export const ITEMS = [
   { id: 'clock5', name: '+5s Clock', desc: 'Every level gets 5 extra seconds.', price: 400 },
@@ -193,10 +193,32 @@ export class Screens {
       item.appendChild(btn);
       wrap.appendChild(item);
     }
+    const indHeader = el(`<div style="width:100%;margin:14px 0 6px 0;text-align:center"><h3 style="margin:0;color:#38bdf8;font-size:15px;letter-spacing:1px">NAV INDICATOR SKINS</h3></div>`);
+    wrap.appendChild(indHeader);
+    for (const ind of INDICATOR_SKINS) {
+      const owned = this.save.ownedItems.includes(ind.id) || ind.price === 0;
+      const equipped = (this.save.equippedIndicator || 'ind-default') === ind.id;
+      const art = `<div class="swatch" style="background:${ind.css};display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;box-shadow:0 0 12px ${ind.color ? '#' + ind.color.toString(16).padStart(6, '0') : '#38bdf8'}">➤</div>`;
+      const item = el(`<div class="shop-item"><h4>${ind.name}</h4>
+        ${art}
+        <p class="blurb">${ind.blurb || ''}</p>
+        <div class="price">${owned ? (equipped ? 'EQUIPPED' : 'OWNED') : ind.price + ' coins'}</div></div>`);
+      const btn = el(`<button class="btn ${owned ? 'secondary' : ''}">${equipped ? 'EQUIPPED' : owned ? 'EQUIP' : 'BUY'}</button>`);
+      btn.disabled = equipped;
+      btn.onclick = () => {
+        if (owned) { if (this.actions.equipIndicator) this.actions.equipIndicator(ind.id); }
+        else if (this.actions.buy(ind.id, ind.price)) { if (this.actions.equipIndicator) this.actions.equipIndicator(ind.id); }
+        this.showShop();
+      };
+      item.appendChild(btn);
+      wrap.appendChild(item);
+    }
+    const itemHeader = el(`<div style="width:100%;margin:14px 0 6px 0;text-align:center"><h3 style="margin:0;color:#ffd23f;font-size:15px;letter-spacing:1px">UPGRADES</h3></div>`);
+    wrap.appendChild(itemHeader);
     for (const it of ITEMS) {
       const owned = this.save.ownedItems.includes(it.id);
       const item = el(`<div class="shop-item"><h4>${it.name}</h4>
-        <p style="font-size:13px;min-height:34px">${it.desc}</p>
+        <p style="font-size:12px;line-height:1.35;min-height:46px;opacity:.72;margin:6px 0 2px">${it.desc}</p>
         <div class="price">${owned ? 'OWNED' : it.price + ' coins'}</div></div>`);
       const btn = el(`<button class="btn ${owned ? 'secondary' : ''}">${owned ? 'OWNED' : 'BUY'}</button>`);
       btn.disabled = owned;
