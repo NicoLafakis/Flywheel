@@ -140,6 +140,7 @@ import {
   cafeTable, sandwichBoard, marketStall, lightMast,
   hotDogCart, mailbox, drinkingFountain, fenceRun, bus,
   naveChurch, playgroundSet,
+  basinRim, tieredFountain, pathRibbon, pergola, rowBoat,
 } from './voxelkit.js';
 
 // See the palette note in the header: authored, unmeasured. `sp()` marks the two
@@ -369,6 +370,43 @@ const C = {
   civicVerge: 0x4f5a44,       // the block's landscaped west edge
   civicKerb: 0x9d9a92,
   carGlassDeck: sp(0x39434a), // the deck cars' glazing
+
+  // --- DISTRICT 6, THE CANAL & CAMBRIDGESIDE ----------------------------
+  // `03` §4's palette bank here is "water, precast, glass podium", and `02` §5's
+  // one-line art direction — "red brick and grey water" — is at its most literal
+  // in this district, because this is the only place in the scene where the
+  // grey water is actually on the map rather than described.
+  //
+  // THE WATER ITSELF CARRIES NO HEX. It is `sceneDecor.water`, painted by the
+  // renderer's own water material, so the district's palette is entirely the
+  // BANK: granite coping, cast-stone promenade furniture and one brick building.
+  // `03` §3 files the Charles and the canal under "not blue — slate to
+  // steel-blue-green, sp()", and that value lives in the renderer rather than
+  // here; nothing below should try to restate it in a block colour.
+  canalCoping: 0x9a958a,      // the rim course, one 1 m granite cube per ring cell
+  canalGranite: 0x8b8880,     // promenade kerb, steps and the pool ring
+  canalBollard: 0x454b48,     // mooring bollards along the water's edge
+  canalRail: 0x4a5158,
+  poolStone: 0xb3ab98,        // the fountain's tiers
+  poolRim: 0x9e968a,
+  poolBronze: 0x39584a,       // the fountain figure — the district's one accent
+  poolJet: 0xcfe0e4,
+  canalTurf: 0x4b6340,        // Lechmere Canal Park's lawn edging
+  canalPath: 0xa9a091,
+  // 10 Canal Park. Five storeys of 1980s canal-side office — the same decade and
+  // the same grammar as 2 Canal Park, deliberately a step DOWN in chroma from
+  // the hero's water-struck red so the two never compete: `03` §6.4's guard 3
+  // separates the hero from 1 Canal Park, and the same logic applies to every
+  // other brick building that shares its view.
+  canal10Brick: 0x9c6a50,
+  canal10Band: 0xc0b5a2,
+  canal10Glass: sp(0x5c757e),
+  canal10Mullion: 0x424b52,
+  canal10Steel: 0x6a7178,
+  canal10Deck: 0xa6a29a,
+  canal10Parapet: 0x8a5b44,
+  // Edwin H. Land Boulevard, the 25.9° diagonal (`03` §2.2).
+  landKerb: 0x9d9a92,
 };
 
 // --- THE MAP -----------------------------------------------------------------
@@ -1015,6 +1053,20 @@ export const CAMBRIDGE_OPEN_GROUND = [
 // rather than declared-empty level edge. `03` §1.4's count is unchanged and the
 // second declarable span still lands with P6.8.
 
+// P6.6 DECLARES NOTHING HERE EITHER, AND IT IS THE DISTRICT THAT SETTLES WHY.
+// `03` §1.4 counts the canal basin's water among its four spans, and the note
+// above already recorded that it cannot be one: `probeOpenGround` rejects an
+// interior span, and the basin's own offset is interior by 60 m. What District 6
+// adds is that the span was never worth wanting. `reportDeadGround`'s BY_DESIGN
+// list discounts every sample inside a `sceneDecor.water` rect, so authoring the
+// water buys the whole census discount a declaration would have bought — and it
+// buys it while ADDING content (a rim `probeRimmedWater` holds to every cell,
+// and a promenade around it) rather than promising never to build. A declared
+// span is a promise not to build; a water rect is a thing built. Where both are
+// available the water wins, and `03` §1.4's own list should read three spans
+// rather than four when P6.10 reconciles it. The Charles span stays with P6.8 on
+// the terms above — redundant for the census, declared for documentation.
+
 // `probeDistrictDensity` reads these. Districts 1 and 2 exist in this file, so
 // the density-floor clause (half the scene median) is now a real two-row
 // comparison rather than the self-referential one it was at Phase 5; the
@@ -1303,6 +1355,88 @@ export const CAMBRIDGE_DISTRICTS = [
                       // load-bearing — see `firstStreetGarage`,
                       // `garageGroundLot` and `thorndikeArcade`.
   },
+  {
+    id: 6,
+    name: 'The Canal & CambridgeSide',
+    // REFINED AGAINST WHAT STANDS, and like District 5's this row SHARES NO
+    // GROUND WITH ANY NEIGHBOUR. `03` §4.6 writes the rect as
+    // x[+20,+90] z[+14,+116]; three of its four edges are wrong against the
+    // built tree and the fourth is wrong against the map.
+    //
+    // NORTH: +27.5, not §4.6's +14. District 1's rect runs to z +27 across
+    // x[−39.5,+30.5], and its canal terrace, forecourt and Canal Park street
+    // furniture all stand inside it. A rect starting at +14 would annex 528 of
+    // District 1's pieces — the same borrowing District 3 would have done to
+    // Sierra and District 4 to the Davenport — and it would do it on the one
+    // district whose §8.2 floor (3.0/m², the tightest in the scene) was cleared
+    // on its own brickwork. Measured both ways, for P6.10: §4.6's rect as
+    // written reports 2,331 pieces over 694 cells (3.359/m²) — but only 1,954
+    // of those are this district's, 301 stand inside a neighbour's declared
+    // rect, and it MISSES 1,612 of District 6's own, nearly all of them the
+    // canal park and 10 Canal Park west of x +20. The rect below reports 3,151
+    // over 825 (3.819/m²) with zero pieces inside any neighbour's rect. Thirty-
+    // four of those 3,151 are District 1's — the last 4 m of Canal Park
+    // street's two kerb runs and the lamp standard at its dead end, which reach
+    // z 29.5 while District 1's own rect stops at 27 — so they are counted once,
+    // here, and by nobody else. Every other piece in the rect is this
+    // district's, and 449 of this district's are outside it (the channel's
+    // north bank and the basin's north walk, both at z < 27.5).
+    //
+    // WEST: +2, not +20. §4.6's +20 stops 16 m east of 10 Canal Park, which is
+    // this district's only building — the block stands at x[4,19.5] because its
+    // address is the dead end of Canal Park street (see `TEN_CANAL`), and a
+    // rect that excluded it would leave the district measuring a canal and
+    // nothing else. Nothing of District 1's or District 5's reaches x 2 at
+    // z ≥ 27.5: District 5's east edge is −19 and District 1's south edge is +27.
+    //
+    // SOUTH: +61, the map edge as District 5 left it, not §4.6's +116. That is
+    // the CambridgeSide deferral, argued in full at the district's own header.
+    //
+    // EAST: +70, not +90. The basin's east promenade ends at x 70 and nothing
+    // this district builds goes further; +90 would put 20 m of District 7's and
+    // District 8's unbuilt ground in the denominator.
+    rect: { minX: 2, maxX: 70, minZ: 27.5, maxZ: 61 },
+    budget: 7600,     // `03` §4.6's starting estimate. The district emits 3,566
+                      // blocks, 47% of it — the lowest ratio in the scene
+                      // against D1's 72.6%, D2's 66.7%, D3's 65.3%, D4's 71.2%
+                      // and D5's 107%, and the whole of the difference is two
+                      // deferred line items rather than a thin build. §4.6's
+                      // 20 CambridgeSide (2,100) and 100 CambridgeSide (1,200)
+                      // are NOT BUILT (see the district header) and its
+                      // 200-block G9/G10 glyph reserve is P7.3's, so the
+                      // in-scope estimate is 4,100 and the district ships at
+                      // 87% of that — the top of the band the other five land
+                      // in. Line by line against §4.6, measured rather than
+                      // apportioned: basin, channel, rim and promenade 857
+                      // against 1,100; pool and fountain 127 against 480;
+                      // Lechmere Canal Park 1,120 against 900; 10 Canal Park
+                      // 1,268 against 950; Land Boulevard 194 against 670.
+                      //
+                      // The two that come in far under are both cases where the
+                      // estimate priced blocks the design then decided against
+                      // spending. A boulevard's 670 was priced as a carriageway
+                      // plus kerbs plus crossings; here the carriageway is
+                      // `sceneDecor` and the crossing is paint, because `03`
+                      // §2.2 is explicit that a diagonal is affordable as decor
+                      // and ruinous as structure — so the only blocks on it are
+                      // eight steps of kerb and their furniture. The fountain's
+                      // 480 would buy a solid disc of 0.5 m cubes 7 m across,
+                      // which is fill rather than skin: `tieredFountain` at
+                      // r 2.0 is the same object at 127. Neither is padded back
+                      // up, and the density clause — 3.82/m² against a floor of
+                      // 1.95 — is the check that says so. The scene total is
+                      // 38,671 blocks with six of ten districts standing,
+                      // against a whole-scene target of "under 75,000".
+    gapFloor: 13,     // `03` §8.2's floor for District 6, and the district it
+                      // was written for: "water is excluded from the built
+                      // footprint, but the route around it is not. Mitigation:
+                      // a continuous canal-edge kerb, rim, bollard and seating
+                      // run all the way round the basin, plus the park's path
+                      // furniture." That run is `canalRim` plus
+                      // `canalPromenade` and it is unbroken for the whole
+                      // 143 m perimeter — which is why the measured mean gap
+                      // lands far inside 13 rather than just under it.
+  },
 ];
 
 // The scripted excursion, `03` §9.5: the Davenport's long axis and back along
@@ -1516,6 +1650,53 @@ export const CAMBRIDGE_ROUTE = [
   { until: 321, x: -56, z: 37 },       // west along the north aisle
   { until: 325, x: -58, z: 32 },       // out to the north edge upstand
   { until: 337, x: -22, z: 32 },       // east along it, to the corner facing 2 Canal Park
+  // --- DISTRICT 6: THE CANAL LOOP. `03` §7.4 gives leg 6 to "return to
+  // 2 Canal Park" and files the canal south as an OPTIONAL loop, "not on the
+  // critical path, which is what makes it worth finding". So this is not §7.4's
+  // leg 6 and it does not pretend to be: it is the optional loop, authored
+  // because `probeDistrictDensity` measures gaps ALONG this route and a district
+  // the route never enters is reported rather than gated — which would make the
+  // one district in the scene with water in it the one district whose mean gap
+  // nobody checks. §7.4's leg 6 and the climax stay with P6.10, where the whole
+  // map exists to be returned across.
+  //
+  // APPENDED, so every leg above keeps its geometry AND its time, the same
+  // discipline P6.4 and P6.5 used.
+  //
+  // IT IS ONE LOOP AROUND THE WATER, NOT AN OUT-AND-BACK, and on this district
+  // that is forced rather than tidy. `projectOnRoute` gives each piece to
+  // exactly one leg, so the trap P6.3 hit at Lechmere and P6.4 hit on Cambridge
+  // Street would be unavoidable here: the promenade is 3-4 m wide, so an
+  // outbound and a return along the same bank are inside each other's 2.6 m
+  // corridor by construction and there is no room for two ranks. A closed
+  // circuit round a 40 x 30 m basin has no shared corridor at all — the four
+  // banks are 24 m and 30 m apart — so every leg gets its own rank for free.
+  { until: 345, x: 2, z: 33 },         // east off the garage's corner, into the district
+  { until: 350, x: 2, z: 47.5 },       // south down 10 Canal Park's west plinth
+  { until: 355, x: 18, z: 48 },        // east along its south front and forecourt
+  // NORTHEAST ONTO THE BOULEVARD'S WEST KERB, and the line hugs the staircase
+  // rather than the carriageway's crown. The kerb steps 2-2.25 m every 4.25-4.5
+  // m of z, so a straight leg drawn at the mean bearing sits within 0.25 m of
+  // every step's kerb run and inside the 2.6 m corridor of all eight — which a
+  // leg down the middle of the road would not be for a single one of them.
+  { until: 358, x: 23, z: 40 },
+  { until: 362, x: 30, z: 29 },        // up the kerb to the boulevard's north end
+  { until: 365, x: 40, z: 28 },        // east along the channel's south bank
+  { until: 366, x: 41.5, z: 30.5 },    // round the channel mouth onto the basin's west walk
+  { until: 372, x: 41.5, z: 48 },      // south down the west rim
+  { until: 373, x: 44.5, z: 51 },      // the southwest corner
+  { until: 380, x: 66, z: 51 },        // east along the south promenade, past the pergola lawn
+  { until: 381, x: 68.5, z: 48 },      // the southeast corner
+  { until: 390, x: 68.5, z: 20 },      // north up the east rim, under the map's new east edge
+  { until: 391, x: 66, z: 16.5 },      // the northeast corner
+  // THE LAST TWO LEGS ARE OUTSIDE THE DISTRICT'S RECT ON PURPOSE (its minZ is
+  // 27.5, to keep District 1's terrace out of District 6's density). They are
+  // here because the north bank and the channel are real content that the loop
+  // should close over, and because ending the run at the basin's northeast
+  // corner would leave the hole parked against a wall — `03` §9.5's rule that a
+  // leg never parks.
+  { until: 398, x: 44, z: 16.5 },      // west along the basin's north walk
+  { until: 402, x: 33, z: 13.5 },      // west along the channel's north bank, facing the hero
 ];
 
 // "Do not put the mark on the wrong building." The Davenport carries a painted
@@ -4438,6 +4619,485 @@ export const THORNDIKE_AMBIENT = {
   steam: [{ x: -103, z: 34, rate: 0.2 }],
 };
 
+// --- DISTRICT 6 — THE CANAL & CAMBRIDGESIDE (P6.6) ---------------------------
+// `03` §4.6. The Lechmere Canal — "a short dead-end basin with a circular pool
+// and a fountain, cut inland from the Charles, and the reason 2 Canal Park
+// exists and is named that" (Confirmed) — Lechmere Canal Park wrapping it,
+// 10 Canal Park, and Edwin H. Land Boulevard's 25.9° diagonal. It is the only
+// district on the map with water in it, and that single fact decides most of
+// what follows.
+//
+// THE WATER IS THE DELIVERABLE, AND DISTRICT 1 HAS BEEN WAITING FOR IT. The
+// canal terrace at `canalTerrace` was built to a coping at x 28..28.5 with the
+// note "the water itself is not declared here ... P6.6 brings the water up to
+// it." It does: the channel's head is at x 31 and the 2.5 m between is this
+// district's own west rim and promenade. Nothing in District 1 moved.
+//
+// TWO LOBES, ONE BODY, AND THE SHAPE IS `03` §1.5 EXCEPTION 2 BUILT LITERALLY.
+// `02` §6 row 5 confirms the feature's centroid at real E +137 / N −170 and
+// marks its 140 × 90 m extent an ESTIMATE; §1.5 then rules that the basin sits
+// at the confirmed centroid and the channel running northwest to the hero is
+// inferred. `sceneOffset(137, −170)` returns (+54.75, +34), so:
+//
+//   CANAL_BASIN  x[43,67] z[19,49] — centre (55, 34), 0.25 m off the law's own
+//                answer, which is the fine grid's rounding and nothing else.
+//   CANAL_CHANNEL x[31,43] z[16,26] — the inferred lobe, running northwest from
+//                the basin's northwest corner to District 1's terrace coping.
+//
+// THE EAST END IS TRIMMED 10 m SHORT OF THE ESTIMATE, AND IT IS THE ONE PLACE
+// THIS DISTRICT OVERRULES A NUMBER FROM `02`. The 140 × 90 bbox at 1:3 is
+// 46.67 × 30 centred (54.75, 34), i.e. x[31.4,78.1] z[19,49]. The channel's head
+// is fixed by built geometry at x 31, so honouring the full 46.67 m would put
+// the basin's east rim at x 78 and carry `CAMBRIDGE_BOUNDS.maxX` from 66 to 80.
+// The one column the trimmed version does open — x 68, with `maxX` at 71 — costs
+// the dead-ground census exactly 27 points, measured by re-running the census
+// over the same build with the rect clipped back to 66. Three columns instead of
+// one is that cost roughly tripled, on ground that belongs to District 7
+// (x[+60,+132] z[−90,+16]) and cannot be filled from here. The trim costs one
+// estimate 10 m; the alternative costs the census ~80 points nobody can build in.
+// Recorded rather than absorbed — `02` §6 method note 3 already warns that a bbox
+// row over-estimates a non-rectangular plan, and a canal basin is not a rectangle.
+//
+// `03` §4.6'S TWO CAMBRIDGESIDE BUILDINGS ARE NOT BUILT, and this is the largest
+// deferral any district in this scene has made — 3,300 of §4.6's own 7,600. It is
+// the same call District 4 made on Costa Lopez Park and District 5 made on the
+// Registry of Deeds, made against the same measurement and stated at the same
+// length because the number is bigger.
+//
+//   `sceneOffset(−14, −352)` seats CambridgeSide at (+14.75, +98.25), which
+//   reproduces `03` §5.1's own (+15, +98) exactly. That is 37 m south of the
+//   built map's south edge, so building it carries `maxZ` from 61 to about 112.
+//   The band that opens is 191 m wide and 51 m deep. District 6 can fill the
+//   x[+20,+90] third of it that §4.6 gives it; the other two thirds are
+//   District 7's, District 8's (x[+20,+132] z[+20,+116]) and District 9's MIT
+//   shelf (Stata at (−93,+92), the Great Dome at (−92,+99), the Green Building
+//   at (−80.5,+102), Kendall/MIT at (−71,+98), NECCO at (−120,+83)) — five
+//   landmarks that between them own nearly every metre of it and none of which
+//   this task may author. Measured the same way District 5 measured its own
+//   south edge: roughly 450 new 4 m samples, essentially all of them dead.
+//
+//   So CambridgeSide lands with the district whose rect already surrounds its
+//   seat — P6.8, the Charles Shore — or at P6.10, and it lands with the ground
+//   around it rather than as a tower at the end of 37 m of nothing. Land
+//   Boulevard is built pointing at it, running off the south edge on the bearing
+//   that reaches it, so the corridor is authored and only the block is deferred.
+//   `02` §6 row 10 already carries the offset; nothing is lost but a shape.
+//
+// WHAT THIS DISTRICT DOES INSTEAD IS THE THING `03` §8.2 ASKS OF IT: "water is
+// excluded from the built footprint, but the ROUTE AROUND IT is not. Mitigation:
+// a continuous canal-edge kerb, rim, bollard and seating run all the way round
+// the basin, plus the park's path furniture." That run is `canalRim` below and it
+// is unbroken for the whole 143 m perimeter, which is what makes a 13 m gap floor
+// reachable on a district whose middle third is water.
+//
+// THE DEAD-GROUND ARITHMETIC, since this is the district that was asked to move
+// it. `reportDeadGround` discounts a sample inside a `sceneDecor.water`, `parks`,
+// `sand` or `boardwalk` rect through its own BY_DESIGN list, and discounts any
+// sample within ~10 m of a block. So the canal pays twice: the water rect
+// discounts its own 40 × 30 m directly, and the rim that has to exist anyway —
+// `probeRimmedWater` will not accept a body without one — reaches ten metres
+// past it on every side. That is why `03` §1.4's canal span was never declarable
+// as `CAMBRIDGE_OPEN_GROUND` and never needed to be: authoring the water is
+// strictly better than declaring the ground empty, because the water is content
+// and the declaration is a promise not to build.
+//
+// MEASURED: the scene's undeclared dead ground goes 685 -> 574, the first fall
+// since District 1. Inside the map as District 5 left it the district takes off
+// 138 points — the whole x[−19,+66] z[+36,+61] band this task inherited, plus
+// the z[+20,+36] strip east of Canal Park — and the one new sample column its
+// own east edge opens costs 27 back.
+
+const CANAL_CHANNEL = { x: 31, z: 16, w: 12, d: 10 };
+const CANAL_BASIN = { x: 43, z: 19, w: 24, d: 30 };
+const CANAL_WATER = [CANAL_CHANNEL, CANAL_BASIN];
+
+// 10 Canal Park, five storeys. `02` §6 gives NO offset row for it, so it is
+// PLACED rather than derived — the same disposition Gore, Third and Second
+// Streets got, and stated the same way. What places it is its address: Canal
+// Park is a dead-end street running z 5..30 off the hero's forecourt
+// (`CAMBRIDGE_STREETS` row 2), and number 10 stands at the end of it, on the
+// canal's west approach. So the block sits immediately south of the street's
+// stub, between it and the park's west lawn. A derived seat would be a number
+// nobody can check against a source; a seat off a built street at least has a
+// street to check it against.
+const TEN_CANAL = { x0: 4, z0: 32, w: 15.5, d: 14, storeys: 5 };
+
+const CANAL10_PAL = {
+  brick: C.canal10Brick, band: C.canal10Band, glass: C.canal10Glass,
+  mullion: C.canal10Mullion, steel: C.canal10Steel, deck: C.canal10Deck,
+  parapet: C.canal10Parapet,
+};
+
+// Edwin H. Land Boulevard, as `03` §2.2 prescribes it and no other way: "a
+// diagonal is affordable as DECOR, which is flat and render-only, and ruinous as
+// STRUCTURE." So the carriageway is a staircase of `roads` rects and the only
+// physical thing on it is the stepped kerb run outside them.
+//
+// THE STEP PAIR IS EXACTLY 25.9°. `02` §2.1 measures Land Boulevard at 35.7°
+// true, which §2.2 converts to 25.9° off the grid's north axis; tan(25.9°) =
+// 0.48557, and 4.25 / 8.75 = 0.485714. So a PAIR of steps — one of 2.25 m of x
+// over 4.5 m of z, one of 2.0 over 4.25 — is the bearing to four decimal places
+// while every individual coordinate stays on the 0.25 m fine grid. A single
+// uniform step cannot do both: 2.25/4.5 is 26.57° and 2.0/4.25 is 25.19°, and
+// neither is what `02` measured. Eight steps is three and a half pairs, so the
+// run as built reads 25.99° end to end rather than 25.90 — the half pair the map
+// edge cuts off, not a drift in the rule.
+//
+// WHERE IT RUNS. West of the basin and east of 10 Canal Park, which is where it
+// is in life: the canal is on its west side going north, CambridgeSide on its
+// west side going south. It starts at the channel's south bank and leaves the map
+// at z 61 heading for CambridgeSide's deferred seat. It does not cross the
+// channel — the one bridge that would need is a structure over a declared water
+// body and a road span exemption for it, and neither is worth buying for 12 m of
+// carriageway when the boulevard's real business is southward.
+//
+// IT STARTS AT z 29, NOT AT THE CHANNEL'S SOUTH BANK. The first draft ran it
+// from z 27 and every one of the channel-side promenade's bollards, lamps and
+// its bench then stood inside step 0's carriageway rect — 53 blocks, which
+// `probeRoadConflicts` gates whether or not anything visibly overlaps. The
+// boulevard now begins where the promenade ends, and the two abut at z 29.
+const LAND_BLVD = [
+  { x: 30, z: 29, d: 4.5 },
+  { x: 27.75, z: 33.5, d: 4.25 },
+  { x: 25.75, z: 37.75, d: 4.5 },
+  { x: 23.5, z: 42.25, d: 4.25 },
+  { x: 21.5, z: 46.5, d: 4.5 },
+  { x: 19.25, z: 51, d: 4.25 },
+  { x: 17.25, z: 55.25, d: 4.5 },
+  { x: 15, z: 59.75, d: 1.25 },      // cut at z 61, the map's south edge
+];
+const LAND_W = 6;                     // carriageway width, the scene's standard
+
+// The rim. `basinRim` from the kit, which `03` §4.6 names by name, and it is
+// named for a reason that is not convenience: `probeRimmedWater` demands that
+// every 1 m cell of the ring just outside a closed water rect either carries a
+// ground-level block or is itself water, and `basinRim` walks exactly that ring
+// with exactly that wet test. Hand-laying a coping is how a scene ends up with
+// one dry cell at a corner and a water plane visibly running out past its bank.
+//
+// IT IS A RING OF 1 m CUBES AND THAT IS THE RIGHT GRAIN HERE, against the
+// vocabulary's usual preference for one long piece per member. Three reasons,
+// and the third is the one that decides it. The probe's contract is per CELL, so
+// a run of 6 m copings satisfies it only while its ends land on cell boundaries —
+// a contract that survives no edit. A canal coping is a course of granite blocks
+// in life, not an extrusion. And `03` §8.2's mitigation for this district is "a
+// continuous canal-edge kerb, rim, bollard and seating run all the way round" —
+// a run of 143 separately-eatable granite blocks IS that mitigation, where 24
+// six-metre copings would be the same silhouette with a sixth of the bites.
+function canalRim(sim) {
+  basinRim(sim, CANAL_WATER, { mat: 'concrete', color: C.canalCoping });
+}
+
+// The promenade that wraps the rim: mooring bollards on the water's edge, lamps,
+// benches, bins and a tree line set back onto the lawn. Every line below is
+// placed one CELL clear of the rim course — the rim owns whole 1 m cells, so a
+// prop drawn from its own 0.25 m bricks half a metre off the line lands inside
+// one of them, which is a ghost placement rather than a bollard.
+function canalPromenade(sim) {
+  // The basin's south walk, and the busiest of the four: it is the one the
+  // excursion drives and the one Lechmere Canal Park's lawn opens onto.
+  for (let x = 44; x <= 66; x += 3) bollard(sim, x, 50.25, C.canalBollard);
+  for (const x of [46, 54, 62]) lampPost(sim, x, 51.5);
+  for (const x of [49, 57, 65]) bench(sim, x, 51.5);
+  for (const x of [51.5, 59.5]) trashBin(sim, x, 51.5, 0x40463c);
+  drinkingFountain(sim, 44.5, 51.5, C.canalRail);
+  // The east walk, under the map's new east edge. `boundsRect` reaches x 71 for
+  // this line and nothing else, so it carries the 12 m content slack on its own.
+  for (let z = 20; z <= 47; z += 3) bollard(sim, 68.25, z, C.canalBollard);
+  for (const z of [23, 31, 39, 46]) lampPost(sim, 69.25, z);
+  for (const z of [27, 35, 43]) bench(sim, 69.25, z);
+  planter(sim, 69, 20, 1, 1.5, C.planterSoil);
+  // The west walk, between the water and the boulevard's lawn. Only 3 m of it is
+  // walkable — the rim takes x[42,43] — so it carries the light furniture and the
+  // trees stand back on the lawn.
+  for (let z = 28; z <= 47; z += 3) bollard(sim, 41.25, z, C.canalBollard);
+  for (const z of [30, 38, 46]) lampPost(sim, 40.25, z);
+  for (const z of [34, 42]) bench(sim, 40.25, z);
+  // The basin's north walk and the channel's two banks, which the excursion
+  // passes rather than drives: District 1's terrace is on the far side of the
+  // channel and this is the elevation it looks at.
+  for (let x = 44; x <= 66; x += 3) bollard(sim, x, 16.5, C.canalBollard);
+  for (const x of [47, 55, 63]) lampPost(sim, x, 15.75);
+  for (const x of [51, 59]) bench(sim, x, 15.75);
+  for (let x = 32; x <= 41; x += 3) bollard(sim, x, 27.5, C.canalBollard);
+  for (const x of [33.5, 39.5]) lampPost(sim, x, 28.25);
+  bench(sim, 36.5, 28.25);
+  for (const x of [31.5, 35.5, 39.5]) lampPost(sim, x, 13.75);
+  for (const x of [33.5, 37.5]) bollard(sim, x, 13.75, C.canalBollard);
+  // Two moored skiffs on the basin. They stand on the water's own decor rect, so
+  // they cost the district no plan area at all — the same free-content argument
+  // the garage's deck cars ride on.
+  rowBoat(sim, 46, 47, 'x', 0x2f6b3a);
+  rowBoat(sim, 63, 22, 'z', 0x7a3a2e);
+}
+
+// `02`'s "circular pool and a fountain", which is the one shape in the whole
+// district that a rectangle cannot stand in for — the basin reads as a canal
+// basin because there is a round thing in the middle of it.
+//
+// A `drum` of 16 panels is the pool's stone ring, standing IN the water at the
+// basin's own centre; `tieredFountain` is the fountain inside it. `03` §4.6 names
+// both primitives and this is them, unaltered.
+//
+// r = 6.5 AND 16 FACETS, AND BOTH NUMBERS ARE PROBE ANSWERS BEFORE THEY ARE
+// DESIGN ONES. `roofPlant`'s tank comment states the rule this district hit
+// again: a drum is a ring of identical panels, so its two facets symmetric about
+// an axis are always collinear with the same extent, and whether the gap between
+// them lands above or below that extent is decided by how the facet centres
+// quantise onto the 0.25 m grid. Swept over r 5..8 at 12/14/16/18/20 facets, the
+// clean pairs are (14, 5.75), (14, 7), (16, 5.25), (16, 6.5), (16, 8), (18,
+// 5.75/6/7.25/7.5) and (20, 5/6.5/6.75/8); 12 facets is dirty at every radius in
+// that band. r 7 at 16 facets — the first draft — leaves 2.50 m between the two
+// north-south pairs against a 2.75 m chord, which `probePlacementStep` gates. So
+// 6.5 at 16, which is the nearest clean answer to the 13-14 m pool the basin
+// wants and still reads as a circle where 12 facets reads as a stop sign.
+function canalPool(sim) {
+  drum(sim, {
+    x: 48.5, y: 0, z: 27.5, r: 6.5, h: 0.75, facets: 16, t: 0.5,
+    mat: 'concrete', color: C.poolRim,
+  });
+  tieredFountain(sim, {
+    cx: 55, cz: 34, r: 2, s: 0.5, tiers: 3, tierDrop: 0.5, figureH: 1.5,
+    stone: C.poolStone, rim: C.poolRim, bronze: C.poolBronze, jet: C.poolJet,
+  });
+  // Four jets on the pool's quarter points, set 5 m off centre so they stand
+  // clear of both the ring's facets (their inner face is 6.25 m out) and the
+  // fountain's own 4 m disc. Each is a steel stem with a glass spray at its own
+  // level — nothing rests on glass, so the spray sits BESIDE the stem's head
+  // rather than on it.
+  for (const [jx, jz] of [[55, 29], [55, 39], [50, 34], [60, 34]]) {
+    mullion(sim, { x: jx, y: 0, z: jz, h: 1.25, s: 0.25, mat: 'steel', color: C.canalGranite });
+    panel(sim, { x: jx + 0.25, y: 1.0, z: jz, w: 0.25, h: 0.25, axis: 'x', t: 0.25, mat: 'glass', color: C.poolJet });
+  }
+}
+
+// Lechmere Canal Park: `03` §4.6's "paths, lawns, seating, trees". The lawns are
+// `parks` decor and the path is `pathRibbon`, both declared in `CANAL_DECOR`;
+// what is built here is what stands on them.
+//
+// THE PARK IS WHY THE DECOR IS DECLARED, NOT THE OTHER WAY ROUND. A `parks` rect
+// is discounted by `reportDeadGround`'s BY_DESIGN list, so declaring lawn over
+// ground nobody furnishes would zero the census by promising a park rather than
+// building one. Every lawn rect in `CANAL_DECOR` carries trees, seating or a path
+// that is emitted below; none of them is a bare claim.
+function lechmereCanalPark(sim) {
+  // The tree line along the basin's west lawn, set back off the promenade so the
+  // 2 m canopy clears both the rim course and the boulevard's kerb.
+  for (const tz of [28, 32, 36, 40, 44, 48]) tree(sim, 37.5, tz);
+  // The south lawn, which is the widest ground in the district and the piece of
+  // it the map's south edge runs through.
+  for (const tx of [27, 32, 37, 42, 47, 52, 57, 62, 67]) tree(sim, tx, 55.5);
+  for (const tx of [30, 40, 50, 60]) lampPost(sim, tx, 58.5);
+  for (const tx of [35, 55]) bench(sim, tx, 58.5);
+  for (const tx of [45, 65]) trashBin(sim, tx, 58.5, 0x40463c);
+  // The pergola on the south lawn's spine — the one built thing in the park, and
+  // the reason the lawn is not just a green rectangle with trees on it.
+  pergola(sim, { x: 30, z: 52.5, len: 9, axis: 'x', w: 2, h: 2.5, color: 0x5a4a32 });
+  // The playground, on the west lawn behind 10 Canal Park. `03` §4.4 put the
+  // play equipment in the Portuguese seam's parks; this is the canal park's own,
+  // and it is here because this corner is the district's furthest ground from the
+  // water and needs a reason to exist.
+  playgroundSet(sim, { x: 5.5, z: 50 });
+  // 17, not 19: a tree's canopy is 2 m across, and at x 19 it stood inside the
+  // boulevard's step-5 west kerb run.
+  for (const tx of [2, 14, 17]) tree(sim, tx, 50.5);
+  // The line across the head of the west lawn, where Canal Park street dead-ends
+  // into it. NOTHING BETWEEN x 6.5 AND 12.5: that is the street's own
+  // carriageway rect, which runs to z 30, and `probeRoadConflicts` gates every
+  // block inside a roadway whether or not it is tall. A tree at x 8 put sixteen
+  // canopy cells in it.
+  for (const tx of [1.5, 4, 16, 20]) tree(sim, tx, 29.5);
+  for (const tz of [34, 40, 45]) tree(sim, 1.5, tz);
+  for (const tz of [36, 44]) lampPost(sim, 0.75, tz);
+  bench(sim, 0.75, 40);
+  drinkingFountain(sim, 12, 50.5, C.canalRail);
+  // The park's own fence line along the boulevard's west verge, which is what
+  // makes the lawn read as a park rather than as the ground either side of a road.
+  fenceRun(sim, { x: 22, z: 27, len: 5, axis: 'z', h: 1.0, mat: 'steel', color: C.parkFence });
+  fenceRun(sim, { x: 43.5, z: 53.5, len: 24, axis: 'x', h: 1.0, mat: 'steel', color: C.parkFence });
+}
+
+// 10 Canal Park, through District 1's own `curtainBlock`. It is the same decade
+// and the same grammar as the hero — a 1980s canal-side office — so it is built
+// with the same emitter rather than a fourth one, which is the whole point of
+// having a vocabulary: the difference between this building and 2 Canal Park is
+// its bay table and its palette, and that is the difference it should be.
+//
+// The bay tables follow District 1's five rules exactly (see that district's
+// header): four x bays with the odd one at the end, three z bays likewise, four
+// interior strips all of different widths.
+function tenCanalPark(sim) {
+  const T = TEN_CANAL;
+  curtainBlock(sim, {
+    x0: T.x0, z0: T.z0, w: T.w, d: T.d, storeys: T.storeys, longAxis: 'x',
+    xBays: [4, 4, 4, 3.5],
+    zBays: [4.25, 4.25, 4],
+    // THE ODD FRAME GOES AT THE END, and this is District 1's rule 2 with a
+    // measured price on it. The first draft ran [4.25, 4, 4.25], which reads
+    // like a symmetrical plan and is 48 gated placement-step gaps: the two 4.25
+    // frames are separated by the 4 m one, so every plate, girder and column
+    // pair either side of the middle frame is two identical collinear boxes
+    // 4.0 m apart against a 4.25 m extent. With the odd frame last the two
+    // equal frames abut at gap 0 and the odd one is its own group.
+    strips: [2.75, 3, 3.25, 3.5],
+    frames: [4.25, 4.25, 4],
+    pal: CANAL10_PAL,
+  });
+  // The canal-facing entrance: a canopy on two steel columns over a stepped
+  // approach, on the east elevation where the boulevard passes.
+  const ex = T.x0 + T.w;
+  for (const cz of [T.z0 + 5, T.z0 + 9]) {
+    column(sim, { x: ex + 1.5, y: 0, z: cz, h: 3, s: 0.5, mat: 'steel', color: C.canal10Steel });
+  }
+  beam(sim, { x: ex + 1.5, y: 3, z: T.z0 + 5, len: 4.5, axis: 'z', t: 0.5, depth: 0.5, mat: 'steel', color: C.canal10Steel });
+  slab(sim, { x: ex + 0.75, y: 3.5, z: T.z0 + 4.5, w: 2.5, d: 5.5, t: 0.25, mat: 'steel', color: C.canal10Deck });
+  wedge(sim, {
+    x: ex + 0.75, y: 0, z: T.z0 + 5.5, w: 1.5, d: 3.5, h: 0.5,
+    axis: 'x', from: 'min', riser: 0.25, mat: 'concrete', color: C.canal10Band,
+  });
+  // Roof plant: the lift overrun and a tank on the north end, so a 15.5 x 14 m
+  // parapet does not read as a lid.
+  //
+  // `top` IS THE ROOF PLATE, NOT THE PARAPET HEAD. `curtainBlock` has no roof
+  // deck of its own — the top storey's floor plate IS the roof, at
+  // `storeys * D1_STOREY − 0.25`, and `capBuilding` then stands the parapet on
+  // the wall head above it. Plant set at the parapet head instead stands 1 m
+  // over the plate on nothing at all: the first draft did exactly that and put
+  // thirteen blocks in the air, which `probeIdleStability` caught on frame one.
+  // r 2.0 at 12 facets for the tank, which is the clean pair `roofPlant` already
+  // found and this district re-derived for the pool.
+  const top = T.storeys * D1_STOREY;
+  pier(sim, { x: T.x0 + 3, y: top, z: T.z0 + 3, w: 3, h: 2.5, d: 3, mat: 'concrete', color: C.canal10Deck });
+  drum(sim, { x: T.x0 + 9, y: top, z: T.z0 + 4, r: 2, h: 2, facets: 12, t: 0.25, mat: 'steel', color: C.canal10Steel });
+  // The forecourt: bike racks, planters and a cafe table run on the plaza between
+  // the building and the boulevard, which is the ground the excursion's south
+  // face leg actually measures.
+  for (const cz of [T.z0 + 1, T.z0 + 12]) bikeRack(sim, ex + 1, cz, 3, 'z', C.canal10Steel);
+  for (const cx of [T.x0 + 2, T.x0 + 7, T.x0 + 12]) cafeTable(sim, cx, T.z0 + 15.5);
+  for (const cx of [T.x0 - 0.5, T.x0 + 9]) lampPost(sim, cx, T.z0 + 15.5);
+  planter(sim, T.x0 + 4.5, T.z0 + 15.5, 1.5, 1, C.planterSoil);
+  sandwichBoard(sim, ex + 1.75, T.z0 + 3, 0x2b3038);
+}
+
+// The boulevard's kerbs. Two runs per step plus a jog at every riser, and every
+// one of them is placed OUTSIDE the carriageway rects rather than beside them by
+// eye — `probeRoadConflicts` gates any block that overlaps a `roads` rect at all,
+// and a staircase of eight rects has sixteen edges to get wrong.
+//
+// The west jog sits in the step ABOVE its riser and the east jog in the step
+// BELOW it, which is not symmetry for its own sake: the west edge steps outward
+// and the east edge steps inward, so each jog has exactly one side of the riser
+// where it is clear of both rects at once.
+function landBoulevard(sim) {
+  const kerb = (x, z, len, axis) => {
+    for (let o = 0; o < len - 0.01; o += 6) {
+      const l = Math.min(6, len - o);
+      beam(sim, axis === 'x'
+        ? { x: x + o, y: 0, z, len: l, axis: 'x', t: 0.25, depth: 0.25, mat: 'concrete', color: C.landKerb }
+        : { x, y: 0, z: z + o, len: l, axis: 'z', t: 0.25, depth: 0.25, mat: 'concrete', color: C.landKerb });
+    }
+  };
+  for (let k = 0; k < LAND_BLVD.length; k++) {
+    const s = LAND_BLVD[k], nx = LAND_BLVD[k + 1];
+    kerb(s.x - 0.25, s.z, s.d, 'z');
+    kerb(s.x + LAND_W, s.z, s.d, 'z');
+    if (!nx) continue;
+    // THE JOG STOPS ONE CELL SHORT OF THE KERB IT MEETS, at both ends. Drawn to
+    // the full step it overlapped the z-run it was joining — 20 fine cells, and
+    // `probeCellOwnership` counts every one of them. The corner cell belongs to
+    // the z-run; the jog runs up to it and stops.
+    const jog = s.x - nx.x;
+    kerb(nx.x - 0.25, s.z + s.d - 0.25, jog, 'x');
+    kerb(nx.x + LAND_W + 0.25, s.z + s.d, jog, 'x');
+  }
+  // The lamp line, on the verge outside each step's east kerb, and the tree line
+  // on the west. Both step with the road rather than running straight, which is
+  // the only way a diagonal's furniture stays out of its own carriageway.
+  for (let k = 0; k < LAND_BLVD.length; k += 2) {
+    const s = LAND_BLVD[k];
+    lampPost(sim, s.x + LAND_W + 0.75, s.z + 2);
+    tree(sim, s.x - 1.75, s.z + 2);
+  }
+  // The last step is 1.25 m deep, not 4.25 — it is the one the map's south edge
+  // cuts — so it takes no furniture at all: anything at its own `z + 2` would
+  // stand at z 61.75, outside `boundsRect`.
+  for (let k = 1; k < LAND_BLVD.length - 1; k += 2) {
+    const s = LAND_BLVD[k];
+    bollard(sim, s.x + LAND_W + 0.75, s.z + 2, C.steelDark);
+    bollard(sim, s.x - 0.75, s.z + 2, C.steelDark);
+  }
+}
+
+export function canalDistrict(sim) {
+  canalRim(sim);
+  canalPromenade(sim);
+  canalPool(sim);
+  lechmereCanalPark(sim);
+  tenCanalPark(sim);
+  landBoulevard(sim);
+}
+
+// The district's ground. The water rects come first in this object for reading
+// order only — `cambridgeShell` pushes each layer into the shell's own array, so
+// `probeDecorKeyOrder`'s draw-order contract is the shell's and not this file's.
+//
+// EVERY SURFACE RECT BELOW ABUTS THE WATER AND NONE OVERLAPS IT.
+// `probeWaterOverSurfaces` fails a `roads`, `plaza`, `cobbles`, `sidewalks` or
+// `crosswalks` rect that a water rect paints over, and `rectsOverlap` is open, so
+// a promenade whose edge is exactly the water's edge is legal and one 0.25 m
+// inside it is not. The seven promenade rects are also what `probeBareGround`
+// reads: the rim course stands on them, and a rim cell off the paving is a
+// granite block on the void-coloured ground plane.
+export const CANAL_DECOR = {
+  water: [CANAL_CHANNEL, CANAL_BASIN],
+  plaza: [
+    { x: 29.5, z: 13, w: 14.5, d: 3 },     // the channel's north bank
+    { x: 29.5, z: 16, w: 1.5, d: 11 },     // its west head, against District 1's fence
+    { x: 29.5, z: 26, w: 13.5, d: 3 },     // its south bank
+    { x: 43, z: 15, w: 25, d: 4 },         // the basin's north walk
+    { x: 39, z: 26, w: 4, d: 24 },         // its west walk
+    { x: 67, z: 18, w: 4, d: 33 },         // its east walk, out to the map edge
+    { x: 39, z: 49, w: 31, d: 4 },         // its south walk
+    { x: 2.5, z: 30.5, w: 18.5, d: 17.5 }, // 10 Canal Park and its forecourt
+  ],
+  parks: [
+    // Lechmere Canal Park. Two lawns, both furnished: the west lawn carries the
+    // tree line, the playground and the park's path, the south lawn carries the
+    // pergola, the seating run and the map's south edge.
+    { x: 0, z: 27, w: 39, d: 26 },
+    { x: 0, z: 53, w: 70, d: 8 },
+  ],
+  sidewalks: pathRibbon([[19, 51], [26, 52], [33, 52.5], [38.5, 52]], 2),
+  roads: LAND_BLVD.map((s) => ({ x: s.x, z: s.z, w: LAND_W, d: s.d })),
+  // The boulevard's one crossing, at its north end where the park's two lawns
+  // meet across it. It is emitted as decor bars rather than as a
+  // `CAMBRIDGE_CROSSINGS` row because that table addresses `CAMBRIDGE_STREETS`
+  // rows BY INDEX and every row in it is a single axis-aligned rect — a diagonal
+  // has no such row to point at. `probeCrosswalkStripes` still holds it to the
+  // real contract (every bar fully inside a roadway rect), and the bars sit
+  // inside step 0, which is the only step long enough in z to hold one.
+  crosswalks: zebra({ x: 30.5, z: 30, w: 5, d: 3, axis: 'z' }),
+};
+
+export const CANAL_AMBIENT = {
+  // No `gulls` and no `ducks`, and it is a shell limitation rather than a
+  // choice: `cambridgeShell` merges extra ambient by pushing into an EXISTING
+  // key, and its own `sceneAmbient` declares steam, neon and pigeons only.
+  // Adding a fourth key changes the object the Phase 5 variants measure, which
+  // is not this task's to move. `03` §9.2 lists gulls and ducks for the scene;
+  // whoever lands District 8's water can add both keys to the shell in one edit
+  // and this district inherits them. Recorded rather than quietly dropped.
+  neon: [
+    { x: 6, z: 46.4, w: 11, d: 1.2, color: 0xffd166, period: 3.9 },   // 10 Canal Park's lobby
+  ],
+  pigeons: [
+    { x: 55, z: 51, count: 13 },
+    { x: 33, z: 29, count: 9 },
+    { x: 12, z: 49, count: 11 },
+  ],
+  steam: [{ x: 20.5, z: 37, rate: 0.18 }],
+};
+
 // --- THE SHELL ---------------------------------------------------------------
 // Ground, streets, decor, kerbs, street furniture, vehicles, ambient life and
 // camera blockers. IDENTICAL across all three variants by construction: it is
@@ -4932,7 +5592,23 @@ export function cambridgeSpendBack(sim) {
 // The other three edges are unchanged and still hug what is built: minX −120 is
 // Silva Park's west railing (P6.4), minZ −112 is the Inner Belt ballast span's
 // own edge (P6.3), maxX +66 is Thomas Graves Landing (P6.2).
-export const CAMBRIDGE_BOUNDS = { minX: -120, maxX: 66, minZ: -112, maxZ: 61 };
+//
+// P6.6 MOVES ONE EDGE, EAST FROM +66 TO +71, AND IT IS THE CHEAPEST MOVE ANY
+// TASK HAS MADE. The basin's east promenade furniture stands at x 69.25 and the
+// rim course at 67..68, so +71 is the hug. It opens ONE new 4 m sample column
+// (x 68) over the map's 173 m of z, and the basin's own ±10 m reach keeps the
+// z[9,59] third of that column alive; the cost is about 30 dead-ground points
+// against roughly 160 the district's water, rim and park take off the census —
+// see the district's own header for why the east end is trimmed to +67 rather
+// than run out to the +78 the offset's estimated extent would give.
+//
+// SOUTH STAYS AT +61, which is District 5's edge and not this district's. That
+// is the CambridgeSide deferral: the two blocks derive to (+14.75,+98.25) and
+// carrying the rect to +112 to hold them opens ~450 dead samples across ground
+// belonging to Districts 7, 8 and 9. `03` §4.6's own rect reaches z +116 and
+// this file does not; the reconciliation is P6.10's, and the offset row is
+// already there for whoever builds it.
+export const CAMBRIDGE_BOUNDS = { minX: -120, maxX: 71, minZ: -112, maxZ: 61 };
 
 export function buildCambridge(sim) {
   cambridgeShell(sim, (s) => {
@@ -4942,10 +5618,11 @@ export function buildCambridge(sim) {
     lechmereDistrict(s);
     portugueseSeamDistrict(s);
     thorndikeCivicDistrict(s);
+    canalDistrict(s);
   }, {
     bounds: CAMBRIDGE_BOUNDS,
-    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR, SEAM_DECOR, THORNDIKE_DECOR),
-    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT, SEAM_AMBIENT, THORNDIKE_AMBIENT),
+    decor: mergeDecor(CANAL_PARK_DECOR, LECHMERE_DECOR, SEAM_DECOR, THORNDIKE_DECOR, CANAL_DECOR),
+    ambient: mergeDecor(CANAL_PARK_AMBIENT, LECHMERE_AMBIENT, SEAM_AMBIENT, THORNDIKE_AMBIENT, CANAL_AMBIENT),
   });
 }
 
