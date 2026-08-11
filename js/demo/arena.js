@@ -42,6 +42,7 @@ import {
   mintRoomCode, normalizeRoomCode, isValidRoomCode, roomTopic,
   ARENA_SCENES, sceneLabel,
 } from '../net/arena.js';
+import { GameAudio } from '../audio/game-audio.js';
 
 // The scene is the HOST's choice, made on the picker before the room opens.
 // The joiner learns it from the WELCOME (allowlist-checked in protocol.js) —
@@ -74,6 +75,20 @@ function hideOverlays() { showOverlay('none'); }
 
 const canvas = el('game-canvas');
 const hud = el('hud');
+
+// ------------------------------------------------------------------ audio
+// Render-side voice over the same drained events the visuals read (ADR-0003).
+// init() binds the mobile autoplay unlock; the first tap on any landing
+// button both unlocks the context and starts the buffer preload.
+const audio = new GameAudio().init();
+window.__audio = audio;   // debug/Playwright hook, same idiom as __arena
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyM') setMuteLabel(audio.toggleMuted());
+});
+function setMuteLabel(m) {
+  const b = el('mute-btn');
+  if (b) { b.textContent = m ? 'SOUND OFF' : 'SOUND ON'; b.classList.toggle('muted', m); }
+}
 const clockEl = el('clock');
 const reconnectEl = el('reconnect');
 const stickEl = el('stick');
@@ -269,6 +284,7 @@ function startMatchUI() {
   hideOverlays();
   hud.classList.add('on');
   state = 'playing';
+  audio.startScene(scene);
   setupRivalLayer();
   if (matchMedia('(pointer: coarse)').matches) el('touch-hint').classList.add('on');
   setTimeout(() => el('touch-hint').classList.remove('on'), 6000);
@@ -359,6 +375,18 @@ function syncPeerConsumed() {
     }
     const slot = arenaPeer.eaterOf.has(id) ? arenaPeer.eaterOf.get(id) : -1;
     noteEat(id, slot);
+    // The peer's ear: own eats full volume at own pitch; the rival chews
+    // quieter at the ghost's pitch. Same gulp the host hears (ADR-0003:
+    // audio reads the wire's truth, never invents its own).
+    if (state === 'playing') {
+      const mine = slot === mySlot;
+      const own = arenaPeer.ownHole();
+      const g = arenaPeer.roster.bySlot.get(0);
+      audio.handleEvent(
+        { type: 'eat', hole: { radius: mine ? own.radius : (g ? g.radius : 1.1) } },
+        { quiet: !mine },
+      );
+    }
   }
   for (const e of arenaPeer.drainEvents()) {
     // Landmark beats ride the wire's event flag (AC-05.4); the eat itself was
@@ -482,11 +510,13 @@ function startCountdown() {
   showOverlay('ov-countdown');
   let n = 3;
   el('countdown-num').textContent = String(n);
+  audio.countdownTick();
   const tick = setInterval(() => {
     n--;
-    if (n > 0) { el('countdown-num').textContent = String(n); return; }
+    if (n > 0) { el('countdown-num').textContent = String(n); audio.countdownTick(); return; }
     clearInterval(tick);
     setPlates();
+    audio.countdownGo();
     startMatchUI();
   }, 1000);
 }
@@ -578,6 +608,7 @@ function endMatch() {
   if (state === 'over') return;
   state = 'over';
   held.clear();
+  audio.stopScene();   // the reveal plays over quiet; the finale sting lands on the headline
   let mine = 0, theirs = 0;
   if (role === 'host') {
     arenaHost.sendKeyframe();   // final MATCH_OVER keyframe, per-slot eaten streams included
@@ -661,6 +692,7 @@ function startReveal(mineScore, theirsScore) {
       head.textContent = winIdx < 0 ? 'DEAD HEAT'
         : (winIdx === mineIdx ? 'YOU TAKE THE CITY' : `${rivalName} TAKES THE CITY`);
       head.style.color = winIdx < 0 ? '#e9eef6' : COLOR_CSS[winIdx < 0 ? mineIdx : winIdx];
+      if (winIdx < 0) audio.draw(); else if (winIdx === mineIdx) audio.win(); else audio.lose();
       revealState = 'done';
     }, reveal.reduced ? 0 : RIVAL.REVEAL_HOLD_MS);
   });
@@ -731,11 +763,16 @@ function frame(ts) {
       if (accumulator >= FIXED_DT) accumulator = 0;
       // main.js's drain, standing in (ArenaHost detects it by array identity).
       // The drained events feed the visibility layer: every eat carries the
-      // eating hole, and roster index IS the slot (AC-01.1).
+      // eating hole, and roster index IS the slot (AC-01.1) — and the audio
+      // layer, which reads the same batch (rival eats play quiet).
       for (const e of sim.drainEvents()) {
-        if (e.type !== 'eat' || !e.obj || e.obj.id == null) continue;
-        const s = sim.holes.indexOf(e.hole);
-        noteEat(e.obj.id, s >= 0 ? s : 0, { landmark: !!e.obj.landmark });
+        if (e.type === 'eat' && e.obj && e.obj.id != null) {
+          const s = sim.holes.indexOf(e.hole);
+          noteEat(e.obj.id, s >= 0 ? s : 0, { landmark: !!e.obj.landmark });
+          audio.handleEvent(e, { quiet: e.hole !== sim.holes[0] });
+        } else {
+          audio.handleEvent(e);
+        }
       }
       if (arenaHost.over) endMatch();
     } else {
@@ -793,23 +830,34 @@ window.addEventListener('beforeunload', () => {
       tag.textContent = 'SMALL & FAST';
       b.appendChild(tag);
     }
-    b.addEventListener('click', () => hostCity(id));
+    b.addEventListener('click', () => { audio.uiConfirm(); hostCity(id); });
     list.appendChild(b);
   }
 }
 
 el('btn-host').addEventListener('click', () => {
+  audio.uiTap();
   state = 'pick';
   showOverlay('ov-pick');
 });
-el('btn-pick-back').addEventListener('click', () => { state = 'landing'; showOverlay('ov-landing'); });
+el('btn-pick-back').addEventListener('click', () => { audio.uiBack(); state = 'landing'; showOverlay('ov-landing'); });
 el('btn-show-join').addEventListener('click', () => {
+  audio.uiTap();
   state = 'join';
   showOverlay('ov-join');
   el('join-error').textContent = '';
   el('code-input').focus();
 });
-el('btn-join-back').addEventListener('click', () => { state = 'landing'; showOverlay('ov-landing'); });
+el('btn-join-back').addEventListener('click', () => { audio.uiBack(); state = 'landing'; showOverlay('ov-landing'); });
+
+// The mute toggle (persisted; M also works). A ghost button, always on screen.
+{
+  const mb = el('mute-btn');
+  if (mb) {
+    setMuteLabel(audio.muted);
+    mb.addEventListener('click', () => setMuteLabel(audio.toggleMuted()));
+  }
+}
 el('btn-host-back').addEventListener('click', () => location.replace(location.pathname));
 el('btn-again').addEventListener('click', () => location.replace(location.pathname));
 el('btn-reveal-again').addEventListener('click', () => location.replace(location.pathname));
@@ -823,7 +871,7 @@ codeInput.addEventListener('input', () => {
   el('join-error').textContent = '';
 });
 codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinCity(codeInput.value); });
-el('btn-join').addEventListener('click', () => joinCity(codeInput.value));
+el('btn-join').addEventListener('click', () => { audio.uiConfirm(); joinCity(codeInput.value); });
 
 el('copy-link').addEventListener('click', async () => {
   const code = roomHost ? roomHost.code : '';

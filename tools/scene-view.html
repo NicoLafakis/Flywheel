@@ -23,6 +23,7 @@
 import * as THREE from 'three';
 import { VoxelSandboxSim } from '../js/voxelsim.js';
 import { VoxelWorld3D } from '../js/voxelworld.js';
+import { GameAudio } from '../js/audio/game-audio.js';
 
 const q = new URLSearchParams(location.search);
 const num = (k, d) => { const v = parseFloat(q.get(k)); return Number.isFinite(v) ? v : d; };
@@ -38,6 +39,14 @@ const world = new VoxelWorld3D(canvas, sim, 'classic');
 world.resize(innerWidth, innerHeight);
 window.__sim = sim;
 window.__world = world;
+
+// Audio: the full event voice (js/audio/), including THE derailment — this
+// page is where a scene's sound is auditioned before it reaches the pickers.
+// First click/keypress unlocks; M mutes.
+const audio = new GameAudio({ base: '../assets/audio/' }).init();
+audio.startScene(sceneId);
+window.__audio = audio;
+addEventListener('keydown', (e) => { if (e.code === 'KeyM') audio.toggleMuted(); });
 
 const cam = new THREE.PerspectiveCamera(num('fov', 60), innerWidth / innerHeight, 0.5, 900);
 
@@ -86,6 +95,7 @@ function tick(now) {
   sim.step(FIXED_DT, moveAt(sim.time));
   const events = sim.events;
   sim.events = [];
+  audio.handleEvents(events);
   world.update(dt, events);
   frameCamera();
   world.render(cam);

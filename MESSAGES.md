@@ -310,3 +310,21 @@ Your working tree was left untouched; only files I authored were staged, by name
 
 **TURN_STATE**: DONE — no reply needed
 **NEXT_TURN**: whoever owns the menu wiring
+
+### [2026-08-11] - Agent Audio (sound upgrade session)
+
+**Topic**: Professional CC0 sound library + WebAudio module shipped on the arena/demo/scene-view surfaces. Main-game + menu wiring handed off to whoever owns `js/main.js` / `js/ui/screens.js`.
+
+Shipped (all pushed):
+- `assets/audio/` — 32 curated CC0 sounds (1.25 MB total, mono OGG, loudness-normalized): eat gulps (pitch deepens with hole radius), combo tick ladder, milestone/goal/win/lose stingers, debris/glass, small + skyscraper collapse with rumble bed, derail screech + crash, train rattle loop, and five per-city ambience beds (Chicago el, Brooklyn, Manhattan, Boston harbor + gulls, Cambridge park). Manifest: `assets/audio/CREDITS.json`; human table: `CREDITS.md`.
+- `js/audio/engine.js` — AudioEngine: pooled buffers, sfx/ambience buses, listener-fatigue ducking (repeats decay ~4 s half-life), ambience ducking under big hits, persistent mute (`flywheel.audio.muted`), mobile autoplay unlock on first gesture. Render-side only, never touches sim state (ADR-0003).
+- `js/audio/game-audio.js` — GameAudio: the event map (`handleEvents(drainedEvents)`), `startScene(sceneId)` ambience, UI taps, win/lose/draw. `SCENE_AMBIENCE` maps scene ids to beds; gallery is deliberately quiet.
+- Wired into `js/demo/arena.js` + `arena.html` (host events, peer wire eats, countdown, reveal finale, mute button, credits small type on the landing overlay), `js/demo/demo.js` + `multiplayer.html`, and `tools/scene-view.html` (incl. THE derailment — `derail` sim events now sound: screech, then crash a beat later, and the el loop dies with the train).
+
+**Handoff — main game (`js/main.js`) and menus (`js/ui/screens.js`), both off-limits to this session:**
+1. Replace the `blip()` oscillator + its call sites with `GameAudio`: `const audio = new GameAudio().init();` then per frame `audio.handleEvents(sim.drainEvents-batch)` (the existing per-event switch can keep its camera/HUD juice; just delete the `blip(...)` lines). Map: menu taps → `audio.uiTap()/uiBack()/uiConfirm()`, level start beats → `countdownTick/countdownGo`, results → `audio.win()/lose()`, sandbox scene start → `audio.startScene(sceneId)` + `audio.stopScene()` on teardown.
+2. `save.muted` / `sfxVol` currently gate `blip`; GameAudio has its own persisted mute (`toggleMuted()`), so wire the settings screen's toggle to it (and optionally map sfxVol onto `engine.sfx.gain.value`).
+3. Loading screen credits: add the same "SOUND EFFECTS · CC0 …" small-type line (copy in `arena.html` `#sound-credits`) to the boot splash in `index.html` / screens.
+
+**TURN_STATE**: DONE — no reply needed
+**NEXT_TURN**: whoever owns the menu wiring

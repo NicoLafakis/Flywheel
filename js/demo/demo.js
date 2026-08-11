@@ -16,6 +16,7 @@ import { slotColorHex } from '../rival/identity.js';
 import { TerritoryMap, columnCount } from '../rival/territory.js';
 import { TerritoryLayer } from '../rival/territory-layer.js';
 import { TugBar, computeShares } from '../rival/tugbar.js';
+import { GameAudio } from '../audio/game-audio.js';
 
 const FIXED_DT = 1 / 60;
 // Three minutes by default. `?t=<seconds>` shortens it — which is how the
@@ -59,6 +60,27 @@ const territoryLayer = new TerritoryLayer(view.scene, columnCount(sim.blocks));
 window.__sim = sim;
 window.__duel = duel;
 window.__view = view;
+
+// ------------------------------------------------------------------ audio
+// Same render-side voice as the arena (js/audio/): first key press or tap
+// unlocks the context and preloads the buffers. The gallery deliberately has
+// no ambience bed — the crowd in the room is this page's ambience.
+const audio = new GameAudio().init();
+window.__audio = audio;
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyM') setMuteLabel(audio.toggleMuted());
+});
+function setMuteLabel(m) {
+  const mb = document.getElementById('mute-btn');
+  if (mb) { mb.textContent = m ? 'SOUND OFF' : 'SOUND ON'; mb.classList.toggle('muted', m); }
+}
+{
+  const mb = document.getElementById('mute-btn');
+  if (mb) {
+    setMuteLabel(audio.muted);
+    mb.addEventListener('click', () => setMuteLabel(audio.toggleMuted()));
+  }
+}
 
 // ------------------------------------------------------------------ input
 // The camera carries no yaw (see view.js), so screen-relative steering IS
@@ -146,6 +168,8 @@ function endMatch() {
   el('banner-p1').textContent = `P1  ${s[0].toLocaleString()}  ·  ${pct[0].toFixed(1)}% eaten`;
   el('banner-p2').textContent = `P2  ${s[1].toLocaleString()}  ·  ${pct[1].toFixed(1)}% eaten`;
   bannerEl.classList.remove('hidden');
+  // Shared screen: somebody in the room won, so the sting is the winner's.
+  if (win < 0) audio.draw(); else audio.win();
 }
 
 el('btn-restart').addEventListener('click', () => location.reload());
@@ -172,9 +196,12 @@ function frame(ts) {
     }
     if (accumulator >= FIXED_DT) accumulator = 0;
     // The per-player event drains feed the territory tint: every eat marks
-    // its column's ground tile in the eater's color, once, on the eat.
+    // its column's ground tile in the eater's color, once, on the eat —
+    // and the audio layer, which hears both players at full volume (one
+    // room, one speaker).
     for (let p = 0; p < 2; p++) {
       for (const e of duel.drain(p)) {
+        audio.handleEvent(e);
         if (e.type !== 'eat' || !e.obj || e.obj.id == null) continue;
         const act = territory.mark(e.obj, p);
         if (act) territoryLayer.apply(act);
