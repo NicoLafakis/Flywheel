@@ -321,6 +321,11 @@ const AUTHORED_SCENES = {
     hud: 'CAMBRIDGE · CANAL PARK AND LECHMERE',
     intro: { subtitle: 'CAMBRIDGE' },
   },
+  'chicago': {
+    label: 'CHICAGO: THE LOOP AND THE CHICAGO RIVER',
+    hud: 'CHICAGO · THE LOOP & WILLIS TOWER',
+    intro: { subtitle: 'CHICAGO' },
+  },
 };
 
 function startVoxelSandbox(scene = 'gallery') {
