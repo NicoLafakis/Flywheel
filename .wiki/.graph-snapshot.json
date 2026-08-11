@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-08-11T21:23:31+00:00",
+  "generatedAt": "2026-08-11T22:22:14+00:00",
   "hashes": {
     "js/audio/engine.js": "183c909e1f4be404e96d380cbe72a3062fc115c6a80c33dbd06efeb74fc30371",
     "js/audio/game-audio.js": "7bb79bbed48f991b24d58f03d307d63a57db99f8d7c05340918226d5753058ae",
     "js/camera.js": "c4f0d9807856fd26483736df01b5242d44ef3657a29970a5900f0c7c01eaeff2",
     "js/citygen.js": "76bb78497f7817a78c78ac711ec59f0d55bcf68954b296ad02860c1239632f95",
     "js/controls.js": "e3388ab949031dab37aa3950834bdd5b1d68c1f23a9f852ec024ea6c36ef8346",
-    "js/demo/arena.js": "cc736219021a1201e6fbc265d7510aea2c3e3cfbd751f354679f2e00f91ade20",
+    "js/demo/arena.js": "3a9793331067cf47b448eddf620ff5c280580683f66bd1b142df9a8174f197ae",
     "js/demo/demo.js": "07d691a41ab28d8228eebbf9f0e31c55ea9df737e41ac8aebeef2895415439f9",
     "js/demo/duel.js": "dc2cde7e1962bb7f49200324d9a9e2975197b25f7ecd4577993097d25445a4cb",
     "js/demo/duel.test.mjs": "bceb81cc80aabecda39238b77287bfe127f44e23c81c098c13b880f6a8e4c0b8",
@@ -25,7 +25,7 @@
     "js/net/transport.js": "cf34e310b7ba61b6e2c702ac729d245d41706507dad2cbe9df498ee36c0a5448",
     "js/quality.js": "cff0d7720df128278f3f7f063b79ecdb65baded44c4ce25b172e21b5b9465cc3",
     "js/rival/announce.js": "5b8952449acaf7f1b08e79ff51b1c8ba600b8435ae8e85c1c6df7e9357e0ad9a",
-    "js/rival/attribution.js": "2a4f8c23a1d14dd8d79a4a40437e1a7ba61d330f76dbff26d5b2a47fb25bca19",
+    "js/rival/attribution.js": "34a2371063b71d48b767d7606aae919309c83977f44cfb5dae825980a1a0e639",
     "js/rival/beats.js": "865ec8be15a31c38d2f5d39675a5bfd183edcaf5b9ed71dde2bcd9ecaf115fec",
     "js/rival/constants.js": "b421e41d1366f8f9b94ce6f9b8f9b2a13f893982c1f83fd7cc74a4e060842e87",
     "js/rival/identity.js": "d92a8205c6c378bf80ebe2ba4b7b1640c6344c5de9627a297a13c07e0f457272",
@@ -72,7 +72,7 @@
     "tools/probe-buildcost2.mjs": "93daffbf374f3aa1f87870e1cb38460aa00e41e6b04576c7e561e9942a319a0e",
     "tools/shimmer.mjs": "55ae44931f4c4653bd16eee8bce26df3bdc7b8ba88539899523958347b45abc7",
     "tools/skinsheet.mjs": "28b8c85ffae203d6099b7979ad32ec61979502e2adfb255b5ac2c4bc2dacc748",
-    "tools/train-derail-selftest.mjs": "6e2c60c3e116a624eb6c83c5a665ee9a04942f70e6f5025ce2ea10ea8c9ce089",
+    "tools/train-derail-selftest.mjs": "a0ce33632530d6d161a2874ca96e2dbe14f188b4812cb5f33079ffdd32625494",
     "tools/validate.mjs": "259b21d4bcedaeb92e4732ce46c313528d18ffa8eaae0081fa4897e3c94ce526"
   }
 }

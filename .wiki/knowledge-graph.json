@@ -1,7 +1,7 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-11T21:23:23+00:00",
+    "generatedAt": "2026-08-11T22:22:06+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
@@ -68,8 +68,8 @@
     },
     "js/demo/arena.js": {
       "lang": "javascript",
-      "hash": "cc736219021a1201e6fbc265d7510aea2c3e3cfbd751f354679f2e00f91ade20",
-      "loc": 897,
+      "hash": "3a9793331067cf47b448eddf620ff5c280580683f66bd1b142df9a8174f197ae",
+      "loc": 899,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -220,8 +220,8 @@
     },
     "js/rival/attribution.js": {
       "lang": "javascript",
-      "hash": "2a4f8c23a1d14dd8d79a4a40437e1a7ba61d330f76dbff26d5b2a47fb25bca19",
-      "loc": 110,
+      "hash": "34a2371063b71d48b767d7606aae919309c83977f44cfb5dae825980a1a0e639",
+      "loc": 130,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -800,8 +800,8 @@
     },
     "tools/train-derail-selftest.mjs": {
       "lang": "javascript",
-      "hash": "6e2c60c3e116a624eb6c83c5a665ee9a04942f70e6f5025ce2ea10ea8c9ce089",
-      "loc": 346,
+      "hash": "a0ce33632530d6d161a2874ca96e2dbe14f188b4812cb5f33079ffdd32625494",
+      "loc": 395,
       "module": "tools",
       "symbols": [],
       "imports": []

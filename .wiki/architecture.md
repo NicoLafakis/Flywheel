@@ -162,7 +162,11 @@ is never the record, and the network is optional at every point.
 out of a live two-phone playtest complaint ("no sense of whose blocks were
 eaten"), a render-only layer sits on top of the net/sim boundary without
 writing sim state — `js/rival/identity.js` (per-slot color identity),
-`attribution.js` (per-block eater record), `territory.js` +
+`attribution.js` (per-object eater record — `cityRawMassOf(sim)` is the one
+raw-mass lookup over the whole object-id space, blocks and mover units alike,
+so a swallowed el-train car credits its declared raw mass to the eater's
+tug-bar/reveal tally exactly as the solo sim scores it, not the 0 a
+blocks-only lookup used to return), `territory.js` +
 `territory-layer.js` (crater tinting), `tugbar.js` (coarse-until-the-end
 tug-of-war bar), `offscreen.js` (off-screen/apart rival chevron),
 `beats.js`/`announce.js` (milestone callouts), and `reveal.js` (end-of-match
@@ -193,9 +197,13 @@ are deliberately not eatable. Unit ids extend the block id space
 zero new wire format: the keyframe eaten bitset already covers it, and a
 peer's derived train state converges on the same keyframe heal every other
 consumed object does. `js/voxelscene-chicago.js`'s CTA train is the only
-mover using it today; `tools/train-derail-selftest.mjs` (33 checks) pins
-determinism, consumption attribution, and host/peer convergence over lossy
-loopback. Full detail lives in `modules/voxel.md`'s chicago section.
+mover using it today; `tools/train-derail-selftest.mjs` (39 checks, expanded
+2026-08-11) pins determinism, consumption attribution, host/peer convergence
+over lossy loopback, and **arena scoring parity** — a car swallowed inside a
+live `ArenaHost` match now credits its full 75 raw mass to the eater's
+attribution record (`js/demo/arena.js` builds that record over
+`cityRawMassOf`), converging host and peer the same way block eats do. Full
+detail lives in `modules/voxel.md`'s chicago section.
 
 **Game audio, shipped 2026-08-11:** `js/audio/engine.js` (pooled decoded
 buffers, sfx/ambience buses, listener-fatigue ducking so repeat sounds decay

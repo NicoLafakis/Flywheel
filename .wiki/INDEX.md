@@ -17,9 +17,10 @@
 > scene viewer (not yet the main campaign game); and a MULTIPLAYER plate on
 > the title screen linking to a clean `/arena` URL, so the live arena is a
 > click away for the first time. The Chicago Loop scene itself was rebuilt
-> ground-up — playable and committed, but **the menu/arena-allowlist wiring
-> to reach it is in flight in a concurrent session as of 2026-08-11**. The
-> `js/net/` multiplayer layer remains wired end to end and **live**: host +
+> ground-up and is now fully menu-reachable: it joined the arena's HOST A
+> CITY picker on 2026-08-11 and, the same day, the single-player free-play
+> menu (`js/main.js`'s `AUTHORED_SCENES` + `js/ui/screens.js`'s FREE_PLAY
+> card). The `js/net/` multiplayer layer remains wired end to end and **live**: host +
 > peer loops proven over a loopback demo page, then over real Supabase
 > Realtime in a two-device arena at
 > https://flywheel-woad.vercel.app/arena.html, still not called from
