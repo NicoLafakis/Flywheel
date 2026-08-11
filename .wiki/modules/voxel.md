@@ -10,6 +10,7 @@ covers:
   - "js/voxelscene-brooklyn.js"
   - "js/voxelscene-boston.js"
   - "js/voxelscene-cambridge.js"
+  - "js/voxelscene-chicago.js"
 ---
 # Voxel Sandbox (pile physics)
 
@@ -43,6 +44,7 @@ bottom-up, along material bond strengths.
 | `js/voxelscene-boston.js` | `buildBoston(sim)`: Seaport, Fort Point and the BCEC (82,894 blocks, 2.0 blocks/m²) — see the Boston section below |
 | `js/voxelforms.js` | The twelve anisotropic primitives ADR-0013 unlocked (`slab`, `column`, `beam`, `panel`, `mullion`, `cornice`, `pier`, `plinth`, `tread`, and the rest), sitting below `js/voxelkit.js`. Geometry only — no named buildings, no city semantics. Pure sim |
 | `js/voxelscene-cambridge.js` | `buildCambridge(sim)`: East Cambridge around 2 Canal Park, the first scene authored in the `voxelforms.js` vocabulary. All ten districts built and the map complete at 72,943 blocks with the dead-ground census at zero; wired into the sim's scene dispatch, `AUTHORED_SCENES` and `FREE_PLAY`, and validated by `validateCambridge()`. Phase 7's hidden content and the Phase 8 sign-off are still ahead |
+| `js/voxelscene-chicago.js` | **Committed 2026-08-10 (92efbf2) but not yet reachable from any menu.** A concurrent, in-progress session's scene file landed in the multi-hole commit because `voxelsim.js` already imports it; without the file every page 404'd on deploy, so it was shipped as-is to unbreak the site. It parses and the sim boots against it, but scene registration (`AUTHORED_SCENES`/`FREE_PLAY`) and menu wiring are not done — `js/main.js`, `js/ui/screens.js`, and `tools/validate.mjs` all have uncommitted edits toward that in the other session's working tree as of this sync. Do not treat it as a shipped seventh scene yet |
 | `js/voxelworld.js` | `VoxelWorld3D`: one `InstancedMesh` per material + brick size with per-instance paint colors, cached static transforms, and per-frame dynamic motion; renders `sceneDecor` (roads/sidewalks/parks/bike paths/markings/water) |
 | `js/voxelsurfaces.js` | three.js binding for `voxeltiles.js`'s procedural surface registry (canvas-generated textures for `sim.sceneSurfaces`); zero cost until a scene names a surface. Owns the metals-only PMREM-probe rule — see the Boston section below |
 
@@ -212,6 +214,10 @@ listed in `AUTHORED_SCENES` / `FREE_PLAY`, and `validateCambridge()` gates it in
 `tools/validate.mjs`. Phase 7's hidden content, glyphs and achievements and the
 Phase 8 sign-off are still ahead. See
 [features/cambridge-sandbox/](../features/cambridge-sandbox/README.md).
+A seventh scene file, `js/voxelscene-chicago.js`, is committed but not
+registered in `AUTHORED_SCENES`/`FREE_PLAY` — see the Key Files table's entry
+for it. It is a different, in-progress session's work and is not part of the
+Cambridge package.
 `js/main.js`'s `AUTHORED_SCENES` table is the single source of truth for which
 scenes are real places (label text, HUD text, and whether an `intro`
 establishing shot/READY-gate framing applies) — see Talks To below. Scene

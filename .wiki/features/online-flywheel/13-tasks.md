@@ -1127,8 +1127,12 @@ second player is the one who gets the leak.
 **Demonstrable at the end:** two kiosks and a phone in one room, racing the same
 Brooklyn, and closing the host's laptop lid does not end the match.
 
-### T-601 — `js/net/snapshot.js`: the wire codec and every constant ◆
+### T-601 — `js/net/snapshot.js`: the wire codec and every constant ✅ done 2026-08-10 ◆
 
+- **Shipped 2026-08-10** as designed: binary snapshot/intent/keyframe codecs, a
+  `MAX_PLAYERS` constant, encode/decode as pure functions of state, no
+  Supabase import, no three.js. `tools/net-match-selftest.mjs` round-trips it
+  as part of the 48-check suite (below).
 - **Done when:** the binary snapshot / intent / keyframe formats from
   [04 §4.1](04-netcode-design.md#41-wire-format) encode and decode as a pure
   function of state, with the constant block from
@@ -1139,8 +1143,18 @@ Brooklyn, and closing the host's laptop lid does not end the match.
 - **Satisfies:** SYS-310, SYS-312, GWT-X07
 - **Size:** M
 
-### T-602 — `arena-open`, `arena-join`, quick join ◆
+### T-602 — `arena-open`, `arena-join`, quick join — not started ◆
 
+- **Still open.** T-603 shipped a **client-side, host-minted** substitute (a
+  5-char code and a `deriveSeed(code)` derivation, no Edge Function, no
+  server-side capacity check) that carries the same UNBOUND demo today but
+  does not satisfy this task: no server-minted seed, no atomic capacity UPDATE,
+  no build-version-mismatch spectator path, no quick join. `js/net/arena.js`'s
+  own file comment names the swap explicitly — "when `arena-open` lands,
+  `createRoom` swaps its mint for the function's response and nothing
+  downstream changes shape." Scouting a city by restarting until a liked seed
+  appears is the exposure this task exists to close; accepted for the
+  two-phone demo, not for the booth.
 - **Done when:** rooms mint a 4-character code from the 28-symbol alphabet
   (no `O`/`0`/`I`/`1`) via `crypto.getRandomValues` with retry on collision; the
   seed is `arena:{session_id}` minted **server-side**; capacity is enforced by an
@@ -1154,8 +1168,19 @@ Brooklyn, and closing the host's laptop lid does not end the match.
   until they like it. Two builds of `citygen.js` produce two different cities
   from one seed, which is the exact failure mode of deploying mid-conference.
 
-### T-603 — `js/net/arena.js`: room lifecycle, roster, succession, channel ◆
+### T-603 — `js/net/arena.js`: room lifecycle, roster, succession, channel ✅ minimal cut shipped 2026-08-10 ◆
 
+- **Shipped 2026-08-10, the minimal cut (T-603 minimal, per the file's own
+  header comment).** `js/net/arena.js` mints a 5-symbol code (27-symbol
+  no-vowel, no-confusable alphabet `BCDFGHJKMNPQRSTVWXZ23456789`) client-side,
+  derives the city seed deterministically from the code, and runs the
+  JOIN/WELCOME/REJECT/ROSTER handshake with room-full and no-host errors —
+  live-proven over real Supabase Realtime, not just loopback, in
+  `arena.html`. **Succession is explicitly not in this cut**: a vanished host
+  freezes the match ("HOST LEFT") rather than electing a new one — that is
+  T-606, and `ArenaRoomPeer.onHostLeft` is the hook a claim will replace.
+  Realtime Authorization/token-gating and server-enforced rate limits are also
+  not yet built (both depend on T-602's server side existing at all).
 - **Done when:** join/leave/roster/succession are owned here; Realtime
   Authorization is **on** and the topic is token-gated by the join function;
   presence payloads are display hints only and a presence entry with no roster
@@ -1165,8 +1190,18 @@ Brooklyn, and closing the host's laptop lid does not end the match.
 - **Satisfies:** GWT-302, SYS-310, SYS-407
 - **Size:** L
 
-### T-604 — `js/net/arena-host.js`: the authority loop ◆
+### T-604 — `js/net/arena-host.js`: the authority loop ✅ shipped 2026-08-10 (as `js/net/host.js`) ◆
 
+- **Shipped 2026-08-10.** `js/net/host.js` was promoted from the driver-seam
+  skeleton to a real per-slot-moves authority: it feeds the full per-slot moves
+  array into the multi-hole sim (`sim.step(dt, moves)`), broadcasts snapshots,
+  emits keyframes carrying an RLE eaten bitset, and zeroes a silent peer's
+  intent after a staleness timeout. Proved bit-exact against a scripted replay
+  in `tools/net-match-selftest.mjs` (48/48, including bit-exact host replay).
+  **Naming note:** the file stays `js/net/host.js`, not `arena-host.js` as this
+  task's title names it — the rename never happened and the module boundary is
+  otherwise exactly what this task describes; treat `js/net/host.js` as this
+  task's deliverable.
 - **Done when:** the host applies peer intents into `sim.step`, broadcasts
   snapshots at `SNAPSHOT_HZ`, emits keyframes at `KEYFRAME_HZ` including the
   eaten bitset, records the multi-hole trace, zeroes a silent peer's intent after
@@ -1175,8 +1210,16 @@ Brooklyn, and closing the host's laptop lid does not end the match.
 - **Satisfies:** GWT-303, GWT-305, GWT-306, SYS-310, SYS-312
 - **Size:** L
 
-### T-605 — `js/net/arena-peer.js`: the follower loop ◆
+### T-605 — `js/net/arena-peer.js`: the follower loop ✅ shipped 2026-08-10 (as `js/net/peer.js`) ◆
 
+- **Shipped 2026-08-10.** `js/net/peer.js` (new file) implements the follower
+  loop end to end: intents at a fixed cadence, snapshot interpolation,
+  prediction with banded reconciliation (ignore/smooth/snap), and keyframe
+  healing when a client falls too far behind. Proved over `netdemo.html`
+  (both sides of a loopback match rendered live in one page, the right half
+  purely from the wire) and over real Supabase Realtime in `arena.html`.
+  **Naming note:** ships as `js/net/peer.js`, not `arena-peer.js` — same
+  rename gap as T-604, same otherwise-matching module boundary.
 - **Done when:** intent goes out at `INTENT_HZ`; ghosts render 100 ms in the
   past from a ring buffer, extrapolate at most 250 ms then freeze and dim; the
   peer's own hole is predicted with the shared `tiers.js` speed function and
@@ -1190,7 +1233,13 @@ Brooklyn, and closing the host's laptop lid does not end the match.
   reusing `sim.rivals`, and the replay defence goes with it. Watch for it in
   review.
 
-### T-606 — Host migration ◆
+### T-606 — Host migration — not started ◆
+
+- **Still open.** T-603's `js/net/arena.js` ships the hook this task claims
+  (`ArenaRoomPeer.onHostLeft`) but not the claim itself: today a vanished host
+  freezes the match with a "HOST LEFT" message rather than electing a
+  successor. No `arena-claim-host` function or `host_generation` column exists
+  yet (both are also T-107/T-602 territory).
 
 - **Done when:** a peer seeing no snapshot for `HOST_TIMEOUT_MS` claims host via
   `arena-claim-host`'s single conditional UPDATE on `host_generation`, staggered

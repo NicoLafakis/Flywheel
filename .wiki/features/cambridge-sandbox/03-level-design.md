@@ -18,8 +18,15 @@ what was built, it has been reconciled against the built tree; where it describe
 what a later phase will do, it still reads as the plan it was written as.
 `js/voxelkit.js`'s twelve new gallery builders (2026-08-10) and `tools/validate.mjs`'s
 score-ladder rebase (`0e25a88`) touch files this page covers but not Cambridge's
-districts or its density gate — reconciled, nothing to change here.
-**Date:** 2026-08-06 (reconciled 2026-08-10).
+districts or its density gate — reconciled, nothing to change here. Later the
+same day, `js/voxelsim.js`'s multi-hole roster refactor (`sim.holes[]`, see
+`architecture.md`) is verified single-player bit-identical, and a seventh,
+unrelated, not-yet-menu-wired scene file (`js/voxelscene-chicago.js`, another
+session's in-progress work) matches this page's `js/voxelscene-*.js` cover
+glob without being part of Cambridge. `tools/validate.mjs` itself is
+unchanged in this range (confirmed by diff) despite the drift tool flagging
+it — a stale-snapshot false positive, not a real edit.
+**Date:** 2026-08-06 (reconciled 2026-08-10, twice).
 **Toolkit:** `01-voxel-primitive-vocabulary.md`. **Facts:**
 `02-cambridge-reference.md`. **Decision:** `adr/0013-anisotropic-voxel-primitives.md`.
 **Hidden things:** `04-easter-eggs-and-achievements.md` (separately owned — this

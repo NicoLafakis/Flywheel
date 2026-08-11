@@ -80,12 +80,13 @@ tying everything together.
   entries for the `TIERS` lever values and the removed system's history.
 
 **Reconciled 2026-08-10:** `js/main.js`, `js/ui/hud.js` and `js/ui/screens.js`
-are unchanged since the score-combo-and-hype commit documented below; the
-`js/net/**` wire layer and the `multiplayer.html` + `js/demo/**` hot-seat demo
-that landed the same day are both separate surfaces that don't touch this
-module — the demo page runs its own loop outside `main.js`'s state machine
-entirely (see `architecture.md`'s Boundaries section), and no screen calls
-into `js/net/` yet.
+are unchanged since the score-combo-and-hype commit documented below. The
+whole day's multiplayer arc — the multi-hole sim, `js/net/host.js`/`peer.js`
+wiring, `netdemo.html`, and the live `arena.html` over Supabase Realtime — is
+a separate surface that doesn't touch this module: `multiplayer.html`,
+`netdemo.html` and `arena.html` each run their own loop outside `main.js`'s
+state machine entirely (see `architecture.md`'s Boundaries section), and no
+campaign or sandbox screen calls into `js/net/` yet.
 
 **Planned, not built:** the online-Flywheel package
 (`.wiki/features/online-flywheel/`) proposes new sign-in, leaderboard, and

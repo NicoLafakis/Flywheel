@@ -13,8 +13,11 @@ the reasoning the toolkit was built from. `js/voxelkit.js` picked up twelve more
 gallery builders on 2026-08-10 (deliveryTruck, schoolBus, billboard and nine
 others — see `modules/voxel.md`); they are ordinary `voxelkit` builders, not
 `voxelforms.js` primitives, and Cambridge does not call them, so the toolkit
-audit below is unaffected.
-**Date:** 2026-08-06 (reconciled 2026-08-10).
+audit below is unaffected. The same day's multi-hole roster refactor
+(`js/voxelsim.js`'s `sim.holes[]`, see `architecture.md`) is a back-compat
+single-player-preserving change and touches none of the primitive geometry
+this page audits.
+**Date:** 2026-08-06 (reconciled 2026-08-10, twice).
 **Answers:** the owner's *"Construction vocabulary"* request, which sat on
 `STATUS.md`'s board as an open decision — *"his actual request, and nothing has
 been started on it"* — until ADR-0013 was accepted and this vocabulary shipped.

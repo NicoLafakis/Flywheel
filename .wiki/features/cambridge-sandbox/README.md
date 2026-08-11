@@ -21,6 +21,12 @@ content, glyphs and achievements of Phase 7, and the Phase 8 sign-off. Phase 7's
 achievement and belt rows remain blocked on the online-Flywheel backend, which is
 an inherited blocker rather than a Cambridge one.
 
+**Reconciled 2026-08-10 (twice):** neither the same day's `js/voxelsim.js`
+multi-hole roster refactor (single-player bit-identical, see
+`.wiki/architecture.md`) nor the unrelated `js/voxelscene-chicago.js` (a
+different, in-progress session's scene, committed but not registered in any
+menu — see `.wiki/modules/voxel.md`) touch anything in this package.
+
 | Doc | What it is | Why you'd open it |
 |---|---|---|
 | [00-objective-overview.md](00-objective-overview.md) | The spine. What the level actually serves, what the vocabulary unlocks, what it forecloses, and whether the two ship together. | Read this first if you are deciding *whether* and *in what order*, not *what*. |

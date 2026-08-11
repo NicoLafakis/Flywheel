@@ -5,15 +5,22 @@ networked product with accounts, achievements, a live shared arena, and
 four scopes of leaderboard — in time for UNBOUND, on a booth, in front of
 HubSpot partners.
 
-**As of 2026-08-10 this is no longer paperwork-only.** The multiplayer wire
-layer (`js/net/**` — driver seam, protocol, snapshots, transports, the
-host-authoritative loop skeleton) is built and self-tested standalone, and
-Supabase (`flywheel`, ref `zrsrvhrkgfuqhcjnjezw`) and Vercel
-(https://flywheel-woad.vercel.app) both exist, so credential handover no
-longer blocks Phase 1. See `.wiki/architecture.md`'s Boundaries section and
-`SETUP-FOR-NICO.md`. Nothing is wired into the shipped game yet — no screen
-calls into `js/net/`, and accounts/leaderboard/arena remain undesigned in
-code beyond the wire layer.
+**As of 2026-08-10 this is no longer paperwork-only, and Phase 6 shipped
+ahead of Phases 1-5 by product decision** (Nico chose "two phones ASAP" over
+building the plan in order). The multiplayer layer (`js/net/**` — driver
+seam, protocol, snapshots, transports, `host.js` and `peer.js`) is wired end
+to end and **live**: a loopback proof page (`netdemo.html`), then a real
+two-device arena over Supabase Realtime (`arena.html`, T-603 minimal room
+lifecycle), proven with a real match played to completion at
+https://flywheel-woad.vercel.app/arena.html. Supabase (`flywheel`, ref
+`zrsrvhrkgfuqhcjnjezw`) and Vercel (same URL) both exist, so credential
+handover no longer blocks Phase 1. See `.wiki/architecture.md`'s Boundaries
+section, `13-tasks.md`'s Phase 6 section, and `SETUP-FOR-NICO.md`.
+**Still not wired into the shipped game** — `arena.html`/`netdemo.html` are
+standalone pages, no campaign or sandbox screen calls into `js/net/` — and
+still open: server-minted rooms (T-602), host migration (T-606), spectators,
+more than two players (the netcode supports up to 8; the arena page seats
+2), accounts, achievements, and the four leaderboard scopes.
 
 ## Start here
 

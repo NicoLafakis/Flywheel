@@ -6,7 +6,10 @@ covers:
 
 **Status:** research reference. Nothing here is a design decision, and nothing
 here is built.
-**Date:** 2026-08-06.
+**Date:** 2026-08-06 (reconciled 2026-08-10 — a seventh, unrelated,
+not-yet-menu-wired scene file, `js/voxelscene-chicago.js`, matches this page's
+`js/voxelscene-*.js` cover glob without being Cambridge or touching anything
+this page describes; see `modules/voxel.md`).
 **Scope:** what is actually at and around the building HubSpot leases in
 Cambridge, Massachusetts, established from sources, so the level designer builds
 the real place instead of a plausible one.

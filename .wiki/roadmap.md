@@ -271,14 +271,23 @@ beside it.
 Designed across fourteen documents in
 [features/online-flywheel/](features/online-flywheel/README.md), with the
 architecture decision recorded and **accepted on 2026-08-06** in
-[ADR-0010](adr/0010-host-authoritative-arena.md). **The wire layer exists,
-nothing is wired into the game.** As of 2026-08-10 there is a `js/net/`
-directory (driver seam, protocol codecs, snapshot capture/apply, transports
-including a loopback simulator and an untested Supabase Realtime adapter, and
-ADR-0010's host loop skeleton), proven by `tools/net-selftest.mjs`'s 132
-checks — but no screen or module in `js/main.js` calls into it, and there is
-still no `vercel.json`. There is now a Supabase project and a Vercel
-deployment (see "Blocked on" below).
+[ADR-0010](adr/0010-host-authoritative-arena.md). **As of 2026-08-10 this is
+live and playable, on a standalone page, not wired into the game.** Phase 6
+(the live arena, `13-tasks.md`) shipped substantially ahead of Phases 1-5 by
+product decision — Nico chose "two phones ASAP" over building the plan in
+order. `js/net/host.js` (the authority loop) and the new `js/net/peer.js`
+(the follower loop) are wired end to end: proven first over a loopback
+simulator (`netdemo.html`), then over real Supabase Realtime in a two-device
+arena (`arena.html`, `js/net/arena.js` — 5-char codes, JOIN/WELCOME/REJECT/
+ROSTER handshake, no server-side room minting yet), played to a real,
+completed match at https://flywheel-woad.vercel.app/arena.html. Still not
+called from `js/main.js` or any campaign/sandbox screen. Still open: host
+migration/succession, server-minted rooms, spectators, more than two seated
+players (the netcode supports up to 8), and everything in Phases 1-5
+(accounts, boards, belts) that a booth arena would want to sit on top of.
+`tools/net-match-selftest.mjs` (48 checks incl. a bit-exact host replay),
+`tools/arena-selftest.mjs` (48 offline checks) and `tools/net-live-selftest.mjs`
+(18/18 against the live project) cover it.
 
 ### The shape
 
@@ -297,6 +306,16 @@ runs the one true simulation and broadcasts the state twelve times a second;
 everyone else sends steering and draws what they are told. If the host closes
 their laptop, the database picks a replacement in about two seconds and the
 match continues (ADR-0010).
+
+**What actually shipped 2026-08-10 is the demo-grade cut of this shape, not
+the full design above.** `js/net/arena.js` mints a **5**-character code (the
+design specifies four) client-side rather than server-side, so there is no
+atomic capacity check and no quick-join button yet; there is no QR code on
+the join screen; and closing the host's laptop today **freezes the match**
+("HOST LEFT") rather than electing a replacement — succession is T-606, still
+open. What is real: two people on different devices, anywhere on the
+internet, race the same deterministically-seeded city and see each other
+move, live, over Supabase Realtime.
 
 ### The open product decision: are we racing each other, or helping each other?
 

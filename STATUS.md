@@ -64,17 +64,45 @@ tell."* It still needs doing. Specific suspicions worth checking by hand:
   the unlit member of an antipodal pair. A Lambertian lighting term
   (r = 0.851 against measured luma) now disambiguates.
 
-### Online Flywheel — planning package landed; net layer and hosting now exist
+### Online Flywheel — the live arena shipped 2026-08-10, ahead of the plan's own order
 
 `.wiki/features/online-flywheel/` (16 docs) plus ADRs 0009-0012 landed
-2026-08-06 as paperwork only. Two things have since moved it out of pure
-planning: the multiplayer wire layer (`js/net/**` — driver seam, protocol,
-snapshots, transports, host loop skeleton; `tools/net-selftest.mjs` 132
-checks) landed 2026-08-10 as standalone code with no call site in the game
-yet, and a hot-seat two-player demo (`multiplayer.html` + `js/demo/**`,
-outside `main.js` entirely) shipped the same day. See `.wiki/architecture.md`'s
-Boundaries section for both. Accounts, achievements, the live shared arena and
-the four-scope leaderboard are still undesigned-in-code beyond that wire layer.
+2026-08-06 as paperwork only. 2026-08-10 took it from paperwork through a
+standalone wire layer all the way to **a real, live, two-device match** in
+one day, by product decision (Nico chose "two phones ASAP" over building
+Phases 1-5 first) — so Phase 6 (the live arena, `13-tasks.md`) is
+substantially ahead of Phases 1-5:
+
+- **Multi-hole sim**: `VoxelSandboxSim` now runs `sim.holes[]` (roster) with
+  a `sim.hole` back-compat alias, union-based support recalc, and an
+  array-move `step()` signature. The hot-seat duel demo (`multiplayer.html`)
+  is now native two-hole instead of its old dt-slicing hack. New test:
+  `js/voxelsim.multihole.test.mjs`.
+- **Netcode wired end to end**: `js/net/host.js` (promoted to the real
+  authority loop) and the new `js/net/peer.js` (follower loop — prediction,
+  banded reconciliation, keyframe healing) proven over a loopback demo page
+  (`netdemo.html`) — `tools/net-match-selftest.mjs`, 48 checks incl. a
+  bit-exact host replay.
+- **Live multiplayer, real project**: `js/net/arena.js` (T-603, the minimal
+  cut — 5-char room codes, JOIN/WELCOME/REJECT/ROSTER handshake, no
+  server-side room minting yet) plus `js/vendor/supabase-realtime.module.js`
+  (vendored same-origin, ADR-0014 pattern) and `arena.html` + `js/demo/arena.js`
+  (HOST A CITY / JOIN A CITY, invite links, touch steering). **Proven live**:
+  a two-browser-context match played to completion at
+  https://flywheel-woad.vercel.app/arena.html. `tools/arena-selftest.mjs`
+  (48/48 offline) and `tools/net-live-selftest.mjs` (18/18 against the real
+  project, kept out of default chains).
+- See `.wiki/architecture.md`'s Boundaries section and
+  `.wiki/features/online-flywheel/13-tasks.md`'s Phase 6 section for the
+  file-by-file detail and what's still open.
+
+**Still open, named so nobody re-derives it:** host migration/succession
+(T-606 — a vanished host freezes the match today), server-minted rooms
+(T-602), spectators, more than two seated players (the netcode itself
+supports up to 8; the arena page seats 2), accounts, achievements, and the
+four-scope leaderboard. None of `js/net/` is called from `js/main.js` or any
+campaign/sandbox screen — `arena.html`/`netdemo.html`/`multiplayer.html` are
+all standalone pages outside the state machine.
 
 **Credential handover is done as of 2026-08-10** — the item that used to block
 everything is cleared:
@@ -306,6 +334,7 @@ district sweep).
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
 
+- 2026-08-10: Live multiplayer shipped end to end: `sim.holes[]` multi-hole roster (`js/voxelsim.multihole.test.mjs`), `js/net/host.js`/`peer.js` wired over a loopback proof page (`netdemo.html`, `tools/net-match-selftest.mjs` 48/48), then a real two-device arena over Supabase Realtime (`arena.html`, `js/net/arena.js`, `js/vendor/supabase-realtime.module.js` — ADR-0014 pattern), proven with a live two-browser match at https://flywheel-woad.vercel.app/arena.html; `js/voxelscene-chicago.js` shipped incidentally (committed, not yet menu-wired, a concurrent session's in-progress work)
 - 2026-08-10: Score, combo and hype (`.wiki/features/score-combo-and-hype/`, ADR-0015): score plate with animated count-up, radial combo ring that drains the 1.5 s window and reports the sim's REAL multiplier (the old pill printed a level index as `x{n}` — x2 at chain 26 while the sim paid 1.1), table-driven combo ladder at chains 2/10/15/25/50/100/350/600 topping out at a named `MAX`, points-only ruling (SIZE ladder rebased onto `rawMass`, so a hot chain buys score and not growth), 9-row consumption phrase ladder against the scene goal with a full-width band, one priority-and-source announcement queue (a coin toast no longer erases a milestone mid-sentence), per-scene `bestCombo`/`bestScore` on the results screen and in the save (schema v15 → v16)
 
 - 2026-08-09: Nav Indicator Skins & Shop expansion: added 6 incremental indicator skins to Shop (Baseline Chevron, Plasma Wedge, Supered Hot Pink Lightning, Inferno Flame, Cyber Prism, Cosmic Star Vector) with save schema v14 → v15 migration and custom 3D geometries/pulsing animations

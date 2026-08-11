@@ -2,17 +2,15 @@
 
 > Living documentation for **Flywheel** — "A sprocket's story" (repo:
 > `Flywheel`; the eat-everything mechanic itself is still called "hole" in
-> code and vocabulary — see [glossary.md](glossary.md)). Updated 2026-08-09
-> (`class Maw` jaw-bite animation, six more partner skins on the raster
-> `logoTex` path, `nameText` agency labels, constant-luminance mouth plate;
-> save-schema drift guard, `tools/skinsheet.mjs` and
-> `tools/gen-partner-logo.mjs`; three.js vendored to `js/vendor/three.module.js`
-> behind a same-origin import map, with `validateOfflineBoot()` in
-> `tools/validate.mjs` holding the boot to it
-> ([ADR-0014](adr/0014-vendored-same-origin-runtime.md)); the Cambridge sandbox's
-> map is complete and playable with hidden content still ahead, the online
-> Flywheel package's `js/net/` wire layer is built and self-tested but not
-> wired into the game, and its Supabase/Vercel hosting now exists).
+> code and vocabulary — see [glossary.md](glossary.md)). Updated 2026-08-10
+> (the sim's hole roster went native — `sim.holes[]` with a `sim.hole`
+> back-compat alias, union-based support recalc, array-move steps — and the
+> hot-seat duel demo dropped its dt-slicing hack for it; the `js/net/`
+> multiplayer layer is now wired end to end and **live**: host + peer loops
+> proven over a loopback demo page, then over real Supabase Realtime in a
+> two-device arena at https://flywheel-woad.vercel.app/arena.html, none of it
+> yet called from `js/main.js` or any campaign/sandbox screen; the Cambridge
+> sandbox's map is complete and playable with hidden content still ahead).
 
 ## What is this?
 
@@ -52,16 +50,19 @@ what each is waiting on, and what could start today.
 | [modules/](modules/) | Per-module docs with `covers:` globs: [campaign](modules/campaign.md), [citygen](modules/citygen.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
 | [adr/](adr/) | Architecture Decision Records |
 | [runbooks/](runbooks/) | Run/validate/deploy playbooks |
-| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (the `js/net/` wire layer is built and self-tested, not yet wired into the game; accounts, live shared arena and leaderboards remain undesigned in code; Supabase + Vercel hosting exists as of 2026-08-10), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary; engine change, primitive layer, scene registration and all ten districts committed, Phase 7's hidden content and the Phase 8 sign-off ahead) |
+| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (the `js/net/` layer is wired end to end and proven live over Supabase Realtime — a two-device arena at flywheel-woad.vercel.app/arena.html — but not yet called from `js/main.js` or any campaign/sandbox screen; accounts and leaderboards remain undesigned in code), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary; engine change, primitive layer, scene registration and all ten districts committed, Phase 7's hidden content and the Phase 8 sign-off ahead) |
 
 ## Feature planning packages
 
 - [features/online-flywheel/](features/online-flywheel/README.md) — the plan
   to take Flywheel from a single-player static toy to a networked product
   (accounts, achievements, a live shared arena, four leaderboard scopes) for
-  the UNBOUND conference. **The `js/net/` wire layer is built and self-tested
-  standalone (2026-08-10), not yet wired into the game; hosting (Supabase +
-  Vercel) exists as of the same day.** Start
+  the UNBOUND conference. **The `js/net/` layer is wired end to end and live
+  (2026-08-10):** host and peer loops proven over a loopback demo page, then
+  over real Supabase Realtime in a two-device arena at
+  https://flywheel-woad.vercel.app/arena.html. It is a standalone page, not
+  called from `js/main.js` or any campaign/sandbox screen; accounts,
+  leaderboards and host succession remain undesigned or unbuilt. Start
   at the [README](features/online-flywheel/README.md), which points
   implementers at [00-objective-overview.md](features/online-flywheel/00-objective-overview.md)
   and Nico at [SETUP-FOR-NICO.md](features/online-flywheel/SETUP-FOR-NICO.md).

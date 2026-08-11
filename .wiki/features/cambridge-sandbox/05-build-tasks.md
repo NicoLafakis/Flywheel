@@ -18,8 +18,16 @@ the online-Flywheel backend, and then the Phase 8 sign-off. `js/main.js`,
 `js/ui/screens.js`, `js/voxelworld.js` and `tools/validate.mjs` have all moved
 since (score-combo-and-hype, the directional-indicator fix, the twelve new
 `voxelkit.js` gallery builders) — none of it touches Cambridge's registration,
-districts or validator gate, so Phases 0-6 stand as complete.
-**Date:** 2026-08-06, kept current as tasks land (reconciled 2026-08-10).
+districts or validator gate, so Phases 0-6 stand as complete. Later the same
+day: `js/voxelsim.js`'s multi-hole roster refactor (single-player
+bit-identical, see `architecture.md`) and the unrelated, uncommitted-to-any-menu
+`js/voxelscene-chicago.js` (another session's in-progress work, incidentally
+committed 92efbf2 to unbreak the deploy — see `modules/voxel.md`) don't touch
+this page's Phase 0-6 claims either. `js/main.js`, `js/ui/screens.js` and
+`tools/validate.mjs` show as changed in the drift tool's snapshot comparison
+but are byte-identical across this range on inspection — a stale-snapshot
+false positive.
+**Date:** 2026-08-06, kept current as tasks land (reconciled 2026-08-10, twice).
 **Reads with:** every other doc in this package — this page sequences their
 decisions rather than re-arguing them. The owning-doc convention from `03`/`04`
 holds: where a task description here disagrees with `01`–`04`, the numbered doc
