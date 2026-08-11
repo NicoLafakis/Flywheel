@@ -69,7 +69,14 @@ export class ArenaHost {
     // fixed at scene build. A sim with no `blocks` array (the campaign Sim)
     // sends no bitset until its id space is passed in explicitly.
     this.objectIdSpace = objectIdSpace;
-    if (!this.objectIdSpace && Array.isArray(sim.blocks)) {
+    // A sim that publishes its own id space (voxelsim's `objectIdSpace` —
+    // blocks PLUS simulated mover units, e.g. eatable train cars) is the
+    // authority: the block scan below cannot see unit ids, and a bitset one id
+    // short silently drops the newest object from every keyframe.
+    if (!this.objectIdSpace && Number.isFinite(sim.objectIdSpace) && sim.objectIdSpace > 0) {
+      this.objectIdSpace = sim.objectIdSpace;
+    }
+    if (Array.isArray(sim.blocks)) {
       let maxId = 0;
       for (const b of sim.blocks) {
         if (b.id > maxId) maxId = b.id;
@@ -77,7 +84,13 @@ export class ArenaHost {
         // host, a migration rebuild) still belongs in the keyframe's set.
         if (b.state === 'consumed' && b.id != null) this._eatenIds.add(b.id);
       }
-      this.objectIdSpace = maxId + 1;
+      if (!this.objectIdSpace) this.objectIdSpace = maxId + 1;
+    }
+    // Same rebuild rule for mover units consumed before this host existed.
+    if (Array.isArray(sim.moverSim)) {
+      for (const rt of sim.moverSim) {
+        for (const u of rt.units) if (u.phase === 'consumed') this._eatenIds.add(u.id);
+      }
     }
 
     // The host's own hole is slot 0 and is JUST ANOTHER DRIVER. That is the

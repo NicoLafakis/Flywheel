@@ -484,6 +484,14 @@ export class VoxelSandboxSim {
     // Camera blockers must track demolition. Bound LAST: it reads _top, which
     // only exists as of the two lines above.
     this._bindCameraBlockers();
+    // Simulated movers (derail / ground-run / eatable — see the mover
+    // simulation section). Consumes ids from `_blockId`, so it runs after every
+    // block exists and before the id space is published.
+    this._initMoverSim();
+    // The full object-id space: blocks + mover units. The net layer's keyframe
+    // bitset covers this, so a consumed train car heals over the wire exactly
+    // like a consumed block (js/net/host.js prefers this over its own scan).
+    this.objectIdSpace = this._blockId;
   }
 
   // --- the hole roster ---------------------------------------------------------
@@ -2678,6 +2686,301 @@ export class VoxelSandboxSim {
     }
   }
 
+  // --- mover simulation (track integrity / derail / ground-run / eatable) ------
+  // The mover seam (see moverArc/moverPose above) started render-only: a pose
+  // that is a pure function of the sim clock. A scene may now OPT a mover into
+  // the simulation by declaring `sim: {...}` on it — capabilities, not
+  // train-specific code, so a future boat or streetcar gets the same physics
+  // by flipping the same flags:
+  //
+  //   sim: {
+  //     derail: true,        sample the track under each unit; fall at gaps
+  //     groundRun: true,     after landing, keep driving the route at ground level
+  //     eatable: true,       a derailed (falling/grounded) unit can be consumed
+  //     groundSpeed: 6.5,    m/s once grounded (default 0.75 × ride speed)
+  //     unitMass: 75,        raw mass credited to the eater (default 2 × volume)
+  //     length/width/height, the unit's box, metres
+  //     probes: [-2.75, 2.75],  support sample offsets along the direction of travel
+  //     track: { y0, y1, halfW }, the solid band that counts as "track present"
+  //   }
+  //
+  // DETERMINISM (ADR-0003/ADR-0006). The runtime draws NOTHING from the RNG —
+  // every stream in every shipped scene stays exactly where it was — and every
+  // transition reads only sim state: the fine grid's solidity (which is a pure
+  // function of the eaten/collapse history), the hole roster (index order for
+  // every tie-break), and `sim.time`. Same seed + same inputs = bit-identical
+  // derail ticks, landing heights and unit poses, which is what the replay
+  // defense (04 §10.1) needs and what tools/train-derail-selftest.mjs pins.
+  //
+  // MULTIPLAYER. A riding unit is still the old pure function of the clock. A
+  // derailed unit's state derives from the eaten/collapse history, which a peer
+  // learns through eat events and the keyframe's eaten bitset — so a peer-side
+  // derivation converges once the keyframe heals its consumed set. The
+  // transient where a peer has not yet healed an eaten track block means its
+  // train derails a beat late (worst case: one keyframe interval, then it
+  // reaches the same gap next lap); that divergence is presentation-only and
+  // bounded, never permanent — the HOST is the only authority on consumption,
+  // and a consumed unit's id rides the same wire events/keyframe as a block id
+  // (`objectIdSpace` covers both), so who ate what never diverges at all.
+  // ('chicago' is not yet in ARENA_SCENES; this note is the seam's contract
+  // for the day it lands.)
+  //
+  // ELEVATED CARS ARE NOT EATABLE ON INTACT TRACK — decided for play feel: the
+  // fun loop is undermine the posts → the deck crumbles → the train stumbles,
+  // falls, runs the streets, and THEN gets hunted. A hole that could vacuum the
+  // train off a healthy viaduct would skip the whole spectacle. A unit becomes
+  // consumable the moment it is falling or grounded.
+
+  _initMoverSim() {
+    this.moverSim = null;
+    const list = this.sceneMovers;
+    if (!Array.isArray(list)) return;
+    const sims = [];
+    for (const m of list) {
+      const cfg = m && m.sim;
+      if (!cfg || !Array.isArray(m.path) || m.path.length < 2) continue;
+      const arc = moverArc(m.path);
+      if (!(arc.total > 0)) continue;
+      const offsets = Array.isArray(m.units) && m.units.length
+        ? m.units.map((u) => (u && Number.isFinite(u.off) ? u.off : 0)) : [0];
+      const L = cfg.length != null ? cfg.length : 8;
+      const W = cfg.width != null ? cfg.width : 2.5;
+      const H = cfg.height != null ? cfg.height : 2.5;
+      const t = cfg.track || {};
+      const rt = {
+        src: m, arc,
+        speed: Number.isFinite(m.speed) ? m.speed : 0,
+        y: Number.isFinite(m.y) ? m.y : 0,
+        derail: !!cfg.derail, groundRun: !!cfg.groundRun, eatable: !!cfg.eatable,
+        groundSpeed: cfg.groundSpeed != null ? cfg.groundSpeed : (Number.isFinite(m.speed) ? m.speed : 0) * 0.75,
+        unitMass: cfg.unitMass != null ? cfg.unitMass : 2 * L * W * H,
+        height: H,
+        probes: Array.isArray(cfg.probes) && cfg.probes.length ? cfg.probes : [-L * 0.34, L * 0.34],
+        track: {
+          y0: t.y0 != null ? t.y0 : Math.max(0, (Number.isFinite(m.y) ? m.y : 0) - 1),
+          y1: t.y1 != null ? t.y1 : (Number.isFinite(m.y) ? m.y : 0),
+          halfW: t.halfW != null ? t.halfW : W / 2,
+        },
+        units: offsets.map((off) => {
+          const p = moverPose(arc, off);
+          return {
+            id: this._blockId++,   // shares the block id space: one wire format
+            off, phase: 'ride',    // ride | fall | ground | rest | consumed
+            s: off, x: p.x, z: p.z, ux: p.ux, uz: p.uz,
+            y: Number.isFinite(m.y) ? m.y : 0,
+            fwd: Number.isFinite(m.speed) ? m.speed : 0,
+            vy: 0, tilt: 0,
+            sAvg: Math.cbrt(L * W * H),  // the "bite size" skins read (biteFromEvent)
+          };
+        }),
+      };
+      sims.push(rt);
+    }
+    if (sims.length) {
+      this.moverSim = sims;
+      this._mvSup = { top: 0, voided: false, hole: null }; // per-step scratch
+    }
+  }
+
+  // Is there solid track under (px, pz)? Samples the declared track band —
+  // deck + rails — across the lateral half-width, on the fine grid. ANY solid
+  // cell counts: a half-eaten deck still carries the train; only a clean
+  // full-width gap derails it. Solid means static|unstable, so a deck that has
+  // DETACHED (mid-collapse) already reads as missing — the train falls with
+  // the structure instead of riding an invisible rail over it.
+  _moverTrackSolid(rt, px, pz, ux, uz) {
+    const t = rt.track;
+    const nx = -uz, nz = ux; // lateral unit vector
+    const fy0 = Math.round(t.y0 / FINE), fy1 = Math.round(t.y1 / FINE);
+    for (let l = -t.halfW; l <= t.halfW + 1e-9; l += FINE * 2) {
+      const gx = Math.floor((px + nx * l) / FINE), gz = Math.floor((pz + nz * l) / FINE);
+      for (let fy = fy0; fy < fy1; fy++) {
+        const o = this.grid.get(key(gx, fy, gz));
+        if (o && (o.state === 'static' || o.state === 'unstable')) return true;
+      }
+    }
+    return false;
+  }
+
+  /** Test hook: is the track under mover `mi`'s path solid at arc length `s`? */
+  moverTrackOk(mi, s) {
+    const rt = this.moverSim[mi];
+    const p = moverPose(rt.arc, s);
+    for (let k = 0; k < rt.probes.length; k++) {
+      const off = rt.probes[k];
+      if (!this._moverTrackSolid(rt, p.x + p.ux * off, p.z + p.uz * off, p.ux, p.uz)) return false;
+    }
+    return true;
+  }
+
+  // Highest solid top under a 0.5 m probe column at (px, pz) that is at or
+  // below `preBase` — the same pre-move-base landing rule the debris walk uses
+  // (RCA 2026-08-11): a car falling BESIDE a tower must not land on its roof,
+  // and a column entered beside a taller solid walks down past it. 0 = street.
+  _moverGroundAt(px, pz, preBase) {
+    const fx = Math.round(px / FINE) - 1, fz = Math.round(pz / FINE) - 1;
+    const fyTop = Math.max(0, Math.floor(preBase / FINE + 0.2));
+    let best = 0;
+    for (let ix = 0; ix < 2; ix++) {
+      for (let iz = 0; iz < 2; iz++) {
+        for (let cy = fyTop; cy >= 0;) {
+          const o = this.grid.get(key(fx + ix, cy, fz + iz));
+          if (!o || (o.state !== 'static' && o.state !== 'unstable')) { cy--; continue; }
+          const top = (o.gy + o.fsy) * FINE;
+          if (top <= preBase + 0.05) { if (top > best) best = top; break; }
+          cy = o.gy - 1;
+        }
+      }
+    }
+    return best;
+  }
+
+  // Support under a derailed unit, or "there is only void". A probe over a
+  // hole's opening contributes no support; when EVERY probe is over a void the
+  // unit falls in (a car BRIDGES a hole smaller than its own wheelbase, like a
+  // slab bridging the rim). Non-eatable movers never see voids — they cannot
+  // be consumed, so sinking them would strand them below the world.
+  // Attribution: first hole in index order covering the unit's CENTRE, else
+  // the first that covered a probe — the standard multi-hole tie-break.
+  _moverSupport(rt, u, hp, nh, preBase) {
+    const out = this._mvSup;
+    let top = 0, allVoid = true, hole = null;
+    const probes = rt.probes;
+    for (let k = 0; k < probes.length; k++) {
+      const px = u.x + u.ux * probes[k], pz = u.z + u.uz * probes[k];
+      let voided = false;
+      if (rt.eatable) {
+        for (let hi = 0; hi < nh; hi++) {
+          if (this._overVoid(hp[hi], px, pz)) { voided = true; if (!hole) hole = hp[hi].h; break; }
+        }
+      }
+      if (voided) continue;
+      allVoid = false;
+      const g = this._moverGroundAt(px, pz, preBase);
+      if (g > top) top = g;
+    }
+    if (allVoid && probes.length) {
+      for (let hi = 0; hi < nh; hi++) {
+        if (this._overVoid(hp[hi], u.x, u.z)) { hole = hp[hi].h; break; }
+      }
+      out.top = 0; out.voided = true; out.hole = hole || this.holes[0];
+      return out;
+    }
+    out.top = top; out.voided = false; out.hole = null;
+    return out;
+  }
+
+  // Which hole gets the credit for a sinking unit: the first (index order)
+  // whose void covers the centre, else the first covering a probe, else the
+  // nearest — always defined, always deterministic.
+  _moverEater(u, hp, nh) {
+    for (let hi = 0; hi < nh; hi++) {
+      if (this._overVoid(hp[hi], u.x, u.z)) return hp[hi].h;
+    }
+    let best = null, bestD2 = Infinity;
+    for (let hi = 0; hi < nh; hi++) {
+      const dx = u.x - hp[hi].h.x, dz = u.z - hp[hi].h.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < bestD2) { bestD2 = d2; best = hp[hi].h; }
+    }
+    return best || this.holes[0];
+  }
+
+  _stepMovers(dt) {
+    const sims = this.moverSim;
+    if (!sims) return;
+    const hp = this._holeParams();
+    const nh = hp.length;
+    for (let mi = 0; mi < sims.length; mi++) {
+      const rt = sims[mi];
+      for (let ui = 0; ui < rt.units.length; ui++) {
+        const u = rt.units[ui];
+        if (u.phase === 'consumed') continue;
+
+        if (u.phase === 'ride') {
+          // Riding is the original pure function of the clock — nothing to
+          // snapshot, nothing to drift (the render-only contract, kept).
+          u.s = this.time * rt.speed + u.off;
+          const p = moverPose(rt.arc, u.s);
+          u.x = p.x; u.z = p.z; u.ux = p.ux; u.uz = p.uz; u.y = rt.y;
+          if (!rt.derail) continue;
+          let solid = true;
+          for (let k = 0; k < rt.probes.length; k++) {
+            const off = rt.probes[k];
+            if (!this._moverTrackSolid(rt, u.x + u.ux * off, u.z + u.uz * off, u.ux, u.uz)) { solid = false; break; }
+          }
+          if (solid) continue;
+          u.phase = 'fall';
+          u.fwd = rt.speed;   // momentum carries it off the end of the rails
+          u.vy = 0;
+          u.tilt = 0;
+          this.events.push({ type: 'derail', mover: rt.src.id != null ? rt.src.id : mi, unit: ui, x: u.x, z: u.z });
+          continue;
+        }
+
+        if (u.phase === 'fall') {
+          const preBase = u.y;
+          u.s += u.fwd * dt;
+          const p = moverPose(rt.arc, u.s);
+          u.x = p.x; u.z = p.z; u.ux = p.ux; u.uz = p.uz;
+          u.vy -= this._fallG(1) * dt;   // UNIFORM gravity (owner ruling 2026-08-11)
+          u.y += u.vy * dt;
+          u.tilt = Math.min(0.35, u.tilt + 0.9 * dt);  // nose dips as it plunges
+          // Fully sunk into a hole: consumed — the blocks' SINK_Y rule scaled
+          // to the car's own height. Checked before any landing so a car that
+          // dipped into a void it only PARTLY covers still goes down the hole
+          // (once it is below the street it cannot climb back out).
+          if (rt.eatable && u.y + rt.height <= SINK_Y) {
+            this._consumeMoverUnit(rt, u, this._moverEater(u, hp, nh));
+            continue;
+          }
+          const sup = this._moverSupport(rt, u, hp, nh, preBase);
+          if (sup.voided) continue;
+          // Landing takes the debris walk's pre-move-base rule: a surface only
+          // counts if the car was at or above it BEFORE this step's motion —
+          // never a snap up out of a hole, never a tunnel through a floor.
+          if (u.y <= sup.top && preBase >= sup.top - 0.05) {
+            const hard = u.vy < -8;
+            u.y = sup.top;
+            u.vy = 0;
+            u.phase = rt.groundRun ? 'ground' : 'rest';
+            u.fwd = rt.groundRun ? rt.groundSpeed : 0;
+            u.tilt = hard ? -0.22 : -0.12;  // the landing slam, settled below
+          }
+          continue;
+        }
+
+        // ground | rest — the runaway (or the wreck), following whatever holds
+        // it up, falling again when the ground opens.
+        const preBase = u.y;
+        if (u.phase === 'ground') {
+          u.s += u.fwd * dt;
+          const p = moverPose(rt.arc, u.s);
+          u.x = p.x; u.z = p.z; u.ux = p.ux; u.uz = p.uz;
+        }
+        u.tilt *= 1 - 4 * dt;
+        const sup = this._moverSupport(rt, u, hp, nh, preBase);
+        if (sup.voided || sup.top < u.y - 0.5) {
+          u.phase = 'fall';
+          u.vy = 0;
+          continue;
+        }
+        u.y = sup.top;
+      }
+    }
+  }
+
+  // A derailed unit swallowed whole: the same attribution, scoring, combo and
+  // milestone arithmetic as a block (`_award` IS `_consume`'s scoring half),
+  // and the same wire life — the eat event carries `obj.id`, which lives in
+  // the block id space, so snapshots and the keyframe's eaten bitset carry it
+  // with zero new wire format.
+  _consumeMoverUnit(rt, u, h) {
+    u.phase = 'consumed';
+    const obj = { id: u.id, mover: true, x: u.x, y: u.y, z: u.z, sAvg: u.sAvg };
+    this._award(h || this.holes[0], rt.unitMass, obj);
+  }
+
   // --- consumption → score / growth / combo -------------------------------------
 
   // `h` is the hole doing the eating — attribution is decided by the caller
@@ -2702,12 +3005,21 @@ export class VoxelSandboxSim {
         }
       }
     }
+    this._graphDirty = true;
+    const vol = b.sx * b.sy * b.sz;
+    this._award(h, b.mat.mass * vol, b);
+  }
+
+  // The scoring half of consumption, shared verbatim between blocks
+  // (`_consume`) and mover units (`_consumeMoverUnit`): chain, combo events,
+  // score/raw mass, SIZE ladder, growth and milestone events. Extracted, not
+  // rewritten — same operations in the same order, so every shipped scene's
+  // arithmetic is bit-identical to the pre-extraction build.
+  _award(h, raw, obj) {
     const prevLevel = comboLevel(h.chain);
     h.chain += 1;
     h.chainTimer = COMBO_WINDOW;
     h.bestCombo = Math.max(h.bestCombo, h.chain);
-    const vol = b.sx * b.sy * b.sz;
-    const raw = b.mat.mass * vol;
     const gained = raw * comboMult(h.chain);
     h.mass += gained;      // the SCORE: combo-multiplied, and displayed as such
     h.rawMass += raw;      // un-multiplied: the goal bar, the milestones and the SIZE ladder
@@ -2727,8 +3039,7 @@ export class VoxelSandboxSim {
     const lo = this._sizeLadder[size - 1], hi = size < MAX_SIZE ? this._sizeLadder[size] : Infinity;
     h.sizeFrac = size >= MAX_SIZE ? 1 : Math.min(1, (h.rawMass - lo) / (hi - lo));
     h.radius = START_RADIUS + (h.size - 1 + Math.min(1, h.sizeFrac)) * 0.5;
-    this._graphDirty = true;
-    this.events.push({ type: 'eat', obj: b, hole: h, gained, chain: h.chain });
+    this.events.push({ type: 'eat', obj, hole: h, gained, chain: h.chain });
     // milestone events (render-side juice: shakes, bursts, big pops, toasts)
     if (h.size > prevSize) {
       this.events.push({ type: 'growth', size: h.size, hole: h });
@@ -2874,6 +3185,11 @@ export class VoxelSandboxSim {
     // 4. physics: chunks, then individual debris
     this._stepChunks(dt);
     this._stepDebris(dt);
+    // 4b. simulated movers (no-op unless the scene opted a mover in). After the
+    // debris passes so a unit's track/ground sampling sees this step's final
+    // solidity, before the win check so a swallowed car can close the goal on
+    // the step it sinks.
+    this._stepMovers(dt);
     // Relative epsilon, and it is load-bearing rather than defensive. `rawMass`
     // is accumulated one add per block as the city is eaten; `totalMass` is a
     // reduce() over the same blocks in placement order. Same summands, different

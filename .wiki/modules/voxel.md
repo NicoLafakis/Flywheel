@@ -44,7 +44,7 @@ bottom-up, along material bond strengths.
 | `js/voxelscene-boston.js` | `buildBoston(sim)`: Seaport, Fort Point and the BCEC (82,894 blocks, 2.0 blocks/m²) — see the Boston section below |
 | `js/voxelforms.js` | The twelve anisotropic primitives ADR-0013 unlocked (`slab`, `column`, `beam`, `panel`, `mullion`, `cornice`, `pier`, `plinth`, `tread`, and the rest), sitting below `js/voxelkit.js`. Geometry only — no named buildings, no city semantics. Pure sim |
 | `js/voxelscene-cambridge.js` | `buildCambridge(sim)`: East Cambridge around 2 Canal Park, the first scene authored in the `voxelforms.js` vocabulary. All ten districts built and the map complete at 72,943 blocks with the dead-ground census at zero; wired into the sim's scene dispatch, `AUTHORED_SCENES` and `FREE_PLAY`, and validated by `validateCambridge()`. Phase 7's hidden content and the Phase 8 sign-off are still ahead |
-| `js/voxelscene-chicago.js` | `buildChicago(sim)`: the Loop and Chicago River map, ground-up rebuilt on the Cambridge method (44,578 blocks, SIZE 7 reachable via `tools/chicago-probe.mjs`). Real street grid single-sourced through `CHICAGO_STREETS`; the river wraps north and west with three bascule bridges (LaSalle, State, DuSable); the 'L' Loop is a full four-corner elevated circuit (Lake/Wabash/Van Buren/Wells) with three stations (State/Lake, Washington/Wabash, Quincy) and a four-car CTA train riding it continuously via the new render-only mover seam. ~15 named landmarks (Willis Tower, Board of Trade/Ceres, Marina City, the Chicago Theatre blade, Cloud Gate, Wrigley, Tribune, and more). **Committed and playable, but as of this sync NOT reachable from the shipped title-screen menu:** `js/main.js`'s `AUTHORED_SCENES` entry, `js/ui/screens.js`'s free-play chip, and `tools/validate.mjs`'s `validateChicago()` gate are uncommitted in a concurrent session's working tree, and `chicago` is deliberately absent from `js/net/protocol.js`'s `ARENA_SCENES` allowlist ("ships later"). Verify with the dev-only `tools/scene-view.html?scene=chicago` or `node tools/chicago-probe.mjs`, not the live menu, until that wiring lands |
+| `js/voxelscene-chicago.js` | `buildChicago(sim)`: the Loop and Chicago River map, ground-up rebuilt on the Cambridge method (44,578 blocks, SIZE 7 reachable via `tools/chicago-probe.mjs`). Real street grid single-sourced through `CHICAGO_STREETS`; the river wraps north and west with three bascule bridges (LaSalle, State, DuSable); the 'L' Loop is a full four-corner elevated circuit (Lake/Wabash/Van Buren/Wells) with three stations (State/Lake, Washington/Wabash, Quincy) and a four-car CTA train riding it continuously via the mover seam — simulated, not just drawn: it derails at eaten track, runs the streets as a runaway, and a derailed car is eatable (see the Chicago section below). ~15 named landmarks (Willis Tower, Board of Trade/Ceres, Marina City, the Chicago Theatre blade, Cloud Gate, Wrigley, Tribune, and more). **Committed and playable, but as of this sync NOT reachable from the shipped title-screen menu:** `js/main.js`'s `AUTHORED_SCENES` entry, `js/ui/screens.js`'s free-play chip, and `tools/validate.mjs`'s `validateChicago()` gate are uncommitted in a concurrent session's working tree, and `chicago` is deliberately absent from `js/net/protocol.js`'s `ARENA_SCENES` allowlist ("ships later"). Verify with the dev-only `tools/scene-view.html?scene=chicago` or `node tools/chicago-probe.mjs`, not the live menu, until that wiring lands |
 | `js/voxelworld.js` | `VoxelWorld3D`: one `InstancedMesh` per material + brick size with per-instance paint colors, cached static transforms, and per-frame dynamic motion; renders `sceneDecor` (roads/sidewalks/parks/bike paths/markings/water) |
 | `js/voxelsurfaces.js` | three.js binding for `voxeltiles.js`'s procedural surface registry (canvas-generated textures for `sim.sceneSurfaces`); zero cost until a scene names a surface. Owns the metals-only PMREM-probe rule — see the Boston section below |
 
@@ -251,11 +251,27 @@ Van Buren east-west). The 'L' Loop is a genuine four-corner elevated circuit
 over Lake/Wabash/Van Buren/Wells, with corner posts, corner decks and
 stepped-arc special work at all four junctions, and three stations
 (State/Lake, Washington/Wabash, Quincy) with cantilevered platforms and
-canopies. A four-car CTA train runs the circuit continuously via the new
-render-only mover seam (`sim.sceneMovers` + pure `moverArc`/`moverPose` in
-`js/voxelsim.js`, an instanced mover pass in `js/voxelworld.js`) — pose is a
-pure function of the deterministic sim clock, so host and peer render the
-same train, and future movers (boats, streetcars) get the seam for free.
+canopies. A four-car CTA train runs the circuit continuously via the mover
+seam (`sim.sceneMovers` + pure `moverArc`/`moverPose` in `js/voxelsim.js`,
+an instanced mover pass in `js/voxelworld.js`). A riding car's pose is a pure
+function of the deterministic sim clock, so host and peer render the same
+train; and the scene opts the train into the SIMULATED half of the seam
+(`sim:` config on the mover → voxelsim's mover-simulation section): each car
+samples the deck band under its bogies on the fine grid, a full-width gap
+derails it (uniform gravity, the pre-move-base landing rule), it lands on the
+street — or grinds the surviving deck first — and keeps running the Loop
+route at ground level as a runaway at 6.5 m/s. Once derailed (falling or
+grounded) a car is eatable: 75 raw mass through the real consumption path
+(`_award`, the scoring half of `_consume`), with the eat event carrying the
+unit's object id in the block id space so snapshots and the keyframe eaten
+bitset (`sim.objectIdSpace`, adopted by `ArenaHost`) need no new wire format.
+Elevated cars on intact track are deliberately NOT eatable — the crash is the
+show. Derail/ground-run/eatable are mover CAPABILITY FLAGS, not train code,
+so future movers (boats, streetcars) inherit them; the runtime draws nothing
+from the RNG, so every other scene's streams are untouched.
+`tools/train-derail-selftest.mjs` pins determinism (bit-identical derail
+ticks and poses across runs and replays), consumption attribution, and
+host/peer convergence over lossy loopback.
 
 ~15 named landmarks at their real relative positions: Willis Tower's nine
 bundled setback tubes, the Board of Trade closing the LaSalle vista with

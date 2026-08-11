@@ -398,6 +398,24 @@ export const CHICAGO_MOVERS = [{
   y: 7.0,
   units: [{ off: 0 }, { off: 8.75 }, { off: 17.5 }, { off: 26.25 }],
   parts: ctaCarParts(),
+  // The simulated half (js/voxelsim.js mover simulation): each car samples the
+  // deck band under its bogies; a full-width gap derails it (uniform gravity),
+  // it lands on the street and keeps running the Loop route at ground level as
+  // a runaway, and once derailed it is eatable — 75 raw mass a car, roughly a
+  // carriage-sized helping of steel, credited through the real consumption
+  // path. Elevated cars on intact track are NOT eatable (play-feel ruling: the
+  // crash is the show; see the mover-simulation note in voxelsim.js).
+  sim: {
+    derail: true, groundRun: true, eatable: true,
+    groundSpeed: 6.5,          // a runaway, slightly under its rail speed
+    unitMass: 75,
+    length: 8, width: 2.5, height: 2.5,
+    probes: [-2.75, 2.75],     // the two bogies
+    // Deck tiles ride y6-6.5 on legs and corners alike; the ±1 m lateral
+    // sweep always finds deck wherever any deck survives, including the
+    // stepped-arc corners.
+    track: { y0: 6.0, y1: 6.5, halfW: 1.0 },
+  },
 }];
 
 // ---------------------------------------------------------- shared helpers --

@@ -1398,7 +1398,7 @@ export class VoxelWorld3D {
           }
         }
         mesh.instanceColor.needsUpdate = true;
-        movers.push({ arc, speed: Math.max(0, num(m.speed, 5)), y: num(m.y, 0), offsets, locals, mesh });
+        movers.push({ src: m, arc, speed: Math.max(0, num(m.speed, 5)), y: num(m.y, 0), offsets, locals, mesh });
       }
     } catch (e) {
       // A malformed mover payload must never take the level down with it.
@@ -1408,14 +1408,35 @@ export class VoxelWorld3D {
   }
 
   _tickMovers(t) {
-    const frame = this._aFrame, out = this._aOut, q = this._aq, v = this._av;
+    const frame = this._aFrame, out = this._aOut, q = this._aq, q2 = this._aq2, v = this._av;
+    // A mover the sim simulates (derail / ground-run / eatable — voxelsim's
+    // mover-simulation section) is posed from its unit states instead of the
+    // clock: same source object, matched by identity, so the render list and
+    // the sim runtime can each skip malformed entries without disagreeing.
+    const simMovers = this.sim.moverSim || null;
     for (const m of this._movers) {
+      let rt = null;
+      if (simMovers) for (const r of simMovers) { if (r.src === m.src) { rt = r; break; } }
       const n = m.locals.length;
       for (let u = 0; u < m.offsets.length; u++) {
-        const p = moverPose(m.arc, t * m.speed + m.offsets[u]);
-        v.set(p.x, m.y, p.z);
-        // Local +z faces the direction of travel.
-        q.setFromAxisAngle(AXIS_Y, Math.atan2(p.ux, p.uz));
+        const st = rt ? rt.units[u] : null;
+        if (st && st.phase === 'consumed') {
+          out.makeScale(0, 0, 0);   // eaten: gone, like any consumed block
+          for (let i = 0; i < n; i++) m.mesh.setMatrixAt(u * n + i, out);
+          continue;
+        }
+        let px, py, pz, ux, uz, tilt = 0;
+        if (st) {
+          px = st.x; py = st.y; pz = st.z; ux = st.ux; uz = st.uz; tilt = st.tilt || 0;
+        } else {
+          const p = moverPose(m.arc, t * m.speed + m.offsets[u]);
+          px = p.x; py = m.y; pz = p.z; ux = p.ux; uz = p.uz;
+        }
+        v.set(px, py, pz);
+        // Local +z faces the direction of travel; tilt pitches about local x
+        // (positive = nose down — the plunge and the landing slam).
+        q.setFromAxisAngle(AXIS_Y, Math.atan2(ux, uz));
+        if (tilt) { q2.setFromAxisAngle(AXIS_X, tilt); q.multiply(q2); }
         frame.compose(v, q, ONE3);
         for (let i = 0; i < n; i++) {
           out.multiplyMatrices(frame, m.locals[i]);
