@@ -1,0 +1,141 @@
+{
+  "_comment": "Every shipped sound file, its source, author, and license. All sources are CC0 (public domain dedication) — no attribution legally required; we credit anyway. Files were trimmed, converted to mono OGG Vorbis, and loudness-normalized with ffmpeg.",
+  "sources": {
+    "kenney-interface-sounds": {
+      "name": "Interface Sounds",
+      "author": "Kenney (kenney.nl)",
+      "license": "CC0 1.0",
+      "url": "https://kenney.nl/assets/interface-sounds"
+    },
+    "kenney-ui-audio": {
+      "name": "UI Audio",
+      "author": "Kenney (kenney.nl)",
+      "license": "CC0 1.0",
+      "url": "https://kenney.nl/assets/ui-audio"
+    },
+    "kenney-impact-sounds": {
+      "name": "Impact Sounds",
+      "author": "Kenney (kenney.nl)",
+      "license": "CC0 1.0",
+      "url": "https://kenney.nl/assets/impact-sounds"
+    },
+    "kenney-music-jingles": {
+      "name": "Music Jingles",
+      "author": "Kenney (kenney.nl)",
+      "license": "CC0 1.0",
+      "url": "https://kenney.nl/assets/music-jingles"
+    },
+    "oga-park-ambiences": {
+      "name": "Park ambiences",
+      "author": "thimras",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/park-ambiences"
+    },
+    "oga-solo-seagull": {
+      "name": "Solo seagull sound effects",
+      "author": "Rango Mango",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/solo-seagull-sound-effects"
+    },
+    "fs-194908": {
+      "name": "072013 South Loop near Harrison and Wabash facing el tracks",
+      "author": "thaighaudio",
+      "license": "CC0 1.0",
+      "url": "https://freesound.org/s/194908/"
+    },
+    "fs-181868": {
+      "name": "train screech",
+      "author": "cognito perceptu",
+      "license": "CC0 1.0",
+      "url": "https://freesound.org/s/181868/"
+    },
+    "fs-432777": {
+      "name": "Train Crash Simulation",
+      "author": "BrainClaim",
+      "license": "CC0 1.0",
+      "url": "https://freesound.org/s/432777/"
+    },
+    "fs-845932": {
+      "name": "Building Collapse",
+      "author": "craigsmith",
+      "license": "CC0 1.0",
+      "url": "https://freesound.org/s/845932/"
+    },
+    "fs-487142": {
+      "name": "R29-04 Crashing Collapse of Wood Building",
+      "author": "craigsmith",
+      "license": "CC0 1.0",
+      "url": "https://freesound.org/s/487142/"
+    },
+    "fs-203281": {
+      "name": "Earthquake or Distant Space Shuttle Rumble",
+      "author": "metrostock99",
+      "license": "CC0 1.0",
+      "url": "https://freesound.org/s/203281/"
+    },
+    "fs-223093": {
+      "name": "Seamless City Loop",
+      "author": "qubodup",
+      "license": "CC0 1.0",
+      "url": "https://freesound.org/s/223093/"
+    },
+    "fs-215289": {
+      "name": "01 brooklyn street day wet streets",
+      "author": "pushkin",
+      "license": "CC0 1.0",
+      "url": "https://freesound.org/s/215289/"
+    },
+    "fs-619078": {
+      "name": "harbor noises",
+      "author": "mrrap4food",
+      "license": "CC0 1.0",
+      "url": "https://freesound.org/s/619078/"
+    },
+    "fs-795472": {
+      "name": "Gulp!",
+      "author": "DrBodkin",
+      "license": "CC0 1.0",
+      "url": "https://freesound.org/s/795472/"
+    },
+    "fs-852988": {
+      "name": "gulp_sounds",
+      "author": "takareads",
+      "license": "CC0 1.0",
+      "url": "https://freesound.org/s/852988/"
+    }
+  },
+  "files": {
+    "ui-tap.ogg": { "source": "kenney-interface-sounds", "from": "click_001.ogg" },
+    "ui-tap-2.ogg": { "source": "kenney-ui-audio", "from": "click1.ogg" },
+    "ui-back.ogg": { "source": "kenney-interface-sounds", "from": "back_002.ogg" },
+    "ui-confirm.ogg": { "source": "kenney-interface-sounds", "from": "confirmation_001.ogg" },
+    "coin.ogg": { "source": "kenney-interface-sounds", "from": "confirmation_002.ogg" },
+    "combo-tick.ogg": { "source": "kenney-interface-sounds", "from": "pluck_001.ogg" },
+    "combo-big.ogg": { "source": "kenney-music-jingles", "from": "jingles_PIZZI04.ogg" },
+    "milestone.ogg": { "source": "kenney-music-jingles", "from": "jingles_PIZZI10.ogg" },
+    "milestone-roar.ogg": { "source": "kenney-music-jingles", "from": "jingles_HIT11.ogg" },
+    "goal.ogg": { "source": "kenney-music-jingles", "from": "jingles_PIZZI12.ogg" },
+    "win.ogg": { "source": "kenney-music-jingles", "from": "jingles_HIT15.ogg" },
+    "lose.ogg": { "source": "kenney-music-jingles", "from": "jingles_STEEL14.ogg" },
+    "debris-1.ogg": { "source": "kenney-impact-sounds", "from": "impactPlate_medium_000.ogg" },
+    "debris-2.ogg": { "source": "kenney-impact-sounds", "from": "impactPlate_heavy_001.ogg" },
+    "debris-3.ogg": { "source": "kenney-impact-sounds", "from": "impactWood_medium_002.ogg" },
+    "debris-metal.ogg": { "source": "kenney-impact-sounds", "from": "impactMetal_heavy_002.ogg" },
+    "glass-1.ogg": { "source": "kenney-impact-sounds", "from": "impactGlass_heavy_000.ogg" },
+    "glass-2.ogg": { "source": "kenney-impact-sounds", "from": "impactGlass_heavy_003.ogg" },
+    "eat-1.ogg": { "source": "fs-795472" },
+    "eat-2.ogg": { "source": "fs-852988", "note": "slice at 3.0s" },
+    "eat-3.ogg": { "source": "fs-852988", "note": "slice at 7.0s" },
+    "crash-small.ogg": { "source": "fs-487142", "note": "first 5.5s" },
+    "crash-big.ogg": { "source": "fs-845932" },
+    "rumble.ogg": { "source": "fs-203281", "note": "10s excerpt" },
+    "derail-screech.ogg": { "source": "fs-181868", "note": "first 6s" },
+    "derail-crash.ogg": { "source": "fs-432777", "note": "9-19s excerpt" },
+    "train-loop.ogg": { "source": "fs-194908", "note": "1-13s excerpt" },
+    "amb-chicago.ogg": { "source": "fs-194908", "note": "30-54s excerpt" },
+    "amb-brooklyn.ogg": { "source": "fs-215289", "note": "5-29s excerpt" },
+    "amb-manhattan.ogg": { "source": "fs-223093" },
+    "amb-boston.ogg": { "source": "fs-619078", "mixedWith": "oga-solo-seagull", "note": "30-54s excerpt + Seagull Ambient 1 at -12 dB" },
+    "amb-cambridge.ogg": { "source": "oga-park-ambiences", "from": "park_ambience_birds.wav", "note": "10-34s excerpt" }
+  }
+}
