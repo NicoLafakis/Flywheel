@@ -37,6 +37,7 @@ const P = await import(ROOT + 'js/net/protocol.js');
 const T = await import(ROOT + 'js/net/transport.js');
 const H = await import(ROOT + 'js/net/host.js');
 const PE = await import(ROOT + 'js/net/peer.js');
+const A = await import(ROOT + 'js/rival/attribution.js');
 
 let failures = 0;
 const results = [];
@@ -276,15 +277,27 @@ begin('5. host/peer convergence over lossy loopback, track eaten mid-run');
   });
   peer.join();
 
+  // The host's attribution record, fed exactly the way the arena page feeds
+  // it (drained sim events; eater slot = hole roster index), over the one true
+  // mass lookup — blocks AND mover units (the scoring-parity fix under test).
+  const hostAttr = new A.AttributionRecord(A.cityRawMassOf(sim));
+  const carEats = [];   // { id, gained, chain } for every swallowed car
   for (let tick = 0; tick < TICKS; tick++) {
     hub.advance(FRAME_MS);
     script(sim, tick);
     host.step(DT, hub.nowMs);
-    sim.drainEvents();   // main.js's drain, standing in
+    for (const ev of sim.drainEvents()) {   // main.js's drain, standing in
+      if (ev.type === 'eat' && ev.obj && ev.obj.id != null) {
+        const s = sim.holes.indexOf(ev.hole);
+        hostAttr.recordEat(ev.obj.id, s >= 0 ? s : 0);
+        if (ev.obj.mover) carEats.push({ id: ev.obj.id, gained: ev.gained, chain: ev.chain });
+      }
+    }
     peer.update(hub.nowMs, FRAME_MS);
   }
   host.sendKeyframe(hub.nowMs);
   hub.flush();
+  peer.update(hub.nowMs, FRAME_MS);
 
   const rt = sim.moverSim[0];
   const consumedUnits = rt.units.filter((u) => u.phase === 'consumed');
@@ -323,6 +336,42 @@ begin('5. host/peer convergence over lossy loopback, track eaten mid-run');
     Object.is(sim.holes[0].mass, sim2.holes[0].mass) && Object.is(sim.holes[0].rawMass, sim2.holes[0].rawMass));
   check('no NaN anywhere at match end',
     rt.units.every((u) => Number.isFinite(u.x) && Number.isFinite(u.y)) && Number.isFinite(sim.holes[0].mass));
+
+  // --- arena scoring parity (the 216be53 caveat this section closes) --------
+  // A car eaten IN AN ARENA MATCH must score like it does solo: the host sim's
+  // `_award` grants the declared 75 raw × the live combo, and the attribution
+  // record (tug bar / reveal winner) credits the same 75 raw — never the 0 a
+  // blocks-only mass map returned for a mover id.
+  check('arena-context car eats award 75 × combo through the host sim (solo parity)',
+    carEats.length >= 1 && carEats.every((e) => e.gained === rt.unitMass * comboMult(e.chain)));
+  check(`the mass lookup resolves a unit id to the declared unitMass (${rt.unitMass})`,
+    rt.units.every((u) => A.cityRawMassOf(sim)(u.id) === rt.unitMass));
+  check('host attribution credits every swallowed car\'s raw mass to slot 0',
+    consumedUnits.every((u) => hostAttr.eaterOf.get(u.id) === 0)
+      && hostAttr.massBySlot[0] >= consumedUnits.length * rt.unitMass);
+
+  // The peer's record, built the way the arena page builds it: a never-stepped
+  // local city (same seed), eats folded in from the wire (consumed + eaterOf).
+  const peerCity = new VoxelSandboxSim({ seed: SEED, scene: 'chicago' });
+  const peerAttr = new A.AttributionRecord(A.cityRawMassOf(peerCity));
+  for (const id of peer.consumed) {
+    peerAttr.recordEat(id, peer.eaterOf.has(id) ? peer.eaterOf.get(id) : -1);
+  }
+  // Tolerance: same id set, but fold-in ORDER differs host vs peer, and float
+  // addition is order-sensitive in the last ulps.
+  const close = (a, b) => Math.abs(a - b) < 1e-6;
+  check('peer attribution converges to the host\'s per-slot mass tallies (lossy wire)',
+    close(peerAttr.massBySlot[0], hostAttr.massBySlot[0])
+      && close(peerAttr.massBySlot[1], hostAttr.massBySlot[1])
+      && close(peerAttr.totalMass, hostAttr.totalMass));
+  check('peer attribution includes the swallowed car(s) at full mass',
+    consumedUnits.every((u) => peerAttr.eaterOf.get(u.id) === 0));
+
+  // The peer's DISPLAYED score for the eater converges too: the snapshot's
+  // hole mass is the sim's combo-multiplied score, quantized u16/4 on the wire.
+  const eaterGhost = peer.roster.bySlot.get(0);
+  check('the peer\'s displayed eater score converges to the host\'s (≤ wire quantum 0.25)',
+    !!eaterGhost && Math.abs(eaterGhost.mass - sim.holes[0].mass) <= 0.25);
 
   peer.dispose(); host.dispose();
 }

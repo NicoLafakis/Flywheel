@@ -24,7 +24,7 @@ import { DuelView } from './view.js';
 // All of it is read-only dressing over sim events and wire snapshots (ADR-0002).
 import { slotColorHex, slotColorCss, slotName } from '../rival/identity.js';
 import { RIVAL } from '../rival/constants.js';
-import { AttributionRecord, finalSplit } from '../rival/attribution.js';
+import { AttributionRecord, finalSplit, cityRawMassOf } from '../rival/attribution.js';
 import { TerritoryMap, columnCount } from '../rival/territory.js';
 import { TerritoryLayer } from '../rival/territory-layer.js';
 import { TugBar, computeShares } from '../rival/tugbar.js';
@@ -297,12 +297,11 @@ function startMatchUI() {
 function setupRivalLayer() {
   blockById = new Map();
   for (const b of sim.blocks) blockById.set(b.id, b);
-  // Raw (un-multiplied) block mass from the LOCAL build — both sides built the
-  // identical city from the shared seed, so tallies agree by construction.
-  attribution = new AttributionRecord((id) => {
-    const b = blockById.get(id);
-    return b ? b.mat.mass * b.sx * b.sy * b.sz : 0;
-  });
+  // Raw (un-multiplied) mass from the LOCAL build — blocks AND mover units
+  // (an eaten el-train car credits its declared 75, same as the solo sim's
+  // award). Both sides built the identical city from the shared seed, so
+  // tallies agree by construction.
+  attribution = new AttributionRecord(cityRawMassOf(sim));
   territory = new TerritoryMap();
   territoryLayer = new TerritoryLayer(view.scene, columnCount(sim.blocks));
 
@@ -341,6 +340,9 @@ function setupRivalLayer() {
 function noteEat(id, slot, { landmark = false } = {}) {
   if (!attribution || !attribution.recordEat(id, slot)) return;
   if (slot >= 0 && slot < 8) {
+    // Mover-unit ids (el-train cars) miss this map on purpose: a runaway car
+    // has no ground column, so it claims no territory TILE — but its 75 raw
+    // mass was just credited above, so the tug bar and the reveal count it.
     const b = blockById.get(id);
     if (b) {
       const act = territory.mark(b, slot);

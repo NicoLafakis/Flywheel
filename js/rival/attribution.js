@@ -93,6 +93,26 @@ export class AttributionRecord {
 }
 
 /**
+ * The one raw-mass lookup for a whole city, blocks AND mover units (el-train
+ * cars), keyed by object id. Mover units share the block id space (voxelsim's
+ * `_initMoverSim` mints their ids from `_blockId`), and their declared
+ * `unitMass` is exactly what the sim's `_award` credits when one is swallowed
+ * — so an attribution record built over this lookup tallies a consumed car at
+ * the same 75 raw mass the solo game scores it, instead of the 0 a blocks-only
+ * map returned. Both sides build the identical city from the shared seed, so
+ * host and peer records agree by construction; the sim passed in may be the
+ * host's live one or a peer's never-stepped local build (ids match either way).
+ */
+export function cityRawMassOf(sim) {
+  const byId = new Map();
+  for (const b of sim.blocks) byId.set(b.id, b.mat.mass * b.sx * b.sy * b.sz);
+  if (Array.isArray(sim.moverSim)) {
+    for (const rt of sim.moverSim) for (const u of rt.units) byId.set(u.id, rt.unitMass);
+  }
+  return (id) => byId.get(id) || 0;
+}
+
+/**
  * Exact final split for the end reveal (AC-06.1): computed from the SAME
  * record the live surfaces used — never a separate tally that could disagree
  * with what the city shows. Percentages are rounded to one decimal for
