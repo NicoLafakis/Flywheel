@@ -1,18 +1,34 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-11T18:09:55+00:00",
+    "generatedAt": "2026-08-11T21:23:23+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
-      "files": 70,
+      "files": 73,
       "symbols": 27,
       "edges": 8,
       "modules": 2,
-      "reusedFromCache": 47
+      "reusedFromCache": 73
     }
   },
   "files": {
+    "js/audio/engine.js": {
+      "lang": "javascript",
+      "hash": "183c909e1f4be404e96d380cbe72a3062fc115c6a80c33dbd06efeb74fc30371",
+      "loc": 177,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/audio/game-audio.js": {
+      "lang": "javascript",
+      "hash": "7bb79bbed48f991b24d58f03d307d63a57db99f8d7c05340918226d5753058ae",
+      "loc": 204,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
     "js/camera.js": {
       "lang": "javascript",
       "hash": "c4f0d9807856fd26483736df01b5242d44ef3657a29970a5900f0c7c01eaeff2",
@@ -52,16 +68,16 @@
     },
     "js/demo/arena.js": {
       "lang": "javascript",
-      "hash": "48dd052567e562ae8dfac4bf3830aaa24d1537ec3309e462111430e382ab7be1",
-      "loc": 846,
+      "hash": "cc736219021a1201e6fbc265d7510aea2c3e3cfbd751f354679f2e00f91ade20",
+      "loc": 897,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/demo/demo.js": {
       "lang": "javascript",
-      "hash": "a235b14a6e7a017de8558eef6f60e4ee2ba4487b92a6f7aaf08291df0b26a838",
-      "loc": 197,
+      "hash": "07d691a41ab28d8228eebbf9f0e31c55ea9df737e41ac8aebeef2895415439f9",
+      "loc": 224,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -92,8 +108,8 @@
     },
     "js/demo/view.js": {
       "lang": "javascript",
-      "hash": "5e89c7ea346447c0ba4c71c16e60730d8664f9ab2b00e6756932152c352e6fae",
-      "loc": 359,
+      "hash": "486329c16487f928ca3e8fb892280d40a11924fb82dc3fcf92ab335a58d6be1d",
+      "loc": 458,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -116,8 +132,8 @@
     },
     "js/net/arena.js": {
       "lang": "javascript",
-      "hash": "c833aeb012587531e29838495da2014b89af0dddfd1d9d8375e0fd6dfb00d2e2",
-      "loc": 343,
+      "hash": "2f34695fb5ac4f108dab837888072acaad7b9c662ecaac75b0440da9f920d948",
+      "loc": 344,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -140,8 +156,8 @@
     },
     "js/net/host.js": {
       "lang": "javascript",
-      "hash": "9c592ba2e6cf7dea8f2a470d9ad35489eeadedbdb197016be682f300ae5f52e7",
-      "loc": 337,
+      "hash": "16997f88dd78812f8c47fb6d10d099f15042ae259cb0a37c569b02dcef20a709",
+      "loc": 350,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -156,7 +172,7 @@
     },
     "js/net/protocol.js": {
       "lang": "javascript",
-      "hash": "84f7c9cf46cd6e3c6a40193e26964a0ca96e287a8a0c318fc83e590b571de298",
+      "hash": "66245da2e257c80bc37c8d2fced40458ef13d9d3186dcda56723d58221378db8",
       "loc": 588,
       "module": "js",
       "symbols": [],
@@ -481,8 +497,8 @@
     },
     "js/voxelscene-chicago.js": {
       "lang": "javascript",
-      "hash": "10fc51878ecc59d9c5d7c3a873ec63b709146b030fd08bb2c9d74b7358bdb4d5",
-      "loc": 1199,
+      "hash": "457c3c86282d194f0974d0db9d35aba1f0788195300e10f93ebb22e3c3811cba",
+      "loc": 1217,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -526,8 +542,8 @@
     },
     "js/voxelsim.js": {
       "lang": "javascript",
-      "hash": "8fe0f036363286f5c881a454f0cc8e3f5ca7a4fa91e679ad336311aebb4f5e85",
-      "loc": 2907,
+      "hash": "258376fbee3d418e9957c65eefa709ba41847629195725a10d428b0eb607ac3e",
+      "loc": 3222,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -558,8 +574,8 @@
     },
     "js/voxelworld.js": {
       "lang": "javascript",
-      "hash": "0c0edae133e584b9b206104b98741512607d51736c77908df84ee303ff2888b8",
-      "loc": 2684,
+      "hash": "e711af8ceca0a00e3805ef167a84e69e92c3674f6e14f5b589932956067fbc19",
+      "loc": 2705,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -704,16 +720,16 @@
     },
     "tools/arena-selftest.mjs": {
       "lang": "javascript",
-      "hash": "e7399b4d50fb1af1c24285e93d0e8c5727a6501b75b08d3d7708c05e630cbfbf",
-      "loc": 341,
+      "hash": "10315cfdfc160c854cdf2bff93fc9fd3f886c57dea4b691625ac26a7d4d5edd7",
+      "loc": 345,
       "module": "tools",
       "symbols": [],
       "imports": []
     },
     "tools/chicago-probe.mjs": {
       "lang": "javascript",
-      "hash": "56d1687cb0f3add65b5098e9ba29e7b18303124d0d7d1816b2aec60e3e4b9b39",
-      "loc": 383,
+      "hash": "cb4b21d3fa17e0d97d27cdd3bb8712eb3d96bd55a3bd92f9f0b8ef672873b314",
+      "loc": 402,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -782,6 +798,14 @@
       "symbols": [],
       "imports": []
     },
+    "tools/train-derail-selftest.mjs": {
+      "lang": "javascript",
+      "hash": "6e2c60c3e116a624eb6c83c5a665ee9a04942f70e6f5025ce2ea10ea8c9ce089",
+      "loc": 346,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/validate.mjs": {
       "lang": "javascript",
       "hash": "259b21d4bcedaeb92e4732ce46c313528d18ffa8eaae0081fa4897e3c94ce526",
@@ -836,6 +860,8 @@
   "modules": {
     "js": {
       "files": [
+        "js/audio/engine.js",
+        "js/audio/game-audio.js",
         "js/camera.js",
         "js/citygen.js",
         "js/controls.js",
@@ -909,6 +935,7 @@
         "tools/probe-buildcost2.mjs",
         "tools/shimmer.mjs",
         "tools/skinsheet.mjs",
+        "tools/train-derail-selftest.mjs",
         "tools/validate.mjs"
       ]
     }

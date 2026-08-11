@@ -134,10 +134,20 @@ subscribe, both-direction binary and control frames, RTT, clean disconnect;
 kept out of the default validate chain since it needs live credentials and a
 network).
 
-**Still not reachable from `js/main.js` or any campaign/sandbox screen** —
-`arena.html` and `netdemo.html` are standalone pages outside the state
-machine, exactly like the hot-seat `multiplayer.html` demo below. Deferred,
-with the seam each will use noted in
+**Discoverable from the title screen as of 2026-08-11, still not reachable
+from `js/main.js`'s state machine.** `index.html` now carries a MULTIPLAYER
+plate on the title screen (styled in the landing chips' own vocabulary — dark
+plate, gold accent bar, 2P tag, gold hover), gated by a CSS `:has()` rule so
+it only exists while the landing screen is mounted (never over gameplay, HUD,
+pause, shop, or the boot splash) — zero JS, no edits to `js/main.js` or
+`js/ui/screens.js`, fails safe to hidden on browsers too old for `:has()`.
+It links to `/arena`, served extensionless by the new `vercel.json`'s
+`cleanUrls`, which also 307-redirects `/multiplayer` to `/arena` so both
+guessable names land on the online arena. `arena.html` and `netdemo.html`
+are still standalone pages outside the campaign/sandbox state machine,
+exactly like the hot-seat `multiplayer.html` demo below — the button makes
+the arena a click away from the title screen, it does not fold it into
+`main.js`'s screens. Deferred, with the seam each will use noted in
 [features/online-flywheel/13-tasks.md](features/online-flywheel/13-tasks.md):
 host migration/succession (T-606 — a vanished host freezes the match today
 rather than electing a new one), spectators, more than two players (the
@@ -167,6 +177,42 @@ Headless coverage: `js/rival/rival.test.mjs`. Two patterns from the package's
 seven (size-as-threat legibility and its own tasks T11/T12) are deliberately
 deferred until 8-player support lands, per the package's build order — see
 [features/rival-visibility/README.md](features/rival-visibility/README.md).
+
+**Train derail/ground-run/eatable, shipped 2026-08-11:** the render-only mover
+seam (`sim.sceneMovers` + `moverArc`/`moverPose`) gained a simulated half in
+`js/voxelsim.js` — a mover opts in via `sim: {derail, groundRun, eatable}`
+capability flags, not train-specific code, so any current or future mover
+(boats, streetcars) can inherit derailment for free. Each unit samples the
+track deck under its bogies on the fine grid; a full-width gap derails it
+(uniform gravity, the same pre-move-base landing rule RCA-2026-08-11 fixed),
+a grounded car keeps driving its route at street level as a runaway, and a
+derailed (falling/grounded) car becomes eatable through the real consumption
+path (`_award`, extracted from `_consume`) — elevated cars on intact track
+are deliberately not eatable. Unit ids extend the block id space
+(`sim.objectIdSpace`, adopted by `js/net/host.js`), so a swallowed car needs
+zero new wire format: the keyframe eaten bitset already covers it, and a
+peer's derived train state converges on the same keyframe heal every other
+consumed object does. `js/voxelscene-chicago.js`'s CTA train is the only
+mover using it today; `tools/train-derail-selftest.mjs` (33 checks) pins
+determinism, consumption attribution, and host/peer convergence over lossy
+loopback. Full detail lives in `modules/voxel.md`'s chicago section.
+
+**Game audio, shipped 2026-08-11:** `js/audio/engine.js` (pooled decoded
+buffers, sfx/ambience buses, listener-fatigue ducking so repeat sounds decay
+instead of stacking, ambience ducking under big hits, persistent mute,
+mobile-safe autoplay unlock on first gesture) and `js/audio/game-audio.js`
+(the themed event map — eat gulps pitched deeper as the hole grows, a combo
+tick ladder, weight-tiered collapse sounds, milestone/roar/win/lose stingers,
+per-city ambience beds, and the derailment screech-then-crash, wired to the
+`derail` sim event). Render-side only, same rule as the rest of the render
+ring: it reads drained sim events and never writes sim state (ADR-0003). 32
+CC0 sound files ship in `assets/audio/` (1.25 MB); `CREDITS.md` +
+`assets/audio/CREDITS.json` carry the per-file source/author/license
+manifest. Wired into `arena.html`, the hot-seat `multiplayer.html` demo, and
+`tools/scene-view.html` — **not** into `js/main.js`'s campaign/sandbox game,
+which still uses its own tiny oscillator "audio blips" (see Glue above);
+main-game audio wiring was explicitly handed off to a concurrent session via
+`MESSAGES.md`.
 
 **Also built (2026-08-10), separate surface:** `multiplayer.html` + `js/demo/`
 is a hot-seat two-player demo — two holes sharing one gallery sim, rendered by
@@ -267,9 +313,10 @@ deferred claim, 0012 replay-validated leaderboard trust — see
 [features/online-flywheel/](features/online-flywheel/README.md). 0010
 host-authoritative arena is **shipped as a standalone product** (`js/net/host.js`
 + `peer.js` + `arena.js`, live over Supabase Realtime at
-https://flywheel-woad.vercel.app/arena.html — see "Boundaries" above) but not
-called from `js/main.js` or any campaign/sandbox screen, so it is proven and
-playable, not yet integrated. Accepted and shipped: 0013 anisotropic voxel
+https://flywheel-woad.vercel.app/arena.html, and discoverable from the title
+screen's MULTIPLAYER plate since 2026-08-11 — see "Boundaries" above) but not
+called from `js/main.js` or any campaign/sandbox screen, so it is proven,
+playable, and a click away, not yet integrated. Accepted and shipped: 0013 anisotropic voxel
 primitives — see [features/cambridge-sandbox/](features/cambridge-sandbox/README.md);
 0014 vendored, same-origin runtime code and the no-build constraint — see
 "Boot" above (now also the pattern `js/vendor/supabase-realtime.module.js`

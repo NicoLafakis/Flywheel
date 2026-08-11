@@ -26,8 +26,12 @@ committed 92efbf2 to unbreak the deploy — see `modules/voxel.md`) don't touch
 this page's Phase 0-6 claims either. `js/main.js`, `js/ui/screens.js` and
 `tools/validate.mjs` show as changed in the drift tool's snapshot comparison
 but are byte-identical across this range on inspection — a stale-snapshot
-false positive.
-**Date:** 2026-08-06, kept current as tasks land (reconciled 2026-08-10, twice).
+false positive. On 2026-08-11 `js/voxelsim.js`/`js/voxelworld.js` gained a
+mover-simulation engine (derail/ground-run/eatable) and `js/voxelscene-chicago.js`
+opted its CTA train into it (`f42ffde`/`89255b7`); `js/main.js`, `js/ui/screens.js`
+and `tools/validate.mjs` are unchanged in this range (confirmed by diff).
+None of it touches Cambridge's tasks.
+**Date:** 2026-08-06, kept current as tasks land (reconciled 2026-08-10, twice; 2026-08-11).
 **Reads with:** every other doc in this package — this page sequences their
 decisions rather than re-arguing them. The owning-doc convention from `03`/`04`
 holds: where a task description here disagrees with `01`–`04`, the numbered doc

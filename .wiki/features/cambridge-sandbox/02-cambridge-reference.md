@@ -9,7 +9,9 @@ here is built.
 **Date:** 2026-08-06 (reconciled 2026-08-10 — a seventh, unrelated,
 not-yet-menu-wired scene file, `js/voxelscene-chicago.js`, matches this page's
 `js/voxelscene-*.js` cover glob without being Cambridge or touching anything
-this page describes; see `modules/voxel.md`).
+this page describes; see `modules/voxel.md`; reconciled again 2026-08-11 — the
+same chicago file picked up `sim: {derail, groundRun, eatable}` config for its
+CTA train, still Chicago-only and still unrelated to Cambridge).
 **Scope:** what is actually at and around the building HubSpot leases in
 Cambridge, Massachusetts, established from sources, so the level designer builds
 the real place instead of a plausible one.

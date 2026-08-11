@@ -287,8 +287,10 @@ order. `js/net/host.js` (the authority loop) and the new `js/net/peer.js`
 simulator (`netdemo.html`), then over real Supabase Realtime in a two-device
 arena (`arena.html`, `js/net/arena.js` — 5-char codes, JOIN/WELCOME/REJECT/
 ROSTER handshake, no server-side room minting yet), played to a real,
-completed match at https://flywheel-woad.vercel.app/arena.html. Still not
-called from `js/main.js` or any campaign/sandbox screen. Still open: host
+completed match at https://flywheel-woad.vercel.app/arena.html, and as of
+2026-08-11 a click away from a MULTIPLAYER plate on the title screen. Still
+not called from `js/main.js` or folded into any campaign/sandbox screen.
+Still open: host
 migration/succession, server-minted rooms, spectators, more than two seated
 players (the netcode supports up to 8), and everything in Phases 1-5
 (accounts, boards, belts) that a booth arena would want to sit on top of.
@@ -531,8 +533,12 @@ been scoped here.**
 - The list of files that require a validator run before committing is out of
   date: it omits three files the validator now exercises, including the whole
   Cambridge scene (`AGENTS.md:9-12`). *Small, and it protects everything else.*
-- Audio is still placeholder blips (`STATUS.md:298`). *Unknown — depends
-  entirely on what "real audio" should be, which is a product question.*
+- The campaign/sandbox game (`js/main.js`) still uses placeholder oscillator
+  blips. A real WebAudio engine (`js/audio/`, 32 CC0 files) shipped
+  2026-08-11 but only into `arena.html`, the hot-seat demo, and the scene
+  viewer — main-game wiring is a separate, not-yet-done step, handed off via
+  `MESSAGES.md`; see `architecture.md`. *Small–medium, and mostly plumbing —
+  the sound design decisions are already made.*
 - Deferred by decision and still open: a 101 ms stutter on the single worst
   collapse in Upper Manhattan, shadow edges going ragged at the largest sizes,
   and a road colour that reads as near-black gashes through Central Park

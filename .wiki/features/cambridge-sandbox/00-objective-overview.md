@@ -22,7 +22,11 @@ single-player scene, Cambridge included, bit-identical — and a seventh,
 unrelated scene file (`js/voxelscene-chicago.js`, a different in-progress
 session's work, not registered in any menu) landed and matches this page's
 `js/voxelscene-*.js` cover glob incidentally. Neither touches Cambridge.
-**Date:** 2026-08-06 (reconciled 2026-08-10, twice).
+A day later (2026-08-11) `js/voxelsim.js` gained a mover-simulation engine
+(derail/ground-run/eatable, opt-in capability flags on any scene mover) and
+`js/voxelscene-chicago.js`'s CTA train opted its own units into it — still
+Chicago-only, no Cambridge mover uses the seam, see `modules/voxel.md`.
+**Date:** 2026-08-06 (reconciled 2026-08-10, twice; 2026-08-11).
 **Reads with:** `01-voxel-primitive-vocabulary.md` (the toolkit),
 `02-cambridge-reference.md` (the facts), `03-level-design.md` (the design),
 `05-build-tasks.md` (the ordered work and its live state),

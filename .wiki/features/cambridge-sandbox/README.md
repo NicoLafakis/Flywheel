@@ -27,6 +27,12 @@ multi-hole roster refactor (single-player bit-identical, see
 different, in-progress session's scene, committed but not registered in any
 menu — see `.wiki/modules/voxel.md`) touch anything in this package.
 
+**Reconciled 2026-08-11:** `js/voxelsim.js`/`js/voxelworld.js` gained a
+mover-simulation engine (derail/ground-run/eatable capability flags), and the
+same unrelated `js/voxelscene-chicago.js` opted its CTA train into it. Still
+Chicago-only, still not registered in any menu, still no Cambridge caller —
+see `.wiki/modules/voxel.md`.
+
 | Doc | What it is | Why you'd open it |
 |---|---|---|
 | [00-objective-overview.md](00-objective-overview.md) | The spine. What the level actually serves, what the vocabulary unlocks, what it forecloses, and whether the two ship together. | Read this first if you are deciding *whether* and *in what order*, not *what*. |

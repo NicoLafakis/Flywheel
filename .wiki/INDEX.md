@@ -8,15 +8,24 @@
 > territory reveal with a follow-zoom camera — plus protocol v3, so eater
 > identity survives a keyframe; a same-day physics fix made gravity uniform
 > and stopped debris teleporting onto rooftops or hanging mid-air, see
-> [findings/](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md);
-> and the Chicago Loop scene was rebuilt ground-up — playable and committed,
-> but still not reachable from the shipped menu or the arena's scene
-> allowlist. The `js/net/` multiplayer layer remains wired end to end and
-> **live**: host + peer loops proven over a loopback demo page, then over
-> real Supabase Realtime in a two-device arena at
-> https://flywheel-woad.vercel.app/arena.html, none of it yet called from
-> `js/main.js` or any campaign/sandbox screen; the Cambridge sandbox's map is
-> complete and playable with hidden content still ahead).
+> [findings/](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md).
+> Also shipped the same day: the Chicago Loop's CTA train now derails at
+> eaten track, runs the streets as a runaway, and is eatable once derailed
+> (a mover-simulation engine in `js/voxelsim.js`, opt-in capability flags any
+> mover can use); a real WebAudio engine (`js/audio/`, 32 CC0 sound files,
+> see `CREDITS.md`) wired into the live arena, the hot-seat demo, and the
+> scene viewer (not yet the main campaign game); and a MULTIPLAYER plate on
+> the title screen linking to a clean `/arena` URL, so the live arena is a
+> click away for the first time. The Chicago Loop scene itself was rebuilt
+> ground-up — playable and committed, but **the menu/arena-allowlist wiring
+> to reach it is in flight in a concurrent session as of 2026-08-11**. The
+> `js/net/` multiplayer layer remains wired end to end and **live**: host +
+> peer loops proven over a loopback demo page, then over real Supabase
+> Realtime in a two-device arena at
+> https://flywheel-woad.vercel.app/arena.html, still not called from
+> `js/main.js`'s state machine even though the title screen now links to it;
+> the Cambridge sandbox's map is complete and playable with hidden content
+> still ahead).
 
 ## What is this?
 
@@ -67,8 +76,10 @@ what each is waiting on, and what could start today.
   the UNBOUND conference. **The `js/net/` layer is wired end to end and live
   (2026-08-10):** host and peer loops proven over a loopback demo page, then
   over real Supabase Realtime in a two-device arena at
-  https://flywheel-woad.vercel.app/arena.html. It is a standalone page, not
-  called from `js/main.js` or any campaign/sandbox screen; accounts,
+  https://flywheel-woad.vercel.app/arena.html. It is a standalone page, still
+  not called from `js/main.js` or any campaign/sandbox screen, though a
+  MULTIPLAYER plate on the title screen has linked to it since 2026-08-11;
+  accounts,
   leaderboards and host succession remain undesigned or unbuilt. Start
   at the [README](features/online-flywheel/README.md), which points
   implementers at [00-objective-overview.md](features/online-flywheel/00-objective-overview.md)

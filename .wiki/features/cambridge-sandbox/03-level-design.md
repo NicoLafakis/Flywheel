@@ -25,8 +25,12 @@ unrelated, not-yet-menu-wired scene file (`js/voxelscene-chicago.js`, another
 session's in-progress work) matches this page's `js/voxelscene-*.js` cover
 glob without being part of Cambridge. `tools/validate.mjs` itself is
 unchanged in this range (confirmed by diff) despite the drift tool flagging
-it — a stale-snapshot false positive, not a real edit.
-**Date:** 2026-08-06 (reconciled 2026-08-10, twice).
+it — a stale-snapshot false positive, not a real edit. On 2026-08-11
+`js/voxelsim.js` gained a mover-simulation engine (derail/ground-run/eatable)
+that only `js/voxelscene-chicago.js`'s train opts into; `tools/validate.mjs`
+is again unchanged (confirmed by diff). Neither affects Cambridge's level
+design.
+**Date:** 2026-08-06 (reconciled 2026-08-10, twice; 2026-08-11).
 **Toolkit:** `01-voxel-primitive-vocabulary.md`. **Facts:**
 `02-cambridge-reference.md`. **Decision:** `adr/0013-anisotropic-voxel-primitives.md`.
 **Hidden things:** `04-easter-eggs-and-achievements.md` (separately owned — this

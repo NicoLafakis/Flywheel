@@ -44,7 +44,7 @@ bottom-up, along material bond strengths.
 | `js/voxelscene-boston.js` | `buildBoston(sim)`: Seaport, Fort Point and the BCEC (82,894 blocks, 2.0 blocks/m²) — see the Boston section below |
 | `js/voxelforms.js` | The twelve anisotropic primitives ADR-0013 unlocked (`slab`, `column`, `beam`, `panel`, `mullion`, `cornice`, `pier`, `plinth`, `tread`, and the rest), sitting below `js/voxelkit.js`. Geometry only — no named buildings, no city semantics. Pure sim |
 | `js/voxelscene-cambridge.js` | `buildCambridge(sim)`: East Cambridge around 2 Canal Park, the first scene authored in the `voxelforms.js` vocabulary. All ten districts built and the map complete at 72,943 blocks with the dead-ground census at zero; wired into the sim's scene dispatch, `AUTHORED_SCENES` and `FREE_PLAY`, and validated by `validateCambridge()`. Phase 7's hidden content and the Phase 8 sign-off are still ahead |
-| `js/voxelscene-chicago.js` | `buildChicago(sim)`: the Loop and Chicago River map, ground-up rebuilt on the Cambridge method (44,578 blocks, SIZE 7 reachable via `tools/chicago-probe.mjs`). Real street grid single-sourced through `CHICAGO_STREETS`; the river wraps north and west with three bascule bridges (LaSalle, State, DuSable); the 'L' Loop is a full four-corner elevated circuit (Lake/Wabash/Van Buren/Wells) with three stations (State/Lake, Washington/Wabash, Quincy) and a four-car CTA train riding it continuously via the mover seam — simulated, not just drawn: it derails at eaten track, runs the streets as a runaway, and a derailed car is eatable (see the Chicago section below). ~15 named landmarks (Willis Tower, Board of Trade/Ceres, Marina City, the Chicago Theatre blade, Cloud Gate, Wrigley, Tribune, and more). **Committed and playable, but as of this sync NOT reachable from the shipped title-screen menu:** `js/main.js`'s `AUTHORED_SCENES` entry, `js/ui/screens.js`'s free-play chip, and `tools/validate.mjs`'s `validateChicago()` gate are uncommitted in a concurrent session's working tree, and `chicago` is deliberately absent from `js/net/protocol.js`'s `ARENA_SCENES` allowlist ("ships later"). Verify with the dev-only `tools/scene-view.html?scene=chicago` or `node tools/chicago-probe.mjs`, not the live menu, until that wiring lands |
+| `js/voxelscene-chicago.js` | `buildChicago(sim)`: the Loop and Chicago River map, ground-up rebuilt on the Cambridge method (44,578 blocks, SIZE 7 reachable via `tools/chicago-probe.mjs`). Real street grid single-sourced through `CHICAGO_STREETS`; the river wraps north and west with three bascule bridges (LaSalle, State, DuSable); the 'L' Loop is a full four-corner elevated circuit (Lake/Wabash/Van Buren/Wells) with three stations (State/Lake, Washington/Wabash, Quincy) and a four-car CTA train riding it continuously via the mover seam — simulated, not just drawn: it derails at eaten track, runs the streets as a runaway, and a derailed car is eatable (see the Chicago section below). ~15 named landmarks (Willis Tower, Board of Trade/Ceres, Marina City, the Chicago Theatre blade, Cloud Gate, Wrigley, Tribune, and more). **Committed and playable, but as of this sync (2026-08-11) still NOT reachable from the shipped title-screen menu:** `js/main.js`'s `AUTHORED_SCENES` entry, `js/ui/screens.js`'s free-play chip, and `tools/validate.mjs`'s `validateChicago()` gate are **in flight in a concurrent session as of 2026-08-11** (that session is actively editing `js/net/protocol.js`, `js/net/arena.js`, `js/demo/arena.js` and `tools/arena-selftest.mjs` too, to add `chicago` to the arena picker), and `chicago` is still absent from `js/net/protocol.js`'s `ARENA_SCENES` allowlist as of the commit this page was synced to. Verify with the dev-only `tools/scene-view.html?scene=chicago` or `node tools/chicago-probe.mjs`, not the live menu, until that wiring lands |
 | `js/voxelworld.js` | `VoxelWorld3D`: one `InstancedMesh` per material + brick size with per-instance paint colors, cached static transforms, and per-frame dynamic motion; renders `sceneDecor` (roads/sidewalks/parks/bike paths/markings/water) |
 | `js/voxelsurfaces.js` | three.js binding for `voxeltiles.js`'s procedural surface registry (canvas-generated textures for `sim.sceneSurfaces`); zero cost until a scene names a surface. Owns the metals-only PMREM-probe rule — see the Boston section below |
 
@@ -223,7 +223,7 @@ Cambridge is the full ten-district East Cambridge map documented in
 Chicago is a complete, playable Loop map (see the Key Files table's entry for
 what it contains) but is not yet wired into the shipped menu or the live
 arena's scene allowlist — that wiring is a separate, concurrent session's
-uncommitted work as of this sync; see the chicago section below.
+in-flight work as of this sync (2026-08-11); see the chicago section below.
 `js/main.js`'s `AUTHORED_SCENES` table is the single source of truth for which
 scenes are real places (label text, HUD text, and whether an `intro`
 establishing shot/READY-gate framing applies) — see Talks To below. Scene
@@ -292,8 +292,9 @@ correctness gate (SIZE-7 deterministic route, block count, idle stability);
 unwired scene against the deployed build without touching menu code.
 
 **Not yet shipped.** The scene file itself is committed, but reaching it
-requires either the dev tools above or code that has not landed yet: see the
-Key Files table entry above for exactly which files are uncommitted.
+requires either the dev tools above or code that is still in flight in a
+concurrent session as of 2026-08-11: see the Key Files table entry above for
+exactly which files.
 
 ### gallery (VOXEL SANDBOX)
 

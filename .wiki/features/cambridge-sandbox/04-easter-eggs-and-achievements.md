@@ -9,7 +9,9 @@ the catalogue itself is not authored yet.
 **Date:** 2026-08-06 (reconciled 2026-08-10 — a seventh, unrelated,
 not-yet-menu-wired scene file, `js/voxelscene-chicago.js`, matches this page's
 `js/voxelscene-*.js` cover glob without being Cambridge; see
-`.wiki/modules/voxel.md`).
+`.wiki/modules/voxel.md`; reconciled again 2026-08-11 — the same chicago file
+gained derail/ground-run/eatable mover config for its CTA train, still
+Chicago-only).
 **Owns:** what is hidden in the Cambridge scene, what is drawn on the ground,
 what the player gets for finding it, and how all of that becomes rows rather
 than code.
