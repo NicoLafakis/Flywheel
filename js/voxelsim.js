@@ -20,6 +20,14 @@
 //      bounce, slide, tip over the rim, funnel inward, sleep when far away.
 // Pure sim: no three.js, no Math.random — all randomness flows through rng.js.
 //
+// MULTI-HOLE (ai-players FR-001/FR-002): the sim owns an index-ordered roster
+// `holes[]`; `sim.hole` is an accessor for `holes[0]` kept for every shipped
+// single-player caller. Each hole accumulates its own mass/rawMass/chain/SIZE
+// through the one shared block grid; cross-hole effects (two rims undermining
+// one building, block consumption, coins) resolve once per step against the
+// UNION of holes, with hole-index order as every tie-break. With one hole the
+// arithmetic and its ordering are identical to the single-hole build.
+//
 // Scenes: 'gallery' (default, built by _buildScene below), 'manhattan'
 // (Lower Manhattan), 'upper-manhattan' (Central Park + Upper Manhattan), and
 // 'brooklyn' (bridges → DUMBO → Downtown → Prospect Park → Coney Island).
@@ -31,6 +39,7 @@ import { buildUpperManhattan } from './voxelscene-upper-manhattan.js';
 import { buildBrooklyn } from './voxelscene-brooklyn.js';
 import { buildBoston } from './voxelscene-boston.js';
 import { buildCambridge } from './voxelscene-cambridge.js';
+import { buildChicago } from './voxelscene-chicago.js';
 import { sedan, bus, boxVan, bigTruck, motorcycle, tree, lampPost } from './voxelkit.js';
 
 // --- tuning ------------------------------------------------------------------
@@ -185,6 +194,7 @@ const GOALS = {
   brooklyn: { name: 'CONNECT THE BOROUGHS', targetFraction: 0.5 },
   boston: { name: 'SWALLOW THE SEAPORT', targetFraction: 0.5 },
   cambridge: { name: 'SWALLOW THE SPROCKET', targetFraction: 0.5 },
+  chicago: { name: 'LOOP THE LOOP', targetFraction: 0.5 },
 };
 export const SANDBOX_COIN_COUNT = 60;
 export const SANDBOX_COIN_VALUE = 2;
@@ -249,11 +259,13 @@ const REPOSE_DIRS = [1, 0, -1, 0, 0, 1, 0, -1];
 export class VoxelSandboxSim {
   constructor({ seed = 'voxel-sandbox', scene = 'gallery' } = {}) {
     this.rng = new RNG(seed);
-    this.hole = {
-      x: 0, z: 16, radius: START_RADIUS, mass: 0, rawMass: 0,
-      chain: 0, chainTimer: 0, bestCombo: 0, eatenCount: 0, isPlayer: true,
-      size: 1, sizeFrac: 0, // SIZE level (1..10) + progress to the next level
-    };
+    // THE ROSTER (ai-players FR-001/FR-002). `holes` is the canonical,
+    // index-ordered collection; every per-hole quantity (mass, chain, SIZE,
+    // coverage cache) lives ON the hole, never on the sim. `sim.hole` survives
+    // as an accessor for `holes[0]` so every shipped single-player read keeps
+    // working unchanged — with one hole, every pass below performs the same
+    // arithmetic in the same order as the single-hole build it replaced.
+    this.holes = [this._newHole(0, 16, 0)];
     this.time = 0;
     this.over = false;
     this.won = false;
@@ -263,7 +275,7 @@ export class VoxelSandboxSim {
     this.chunks = [];
     this._blockId = 1;
     this._chunkId = 1;
-    this._coverage = new Set(); // meter cells currently inside the removal zone
+    // (removal-zone coverage sets live per hole — see _newHole/_coverageChanged)
     this._graphDirty = true;    // support graph must be re-evaluated
     // The vast majority of a city is healthy and static. Keep the exception
     // set explicit so idle Brooklyn does not scan all blocks for damage.
@@ -358,6 +370,7 @@ export class VoxelSandboxSim {
     else if (scene === 'brooklyn') buildBrooklyn(this);
     else if (scene === 'boston') buildBoston(this);
     else if (scene === 'cambridge') buildCambridge(this);
+    else if (scene === 'chicago') buildChicago(this);
     else this._buildScene();
     this.scene = scene;
     this.goal = GOALS[scene] || GOALS.gallery;
@@ -412,6 +425,83 @@ export class VoxelSandboxSim {
     this._bindCameraBlockers();
   }
 
+  // --- the hole roster ---------------------------------------------------------
+
+  /**
+   * Back-compat alias (ai-players AC-03.5): `sim.hole` IS `sim.holes[0]`.
+   * A setter is kept so legacy code that rebound the hole keeps functioning,
+   * but nothing in this repo assigns it any more.
+   */
+  get hole() { return this.holes[0]; }
+  set hole(h) { this.holes[0] = h; }
+
+  // Every field the single-hole build kept on `this.hole`, plus:
+  //   index        the hole's identity for the life of the match (slot mapping
+  //                in js/net/snapshot.js reads it)
+  //   isPlayer     true only for holes[0], the local human by convention
+  //   _cov/_covSpare  the per-hole removal-zone coverage cache (_coverageChanged)
+  _newHole(x, z, index) {
+    return {
+      x, z, radius: START_RADIUS, mass: 0, rawMass: 0,
+      chain: 0, chainTimer: 0, bestCombo: 0, eatenCount: 0, isPlayer: index === 0,
+      size: 1, sizeFrac: 0, // SIZE level (1..12) + progress to the next level
+      index,
+      _cov: new Set(), _covSpare: new Set(),
+    };
+  }
+
+  /**
+   * Seat another hole in the shared world. Deterministic: draws nothing from
+   * the RNG, so adding N holes leaves every stream exactly where it was.
+   * @returns the new hole (also holes[holes.length - 1])
+   */
+  addHole(x = 0, z = 0) {
+    const h = this._newHole(x, z, this.holes.length);
+    this.holes.push(h);
+    return h;
+  }
+
+  // Per-pass derived radii, one row per hole, in hole-index order. Pooled and
+  // recomputed at the top of each pass that needs them (support, chunks,
+  // debris) because a hole's radius can grow mid-step between passes — exactly
+  // as the single-hole code recomputed remR at each pass entry. `_dx/_dz/_d2`
+  // are per-block scratch used inside _stepDebris/_stepChunks.
+  _holeParams() {
+    const H = this.holes;
+    const hp = this._hp || (this._hp = []);
+    while (hp.length < H.length) hp.push({});
+    hp.length = H.length;
+    for (let i = 0; i < H.length; i++) {
+      const h = H[i], p = hp[i];
+      p.h = h;
+      p.remR = h.radius * REMOVAL_FRAC;
+      p.remR2 = p.remR * p.remR;
+      p.attractR = h.radius + ATTRACT_ZONE;
+      p.attractR2 = p.attractR * p.attractR;
+      const rimR = h.radius + INSTAB_ZONE + 0.5;
+      p.rimR2 = rimR * rimR;
+      p.instabR = h.radius + INSTAB_ZONE + 0.6;
+      p.instabR2 = p.instabR * p.instabR;
+      p.hangScale = h.radius / MAX_RADIUS;
+      p._dx = 0; p._dz = 0; p._d2 = 0;
+    }
+    return hp;
+  }
+
+  // Squared distance to the nearest hole — the multi-hole reading of "distance
+  // to the hole" for the device-tier levers (_capDebris, the contact budget).
+  // With one hole this is the exact expression the single-hole sort used.
+  _nearestHoleD2(x, z) {
+    const H = this.holes;
+    let best = Infinity;
+    for (let i = 0; i < H.length; i++) {
+      const dx = x - H[i].x, dz = z - H[i].z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < best) best = d2;
+    }
+    return best;
+  }
+
   _placeCoins() {
     // A scene may declare `coinAnchors` — an array of at least {x, z} — to put
     // coins where its design wants them. A uniform scatter cannot express
@@ -443,7 +533,15 @@ export class VoxelSandboxSim {
   }
 
   _collectCoins() {
-    const h = this.hole;
+    // Hole-index order, so two holes reaching the same coin on the same step
+    // resolve deterministically to the lower index.
+    for (let hi = 0; hi < this.holes.length; hi++) {
+      const h = this.holes[hi];
+      this._collectCoinsFor(h);
+    }
+  }
+
+  _collectCoinsFor(h) {
     const reach = h.radius + 0.7;
     for (const coin of this.coins) {
       if (coin.collected || Math.hypot(coin.x - h.x, coin.z - h.z) > reach) continue;
@@ -1080,13 +1178,13 @@ export class VoxelSandboxSim {
 
   // --- support graph -----------------------------------------------------------
 
-  // Track which meter cells the opening currently covers; support is only
-  // recalculated when coverage or the graph changes — not every frame.
-  _coverageChanged() {
-    const h = this.hole;
+  // Track which meter cells one hole's opening currently covers; support is
+  // only recalculated when some hole's coverage or the graph changes — not
+  // every frame. The two sets live on the hole and are swapped rather than
+  // reallocated: this runs every step for every hole.
+  _coverageChanged(h) {
     const remR = h.radius * REMOVAL_FRAC;
-    // two sets, swapped rather than reallocated: this runs every step
-    const next = this._coverageSpare || (this._coverageSpare = new Set());
+    const next = h._covSpare;
     next.clear();
     for (let gx = Math.floor(h.x - remR); gx <= Math.floor(h.x + remR); gx++) {
       for (let gz = Math.floor(h.z - remR); gz <= Math.floor(h.z + remR); gz++) {
@@ -1094,13 +1192,14 @@ export class VoxelSandboxSim {
         if (cx * cx + cz * cz <= remR * remR) next.add(gx + ',' + gz);
       }
     }
-    if (next.size === this._coverage.size) {
+    const cov = h._cov;
+    if (next.size === cov.size) {
       let same = true;
-      for (const c of next) if (!this._coverage.has(c)) { same = false; break; }
+      for (const c of next) if (!cov.has(c)) { same = false; break; }
       if (same) return false;
     }
-    this._coverageSpare = this._coverage;
-    this._coverage = next;
+    h._covSpare = cov;
+    h._cov = next;
     return true;
   }
 
@@ -1112,9 +1211,12 @@ export class VoxelSandboxSim {
   //   (3) the hanging test's outcome changed — only possible within
   //       remR + HANG_REACH * hangScale of the hole.
   // (2) and (3) are the "influence radius". Zones that were inside it last
-  // call are re-included so blocks the hole has LEFT get reset (supportRatio
-  // back to 1, hanging cleared) exactly as a whole-scene pass would.
-  _markDirtyZones(instabR, remR, hangScale) {
+  // call are re-included so blocks every hole has LEFT get reset (supportRatio
+  // back to 1, hanging cleared) exactly as a whole-scene pass would. With more
+  // than one hole the influence set is the UNION over holes, gathered in
+  // hole-index order so the prox list — and therefore the recalc order — is
+  // deterministic.
+  _markDirtyZones(hp) {
     const mark = this._compMark;
     const list = this._dirtyList || (this._dirtyList = []);
     list.length = 0;
@@ -1123,22 +1225,24 @@ export class VoxelSandboxSim {
       const c = this._prevProx[i];
       if (!mark[c]) { mark[c] = 1; list.push(c); }
     }
-    const R = Math.max(instabR, remR + HANG_REACH * hangScale);
-    const h = this.hole;
     const proxMark = this._proxMark;
     const prox = [];
-    const x0 = Math.floor((h.x - R) / ZONE_CELL), x1 = Math.floor((h.x + R) / ZONE_CELL);
-    const z0 = Math.floor((h.z - R) / ZONE_CELL), z1 = Math.floor((h.z + R) / ZONE_CELL);
-    for (let x = x0; x <= x1; x++) {
-      for (let z = z0; z <= z1; z++) {
-        const arr = this._zoneCells.get(x + ',' + z);
-        if (!arr) continue;
-        for (let i = 0; i < arr.length; i++) {
-          const c = arr[i];
-          if (proxMark[c]) continue;
-          proxMark[c] = 1;
-          prox.push(c);
-          if (!mark[c]) { mark[c] = 1; list.push(c); }
+    for (let hi = 0; hi < hp.length; hi++) {
+      const p = hp[hi], h = p.h;
+      const R = Math.max(p.instabR, p.remR + HANG_REACH * p.hangScale);
+      const x0 = Math.floor((h.x - R) / ZONE_CELL), x1 = Math.floor((h.x + R) / ZONE_CELL);
+      const z0 = Math.floor((h.z - R) / ZONE_CELL), z1 = Math.floor((h.z + R) / ZONE_CELL);
+      for (let x = x0; x <= x1; x++) {
+        for (let z = z0; z <= z1; z++) {
+          const arr = this._zoneCells.get(x + ',' + z);
+          if (!arr) continue;
+          for (let i = 0; i < arr.length; i++) {
+            const c = arr[i];
+            if (proxMark[c]) continue;
+            proxMark[c] = 1;
+            prox.push(c);
+            if (!mark[c]) { mark[c] = 1; list.push(c); }
+          }
         }
       }
     }
@@ -1149,23 +1253,20 @@ export class VoxelSandboxSim {
   }
 
   _recalcSupport() {
-    const h = this.hole;
     const blocks = this.blocks;
-    const remR = h.radius * REMOVAL_FRAC;
-    const remR2 = remR * remR;
-    const instabR = h.radius + INSTAB_ZONE + 0.6;
-    const instabR2 = instabR * instabR;
-    // The reach SCALES with the hole: at SIZE 1 the creak zone hugs the
-    // visible rim (~0.5 m past it) instead of pre-failing facades 4-5 m
-    // away; at max radius it behaves as before (remR + span + 1.5).
-    const hangScale = h.radius / MAX_RADIUS;
+    // Per-hole derived radii (remR/instabR/hangScale), hole-index order. The
+    // reach SCALES with each hole: at SIZE 1 the creak zone hugs the visible
+    // rim (~0.5 m past it) instead of pre-failing facades 4-5 m away; at max
+    // radius it behaves as before (remR + span + 1.5).
+    const hp = this._holeParams();
+    const nh = hp.length;
     // Failure timing: the shipped sandbox setting is instant (creak <= 0), so
     // the player sees a block let go on the first step after support loss.
     // A positive dev tuning value restores the readable rim → center delay:
     // hanging rim blocks creak first, unsupported blocks follow the wave.
     const instantCollapse = this.tune.creak <= 0;
 
-    const dirty = this._markDirtyZones(instabR, remR, hangScale);
+    const dirty = this._markDirtyZones(hp);
     const spanVal = this._spanVal, spanHas = this._spanHas, hang = this._hang;
     const frontVal = this._frontVal, frontHas = this._frontHas;
     const dq = this._dq, fq = this._fq;
@@ -1173,26 +1274,42 @@ export class VoxelSandboxSim {
     for (let ci = 0; ci < dirty.length; ci++) {
       const cbl = this._compBlocks[dirty[ci]], cfl = this._compFloor[dirty[ci]];
 
-      // Rim support percentage: floor blocks near the rim sample their 4 base
-      // corners against the opening. <30% supported = no floor anchor anymore.
+      // Rim support percentage: floor blocks near a rim sample their 4 base
+      // corners against the openings. <30% supported = no floor anchor anymore.
+      //
+      // MULTI-HOLE: a corner is unsupported only when it lies outside EVERY
+      // hole's removal disc, and a block resets to full support only when it is
+      // outside EVERY hole's instability radius. This is the union rule that
+      // retires the duel-era artifact where one hole's recalc partially healed
+      // the rim the other hole was undermining — undermining is now resolved
+      // once per step against all holes at once.
       for (let k = 0; k < cfl.length; k++) {
         const b = blocks[cfl[k]];
         if (b.state === 'consumed' || b.state === 'falling') continue;
-        const dx = b.x - h.x, dz = b.z - h.z;
-        if (dx * dx + dz * dz > instabR2) { this._clearLean(b); b.supportRatio = 1; continue; }
+        let near = false;
+        for (let hi = 0; hi < nh; hi++) {
+          const p = hp[hi];
+          const dx = b.x - p.h.x, dz = b.z - p.h.z;
+          if (dx * dx + dz * dz <= p.instabR2) { near = true; break; }
+        }
+        if (!near) { this._clearLean(b); b.supportRatio = 1; continue; }
         // Corner inset per axis: it is the block's PLAN rectangle that is
         // sampled, so a long thin kerb is tested at its ends, not at a square
         // derived from one scalar side.
         const ox = b.sx / 2 - 0.05, oz = b.sz / 2 - 0.05;
         let outside = 0;
-        let px = b.x - ox - h.x, pz = b.z - oz - h.z;
-        if (px * px + pz * pz > remR2) outside++;
-        px = b.x + ox - h.x;
-        if (px * px + pz * pz > remR2) outside++;
-        pz = b.z + oz - h.z;
-        if (px * px + pz * pz > remR2) outside++;
-        px = b.x - ox - h.x;
-        if (px * px + pz * pz > remR2) outside++;
+        for (let ci = 0; ci < 4; ci++) {
+          // corner order: (-,-) (+,-) (+,+) (-,+) — a pure count, order-free
+          const cx = (ci === 1 || ci === 2) ? b.x + ox : b.x - ox;
+          const cz = ci >= 2 ? b.z + oz : b.z - oz;
+          let inside = false;
+          for (let hi = 0; hi < nh; hi++) {
+            const p = hp[hi];
+            const px = cx - p.h.x, pz = cz - p.h.z;
+            if (px * px + pz * pz <= p.remR2) { inside = true; break; }
+          }
+          if (!inside) outside++;
+        }
         // The renderer leans a weakened rim block TOWARD the hole, so its matrix
         // is a function of the hole's live position as well as of this ratio —
         // it has to be re-composed every frame while the ratio is under 0.7, and
@@ -1276,8 +1393,12 @@ export class VoxelSandboxSim {
         const sp = spanVal[j];
         if (sp < 1) continue;
         const b = blocks[j];
-        const dx = b.x - h.x, dz = b.z - h.z;
-        if (Math.hypot(dx, dz) < remR + (sp + 1.5) * hangScale) hang[j] = 1;
+        // hanging over ANY hole's opening counts — checked in index order
+        for (let hi = 0; hi < nh; hi++) {
+          const p = hp[hi];
+          const dx = b.x - p.h.x, dz = b.z - p.h.z;
+          if (Math.hypot(dx, dz) < p.remR + (sp + 1.5) * p.hangScale) { hang[j] = 1; break; }
+        }
       }
 
       // Crack-front distance only feeds the delayed-failure timings below, so
@@ -1487,9 +1608,10 @@ export class VoxelSandboxSim {
     }
   }
 
-  _overVoid(x, z, remR2) {
-    const dx = x - this.hole.x, dz = z - this.hole.z;
-    return dx * dx + dz * dz <= remR2;
+  // Is (x, z) inside ONE hole's removal disc? `p` is a _holeParams row.
+  _overVoid(p, x, z) {
+    const dx = x - p.h.x, dz = z - p.h.z;
+    return dx * dx + dz * dz <= p.remR2;
   }
 
   // fall acceleration for a material density — driven by tune.gravity, with
@@ -1706,34 +1828,38 @@ export class VoxelSandboxSim {
     if (lo <= this._groupCursor) this._groupCursor++;
   }
 
-  // The hole is the one thing that reaches retired rubble without any contact
-  // event telling us so, so sweep the index it covers and revive what it is
-  // about to swallow. Revived blocks are handed to the normal `_stepDebris`
+  // A hole is the one thing that reaches retired rubble without any contact
+  // event telling us so, so sweep the index each hole covers and revive what it
+  // is about to swallow. Revived blocks are handed to the normal `_stepDebris`
   // path, which applies the identical `dist2 <= remR2` test — this pre-pass
-  // only decides what gets LOOKED at, never what happens.
-  _wakeRestingUnderHole(remR) {
-    if (this._restCount === 0) return;
-    const h = this.hole;
-    const c0 = Math.floor((h.x - remR) / REST_CELL), c1 = Math.floor((h.x + remR) / REST_CELL);
-    const d0 = Math.floor((h.z - remR) / REST_CELL), d1 = Math.floor((h.z + remR) / REST_CELL);
-    const remR2 = remR * remR;
-    let found = null;
-    for (let cx = c0; cx <= c1; cx++) {
-      for (let cz = d0; cz <= d1; cz++) {
-        const arr = this._restIdx.get(mCellKey(cx, cz));
-        if (!arr) continue;
-        for (let i = 0; i < arr.length; i++) {
-          const b = arr[i];
-          const dx = h.x - b.x, dz = h.z - b.z;
-          if (dx * dx + dz * dz <= remR2) (found || (found = [])).push(b);
+  // only decides what gets LOOKED at, never what happens. Holes sweep in index
+  // order; `_reviveResting` is idempotent, so overlap between two holes'
+  // sweeps is harmless.
+  _wakeRestingUnderHoles(hp) {
+    for (let hi = 0; hi < hp.length; hi++) {
+      if (this._restCount === 0) return;
+      const p = hp[hi], h = p.h;
+      const remR = p.remR, remR2 = p.remR2;
+      const c0 = Math.floor((h.x - remR) / REST_CELL), c1 = Math.floor((h.x + remR) / REST_CELL);
+      const d0 = Math.floor((h.z - remR) / REST_CELL), d1 = Math.floor((h.z + remR) / REST_CELL);
+      let found = null;
+      for (let cx = c0; cx <= c1; cx++) {
+        for (let cz = d0; cz <= d1; cz++) {
+          const arr = this._restIdx.get(mCellKey(cx, cz));
+          if (!arr) continue;
+          for (let i = 0; i < arr.length; i++) {
+            const b = arr[i];
+            const dx = h.x - b.x, dz = h.z - b.z;
+            if (dx * dx + dz * dz <= remR2) (found || (found = [])).push(b);
+          }
         }
       }
+      if (!found) continue;
+      // id order, because _falling is id-ordered and the solver's pair sequence
+      // depends on it; a spatial walk visits cells in an arbitrary order
+      found.sort((a, b) => a.id - b.id);
+      for (let i = 0; i < found.length; i++) this._reviveResting(found[i]);
     }
-    if (!found) return;
-    // id order, because _falling is id-ordered and the solver's pair sequence
-    // depends on it; a spatial walk visits cells in an arbitrary order
-    found.sort((a, b) => a.id - b.id);
-    for (let i = 0; i < found.length; i++) this._reviveResting(found[i]);
   }
 
   // wake a sleeping debris block: unregister it and drop its solid
@@ -1753,31 +1879,42 @@ export class VoxelSandboxSim {
   }
 
   _stepChunks(dt) {
-    const h = this.hole;
-    const remR = h.radius * REMOVAL_FRAC;
-    const remR2 = remR * remR;
-    const attractR = h.radius + ATTRACT_ZONE;
+    const hp = this._holeParams();
+    const nh = hp.length;
 
     for (let i = this.chunks.length - 1; i >= 0; i--) {
       const c = this.chunks[i];
-      const dx = h.x - c.cx, dz = h.z - c.cz;
-      const dist = Math.hypot(dx, dz) || 0.001;
+      // Per-hole deltas, computed ONCE before integration (the single-hole
+      // code did the same: its rim-torque below reads the pre-integration
+      // distance) and reused for pull, torque and nothing else.
+      for (let hi = 0; hi < nh; hi++) {
+        const p = hp[hi];
+        p._dx = p.h.x - c.cx; p._dz = p.h.z - c.cz;
+        p._d2 = Math.hypot(p._dx, p._dz) || 0.001; // a distance here, not d²
+      }
 
-      // attraction zone: mild inward pull keeps debris funneling to the opening
-      if (dist < attractR) {
-        const a = this.tune.attract * (1 - dist / attractR);
-        c.vx += (dx / dist) * a * dt;
-        c.vz += (dz / dist) * a * dt;
+      // attraction zone: mild inward pull toward every hole in range keeps
+      // debris funneling to the openings (index order — deterministic)
+      for (let hi = 0; hi < nh; hi++) {
+        const p = hp[hi];
+        if (p._d2 < p.attractR) {
+          const a = this.tune.attract * (1 - p._d2 / p.attractR);
+          c.vx += (p._dx / p._d2) * a * dt;
+          c.vz += (p._dz / p._d2) * a * dt;
+        }
       }
       c.vy -= this._fallG(c.density) * dt;
       c.cx += c.vx * dt; c.cy += c.vy * dt; c.cz += c.vz * dt;
 
-      // rim torque: a chunk straddling the rim tips toward the opening —
+      // rim torque: a chunk straddling a rim tips toward that opening —
       // big slabs tip slowly, small bricks snap over
-      if (dist > 0.1 && dist < h.radius + 2.0) {
-        const tip = 3.5 / c.sizeAvg;
-        c.vRotZ += (dx / dist) * tip * dt;
-        c.vRotX += (-dz / dist) * tip * dt;
+      for (let hi = 0; hi < nh; hi++) {
+        const p = hp[hi];
+        if (p._d2 > 0.1 && p._d2 < p.h.radius + 2.0) {
+          const tip = 3.5 / c.sizeAvg;
+          c.vRotZ += (p._dx / p._d2) * tip * dt;
+          c.vRotX += (-p._dz / p._d2) * tip * dt;
+        }
       }
       c.vRotX *= 1 - 2 * dt; c.vRotZ *= 1 - 2 * dt;
       // cap chunk tumble: slabs lean, they don't pirouette — and members born
@@ -1796,8 +1933,14 @@ export class VoxelSandboxSim {
         const rz = cb.relZ * cosX - ry * sinX;
         ry = cb.relZ * sinX + ry * cosX;
         cb.x = c.cx + rx; cb.y = c.cy + ry; cb.z = c.cz + rz;
-        if (this._overVoid(cb.x, cb.z, remR2)) {
-          if (cb.y + cb.sy / 2 <= SINK_Y) { this._consume(cb); continue; }
+        // first hole (index order) whose void covers this member — the
+        // deterministic tie-break when two rims overlap the same block
+        let vh = null;
+        for (let hi = 0; hi < nh; hi++) {
+          if (this._overVoid(hp[hi], cb.x, cb.z)) { vh = hp[hi]; break; }
+        }
+        if (vh) {
+          if (cb.y + cb.sy / 2 <= SINK_Y) { this._consume(cb, vh.h); continue; }
         } else {
           // impact on ANY solid surface — rooftops, rims, debris piles; and
           // hard contacts smash (damage) whatever the chunk hits
@@ -1884,16 +2027,12 @@ export class VoxelSandboxSim {
   }
 
   _stepDebris(dt) {
-    const h = this.hole;
-    const remR = h.radius * REMOVAL_FRAC;
-    const remR2 = remR * remR;
-    const attractR = h.radius + ATTRACT_ZONE;
-    const attractR2 = attractR * attractR;
-    const rimR = h.radius + INSTAB_ZONE + 0.5;
+    const hp = this._holeParams();
+    const nh = hp.length;
 
-    // Retired rubble the hole has reached rejoins the active list first, at its
+    // Retired rubble any hole has reached rejoins the active list first, at its
     // id position, so the walk below meets it exactly where it always did.
-    this._wakeRestingUnderHole(remR);
+    this._wakeRestingUnderHoles(hp);
 
     // Indexed walk, not for-of: _unsleep -> _topRemove can wake a whole pile
     // mid-loop and each revival splices into this very array. The cursor is
@@ -1903,14 +2042,22 @@ export class VoxelSandboxSim {
     for (this._debrisCursor = 0; this._debrisCursor < f.length; this._debrisCursor++) {
       const b = f[this._debrisCursor];
       if (b.state !== 'falling' || b.parentChunk) continue;
-      const dx = h.x - b.x, dz = h.z - b.z;
-      const dist2 = dx * dx + dz * dz;
-      const overVoid = dist2 <= remR2;
+      // Per-hole pre-integration deltas, computed once and reused by the void
+      // test, the vacuum and the rim tip — exactly as the single-hole code
+      // read one dx/dz/dist2 for all three. `vh` is the first hole (index
+      // order) whose void covers the block: the deterministic consumer.
+      let vh = null;
+      for (let hi = 0; hi < nh; hi++) {
+        const p = hp[hi];
+        p._dx = p.h.x - b.x; p._dz = p.h.z - b.z;
+        p._d2 = p._dx * p._dx + p._dz * p._dz;
+        if (!vh && p._d2 <= p.remR2) vh = p;
+      }
       if (b.asleep) {
-        // settled rubble wakes only for the void itself, support loss, or a
-        // hard hit — never for the vacuum. If it is not over the hole, it
+        // settled rubble wakes only for a void itself, support loss, or a
+        // hard hit — never for the vacuum. If it is not over a hole, it
         // does not move.
-        if (!overVoid) continue;
+        if (!vh) continue;
         this._unsleep(b);
       }
       // Held out of this tier's contact budget by _resolveDebrisContacts:
@@ -1922,19 +2069,24 @@ export class VoxelSandboxSim {
       // separation solver found a full block of penetration and launched it.
       // Parking freezes the fringe pile as it was; the hole coming within
       // budget range (or the void opening under it) hands it back to physics.
-      if (b._budgetHold && !overVoid) continue;
-      if (dist2 < attractR2 && !b._grounded) {
-        const dist = Math.sqrt(dist2) || 0.001;
-        const a = this.tune.attract * (1 - dist / attractR);
-        b.vx += (dx / dist) * a * dt;
-        b.vz += (dz / dist) * a * dt;
+      if (b._budgetHold && !vh) continue;
+      if (!b._grounded) {
+        for (let hi = 0; hi < nh; hi++) {
+          const p = hp[hi];
+          if (p._d2 < p.attractR2) {
+            const dist = Math.sqrt(p._d2) || 0.001;
+            const a = this.tune.attract * (1 - dist / p.attractR);
+            b.vx += (p._dx / dist) * a * dt;
+            b.vz += (p._dz / dist) * a * dt;
+          }
+        }
       }
       b.vy -= this._fallG(b.mat.mass) * dt;
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
       b.rotX += b.vRotX * dt; b.rotZ += b.vRotZ * dt;
 
-      if (overVoid) {
-        if (b.y + b.sy / 2 <= SINK_Y) this._consume(b);
+      if (vh) {
+        if (b.y + b.sy / 2 <= SINK_Y) this._consume(b, vh.h);
         continue;
       }
       // wall scrape: falling bodies damp against standing structures and
@@ -1981,16 +2133,24 @@ export class VoxelSandboxSim {
         if (b.vy < 0) b.vy = b.vy < -2 ? -b.vy * 0.25 : 0;
         b.vx *= 1 - 3 * dt; b.vz *= 1 - 3 * dt;
         b.vRotX *= 1 - 3 * dt; b.vRotZ *= 1 - 3 * dt;
-        const dist = Math.sqrt(dist2) || 0.001;
-        const nearRim = dist2 < rimR * rimR;
-        // tip over the rim instead of balancing on the edge — only when the
-        // hole-facing edge really overhangs the opening. A block on solid
-        // ground NEXT to the hole has no business moving, and contact with
-        // the pile damps spin instead of letting it pirouette in place.
-        if (nearRim && this._overVoid(b.x + (dx / dist) * b.sx * 0.5, b.z + (dz / dist) * b.sz * 0.5, remR2)) {
+        // tip over a rim instead of balancing on the edge — only when the
+        // hole-facing edge really overhangs that hole's opening. A block on
+        // solid ground NEXT to a hole has no business moving, and contact with
+        // the pile damps spin instead of letting it pirouette in place. First
+        // qualifying hole in index order tips it — deterministic.
+        let tp = null, tdist = 1;
+        for (let hi = 0; hi < nh; hi++) {
+          const p = hp[hi];
+          if (p._d2 >= p.rimR2) continue;
+          const dist = Math.sqrt(p._d2) || 0.001;
+          if (this._overVoid(p, b.x + (p._dx / dist) * b.sx * 0.5, b.z + (p._dz / dist) * b.sz * 0.5)) {
+            tp = p; tdist = dist; break;
+          }
+        }
+        if (tp) {
           const tip = 1.5 / b.sAvg;
-          b.rotX = Math.max(-0.6, Math.min(0.6, b.rotX + (-dz / dist) * tip * dt));
-          b.rotZ = Math.max(-0.6, Math.min(0.6, b.rotZ + (dx / dist) * tip * dt));
+          b.rotX = Math.max(-0.6, Math.min(0.6, b.rotX + (-tp._dz / tdist) * tip * dt));
+          b.rotZ = Math.max(-0.6, Math.min(0.6, b.rotZ + (tp._dx / tdist) * tip * dt));
         } else if (looseSup) {
           // resting on loose rubble: quiet down but stay awake — sleep comes
           // once the layer below solidifies into the heightmap
@@ -2087,7 +2247,7 @@ export class VoxelSandboxSim {
   // away NO wake path fires (awake blocks live in neither index, so
   // `_consume`/`_unsleep`/`_topRemove` all miss it), leaving the sleeper — and
   // whatever piled onto it via `_top` — hanging in the air until the hole
-  // passes directly underneath (`_wakeRestingUnderHole` is the only remaining
+  // passes directly underneath (`_wakeRestingUnderHoles` is the only remaining
   // wake). The walk's own sleep path knew this (the `looseSup` branch never
   // sets `_wantSleep`); the cap simply failed to check. Eligible blocks are
   // handed to the same `_wantSleep` path everything else uses — which means
@@ -2097,10 +2257,10 @@ export class VoxelSandboxSim {
   // distant rubble stops skittering and comes to rest a second or two early.
   // Nothing vanishes, nothing sinks, nothing hangs.
   //
-  // Farthest-from-the-hole first, because that is what the player is not looking
+  // Farthest-from-any-hole first, because that is what no player is looking
   // at; `id` breaks ties so the selection can never depend on iteration order.
   _capDebris(cap) {
-    const f = this._falling, h = this.hole;
+    const f = this._falling;
     const cand = this._capBuf || (this._capBuf = []);
     cand.length = 0;
     let active = 0;
@@ -2113,8 +2273,8 @@ export class VoxelSandboxSim {
     const excess = active - cap;
     if (excess <= 0 || cand.length === 0) return;
     cand.sort((a, b) => {
-      const da = (a.x - h.x) * (a.x - h.x) + (a.z - h.z) * (a.z - h.z);
-      const db = (b.x - h.x) * (b.x - h.x) + (b.z - h.z) * (b.z - h.z);
+      const da = this._nearestHoleD2(a.x, a.z);
+      const db = this._nearestHoleD2(b.x, b.z);
       return db - da || a.id - b.id;
     });
     const k = excess < cand.length ? excess : cand.length;
@@ -2174,10 +2334,9 @@ export class VoxelSandboxSim {
     // on HIGH keeps this a no-op.
     const budget = this.tune.contactBudget;
     if (budget !== undefined && budget !== Infinity && awake.length > budget) {
-      const h = this.hole;
       awake.sort((a, b) => {
-        const da = (a.x - h.x) * (a.x - h.x) + (a.z - h.z) * (a.z - h.z);
-        const db = (b.x - h.x) * (b.x - h.x) + (b.z - h.z) * (b.z - h.z);
+        const da = this._nearestHoleD2(a.x, a.z);
+        const db = this._nearestHoleD2(b.x, b.z);
         return da - db || a.id - b.id;
       });
       for (let i = budget; i < awake.length; i++) {
@@ -2394,7 +2553,12 @@ export class VoxelSandboxSim {
 
   // --- consumption → score / growth / combo -------------------------------------
 
-  _consume(b) {
+  // `h` is the hole doing the eating — attribution is decided by the caller
+  // (first hole in index order whose void covers the block), so a block can
+  // never be double-counted and mass is never created from nothing. Defaults
+  // to holes[0] for external probes (tools/validate.mjs's win guard feeds
+  // blocks in directly).
+  _consume(b, h = this.holes[0]) {
     b.state = 'consumed';
     // The renderer hides consumed blocks, and `_syncFalling` drops this entry at
     // the top of the NEXT step — which, with the fixed-timestep catch-up in
@@ -2411,7 +2575,6 @@ export class VoxelSandboxSim {
         }
       }
     }
-    const h = this.hole;
     const prevLevel = comboLevel(h.chain);
     h.chain += 1;
     h.chainTimer = COMBO_WINDOW;
@@ -2468,29 +2631,45 @@ export class VoxelSandboxSim {
 
   // --- main step -----------------------------------------------------------------
 
+  /**
+   * Advance the whole world by `dt`.
+   *
+   * `move` is either ONE steering vector `{x, z}` — today's single-player call,
+   * applied to `holes[0]` while every other hole coasts — or an ARRAY of
+   * vectors, one per hole in roster order (null/undefined entries coast). The
+   * signature deliberately keeps `step.length === 2`: js/net/host.js feature-
+   * detects the single-hole calling convention with `sim.step.length >= 2` and
+   * both shapes flow through this one method.
+   */
   step(dt, move) {
     this.time += dt;
-    const h = this.hole;
+    const holes = this.holes;
+    const moves = Array.isArray(move) ? move : null;
 
-    if (h.chainTimer > 0) {
-      h.chainTimer -= dt;
-      if (h.chainTimer <= 0) h.chain = 0;
-    }
+    for (let hi = 0; hi < holes.length; hi++) {
+      const h = holes[hi];
+      const m = moves ? moves[hi] : (hi === 0 ? move : null);
 
-    // Unlike campaign movement, the sandbox gets more capable as the hole
-    // grows: bigger holes cover the district faster instead of feeling
-    // sluggish at the end of the ladder.
-    const sizeT = sandboxSizeProgress(h.size, h.sizeFrac);
-    const speed = playerSpeedForRadius(h.radius) * this.tune.speed * (1 + SANDBOX_SPEED_RAMP * sizeT);
-    if (move && (move.x || move.z)) {
-      const len = Math.hypot(move.x, move.z) || 1;
-      h.x += (move.x / len) * speed * dt;
-      h.z += (move.z / len) * speed * dt;
-      // `boundsRect` wins when a scene sets it (off-center maps need an
-      // asymmetric clamp); otherwise the scalar square around the origin.
-      const r = this.boundsRect;
-      h.x = Math.min(r ? r.maxX : this.bounds, Math.max(r ? r.minX : -this.bounds, h.x));
-      h.z = Math.min(r ? r.maxZ : this.bounds, Math.max(r ? r.minZ : -this.bounds, h.z));
+      if (h.chainTimer > 0) {
+        h.chainTimer -= dt;
+        if (h.chainTimer <= 0) h.chain = 0;
+      }
+
+      // Unlike campaign movement, the sandbox gets more capable as a hole
+      // grows: bigger holes cover the district faster instead of feeling
+      // sluggish at the end of the ladder.
+      const sizeT = sandboxSizeProgress(h.size, h.sizeFrac);
+      const speed = playerSpeedForRadius(h.radius) * this.tune.speed * (1 + SANDBOX_SPEED_RAMP * sizeT);
+      if (m && (m.x || m.z)) {
+        const len = Math.hypot(m.x, m.z) || 1;
+        h.x += (m.x / len) * speed * dt;
+        h.z += (m.z / len) * speed * dt;
+        // `boundsRect` wins when a scene sets it (off-center maps need an
+        // asymmetric clamp); otherwise the scalar square around the origin.
+        const r = this.boundsRect;
+        h.x = Math.min(r ? r.maxX : this.bounds, Math.max(r ? r.minX : -this.bounds, h.x));
+        h.z = Math.min(r ? r.maxZ : this.bounds, Math.max(r ? r.minZ : -this.bounds, h.z));
+      }
     }
     this._collectCoins();
 
@@ -2511,7 +2690,12 @@ export class VoxelSandboxSim {
     // position, not the stale one. `_coverageChanged()` must still be called
     // every step — it swaps the coverage sets. Default `supportEvery` is 1, which
     // makes this expression identical to the single `||` it replaced.
-    const covChanged = this._coverageChanged();
+    // Every hole's coverage must be evaluated every step (the sets swap), so
+    // no short-circuit: OR is accumulated across the roster in index order.
+    let covChanged = false;
+    for (let hi = 0; hi < holes.length; hi++) {
+      if (this._coverageChanged(holes[hi])) covChanged = true;
+    }
     let recalc = covChanged || this._graphDirty;
     if (recalc && !this._graphDirty && this.tune.supportEvery > 1
         && ++this._supportSkipped < this.tune.supportEvery) recalc = false;
@@ -2574,10 +2758,17 @@ export class VoxelSandboxSim {
     // it. 1e-9 of the total is ~1000x the accumulated error and still far below
     // the mass of the lightest single block, so it cannot win a scene early.
     const goalMass = this.totalMass * this.goal.targetFraction - this.totalMass * 1e-9;
-    if (!this.won && h.rawMass >= goalMass) {
-      this.won = true;
-      this.over = true;
-      this.events.push({ type: 'goal', goal: this.goal, hole: h });
+    if (!this.won) {
+      // first hole in index order to cross the goal takes it — deterministic
+      for (let hi = 0; hi < holes.length; hi++) {
+        const h = holes[hi];
+        if (h.rawMass >= goalMass) {
+          this.won = true;
+          this.over = true;
+          this.events.push({ type: 'goal', goal: this.goal, hole: h });
+          break;
+        }
+      }
     }
   }
 

@@ -1,34 +1,18 @@
-// Two-hole hot-seat duel driver, built ON TOP of the shipped single-hole sim
-// without editing it.
+// Two-hole hot-seat duel driver — now a thin wrapper over the sim's NATIVE
+// multi-hole roster (`sim.holes[]`, js/voxelsim.js).
 //
-// THE TECHNIQUE. `VoxelSandboxSim` owns exactly one `this.hole`, and every
-// consumption / combo / SIZE path in the sim reads and writes through that one
-// reference (see `_consume` and `step` in js/voxelsim.js). So the duel keeps two
-// hole-state objects of its own and time-slices the sim between them: bind hole
-// A, step half the frame's dt, bind hole B, step the other half. Each hole
-// accumulates its own mass / rawMass / chain / size / radius through the sim's
-// own code path, and both are eating out of the same block grid, which is the
-// whole point — one shared city, two mouths.
+// HISTORY. This file used to time-slice the single-hole sim between two
+// hand-cloned hole objects (bind hole A, step half the dt, bind hole B, step
+// the other half), swapping the sim's hole-keyed caches in and out per slice.
+// That build carried a documented artifact: each player's support recalc
+// partially healed the rim the other player was undermining. The multi-hole
+// refactor moved all of that into the sim itself — both holes step in ONE
+// `sim.step(dt, moves)` pass at the full dt, and the support recalc resolves
+// undermining against the union of both openings, so the artifact is gone and
+// there is nothing left here but roster setup and per-player event routing.
 //
-// A few of the sim's caches are keyed to "the hole" rather than to a hole, so
-// they ride along in the swap instead of being smeared across both players:
-//   _coverage / _coverageSpare  the meter cells the opening covers (`_coverageChanged`)
-//   _prevProx                   zones inside the hole's influence last recalc (`_markDirtyZones`)
-//   _supportSkipped             the supportEvery amortiser
-// Everything else in the sim is world state and is *supposed* to be shared.
-//
-// Known, accepted demo-grade artifact: `_recalcSupport` resets `supportRatio`
-// to 1 for floor blocks outside the CURRENT hole's instability radius, so each
-// player's recalc partially heals the rim the other player was undermining.
-// Buildings still collapse (a block that has already detached stays detached);
-// the crack front near a rim just runs a touch cooler when both holes are far
-// apart. Fixing it properly would mean editing the sim, which this build may not.
-
-export function makeHole(sim, x, z) {
-  // Cloned from the sim's own initial hole so every field the sim expects
-  // exists with the shape the sim created — no hand-written field list to drift.
-  return { ...sim.hole, x, z, heading: 0 };
-}
+// API is unchanged from the time-slicing build: `step(dt, moves)`, `drain(i)`,
+// `hole(i)`, `fraction(i)` — js/demo/demo.js needs no edits.
 
 export class Duel {
   /**
@@ -37,71 +21,56 @@ export class Duel {
    */
   constructor(sim, spawns) {
     this.sim = sim;
-    this.players = spawns.map((s) => ({
-      hole: makeHole(sim, s.x, s.z),
-      // Per-player copies of the hole-keyed sim caches (see the note above).
-      coverage: new Set(),
-      coverageSpare: new Set(),
-      prevProx: [],
-      supportSkipped: 0,
-      events: [],
-    }));
-  }
-
-  _bind(p) {
-    const s = this.sim;
-    s.hole = p.hole;
-    s._coverage = p.coverage;
-    s._coverageSpare = p.coverageSpare;
-    s._prevProx = p.prevProx;
-    s._supportSkipped = p.supportSkipped;
-  }
-
-  _unbind(p) {
-    const s = this.sim;
-    p.coverage = s._coverage;
-    p.coverageSpare = s._coverageSpare;
-    p.prevProx = s._prevProx;
-    p.supportSkipped = s._supportSkipped;
+    // The sim is born with holes[0]; move it to the first spawn and seat the
+    // rest natively. `heading` is presentational (the view may read it) and
+    // the sim never touches it — same convention as js/main.js.
+    const h0 = sim.holes[0];
+    h0.x = spawns[0].x;
+    h0.z = spawns[0].z;
+    h0.heading = 0;
+    for (let i = 1; i < spawns.length; i++) {
+      const h = sim.addHole(spawns[i].x, spawns[i].z);
+      h.heading = 0;
+    }
+    this._events = spawns.map(() => []);
   }
 
   /**
-   * Advance the shared world by `dt`, split evenly between the players.
+   * Advance the shared world by `dt` — one real multi-hole step, no slicing.
    * @param {number} dt seconds
    * @param {Array<{x:number,z:number}>} moves one per player, same order as spawns
    */
   step(dt, moves) {
-    const n = this.players.length;
-    const slice = dt / n;
-    for (let i = 0; i < n; i++) {
-      const p = this.players[i];
-      this._bind(p);
-      // `over` is the sim's single-player goal latch. The duel ends on the
-      // clock, not on the goal, so never let one player's goal freeze the world
-      // for the other; the banner reports fractions instead.
-      this.sim.over = false;
-      this.sim.step(slice, moves[i] || { x: 0, z: 0 });
-      this._unbind(p);
-      // Events carry `hole`, so they are attributable, but draining per player
-      // is simpler and keeps each player's juice on their own side.
-      const evs = this.sim.drainEvents();
-      for (const e of evs) { e.player = i; p.events.push(e); }
-    }
+    this.sim.step(dt, moves);
+    // `over` is the sim's goal latch. The duel ends on the clock, not on the
+    // goal, so never let one player's goal freeze the world for the other; the
+    // banner reports fractions instead. (`won` is left alone so the goal event
+    // cannot re-fire every step once crossed.)
     this.sim.over = false;
+    // Events carry `hole`; route each to the hole's roster index so every
+    // player's juice stays on their own side. Hole-less world events (crash)
+    // go to player 0, exactly as attributable as they ever were in this demo
+    // (nothing consumes them).
+    const evs = this.sim.drainEvents();
+    for (const e of evs) {
+      const i = e.hole ? this.sim.holes.indexOf(e.hole) : -1;
+      const p = i >= 0 ? i : 0;
+      e.player = p;
+      this._events[p].push(e);
+    }
   }
 
   /** Drain accumulated events for player `i`. */
   drain(i) {
-    const p = this.players[i];
-    const e = p.events;
-    p.events = [];
+    const e = this._events[i];
+    this._events[i] = [];
     return e;
   }
 
-  hole(i) { return this.players[i].hole; }
+  hole(i) { return this.sim.holes[i]; }
 
   /** Fraction of the whole city each player has swallowed, by raw mass. */
   fraction(i) {
-    return this.sim.totalMass > 0 ? this.players[i].hole.rawMass / this.sim.totalMass : 0;
+    return this.sim.totalMass > 0 ? this.sim.holes[i].rawMass / this.sim.totalMass : 0;
   }
 }

@@ -1,4 +1,5 @@
-// Headless proof that the hole-swap duel technique actually works.
+// Headless proof that the duel drives two REAL holes through the sim's native
+// multi-hole path (sim.holes[], one step per tick — no time-slicing).
 // Run: node js/demo/duel.test.mjs
 //
 // Asserts, over 90 simulated seconds of two holes ploughing the gallery:
@@ -6,17 +7,16 @@
 //   - no NaN anywhere in either hole's numeric state, ever
 //   - both holes stay inside the sim's movement bounds
 //   - no crash, and the shared block grid actually loses blocks
+//   - the two holes are distinct sim entities with independent accumulation
 
 import { VoxelSandboxSim } from '../voxelsim.js';
 import { Duel } from './duel.js';
 
 const DT = 1 / 60;
-// 90 simulated seconds by default, which takes ~186 s of wall clock: two holes
-// means two full `sim.step` calls per tick (10,800 of them), and this harness
-// deliberately runs at the DEFAULT tier — Infinity debris cap, Infinity contact
-// budget — because the point is to prove the hole-swap technique against the
-// shipped sim, not against a cheaper configuration of it. `node duel.test.mjs 30`
-// runs a ~60 s smoke pass instead; 90 is the one that has been run in full.
+// 90 simulated seconds by default, at the DEFAULT tier — Infinity debris cap,
+// Infinity contact budget — because the point is to prove the native
+// multi-hole path against the shipped sim, not against a cheaper configuration
+// of it. `node duel.test.mjs 30` runs a quick smoke pass instead.
 const SECONDS = Number(process.argv[2]) > 0 ? Number(process.argv[2]) : 90;
 let failures = 0;
 const fail = (m) => { failures++; console.error('  FAIL: ' + m); };

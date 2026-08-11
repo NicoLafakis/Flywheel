@@ -15,7 +15,9 @@
 //
 // Exit 1 on any FAIL.
 
-const ROOT = 'file:///C:/programming/nico-apps/Flywheel/';
+// Repo root, derived from this file's own location so the harness runs from
+// any checkout path (the old hardcoded absolute URL broke on a renamed root).
+const ROOT = new URL('../', import.meta.url).href;
 
 const P = await import(ROOT + 'js/net/protocol.js');
 const S = await import(ROOT + 'js/net/snapshot.js');
@@ -186,7 +188,9 @@ begin('2. snapshot capture/apply on a real VoxelSandboxSim');
   check('ghost is alive', g.alive);
 
   // The array-shaped sim of tomorrow (PRD 0004 FR-001), by duck-typing.
-  const multi = { holes: [sim.hole, { ...sim.hole, x: 5, z: -5, mass: 12 }], events: [] };
+  // Roster holes carry their `index` identity (multi-hole refactor), so the
+  // fabricated second hole carries index 1 the way a real `addHole` one does.
+  const multi = { holes: [sim.hole, { ...sim.hole, index: 1, x: 5, z: -5, mass: 12 }], events: [] };
   const msnap = S.captureSnapshot(multi, { generation: 1, tick: 10, timeLeftCs: 100 });
   eq('captureSnapshot feature-detects sim.holes[]', msnap.holes.length, 2);
   eq('second hole gets slot 1', msnap.holes[1].slot, 1);
