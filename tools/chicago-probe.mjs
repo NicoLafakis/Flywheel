@@ -268,7 +268,26 @@ if (sim.blocks.length < 35000 || sim.blocks.length > 80000) {
   }
   if (diverged) fail('mover pose is not a pure function of time');
   if (!Array.isArray(sim.sceneMovers) || sim.sceneMovers[0] !== m) fail('sim.sceneMovers not wired');
-  if (failures === 0) ok(`el + train: closed ${arc.total.toFixed(0)} m circuit, 4 cars, on-deck, deterministic`);
+  // The simulated half (derail/ground-run/eatable, js/voxelsim.js mover
+  // simulation): runtime wired, unit ids extend the block id space, and the
+  // INTACT circuit reads as solid track everywhere — a false derail on a
+  // healthy loop is the one bug the sampling must never ship.
+  const rt = sim.moverSim && sim.moverSim[0];
+  if (!rt) fail('sim.moverSim not built from the scene\'s sim config');
+  else {
+    if (rt.units.length !== 4) fail(`mover runtime has ${rt.units.length} units, want 4`);
+    let maxBlockId = 0;
+    for (const b of sim.blocks) if (b.id > maxBlockId) maxBlockId = b.id;
+    if (!rt.units.every((u) => u.id > maxBlockId)) fail('unit ids do not extend the block id space');
+    if (sim.objectIdSpace !== rt.units[rt.units.length - 1].id + 1) {
+      fail(`sim.objectIdSpace ${sim.objectIdSpace} does not cover the units`);
+    }
+    let falseDerail = 0;
+    for (let s = 0; s < rt.arc.total; s += 0.25) if (!sim.moverTrackOk(0, s)) falseDerail++;
+    if (falseDerail > 0) fail(`${falseDerail} intact-track sample(s) read as a gap (false derail)`);
+    if (!rt.units.every((u) => u.phase === 'ride')) fail('a unit is not riding on a fresh scene');
+  }
+  if (failures === 0) ok(`el + train: closed ${arc.total.toFixed(0)} m circuit, 4 cars, on-deck, deterministic, derailable`);
 }
 
 // 11. idle stability, then the deterministic excursion (twice).
