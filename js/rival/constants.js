@@ -10,7 +10,7 @@ export const RIVAL = Object.freeze({
   // colors read at arm's length on a phone, low enough that the tint can
   // never make an un-eaten block look eaten (AC-01.7) — tiles sit on the
   // GROUND plane only, under columns that have already lost blocks.
-  TINT_OPACITY: 0.5,
+  TINT_OPACITY: 0.6,
   // Tiles are inset a hair inside the block footprint so adjacent tiles read
   // as claimed ground rather than one undifferentiated slab.
   TINT_INSET: 0.94,

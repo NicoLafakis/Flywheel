@@ -604,6 +604,11 @@ function endMatch() {
  */
 function startReveal(mineScore, theirsScore) {
   revealState = 'running';
+  // The reveal's own bar takes over; the live tug bar and the chevron would
+  // only double it (and the rival needs no finding on a full-city frame).
+  el('tug').style.display = 'none';
+  el('chevrons').style.display = 'none';
+  if (announcer) announcer.clear();
   const split = finalSplit(attribution, [0, 1]);
   revealSplit = split.map((s) => s.percent);
 

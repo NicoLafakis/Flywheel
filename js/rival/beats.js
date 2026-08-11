@@ -20,10 +20,12 @@ export const BEAT = Object.freeze({
 });
 
 /** THE copy table (AC-05.2). `who` is the actor's display name, upper-cased
- * by the caller; every line names its actor — color is never the only channel. */
+ * by the caller; every line names its actor — color is never the only channel.
+ * Second person conjugates: the local player is always the literal "YOU". */
+const you = (who) => who === 'YOU';
 export const BEAT_COPY = Object.freeze({
-  [BEAT.FIRST_BLOOD]: (who) => `${who} DRAWS FIRST BLOOD`,
-  [BEAT.LEAD_TAKEN]: (who) => `${who} TAKES THE LEAD`,
+  [BEAT.FIRST_BLOOD]: (who) => `${who} ${you(who) ? 'DRAW' : 'DRAWS'} FIRST BLOOD`,
+  [BEAT.LEAD_TAKEN]: (who) => `${who} ${you(who) ? 'TAKE' : 'TAKES'} THE LEAD`,
   [BEAT.TRAILING]: () => `30 SECONDS — YOU'RE BEHIND`,
   [BEAT.LANDMARK]: (who) => `${who} ATE A LANDMARK`,
 });
