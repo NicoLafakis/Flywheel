@@ -27,6 +27,11 @@ import {
   CAMBRIDGE_ROAD_SPANS, CAMBRIDGE_ROUTE, CAMBRIDGE_STREETS, CAMBRIDGE_VEHICLES,
   CAM_XW_LEN,
 } from '../js/voxelscene-cambridge.js';
+import {
+  CHICAGO_CROSSINGS, CHICAGO_DISTRICTS, CHICAGO_HEROES, CHICAGO_OPEN_GROUND,
+  CHICAGO_ROAD_SPANS, CHICAGO_ROUTE, CHICAGO_STREETS, CHICAGO_VEHICLES,
+  CHICAGO_XW_LEN,
+} from '../js/voxelscene-chicago.js';
 import { CURRENT_VERSION, __freshSave, __MIGRATIONS } from '../js/save.js';
 import { readdirSync, readFileSync } from 'node:fs';
 
@@ -1339,6 +1344,57 @@ function validateCambridge() {
   console.log(`  cambridge sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} peakChain=${a.hole.bestCombo} score=${a.hole.mass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
 }
 
+function validateChicago() {
+  console.log('Validating chicago sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'chicago' });
+
+  const WP = CHICAGO_ROUTE;
+  const DURATION = WP[WP.length - 1].until;
+
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'chicago');
+  probeCameraBlockers(sim, 'chicago', tops);
+  probeBoundsRect(sim, 'chicago');
+  probeRoadConflicts(sim, 'chicago', CHICAGO_VEHICLES, CHICAGO_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'chicago');
+  probeParkUnderWater(sim, 'chicago');
+  probeRimmedWater(sim, 'chicago');
+  probeBareGround(sim, 'chicago', tops);
+  probeOpenGround(sim, 'chicago', CHICAGO_OPEN_GROUND);
+  reportDeadGround(sim, 'chicago', CHICAGO_OPEN_GROUND);
+  probeCrosswalkStripes(sim, 'chicago');
+  probeCrossingsOnDeclaredStreet('chicago', CHICAGO_CROSSINGS, CHICAGO_STREETS, CHICAGO_XW_LEN);
+  probeDecorKeyOrder(sim, 'chicago');
+  probeAmbient(sim, 'chicago', ['gulls', 'steam', 'neon', 'pigeons']);
+  probeGradeDiagonal(sim, 'chicago');
+  probePlacementStep(sim, 'chicago');
+  probeDistrictDensity(sim, 'chicago', CHICAGO_DISTRICTS, WP);
+  probeHeroIdentity(sim, 'chicago', CHICAGO_HEROES);
+  probeIdleStability(sim, 'chicago');
+
+  const runExcursion = () => {
+    const run = new VoxelSandboxSim({ seed: 'validator', scene: 'chicago' });
+    for (let i = 0; i < DURATION * 60; i++) {
+      const t = i * DT, h = run.hole;
+      let wp = WP[WP.length - 1];
+      for (const w of WP) if (t < w.until) { wp = w; break; }
+      const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
+      run.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
+    }
+    return run;
+  };
+  const a = runExcursion();
+  const b = runExcursion();
+  if (a.hole.eatenCount !== b.hole.eatenCount || a.hole.mass.toFixed(6) !== b.hole.mass.toFixed(6)) {
+    fail(`chicago: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
+  }
+  if (a.hole.eatenCount < 300) fail(`chicago: only ${a.hole.eatenCount} blocks eaten on the scripted excursion (expected >=300)`);
+  if (a.hole.size < 7) fail(`chicago: excursion reached only SIZE ${a.hole.size} (expected >=7)`);
+
+  probeFinitePositions(a.blocks, 'chicago', 'after excursion');
+  console.log(`  chicago sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} peakChain=${a.hole.bestCombo} score=${a.hole.mass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
 // --- save schema guard --------------------------------------------------------
 // freshSave() and the MIGRATIONS chain are two independent descriptions of the
 // same object, and only one of them gets exercised while developing: whoever adds
@@ -1631,6 +1687,7 @@ validateUpperManhattan();
 validateBrooklyn();
 validateBoston();
 validateCambridge();
+validateChicago();
 
 console.log('---');
 if (failures === 0) {
