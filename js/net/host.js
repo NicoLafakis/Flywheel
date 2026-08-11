@@ -28,7 +28,7 @@ import {
   captureSnapshot, captureEvents, holesOf, encodeEatenRLE,
 } from './snapshot.js';
 import {
-  MSG, FLAG, CONTROL, encodeEnvelope, decodeEnvelope, validate,
+  MSG, FLAG, CONTROL, EATER_ANON, encodeEnvelope, decodeEnvelope, validate,
 } from './protocol.js';
 import { PeerDriver, HumanDriver, IdleDriver } from './driver.js';
 
@@ -58,6 +58,10 @@ export class ArenaHost {
     this._lastKeyframeMs = -Infinity;
     this._pendingEvents = [];   // wire events accumulated since the last snapshot
     this._eatenIds = new Set(); // for the keyframe's consumed set (§7.4)
+    // objectId -> eater slot, for the v3 keyframe's per-slot streams. Ids in
+    // `_eatenIds` but absent here (a pre-host consumption) ride the EATER_ANON
+    // stream — still eaten, nobody credited.
+    this._eaterOf = new Map();
 
     // The object-id space the keyframe's eaten bitset covers. Block ids are
     // minted sequentially from 1 (voxelsim.js `_blockId`), so `max id + 1` is
@@ -242,7 +246,12 @@ export class ArenaHost {
     };
     for (const e of captureEvents(slice, slotOf)) {
       this._pendingEvents.push(e);
-      if (e.objectId) this._eatenIds.add(e.objectId);
+      if (e.objectId) {
+        this._eatenIds.add(e.objectId);
+        // First attribution wins — the sim never re-attributes a block, so a
+        // second claim for the same id can only be a duplicate.
+        if (!this._eaterOf.has(e.objectId)) this._eaterOf.set(e.objectId, e.slot);
+      }
     }
   }
 
@@ -297,8 +306,24 @@ export class ArenaHost {
     // bitset — one bit per city object, RLE'd." This is the lifeline that makes
     // a dropped snapshot's eat events recoverable (§7.4, §8): a peer that
     // missed an eat learns it here at the latest, half a second on.
-    if (this.objectIdSpace > 0) {
-      snap.eatenRLE = encodeEatenRLE((i) => this._eatenIds.has(i), this.objectIdSpace);
+    //
+    // v3: one stream PER EATER SLOT rather than one anonymous union, so a peer
+    // healing from this keyframe learns WHOSE each block was (the rival-
+    // visibility wire fix). Codec unchanged — each stream is the same RLE over
+    // the same id space; the old union is the OR of them. Slot order is sorted
+    // so the bytes are a pure function of state, not of Map insertion order.
+    if (this.objectIdSpace > 0 && this._eatenIds.size > 0) {
+      const bySlot = new Map();
+      for (const id of this._eatenIds) {
+        const slot = this._eaterOf.has(id) ? this._eaterOf.get(id) : EATER_ANON;
+        let set = bySlot.get(slot);
+        if (!set) bySlot.set(slot, set = new Set());
+        set.add(id);
+      }
+      snap.eatenSlots = [...bySlot.keys()].sort((a, b) => a - b).map((slot) => ({
+        slot,
+        rle: encodeEatenRLE((i) => bySlot.get(slot).has(i), this.objectIdSpace),
+      }));
     }
     this._lastKeyframeMs = now;
     this.transport.send(encodeEnvelope('K', snap));

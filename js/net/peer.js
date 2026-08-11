@@ -33,7 +33,7 @@ import {
   SnapshotBuffer, GhostRoster, applySnapshot, interpolate,
   correctionFor, blendToward, CORRECTION, decodeEatenRLE,
 } from './snapshot.js';
-import { FLAG, EVENT_FLAG, CONTROL, encodeEnvelope, decodeEnvelope, validate } from './protocol.js';
+import { FLAG, EVENT_FLAG, CONTROL, EATER_ANON, encodeEnvelope, decodeEnvelope, validate } from './protocol.js';
 import { playerSpeedForRadius } from '../tiers.js';
 
 /** How often the peer measures RTT. Nothing in the sim depends on it. */
@@ -114,6 +114,10 @@ export class ArenaPeer {
     // What arrived over the wire, for the renderer to drain.
     this.consumed = new Set();   // objectIds known eaten
     this._newlyConsumed = [];    // ids not yet drained by the renderer
+    // objectId -> eater slot, from live events AND healed keyframes (v3's
+    // per-slot streams). This is presentation data — the rival-visibility
+    // layer reads it to answer "whose block was that" (AC-01.2 / AC-01.4).
+    this.eaterOf = new Map();
     this._events = [];           // decoded wire events not yet drained
     this.timeLeftCs = 0;
     this.matchOver = false;
@@ -190,19 +194,27 @@ export class ArenaPeer {
     // host decides what got eaten").
     for (const e of snap.events) {
       this._events.push(e);
-      if (e.objectId > 0 && !(e.flags & EVENT_FLAG.COMBO_POP) && !this.consumed.has(e.objectId)) {
-        this.consumed.add(e.objectId);
-        this._newlyConsumed.push(e.objectId);
+      if (e.objectId > 0 && !(e.flags & EVENT_FLAG.COMBO_POP)) {
+        // The event's first byte IS the eater (04 §4.1); first claim wins.
+        if (!this.eaterOf.has(e.objectId)) this.eaterOf.set(e.objectId, e.slot);
+        if (!this.consumed.has(e.objectId)) {
+          this.consumed.add(e.objectId);
+          this._newlyConsumed.push(e.objectId);
+        }
       }
     }
 
-    // The keyframe's eaten bitset back-fills anything a dropped snapshot lost.
-    if (isKeyframe && snap.eatenRLE && this.objectCount > 0) {
-      let eaten;
-      try { eaten = decodeEatenRLE(snap.eatenRLE, this.objectCount); } catch { eaten = null; }
-      if (eaten) {
+    // The keyframe's eaten streams back-fill anything a dropped snapshot lost
+    // — as of v3, per eater slot, so the heal carries attribution too
+    // (AC-01.4: a late joiner's craters come up in the right colors).
+    if (isKeyframe && snap.eatenSlots && this.objectCount > 0) {
+      for (const { slot, rle } of snap.eatenSlots) {
+        let eaten;
+        try { eaten = decodeEatenRLE(rle, this.objectCount); } catch { continue; }
         for (let id = 1; id < this.objectCount; id++) {
-          if (eaten[id] && !this.consumed.has(id)) {
+          if (!eaten[id]) continue;
+          if (slot !== EATER_ANON && !this.eaterOf.has(id)) this.eaterOf.set(id, slot);
+          if (!this.consumed.has(id)) {
             this.consumed.add(id);
             this._newlyConsumed.push(id);
           }

@@ -24,7 +24,22 @@
 // envelope whose `v` differs — so a v1 client meeting a v2 room fails cleanly
 // (the joiner's JOIN is dropped and it times out with 'no_host') instead of
 // building the wrong city and desyncing.
-export const PROTOCOL_VERSION = 2;
+//
+// v3: the keyframe tail carries EATER IDENTITY — one eaten-RLE stream per
+// occupied slot instead of one anonymous bitset — so a client healing from a
+// keyframe (late join, missed snapshots) learns not just THAT a block is gone
+// but WHOSE it was. This closes the one wire gap the rival-visibility package
+// found (.wiki/features/rival-visibility/00-objective-overview.md): live
+// events always carried the eater's slot; the keyframe forgot it. Same hard
+// version gate: a v2 client meeting a v3 room fails cleanly.
+export const PROTOCOL_VERSION = 3;
+
+/**
+ * Pseudo-slot for "eaten, eater unknown" in a keyframe's per-slot streams —
+ * a block consumed before the recording host existed (a migration rebuild).
+ * 0xff can never collide with a real slot: MAX_HOLES is 255, slots are 0-254.
+ */
+export const EATER_ANON = 0xff;
 
 /**
  * The scenes a WELCOME may name — the finished, playable cities. NEVER trust
@@ -235,12 +250,34 @@ function wantsWideIds(snap) {
 }
 
 /**
+ * Build the keyframe tail's stream list from either input shape:
+ *   snap.eatenSlots  [{slot, rle:Uint8Array}] — the v3 per-slot form;
+ *   snap.eatenRLE    Uint8Array — legacy anonymous bitset, carried as one
+ *                    EATER_ANON stream so pre-v3 call sites keep working.
+ */
+function eatenStreamsOf(snap) {
+  if (snap.eatenSlots && snap.eatenSlots.length) return snap.eatenSlots;
+  if (snap.eatenRLE && snap.eatenRLE.length) return [{ slot: EATER_ANON, rle: snap.eatenRLE }];
+  return null;
+}
+
+/** v3 tail layout: u8 stream_count, then per stream u8 slot / u16 len / bytes. */
+function eatenTailBytes(streams) {
+  if (!streams) return 0;
+  let n = 1;
+  for (const s of streams) n += 3 + s.rle.length;
+  return n;
+}
+
+/**
  * Snapshot -> bytes. 04 §4.1:
  *   header 12 bytes, per hole 10 bytes x N, per event 4 bytes x E.
- * A keyframe is this with FLAG.KEYFRAME set plus `snap.eatenRLE` appended as a
- * trailing byte run (04 §4.1 "Keyframe K: a snapshot with flags.keyframe, plus
- * the eaten bitset — one bit per city object, RLE'd"). The RLE itself is built
- * in ./snapshot.js, which knows about cities; this file only carries it.
+ * A keyframe is this with FLAG.KEYFRAME set plus the eaten tail appended: as
+ * of v3, `u8 stream_count`, then per stream `u8 slot / u16 byte_len / bytes`,
+ * each stream an RLE bitset over the same object-id space (a block eaten by
+ * slot s sets only s's stream; the old anonymous union is the OR of them all).
+ * The RLE itself is built in ./snapshot.js, which knows about cities; this
+ * file only frames it.
  */
 export function encodeSnapshot(snap) {
   const holes = snap.holes || [];
@@ -250,7 +287,10 @@ export function encodeSnapshot(snap) {
 
   const wide = wantsWideIds(snap);
   const evBytes = wide ? EVENT_BYTES_WIDE : EVENT_BYTES_NARROW;
-  const tail = snap.eatenRLE ? snap.eatenRLE.length : 0;
+  const streams = eatenStreamsOf(snap);
+  if (streams && streams.length > 255) throw new RangeError('too many eaten streams');
+  const tail = eatenTailBytes(streams);
+  if (tail > 0xffff) throw new RangeError('eaten tail exceeds u16');
   const size = SNAPSHOT_HEADER_BYTES + holes.length * HOLE_BYTES + events.length * evBytes + tail;
 
   const buf = new ArrayBuffer(size);
@@ -284,7 +324,15 @@ export function encodeSnapshot(snap) {
     else { dv.setUint16(o, clamp(Math.round(e.objectId), 0, 0xffff), true); o += 2; }
   }
 
-  if (tail) u8.set(snap.eatenRLE, o);
+  if (tail) {
+    dv.setUint8(o, streams.length); o += 1;
+    for (const s of streams) {
+      if (s.rle.length > 0xffff) throw new RangeError('eaten stream exceeds u16');
+      dv.setUint8(o, s.slot & 0xff); o += 1;
+      dv.setUint16(o, s.rle.length, true); o += 2;
+      u8.set(s.rle, o); o += s.rle.length;
+    }
+  }
   return u8;
 }
 
@@ -341,7 +389,33 @@ export function decodeSnapshot(bytes) {
     v: PROTOCOL_VERSION, type: MSG.SNAPSHOT,
     generation, tick, flags, timeLeftCs, holes, events,
   };
-  if (tail) snap.eatenRLE = bytes.slice(o, o + tail);
+  if (tail) {
+    // v3 tail: u8 stream_count, then per stream u8 slot / u16 len / bytes.
+    // Parsed EXACTLY — a tail with leftover or missing bytes, or a duplicate
+    // slot stream, is a payload we do not understand.
+    const end = o + tail;
+    const count = dv.getUint8(o); o += 1;
+    const eatenSlots = [];
+    const seenSlots = new Set();
+    for (let i = 0; i < count; i++) {
+      if (o + 3 > end) throw new RangeError('truncated eaten stream header');
+      const slot = dv.getUint8(o);
+      const len = dv.getUint16(o + 1, true);
+      o += 3;
+      if (o + len > end) throw new RangeError('truncated eaten stream');
+      if (seenSlots.has(slot)) throw new RangeError(`duplicate eaten stream for slot ${slot}`);
+      seenSlots.add(slot);
+      eatenSlots.push({ slot, rle: bytes.slice(o, o + len) });
+      o += len;
+    }
+    if (o !== end) throw new RangeError('eaten tail has trailing bytes');
+    snap.eatenSlots = eatenSlots;
+    // Convenience for anonymous-union consumers: a lone EATER_ANON stream is
+    // exactly the pre-v3 bitset, surfaced under its old name.
+    if (eatenSlots.length === 1 && eatenSlots[0].slot === EATER_ANON) {
+      snap.eatenRLE = eatenSlots[0].rle;
+    }
+  }
   return snap;
 }
 
@@ -457,8 +531,11 @@ export function validate(env) {
   if (env.t === 'S' || env.t === 'K' || env.t === 'I') {
     if (typeof env.b !== 'string') return fail('binary envelope without payload');
     // A 256 KB Realtime ceiling (04 §4.1) against a ~190-byte target: anything
-    // an order of magnitude over our own budget is not ours.
-    if (env.b.length > 8192) return fail('binary payload implausibly large');
+    // an order of magnitude over our own budget is not ours. v3 keyframes carry
+    // one eaten stream PER OCCUPIED SLOT, so a late-match big-city keyframe can
+    // legitimately reach a few KB × hole count — the bound scales with the
+    // roster and still sits ~10× under the Realtime ceiling.
+    if (env.b.length > 24576) return fail('binary payload implausibly large');
     let bytes;
     try { bytes = fromBase64(env.b); } catch (e) { return fail(`bad base64: ${e.message}`); }
     try {

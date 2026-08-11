@@ -235,7 +235,7 @@ begin('7. the scene rides the WELCOME (host choice, allowlist-guarded)');
     !P.validate({ v: P.PROTOCOL_VERSION, t: 'welcome', d: { sessionId: 'abc', slot: 1, seed: 's', generation: 1, scene: 42 } }).ok);
 
   // Version guard: a v1 client's envelope is dropped, not misread.
-  check('protocol version is 2', P.PROTOCOL_VERSION === 2);
+  check('protocol version is 3 (v3: per-slot eaten streams in the keyframe tail)', P.PROTOCOL_VERSION === 3);
   check('a v1 envelope fails validation',
     !P.validate({ v: 1, t: 'welcome', d: { sessionId: 'abc', slot: 1, seed: 's', generation: 1, scene: 'gallery' } }).ok);
 }
