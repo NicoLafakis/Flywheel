@@ -54,6 +54,16 @@
   }
   #duel-timer.urgent { color: #ff4d4d; }
 
+  /* Shared tug-of-war bar (rival-visibility pattern 2): one possession bar
+     between the plates. The 3px gap is the non-color boundary cue. */
+  #center-stack { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  #shared-tug {
+    display: flex; gap: 3px; height: 8px; border-radius: 4px; overflow: hidden;
+    width: 220px; padding: 1px;
+    background: rgba(10, 14, 20, 0.72); border: 1px solid rgba(255, 255, 255, 0.09);
+  }
+  .tug-seg { height: 100%; border-radius: 3px; transition: width 0.35s ease; min-width: 3px; }
+
   #duel-banner {
     position: fixed; inset: 0; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 10px;
@@ -90,7 +100,10 @@
     <div class="bar-track"><div class="bar" id="p1-bar"></div></div>
   </div>
 
-  <div id="duel-timer">3:00</div>
+  <div id="center-stack">
+    <div id="duel-timer">3:00</div>
+    <div id="shared-tug"></div>
+  </div>
 
   <div class="plate p2">
     <div class="who">PLAYER 2</div>

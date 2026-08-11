@@ -3,6 +3,49 @@
 Detailed build history, migrated from STATUS.md (which is a lean board, not a
 changelog). Newest first. Commit-level history: `git log`.
 
+- 2026-08-11: **Rival visibility shipped, phases A–D**
+  (`.wiki/features/rival-visibility/`) — the answer to the two-phone
+  playtest's "no sense of whose blocks were eaten". New `js/rival/` layer,
+  read-only over sim events and wire snapshots (ADR-0002): one per-slot color
+  identity table (`identity.js`, 8 slots, blue/orange unchanged for P1/P2), an
+  attribution record (block id → eater slot + per-slot raw-mass tallies,
+  headless-readable — the future seam for heatmaps/stats), crater tinting
+  (each eaten column's ground tile takes its eater's color — one InstancedMesh,
+  one draw call, tiles written once on the eat, zero per-frame work), a coarse
+  tug-of-war possession bar with no digits during play, an "apart or
+  off-screen" rival chevron extending the directional-indicator vocabulary,
+  rare milestone callouts (first blood / lead change with hysteresis /
+  trailing-at-30s / landmark) through one priority announcement channel, and
+  an end-of-match territory reveal (ortho frame eases out over the crater map,
+  the bar settles to exact percentages — shown there for the first time — and
+  the winner is called from the same attribution record on both screens).
+  Wire: **protocol v3** — the keyframe tail is now one eaten-RLE stream per
+  occupied slot (codec unchanged, layout framed as `u8 count`, then
+  `u8 slot/u16 len/bytes` per stream) so a late joiner or a healing peer
+  learns *whose* every crater is; hard version gate unchanged. The hot-seat
+  page shares the craters + bar; chevron/callouts skipped there on purpose
+  (one screen, two humans). `arena.html?t=<seconds>` shortens the match
+  (dev-only, host-side, same idiom as multiplayer.html). New headless suite
+  `js/rival/rival.test.mjs` (58 checks: keyframe attribution round-trip,
+  territory determinism, beat exactly-once/hysteresis, reveal math, shares,
+  edge projection). Patterns 3 (size-as-threat) and 7 (score popups) left as
+  planned seams for the 8-player pass.
+  **Same pass, from device testing: the arena match camera is now the game's
+  progressive follow-zoom**, not the full-city overhead frame — the window
+  tracks your own hole and widens as it grows (mirroring the single-player
+  sandbox feel), because both phones rendering the whole map and every
+  distant collapse at once was the big-city FPS killer. `DuelView` grew a
+  dirty-only block sync (full N-instance recompose once at start, then only
+  `_falling`/`_leanSet`/`_renderTouch` per frame — the same union
+  `VoxelWorld3D._syncBlocks` uses — with movers outside ~2.2× the view span
+  skipped in follow mode; their settlement still lands via `_renderTouch`,
+  and a wire-fed peer reports eats via `noteConsumed`). The hot-seat page
+  keeps its full-city frame (two players, one screen) but inherits the
+  dirty-only sync. The full-city frame now appears in the arena ONLY at the
+  end reveal, which makes the pull-up the first sight of the whole
+  two-colored city — and makes the rival chevron the way you find them
+  mid-match.
+
 - 2026-08-06: **Persona playtest remediation.** A five-agent UX playtest
   (ux-tester-personas suite, findings in
   `playtests/2026-08-06-persona-campaign/`, gitignored) scored the shipped

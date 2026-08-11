@@ -1,6 +1,7 @@
 # Rival Progress Visibility — Objective Overview
 
-**Tier:** 1 · **Status:** planning (2026-08-11)
+**Tier:** 1 · **Status:** phases A–D shipped (2026-08-11); phase E deferred
+until 8-player lands
 
 > The spine of the package. [01-requirements.md](01-requirements.md) says *how
 > we will know each pattern works* (design inline — this is a Tier 1 package,

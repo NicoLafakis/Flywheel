@@ -68,6 +68,31 @@ export class DuelView {
     this.frameCY = (cy0 + cy1) / 2;
     this.frameHalfX = ((cx1 - cx0) / 2) * MARGIN;
     this.frameHalfY = ((cy1 - cy0) / 2) * MARGIN;
+    // The full-city frame, kept under its own name: follow mode (below) writes
+    // frameCX/CY/HalfX/HalfY every frame, and the match-end reveal pulls back
+    // out to THESE values — the one moment the whole two-colored city is shown.
+    this.fullCX = this.frameCX;
+    this.fullCY = this.frameCY;
+    this.fullHalfX = this.frameHalfX;
+    this.fullHalfY = this.frameHalfY;
+
+    // ---- follow camera (arena matches) --------------------------------------
+    // Mirrors the single-player sandbox feel (camera.js SANDBOX_ZOOM_IN/OUT
+    // driven by sandboxSizeProgress): the window tracks the player's own hole
+    // and widens as it grows. Radius is affine in the SIZE ladder
+    // (voxelsim.js: START_RADIUS 1.1 → MAX_RADIUS 6.6 across SIZE 1..12), so
+    // zoom keys off radius directly. Full-city rendering was the phones' FPS
+    // killer on big cities — both devices drew every block and every distant
+    // collapse at once; follow mode is what makes the arena smooth there.
+    this.followIndex = null;      // hole index to track, or null = full city
+    this._fw = 0; this._fh = 0;   // last viewport, for projection updates
+    this._followHalf = 0;         // smoothed half-extent (camera space)
+    this._followInit = false;
+    this._lastMs = 0;
+    this._fullPass = true;        // first update() composes every matrix once
+    // The renderer refreshes matrixWorldInverse on render; follow/projection
+    // math runs BEFORE the first render, so seed it now.
+    this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
 
     this.scene.add(new THREE.AmbientLight(0xa8c0d8, 1.05));
     const sun = new THREE.DirectionalLight(0xfff2dd, 1.5);
@@ -166,9 +191,15 @@ export class DuelView {
 
   resize(w, h) {
     this.renderer.setSize(w, h, false);
-    const aspect = w / Math.max(1, h);
-    // Contain, never crop: take whichever axis is the binding constraint at this
-    // aspect and let the other one gain the slack.
+    this._fw = w; this._fh = h;
+    this._applyFrame();
+  }
+
+  /** Project the current frame (full-city or follow window) at the current
+   * aspect. Contain, never crop: whichever axis binds, the other gains slack. */
+  _applyFrame() {
+    if (!this._fw) return;   // no viewport yet; resize() will project
+    const aspect = this._fw / Math.max(1, this._fh);
     let halfW = this.frameHalfX, halfH = this.frameHalfY;
     if (halfW / halfH < aspect) halfW = halfH * aspect; else halfH = halfW / aspect;
     this.camera.left = this.frameCX - halfW; this.camera.right = this.frameCX + halfW;
@@ -176,28 +207,113 @@ export class DuelView {
     this.camera.updateProjectionMatrix();
   }
 
-  update(holes) {
-    const blocks = this.sim.blocks;
-    for (let i = 0; i < blocks.length; i++) {
-      const b = blocks[i];
-      if (b.state === 'consumed') {
-        // Collapse the instance to nothing rather than removing it — index
-        // stability is what keeps the colour attribute valid.
-        this._m.compose(this._zero, this._q.identity(), this._zero);
-      } else {
-        this._v.set(b.x, b.y, b.z);
-        this._s.set(b.sx, b.sy, b.sz);
-        if (b.rotX || b.rotZ) {
-          this._e.set(b.rotX, 0, b.rotZ);
-          this._q.setFromEuler(this._e);
-        } else {
-          this._q.identity();
-        }
-        this._m.compose(this._v, this._q, this._s);
-      }
-      this.blockMesh.setMatrixAt(i, this._m);
+  /** Track hole `index` with the progressive follow-zoom; null = full city. */
+  setFollow(index) {
+    this.followIndex = index;
+    this._followInit = false;
+    if (index == null) {
+      this.frameCX = this.fullCX; this.frameCY = this.fullCY;
+      this.frameHalfX = this.fullHalfX; this.frameHalfY = this.fullHalfY;
+      this._applyFrame();
     }
-    this.blockMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Explicit frame write, camera space — the reveal's pull-up drives this. */
+  setFrame(cx, cy, halfX, halfY) {
+    this.followIndex = null;
+    this.frameCX = cx; this.frameCY = cy;
+    this.frameHalfX = halfX; this.frameHalfY = halfY;
+    this._applyFrame();
+  }
+
+  _updateFollow(holes) {
+    const h = holes[this.followIndex];
+    if (!h) return;
+    // Zoom: tight at SIZE 1, wide at SIZE 12 — radius 1.1..6.6 mapped onto a
+    // half-extent, clamped so a small city (the gallery) never zooms past its
+    // own full frame.
+    const t = Math.max(0, Math.min(1, (h.radius - 1.1) / (6.6 - 1.1)));
+    const want = Math.min(Math.max(this.fullHalfX, this.fullHalfY), 15 + 30 * t);
+    // Camera-space position of the hole (the ortho frame lives in this space).
+    this._v.set(h.x, 0, h.z).applyMatrix4(this.camera.matrixWorldInverse);
+    const now = performance.now();
+    const dt = this._followInit ? Math.min(0.1, (now - this._lastMs) / 1000) : 1;
+    this._lastMs = now;
+    // Critically-damped-ish exponential follow: fast enough to never lose the
+    // hole, slow enough that eating a building does not jolt the frame.
+    const k = this._followInit ? 1 - Math.exp(-dt * 5) : 1;
+    const kz = this._followInit ? 1 - Math.exp(-dt * 2.5) : 1;
+    this._followInit = true;
+    this._followHalf += (want - this._followHalf) * kz;
+    let cx = this.frameCX + (this._v.x - this.frameCX) * k;
+    let cy = this.frameCY + (this._v.y - this.frameCY) * k;
+    // Keep the window inside the city's full frame where it fits, so the view
+    // never drifts off into empty void past the bounds.
+    const clampAxis = (c, full, halfFull, half) =>
+      halfFull > half ? Math.min(full + (halfFull - half), Math.max(full - (halfFull - half), c)) : full;
+    cx = clampAxis(cx, this.fullCX, this.fullHalfX, this._followHalf);
+    cy = clampAxis(cy, this.fullCY, this.fullHalfY, this._followHalf);
+    this.frameCX = cx; this.frameCY = cy;
+    this.frameHalfX = this._followHalf;
+    this.frameHalfY = this._followHalf;
+    this._applyFrame();
+  }
+
+  /**
+   * Per-frame sync. DIRTY-ONLY since the rival-visibility perf pass: the old
+   * loop recomposed all N instance matrices every frame — O(70k) on the big
+   * cities, twice (two devices), which is what dropped phones through the
+   * floor. Now the full pass runs once (first frame / overflow recovery) and a
+   * frame touches only what the sim says moved, mirroring VoxelWorld3D's
+   * `_syncBlocks` union: `_falling` (live movers) + `_leanSet` (leaners) +
+   * `_renderTouch` (every EXIT from those sets, incl. consumption — drained
+   * here, load-bearing) — the sim maintains those; a never-stepped peer sim
+   * has them empty and its eats arrive via `noteConsumed` instead.
+   *
+   * In follow mode, movers outside ~2.2× the view span are SKIPPED — a distant
+   * collapse costs bookkeeping only. Their retirement still lands through
+   * `_renderTouch`, so scrolling over later shows settled rubble, never a
+   * mid-air freeze-frame.
+   */
+  update(holes) {
+    const sim = this.sim;
+    if (this.followIndex != null) this._updateFollow(holes);
+
+    let touched = false;
+    if (this._fullPass !== false || sim._renderTouchOverflow) {
+      this._fullPass = false;
+      if (sim._renderTouchOverflow) sim._renderTouchOverflow = false;
+      const blocks = sim.blocks;
+      for (let i = 0; i < blocks.length; i++) this._syncBlock(blocks[i]);
+      touched = true;
+    } else {
+      // Cull center: the followed hole (world space). Off = infinite radius.
+      let cull = false, cx = 0, cz = 0, cr = 0;
+      const fh = this.followIndex != null ? holes[this.followIndex] : null;
+      if (fh) {
+        cull = true; cx = fh.x; cz = fh.z;
+        cr = Math.max(40, this._followHalf * 2.2);
+      }
+      const f = sim._falling || [];
+      for (let i = 0; i < f.length; i++) {
+        const b = f[i];
+        if (cull && (Math.abs(b.x - cx) > cr || Math.abs(b.z - cz) > cr)) continue;
+        this._syncBlock(b); touched = true;
+      }
+      if (sim._leanSet) {
+        for (const b of sim._leanSet) {
+          if (cull && (Math.abs(b.x - cx) > cr || Math.abs(b.z - cz) > cr)) continue;
+          this._syncBlock(b); touched = true;
+        }
+      }
+      const touch = sim._renderTouch;
+      if (touch && touch.length) {
+        for (let i = 0; i < touch.length; i++) this._syncBlock(touch[i]);
+        touch.length = 0;
+        touched = true;
+      }
+    }
+    if (touched) this.blockMesh.instanceMatrix.needsUpdate = true;
 
     for (let i = 0; i < this.holes.length; i++) {
       const h = holes[i], v = this.holes[i];
@@ -205,6 +321,34 @@ export class DuelView {
       v.disc.scale.setScalar(h.radius);
       v.ring.scale.setScalar(h.radius);
     }
+  }
+
+  _syncBlock(b) {
+    if (b.state === 'consumed') {
+      // Collapse the instance to nothing rather than removing it — index
+      // stability is what keeps the colour attribute valid. Once is enough.
+      if (b._dvHidden) return;
+      b._dvHidden = true;
+      this._m.compose(this._zero, this._q.identity(), this._zero);
+    } else {
+      this._v.set(b.x, b.y, b.z);
+      this._s.set(b.sx, b.sy, b.sz);
+      if (b.rotX || b.rotZ) {
+        this._e.set(b.rotX, 0, b.rotZ);
+        this._q.setFromEuler(this._e);
+      } else {
+        this._q.identity();
+      }
+      this._m.compose(this._v, this._q, this._s);
+    }
+    this.blockMesh.setMatrixAt(b.bi, this._m);
+  }
+
+  /** A wire-fed page (the arena peer) reports eats here — its sim never steps,
+   * so nothing else would ever collapse the instance. */
+  noteConsumed(b) {
+    this._syncBlock(b);
+    this.blockMesh.instanceMatrix.needsUpdate = true;
   }
 
   render() {

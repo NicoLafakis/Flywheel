@@ -8,6 +8,14 @@
 import { VoxelSandboxSim } from '../voxelsim.js';
 import { Duel } from './duel.js';
 import { DuelView } from './view.js';
+// Rival-visibility layer, shared with the live arena: colored craters
+// (pattern 1) and the tug-of-war bar (pattern 2). Chevrons and callouts are
+// deliberately absent here — both players share this one screen, so "where is
+// my rival" and "what just happened" are answered by the room.
+import { slotColorHex } from '../rival/identity.js';
+import { TerritoryMap, columnCount } from '../rival/territory.js';
+import { TerritoryLayer } from '../rival/territory-layer.js';
+import { TugBar, computeShares } from '../rival/tugbar.js';
 
 const FIXED_DT = 1 / 60;
 // Three minutes by default. `?t=<seconds>` shortens it — which is how the
@@ -17,8 +25,10 @@ const MATCH_SECONDS = (() => {
   const q = Number(new URLSearchParams(location.search).get('t'));
   return Number.isFinite(q) && q > 0 ? q : 180;
 })();
-const P1_COLOR = 0x4da3ff;   // blue
-const P2_COLOR = 0xff8b2d;   // orange
+// Player colors from THE one identity table (rival-visibility CC-3) — the
+// same blue/orange this page always had, now shared with every surface.
+const P1_COLOR = slotColorHex(0);
+const P2_COLOR = slotColorHex(1);
 const SPAWNS = [{ x: -8, z: 8 }, { x: 8, z: 8 }];
 
 const canvas = document.getElementById('duel-canvas');
@@ -39,6 +49,11 @@ sim.tune.contactRounds = 1;
 sim.tune.supportEvery = 2;
 const duel = new Duel(sim, SPAWNS);
 const view = new DuelView(canvas, sim, [P1_COLOR, P2_COLOR]);
+
+// Territory tint: each eaten column's ground tile takes its eater's color, so
+// the shared screen doubles as the "whose blocks" map (pattern 1).
+const territory = new TerritoryMap();
+const territoryLayer = new TerritoryLayer(view.scene, columnCount(sim.blocks));
 
 // Debug hooks, same idiom as main.js's __sim / __world.
 window.__sim = sim;
@@ -81,6 +96,10 @@ const sizeEls = [el('p1-size'), el('p2-size')];
 const barEls = [el('p1-bar'), el('p2-bar')];
 const timerEl = el('duel-timer');
 const bannerEl = el('duel-banner');
+const sharedTug = new TugBar(el('shared-tug'), [
+  { slot: 0, label: 'P1' },
+  { slot: 1, label: 'P2' },
+]);
 
 let state = 'playing';       // playing | over
 let remaining = MATCH_SECONDS;
@@ -107,6 +126,9 @@ function updateHud() {
   }
   timerEl.textContent = fmtTime(remaining);
   timerEl.classList.toggle('urgent', state === 'playing' && remaining <= 15);
+  // One shared possession bar over raw (un-multiplied) mass — the same
+  // "who owns more of the city" read the crater colors give.
+  sharedTug.update(computeShares(raws));
 }
 
 function endMatch() {
@@ -149,7 +171,15 @@ function frame(ts) {
       steps++;
     }
     if (accumulator >= FIXED_DT) accumulator = 0;
-    duel.drain(0); duel.drain(1);   // nothing consumes events in this build
+    // The per-player event drains feed the territory tint: every eat marks
+    // its column's ground tile in the eater's color, once, on the eat.
+    for (let p = 0; p < 2; p++) {
+      for (const e of duel.drain(p)) {
+        if (e.type !== 'eat' || !e.obj || e.obj.id == null) continue;
+        const act = territory.mark(e.obj, p);
+        if (act) territoryLayer.apply(act);
+      }
+    }
     if (remaining <= 0) { remaining = 0; endMatch(); }
   }
 

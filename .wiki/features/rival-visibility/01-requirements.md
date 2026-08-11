@@ -1,6 +1,8 @@
 # Rival Progress Visibility — Requirements
 
-**Status:** planning (2026-08-11)
+**Status:** phases A–D shipped (2026-08-11) — US-01/02/04/05/06 built
+(headless halves probed in `js/rival/rival.test.mjs`); US-03/07 deferred with
+phase E
 
 > [Objective overview](00-objective-overview.md) · [Tasks](02-tasks.md)
 

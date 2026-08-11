@@ -1,6 +1,15 @@
 # Rival Progress Visibility — planning package
 
-**Status: planning (2026-08-11).** Nothing here is built. The package comes
+**Status: phases A–D shipped (2026-08-11); phase E (patterns 3 + 7) deferred
+until 8-player lands, per the build order.** Shipped: per-slot color identity
+(`js/rival/identity.js`), the attribution record (`js/rival/attribution.js`),
+the protocol v3 per-slot keyframe streams (the one wire gap, closed), crater
+tinting (`js/rival/territory.js` + `territory-layer.js`), the tug-of-war bar,
+the off-screen/apart rival chevron, milestone callouts, and the end-of-match
+territory reveal — live on arena.html, with craters + bar shared onto the
+hot-seat page (multiplayer.html). Headless coverage: `js/rival/rival.test.mjs`.
+
+The package comes
 directly out of a live playtest: Nico's two-phone test over the deployed arena
 (2026-08-11) surfaced one dominant complaint — **"no sense of whose blocks were
 eaten."** Two holes shared a city, both ate, and neither screen ever said who

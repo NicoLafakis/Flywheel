@@ -16,8 +16,23 @@
 // migration (a vanished host freezes the match and says so — succession is
 // T-606), no spectators, no quick join.
 
+import * as THREE from 'three';
 import { VoxelSandboxSim, sandboxSpeedForRadius } from '../voxelsim.js';
 import { DuelView } from './view.js';
+// The rival-visibility layer (.wiki/features/rival-visibility/): colored
+// craters, tug-of-war bar, off-screen chevron, milestone callouts, end reveal.
+// All of it is read-only dressing over sim events and wire snapshots (ADR-0002).
+import { slotColorHex, slotColorCss, slotName } from '../rival/identity.js';
+import { RIVAL } from '../rival/constants.js';
+import { AttributionRecord, finalSplit } from '../rival/attribution.js';
+import { TerritoryMap, columnCount } from '../rival/territory.js';
+import { TerritoryLayer } from '../rival/territory-layer.js';
+import { TugBar, computeShares } from '../rival/tugbar.js';
+import { edgeProject, chevronSize, ChevronLayer } from '../rival/offscreen.js';
+import { BeatTracker, BEAT, BEAT_COPY } from '../rival/beats.js';
+import { AnnounceQueue } from '../rival/announce.js';
+import { Reveal } from '../rival/reveal.js';
+import { EVENT_FLAG } from '../net/protocol.js';
 import { realtimeClient } from '../net/client.js';
 import { SupabaseRealtimeTransport } from '../net/transport.js';
 import { ArenaHost, FIXED_DT } from '../net/host.js';
@@ -33,16 +48,25 @@ import {
 // never from the URL, so a tampered link cannot desync the two cities.
 const DEFAULT_SCENE = 'gallery';
 let scene = DEFAULT_SCENE;
-const MATCH_SECONDS = 180;
+// Three minutes by default. `?t=<seconds>` shortens it — DEV ONLY, same idiom
+// as the hot-seat page (js/demo/demo.js): it is how the end reveal is verified
+// through the real clock. Host-side only; a joiner follows the wire's clock,
+// so a tampered join link cannot change the match length.
+const MATCH_SECONDS = (() => {
+  const q = Number(new URLSearchParams(location.search).get('t'));
+  return Number.isFinite(q) && q >= 5 ? q : 180;
+})();
 const DURATION_TICKS = MATCH_SECONDS * 60;
-const COLORS = [0x4da3ff, 0xff8b2d];          // slot 0 blue, slot 1 orange
-const COLOR_CSS = ['#4da3ff', '#ff8b2d'];
+// Player colors come from THE one identity table (rival-visibility CC-3) —
+// slot 0 blue, slot 1 orange, same as the duel HUD always shipped.
+const COLORS = [slotColorHex(0), slotColorHex(1)];
+const COLOR_CSS = [slotColorCss(0), slotColorCss(1)];
 const SPAWNS = [{ x: -8, z: 8 }, { x: 8, z: 8 }];
 const HOST_GONE_MS = 6000;   // v1 freeze threshold; T-606 replaces this with HOST_TIMEOUT_MS + succession
 
 // ------------------------------------------------------------------ elements
 const el = (id) => document.getElementById(id);
-const overlays = ['ov-landing', 'ov-pick', 'ov-join', 'ov-connecting', 'ov-hosting', 'ov-countdown', 'ov-banner'];
+const overlays = ['ov-landing', 'ov-pick', 'ov-join', 'ov-connecting', 'ov-hosting', 'ov-countdown', 'ov-banner', 'ov-reveal'];
 function showOverlay(id) {
   for (const o of overlays) el(o).classList.toggle('hidden', o !== id);
 }
@@ -70,6 +94,22 @@ let peerBlockById = null;
 let rivalName = 'RIVAL';
 let rivalPresent = false;
 
+// --- rival-visibility state (all read-only over sim/wire data) --------------
+let blockById = null;     // id -> block, both roles (attribution + territory)
+let attribution = null;   // AttributionRecord — the one record every surface reads
+let territory = null;     // TerritoryMap (bookkeeping)
+let territoryLayer = null;// TerritoryLayer (the tinted tiles in the scene)
+let tugBar = null;
+let chevrons = null;
+let beats = null;
+let announcer = null;
+let beatsFired = 0;
+let lastShares = [0.5, 0.5];
+let revealState = 'none'; // none | running | done
+let revealSplit = null;
+let chevFarM = 30;        // "apart" threshold for the chevron, set per city
+const chevVec = new THREE.Vector3();   // reused every frame — no allocation
+
 // Debug/Playwright hooks, same idiom as netdemo.
 window.__arena = {
   get state() { return state; },
@@ -94,6 +134,26 @@ window.__arena = {
       return [g ? { x: g.x, z: g.z, mass: g.mass } : null, { x: own.x, z: own.z, mass: own.mass }];
     }
     return [];
+  },
+  // Rival-visibility probes (live two-context proof reads these).
+  territoryCells() {
+    if (!territory) return {};
+    const out = {};
+    for (const [slot, n] of territory.countBySlot()) out[slot] = n;
+    return out;
+  },
+  tugShares() { return lastShares.slice(); },
+  get beatsFired() { return beatsFired; },
+  get reveal() { return revealState; },
+  get revealSplit() { return revealSplit; },
+  chevronVisible(slot) { return !!(chevrons && chevrons.wasOffscreen(slot)); },
+  cameraFrame() {
+    return view ? {
+      cx: view.frameCX, cy: view.frameCY,
+      halfX: view.frameHalfX, halfY: view.frameHalfY,
+      fullHalfX: view.fullHalfX, fullHalfY: view.fullHalfY,
+      follow: view.followIndex,
+    } : null;
   },
 };
 
@@ -209,8 +269,155 @@ function startMatchUI() {
   hideOverlays();
   hud.classList.add('on');
   state = 'playing';
+  setupRivalLayer();
   if (matchMedia('(pointer: coarse)').matches) el('touch-hint').classList.add('on');
   setTimeout(() => el('touch-hint').classList.remove('on'), 6000);
+}
+
+// ------------------------------------------------------- rival visibility
+/** Build the whole visibility layer once, at match start, on either role.
+ * Everything here READS sim events / wire data; nothing writes sim state. */
+function setupRivalLayer() {
+  blockById = new Map();
+  for (const b of sim.blocks) blockById.set(b.id, b);
+  // Raw (un-multiplied) block mass from the LOCAL build — both sides built the
+  // identical city from the shared seed, so tallies agree by construction.
+  attribution = new AttributionRecord((id) => {
+    const b = blockById.get(id);
+    return b ? b.mat.mass * b.sx * b.sy * b.sz : 0;
+  });
+  territory = new TerritoryMap();
+  territoryLayer = new TerritoryLayer(view.scene, columnCount(sim.blocks));
+
+  // "Apart" for the chevron scales with the city: a third of its long side.
+  const br = boundsRectOf(sim);
+  chevFarM = Math.max(br.maxX - br.minX, br.maxZ - br.minZ) / 3;
+
+  const rivalSlot = mySlot === 0 ? 1 : 0;
+  const labelOf = (slot) => (slot === mySlot ? 'YOU' : rivalName);
+  tugBar = new TugBar(el('tug-track'), [
+    { slot: 0, label: labelOf(0) },
+    { slot: 1, label: labelOf(1) },
+  ]);
+  // The bar's end labels are the redundant non-color channel (CC-4):
+  // left end is always slot 0's territory, right end slot 1's.
+  el('tug-you').textContent = labelOf(0);
+  el('tug-you').style.color = COLOR_CSS[0];
+  el('tug-rival').textContent = labelOf(1);
+  el('tug-rival').style.color = COLOR_CSS[1];
+
+  chevrons = new ChevronLayer(el('chevrons'));
+  chevrons.ensure(rivalSlot, labelOf(rivalSlot));
+  beats = new BeatTracker({ mySlot, slots: [0, 1] });
+  announcer = new AnnounceQueue(el('callout'));
+
+  // The match camera is the game's progressive follow-zoom: it tracks YOUR
+  // hole and widens as you grow. Rendering the whole city on both phones was
+  // the big-city FPS killer; the full-city frame now exists only in the end
+  // reveal (the first time you see the whole two-colored city). With the
+  // tight camera, the chevron is the way you know where your rival is.
+  view.setFollow(mySlot);
+}
+
+/** One eat, from either source (host sim events / peer wire), into the record,
+ * the territory tiles, and the beat detectors. Exactly once per block id. */
+function noteEat(id, slot, { landmark = false } = {}) {
+  if (!attribution || !attribution.recordEat(id, slot)) return;
+  if (slot >= 0 && slot < 8) {
+    const b = blockById.get(id);
+    if (b) {
+      const act = territory.mark(b, slot);
+      if (act) territoryLayer.apply(act);
+    }
+    if (beats && state === 'playing') fireBeats(beats.noteEat(slot, { landmark }));
+  }
+}
+
+const BEAT_PRIORITY = { [BEAT.LANDMARK]: 2, [BEAT.TRAILING]: 2, [BEAT.LEAD_TAKEN]: 1, [BEAT.FIRST_BLOOD]: 1 };
+
+function fireBeats(list) {
+  for (const beat of list) {
+    const who = beat.slot === mySlot ? 'YOU' : (rivalPresent ? rivalName : slotName(beat.slot));
+    announcer.say({
+      text: BEAT_COPY[beat.type](who),
+      color: beat.type === BEAT.TRAILING ? '#ffcf5c' : slotColorCss(beat.slot),
+      priority: BEAT_PRIORITY[beat.type] || 0,
+      ms: RIVAL.CALLOUT_MS,
+    });
+    beatsFired++;
+  }
+}
+
+/** Fold the peer's pending wire news (eats + heals) into the record. */
+function syncPeerConsumed() {
+  if (!arenaPeer || !attribution) return;
+  for (const id of arenaPeer.drainConsumed()) {
+    const b = peerBlockById.get(id);
+    if (b) {
+      b.state = 'consumed';
+      view.noteConsumed(b);   // the peer sim never steps; tell the view directly
+    }
+    const slot = arenaPeer.eaterOf.has(id) ? arenaPeer.eaterOf.get(id) : -1;
+    noteEat(id, slot);
+  }
+  for (const e of arenaPeer.drainEvents()) {
+    // Landmark beats ride the wire's event flag (AC-05.4); the eat itself was
+    // already attributed above via drainConsumed + eaterOf.
+    if (e.objectId > 0 && (e.flags & EVENT_FLAG.LANDMARK) && beats && state === 'playing') {
+      fireBeats(beats.noteEat(e.slot, { landmark: true }).filter((b) => b.type === BEAT.LANDMARK));
+    }
+  }
+}
+
+/** Per-frame standings work: tug bar, beat detectors, chevron. Cheap — a few
+ * comparisons; DOM writes only when a width/transform actually changed. */
+function updateRivalSurfaces(secondsLeft) {
+  if (!attribution) return;
+  const masses0 = attribution.massBySlot[0], masses1 = attribution.massBySlot[1];
+  const shares = computeShares([masses0, masses1]);
+  lastShares = shares;
+  tugBar.update(shares);
+  if (beats && state === 'playing') {
+    fireBeats(beats.update(attribution.shares([0, 1]), secondsLeft, attribution.totalCount > 0));
+  }
+
+  // Rival chevron (pattern 4), from the same positions the renderer draws —
+  // sim truth on the host, the interpolated ghost on a peer. The arena's
+  // orthographic camera frames the WHOLE city, so a rival is rarely outside
+  // the frustum; the chevron's job here is "where are they when we're apart":
+  // it orbits your own hole pointing at a far rival (the shipped directional-
+  // indicator vocabulary, 552f290) and hands off — disappears — as they come
+  // near. A genuinely off-frustum rival still pins to the screen edge.
+  if (!chevrons || state !== 'playing') return;
+  const rivalSlot = mySlot === 0 ? 1 : 0;
+  let rx = null, rz = 0, rmass = 0, ox = 0, oz = 0;
+  if (role === 'host') {
+    if (rivalPresent && sim.holes[1]) { rx = sim.holes[1].x; rz = sim.holes[1].z; rmass = sim.holes[1].mass; }
+    ox = sim.holes[0].x; oz = sim.holes[0].z;
+  } else {
+    const g = arenaPeer.roster.bySlot.get(0);
+    if (g) { rx = g.x; rz = g.z; rmass = g.mass; }
+    ox = arenaPeer.renderPos.x; oz = arenaPeer.renderPos.z;
+  }
+  if (rx === null) return;
+  const w = window.innerWidth, h = window.innerHeight;
+  chevVec.set(rx, 0, rz).project(view.camera);
+  const proj = edgeProject(chevVec.x, chevVec.y, w, h,
+    RIVAL.CHEVRON_INSET_PX, chevrons.wasOffscreen(rivalSlot));
+  if (!proj.offscreen) {
+    const apart = Math.hypot(rx - ox, rz - oz) > chevFarM;
+    if (apart) {
+      const rsx = proj.x, rsy = proj.y;   // rival's on-screen position
+      chevVec.set(ox, 0, oz).project(view.camera);
+      const osx = ((chevVec.x + 1) / 2) * w, osy = ((1 - chevVec.y) / 2) * h;
+      const ang = Math.atan2(rsy - osy, rsx - osx);
+      proj.x = Math.min(w - 30, Math.max(30, osx + Math.cos(ang) * 52));
+      proj.y = Math.min(h - 30, Math.max(30, osy + Math.sin(ang) * 52));
+      proj.angle = ang;
+      proj.offscreen = true;   // "show the pointer" — apart is the arena's off-screen
+    }
+  }
+  chevrons.update(rivalSlot, proj, chevronSize(rmass));
 }
 
 // ------------------------------------------------------------------ host flow
@@ -373,21 +580,85 @@ function endMatch() {
   held.clear();
   let mine = 0, theirs = 0;
   if (role === 'host') {
-    arenaHost.sendKeyframe();   // final MATCH_OVER keyframe for the peer
+    arenaHost.sendKeyframe();   // final MATCH_OVER keyframe, per-slot eaten streams included
     mine = Math.floor(sim.holes[0].mass);
     theirs = Math.floor(rivalPresent && sim.holes[1] ? sim.holes[1].mass : 0);
   } else {
+    // Fold every pending heal into the record first — the reveal must be
+    // computed from the healed state (AC-06.2: same split even mid-heal).
+    syncPeerConsumed();
     const own = arenaPeer.ownHole();
     const g = arenaPeer.roster.bySlot.get(0);
     mine = Math.floor(own.mass);
     theirs = Math.floor(g ? g.mass : 0);
   }
-  const win = mine === theirs ? -1 : (mine > theirs ? 1 : 0);
-  el('banner-head').textContent = win < 0 ? 'DEAD HEAT' : (win ? 'YOU WIN' : `${rivalName} WINS`);
-  el('banner-head').style.color = win < 0 ? '#e9eef6' : (win ? COLOR_CSS[mySlot] : COLOR_CSS[mySlot === 0 ? 1 : 0]);
-  el('banner-lines').innerHTML =
-    `YOU &nbsp;${mine.toLocaleString()}<br>${rivalName} &nbsp;${theirs.toLocaleString()}`;
-  showOverlay('ov-banner');
+  startReveal(mine, theirs);
+}
+
+/**
+ * The territory reveal (pattern 6). The WINNER is decided by the attribution
+ * record — the same per-block, raw-mass data the craters and the bar showed
+ * all match — because that record is bit-identical on both screens by
+ * construction (AC-06.1/06.2); the score lines below it show each side's
+ * combo-multiplied points as flavor.
+ */
+function startReveal(mineScore, theirsScore) {
+  revealState = 'running';
+  const split = finalSplit(attribution, [0, 1]);
+  revealSplit = split.map((s) => s.percent);
+
+  // Build the reveal bar's segments + percent readouts, colored per slot.
+  const track = el('reveal-track');
+  const pcts = el('reveal-pcts');
+  track.textContent = ''; pcts.textContent = '';
+  const segEls = [], pctEls = [];
+  for (const s of split) {
+    const seg = document.createElement('div');
+    seg.className = 'tug-seg';
+    seg.style.background = COLOR_CSS[s.slot];
+    seg.style.width = (lastShares[s.slot] * 100) + '%';
+    track.appendChild(seg);
+    segEls.push(seg);
+    const p = document.createElement('span');
+    p.style.color = COLOR_CSS[s.slot];
+    p.textContent = '';
+    pcts.appendChild(p);
+    pctEls.push(p);
+  }
+
+  const mineIdx = mySlot, rivalIdx = mySlot === 0 ? 1 : 0;
+  const winIdx = split[0].mass === split[1].mass ? -1 : (split[0].mass > split[1].mass ? 0 : 1);
+  el('reveal-head').textContent = ' ';
+  el('reveal-lines').innerHTML =
+    `YOU &nbsp;${mineScore.toLocaleString()} PTS<br>${rivalName} &nbsp;${theirsScore.toLocaleString()} PTS`;
+  showOverlay('ov-reveal');
+
+  // The camera pull-up: from the follow window out to the FULL-CITY frame —
+  // deliberately the only moment the whole two-colored city is on screen.
+  const c0 = { cx: view.frameCX, cy: view.frameCY, hx: view.frameHalfX, hy: view.frameHalfY };
+  view.followIndex = null;   // the reveal owns the frame now
+  const reveal = new Reveal({
+    segEls, pctEls,
+    onZoom: (t) => {
+      view.setFrame(
+        c0.cx + (view.fullCX - c0.cx) * t,
+        c0.cy + (view.fullCY - c0.cy) * t,
+        c0.hx + (view.fullHalfX - c0.hx) * t,
+        c0.hy + (view.fullHalfY - c0.hy) * t,
+      );
+    },
+    skipEl: el('ov-reveal'),
+    ms: RIVAL.REVEAL_MS,
+  });
+  reveal.run(lastShares, split, () => {
+    setTimeout(() => {
+      const head = el('reveal-head');
+      head.textContent = winIdx < 0 ? 'DEAD HEAT'
+        : (winIdx === mineIdx ? 'YOU TAKE THE CITY' : `${rivalName} TAKES THE CITY`);
+      head.style.color = winIdx < 0 ? '#e9eef6' : COLOR_CSS[winIdx < 0 ? mineIdx : winIdx];
+      revealState = 'done';
+    }, reveal.reduced ? 0 : RIVAL.REVEAL_HOLD_MS);
+  });
 }
 
 function hostLeft() {
@@ -420,6 +691,8 @@ function updateHud() {
   clockEl.textContent = fmtTime(secondsLeft);
   clockEl.classList.toggle('urgent', state === 'playing' && secondsLeft <= 15);
 
+  if (state === 'playing') updateRivalSurfaces(secondsLeft);
+
   if (role === 'peer' && state === 'playing') {
     const age = arenaPeer.snapshotAgeMs();
     // Only meaningful once the stream is flowing: the peer sits through the
@@ -451,7 +724,14 @@ function frame(ts) {
         steps++;
       }
       if (accumulator >= FIXED_DT) accumulator = 0;
-      sim.drainEvents();   // main.js's drain, standing in (ArenaHost detects it by array identity)
+      // main.js's drain, standing in (ArenaHost detects it by array identity).
+      // The drained events feed the visibility layer: every eat carries the
+      // eating hole, and roster index IS the slot (AC-01.1).
+      for (const e of sim.drainEvents()) {
+        if (e.type !== 'eat' || !e.obj || e.obj.id == null) continue;
+        const s = sim.holes.indexOf(e.hole);
+        noteEat(e.obj.id, s >= 0 ? s : 0, { landmark: !!e.obj.landmark });
+      }
       if (arenaHost.over) endMatch();
     } else {
       arenaPeer.update(undefined, realDt * 1000);
@@ -463,11 +743,7 @@ function frame(ts) {
     const h1 = sim.holes[1];
     view.update([sim.holes[0], h1 || { x: 0, z: 0, radius: 0 }]);
   } else if (arenaPeer) {
-    for (const id of arenaPeer.drainConsumed()) {
-      const b = peerBlockById.get(id);
-      if (b) b.state = 'consumed';
-    }
-    arenaPeer.drainEvents();
+    syncPeerConsumed();
     const ghosts = arenaPeer.ghosts();
     const g = ghosts.get(0) || arenaPeer.roster.bySlot.get(0)
       || { x: SPAWNS[0].x, z: SPAWNS[0].z, radius: 1.1 };
@@ -531,6 +807,7 @@ el('btn-show-join').addEventListener('click', () => {
 el('btn-join-back').addEventListener('click', () => { state = 'landing'; showOverlay('ov-landing'); });
 el('btn-host-back').addEventListener('click', () => location.replace(location.pathname));
 el('btn-again').addEventListener('click', () => location.replace(location.pathname));
+el('btn-reveal-again').addEventListener('click', () => location.replace(location.pathname));
 
 const codeInput = el('code-input');
 codeInput.addEventListener('input', () => {

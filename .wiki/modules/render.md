@@ -21,6 +21,7 @@ mutates sim state.
 | `js/camera.js` | `ChaseCamera`: follow, orbit, zoom, building-occlusion pull-in, opt-in follow-direction yaw |
 | `js/controls.js` | Keyboard + touch joystick/orbit + optional world-space point-to-move → camera-relative move intents |
 | `js/skins.js` | Hole skin registry (25 skins) + heading-indicator registry (`INDICATOR_SKINS`, 6 rows) + geometry primitives + per-frame runtime; consumed by `world3d.js`/`voxelworld.js` for the mesh and re-exported by `js/ui/screens.js` for the shop |
+| `js/rival/territory-layer.js` | Rival-visibility crater tint (2026-08-11): one InstancedMesh of ground tiles colored per eater slot — written once on the eat, zero per-frame work; the pure bookkeeping half lives in `js/rival/territory.js` (see `.wiki/features/rival-visibility/`) |
 
 ## Talks To
 

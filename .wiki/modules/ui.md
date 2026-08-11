@@ -24,6 +24,7 @@ tying everything together.
 | `js/ui/sprocket.js` | Brand mark builder (`buildSprocket`) — rotating 12-tooth wheel with an empty center (the hole/protagonist), used on the landing screen |
 | `index.html` | Canvas, HUD skeleton, importmap (three vendored same-origin, `js/vendor/three.module.js` — see `architecture.md`'s Boot section and [ADR-0014](../adr/0014-vendored-same-origin-runtime.md)), inline boot watchdog |
 | `css/main.css` | HUD + screen styling, plus the unscoped `--fw-*`/`.fw-*` brand layer (tokens, wordmark/sprocket/glow/spark/CTA-pill primitives, keyframes) consumed by both `screens.js` and `ready.js` |
+| `js/rival/` | Rival-visibility HUD surfaces for the arena/hot-seat pages (2026-08-11, `.wiki/features/rival-visibility/`): `identity.js` (THE per-slot color table — every surface reads it, none defines its own), `attribution.js` (block → eater record + tallies), `tugbar.js` (coarse possession bar, no digits during play), `offscreen.js` (rival chevron), `beats.js` + `announce.js` (milestone callouts through one priority channel), `reveal.js` (end-of-match territory reveal). Not loaded by `js/main.js`; consumed by `js/demo/arena.js` and `js/demo/demo.js` |
 
 ## Gotchas
 

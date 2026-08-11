@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 ---
 
@@ -177,6 +177,30 @@ draw calls went down, not up. See the Cambridge section above.)*
    every arc, so ±20 dominates ±30 on coverage. Gated on an unmeasured check:
    whether the arc endpoint eases or snaps.
 
+### Chicago Loop sandbox — map built and wired into free play
+
+Chicago is now the seventh real-world voxel scene: `js/voxelscene-chicago.js`
+is registered in `voxelsim.js`, `AUTHORED_SCENES`, `FREE_PLAY`, and the shared
+validator contract. It is a compressed Loop/River map rather than a literal
+survey: Willis Tower's bundled setbacks and aerials, the Board of Trade,
+Marina City, the Chicago Theatre blade, Cloud Gate / Millennium Park, the
+Riverwalk, bridges, and a complete elevated Loop frame the playable route.
+The 'L' keeps Cambridge's proven structural sequence — bent, deck, rails,
+car floor, window posts, roof — while changing its livery and closing it into
+the Loop.
+
+The map is 23,151 blocks / 236,224 mass with 60 authored coins and 106
+generated camera blockers. Its sidewalk promenade route cleared 1,137 pieces,
+reached SIZE 7, and kept finite positions; a three-second idle simulation left
+all 23,151 blocks static and an ownership scan found zero overwritten fine
+cells. Reference points were checked against [CTA's Loop facts and map](https://www.transitchicago.com/facts/),
+[Willis Tower's history](https://www.willistower.com/about?c=0&p=1), and
+current Chicago imagery. The full `node tools/validate.mjs` suite was launched
+twice (10- and 20-minute allowances): its pre-Chicago stages reported no
+failure, but the existing Cambridge excursion did not complete before either
+shell limit. Re-run it on a quiet machine before committing; the Chicago-only
+structural and route checks above are current.
+
 ### Not started
 - Brooklyn voids: SW corner (exclude via a *declared named region*, never by
   narrowing a probe until it goes green) and the central 110×12 m band at
@@ -223,13 +247,13 @@ from one shared brand layer (`js/ui/blockword.js`, `--fw-*` tokens in
 the old treatment.
 
 **Progression**: the retired campaign is no longer reachable from the game.
-The five city sandboxes are replayable goal runs: each starts with the shared
+The city sandboxes are replayable goal runs: each starts with the shared
 establishing overview/READY zoom, ends after clearing 50% of that map, and contains
 60 deterministic collectible coins. A run pays 2 coins per pickup plus a 35
 coin completion bonus; this intentionally makes the skin shelf a long-term
 goal rather than a one-session unlock.
 
-**Voxel Sandbox**: physics complete and playtest-tuned, four scenes: the
+**Voxel Sandbox**: physics complete and playtest-tuned, seven scenes: the
 city gallery (~3,800 blocks, ~30 object kinds in 7 districts), **Brooklyn**
 (~39,980 blocks, bridges to Coney Island - the showcase scene, the only one
 with an establishing shot and a READY gate), **full
@@ -242,6 +266,12 @@ marina, Castle Clinton, SI Ferry Terminal + orange ferry, Custom House),
 and **Upper Manhattan** (73,393 blocks / 86,083 mass — the largest scene in
 the game — full Central Park geography + Upper West Side + Fifth Avenue/
 Museum Mile + Harlem, rebuilt 2026-08-05 from an ~8,400-block sketch).
+**Chicago** (23,151 blocks / 236,224 mass) is the newest: the Loop elevated,
+Willis Tower, Board of Trade, Riverwalk, theatre blade, Cloud Gate, and a
+Millennium Park promenade are fully playable from the city picker. Boston and
+Cambridge remain the larger east-coast city sandboxes described in
+`.wiki/modules/voxel.md`.
+
 5-class content kit (`js/voxelkit.js`: PROP/VEHICLE/SMALL_BLDG/LARGE_BLDG/
 MEGA, now 46+ builders shared across Brooklyn/Lower Manhattan/Upper
 Manhattan). Rim-driven excavation, persistent-damage crumble, loose-body
@@ -334,6 +364,7 @@ district sweep).
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
 
+- 2026-08-11: Rival visibility (phases A–D of `.wiki/features/rival-visibility/`): protocol v3 per-slot keyframe attribution, player-colored crater tiles, coarse tug-of-war bar (digits only at the end), rival chevron, milestone callouts, end-of-match territory reveal — on arena.html, craters + bar shared to multiplayer.html; new `js/rival/` layer + `js/rival/rival.test.mjs` (58 checks); same pass: arena match camera switched to the sandbox-style progressive follow-zoom + `DuelView` dirty-only block sync with out-of-view mover culling (full-city rendering was the phones' big-city FPS killer; the full frame now shows only at the reveal); patterns 3/7 deferred to the 8-player pass
 - 2026-08-10: Live multiplayer shipped end to end: `sim.holes[]` multi-hole roster (`js/voxelsim.multihole.test.mjs`), `js/net/host.js`/`peer.js` wired over a loopback proof page (`netdemo.html`, `tools/net-match-selftest.mjs` 48/48), then a real two-device arena over Supabase Realtime (`arena.html`, `js/net/arena.js`, `js/vendor/supabase-realtime.module.js` — ADR-0014 pattern), proven with a live two-browser match at https://flywheel-woad.vercel.app/arena.html; `js/voxelscene-chicago.js` shipped incidentally (committed, not yet menu-wired, a concurrent session's in-progress work)
 - 2026-08-10: Score, combo and hype (`.wiki/features/score-combo-and-hype/`, ADR-0015): score plate with animated count-up, radial combo ring that drains the 1.5 s window and reports the sim's REAL multiplier (the old pill printed a level index as `x{n}` — x2 at chain 26 while the sim paid 1.1), table-driven combo ladder at chains 2/10/15/25/50/100/350/600 topping out at a named `MAX`, points-only ruling (SIZE ladder rebased onto `rawMass`, so a hot chain buys score and not growth), 9-row consumption phrase ladder against the scene goal with a full-width band, one priority-and-source announcement queue (a coin toast no longer erases a milestone mid-sentence), per-scene `bestCombo`/`bestScore` on the results screen and in the save (schema v15 → v16)
 
