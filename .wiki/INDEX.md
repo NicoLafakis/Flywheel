@@ -2,15 +2,21 @@
 
 > Living documentation for **Flywheel** — "A sprocket's story" (repo:
 > `Flywheel`; the eat-everything mechanic itself is still called "hole" in
-> code and vocabulary — see [glossary.md](glossary.md)). Updated 2026-08-10
-> (the sim's hole roster went native — `sim.holes[]` with a `sim.hole`
-> back-compat alias, union-based support recalc, array-move steps — and the
-> hot-seat duel demo dropped its dt-slicing hack for it; the `js/net/`
-> multiplayer layer is now wired end to end and **live**: host + peer loops
-> proven over a loopback demo page, then over real Supabase Realtime in a
-> two-device arena at https://flywheel-woad.vercel.app/arena.html, none of it
-> yet called from `js/main.js` or any campaign/sandbox screen; the Cambridge
-> sandbox's map is complete and playable with hidden content still ahead).
+> code and vocabulary — see [glossary.md](glossary.md)). Updated 2026-08-11
+> (rival-progress visibility phases A-D shipped in the live arena — crater
+> tinting, tug bar, off-screen chevron, milestone callouts, end-of-match
+> territory reveal with a follow-zoom camera — plus protocol v3, so eater
+> identity survives a keyframe; a same-day physics fix made gravity uniform
+> and stopped debris teleporting onto rooftops or hanging mid-air, see
+> [findings/](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md);
+> and the Chicago Loop scene was rebuilt ground-up — playable and committed,
+> but still not reachable from the shipped menu or the arena's scene
+> allowlist. The `js/net/` multiplayer layer remains wired end to end and
+> **live**: host + peer loops proven over a loopback demo page, then over
+> real Supabase Realtime in a two-device arena at
+> https://flywheel-woad.vercel.app/arena.html, none of it yet called from
+> `js/main.js` or any campaign/sandbox screen; the Cambridge sandbox's map is
+> complete and playable with hidden content still ahead).
 
 ## What is this?
 
@@ -50,7 +56,8 @@ what each is waiting on, and what could start today.
 | [modules/](modules/) | Per-module docs with `covers:` globs: [campaign](modules/campaign.md), [citygen](modules/citygen.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
 | [adr/](adr/) | Architecture Decision Records |
 | [runbooks/](runbooks/) | Run/validate/deploy playbooks |
-| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (the `js/net/` layer is wired end to end and proven live over Supabase Realtime — a two-device arena at flywheel-woad.vercel.app/arena.html — but not yet called from `js/main.js` or any campaign/sandbox screen; accounts and leaderboards remain undesigned in code), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary; engine change, primitive layer, scene registration and all ten districts committed, Phase 7's hidden content and the Phase 8 sign-off ahead) |
+| [findings/](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md) | Root-cause analyses: [RCA-2026-08-11 skyscraper launch and hanging debris](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md) (roof-snap teleport in the debris landing test, wall-scrape vy bounce, per-material gravity — **resolved, fixed by commit 235c82d the same day**) |
+| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (the `js/net/` layer is wired end to end and proven live over Supabase Realtime — a two-device arena at flywheel-woad.vercel.app/arena.html — but not yet called from `js/main.js` or any campaign/sandbox screen; accounts and leaderboards remain undesigned in code), [rival-visibility](features/rival-visibility/README.md) (phases A-D shipped 2026-08-11 — craters, tug bar, off-screen chevron, callouts, end reveal; two patterns deferred until 8-player), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary; engine change, primitive layer, scene registration and all ten districts committed, Phase 7's hidden content and the Phase 8 sign-off ahead) |
 
 ## Feature planning packages
 
@@ -66,6 +73,17 @@ what each is waiting on, and what could start today.
   at the [README](features/online-flywheel/README.md), which points
   implementers at [00-objective-overview.md](features/online-flywheel/00-objective-overview.md)
   and Nico at [SETUP-FOR-NICO.md](features/online-flywheel/SETUP-FOR-NICO.md).
+- [features/rival-visibility/](features/rival-visibility/README.md) — making
+  a rival's progress visible in the live arena, out of a two-phone playtest
+  complaint that neither screen ever said who ate what. **Phases A-D shipped
+  2026-08-11:** per-slot color identity, per-block eater attribution, crater
+  tinting, a coarse tug-of-war bar, an off-screen chevron, milestone
+  callouts, and an end-of-match territory reveal with a follow-zoom camera —
+  shared onto the hot-seat `multiplayer.html` demo too. Closed the one real
+  protocol gap the package found: keyframes now carry per-slot eaten
+  streams, so eater identity survives a late join or a missed snapshot.
+  Two patterns (size-as-threat legibility, and its paired task) are deferred
+  until 8-player support lands.
 - [features/cambridge-sandbox/](features/cambridge-sandbox/README.md) — the
   plan for a sixth voxel sandbox scene centred on HubSpot's real Cambridge, MA
   HQ (2 Canal Park + the Davenport), and the debut vehicle for a new

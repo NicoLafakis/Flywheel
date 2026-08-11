@@ -272,7 +272,14 @@ Designed across fourteen documents in
 [features/online-flywheel/](features/online-flywheel/README.md), with the
 architecture decision recorded and **accepted on 2026-08-06** in
 [ADR-0010](adr/0010-host-authoritative-arena.md). **As of 2026-08-10 this is
-live and playable, on a standalone page, not wired into the game.** Phase 6
+live and playable, on a standalone page, not wired into the game.** As of
+2026-08-11, playing that live arena is no longer a blind race: a two-phone
+playtest surfaced that neither screen ever showed whose blocks were whose, so
+craters now tint by who ate them, an off-screen chevron points at the other
+player, milestone callouts fire, a coarse tug-of-war bar tracks who is ahead,
+and the end screen reveals the full city split by territory — see
+[features/rival-visibility/README.md](features/rival-visibility/README.md).
+Phase 6
 (the live arena, `13-tasks.md`) shipped substantially ahead of Phases 1-5 by
 product decision — Nico chose "two phones ASAP" over building the plan in
 order. `js/net/host.js` (the authority loop) and the new `js/net/peer.js`

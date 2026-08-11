@@ -23,7 +23,7 @@ authored SIZE goal and deterministic coin scatter, collects coins during
 `step()`, and emits coin/goal events. The renderer only mirrors those events.
 Each run has 60 visible coins worth 2 coins each, plus a 35-coin goal bonus;
 the save-side `recordSandboxResult()` persists completion history and rewards.
-All five sandboxes use the READY establishing-shot path in `main.js`.
+All authored city sandboxes use the READY establishing-shot path in `main.js`.
 
 Sandbox mode (title screen → VOXEL SANDBOX, NYC: LOWER MANHATTAN, or NYC: UPPER
 MANHATTAN — CENTRAL PARK): the
@@ -44,7 +44,7 @@ bottom-up, along material bond strengths.
 | `js/voxelscene-boston.js` | `buildBoston(sim)`: Seaport, Fort Point and the BCEC (82,894 blocks, 2.0 blocks/m²) — see the Boston section below |
 | `js/voxelforms.js` | The twelve anisotropic primitives ADR-0013 unlocked (`slab`, `column`, `beam`, `panel`, `mullion`, `cornice`, `pier`, `plinth`, `tread`, and the rest), sitting below `js/voxelkit.js`. Geometry only — no named buildings, no city semantics. Pure sim |
 | `js/voxelscene-cambridge.js` | `buildCambridge(sim)`: East Cambridge around 2 Canal Park, the first scene authored in the `voxelforms.js` vocabulary. All ten districts built and the map complete at 72,943 blocks with the dead-ground census at zero; wired into the sim's scene dispatch, `AUTHORED_SCENES` and `FREE_PLAY`, and validated by `validateCambridge()`. Phase 7's hidden content and the Phase 8 sign-off are still ahead |
-| `js/voxelscene-chicago.js` | **Committed 2026-08-10 (92efbf2) but not yet reachable from any menu.** A concurrent, in-progress session's scene file landed in the multi-hole commit because `voxelsim.js` already imports it; without the file every page 404'd on deploy, so it was shipped as-is to unbreak the site. It parses and the sim boots against it, but scene registration (`AUTHORED_SCENES`/`FREE_PLAY`) and menu wiring are not done — `js/main.js`, `js/ui/screens.js`, and `tools/validate.mjs` all have uncommitted edits toward that in the other session's working tree as of this sync. Do not treat it as a shipped seventh scene yet |
+| `js/voxelscene-chicago.js` | `buildChicago(sim)`: the Loop and Chicago River map, ground-up rebuilt on the Cambridge method (44,578 blocks, SIZE 7 reachable via `tools/chicago-probe.mjs`). Real street grid single-sourced through `CHICAGO_STREETS`; the river wraps north and west with three bascule bridges (LaSalle, State, DuSable); the 'L' Loop is a full four-corner elevated circuit (Lake/Wabash/Van Buren/Wells) with three stations (State/Lake, Washington/Wabash, Quincy) and a four-car CTA train riding it continuously via the new render-only mover seam. ~15 named landmarks (Willis Tower, Board of Trade/Ceres, Marina City, the Chicago Theatre blade, Cloud Gate, Wrigley, Tribune, and more). **Committed and playable, but as of this sync NOT reachable from the shipped title-screen menu:** `js/main.js`'s `AUTHORED_SCENES` entry, `js/ui/screens.js`'s free-play chip, and `tools/validate.mjs`'s `validateChicago()` gate are uncommitted in a concurrent session's working tree, and `chicago` is deliberately absent from `js/net/protocol.js`'s `ARENA_SCENES` allowlist ("ships later"). Verify with the dev-only `tools/scene-view.html?scene=chicago` or `node tools/chicago-probe.mjs`, not the live menu, until that wiring lands |
 | `js/voxelworld.js` | `VoxelWorld3D`: one `InstancedMesh` per material + brick size with per-instance paint colors, cached static transforms, and per-frame dynamic motion; renders `sceneDecor` (roads/sidewalks/parks/bike paths/markings/water) |
 | `js/voxelsurfaces.js` | three.js binding for `voxeltiles.js`'s procedural surface registry (canvas-generated textures for `sim.sceneSurfaces`); zero cost until a scene names a surface. Owns the metals-only PMREM-probe rule — see the Boston section below |
 
@@ -112,16 +112,24 @@ Three layers, cheapest first:
    damage fraction (`instanceColor`), making the failure front visible.
    Detached connected regions (≤`FRESH_WINDOW`) flood-fill into rigid chunks
    without crossing edges below `GROUP_BOND` — steel frames stay whole,
-   glass shears off. Chunks get mass-scaled gravity (`fallG(avgMass)` —
-   heavier material falls faster), rim torque, attraction-zone inward pull,
-   and ground-impact splitting along the weakest bonds.
+   glass shears off. Chunks get uniform gravity (`_fallG` returns
+   `tune.gravity` unconditionally as of 2026-08-11, RCA-2026-08-11 fix 3 —
+   material density used to scale it, up to a 2.3x spread between glass and
+   steel, which the product owner overruled: every block now accelerates
+   downward identically), rim torque, attraction-zone inward pull, and
+   ground-impact splitting along the weakest bonds.
 3. **Debris** — groups < 3 blocks and all `loose`-material blocks get cheap
-   individual physics: mass-scaled gravity, bounce, friction, rim tip-over
-   (only when the hole-facing edge really overhangs the void), inward
-   funnel. The vacuum acts only on airborne/sliding bodies — grounded
+   individual physics: uniform gravity (same `_fallG` fix), bounce, friction,
+   rim tip-over (only when the hole-facing edge really overhangs the void),
+   inward funnel. The vacuum acts only on airborne/sliding bodies — grounded
    blocks feel no attraction — and debris sleeps anywhere once slow,
    grounded, and contact-free (the hole wakes sleepers when it reaches
-   them; support loss wakes the rest).
+   them; support loss wakes the rest). Landing and vertical-contact tests
+   only accept a support surface the block's pre-move base was at or above
+   (`_supportBelow` walks the grid downward for the real support otherwise,
+   and the `vy` bounce on contact only fires for floor-character hits) — see
+   the gotcha below; RCA-2026-08-11 has the full mechanism and numeric
+   reproduction, resolved by commit 235c82d.
 4. **Loose-body contacts** (`_resolveDebrisContacts`) — debris never
    interpenetrates: AABB overlap tests between near-resting debris, sleeping
    debris, chunk members, and falling rain, separated along the least-
@@ -206,18 +214,16 @@ a level; Upper Manhattan also floors `eatenCount ≥ 300`.
 
 ## Scenes
 
-Five scenes share the sim (`new VoxelSandboxSim({ scene })`, default
-`'gallery'`): `gallery`, `manhattan`, `upper-manhattan`, `brooklyn`, `boston`.
-A sixth, **Cambridge**, is authored in `js/voxelscene-cambridge.js` — all ten
-districts are built and committed, the file is imported by `voxelsim.js` and
-listed in `AUTHORED_SCENES` / `FREE_PLAY`, and `validateCambridge()` gates it in
-`tools/validate.mjs`. Phase 7's hidden content, glyphs and achievements and the
-Phase 8 sign-off are still ahead. See
+Seven scene files exist and the sim can boot any of them
+(`new VoxelSandboxSim({ scene })`, default `'gallery'`): `gallery`,
+`manhattan`, `upper-manhattan`, `brooklyn`, `boston`, `cambridge`, and
+`chicago`. Six are reachable from the shipped title-screen menu today.
+Cambridge is the full ten-district East Cambridge map documented in
 [features/cambridge-sandbox/](../features/cambridge-sandbox/README.md).
-A seventh scene file, `js/voxelscene-chicago.js`, is committed but not
-registered in `AUTHORED_SCENES`/`FREE_PLAY` — see the Key Files table's entry
-for it. It is a different, in-progress session's work and is not part of the
-Cambridge package.
+Chicago is a complete, playable Loop map (see the Key Files table's entry for
+what it contains) but is not yet wired into the shipped menu or the live
+arena's scene allowlist — that wiring is a separate, concurrent session's
+uncommitted work as of this sync; see the chicago section below.
 `js/main.js`'s `AUTHORED_SCENES` table is the single source of truth for which
 scenes are real places (label text, HUD text, and whether an `intro`
 establishing shot/READY-gate framing applies) — see Talks To below. Scene
@@ -229,6 +235,49 @@ left ~36 m of empty harbor south of the last block), `sim.sceneDecor`
 (render-only roads/parks/water planes) and `sim.cameraBlockers`
 (building AABBs for the chase cam's occlusion pull-in — stale after a
 tower falls, accepted).
+
+### chicago (CHICAGO: THE LOOP AND THE CHICAGO RIVER)
+
+44,578 blocks / ~254,000 mass over `x[-120,108] z[-116,84]`, ground-up rebuilt from a prior
+map the product owner rejected as misaligned, oddly bright, and missing the
+el's corners. Every road, kerb, crossing and el segment is now derived from
+one declared street table (`CHICAGO_STREETS`) so the four can never disagree
+again. The Chicago River wraps the north and west edges (Main Branch,
+South Branch, Wolf Point) and is crossed by three bascule bridges — LaSalle,
+State, and the double-width DuSable at Michigan — each with tender houses.
+South of the river is the real numbered grid (Wacker, Wells, LaSalle, State,
+Wabash, Michigan north-south; Wacker, Lake, Washington, Monroe, Adams,
+Van Buren east-west). The 'L' Loop is a genuine four-corner elevated circuit
+over Lake/Wabash/Van Buren/Wells, with corner posts, corner decks and
+stepped-arc special work at all four junctions, and three stations
+(State/Lake, Washington/Wabash, Quincy) with cantilevered platforms and
+canopies. A four-car CTA train runs the circuit continuously via the new
+render-only mover seam (`sim.sceneMovers` + pure `moverArc`/`moverPose` in
+`js/voxelsim.js`, an instanced mover pass in `js/voxelworld.js`) — pose is a
+pure function of the deterministic sim clock, so host and peer render the
+same train, and future movers (boats, streetcars) get the seam for free.
+
+~15 named landmarks at their real relative positions: Willis Tower's nine
+bundled setback tubes, the Board of Trade closing the LaSalle vista with
+Ceres on its pyramid, Marina City's two corncob drums, the Mies-black IBM
+slab, the Wrigley Building and Tribune Tower on the north bank, the Chicago
+Theatre's gold CHICAGO blade, Harold Washington Library, the Carbide & Carbon
+tower, and Millennium Park (Cloud Gate, Crown Fountain, the Pritzker
+trellis). Palette is low-chroma steel/limestone/terracotta with exactly four
+saturated hero accents (Willis crown/antennas `0xdfe3e7`, Ceres `0xaebbc3`,
+the Theatre's gold blade `0xd9a832`, Cloud Gate's chrome `0xc9d2d8`), each
+guarded by `probeHeroIdentity` so no stray bright block appears elsewhere.
+Park lawns render correctly (df82cf0 — the shared
+sidewalk sheet used to bury Millennium Park's grass; it now stops at park
+edges) and the empty band east of Michigan/north of the park carries a
+Prudential/Aon tower pair. `tools/chicago-probe.mjs` is the headless
+correctness gate (SIZE-7 deterministic route, block count, idle stability);
+`tools/scene-view.html?scene=chicago` is a dev-only viewer for eyeballing an
+unwired scene against the deployed build without touching menu code.
+
+**Not yet shipped.** The scene file itself is committed, but reaching it
+requires either the dev tools above or code that has not landed yet: see the
+Key Files table entry above for exactly which files are uncommitted.
 
 ### gallery (VOXEL SANDBOX)
 
@@ -544,9 +593,24 @@ especially
 - Multi-size gotchas: direction tests use y-range overlap (a block is
   "above" only when entirely above), not `gy` equality; consumption is
   top-sinks-below `SINK_Y`, not a center threshold (a 2 m block vanishing at
-  center 0.35 would pop out of existence visibly above ground); fall speed
-  uses density, never total block mass, or big slabs would out-fall small
-  bricks of the same material.
+  center 0.35 would pop out of existence visibly above ground). Fall speed is
+  uniform gravity as of 2026-08-11 (`_fallG` returns `tune.gravity`
+  unconditionally) — density still drives mass, bonds and scoring, just not
+  acceleration; before this fix density scaled gravity too, which the
+  product owner overruled (glass fell 0.64x concrete's rate).
+- **`_topAt` answers "highest surface in this column" (occlusion), not
+  "highest surface below me" (support) — a caller that conflates the two
+  teleports debris onto rooftops.** A ground-level block whose footprint
+  overlaps a still-standing tower's column used to read the tower's roof as
+  its landing surface and snap there in one step (measured up to 30.9 m in a
+  single frame; RCA-2026-08-11). Landing and +y-contact tests now only
+  accept a support the block's pre-move base was at or above; when rejected,
+  `_supportBelow` walks the grid downward for the real support instead. Any
+  future caller of `_topAt`/`_top` must state which question it is asking —
+  the two only agree in open terrain. The paired symptom (mid-air hover) was
+  a floor-only vertical bounce firing on pure facade scrapes, cancelling
+  gravity every frame; the `vy` reflection now gates on floor-character
+  contact. Regression coverage: `js/voxelsim.gravity.test.mjs`.
 - HUD: `hole.mass` is combo-inflated (can exceed the world total) and is now
   the displayed SCORE, on its own plate under the goal bar. The goal
   bar/label, the milestone ladder **and the SIZE ladder** all read

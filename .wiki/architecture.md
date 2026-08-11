@@ -148,6 +148,26 @@ Its invariants hold as designed: the net layer never writes sim state outside
 other assignment to a sim field), it never imports three.js, a client's score
 is never the record, and the network is optional at every point.
 
+**Rival visibility, phases A-D shipped (2026-08-11), new `js/rival/` ring:**
+out of a live two-phone playtest complaint ("no sense of whose blocks were
+eaten"), a render-only layer sits on top of the net/sim boundary without
+writing sim state — `js/rival/identity.js` (per-slot color identity),
+`attribution.js` (per-block eater record), `territory.js` +
+`territory-layer.js` (crater tinting), `tugbar.js` (coarse-until-the-end
+tug-of-war bar), `offscreen.js` (off-screen/apart rival chevron),
+`beats.js`/`announce.js` (milestone callouts), and `reveal.js` (end-of-match
+territory reveal, paired with a new follow-zoom arena camera that only pulls
+back to a full-city view at that reveal). This closed the one real wire gap
+the package found: **protocol v3** (`js/net/protocol.js`) adds per-slot eaten
+RLE streams to keyframe payloads, so a client healing from a keyframe (a late
+joiner, or any peer that fell behind) learns *who* ate a block, not just that
+it was eaten — previously the keyframe's eaten bitset was anonymous. Craters
+and the tug bar are also shared onto the hot-seat `multiplayer.html` demo.
+Headless coverage: `js/rival/rival.test.mjs`. Two patterns from the package's
+seven (size-as-threat legibility and its own tasks T11/T12) are deliberately
+deferred until 8-player support lands, per the package's build order — see
+[features/rival-visibility/README.md](features/rival-visibility/README.md).
+
 **Also built (2026-08-10), separate surface:** `multiplayer.html` + `js/demo/`
 is a hot-seat two-player demo — two holes sharing one gallery sim, rendered by
 its own overhead camera (`js/demo/view.js`) and its own loop

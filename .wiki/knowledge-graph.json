@@ -1,15 +1,15 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-11T02:28:17+00:00",
+    "generatedAt": "2026-08-11T18:09:55+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
-      "files": 57,
+      "files": 70,
       "symbols": 27,
       "edges": 8,
       "modules": 2,
-      "reusedFromCache": 56
+      "reusedFromCache": 47
     }
   },
   "files": {
@@ -52,16 +52,16 @@
     },
     "js/demo/arena.js": {
       "lang": "javascript",
-      "hash": "21bbb3cd28a82c2abb31c7cdae4e1963e6be2dd25368dd0a9d4b26ef0b69a694",
-      "loc": 507,
+      "hash": "48dd052567e562ae8dfac4bf3830aaa24d1537ec3309e462111430e382ab7be1",
+      "loc": 846,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/demo/demo.js": {
       "lang": "javascript",
-      "hash": "e045e788126623734cf6e6e866dc3d71933beda628b9697cb60941974f367f8d",
-      "loc": 167,
+      "hash": "a235b14a6e7a017de8558eef6f60e4ee2ba4487b92a6f7aaf08291df0b26a838",
+      "loc": 197,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -92,8 +92,8 @@
     },
     "js/demo/view.js": {
       "lang": "javascript",
-      "hash": "f6e82dc65f37240ae71baf95935668e88275e5a2217eec0202a88b66bbbbd672",
-      "loc": 215,
+      "hash": "5e89c7ea346447c0ba4c71c16e60730d8664f9ab2b00e6756932152c352e6fae",
+      "loc": 359,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -116,8 +116,8 @@
     },
     "js/net/arena.js": {
       "lang": "javascript",
-      "hash": "0e1e15a2e12f5b4620768bf231e190abb452f3a7b168a1b63fa11fc0db384f05",
-      "loc": 316,
+      "hash": "c833aeb012587531e29838495da2014b89af0dddfd1d9d8375e0fd6dfb00d2e2",
+      "loc": 343,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -140,24 +140,24 @@
     },
     "js/net/host.js": {
       "lang": "javascript",
-      "hash": "86abf9692361463a0967a70bea7a26633298d521fd136b50f9ce42998b79f1f3",
-      "loc": 302,
+      "hash": "9c592ba2e6cf7dea8f2a470d9ad35489eeadedbdb197016be682f300ae5f52e7",
+      "loc": 337,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/net/peer.js": {
       "lang": "javascript",
-      "hash": "3de6cd45a92d0baf821f369280babdb6274bdd73cac25e5075ba9fbbfd93c129",
-      "loc": 372,
+      "hash": "e0d078c240ea60b8ecc37b8d2dfda9830507d20d76ae43eeeaacced43df915d7",
+      "loc": 384,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/net/protocol.js": {
       "lang": "javascript",
-      "hash": "d56c2b6d2f612e4b2c6ded7ee54189cbe58392b3b7b4d74f27b57f088f42b6e4",
-      "loc": 486,
+      "hash": "84f7c9cf46cd6e3c6a40193e26964a0ca96e287a8a0c318fc83e590b571de298",
+      "loc": 588,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -190,6 +190,94 @@
       "lang": "javascript",
       "hash": "cff0d7720df128278f3f7f063b79ecdb65baded44c4ce25b172e21b5b9465cc3",
       "loc": 57,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/rival/announce.js": {
+      "lang": "javascript",
+      "hash": "5b8952449acaf7f1b08e79ff51b1c8ba600b8435ae8e85c1c6df7e9357e0ad9a",
+      "loc": 65,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/rival/attribution.js": {
+      "lang": "javascript",
+      "hash": "2a4f8c23a1d14dd8d79a4a40437e1a7ba61d330f76dbff26d5b2a47fb25bca19",
+      "loc": 110,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/rival/beats.js": {
+      "lang": "javascript",
+      "hash": "865ec8be15a31c38d2f5d39675a5bfd183edcaf5b9ed71dde2bcd9ecaf115fec",
+      "loc": 108,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/rival/constants.js": {
+      "lang": "javascript",
+      "hash": "b421e41d1366f8f9b94ce6f9b8f9b2a13f893982c1f83fd7cc74a4e060842e87",
+      "loc": 60,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/rival/identity.js": {
+      "lang": "javascript",
+      "hash": "d92a8205c6c378bf80ebe2ba4b7b1640c6344c5de9627a297a13c07e0f457272",
+      "loc": 40,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/rival/offscreen.js": {
+      "lang": "javascript",
+      "hash": "58571702cf194e2822020dcdc9d91cb417872efd084a555178b36c50f354974a",
+      "loc": 112,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/rival/reveal.js": {
+      "lang": "javascript",
+      "hash": "4815a3e678d3d357f83e631dacb4f64e7185e22a3f4273376c3ea8ccff5317cd",
+      "loc": 72,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/rival/rival.test.mjs": {
+      "lang": "javascript",
+      "hash": "7bfa08f33a2586b2deb58ac0552adfaeb4311d37b07147d5902f39daf4f1fc5a",
+      "loc": 319,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/rival/territory-layer.js": {
+      "lang": "javascript",
+      "hash": "783e4994a25bf73c4d7a9da0418a9fc6777b511794187b4cc772133cba34d131",
+      "loc": 62,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/rival/territory.js": {
+      "lang": "javascript",
+      "hash": "d7c87b09e9a6fe3b10baea1a7f37f88a68c90ed53a1ad2ad0d97486819ab9c7d",
+      "loc": 67,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/rival/tugbar.js": {
+      "lang": "javascript",
+      "hash": "9f942b89500dc66508e301d67caf657247cd3e3082e69ef5249e7f1bb9686235",
+      "loc": 71,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -393,8 +481,8 @@
     },
     "js/voxelscene-chicago.js": {
       "lang": "javascript",
-      "hash": "a9d39a7532708ec44277b5c232fadc05af43e18d11018cee85c3deae2eef9314",
-      "loc": 582,
+      "hash": "10fc51878ecc59d9c5d7c3a873ec63b709146b030fd08bb2c9d74b7358bdb4d5",
+      "loc": 1199,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -428,10 +516,18 @@
       "symbols": [],
       "imports": []
     },
+    "js/voxelsim.gravity.test.mjs": {
+      "lang": "javascript",
+      "hash": "d59e75c215a100810e2d5ed2d5894e4c68f585644211e85417d5c73c01dffe21",
+      "loc": 108,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
     "js/voxelsim.js": {
       "lang": "javascript",
-      "hash": "858e9a7eb23c283a6cc3ec0c352c80e67e4aca35fe286519eda0f900bec135c8",
-      "loc": 2798,
+      "hash": "8fe0f036363286f5c881a454f0cc8e3f5ca7a4fa91e679ad336311aebb4f5e85",
+      "loc": 2907,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -462,8 +558,8 @@
     },
     "js/voxelworld.js": {
       "lang": "javascript",
-      "hash": "0ea6e4dcfd2ca9c9f0c8d9e204d0deb19716b276fabba8cb9b379f564ba4495d",
-      "loc": 2601,
+      "hash": "0c0edae133e584b9b206104b98741512607d51736c77908df84ee303ff2888b8",
+      "loc": 2684,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -608,8 +704,16 @@
     },
     "tools/arena-selftest.mjs": {
       "lang": "javascript",
-      "hash": "46c5c30436337feb00ba3243f74231a27aadf9e84c0fe0c91a6a346769133901",
-      "loc": 205,
+      "hash": "e7399b4d50fb1af1c24285e93d0e8c5727a6501b75b08d3d7708c05e630cbfbf",
+      "loc": 341,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/chicago-probe.mjs": {
+      "lang": "javascript",
+      "hash": "56d1687cb0f3add65b5098e9ba29e7b18303124d0d7d1816b2aec60e3e4b9b39",
+      "loc": 383,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -624,7 +728,7 @@
     },
     "tools/net-live-selftest.mjs": {
       "lang": "javascript",
-      "hash": "4e9bd8a7b890e29dd1dec797a1c782dbc3bf63778aad71b005bba52f76b58766",
+      "hash": "6b4b3164f3953d3cf04503fd463971197bad775eb6f3e987078c08231c755d4f",
       "loc": 206,
       "module": "tools",
       "symbols": [],
@@ -632,7 +736,7 @@
     },
     "tools/net-match-selftest.mjs": {
       "lang": "javascript",
-      "hash": "d36c323b514177a8f927a2269bff5275952c0371b4e39f94f6b0fbc72c43fe3e",
+      "hash": "ef8b62e57d4a4afb57ee6e6b505675a84e0c5185efa1c1a3325b9ba0304f41d0",
       "loc": 327,
       "module": "tools",
       "symbols": [],
@@ -640,7 +744,7 @@
     },
     "tools/net-selftest.mjs": {
       "lang": "javascript",
-      "hash": "1d2eab01fe89457804d6c15db3a881b5365e462ac06f74b974051dbead4410d8",
+      "hash": "0a2ed8c3690d991e77de75bdf5267b226dabf81bfef2f99111816b24b7395966",
       "loc": 481,
       "module": "tools",
       "symbols": [],
@@ -753,6 +857,17 @@
         "js/net/supabase-config.js",
         "js/net/transport.js",
         "js/quality.js",
+        "js/rival/announce.js",
+        "js/rival/attribution.js",
+        "js/rival/beats.js",
+        "js/rival/constants.js",
+        "js/rival/identity.js",
+        "js/rival/offscreen.js",
+        "js/rival/reveal.js",
+        "js/rival/rival.test.mjs",
+        "js/rival/territory-layer.js",
+        "js/rival/territory.js",
+        "js/rival/tugbar.js",
         "js/rng.js",
         "js/save.js",
         "js/sim.js",
@@ -773,6 +888,7 @@
         "js/voxelscene-chicago.js",
         "js/voxelscene-manhattan.js",
         "js/voxelscene-upper-manhattan.js",
+        "js/voxelsim.gravity.test.mjs",
         "js/voxelsim.js",
         "js/voxelsim.multihole.test.mjs",
         "js/voxelsurfaces.js",
@@ -784,6 +900,7 @@
     "tools": {
       "files": [
         "tools/arena-selftest.mjs",
+        "tools/chicago-probe.mjs",
         "tools/gen-partner-logo.mjs",
         "tools/net-live-selftest.mjs",
         "tools/net-match-selftest.mjs",
