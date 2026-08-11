@@ -310,8 +310,10 @@ export const CHICAGO_DECOR = {
     { x: 21, z: -74, w: 3.5, d: 16.5, color: 0x6f6a63 }, // the theatre alley
   ],
   sidewalks: [
-    { x: -102, z: -84, w: 210, d: 168, color: 0x99968d },// the Loop's whole land sheet
-    { x: -104, z: -116, w: 212, d: 14, color: 0x99968d },// the north bank
+    { x: -102, z: -84, w: 164, d: 168, color: 0x99968d },// the Loop's land sheet, to the park edge
+    { x: 62, z: -84, w: 46, d: 38, color: 0x99968d },    // east of Michigan, north of the park
+    { x: -104, z: -116, w: 110, d: 14, color: 0x99968d },// north bank, west of the pocket lawn
+    { x: 36, z: -116, w: 72, d: 14, color: 0x99968d },   // north bank, east of it
   ],
   roads: DECOR_ROADS,
   rail: [],
@@ -769,6 +771,10 @@ function buildLoopBlocks(sim) {
   masonryTower(sim, { x: 34.5, tiers: [{ z: 9, w: 18, d: 16, h: 24 }], color: 0xb0a89a, alt: 0xa79f8f, trim: 0x9d9583, roof: 0x8c8578 });
   shellTower(sim, { x: 34.5, z: 37, w: 18, d: 16, h: 30, color: 0x6f7d86, alt: 0x66747d, roof: 0x5e6b73 });
   shellTower(sim, { x: 35, z: 66, w: 16, d: 16, h: 34, color: C.cna, alt: C.cnaDeep, roof: 0x7c332b });
+  // East of Michigan, north of the park: the Prudential/Aon pair closing the
+  // park's north edge.
+  shellTower(sim, { x: 66, z: -75, w: 12, d: 14, h: 44, color: 0x9a9484, alt: 0x918b7b, roof: 0x847e6f });
+  shellTower(sim, { x: 84, z: -74, w: 10, d: 12, h: 48, color: 0xaeb2ae, alt: 0xa5a9a5, roof: 0x9a9e9a });
 }
 
 // ------------------------------------------------------------------ the L ---
