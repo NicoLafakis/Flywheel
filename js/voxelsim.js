@@ -47,8 +47,10 @@ const FINE = 0.25;          // fine grid resolution (m); blocks are fs fine cell
 const COLLISION_CELL = 1;   // coarse broad-phase cell for moving-body vs solid queries
 // 2.5× real-feel gravity: blocks SLAM (playtest: 26 read as floating).
 // Harder impacts also split/bounce/scatter more — spill is the intent.
-// Heavier material falls faster (game feel, not physics class): glass ~0.6×,
-// steel ~1.5× — driven by DENSITY so block size doesn't change fall speed.
+// Gravity is UNIFORM across materials (owner ruling, 2026-08-11): the launch
+// bug's RCA measured glass at 44 m/s² beside steel at 101 and the per-density
+// spread read as broken slow motion, not weight. Density still drives mass
+// accounting, bonds and scoring — just not the fall rate.
 // All of gravity/wave/creak/speed/attract is live-tunable via sim.tune
 // (dev sliders in SETTINGS); these constants are just the defaults. A zero
 // creak setting makes support loss detach on the next sim step.
@@ -332,6 +334,7 @@ export class VoxelSandboxSim {
     this._debrisCursor = -1;    // _stepDebris
     this._groupCursor = -1;     // _groupChunks (via _makeChunk sweeping a sleeper)
     this._scStamp = 0;         // _resolveStaticContacts dedup generation
+    this._scFloorHit = false;  // set by _pushAxis on a +y resolution — "this contact had floor character"
     // Support zones: the connectivity graph splits into physically separate
     // structures, and the support BFS never crosses between them (see
     // _buildZones). Only zones the hole can actually perturb are recomputed.
@@ -1632,9 +1635,10 @@ export class VoxelSandboxSim {
     return dx * dx + dz * dz <= p.remR2;
   }
 
-  // fall acceleration for a material density — driven by tune.gravity, with
-  // the same density spread as the default (glass ~0.6×, steel ~1.5×)
-  _fallG(density) { return this.tune.gravity * (0.4 + 0.6 * (density / 2)); }
+  // fall acceleration — UNIFORM for every material (see the gravity note at
+  // the top). The density parameter is kept so call sites stay stable; it no
+  // longer scales anything.
+  _fallG(density) { void density; return this.tune.gravity; }
 
   // --- solid-surface heightmap (block-vs-block collision) ---------------------
 
@@ -1694,7 +1698,13 @@ export class VoxelSandboxSim {
     }
   }
 
-  // highest solid surface under a footprint at (x,z), 0 = bare ground
+  // Highest solid surface IN THE COLUMN of a footprint at (x,z), 0 = bare
+  // ground. This is an occlusion answer, not a support answer: for a block
+  // standing BESIDE or UNDER a tall structure it returns the structure's
+  // roof. Any caller asking "what can I land on" must reject a result above
+  // the block's own base and fall back to _supportBelow — treating "below the
+  // surface" as "landed on the surface" was the skyscraper-launch bug
+  // (RCA 2026-08-11).
   _topAt(x, z, fsx, fsz) {
     const gx0 = Math.round(x / FINE - fsx / 2), gz0 = Math.round(z / FINE - fsz / 2);
     const top0 = this._top;
@@ -1706,6 +1716,30 @@ export class VoxelSandboxSim {
       }
     }
     return top;
+  }
+
+  // The SUPPORT answer _topAt cannot give: the highest solid top under b's
+  // footprint that is at or below `yBase` (the block's pre-move base), walking
+  // each column downward through the grid the way _topRemove does. A column
+  // entered mid-structure (the block is embedded beside a taller solid) skips
+  // past that solid and keeps walking down. Deterministic — grid state only.
+  _supportBelow(b, yBase) {
+    const fx = Math.round(b.x / FINE - b.fsx / 2);
+    const fz = Math.round(b.z / FINE - b.fsz / 2);
+    const fyTop = Math.max(0, Math.floor(yBase / FINE + 0.2));
+    let best = 0;
+    for (let ix = 0; ix < b.fsx; ix++) {
+      for (let iz = 0; iz < b.fsz; iz++) {
+        for (let cy = fyTop; cy >= 0;) {
+          const o = this.grid.get(key(fx + ix, cy, fz + iz));
+          if (!o || (o.state !== 'static' && o.state !== 'unstable')) { cy--; continue; }
+          const t = (o.gy + o.fsy) * FINE;
+          if (t <= yBase + 0.05) { if (t > best) best = t; break; }
+          cy = o.gy - 1; // inside/beside a taller solid: keep walking down
+        }
+      }
+    }
+    return best;
   }
 
   // first SOLID block overlapping b's leading side face or bottom face —
@@ -1961,8 +1995,14 @@ export class VoxelSandboxSim {
           if (cb.y + cb.sy / 2 <= SINK_Y) { this._consume(cb, vh.h); continue; }
         } else {
           // impact on ANY solid surface — rooftops, rims, debris piles; and
-          // hard contacts smash (damage) whatever the chunk hits
-          const topHit = cb.y <= this._topAt(cb.x, cb.z, cb.fsx, cb.fsz) + cb.sy / 2 + 0.05;
+          // hard contacts smash (damage) whatever the chunk hits. Same
+          // pre-move-base guard as the debris landing: a chunk sliding BESIDE
+          // a tower must not read the tower's roof as an impact surface.
+          let surf = this._topAt(cb.x, cb.z, cb.fsx, cb.fsz);
+          const preBase = cb.y - cb.sy / 2 - Math.min(0, c.vy) * dt;
+          cb._yPrevBase = preBase; // read by _separate's +y gate
+          if (surf > preBase + 0.05) surf = this._supportBelow(cb, preBase);
+          const topHit = cb.y <= surf + cb.sy / 2 + 0.05;
           const directionalHit = topHit ? null : this._contact(cb, c.vx, c.vz);
           const solidHit = topHit || directionalHit ? this._resolveStaticContacts(cb) : null;
           if (solidHit || topHit || directionalHit) {
@@ -2099,6 +2139,12 @@ export class VoxelSandboxSim {
           }
         }
       }
+      // Pre-move base: the landing tests below may only accept a surface the
+      // block was actually ABOVE before this step's motion. Without that
+      // guard, _topAt's column maximum teleported ground-level debris onto
+      // the roof of the still-standing tower beside it (RCA 2026-08-11).
+      const yPrevBase = b.y - b.sy / 2;
+      b._yPrevBase = yPrevBase; // read by _separate's +y gate (see there)
       b.vy -= this._fallG(b.mat.mass) * dt;
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
       b.rotX += b.vRotX * dt; b.rotZ += b.vRotZ * dt;
@@ -2112,14 +2158,20 @@ export class VoxelSandboxSim {
       // The directional/top probes cheaply identify likely contacts. Only
       // then run the full AABB separation against nearby solid buckets; open
       // air never pays for a city-wide overlap scan.
+      let surf = this._topAt(b.x, b.z, b.fsx, b.fsz);
+      if (surf > yPrevBase + 0.05) surf = this._supportBelow(b, yPrevBase);
       const directionalHit = this._contact(b, b.vx, b.vz);
-      const topHit = b.y <= this._topAt(b.x, b.z, b.fsx, b.fsz) + b.sy / 2 + 0.05;
+      const topHit = b.y <= surf + b.sy / 2 + 0.05;
+      this._scFloorHit = false;
       const hit = topHit || directionalHit
         ? this._resolveStaticContacts(b) || directionalHit
         : null;
       if (hit) {
         b.vx *= 0.5; b.vz *= 0.5;
-        if (b.vy < 0) b.vy *= -0.25;
+        // The vy reflection is a FLOOR response. Applied on any hit it turned
+        // a facade scrape into an every-frame gravity cancel — the mid-air
+        // hover of RCA 2026-08-11. A block scraping a wall keeps falling.
+        if ((topHit || this._scFloorHit) && b.vy < 0) b.vy *= -0.25;
         if (Math.abs(b.vy) > 5) {
           hit.damage = Math.min(0.95, hit.damage + 0.1);
           this._watchDamage(hit);
@@ -2129,14 +2181,18 @@ export class VoxelSandboxSim {
       // bodies contacted last step count as support too — without that, a
       // block landing on awake rubble sinks to ground level inside it and
       // gets squirted out sideways, and the pile never solidifies.
-      let support = this._topAt(b.x, b.z, b.fsx, b.fsz);
+      let support = surf;
       let looseSup = false;
       const rl = b._restLoose;
       b._restLoose = null; // re-set by this step's contact pass if still touching
       if (rl && rl.state === 'falling' && !rl.asleep) {
         const hSumX = (b.sx + rl.sx) / 2, hSumZ = (b.sz + rl.sz) / 2;
         const top = rl.y + rl.sy / 2;
-        if (Math.abs(b.x - rl.x) < hSumX && Math.abs(b.z - rl.z) < hSumZ && top > support) {
+        // Same pre-move-base rule as every other landing: a loose neighbour
+        // only counts as support if the block was above its top last step —
+        // a sideways embed in rubble must not hoist the block onto the pile.
+        if (Math.abs(b.x - rl.x) < hSumX && Math.abs(b.z - rl.z) < hSumZ &&
+            top > support && top <= yPrevBase + 0.05) {
           support = top;
           looseSup = true;
         }
@@ -2530,9 +2586,19 @@ export class VoxelSandboxSim {
       b._inContact = true; // blocks sleep only when (meaningfully) contact-free
       if (movableO) o._inContact = true;
     }
+    // A +y resolution against a STATIC solid is a landing, and a landing is
+    // only legitimate on a surface the block was at or above before this
+    // step's motion. Without the gate, a block embedded beside a standing
+    // tower is ratcheted up its wall column one cell per contact — the whole
+    // bucket resolves in one call, so the "climb" is a single-step teleport
+    // to the roof (RCA 2026-08-11's launcher, second guise). Deep embeds
+    // eject laterally instead, which is also what looks right.
+    const upBlocked = !movableO && dy >= 0 &&
+      (b._yPrevBase === undefined || b._yPrevBase < o.y + o.sy / 2 - 0.05);
     if (px <= py && px <= pz) this._pushAxis(b, o, 'x', dx >= 0 ? 1 : -1, px, movableO);
-    else if (py <= px && py <= pz) this._pushAxis(b, o, 'y', dy >= 0 ? 1 : -1, py, movableO);
-    else this._pushAxis(b, o, 'z', dz >= 0 ? 1 : -1, pz, movableO);
+    else if (py <= px && py <= pz && !upBlocked) this._pushAxis(b, o, 'y', dy >= 0 ? 1 : -1, py, movableO);
+    else if (pz <= px) this._pushAxis(b, o, 'z', dz >= 0 ? 1 : -1, pz, movableO);
+    else this._pushAxis(b, o, 'x', dx >= 0 ? 1 : -1, px, movableO);
   }
 
   _pushAxis(b, o, axis, sign, pen, movableO) {
@@ -2566,7 +2632,10 @@ export class VoxelSandboxSim {
     if (movableO) { o.vRotX *= 0.5; o.vRotZ *= 0.5; }
     // remember what we are standing on: resting on a loose body counts as
     // support next step, so piles can quiet down and solidify bottom-up
-    if (axis === 'y' && sign > 0 && o.state === 'falling') b._restLoose = o;
+    if (axis === 'y' && sign > 0) {
+      this._scFloorHit = true; // read (and reset) by the debris wall-scrape response
+      if (o.state === 'falling') b._restLoose = o;
+    }
   }
 
   // --- consumption → score / growth / combo -------------------------------------
