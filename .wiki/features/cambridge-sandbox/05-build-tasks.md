@@ -14,8 +14,12 @@ covers:
 scene is registered and loadable, `node tools/validate.mjs` reaches `ALL PASS`,
 and the map is driveable and goal-completable. Next up is Phase 7 (hidden
 content, glyphs, achievements), whose achievement and belt rows remain blocked on
-the online-Flywheel backend, and then the Phase 8 sign-off.
-**Date:** 2026-08-06, kept current as tasks land.
+the online-Flywheel backend, and then the Phase 8 sign-off. `js/main.js`,
+`js/ui/screens.js`, `js/voxelworld.js` and `tools/validate.mjs` have all moved
+since (score-combo-and-hype, the directional-indicator fix, the twelve new
+`voxelkit.js` gallery builders) — none of it touches Cambridge's registration,
+districts or validator gate, so Phases 0-6 stand as complete.
+**Date:** 2026-08-06, kept current as tasks land (reconciled 2026-08-10).
 **Reads with:** every other doc in this package — this page sequences their
 decisions rather than re-arguing them. The owning-doc convention from `03`/`04`
 holds: where a task description here disagrees with `01`–`04`, the numbered doc

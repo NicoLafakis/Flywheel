@@ -5,6 +5,16 @@ networked product with accounts, achievements, a live shared arena, and
 four scopes of leaderboard — in time for UNBOUND, on a booth, in front of
 HubSpot partners.
 
+**As of 2026-08-10 this is no longer paperwork-only.** The multiplayer wire
+layer (`js/net/**` — driver seam, protocol, snapshots, transports, the
+host-authoritative loop skeleton) is built and self-tested standalone, and
+Supabase (`flywheel`, ref `zrsrvhrkgfuqhcjnjezw`) and Vercel
+(https://flywheel-woad.vercel.app) both exist, so credential handover no
+longer blocks Phase 1. See `.wiki/architecture.md`'s Boundaries section and
+`SETUP-FOR-NICO.md`. Nothing is wired into the shipped game yet — no screen
+calls into `js/net/`, and accounts/leaderboard/arena remain undesigned in
+code beyond the wire layer.
+
 ## Start here
 
 - **Implementers:** [00-objective-overview.md](00-objective-overview.md) →

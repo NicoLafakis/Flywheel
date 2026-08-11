@@ -64,31 +64,35 @@ tell."* It still needs doing. Specific suspicions worth checking by hand:
   the unlit member of an antipodal pair. A Lambertian lighting term
   (r = 0.851 against measured luma) now disambiguates.
 
-### Online Flywheel — planning package landed, nothing built
+### Online Flywheel — planning package landed; net layer and hosting now exist
 
 `.wiki/features/online-flywheel/` (16 docs) plus ADRs 0009-0012 landed
-2026-08-06. This is **paperwork only** — no code changed, nothing described in
-it exists in the game yet. It plans accounts, achievements, a live shared
-arena, and a four-scope leaderboard with a multi-belt championship system, for
-the UNBOUND conference. See `.wiki/architecture.md`'s planned "net" ring for
-where it would attach.
+2026-08-06 as paperwork only. Two things have since moved it out of pure
+planning: the multiplayer wire layer (`js/net/**` — driver seam, protocol,
+snapshots, transports, host loop skeleton; `tools/net-selftest.mjs` 132
+checks) landed 2026-08-10 as standalone code with no call site in the game
+yet, and a hot-seat two-player demo (`multiplayer.html` + `js/demo/**`,
+outside `main.js` entirely) shipped the same day. See `.wiki/architecture.md`'s
+Boundaries section for both. Accounts, achievements, the live shared arena and
+the four-scope leaderboard are still undesigned-in-code beyond that wire layer.
 
-Building it is blocked on three things only Nico can do:
+**Credential handover is done as of 2026-08-10** — the item that used to block
+everything is cleared:
 
-1. **Credential handover** — Supabase project, Vercel deploy, and optionally
-   Google/HubSpot sign-in, per
-   `.wiki/features/online-flywheel/SETUP-FOR-NICO.md`. Nothing gets built
-   until at minimum the Supabase and Vercel steps (marked BLOCKING in that
-   doc) are done.
-2. **Supabase plan choice** — Pro is $25/month, confirmed higher than the
-   $10/month figure from an earlier conversation (the $10 was one line item
-   inside the real total, not the total itself). The free plan risks the
-   project sleeping mid-conference. `SETUP-FOR-NICO.md` recommends Pro; Nico
-   still needs to actually pick and pay for it.
-3. **UNBOUND show dates and booth duration** — several capacity/traffic
-   figures in the planning docs (see `08-rollout-and-runbook.md` and
-   `11-risk-register.md`) depend on how long the booth runs and haven't been
-   pinned to real dates yet.
+1. ~~**Credential handover**~~ **Done 2026-08-10.** Supabase project `flywheel`
+   (ref `zrsrvhrkgfuqhcjnjezw`, us-east-1, Pro plan) and Vercel project
+   `flywheel` (live at https://flywheel-woad.vercel.app, GitHub-connected, push
+   to `main` auto-deploys) both exist. Credentials live in the repo's
+   gitignored `.env.local`; variable names are documented in `.env.example`.
+   Google and HubSpot sign-in credentials are still open — see
+   `.wiki/features/online-flywheel/SETUP-FOR-NICO.md` sections 3-5.
+2. ~~**Supabase plan choice**~~ **Settled.** The project was created on Pro
+   ($25/month, confirmed — not the $10/month figure from an earlier
+   conversation, which was one line item inside the real total).
+3. **UNBOUND show dates and booth duration** — still open. Several
+   capacity/traffic figures in the planning docs (see `08-rollout-and-runbook.md`
+   and `11-risk-register.md`) depend on how long the booth runs and haven't
+   been pinned to real dates yet.
 
 ### Cambridge sandbox — the map is complete and playable
 

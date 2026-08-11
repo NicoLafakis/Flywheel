@@ -9,3 +9,6 @@ _*-deliverables/
 .playwright-mcp/
 # Reference imagery used while authoring the wiki; not part of the shipped game.
 .wiki/references/
+.vercel
+.env*
+!.env.example

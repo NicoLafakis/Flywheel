@@ -1,15 +1,15 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-10T14:57:15+00:00",
+    "generatedAt": "2026-08-11T00:39:40+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
-      "files": 35,
-      "symbols": 122,
+      "files": 46,
+      "symbols": 27,
       "edges": 8,
       "modules": 2,
-      "reusedFromCache": 35
+      "reusedFromCache": 41
     }
   },
   "files": {
@@ -50,6 +50,38 @@
       "symbols": [],
       "imports": []
     },
+    "js/demo/demo.js": {
+      "lang": "javascript",
+      "hash": "e045e788126623734cf6e6e866dc3d71933beda628b9697cb60941974f367f8d",
+      "loc": 167,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/demo/duel.js": {
+      "lang": "javascript",
+      "hash": "dc2cde7e1962bb7f49200324d9a9e2975197b25f7ecd4577993097d25445a4cb",
+      "loc": 76,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/demo/duel.test.mjs": {
+      "lang": "javascript",
+      "hash": "bceb81cc80aabecda39238b77287bfe127f44e23c81c098c13b880f6a8e4c0b8",
+      "loc": 75,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/demo/view.js": {
+      "lang": "javascript",
+      "hash": "f6e82dc65f37240ae71baf95935668e88275e5a2217eec0202a88b66bbbbd672",
+      "loc": 215,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
     "js/levels.js": {
       "lang": "javascript",
       "hash": "82277991495dcfc63e9a3f473ff78e12d03d2ffe1cb319b96a7b0fa9bff5849d",
@@ -60,8 +92,48 @@
     },
     "js/main.js": {
       "lang": "javascript",
-      "hash": "eefba58b53041ff793c1d671559cafa5205231d86ab8f6501d833a8ac4859985",
-      "loc": 671,
+      "hash": "c9355190e4cb075d29221cf870fc71a81990730bc6a2288080d8ed8f06c12fa0",
+      "loc": 702,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/net/driver.js": {
+      "lang": "javascript",
+      "hash": "fbfff7d34d0341d51210ac5a434fd29ed4bd443f48e54147577a6693fdf91ebf",
+      "loc": 160,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/net/host.js": {
+      "lang": "javascript",
+      "hash": "266201b19e038e952a804fd87d43e81600c1dcee86f862d8ea239c6d437a344d",
+      "loc": 267,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/net/protocol.js": {
+      "lang": "javascript",
+      "hash": "8e7ab098b2062969a147e02d6b0cd30f02e98f1ecc9fdbe95714de89ee6f4600",
+      "loc": 479,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/net/snapshot.js": {
+      "lang": "javascript",
+      "hash": "75f3fd8c97834134edcff0214288d7d42c446aa20d7a0a9b7eec15d9e3e8ead7",
+      "loc": 406,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/net/transport.js": {
+      "lang": "javascript",
+      "hash": "cf34e310b7ba61b6e2c702ac729d245d41706507dad2cbe9df498ee36c0a5448",
+      "loc": 239,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -84,8 +156,8 @@
     },
     "js/save.js": {
       "lang": "javascript",
-      "hash": "e86b2774596252d4d7650e305d447ae6aa24c3b0b13448cc0ab3053042edc9f2",
-      "loc": 336,
+      "hash": "6fe659056a95a144bc1efaa9892320a9242f4225bbb25d26ef66a4b7ae2202cc",
+      "loc": 353,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -124,8 +196,8 @@
     },
     "js/ui/hud.js": {
       "lang": "javascript",
-      "hash": "5c19489aac512a0c3e33fb126ce5e2b600f44bfa470f26e7c1c260744f60794e",
-      "loc": 149,
+      "hash": "1ee2a39877cee075b84e00e4d71af28e3743db1d116db71b8d98faba834d9f97",
+      "loc": 340,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -183,8 +255,8 @@
     },
     "js/ui/screens.js": {
       "lang": "javascript",
-      "hash": "66dce4bc45d41f42b91545d6f1473604ca2e6d07b9a304a2fc9e6b92b2fad54c",
-      "loc": 514,
+      "hash": "7617bacf2b800078ea0ca91e080e7c6616ef8eb80e1ecc065f2e4907b76624d4",
+      "loc": 525,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -215,581 +287,10 @@
     },
     "js/voxelkit.js": {
       "lang": "javascript",
-      "hash": "9ec9bc45be5426565921a5a298412cecca7977286188098803f60ca90c99e94d",
-      "loc": 2771,
+      "hash": "482630c827b6bb60fb432f0f9afb3c8f9203fae9d09804cac07c3063601588a3",
+      "loc": 3183,
       "module": "js",
-      "symbols": [
-        {
-          "name": "sedan",
-          "kind": "function",
-          "line": 39,
-          "exported": true
-        },
-        {
-          "name": "bus",
-          "kind": "function",
-          "line": 64,
-          "exported": true
-        },
-        {
-          "name": "boxVan",
-          "kind": "function",
-          "line": 89,
-          "exported": true
-        },
-        {
-          "name": "bigTruck",
-          "kind": "function",
-          "line": 116,
-          "exported": true
-        },
-        {
-          "name": "motorcycle",
-          "kind": "function",
-          "line": 127,
-          "exported": true
-        },
-        {
-          "name": "tree",
-          "kind": "function",
-          "line": 135,
-          "exported": true
-        },
-        {
-          "name": "F",
-          "kind": "function",
-          "line": 147,
-          "exported": false
-        },
-        {
-          "name": "B25",
-          "kind": "function",
-          "line": 148,
-          "exported": false
-        },
-        {
-          "name": "lampPost",
-          "kind": "function",
-          "line": 152,
-          "exported": true
-        },
-        {
-          "name": "hydrant",
-          "kind": "function",
-          "line": 159,
-          "exported": true
-        },
-        {
-          "name": "trashBin",
-          "kind": "function",
-          "line": 168,
-          "exported": true
-        },
-        {
-          "name": "mailbox",
-          "kind": "function",
-          "line": 175,
-          "exported": true
-        },
-        {
-          "name": "bench",
-          "kind": "function",
-          "line": 182,
-          "exported": true
-        },
-        {
-          "name": "trafficLight",
-          "kind": "function",
-          "line": 190,
-          "exported": true
-        },
-        {
-          "name": "newsstand",
-          "kind": "function",
-          "line": 199,
-          "exported": true
-        },
-        {
-          "name": "hotDogCart",
-          "kind": "function",
-          "line": 205,
-          "exported": true
-        },
-        {
-          "name": "subwayEntrance",
-          "kind": "function",
-          "line": 214,
-          "exported": true
-        },
-        {
-          "name": "tower",
-          "kind": "function",
-          "line": 230,
-          "exported": true
-        },
-        {
-          "name": "megaShell",
-          "kind": "function",
-          "line": 285,
-          "exported": true
-        },
-        {
-          "name": "suspensionBridge",
-          "kind": "function",
-          "line": 311,
-          "exported": true
-        },
-        {
-          "name": "stadiumBowl",
-          "kind": "function",
-          "line": 412,
-          "exported": true
-        },
-        {
-          "name": "refineryMass",
-          "kind": "function",
-          "line": 469,
-          "exported": true
-        },
-        {
-          "name": "museumBlock",
-          "kind": "function",
-          "line": 512,
-          "exported": true
-        },
-        {
-          "name": "triumphalArch",
-          "kind": "function",
-          "line": 538,
-          "exported": true
-        },
-        {
-          "name": "trussViaduct",
-          "kind": "function",
-          "line": 576,
-          "exported": true
-        },
-        {
-          "name": "parachuteTower",
-          "kind": "function",
-          "line": 605,
-          "exported": true
-        },
-        {
-          "name": "zebra",
-          "kind": "function",
-          "line": 660,
-          "exported": true
-        },
-        {
-          "name": "laneDashes",
-          "kind": "function",
-          "line": 677,
-          "exported": true
-        },
-        {
-          "name": "pathRibbon",
-          "kind": "function",
-          "line": 701,
-          "exported": true
-        },
-        {
-          "name": "vehicleBBox",
-          "kind": "function",
-          "line": 728,
-          "exported": true
-        },
-        {
-          "name": "generateBlockers",
-          "kind": "function",
-          "line": 742,
-          "exported": true
-        },
-        {
-          "name": "crateStack",
-          "kind": "function",
-          "line": 796,
-          "exported": true
-        },
-        {
-          "name": "bikeRack",
-          "kind": "function",
-          "line": 815,
-          "exported": true
-        },
-        {
-          "name": "cafeTable",
-          "kind": "function",
-          "line": 830,
-          "exported": true
-        },
-        {
-          "name": "newsBox",
-          "kind": "function",
-          "line": 847,
-          "exported": true
-        },
-        {
-          "name": "trashBags",
-          "kind": "function",
-          "line": 856,
-          "exported": true
-        },
-        {
-          "name": "bollard",
-          "kind": "function",
-          "line": 865,
-          "exported": true
-        },
-        {
-          "name": "planter",
-          "kind": "function",
-          "line": 871,
-          "exported": true
-        },
-        {
-          "name": "signPost",
-          "kind": "function",
-          "line": 884,
-          "exported": true
-        },
-        {
-          "name": "signText",
-          "kind": "function",
-          "line": 921,
-          "exported": true
-        },
-        {
-          "name": "sandwichBoard",
-          "kind": "function",
-          "line": 961,
-          "exported": true
-        },
-        {
-          "name": "waterTower",
-          "kind": "function",
-          "line": 971,
-          "exported": true
-        },
-        {
-          "name": "stoop",
-          "kind": "function",
-          "line": 987,
-          "exported": true
-        },
-        {
-          "name": "fireEscape",
-          "kind": "function",
-          "line": 1007,
-          "exported": true
-        },
-        {
-          "name": "brownstone",
-          "kind": "function",
-          "line": 1028,
-          "exported": true
-        },
-        {
-          "name": "shippingContainer",
-          "kind": "function",
-          "line": 1058,
-          "exported": true
-        },
-        {
-          "name": "marketStall",
-          "kind": "function",
-          "line": 1069,
-          "exported": true
-        },
-        {
-          "name": "ferrisWheel",
-          "kind": "function",
-          "line": 1093,
-          "exported": true
-        },
-        {
-          "name": "woodCoaster",
-          "kind": "function",
-          "line": 1161,
-          "exported": true
-        },
-        {
-          "name": "carousel",
-          "kind": "function",
-          "line": 1198,
-          "exported": true
-        },
-        {
-          "name": "gantryCrane",
-          "kind": "function",
-          "line": 1233,
-          "exported": true
-        },
-        {
-          "name": "basinRim",
-          "kind": "function",
-          "line": 1274,
-          "exported": true
-        },
-        {
-          "name": "parkWall",
-          "kind": "function",
-          "line": 1302,
-          "exported": true
-        },
-        {
-          "name": "fenceRun",
-          "kind": "function",
-          "line": 1322,
-          "exported": true
-        },
-        {
-          "name": "rockMound",
-          "kind": "function",
-          "line": 1344,
-          "exported": true
-        },
-        {
-          "name": "stoneArch",
-          "kind": "function",
-          "line": 1369,
-          "exported": true
-        },
-        {
-          "name": "pergola",
-          "kind": "function",
-          "line": 1405,
-          "exported": true
-        },
-        {
-          "name": "pavilion",
-          "kind": "function",
-          "line": 1433,
-          "exported": true
-        },
-        {
-          "name": "statue",
-          "kind": "function",
-          "line": 1458,
-          "exported": true
-        },
-        {
-          "name": "treeGrove",
-          "kind": "function",
-          "line": 1481,
-          "exported": true
-        },
-        {
-          "name": "crenellation",
-          "kind": "function",
-          "line": 1509,
-          "exported": true
-        },
-        {
-          "name": "castleFolly",
-          "kind": "function",
-          "line": 1532,
-          "exported": true
-        },
-        {
-          "name": "amphitheater",
-          "kind": "function",
-          "line": 1590,
-          "exported": true
-        },
-        {
-          "name": "obelisk",
-          "kind": "function",
-          "line": 1627,
-          "exported": true
-        },
-        {
-          "name": "grandStair",
-          "kind": "function",
-          "line": 1659,
-          "exported": true
-        },
-        {
-          "name": "balustrade",
-          "kind": "function",
-          "line": 1683,
-          "exported": true
-        },
-        {
-          "name": "archBridge",
-          "kind": "function",
-          "line": 1709,
-          "exported": true
-        },
-        {
-          "name": "tieredFountain",
-          "kind": "function",
-          "line": 1741,
-          "exported": true
-        },
-        {
-          "name": "halfDomeShell",
-          "kind": "function",
-          "line": 1774,
-          "exported": true
-        },
-        {
-          "name": "elmTunnel",
-          "kind": "function",
-          "line": 1809,
-          "exported": true
-        },
-        {
-          "name": "roundHouse",
-          "kind": "function",
-          "line": 1851,
-          "exported": true
-        },
-        {
-          "name": "gazebo",
-          "kind": "function",
-          "line": 1894,
-          "exported": true
-        },
-        {
-          "name": "lightMast",
-          "kind": "function",
-          "line": 1922,
-          "exported": true
-        },
-        {
-          "name": "rowBoat",
-          "kind": "function",
-          "line": 1934,
-          "exported": true
-        },
-        {
-          "name": "sailBoat",
-          "kind": "function",
-          "line": 1947,
-          "exported": true
-        },
-        {
-          "name": "playgroundSet",
-          "kind": "function",
-          "line": 1957,
-          "exported": true
-        },
-        {
-          "name": "drinkingFountain",
-          "kind": "function",
-          "line": 1992,
-          "exported": true
-        },
-        {
-          "name": "equestrian",
-          "kind": "function",
-          "line": 2002,
-          "exported": true
-        },
-        {
-          "name": "mosaicDisc",
-          "kind": "function",
-          "line": 2025,
-          "exported": true
-        },
-        {
-          "name": "hash2",
-          "kind": "function",
-          "line": 2056,
-          "exported": false
-        },
-        {
-          "name": "setbackTower",
-          "kind": "function",
-          "line": 2074,
-          "exported": true
-        },
-        {
-          "name": "streetWall",
-          "kind": "function",
-          "line": 2144,
-          "exported": true
-        },
-        {
-          "name": "towerCrown",
-          "kind": "function",
-          "line": 2189,
-          "exported": true
-        },
-        {
-          "name": "crownedTower",
-          "kind": "function",
-          "line": 2250,
-          "exported": true
-        },
-        {
-          "name": "twinTowerBlock",
-          "kind": "function",
-          "line": 2265,
-          "exported": true
-        },
-        {
-          "name": "mansardRoof",
-          "kind": "function",
-          "line": 2290,
-          "exported": true
-        },
-        {
-          "name": "porticoFront",
-          "kind": "function",
-          "line": 2338,
-          "exported": true
-        },
-        {
-          "name": "spiralRotunda",
-          "kind": "function",
-          "line": 2383,
-          "exported": true
-        },
-        {
-          "name": "glassSphere",
-          "kind": "function",
-          "line": 2418,
-          "exported": true
-        },
-        {
-          "name": "naveChurch",
-          "kind": "function",
-          "line": 2466,
-          "exported": true
-        },
-        {
-          "name": "metroViaduct",
-          "kind": "function",
-          "line": 2610,
-          "exported": true
-        },
-        {
-          "name": "latticeTower",
-          "kind": "function",
-          "line": 2645,
-          "exported": true
-        },
-        {
-          "name": "marqueeSign",
-          "kind": "function",
-          "line": 2690,
-          "exported": true
-        },
-        {
-          "name": "rowBlock",
-          "kind": "function",
-          "line": 2728,
-          "exported": true
-        },
-        {
-          "name": "scaffoldShed",
-          "kind": "function",
-          "line": 2757,
-          "exported": true
-        }
-      ],
+      "symbols": [],
       "imports": []
     },
     "js/voxelscene-boston.js": {
@@ -865,8 +366,16 @@
     },
     "js/voxelsim.js": {
       "lang": "javascript",
-      "hash": "154f82bfdb0ecb0534fe46fa90669e39fba3cfaa5921bf295af0d5b99c4ae049",
-      "loc": 2473,
+      "hash": "2e9f6e9f1e5102e3254842b70093e9eb643ebc749b24bc30dcd429631655aea1",
+      "loc": 2775,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelsim.multihole.test.mjs": {
+      "lang": "javascript",
+      "hash": "05273935e3b293f15162876cff16c2ad8ca87e9f72dd93e4f6ec7ff61b7f47df",
+      "loc": 189,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -889,8 +398,8 @@
     },
     "js/voxelworld.js": {
       "lang": "javascript",
-      "hash": "862d2849851c483b8580bf69bf5d221d78240d6d248ba566e28a886cf75215cf",
-      "loc": 2580,
+      "hash": "0ea6e4dcfd2ca9c9f0c8d9e204d0deb19716b276fabba8cb9b379f564ba4495d",
+      "loc": 2601,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -1041,6 +550,14 @@
       "symbols": [],
       "imports": []
     },
+    "tools/net-selftest.mjs": {
+      "lang": "javascript",
+      "hash": "5c5f0e0656b5a4da9a75cc849a08a90a0877076f031089f868f5b894e16c3a7b",
+      "loc": 479,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/probe-aniso.mjs": {
       "lang": "javascript",
       "hash": "b906bd3d0eb05180c413ce2d00f03bb1af2ff812c8bdfd13e29ad48730989049",
@@ -1075,8 +592,8 @@
     },
     "tools/validate.mjs": {
       "lang": "javascript",
-      "hash": "ae3db78deb755397e715f59820e9d3732ee85acb7e5d70421efe774c8018b787",
-      "loc": 1489,
+      "hash": "fa1882e8c435c16fa20a9fd16f4eed182a95959f08fd1e410609f4ef665ab5cf",
+      "loc": 1641,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1130,8 +647,17 @@
         "js/camera.js",
         "js/citygen.js",
         "js/controls.js",
+        "js/demo/demo.js",
+        "js/demo/duel.js",
+        "js/demo/duel.test.mjs",
+        "js/demo/view.js",
         "js/levels.js",
         "js/main.js",
+        "js/net/driver.js",
+        "js/net/host.js",
+        "js/net/protocol.js",
+        "js/net/snapshot.js",
+        "js/net/transport.js",
         "js/quality.js",
         "js/rng.js",
         "js/save.js",
@@ -1152,6 +678,7 @@
         "js/voxelscene-manhattan.js",
         "js/voxelscene-upper-manhattan.js",
         "js/voxelsim.js",
+        "js/voxelsim.multihole.test.mjs",
         "js/voxelsurfaces.js",
         "js/voxeltiles.js",
         "js/voxelworld.js",
@@ -1161,6 +688,7 @@
     "tools": {
       "files": [
         "tools/gen-partner-logo.mjs",
+        "tools/net-selftest.mjs",
         "tools/probe-aniso.mjs",
         "tools/probe-buildcost2.mjs",
         "tools/shimmer.mjs",

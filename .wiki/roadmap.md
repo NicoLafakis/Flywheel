@@ -271,8 +271,14 @@ beside it.
 Designed across fourteen documents in
 [features/online-flywheel/](features/online-flywheel/README.md), with the
 architecture decision recorded and **accepted on 2026-08-06** in
-[ADR-0010](adr/0010-host-authoritative-arena.md). **Nothing built** — there is
-no `js/net/` directory, no `vercel.json`, no Supabase project in the repo.
+[ADR-0010](adr/0010-host-authoritative-arena.md). **The wire layer exists,
+nothing is wired into the game.** As of 2026-08-10 there is a `js/net/`
+directory (driver seam, protocol codecs, snapshot capture/apply, transports
+including a loopback simulator and an untested Supabase Realtime adapter, and
+ADR-0010's host loop skeleton), proven by `tools/net-selftest.mjs`'s 132
+checks — but no screen or module in `js/main.js` calls into it, and there is
+still no `vercel.json`. There is now a Supabase project and a Vercel
+deployment (see "Blocked on" below).
 
 ### The shape
 
@@ -358,14 +364,14 @@ machine is the authority, a host colluding with a friend could produce a
 consistent fake result. Closing that fully needs the dedicated server that was
 declined. It is written down rather than hidden.
 
-**Blocked on.** Three things, all of them yours, all already tracked in
-`STATUS.md`: a Supabase project and a Vercel deploy handed over (both marked
-BLOCKING in
-[SETUP-FOR-NICO.md](features/online-flywheel/SETUP-FOR-NICO.md), about half an
-hour of clicking between them), a decision on the $25/month Supabase Pro plan
-versus the free plan that risks the project falling asleep mid-conference, and
-the actual UNBOUND dates and booth hours, which several capacity numbers depend
-on.
+**Blocked on.** Down to one thing now, tracked in `STATUS.md`: the actual
+UNBOUND dates and booth hours, which several capacity numbers depend on. The
+credential handover that used to block everything is done as of
+2026-08-10 — Supabase project `flywheel` (ref `zrsrvhrkgfuqhcjnjezw`,
+us-east-1, Pro plan — the $25/month figure, confirmed, not the $10/month one
+from an earlier conversation) and Vercel project `flywheel`
+(https://flywheel-woad.vercel.app, GitHub-connected) both exist, per
+[SETUP-FOR-NICO.md](features/online-flywheel/SETUP-FOR-NICO.md).
 
 **Size.** Very large — 88 ordered tasks across eight phases, of which
 multiplayer itself is the seventh. The plan is explicitly built to be cut from
@@ -528,9 +534,10 @@ Nothing here is a commitment; it is what the dependencies suggest.
    thing, the highest payoff with the specific audience the level was made for,
    and it needs nothing from anybody. Have each one set its discovery bit as it
    is built, so the trophy list is a later insert rather than a later rewrite.
-4. **Unblock the backend when you are ready** — the Supabase project, the
-   Vercel deploy, and the plan decision. Everything in the achievements, belts
-   and multiplayer sections is waiting behind those, and nothing else is.
+4. ~~**Unblock the backend when you are ready**~~ **Done 2026-08-10** — the
+   Supabase project and the Vercel deploy both exist now. Everything in the
+   achievements, belts and multiplayer sections still needs building, but it
+   is no longer waiting on you for this.
 5. **Decide whether multiplayer is a race or a team job** (§5). It does not
    block the networking, but it does decide what gets built on top of it, and
    deciding late means building the scoring and results screens twice.

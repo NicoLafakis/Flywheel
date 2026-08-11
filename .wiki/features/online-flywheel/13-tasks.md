@@ -48,7 +48,7 @@ Every task carries the same six fields:
 |---|---|
 | ◆ | **Release-blocking for UNBOUND.** The booth does not open without it. |
 | ○ | Can follow the event. Ship it when it is ready, not before the doors. |
-| 🔑N*n* | **Blocked on Nico's credential handover**, section *n* of [SETUP-FOR-NICO.md](SETUP-FOR-NICO.md). Cannot start, at all, until the values arrive. |
+| 🔑N*n* | **Blocked on Nico's credential handover**, section *n* of [SETUP-FOR-NICO.md](SETUP-FOR-NICO.md). Cannot start, at all, until the values arrive. **Sections 1 (Supabase) and 2 (Vercel) were handed over 2026-08-10** — 🔑N1/🔑N2 tasks are unblocked; only 🔑N3 (Google) and 🔑N4 (HubSpot) still gate on Nico. |
 | ⚠ | Decision gate. Work downstream of it must not start until the gate is answered in writing. |
 
 ### The two acceptance-criteria numbering schemes
@@ -93,13 +93,18 @@ in it. Nothing online exists yet — which is the point:
 [08 §4](08-rollout-and-runbook.md#4-the-first-ever-deploy-of-this-repo) requires
 that a deploy problem and an online problem can never be the same problem.
 
-### T-001 — First-ever Vercel deploy of the static repo 🔑N2 ◆
+### T-001 — First-ever Vercel deploy of the static repo ✅ deployed 2026-08-10 ◆
 
+- **Deployed 2026-08-10.** Project `flywheel`, live at
+  https://flywheel-woad.vercel.app, GitHub-connected — a push to `main`
+  auto-deploys within a minute. The 🔑N2 handover blocker is cleared.
 - **Done when:** the production URL serves `index.html`, three.js loads, and a
-  campaign level is completable on a phone on cellular with a cold cache.
+  campaign level is completable on a phone on cellular with a cold cache. (The
+  deploy itself is done; the cold-cache phone/cellular check below is still
+  worth doing explicitly before it's treated as verified.)
 - **Touches:** Vercel project settings (framework preset *Other*, blank build
   command, output directory = repo root, no install command).
-- **Depends on:** nothing but the handover.
+- **Depends on:** nothing but the handover — done.
 - **Satisfies:** GWT-X08, GWT-102 (establishes the regression baseline that
   every later measurement is taken against).
 - **Size:** S
@@ -330,24 +335,28 @@ down in 03 §8 and T-007 has executed it · every flag is false in
 is clean or waived in writing, and a `curl` with the anon key against every
 table returns exactly what the policy intends. The game has not changed.
 
-### T-101 — Supabase project bootstrap and CLI link 🔑N1 ◆
+### T-101 — Supabase project bootstrap and CLI link ✅ unblocked 2026-08-10 ◆
 
+- **Credentials handed over 2026-08-10.** The `flywheel` Supabase project
+  exists (ref `zrsrvhrkgfuqhcjnjezw`, region us-east-1, Pro plan — confirmed
+  $25/month, not the $10 compute-credit figure from the earlier conversation)
+  and its keys live in the repo's gitignored `.env.local`, with the variable
+  names documented in `.env.example`. The 🔑N1 credential-handover blocker is
+  cleared; what remains of this task is the CLI-link and migration work itself.
 - **Done when:** the `flywheel` project is linked from the repo, `supabase/`
   exists with `config.toml`, migrations run cleanly against a fresh local
   Postgres, and the secret key lives only in Edge Function secrets.
 - **Touches:** `supabase/config.toml`, `supabase/migrations/`
-- **Depends on:** the handover of SETUP items 1, 2, 3
+- **Depends on:** the handover of SETUP items 1, 2, 3 — done
 - **Satisfies:** GWT-X09
 - **Size:** S
-- **Note:** [SETUP-FOR-NICO.md](SETUP-FOR-NICO.md) §1 **recommends Pro at
-  $25/mo**, because Free pauses a project after ~7 idle days and a sleeping
-  project on the morning of day two is an outage. **Nico approved $10 (which
-  turned out to be a compute credit inside Pro, not a plan price) and has not
-  yet chosen a plan** — confirm which plan the project was actually created on
-  before assuming an allowance. Either way, [03
+- **Note:** [SETUP-FOR-NICO.md](SETUP-FOR-NICO.md) §1 recommended Pro at
+  $25/mo, because Free pauses a project after ~7 idle days and a sleeping
+  project on the morning of day two is an outage; the project was created on
+  Pro. [03
   §7.3](03-technical-design.md#73-the-realtime-message-math-which-is-the-whole-cost-question)
-  governs the `snapshot_hz` and `room_cap` defaults, and T-709 is what settles
-  them.
+  still governs the `snapshot_hz` and `room_cap` defaults, and T-709 is what
+  settles them.
 
 ### T-102 — Migration: subjects, profiles, guests, events ◆
 
@@ -1495,18 +1504,18 @@ Everything else can be worked around. This chain cannot.
                                                           T-701 kiosk ─► T-703 moderation ─► T-708 smoke
 ```
 
-**Nico's 90 minutes, ordered by what they unblock:**
+**Nico's handover, ordered by what it unblocks:**
 
-| Handover | Unblocks | Urgency |
+| Handover | Unblocks | Status |
 |---|---|---|
-| SETUP §2 — Vercel (10 min) | T-001, and therefore every deployed test | **First. Today.** |
-| SETUP §1 — Supabase URL + publishable key + secret key (20 min) | T-101 and all of Phase 1 | **First. Today.** |
-| SETUP §5 — the domain (10 min) | T-506 (HubSpot's byte-exact redirect), the booth sign, the stable preview alias | Before Phase 5 |
-| SETUP §3 — Google (25 min) | T-504 only | Before Phase 5 |
-| SETUP §4 — HubSpot (30 min) | T-506 only, which is ○ | Whenever; the fallback ships regardless |
+| SETUP §2 — Vercel (10 min) | T-001, and therefore every deployed test | ✅ **Done 2026-08-10** |
+| SETUP §1 — Supabase URL + publishable key + secret key (20 min) | T-101 and all of Phase 1 | ✅ **Done 2026-08-10** |
+| SETUP §5 — the domain (10 min) | T-506 (HubSpot's byte-exact redirect), the booth sign, the stable preview alias | Open — before Phase 5 |
+| SETUP §3 — Google (25 min) | T-504 only | Open — before Phase 5 |
+| SETUP §4 — HubSpot (30 min) | T-506 only, which is ○ | Open — whenever; the fallback ships regardless |
 
-Two of the five sections — 30 of the 90 minutes — gate **everything**. The other
-60 minutes gate one sign-in button each, and the game ships without either.
+The two sections that gated **everything** are done. What remains gates one
+sign-in button each, and the game ships without either.
 
 **The two hard gates inside the path:** T-006 (cross-engine determinism) must be
 answered before T-302 is written, and T-305 (Boston replay cost) must be

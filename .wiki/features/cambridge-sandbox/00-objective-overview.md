@@ -13,8 +13,10 @@ Cambridge is complete, playable from the free-play picker and `ALL PASS` on
 `node tools/validate.mjs`. Phase 7's hidden content, glyphs and achievements and
 the Phase 8 sign-off are still ahead; Phase 7's achievement rows remain blocked
 on the online-Flywheel backend, which is an inherited blocker rather than a new
-one.
-**Date:** 2026-08-06.
+one. `js/voxelkit.js` gained twelve more gallery builders on 2026-08-10 (delivery
+truck, school bus, billboard and the rest — see `modules/voxel.md`); they have no
+callers yet and Cambridge does not use them, so nothing here changed.
+**Date:** 2026-08-06 (reconciled 2026-08-10).
 **Reads with:** `01-voxel-primitive-vocabulary.md` (the toolkit),
 `02-cambridge-reference.md` (the facts), `03-level-design.md` (the design),
 `05-build-tasks.md` (the ordered work and its live state),

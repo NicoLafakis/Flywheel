@@ -7,17 +7,19 @@ about building online Flywheel is handled without you.
 You do not need to understand any of it. Follow the steps, and at the end copy
 the values from the checklist at the bottom and send them to me.
 
-**Total time: about 90 minutes.** You can do it in one sitting or spread it over
-a few days, as long as the two sections marked BLOCKING happen first.
+**Sections 1 and 2 are DONE (2026-08-10)** — Supabase and Vercel both exist and
+the credentials are in place, so nothing about online Flywheel is blocked on
+setup any more. What's left below is optional and can happen whenever you get
+to it.
 
-| # | Section | Time | When it's needed |
+| # | Section | Time | Status |
 |---|---|---|---|
-| 1 | Supabase (the game's memory) | 20 min | **BLOCKING** — nothing gets built until this exists |
-| 2 | Vercel (puts the game on the internet) | 10 min | **BLOCKING** |
-| 3 | "Sign in with Google" | 25 min | Can come later — the game works without it |
-| 4 | "Sign in with HubSpot" | 30 min | Can come later — and probably will |
-| 5 | A web address for the booth | 10 min | Can come later, but before UNBOUND |
-| 6 | Send me the values | 5 min | After each section |
+| 1 | Supabase (the game's memory) | 20 min | ✅ **Done 2026-08-10** |
+| 2 | Vercel (puts the game on the internet) | 10 min | ✅ **Done 2026-08-10** |
+| 3 | "Sign in with Google" | 25 min | Open — the game works without it |
+| 4 | "Sign in with HubSpot" | 30 min | Open — and probably will be for a while |
+| 5 | A web address for the booth | 10 min | Open, but do it before UNBOUND |
+| 6 | Send me the values | 5 min | Only needed for sections 3-5 now |
 
 ---
 
@@ -42,98 +44,30 @@ secret. Values labelled **safe** can be sent to me any way you like.
 
 ---
 
-## 1. Supabase — where the game remembers people
+## 1. Supabase — where the game remembers people ✅ Done
 
-**Time: about 20 minutes. BLOCKING.**
-
-Supabase is the service that will store player accounts, scores, and
-achievements, and keep everyone's screens in sync during a live game.
-
-### Cost, so there are no surprises
-
-Pick the **Pro** plan. It is **$25 per month**. The $10 figure from our earlier
-conversation was one line item inside it; the real total is $25. The free plan
-exists, but it puts a project to sleep after a week of quiet, which means the
-game could be asleep when someone walks up to the booth. Not worth the risk. Pick
-Pro.
-
-### Steps
-
-1. Go to **https://supabase.com** and click **Start your project** (top right).
-   - *You should see:* a sign-in page offering GitHub, Google, or email.
-2. Click **Continue with GitHub** and sign in with your GitHub account.
-   - *You should see:* a page asking you to name a new organization.
-3. In **Name**, type `ProvenLabs`.
-4. Under **Plan**, choose **Pro**.
-5. Click **Create organization**, then enter your card details when asked.
-   - *You should see:* a "New project" form.
-6. In **Project name**, type exactly: `flywheel`
-7. Next to **Database Password**, click **Generate a password**.
-8. Click the copy icon next to that password. **This is a SECRET.** Send it to me
-   using the onetimesecret method in the box above, and label the link
-   "Supabase database password".
-9. For **Region**, choose **East US (North Virginia)**.
-10. Click **Create new project**.
-    - *You should see:* a progress screen for a minute or two, then a project
-      dashboard with the word "flywheel" at the top left.
-
-### Now collect three values
-
-11. In the left sidebar, scroll to the bottom and click the gear icon labelled
-    **Project Settings**.
-12. In the settings menu, click **API Keys**.
-    - *You should see:* a page with a web address at the top and a list of keys.
-13. Copy the **Project URL**. It looks like
-    `https://abcdefghijk.supabase.co`. **This one is safe** — send it to me
-    however you like.
-14. Copy the key that begins with **`sb_publishable_`**. **This one is safe.**
-15. Click the eye or **Reveal** control next to the key beginning with
-    **`sb_secret_`** and copy it. **This is a SECRET.** Send it via
-    onetimesecret, labelled "Supabase secret key".
-
-> If you get stuck: take a screenshot of whatever is on your screen and send it
-> to me. Do not try to work out what went wrong, and if the screen is showing a
-> secret key, blur or crop it out first.
+**Done 2026-08-10.** Supabase is the service that stores player accounts,
+scores and achievements, and keeps everyone's screens in sync during a live
+game. The project exists: name `flywheel`, project ref `zrsrvhrkgfuqhcjnjezw`,
+region us-east-1 (Pro plan, $25/month — the $10 figure from an earlier
+conversation was one line item inside it, not the total). Credentials live in
+the repo's gitignored `.env.local`; the variable names they fill in are
+documented in `.env.example` at the repo root (`SUPABASE_URL`,
+`SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_DB_PASSWORD`,
+`POSTGRES_URL`, `POSTGRES_URL_POOLED`, `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`). You do not need to do anything here again
+unless the project is ever recreated.
 
 ---
 
-## 2. Vercel — what puts the game on the internet
+## 2. Vercel — what puts the game on the internet ✅ Done
 
-**Time: about 10 minutes. BLOCKING.**
-
-Vercel takes the game's files from GitHub and serves them to anyone with the web
-address. **A "deployment" just means: a fresh copy of the game went live.** Every
-time I finish a change, a new deployment happens automatically and the live game
-updates within a minute.
-
-Cost: **free** for what we need.
-
-### Steps
-
-1. Go to **https://vercel.com** and click **Sign Up**.
-2. Choose **Continue with GitHub** and sign in.
-3. When asked to choose a plan, pick **Hobby** (the free one), then enter your
-   name when prompted.
-   - *You should see:* an empty Vercel dashboard.
-4. Click the **Add New...** button (top right) and choose **Project**.
-   - *You should see:* a list headed "Import Git Repository".
-5. If your repositories are not listed, click **Adjust GitHub App Permissions**
-   or **Install** and approve Vercel's access on the GitHub page that opens.
-   - *You should see:* your repositories appear in the list.
-6. Find **Flywheel** in the list and click **Import** next to it.
-7. Leave every setting on the screen exactly as it is. Click **Deploy**.
-   - *You should see:* a build animation, then a congratulations screen with a
-     preview picture of the game.
-8. On that screen, copy the web address ending in **`.vercel.app`**. **This is
-   safe** — send it to me. It will look something like
-   `flywheel-abc123.vercel.app`.
-
-That address is the game, live, right now. It's the temporary one; section 5
-covers giving it a proper name.
-
-> If you get stuck: screenshot the screen and send it. In particular, if the
-> deploy screen turns red, send me that screenshot — the failure text on it tells
-> me exactly what to fix.
+**Done 2026-08-10.** Vercel takes the game's files from GitHub and serves them
+to anyone with the web address, free of charge on the plan we're on. It is
+GitHub-connected: every push to `main` auto-deploys within a minute, with no
+manual step on either side. Project name `flywheel`; the live address is
+**https://flywheel-woad.vercel.app**. That's the one to hand out until section
+5 gives it a proper domain.
 
 ---
 
@@ -147,11 +81,10 @@ the steps literally and ignore everything else on the screen.
 
 ### First, build the address you'll need twice below
 
-Take the **Project URL** you copied in step 1.13 and add `/auth/v1/callback` to
-the end of it. So if yours was `https://abcdefghijk.supabase.co`, the address you
-need is:
+Take the Supabase **Project URL** (the `https://zrsrvhrkgfuqhcjnjezw.supabase.co`
+address from section 1) and add `/auth/v1/callback` to the end of it:
 
-`https://abcdefghijk.supabase.co/auth/v1/callback`
+`https://zrsrvhrkgfuqhcjnjezw.supabase.co/auth/v1/callback`
 
 Write that down somewhere. Google calls it a "redirect URI". It has to be typed
 in perfectly — no extra spaces, no trailing slash.
@@ -187,9 +120,8 @@ in perfectly — no extra spaces, no trailing slash.
 13. In the left menu, click **Clients**, then click **Create client**.
 14. For **Application type**, choose **Web application**.
 15. For **Name**, type `Flywheel Web`.
-16. Under **Authorized JavaScript origins**, click **Add URI** and paste your
-    `.vercel.app` address from step 2.8, with `https://` in front of it — for
-    example `https://flywheel-abc123.vercel.app`.
+16. Under **Authorized JavaScript origins**, click **Add URI** and paste the
+    live address from section 2: `https://flywheel-woad.vercel.app`.
 17. Under **Authorized redirect URIs**, click **Add URI** and paste the
     `/auth/v1/callback` address you built above.
 18. Click **Create**.
@@ -244,10 +176,9 @@ plain email sign-in carry the booth on their own if this one isn't ready.
    it, and save. That is the only scope to tick. Do not add others — every extra
    one makes HubSpot's review slower and adds a scary permission screen for
    players.
-7. In the **Redirect URLs** section, click into the URL field and paste your
-   `.vercel.app` address from step 2.8 with `/auth/hubspot/callback` on the end —
-   for example:
-   `https://flywheel-abc123.vercel.app/auth/hubspot/callback`
+7. In the **Redirect URLs** section, click into the URL field and paste the live
+   address from section 2 with `/auth/hubspot/callback` on the end:
+   `https://flywheel-woad.vercel.app/auth/hubspot/callback`
    Then click **Save changes**.
    - When we have a real web address (section 5), I will send you a second line to
      add here, written out in full for you to paste.
@@ -298,16 +229,18 @@ ready to copy.
 
 ## 6. What to send me — the checklist
 
-Send the **safe** ones however you like. Send each **SECRET** one as its own
-onetimesecret link, with the label written next to it in your message.
+Items 1-5 (Supabase and Vercel) are done and already collected — nothing to
+send for those. What's left is only for sections 3-5, whenever you get to
+them. Send the **safe** ones however you like. Send each **SECRET** one as its
+own onetimesecret link, with the label written next to it in your message.
 
 | # | What to call it | Where you got it | What it looks like | Safe to send in chat? |
 |---|---|---|---|---|
-| 1 | Supabase project URL | Section 1, step 13 | `https://something.supabase.co` | ✅ Safe |
-| 2 | Supabase publishable key | Section 1, step 14 | starts with `sb_publishable_` | ✅ Safe |
-| 3 | Supabase secret key | Section 1, step 15 | starts with `sb_secret_` | 🔴 **SECRET — onetimesecret link only** |
-| 4 | Supabase database password | Section 1, step 8 | random letters, numbers, symbols | 🔴 **SECRET — onetimesecret link only** |
-| 5 | Vercel live address | Section 2, step 8 | ends in `.vercel.app` | ✅ Safe |
+| 1 | Supabase project URL | Section 1 | `https://zrsrvhrkgfuqhcjnjezw.supabase.co` | ✅ Done, on file |
+| 2 | Supabase publishable key | Section 1 | starts with `sb_publishable_` | ✅ Done, on file |
+| 3 | Supabase secret key | Section 1 | starts with `sb_secret_` | ✅ Done, on file |
+| 4 | Supabase database password | Section 1 | random letters, numbers, symbols | ✅ Done, on file |
+| 5 | Vercel live address | Section 2 | `https://flywheel-woad.vercel.app` | ✅ Done, on file |
 | 6 | Google client ID | Section 3, step 19 | ends in `.apps.googleusercontent.com` | ✅ Safe |
 | 7 | Google client secret | Section 3, step 20 | starts with `GOCSPX-` | 🔴 **SECRET — onetimesecret link only** |
 | 8 | HubSpot developer account ID | Section 4, step 2 | a number, 7 or 8 digits | ✅ Safe |
@@ -315,8 +248,8 @@ onetimesecret link, with the label written next to it in your message.
 | 10 | HubSpot client secret | Section 4, step 9 | long string with dashes | 🔴 **SECRET — onetimesecret link only** |
 | 11 | The domain you bought | Section 5, step 6 | e.g. `playflywheel.com` | ✅ Safe |
 
-Items 1, 2, 3 and 5 unblock the build. The rest can arrive whenever you get to
-them.
+Nothing left in this list blocks the build. Items 6-11 unlock Google/HubSpot
+sign-in and the booth's real domain, and can arrive whenever you get to them.
 
 ### One last check before you send
 

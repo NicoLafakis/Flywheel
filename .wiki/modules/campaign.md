@@ -38,6 +38,12 @@ beatable headlessly.
   `.wiki/modules/ui.md`'s `INDICATOR_SKINS` gotcha.
 - `starsForResult`: 1★ win, 2★ ≥20% time left, 3★ ≥35%.
 
+**Reconciled 2026-08-10:** the 2026-08-10 commits touching `js/voxelkit.js`
+(twelve new gallery builders, no callers yet), `js/net/**` and `js/demo/**`
+(the multiplayer wire layer and the hot-seat demo — see `architecture.md`)
+don't touch `js/save.js` or `tools/validate.mjs`; this page's save-schema and
+validator description stand as written.
+
 **Planned, not built:** the online-Flywheel package
 (`.wiki/features/online-flywheel/`) proposes a path from `save.js`'s local
 schema to a cloud profile, so a guest's progress survives signing in. See

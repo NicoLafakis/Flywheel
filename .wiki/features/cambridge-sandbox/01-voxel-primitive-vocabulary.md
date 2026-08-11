@@ -9,8 +9,12 @@ covers:
 
 **Status:** the capability audit, and now the shipped toolkit — `js/voxelforms.js`
 carries all twelve primitives. The audit below is kept as written, because it is
-the reasoning the toolkit was built from.
-**Date:** 2026-08-06.
+the reasoning the toolkit was built from. `js/voxelkit.js` picked up twelve more
+gallery builders on 2026-08-10 (deliveryTruck, schoolBus, billboard and nine
+others — see `modules/voxel.md`); they are ordinary `voxelkit` builders, not
+`voxelforms.js` primitives, and Cambridge does not call them, so the toolkit
+audit below is unaffected.
+**Date:** 2026-08-06 (reconciled 2026-08-10).
 **Answers:** the owner's *"Construction vocabulary"* request, which sat on
 `STATUS.md`'s board as an open decision — *"his actual request, and nothing has
 been started on it"* — until ADR-0013 was accepted and this vocabulary shipped.

@@ -39,12 +39,39 @@ voxelsim.js ──► voxelworld.js        (voxel sandbox: same split,
 - **Glue** (`main.js`): boot, screen state machine, fixed-timestep loop,
   audio blips.
 
-**Planned, not built:** a fourth **net** ring outside these three boundaries,
-proposed in [features/online-flywheel/03-technical-design.md](features/online-flywheel/03-technical-design.md).
-No code for it exists yet. When it lands, its invariants are: the net layer
-never writes sim state outside `sim.step()`, it never imports three.js, a
-client's score is never the record (the server replays the pure sim before
-anything reaches a leaderboard), and the network is optional at every point.
+**Built, standalone, not yet wired (2026-08-10):** the fourth **net** ring
+proposed in [features/online-flywheel/03-technical-design.md](features/online-flywheel/03-technical-design.md)
+now exists as code, in `js/net/` — `driver.js` (the driver seam: a hole is
+steered by anything that answers `decide(hole, world, dt)`; `HumanDriver`,
+`PeerDriver` with last-write-wins-by-seq intents and a 500 ms staleness
+timeout, `IdleDriver` for a disconnected slot), `protocol.js` (versioned
+message codecs, validated against hostile payloads), `snapshot.js` (capture/
+apply with interpolation against the real sim), `transport.js` (a `Transport`
+interface, `LoopbackTransport` with latency/jitter/drop simulation, and an
+injected-client Supabase Realtime adapter marked untested until credentials
+exist — see below, credentials now exist as of today but the adapter itself
+is still unexercised against them), and `host.js` (the host-authoritative loop
+skeleton, ADR-0010 — ships under the name `host.js` on purpose; it becomes
+`arena-host.js` in the wiring commit that also writes the room-lifecycle half,
+`arena.js`, neither of which exist yet). `tools/net-selftest.mjs` proves 132
+checks headless, including a loopback exchange at 120 ms latency with 5%
+drop. Nothing in `js/main.js` or any screen calls into `js/net/` yet — the
+ring is proven in isolation but not plugged into the game. Its invariants
+hold as designed: the net layer never writes sim state outside `sim.step()`
+(there is exactly one `sim.step()` call in `host.js` and no other assignment
+to a sim field), it never imports three.js, a client's score is never the
+record, and the network is optional at every point.
+
+**Also built (2026-08-10), separate surface:** `multiplayer.html` + `js/demo/`
+is a hot-seat two-player demo — two holes sharing one gallery sim, swapped in
+and out of the sim's single `hole` slot each half-frame (`js/demo/duel.js`),
+rendered by its own overhead camera (`js/demo/view.js`) and its own loop
+(`js/demo/demo.js`), entirely outside `main.js`'s screen state machine, HUD
+and chase camera. It does not use `js/net/` — both players are local input on
+one machine — and it does not edit `voxelsim.js`. Demo-grade and explicitly
+scoped that way: a known artifact where each hole's support recalc partially
+re-heals the rim the other hole is undermining is accepted rather than fixed,
+since fixing it means editing the shared sim.
 
 **Built, and still in progress:** [ADR-0013](adr/0013-anisotropic-voxel-primitives.md)
 widened a voxel block from a cube (`fs`/`s`) to an axis-aligned box with
@@ -128,9 +155,11 @@ graph in a browser — see `runbooks/run-and-validate.md`.
 
 See `adr/`: 0002 sim/render split, 0003 deterministic seeded generation,
 0004 formula-driven levels with validator-enforced margins. Planned (not yet
-implemented): 0009 Supabase backend, 0010 host-authoritative arena, 0011
-guest-first identity with deferred claim, 0012 replay-validated leaderboard
-trust — see [features/online-flywheel/](features/online-flywheel/README.md).
+wired into the game): 0009 Supabase backend, 0011 guest-first identity with
+deferred claim, 0012 replay-validated leaderboard trust — see
+[features/online-flywheel/](features/online-flywheel/README.md). 0010
+host-authoritative arena has code (`js/net/host.js`, see "Boundaries" above)
+but no room lifecycle and no call site yet, so it is still pre-launch.
 Accepted and shipped: 0013 anisotropic voxel primitives — see
 [features/cambridge-sandbox/](features/cambridge-sandbox/README.md); 0014
 vendored, same-origin runtime code and the no-build constraint — see "Boot"

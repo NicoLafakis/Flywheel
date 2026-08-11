@@ -16,7 +16,10 @@ target with the dead-ground census at zero. Phase 7's hidden content, glyphs and
 achievements and the Phase 8 sign-off are still ahead. Where this page describes
 what was built, it has been reconciled against the built tree; where it describes
 what a later phase will do, it still reads as the plan it was written as.
-**Date:** 2026-08-06.
+`js/voxelkit.js`'s twelve new gallery builders (2026-08-10) and `tools/validate.mjs`'s
+score-ladder rebase (`0e25a88`) touch files this page covers but not Cambridge's
+districts or its density gate — reconciled, nothing to change here.
+**Date:** 2026-08-06 (reconciled 2026-08-10).
 **Toolkit:** `01-voxel-primitive-vocabulary.md`. **Facts:**
 `02-cambridge-reference.md`. **Decision:** `adr/0013-anisotropic-voxel-primitives.md`.
 **Hidden things:** `04-easter-eggs-and-achievements.md` (separately owned — this

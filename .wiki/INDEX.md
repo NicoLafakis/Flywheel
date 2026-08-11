@@ -11,7 +11,8 @@
 > `tools/validate.mjs` holding the boot to it
 > ([ADR-0014](adr/0014-vendored-same-origin-runtime.md)); the Cambridge sandbox's
 > map is complete and playable with hidden content still ahead, the online
-> Flywheel package is still documentation only).
+> Flywheel package's `js/net/` wire layer is built and self-tested but not
+> wired into the game, and its Supabase/Vercel hosting now exists).
 
 ## What is this?
 
@@ -51,14 +52,16 @@ what each is waiting on, and what could start today.
 | [modules/](modules/) | Per-module docs with `covers:` globs: [campaign](modules/campaign.md), [citygen](modules/citygen.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
 | [adr/](adr/) | Architecture Decision Records |
 | [runbooks/](runbooks/) | Run/validate/deploy playbooks |
-| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (planning only — accounts, live shared arena, leaderboards; nothing built yet), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary; engine change, primitive layer, scene registration and all ten districts committed, Phase 7's hidden content and the Phase 8 sign-off ahead) |
+| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (the `js/net/` wire layer is built and self-tested, not yet wired into the game; accounts, live shared arena and leaderboards remain undesigned in code; Supabase + Vercel hosting exists as of 2026-08-10), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary; engine change, primitive layer, scene registration and all ten districts committed, Phase 7's hidden content and the Phase 8 sign-off ahead) |
 
 ## Feature planning packages
 
 - [features/online-flywheel/](features/online-flywheel/README.md) — the plan
   to take Flywheel from a single-player static toy to a networked product
   (accounts, achievements, a live shared arena, four leaderboard scopes) for
-  the UNBOUND conference. **Documentation only — no code exists yet.** Start
+  the UNBOUND conference. **The `js/net/` wire layer is built and self-tested
+  standalone (2026-08-10), not yet wired into the game; hosting (Supabase +
+  Vercel) exists as of the same day.** Start
   at the [README](features/online-flywheel/README.md), which points
   implementers at [00-objective-overview.md](features/online-flywheel/00-objective-overview.md)
   and Nico at [SETUP-FOR-NICO.md](features/online-flywheel/SETUP-FOR-NICO.md).
