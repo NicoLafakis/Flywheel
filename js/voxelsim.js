@@ -2722,8 +2722,7 @@ export class VoxelSandboxSim {
   // bounded, never permanent — the HOST is the only authority on consumption,
   // and a consumed unit's id rides the same wire events/keyframe as a block id
   // (`objectIdSpace` covers both), so who ate what never diverges at all.
-  // ('chicago' is not yet in ARENA_SCENES; this note is the seam's contract
-  // for the day it lands.)
+  // ('chicago' is on ARENA_SCENES now; this note is that seam's contract.)
   //
   // ELEVATED CARS ARE NOT EATABLE ON INTACT TRACK — decided for play feel: the
   // fun loop is undermine the posts → the deck crumbles → the train stumbles,

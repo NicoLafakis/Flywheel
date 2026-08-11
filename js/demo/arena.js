@@ -285,6 +285,7 @@ function startMatchUI() {
   hud.classList.add('on');
   state = 'playing';
   audio.startScene(scene);
+  if (view && view.moverClockStart) view.moverClockStart();   // el train rides from match start
   setupRivalLayer();
   if (matchMedia('(pointer: coarse)').matches) el('touch-hint').classList.add('on');
   setTimeout(() => el('touch-hint').classList.remove('on'), 6000);
@@ -372,6 +373,8 @@ function syncPeerConsumed() {
     if (b) {
       b.state = 'consumed';
       view.noteConsumed(b);   // the peer sim never steps; tell the view directly
+    } else if (view.noteMoverConsumed) {
+      view.noteMoverConsumed(id);   // a mover unit (el-train car) shares the id space
     }
     const slot = arenaPeer.eaterOf.has(id) ? arenaPeer.eaterOf.get(id) : -1;
     noteEat(id, slot);

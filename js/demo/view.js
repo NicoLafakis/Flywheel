@@ -8,8 +8,11 @@
 // disc per player. Readable, not beautiful, which is the demo's bar.
 
 import * as THREE from 'three';
+import { moverPose } from '../voxelsim.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
+const AXIS_X = new THREE.Vector3(1, 0, 0);
+const ONE3 = new THREE.Vector3(1, 1, 1);
 
 export class DuelView {
   constructor(canvas, sim, playerColors) {
@@ -187,6 +190,101 @@ export class DuelView {
       this.scene.add(g);
       return { group: g, disc, ring, beacon };
     });
+
+    this._initMovers();
+  }
+
+  // ---- movers (the Chicago el train) ----------------------------------------
+  // Same drawing scheme as VoxelWorld3D's _buildMovers, minimal edition: one
+  // InstancedMesh per mover, every unit sharing one part list, posed as
+  // frame × local. RIDE-phase units pose from the clock (the pure function the
+  // sim uses), so a never-stepped peer sim still shows the train lapping the
+  // Loop: the host reads sim.time, the peer a local match clock started by
+  // moverClockStart() (drift vs the host is cosmetic and seconds-bounded).
+  // Fall/ground/rest states only ever exist on the host (its sim steps); the
+  // peer's train derails nowhere but disappears when eaten, via the consumed
+  // path below.
+  _initMovers() {
+    this._movers = null;
+    this._moverT0 = 0;
+    this._eatenMoverIds = new Set();
+    const sims = this.sim.moverSim;
+    if (!Array.isArray(sims) || !sims.length) return;
+    const movers = [];
+    try {
+      for (const rt of sims) {
+        const parts = rt.src && rt.src.parts;
+        if (!Array.isArray(parts) || !parts.length) continue;
+        // Local part matrices: +z is the direction of travel, dy up from ride height.
+        const locals = parts.map((p) => new THREE.Matrix4().compose(
+          new THREE.Vector3(p.dx || 0, (p.dy || 0) + (p.sy || 1) / 2, p.dz || 0),
+          new THREE.Quaternion(),
+          new THREE.Vector3(p.sx || 1, p.sy || 1, p.sz || 1),
+        ));
+        const geo = new THREE.BoxGeometry(1, 1, 1);
+        geo.setAttribute('color', new THREE.BufferAttribute(
+          new Float32Array(geo.attributes.position.count * 3).fill(1), 3,
+        ));
+        const mesh = new THREE.InstancedMesh(
+          geo,
+          new THREE.MeshLambertMaterial({ vertexColors: true }),
+          rt.units.length * locals.length,
+        );
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.frustumCulled = false;
+        const c = new THREE.Color();
+        for (let u = 0; u < rt.units.length; u++) {
+          for (let i = 0; i < locals.length; i++) {
+            mesh.setColorAt(u * locals.length + i, c.setHex(Number.isFinite(parts[i].color) ? parts[i].color : 0x888888));
+          }
+        }
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        this.scene.add(mesh);
+        movers.push({ rt, locals, mesh, frame: new THREE.Matrix4(), out: new THREE.Matrix4(), q2: new THREE.Quaternion() });
+      }
+    } catch (e) {
+      console.warn('[duelview] movers ignored:', e);   // never take the match down
+    }
+    if (movers.length) this._movers = movers;
+  }
+
+  /** Start the peer-side ride clock (called at match start on either role;
+   * the host poses from sim.time and ignores it). */
+  moverClockStart() { this._moverT0 = performance.now(); }
+
+  /** A wire-fed eat whose id names a mover unit, not a block. */
+  noteMoverConsumed(id) { this._eatenMoverIds.add(id); }
+
+  _tickMovers() {
+    const clock = this.sim.time > 0 ? this.sim.time
+      : (this._moverT0 ? (performance.now() - this._moverT0) / 1000 : 0);
+    for (const m of this._movers) {
+      const rt = m.rt, n = m.locals.length;
+      for (let u = 0; u < rt.units.length; u++) {
+        const st = rt.units[u];
+        if (st.phase === 'consumed' || this._eatenMoverIds.has(st.id)) {
+          m.out.makeScale(0, 0, 0);   // eaten: gone, like any consumed block
+          for (let i = 0; i < n; i++) m.mesh.setMatrixAt(u * n + i, m.out);
+          continue;
+        }
+        let px, py, pz, ux, uz, tilt = 0;
+        if (st.phase === 'ride') {
+          const p = moverPose(rt.arc, st.off + rt.speed * clock);
+          px = p.x; py = rt.y; pz = p.z; ux = p.ux; uz = p.uz;
+        } else {
+          px = st.x; py = st.y; pz = st.z; ux = st.ux; uz = st.uz; tilt = st.tilt || 0;
+        }
+        this._v.set(px, py, pz);
+        this._q.setFromAxisAngle(UP, Math.atan2(ux, uz));
+        if (tilt) { m.q2.setFromAxisAngle(AXIS_X, tilt); this._q.multiply(m.q2); }
+        m.frame.compose(this._v, this._q, ONE3);
+        for (let i = 0; i < n; i++) {
+          m.out.multiplyMatrices(m.frame, m.locals[i]);
+          m.mesh.setMatrixAt(u * n + i, m.out);
+        }
+      }
+      m.mesh.instanceMatrix.needsUpdate = true;
+    }
   }
 
   resize(w, h) {
@@ -314,6 +412,7 @@ export class DuelView {
       }
     }
     if (touched) this.blockMesh.instanceMatrix.needsUpdate = true;
+    if (this._movers) this._tickMovers();
 
     for (let i = 0; i < this.holes.length; i++) {
       const h = holes[i], v = this.holes[i];

@@ -44,8 +44,7 @@ export const EATER_ANON = 0xff;
 /**
  * The scenes a WELCOME may name — the finished, playable cities. NEVER trust
  * the wire: a scene string off the network is only ever compared against this
- * set, never handed to a sim constructor raw. ('chicago' ships later; it is
- * absent here on purpose until it does.)
+ * set, never handed to a sim constructor raw.
  */
 export const ARENA_SCENES = Object.freeze([
   'gallery',
@@ -54,6 +53,7 @@ export const ARENA_SCENES = Object.freeze([
   'brooklyn',
   'boston',
   'cambridge',
+  'chicago',
 ]);
 const ARENA_SCENE_SET = new Set(ARENA_SCENES);
 

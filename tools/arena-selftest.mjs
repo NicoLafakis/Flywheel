@@ -196,10 +196,11 @@ begin('7. the scene rides the WELCOME (host choice, allowlist-guarded)');
 // ---------------------------------------------------------------------------
 {
   // The allowlist is the finished cities and nothing else.
-  check('allowlist holds the six finished scenes',
-    ['gallery', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge']
-      .every((s) => A.ARENA_SCENES.includes(s)) && A.ARENA_SCENES.length === 6);
-  check('chicago is not on the allowlist yet', !A.isArenaScene('chicago'));
+  check('allowlist holds the seven finished scenes',
+    ['gallery', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago']
+      .every((s) => A.ARENA_SCENES.includes(s)) && A.ARENA_SCENES.length === 7);
+  check('chicago is on the allowlist', A.isArenaScene('chicago'));
+  check('an unknown scene is not', !A.isArenaScene('toledo'));
   check('every allowlisted scene has a player-facing label',
     A.ARENA_SCENES.every((s) => typeof A.SCENE_LABELS[s] === 'string' && A.SCENE_LABELS[s].length > 0));
 
@@ -219,8 +220,11 @@ begin('7. the scene rides the WELCOME (host choice, allowlist-guarded)');
   eq('host default scene is gallery', dhost.scene, 'gallery');
   dhost.dispose();
   let threw = null;
-  try { new A.ArenaRoomHost({ transport: hub.endpoint('h3'), code: 'BCDFG', scene: 'chicago' }); } catch (e) { threw = e; }
+  try { new A.ArenaRoomHost({ transport: hub.endpoint('h3'), code: 'BCDFG', scene: 'toledo' }); } catch (e) { threw = e; }
   check('hosting an off-allowlist scene throws', !!threw);
+  const chost = new A.ArenaRoomHost({ transport: hub.endpoint('h4'), code: 'BCDFG', scene: 'chicago' });
+  eq('hosting chicago is accepted', chost.scene, 'chicago');
+  chost.dispose();
 
   // The wire guard: never trust the scene string.
   const good = P.encodeEnvelope(P.CONTROL.WELCOME, { sessionId: 'abc', slot: 1, seed: 'arena:K7QM3', generation: 1, scene: 'brooklyn' });
@@ -229,8 +233,8 @@ begin('7. the scene rides the WELCOME (host choice, allowlist-guarded)');
     !P.validate({ v: P.PROTOCOL_VERSION, t: 'welcome', d: { sessionId: 'abc', slot: 1, seed: 's', generation: 1 } }).ok);
   check('WELCOME with an unknown scene fails',
     !P.validate({ v: P.PROTOCOL_VERSION, t: 'welcome', d: { sessionId: 'abc', slot: 1, seed: 's', generation: 1, scene: 'xyzzy' } }).ok);
-  check('WELCOME with chicago fails (not shipped)',
-    !P.validate({ v: P.PROTOCOL_VERSION, t: 'welcome', d: { sessionId: 'abc', slot: 1, seed: 's', generation: 1, scene: 'chicago' } }).ok);
+  check('WELCOME with chicago validates (shipped)',
+    P.validate({ v: P.PROTOCOL_VERSION, t: 'welcome', d: { sessionId: 'abc', slot: 1, seed: 's', generation: 1, scene: 'chicago' } }).ok);
   check('WELCOME with a non-string scene fails',
     !P.validate({ v: P.PROTOCOL_VERSION, t: 'welcome', d: { sessionId: 'abc', slot: 1, seed: 's', generation: 1, scene: 42 } }).ok);
 

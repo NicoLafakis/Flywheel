@@ -42,6 +42,7 @@ export const SCENE_LABELS = Object.freeze({
   'brooklyn': 'NYC: BROOKLYN · CONEY ISLAND',
   'boston': 'BOSTON: SEAPORT',
   'cambridge': 'CAMBRIDGE: KENDALL SQUARE',
+  'chicago': 'CHICAGO: THE LOOP',
 });
 
 /** The label a scene id shows on screen. Total over the allowlist. */
