@@ -67,6 +67,11 @@ export const CONTROL = Object.freeze({
   HOST_ANNOUNCE: 'host_announce',
   PING: 'ping',
   PONG: 'pong',
+  // A refused JOIN (room full, match locked). 04 §2.2's "Room full is a dead
+  // end; watching, you're next" is the eventual UX; the wire still needs the
+  // explicit no so a joiner is not left distinguishing "full" from "nobody
+  // there" by timeout alone.
+  REJECT: 'reject',
 });
 
 const CONTROL_SET = new Set(Object.values(CONTROL));
@@ -408,6 +413,7 @@ const CONTROL_REQUIRED = {
   [CONTROL.HOST_ANNOUNCE]: ['sessionId', 'generation'],
   [CONTROL.PING]: ['id', 'tClient'],
   [CONTROL.PONG]: ['id', 'tClient', 'tHost'],
+  [CONTROL.REJECT]: ['sessionId', 'reason'],
 };
 
 const fail = (reason) => ({ ok: false, reason });
@@ -470,6 +476,7 @@ export function validate(env) {
   if (d.members !== undefined && d.members.length > LIMITS.MAX_HOLES) return fail('roster too large');
   if (d.seed !== undefined && (typeof d.seed !== 'string' || d.seed.length > 128)) return fail('seed is not a short string');
   if (d.sessionId !== undefined && (typeof d.sessionId !== 'string' || d.sessionId.length > 64)) return fail('sessionId is not a short string');
+  if (d.reason !== undefined && (typeof d.reason !== 'string' || d.reason.length > 64)) return fail('reason is not a short string');
   return PASS;
 }
 
