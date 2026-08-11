@@ -23,8 +23,31 @@
 //
 // No three.js, no `Math.random` (crypto.getRandomValues only), no DOM.
 
-import { CONTROL, encodeEnvelope, decodeEnvelope, validate } from './protocol.js';
+import { CONTROL, encodeEnvelope, decodeEnvelope, validate, ARENA_SCENES, isArenaScene } from './protocol.js';
 import { MAX_PLAYERS } from './snapshot.js';
+
+// --- scenes ------------------------------------------------------------------
+
+/**
+ * Player-facing names for the allowlisted scenes, in picker order — the same
+ * names the campaign UI uses (main.js AUTHORED_SCENES; the generic 'gallery'
+ * scene is 'SANDBOX' everywhere in that UI, so it is 'SANDBOX' here too).
+ * The allowlist itself lives in ./protocol.js because the wire guard needs it;
+ * this map only says what a human calls each entry.
+ */
+export const SCENE_LABELS = Object.freeze({
+  'gallery': 'SANDBOX',
+  'manhattan': 'NYC: LOWER MANHATTAN',
+  'upper-manhattan': 'NYC: UPPER MANHATTAN · CENTRAL PARK',
+  'brooklyn': 'NYC: BROOKLYN · CONEY ISLAND',
+  'boston': 'BOSTON: SEAPORT',
+  'cambridge': 'CAMBRIDGE: KENDALL SQUARE',
+});
+
+/** The label a scene id shows on screen. Total over the allowlist. */
+export function sceneLabel(scene) { return SCENE_LABELS[scene] || 'SANDBOX'; }
+
+export { ARENA_SCENES, isArenaScene };
 
 // --- room codes --------------------------------------------------------------
 
@@ -107,12 +130,14 @@ export function mintSessionId() {
  */
 export class ArenaRoomHost {
   /**
-   * @param {object} opts { transport, code, maxPlayers, generation, sessionId }
+   * @param {object} opts { transport, code, maxPlayers, generation, sessionId, scene }
    */
-  constructor({ transport, code, maxPlayers = MAX_PLAYERS, generation = 1, sessionId = null }) {
+  constructor({ transport, code, maxPlayers = MAX_PLAYERS, generation = 1, sessionId = null, scene = 'gallery' }) {
+    if (!isArenaScene(scene)) throw new RangeError(`unknown arena scene '${scene}'`);
     this.transport = transport;
     this.code = code;
     this.seed = deriveSeed(code);
+    this.scene = scene;
     this.maxPlayers = maxPlayers;
     this.generation = generation & 0xff;
     this.sessionId = sessionId || mintSessionId();
@@ -165,7 +190,7 @@ export class ArenaRoomHost {
         if (this.onSeat) this.onSeat(slot, this.roster.get(slot));
       }
       this.transport.send(encodeEnvelope(CONTROL.WELCOME, {
-        sessionId, slot, seed: this.seed, generation: this.generation,
+        sessionId, slot, seed: this.seed, generation: this.generation, scene: this.scene,
       }));
       this.sendRoster();
       return;
@@ -236,6 +261,7 @@ export class ArenaRoomPeer {
     this.name = name;
     this.slot = -1;
     this.seed = null;
+    this.scene = null;   // named by the host's WELCOME; already allowlist-checked by validate()
     this.generation = null;
     this.members = [];
     this.onRoster = null;
@@ -256,8 +282,9 @@ export class ArenaRoomPeer {
     if (msg.t === CONTROL.WELCOME && msg.sessionId === this.sessionId) {
       this.slot = msg.slot;
       this.seed = msg.seed;
+      this.scene = msg.scene;
       this.generation = msg.generation;
-      if (this._joinWaiter) { this._joinWaiter.resolve({ slot: msg.slot, seed: msg.seed, generation: msg.generation }); this._joinWaiter = null; }
+      if (this._joinWaiter) { this._joinWaiter.resolve({ slot: msg.slot, seed: msg.seed, generation: msg.generation, scene: msg.scene }); this._joinWaiter = null; }
       return;
     }
     if (msg.t === CONTROL.REJECT && msg.sessionId === this.sessionId) {
@@ -289,7 +316,7 @@ export class ArenaRoomPeer {
 
   /**
    * Ask for a seat. Safe to call once, after the transport is connected.
-   * @returns {Promise<{slot:number, seed:string, generation:number}>}
+   * @returns {Promise<{slot:number, seed:string, generation:number, scene:string}>}
    */
   join({ timeoutMs = JOIN_TIMEOUT_MS } = {}) {
     return new Promise((resolve, reject) => {

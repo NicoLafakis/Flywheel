@@ -19,7 +19,31 @@
 // lengths. A hostile peer is one `channel.send` away at all times, and the only
 // thing between it and the host's sim is this file.
 
-export const PROTOCOL_VERSION = 1;
+// v2: WELCOME carries a required, allowlisted `scene` so the joiner builds the
+// host's chosen city. Versioning is a hard gate — `validate()` drops any
+// envelope whose `v` differs — so a v1 client meeting a v2 room fails cleanly
+// (the joiner's JOIN is dropped and it times out with 'no_host') instead of
+// building the wrong city and desyncing.
+export const PROTOCOL_VERSION = 2;
+
+/**
+ * The scenes a WELCOME may name — the finished, playable cities. NEVER trust
+ * the wire: a scene string off the network is only ever compared against this
+ * set, never handed to a sim constructor raw. ('chicago' ships later; it is
+ * absent here on purpose until it does.)
+ */
+export const ARENA_SCENES = Object.freeze([
+  'gallery',
+  'manhattan',
+  'upper-manhattan',
+  'brooklyn',
+  'boston',
+  'cambridge',
+]);
+const ARENA_SCENE_SET = new Set(ARENA_SCENES);
+
+/** True when a wire-supplied scene string names a shipped arena city. */
+export function isArenaScene(s) { return typeof s === 'string' && ARENA_SCENE_SET.has(s); }
 
 /** Binary message type bytes (04 §4.1). */
 export const MSG = Object.freeze({
@@ -404,7 +428,7 @@ export function decodeEnvelope(env) {
 
 const CONTROL_REQUIRED = {
   [CONTROL.JOIN]: ['sessionId'],
-  [CONTROL.WELCOME]: ['sessionId', 'slot', 'seed', 'generation'],
+  [CONTROL.WELCOME]: ['sessionId', 'slot', 'seed', 'generation', 'scene'],
   [CONTROL.LEAVE]: ['slot'],
   [CONTROL.ROSTER]: ['members', 'generation'],
   [CONTROL.MATCH_START]: ['seed', 'startTick', 'durationTicks'],
@@ -475,6 +499,7 @@ export function validate(env) {
   if (d.members !== undefined && !Array.isArray(d.members)) return fail('roster members is not an array');
   if (d.members !== undefined && d.members.length > LIMITS.MAX_HOLES) return fail('roster too large');
   if (d.seed !== undefined && (typeof d.seed !== 'string' || d.seed.length > 128)) return fail('seed is not a short string');
+  if (d.scene !== undefined && !isArenaScene(d.scene)) return fail('scene not in allowlist');
   if (d.sessionId !== undefined && (typeof d.sessionId !== 'string' || d.sessionId.length > 64)) return fail('sessionId is not a short string');
   if (d.reason !== undefined && (typeof d.reason !== 'string' || d.reason.length > 64)) return fail('reason is not a short string');
   return PASS;

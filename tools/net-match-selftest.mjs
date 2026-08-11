@@ -137,7 +137,7 @@ begin('3. 60 s scripted match: 120 ms latency, 30 ms jitter, 5% drop');
     hub.advance(FRAME_MS);
     host.step(FIXED_DT, hub.nowMs);
     truth.push({ ms: hub.nowMs, x0: h0.x, z0: h0.z, x1: h1.x, z1: h1.z });
-    sim.drainEvents();   // main.js's drain, standing in (the host's cursor survives it)
+    sim.drainEvents();   // main.js's drain, standing in (ArenaHost detects it by array identity)
     peer.update(hub.nowMs, FRAME_MS);
 
     predHist.push({ ms: hub.nowMs, x: peer.pred.x, z: peer.pred.z });

@@ -42,6 +42,26 @@
   .btn.ghost { background: none; color: #8fa2bb; border: 0; font-size: 12px; letter-spacing: 1.6px; min-width: 0; padding: 10px 18px; }
   .btn:disabled { opacity: 0.45; cursor: default; }
 
+  /* ---------- host city picker ---------- */
+  #city-list { display: flex; flex-direction: column; gap: 10px; width: min(420px, 92vw); }
+  .city-btn {
+    pointer-events: auto; cursor: pointer; border-radius: 16px;
+    font-weight: 800; letter-spacing: 1.6px; font-size: 14px;
+    padding: 16px 18px; width: 100%; text-align: center; line-height: 1.35;
+    background: rgba(255,255,255,0.08); color: #e9eef6;
+    border: 1px solid rgba(255,255,255,0.18);
+  }
+  .city-btn:hover { background: rgba(255,255,255,0.14); }
+  .city-btn.default { background: #4da3ff; color: #0a0e14; border-color: transparent; }
+  .city-btn.default:hover { background: #6cb4ff; }
+  .city-btn .tag { display: block; font-size: 10px; letter-spacing: 2px; opacity: 0.65; font-weight: 700; margin-top: 3px; }
+
+  #host-city {
+    font-size: 14px; letter-spacing: 2.4px; font-weight: 800; color: #e9eef6;
+    padding: 8px 18px; border-radius: 999px;
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14);
+  }
+
   #code-input {
     pointer-events: auto; width: 280px; text-align: center;
     font-size: 34px; font-weight: 800; letter-spacing: 10px;
@@ -138,6 +158,15 @@
   <button id="btn-show-join" class="btn secondary">JOIN A CITY</button>
 </div>
 
+<!-- host: pick the city -->
+<div id="ov-pick" class="overlay hidden">
+  <div class="brand">FLYWHEEL</div>
+  <div class="headline">PICK YOUR CITY</div>
+  <div class="sub">You and your rival devour the same one. Big cities take a few seconds to build.</div>
+  <div id="city-list"></div>
+  <button id="btn-pick-back" class="btn ghost">← BACK</button>
+</div>
+
 <!-- join code entry -->
 <div id="ov-join" class="overlay hidden">
   <div class="brand">FLYWHEEL</div>
@@ -160,6 +189,7 @@
   <div class="brand">FLYWHEEL</div>
   <div id="share-label">SHARE THIS CODE</div>
   <div id="room-code">—</div>
+  <div id="host-city">SANDBOX</div>
   <button id="copy-link" class="btn secondary">COPY INVITE LINK</button>
   <div id="copy-hint"></div>
   <div class="waiting-dots" id="waiting-msg">WAITING FOR A CHALLENGER…</div>

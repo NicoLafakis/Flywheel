@@ -25,9 +25,14 @@ import { ArenaPeer } from '../net/peer.js';
 import {
   ArenaRoomHost, ArenaRoomPeer,
   mintRoomCode, normalizeRoomCode, isValidRoomCode, roomTopic,
+  ARENA_SCENES, sceneLabel,
 } from '../net/arena.js';
 
-const SCENE = 'gallery';
+// The scene is the HOST's choice, made on the picker before the room opens.
+// The joiner learns it from the WELCOME (allowlist-checked in protocol.js) —
+// never from the URL, so a tampered link cannot desync the two cities.
+const DEFAULT_SCENE = 'gallery';
+let scene = DEFAULT_SCENE;
 const MATCH_SECONDS = 180;
 const DURATION_TICKS = MATCH_SECONDS * 60;
 const COLORS = [0x4da3ff, 0xff8b2d];          // slot 0 blue, slot 1 orange
@@ -37,7 +42,7 @@ const HOST_GONE_MS = 6000;   // v1 freeze threshold; T-606 replaces this with HO
 
 // ------------------------------------------------------------------ elements
 const el = (id) => document.getElementById(id);
-const overlays = ['ov-landing', 'ov-join', 'ov-connecting', 'ov-hosting', 'ov-countdown', 'ov-banner'];
+const overlays = ['ov-landing', 'ov-pick', 'ov-join', 'ov-connecting', 'ov-hosting', 'ov-countdown', 'ov-banner'];
 function showOverlay(id) {
   for (const o of overlays) el(o).classList.toggle('hidden', o !== id);
 }
@@ -50,7 +55,7 @@ const reconnectEl = el('reconnect');
 const stickEl = el('stick');
 
 // ------------------------------------------------------------------ state
-let state = 'landing';   // landing | join | connecting | hosting | countdown | playing | over | hostleft
+let state = 'landing';   // landing | pick | join | connecting | hosting | countdown | playing | over | hostleft
 let role = null;         // 'host' | 'peer'
 let mySlot = 0;
 
@@ -69,6 +74,8 @@ let rivalPresent = false;
 window.__arena = {
   get state() { return state; },
   get role() { return role; },
+  get scene() { return scene; },
+  blockCount() { return sim ? sim.blocks.length : 0; },
   get sim() { return sim; },
   get host() { return arenaHost; },
   get peer() { return arenaPeer; },
@@ -183,6 +190,21 @@ function showChip(text) {
   el('live-chip').classList.add('on');
 }
 
+/** Two frames of breathing room so a status line paints before a multi-second,
+ * main-thread city build (same idiom as main.js's loading frame). */
+function nextFrames() {
+  return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+}
+
+/** Build the shared city and stamp the page with what was built, so a second
+ * device (or a test) can read scene + block count straight off the DOM. */
+function buildCity(seed, sceneId) {
+  const s = new VoxelSandboxSim({ seed, scene: sceneId });
+  document.body.dataset.scene = sceneId;
+  document.body.dataset.blocks = String(s.blocks.length);
+  return s;
+}
+
 function startMatchUI() {
   hideOverlays();
   hud.classList.add('on');
@@ -192,7 +214,8 @@ function startMatchUI() {
 }
 
 // ------------------------------------------------------------------ host flow
-async function hostCity() {
+async function hostCity(pickedScene) {
+  scene = pickedScene || DEFAULT_SCENE;
   role = 'host'; mySlot = 0;
   state = 'connecting';
   el('connecting-msg').textContent = 'OPENING YOUR CITY…';
@@ -209,9 +232,13 @@ async function hostCity() {
   // ArenaHost does, so a JOIN seats the player (hole added, slot added) before
   // ArenaHost's handler fires the immediate keyframe — the newcomer's first
   // frame then already includes themselves (04 §8).
-  roomHost = new ArenaRoomHost({ transport, code, maxPlayers: 2, generation: 1 });
+  roomHost = new ArenaRoomHost({ transport, code, maxPlayers: 2, generation: 1, scene });
 
-  sim = new VoxelSandboxSim({ seed: roomHost.seed, scene: SCENE });
+  // The big cities are 30-70k blocks and build on the main thread — say so
+  // before the multi-second stall, or the phone looks frozen.
+  el('connecting-msg').textContent = `BUILDING ${sceneLabel(scene)}…`;
+  await nextFrames();
+  sim = buildCity(roomHost.seed, scene);
   tuneForDuel(sim);
   sim.holes[0].x = SPAWNS[0].x; sim.holes[0].z = SPAWNS[0].z;
 
@@ -235,6 +262,7 @@ async function hostCity() {
   resize();
 
   el('room-code').textContent = code;
+  el('host-city').textContent = sceneLabel(scene);
   history.replaceState(null, '', `?room=${code}`);
   state = 'hosting';
   showOverlay('ov-hosting');
@@ -291,11 +319,16 @@ async function joinCity(rawCode) {
   }
 
   mySlot = seat.slot;
-  el('connecting-msg').textContent = 'BUILDING THE CITY…';
+  // The scene comes from the handshake — the host is authoritative — and it
+  // already passed protocol.js's allowlist, or the WELCOME would have been
+  // dropped. The belt-and-braces check still runs before it reaches a sim.
+  scene = ARENA_SCENES.includes(seat.scene) ? seat.scene : DEFAULT_SCENE;
+  el('connecting-msg').textContent = `BUILDING ${sceneLabel(scene)}…`;
+  await nextFrames();
 
   // The peer's own build of the same city: same seed, same scene, NEVER
   // stepped. Blocks die in it only when the wire says so.
-  sim = new VoxelSandboxSim({ seed: seat.seed, scene: SCENE });
+  sim = buildCity(seat.seed, scene);
   peerBlockById = new Map();
   let maxBlockId = 0;
   for (const b of sim.blocks) {
@@ -418,7 +451,7 @@ function frame(ts) {
         steps++;
       }
       if (accumulator >= FIXED_DT) accumulator = 0;
-      sim.drainEvents();   // main.js's drain, standing in (the host's cursor survives it)
+      sim.drainEvents();   // main.js's drain, standing in (ArenaHost detects it by array identity)
       if (arenaHost.over) endMatch();
     } else {
       arenaPeer.update(undefined, realDt * 1000);
@@ -464,7 +497,31 @@ window.addEventListener('beforeunload', () => {
 });
 
 // ------------------------------------------------------------------ UI wiring
-el('btn-host').addEventListener('click', hostCity);
+// The city picker: one big tap target per finished city, gallery first as the
+// quick default, built from the same allowlist the wire guard enforces.
+{
+  const list = el('city-list');
+  for (const id of ARENA_SCENES) {
+    const b = document.createElement('button');
+    b.className = id === DEFAULT_SCENE ? 'city-btn default' : 'city-btn';
+    b.dataset.scene = id;
+    b.textContent = sceneLabel(id);
+    if (id === DEFAULT_SCENE) {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = 'SMALL & FAST';
+      b.appendChild(tag);
+    }
+    b.addEventListener('click', () => hostCity(id));
+    list.appendChild(b);
+  }
+}
+
+el('btn-host').addEventListener('click', () => {
+  state = 'pick';
+  showOverlay('ov-pick');
+});
+el('btn-pick-back').addEventListener('click', () => { state = 'landing'; showOverlay('ov-landing'); });
 el('btn-show-join').addEventListener('click', () => {
   state = 'join';
   showOverlay('ov-join');
@@ -490,7 +547,7 @@ el('copy-link').addEventListener('click', async () => {
   const code = roomHost ? roomHost.code : '';
   try {
     await navigator.clipboard.writeText(inviteLink(code));
-    el('copy-hint').textContent = 'Copied. Send it to your rival.';
+    el('copy-hint').textContent = `Copied. ${sceneLabel(scene)} awaits your rival.`;
   } catch {
     el('copy-hint').textContent = inviteLink(code);
   }

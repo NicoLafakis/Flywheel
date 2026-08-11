@@ -80,7 +80,7 @@ if (!subscribeError) {
   // -------------------------------------------------------------------------
   {
     ta.send(P.encodeEnvelope(P.CONTROL.JOIN, { sessionId: 'live-a' }));
-    tb.send(P.encodeEnvelope(P.CONTROL.WELCOME, { sessionId: 'live-a', slot: 1, seed: 'arena:live', generation: 1 }));
+    tb.send(P.encodeEnvelope(P.CONTROL.WELCOME, { sessionId: 'live-a', slot: 1, seed: 'arena:live', generation: 1, scene: 'gallery' }));
     await waitFor(() => gotB.some((e) => e.t === 'join') && gotA.some((e) => e.t === 'welcome'));
     const join = gotB.find((e) => e.t === 'join');
     const welcome = gotA.find((e) => e.t === 'welcome');

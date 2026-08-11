@@ -221,7 +221,17 @@ export class ArenaHost {
    */
   _harvestEvents() {
     const evs = this.sim.events || [];
-    if (evs.length < (this._eventCursor || 0)) this._eventCursor = 0;   // main.js drained; restart
+    // Drain detection by ARRAY IDENTITY, not by length. `sim.drainEvents()`
+    // replaces `sim.events` with a fresh array, and the old length heuristic
+    // (`evs.length < cursor`) missed every drain where the new batch grew back
+    // to at least the cursor before the next harvest — under steady eating
+    // that is the COMMON case, and the eat events sit at exactly the low
+    // indexes the stale cursor slices off. Observed: 540 of 1715 eats (31%)
+    // never reached the peer OR the keyframe's eaten set, so host-eaten
+    // blocks stayed visible on the peer forever. The length check stays as a
+    // belt for an in-place truncation.
+    if (evs !== this._eventArrayRef) { this._eventCursor = 0; this._eventArrayRef = evs; }
+    if (evs.length < (this._eventCursor || 0)) this._eventCursor = 0;
     const slice = evs.slice(this._eventCursor || 0);
     this._eventCursor = evs.length;
     if (!slice.length) return;

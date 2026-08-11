@@ -38,7 +38,10 @@ begin('1. room codes: alphabet, length, uniqueness, uniformity');
     seen.add(c);
     for (const ch of c) counts.set(ch, (counts.get(ch) || 0) + 1);
   }
-  check(`2000 minted codes are unique (${seen.size})`, seen.size === 2000);
+  // Not `=== 2000`: 2000 draws from 27^5 = 14.3 M collide by birthday bound in
+  // ~13% of runs, so exact uniqueness is a coin-flip test. One collision is
+  // expected noise; three would mean the mint is biased.
+  check(`2000 minted codes are near-unique (${seen.size})`, seen.size >= 1998);
   // Rejection sampling should keep every symbol within a loose band of the
   // expected 2000*5/27 ≈ 370. A modulo-biased mint fails this.
   const expected = (2000 * A.ROOM_CODE_LENGTH) / A.ROOM_CODE_ALPHABET.length;
@@ -184,8 +187,141 @@ begin('6. the REJECT control message passes the wire guard');
 {
   const env = P.encodeEnvelope(P.CONTROL.REJECT, { sessionId: 'abc', reason: 'room_full' });
   check('REJECT validates', P.validate(env).ok, P.validate(env).reason);
-  check('REJECT without a reason fails', !P.validate({ v: 1, t: 'reject', d: { sessionId: 'abc' } }).ok);
-  check('REJECT with a huge reason fails', !P.validate({ v: 1, t: 'reject', d: { sessionId: 'abc', reason: 'x'.repeat(100) } }).ok);
+  check('REJECT without a reason fails', !P.validate({ v: P.PROTOCOL_VERSION, t: 'reject', d: { sessionId: 'abc' } }).ok);
+  check('REJECT with a huge reason fails', !P.validate({ v: P.PROTOCOL_VERSION, t: 'reject', d: { sessionId: 'abc', reason: 'x'.repeat(100) } }).ok);
+}
+
+// ---------------------------------------------------------------------------
+begin('7. the scene rides the WELCOME (host choice, allowlist-guarded)');
+// ---------------------------------------------------------------------------
+{
+  // The allowlist is the finished cities and nothing else.
+  check('allowlist holds the six finished scenes',
+    ['gallery', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge']
+      .every((s) => A.ARENA_SCENES.includes(s)) && A.ARENA_SCENES.length === 6);
+  check('chicago is not on the allowlist yet', !A.isArenaScene('chicago'));
+  check('every allowlisted scene has a player-facing label',
+    A.ARENA_SCENES.every((s) => typeof A.SCENE_LABELS[s] === 'string' && A.SCENE_LABELS[s].length > 0));
+
+  // Round trip: the host's pick arrives in the joiner's seat.
+  const hub = new T.LoopbackHub({ latencyMs: 5, seed: 'arena-scene' });
+  const host = new A.ArenaRoomHost({ transport: hub.endpoint('host'), code: 'K7QM3', maxPlayers: 2, scene: 'manhattan' });
+  const peer = new A.ArenaRoomPeer({ transport: hub.endpoint('p1'), code: 'K7QM3' });
+  const joinP = peer.join({ timeoutMs: 2000 });
+  for (let i = 0; i < 10; i++) { hub.advance(10); await Promise.resolve(); }
+  const seat = await joinP;
+  eq('the WELCOME carried the host\'s scene', seat.scene, 'manhattan');
+  eq('the peer remembers it', peer.scene, 'manhattan');
+  host.dispose(); peer.dispose();
+
+  // A host defaults to the gallery; an unknown scene never opens a room.
+  const dhost = new A.ArenaRoomHost({ transport: hub.endpoint('h2'), code: 'BCDFG', maxPlayers: 2 });
+  eq('host default scene is gallery', dhost.scene, 'gallery');
+  dhost.dispose();
+  let threw = null;
+  try { new A.ArenaRoomHost({ transport: hub.endpoint('h3'), code: 'BCDFG', scene: 'chicago' }); } catch (e) { threw = e; }
+  check('hosting an off-allowlist scene throws', !!threw);
+
+  // The wire guard: never trust the scene string.
+  const good = P.encodeEnvelope(P.CONTROL.WELCOME, { sessionId: 'abc', slot: 1, seed: 'arena:K7QM3', generation: 1, scene: 'brooklyn' });
+  check('WELCOME with an allowlisted scene validates', P.validate(good).ok, P.validate(good).reason);
+  check('WELCOME without a scene fails',
+    !P.validate({ v: P.PROTOCOL_VERSION, t: 'welcome', d: { sessionId: 'abc', slot: 1, seed: 's', generation: 1 } }).ok);
+  check('WELCOME with an unknown scene fails',
+    !P.validate({ v: P.PROTOCOL_VERSION, t: 'welcome', d: { sessionId: 'abc', slot: 1, seed: 's', generation: 1, scene: 'xyzzy' } }).ok);
+  check('WELCOME with chicago fails (not shipped)',
+    !P.validate({ v: P.PROTOCOL_VERSION, t: 'welcome', d: { sessionId: 'abc', slot: 1, seed: 's', generation: 1, scene: 'chicago' } }).ok);
+  check('WELCOME with a non-string scene fails',
+    !P.validate({ v: P.PROTOCOL_VERSION, t: 'welcome', d: { sessionId: 'abc', slot: 1, seed: 's', generation: 1, scene: 42 } }).ok);
+
+  // Version guard: a v1 client's envelope is dropped, not misread.
+  check('protocol version is 2', P.PROTOCOL_VERSION === 2);
+  check('a v1 envelope fails validation',
+    !P.validate({ v: 1, t: 'welcome', d: { sessionId: 'abc', slot: 1, seed: 's', generation: 1, scene: 'gallery' } }).ok);
+}
+
+// ---------------------------------------------------------------------------
+begin('8. determinism: same seed + same scene builds the identical city');
+// ---------------------------------------------------------------------------
+{
+  const V = await import(ROOT + 'js/voxelsim.js');
+  const seed = A.deriveSeed('K7QM3');
+  const a = new V.VoxelSandboxSim({ seed, scene: 'manhattan' });
+  const b = new V.VoxelSandboxSim({ seed, scene: 'manhattan' });
+  check(`manhattan is a real city (${a.blocks.length} blocks)`, a.blocks.length > 10000);
+  eq('block counts match across the two builds', a.blocks.length, b.blocks.length);
+  const sig = (s) => {
+    let h = 0;
+    for (const bl of s.blocks) {
+      h = (h * 31 + Math.round(bl.x * 100) + Math.round(bl.z * 100) * 7 + Math.round(bl.mass * 4) * 13) >>> 0;
+    }
+    return h;
+  };
+  eq('block layout signatures match across the two builds', sig(a), sig(b));
+  const g = new V.VoxelSandboxSim({ seed, scene: 'gallery' });
+  check('a different scene really is a different city', g.blocks.length !== a.blocks.length);
+}
+
+// ---------------------------------------------------------------------------
+begin('9. host-eaten blocks reach the peer despite per-frame drainEvents');
+// ---------------------------------------------------------------------------
+// Regression for the two-phone repro: blocks the host ate stayed visible on
+// the peer forever. Root cause: the arena page calls sim.drainEvents() every
+// frame, which REPLACES sim.events with a fresh array; ArenaHost's harvest
+// cursor only reset when the new array was SHORTER than the cursor, so under
+// steady eating the eat events (always at the low indexes) were sliced off
+// and never reached the wire or the keyframe's eaten set. This drives the
+// exact page loop — step, drain, repeat — and demands the peer learn every
+// consumed block, with the last keyframe healing anything a drop lost.
+{
+  const H = await import(ROOT + 'js/net/host.js');
+  const PE = await import(ROOT + 'js/net/peer.js');
+  const V = await import(ROOT + 'js/voxelsim.js');
+  const FIXED_DT = H.FIXED_DT;
+  const FRAME_MS = 1000 / 60;
+
+  const hub = new T.LoopbackHub({ latencyMs: 30, seed: 'eaten-regress' });
+  const sim = new V.VoxelSandboxSim({ seed: 'eaten-regress', scene: 'gallery' });
+  sim.holes[0].x = -8; sim.holes[0].z = 8;
+  sim.addHole(8, 8);
+
+  const host = new H.ArenaHost({
+    sim, transport: hub.endpoint('host'), generation: 1, durationTicks: 60 * 60,
+    readInput: () => ({ x: Math.cos(hub.nowMs / 2500), z: Math.sin(hub.nowMs / 2500) }),
+    nowMs: () => hub.nowMs,
+  });
+  host.addSlot(1, 'peer');
+  let maxBlockId = 0;
+  for (const b of sim.blocks) if (b.id > maxBlockId) maxBlockId = b.id;
+  const peer = new PE.ArenaPeer({
+    transport: hub.endpoint('peer'), slot: 1, sessionId: 't', nowMs: () => hub.nowMs,
+    readInput: () => ({ x: 0, z: 0 }),
+    speedForRadius: (r) => V.sandboxSpeedForRadius(r, sim.tune.speed),
+    spawn: { x: 8, z: 8 }, objectCount: maxBlockId + 1, generation: 1,
+  });
+  peer.join();
+
+  for (let frame = 0; frame < 15 * 60; frame++) {   // 15 s of the page's loop
+    hub.advance(FRAME_MS);
+    host.step(FIXED_DT, hub.nowMs);
+    sim.drainEvents();   // exactly what js/demo/arena.js does each frame
+    peer.update(hub.nowMs, FRAME_MS);
+  }
+  host.sendKeyframe(hub.nowMs);   // one keyframe interval's heal, at most
+  hub.flush();
+  peer.update(hub.nowMs, FRAME_MS);
+
+  const hostConsumed = new Set();
+  for (const b of sim.blocks) if (b.state === 'consumed' && b.id != null) hostConsumed.add(b.id);
+  let missing = 0;
+  for (const id of hostConsumed) if (!peer.consumed.has(id)) missing++;
+  check(`the host actually ate (${hostConsumed.size} blocks)`, hostConsumed.size > 100);
+  check(`the host's keyframe eaten set kept up (${host._eatenIds.size}/${hostConsumed.size})`,
+    host._eatenIds.size === hostConsumed.size);
+  check(`every host-eaten block reached the peer (missing ${missing})`, missing === 0);
+  check('the peer never invented an eat',
+    [...peer.consumed].every((id) => hostConsumed.has(id)));
+  peer.dispose(); host.dispose();
 }
 
 // ---------------------------------------------------------------------------

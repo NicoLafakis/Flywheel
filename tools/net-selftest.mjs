@@ -136,7 +136,7 @@ begin('1. protocol round-trips');
   // Control messages.
   for (const [t, d] of [
     [P.CONTROL.JOIN, { sessionId: 'abc' }],
-    [P.CONTROL.WELCOME, { sessionId: 'abc', slot: 3, seed: 'arena:uuid', generation: 1 }],
+    [P.CONTROL.WELCOME, { sessionId: 'abc', slot: 3, seed: 'arena:uuid', generation: 1, scene: 'gallery' }],
     [P.CONTROL.ROSTER, { members: [{ slot: 0 }], generation: 1 }],
     [P.CONTROL.HOST_ANNOUNCE, { sessionId: 'abc', generation: 2 }],
     [P.CONTROL.PING, { id: 7, tClient: 123 }],
