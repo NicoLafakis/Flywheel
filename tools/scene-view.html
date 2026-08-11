@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>Flywheel — dev scene viewer</title>
+<!-- DEV TOOL, deliberately outside the shipped menus: renders any voxel scene
+     by id with the real renderer so a scene can be eyeballed on the deployed
+     build before it is wired into the pickers. Not linked from anywhere.
+     Query params:
+       ?scene=chicago          scene id (default chicago — the one not yet in menus)
+       &drive=1                drive the hole along the scene's scripted route
+       &t=30                   fast-forward the sim this many seconds before first paint
+       &cx=&cy=&cz=&tx=&ty=&tz fixed camera position / look-at (world metres)
+       &chase=1                low chase framing that follows the hole instead
+       &fov=60                 camera fov -->
+<style>html,body{margin:0;height:100%;background:#1a1f3d;overflow:hidden}canvas{width:100vw;height:100vh;display:block}</style>
+<script type="importmap">{ "imports": { "three": "../js/vendor/three.module.js" } }</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { VoxelSandboxSim } from '../js/voxelsim.js';
+import { VoxelWorld3D } from '../js/voxelworld.js';
+
+const q = new URLSearchParams(location.search);
+const num = (k, d) => { const v = parseFloat(q.get(k)); return Number.isFinite(v) ? v : d; };
+const FIXED_DT = 1 / 60;
+
+const canvas = document.getElementById('c');
+canvas.width = innerWidth;
+canvas.height = innerHeight;
+
+const sceneId = q.get('scene') || 'chicago';
+const sim = new VoxelSandboxSim({ seed: q.get('seed') || 'dev', scene: sceneId });
+const world = new VoxelWorld3D(canvas, sim, 'classic');
+world.resize(innerWidth, innerHeight);
+window.__sim = sim;
+window.__world = world;
+
+const cam = new THREE.PerspectiveCamera(num('fov', 60), innerWidth / innerHeight, 0.5, 900);
+
+// Optional scripted drive along the scene's own route (chicago only for now —
+// the other scenes are reachable through the shipped menus already).
+let route = null;
+if (q.get('drive')) {
+  try {
+    const m = await import('../js/voxelscene-chicago.js');
+    if (sceneId === 'chicago') route = m.CHICAGO_ROUTE;
+  } catch (e) { console.warn(e); }
+}
+const moveAt = (t) => {
+  if (!route) return { x: 0, z: 0 };
+  const h = sim.hole;
+  let wp = route[route.length - 1];
+  for (const w of route) { if (t < w.until) { wp = w; break; } }
+  const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
+  return d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 };
+};
+
+// Fast-forward before first paint, so a screenshot can land mid-tour.
+const warm = num('t', 0);
+for (let i = 0; i < warm * 60; i++) sim.step(FIXED_DT, moveAt(sim.time));
+
+const chase = !!q.get('chase');
+let heading = 0;
+function frameCamera() {
+  if (chase) {
+    const h = sim.hole;
+    const m = moveAt(sim.time);
+    if (m.x || m.z) heading = Math.atan2(m.x, m.z);
+    const dist = num('dist', 14), height = num('h', 9);
+    cam.position.set(h.x - Math.sin(heading) * dist, height, h.z - Math.cos(heading) * dist);
+    cam.lookAt(h.x + Math.sin(heading) * 6, 1.5, h.z + Math.cos(heading) * 6);
+  } else {
+    cam.position.set(num('cx', 40), num('cy', 90), num('cz', 120));
+    cam.lookAt(num('tx', -10), num('ty', 0), num('tz', -10));
+  }
+}
+
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  sim.step(FIXED_DT, moveAt(sim.time));
+  const events = sim.events;
+  sim.events = [];
+  world.update(dt, events);
+  frameCamera();
+  world.render(cam);
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+addEventListener('resize', () => {
+  canvas.width = innerWidth; canvas.height = innerHeight;
+  world.resize(innerWidth, innerHeight);
+  cam.aspect = innerWidth / innerHeight;
+  cam.updateProjectionMatrix();
+});
+</script>
+</body>
+</html>
