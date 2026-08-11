@@ -25,7 +25,7 @@
 
 import {
   SNAPSHOT_INTERVAL_MS, KEYFRAME_INTERVAL_MS, INTENT_STALE_MS,
-  captureSnapshot, captureEvents, holesOf,
+  captureSnapshot, captureEvents, holesOf, encodeEatenRLE,
 } from './snapshot.js';
 import {
   MSG, FLAG, CONTROL, encodeEnvelope, decodeEnvelope, validate,
@@ -45,7 +45,7 @@ export class ArenaHost {
    *   readInput    () => {x,z} for the host's own hole
    *   nowMs        () => number, injectable so the loop is testable
    */
-  constructor({ sim, transport, generation = 0, durationTicks = 120 * 60, readInput = null, nowMs = null, seed = '' }) {
+  constructor({ sim, transport, generation = 0, durationTicks = 120 * 60, readInput = null, nowMs = null, seed = '', objectIdSpace = 0 }) {
     this.sim = sim;
     this.transport = transport;
     this.generation = generation & 0xff;
@@ -58,6 +58,23 @@ export class ArenaHost {
     this._lastKeyframeMs = -Infinity;
     this._pendingEvents = [];   // wire events accumulated since the last snapshot
     this._eatenIds = new Set(); // for the keyframe's consumed set (§7.4)
+
+    // The object-id space the keyframe's eaten bitset covers. Block ids are
+    // minted sequentially from 1 (voxelsim.js `_blockId`), so `max id + 1` is
+    // the exact count `encodeEatenRLE` needs. Derived once — the id space is
+    // fixed at scene build. A sim with no `blocks` array (the campaign Sim)
+    // sends no bitset until its id space is passed in explicitly.
+    this.objectIdSpace = objectIdSpace;
+    if (!this.objectIdSpace && Array.isArray(sim.blocks)) {
+      let maxId = 0;
+      for (const b of sim.blocks) {
+        if (b.id > maxId) maxId = b.id;
+        // A block already consumed before this host existed (a late-created
+        // host, a migration rebuild) still belongs in the keyframe's set.
+        if (b.state === 'consumed' && b.id != null) this._eatenIds.add(b.id);
+      }
+      this.objectIdSpace = maxId + 1;
+    }
 
     // The host's own hole is slot 0 and is JUST ANOTHER DRIVER. That is the
     // whole point of the seam: swapping slot 0 for a bot (attract mode) or for
@@ -154,12 +171,23 @@ export class ArenaHost {
 
     // THE one call. See the invariant note at the top of this file.
     //
-    // Feature detection over a version check: `sim.step(dt, move)` is today's
-    // single-hole signature (js/voxelsim.js:2471) and `sim.step(dt)` with
-    // per-hole drivers is PRD 0004 FR-005's. `step.length` distinguishes them
-    // without either package having to know when the other landed.
-    if (this.sim.step.length >= 2) this.sim.step(dt, moves.get(0) || { x: 0, z: 0 });
-    else this.sim.step(dt);
+    // Feature detection over a version check: the multi-hole sim
+    // (js/voxelsim.js `step(dt, move)`) takes EITHER one vector for holes[0]
+    // or an array in roster order — `Array.isArray(sim.holes)` is what tells
+    // us the roster form exists, because `step.length` is 2 in both eras by
+    // design (the sim kept the arity stable precisely so this seam would not
+    // have to guess). With a roster, every seated driver's intent is applied
+    // to its own hole — this line is where a peer's steering reaches the
+    // authoritative sim, and the ONLY place (invariant 7).
+    if (Array.isArray(this.sim.holes) && this.sim.holes.length) {
+      const arr = new Array(holes.length);
+      for (let i = 0; i < holes.length; i++) arr[i] = moves.get(i) || null;
+      this.sim.step(dt, arr);
+    } else if (this.sim.step.length >= 2) {
+      this.sim.step(dt, moves.get(0) || { x: 0, z: 0 });
+    } else {
+      this.sim.step(dt);
+    }
 
     // Record the APPLIED intent for every slot (04 §10.1).
     for (const [slot, m] of moves) {
@@ -255,6 +283,13 @@ export class ArenaHost {
   sendKeyframe(nowMs = null) {
     const now = nowMs != null ? nowMs : this._now();
     const snap = this._snapshot(now, FLAG.KEYFRAME);
+    // 04 §4.1: "Keyframe K: a snapshot with flags.keyframe, plus the eaten
+    // bitset — one bit per city object, RLE'd." This is the lifeline that makes
+    // a dropped snapshot's eat events recoverable (§7.4, §8): a peer that
+    // missed an eat learns it here at the latest, half a second on.
+    if (this.objectIdSpace > 0) {
+      snap.eatenRLE = encodeEatenRLE((i) => this._eatenIds.has(i), this.objectIdSpace);
+    }
     this._lastKeyframeMs = now;
     this.transport.send(encodeEnvelope('K', snap));
     return snap;

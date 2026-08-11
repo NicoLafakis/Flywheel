@@ -206,6 +206,24 @@ export function sandboxSizeProgress(size, sizeFrac = 0) {
   return Math.max(0, Math.min(1, (size - 1 + Math.max(0, Math.min(1, sizeFrac))) / (MAX_SIZE - 1)));
 }
 
+/**
+ * The sandbox movement speed for a hole of `radius`, in m/s — the exact
+ * expression `step()` applies (playerSpeedForRadius × tune.speed × the
+ * SANDBOX_SPEED_RAMP), derived from radius alone. Exact because radius is an
+ * affine function of the SIZE ladder (`radius = START_RADIUS + (size - 1 +
+ * min(1, sizeFrac)) × 0.5`, see the size recalc in `_growHole`), so
+ * `(radius − START_RADIUS) / 0.5` recovers `size − 1 + sizeFrac` bit for bit.
+ *
+ * Exported for the net layer: 04-netcode-design.md §5.2 has a peer predict its
+ * own hole's movement locally, and hard rule 4 (single source) means it must
+ * call THIS function rather than carry a copy of the ramp. Nothing here reads
+ * or writes sim state.
+ */
+export function sandboxSpeedForRadius(radius, tuneSpeed = SPEED_MULT) {
+  const sizeT = Math.max(0, Math.min(1, ((radius - START_RADIUS) / 0.5) / (MAX_SIZE - 1)));
+  return playerSpeedForRadius(radius) * tuneSpeed * (1 + SANDBOX_SPEED_RAMP * sizeT);
+}
+
 // Bond semantics: a block's vert/horizBond is how well IT passes support to
 // the neighbor above/beside it (compression/shear). Rubber carries weight from
 // above (a wheel holds the car) but shears off sideways; loose blocks stack
