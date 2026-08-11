@@ -226,6 +226,45 @@ export function sandboxSpeedForRadius(radius, tuneSpeed = SPEED_MULT) {
   return playerSpeedForRadius(radius) * tuneSpeed * (1 + SANDBOX_SPEED_RAMP * sizeT);
 }
 
+// --- movers (render-only kinematic props) ------------------------------------
+// A mover is a scene prop that travels a CLOSED polyline at constant speed —
+// the Chicago Loop train today; a boat or a street car tomorrow. It is not a
+// block: it owns no fine cells, feeds no physics, and cannot be eaten. Its pose
+// is a PURE FUNCTION of the deterministic sim clock, which is the whole
+// multiplayer story: host and peer step the same `sim.time`, call the same two
+// functions below, and draw the same train in the same place — no state to
+// snapshot, nothing to drift. No Math.random, no Date.now, ever.
+//
+// `path` is [[x, z], ...] and is implicitly closed (last point joins the
+// first). `moverArc` is called once per scene build; `moverPose(arc, s)` maps
+// an arc length onto position + unit direction. The renderer wraps
+// `s = time * speed + offset` modulo `arc.total` per unit, so a multi-car
+// train is one path and N offsets — each car turns the corner on its own.
+export function moverArc(path) {
+  const segs = [];
+  let total = 0;
+  const n = path.length;
+  for (let i = 0; i < n; i++) {
+    const a = path[i], b = path[(i + 1) % n];
+    const dx = b[0] - a[0], dz = b[1] - a[1];
+    const len = Math.hypot(dx, dz);
+    if (len <= 0) continue;
+    segs.push({ x: a[0], z: a[1], ux: dx / len, uz: dz / len, len, s0: total });
+    total += len;
+  }
+  return { segs, total };
+}
+
+export function moverPose(arc, s) {
+  const segs = arc.segs;
+  let g = segs[segs.length - 1];
+  let t = s % arc.total;
+  if (t < 0) t += arc.total;
+  for (const c of segs) { if (t <= c.s0 + c.len) { g = c; break; } }
+  const u = Math.max(0, Math.min(g.len, t - g.s0));
+  return { x: g.x + g.ux * u, z: g.z + g.uz * u, ux: g.ux, uz: g.uz };
+}
+
 // Bond semantics: a block's vert/horizBond is how well IT passes support to
 // the neighbor above/beside it (compression/shear). Rubber carries weight from
 // above (a wheel holds the car) but shears off sideways; loose blocks stack
@@ -371,6 +410,7 @@ export class VoxelSandboxSim {
     this.boundsRect = null;    // optional {minX,maxX,minZ,maxZ}; overrides `bounds` for off-center maps
     this.coinAnchors = null;   // optional [{x, z, ...}]; scene-declared coin placement (see _placeCoins)
     this.sceneDecor = null;    // render-only roads/parks/water (VoxelWorld3D)
+    this.sceneMovers = null;   // render-only kinematic props on closed paths (see moverArc/moverPose)
     this.cameraBlockers = [];  // tall-building AABBs for the chase cam
     // Live-tunable physics (dev sliders in SETTINGS → main.js pushes values
     // from save.settings; the constants above are the defaults/validator's).

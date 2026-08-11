@@ -10,6 +10,7 @@
 // `sim.sceneAmbient` (gulls / surf / ferries / steam / neon / pigeons) and
 // `sim.sceneSurfaces` (matType -> surface id — see js/voxeltiles.js SURFACES).
 import * as THREE from 'three';
+import { moverArc, moverPose } from './voxelsim.js';
 import { loadSave } from './save.js';
 import { surfaceMaterial, isSurface, disposeSurfaces } from './voxelsurfaces.js';
 import { makeSkin, INDICATOR_BY_ID } from './skins.js';
@@ -862,6 +863,13 @@ export class VoxelWorld3D {
     this.ambientRepairs = [];
     this._buildAmbient(sim.sceneAmbient);
 
+    // Movers (sim.sceneMovers): render-only props on closed paths — the Loop
+    // train. Their pose is a pure function of SIM time (never render time), so
+    // a paused sim parks the train and two synced sims agree on its position.
+    this._movers = null;
+    this._moverPosed = false;
+    this._buildMovers(sim.sceneMovers);
+
     if (typeof window !== 'undefined') window.__voxelWorld = this; // debug hook
   }
 
@@ -1352,6 +1360,70 @@ export class VoxelWorld3D {
     }
     // Unknown keys are simply not read — a scene may ship anything.
     this.ambient = Object.keys(a).length ? a : null;
+  }
+
+  // ------------------------------------------------------------------ movers
+  // One InstancedMesh per mover: every unit (train car) shares one voxel part
+  // list, posed per frame as frame × local. Same shadow/culling rules as the
+  // ambient meshes (no shadows, no frustum cull — they roam), same disposal
+  // path (_ambientMeshes). Geometry is static after build; only instance
+  // matrices move, and only while the sim clock advances.
+  _buildMovers(list) {
+    if (!Array.isArray(list) || !list.length) return;
+    const movers = [];
+    try {
+      for (const m of list) {
+        if (!m || !Array.isArray(m.path) || m.path.length < 2) continue;
+        if (!Array.isArray(m.parts) || !m.parts.length) continue;
+        const arc = moverArc(m.path);
+        if (!(arc.total > 0)) continue;
+        const offsets = Array.isArray(m.units) && m.units.length
+          ? m.units.map((u) => num(u && u.off, 0)) : [0];
+        // Local part matrices, authored with +z as the direction of travel and
+        // dy measured up from the mover's ride height (m.y).
+        const locals = m.parts.map((p) => new THREE.Matrix4().compose(
+          new THREE.Vector3(num(p.dx, 0), num(p.dy, 0) + num(p.sy, 1) / 2, num(p.dz, 0)),
+          new THREE.Quaternion(),
+          new THREE.Vector3(num(p.sx, 1), num(p.sy, 1), num(p.sz, 1)),
+        ));
+        const mesh = this._ambientMesh(
+          boxGeo(),
+          this._ambientMat({ opts: { color: 0xffffff, roughness: 0.8, metalness: 0.0, flatShading: true } }),
+          offsets.length * locals.length, true
+        );
+        const c = this._ac;
+        for (let u = 0; u < offsets.length; u++) {
+          for (let i = 0; i < locals.length; i++) {
+            mesh.setColorAt(u * locals.length + i, c.setHex(Number.isFinite(m.parts[i].color) ? m.parts[i].color : 0x888888));
+          }
+        }
+        mesh.instanceColor.needsUpdate = true;
+        movers.push({ arc, speed: Math.max(0, num(m.speed, 5)), y: num(m.y, 0), offsets, locals, mesh });
+      }
+    } catch (e) {
+      // A malformed mover payload must never take the level down with it.
+      console.warn('[voxelworld] sceneMovers ignored:', e);
+    }
+    if (movers.length) this._movers = movers;
+  }
+
+  _tickMovers(t) {
+    const frame = this._aFrame, out = this._aOut, q = this._aq, v = this._av;
+    for (const m of this._movers) {
+      const n = m.locals.length;
+      for (let u = 0; u < m.offsets.length; u++) {
+        const p = moverPose(m.arc, t * m.speed + m.offsets[u]);
+        v.set(p.x, m.y, p.z);
+        // Local +z faces the direction of travel.
+        q.setFromAxisAngle(AXIS_Y, Math.atan2(p.ux, p.uz));
+        frame.compose(v, q, ONE3);
+        for (let i = 0; i < n; i++) {
+          out.multiplyMatrices(frame, m.locals[i]);
+          m.mesh.setMatrixAt(u * n + i, out);
+        }
+      }
+      m.mesh.instanceMatrix.needsUpdate = true;
+    }
   }
 
   _initGulls(a, list) {
@@ -2184,6 +2256,17 @@ export class VoxelWorld3D {
       } else {
         this._ambientPosed = false;
         this._updateAmbient(dt, this.time);
+      }
+    }
+
+    // Movers ride the SIM clock, not the render clock: deterministic, and a
+    // paused sim parks the train. Reduced Motion poses them once at t = 0.
+    if (this._movers) {
+      if (this._ambientFrozen) {
+        if (!this._moverPosed) { this._tickMovers(0); this._moverPosed = true; }
+      } else {
+        this._moverPosed = false;
+        this._tickMovers(this.sim.time);
       }
     }
 
