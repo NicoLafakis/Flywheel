@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { DEFAULT_MUSIC_VOLUME, MUSIC_VOLUME_KEY, MusicDirector } from './music.js';
+import { MIX_VERSION, MIX_VERSION_KEY } from './mix.js';
 
 class FakeAudio {
   constructor() {
@@ -42,6 +43,11 @@ const music = new MusicDirector({
 });
 
 assert.equal(music.volume, DEFAULT_MUSIC_VOLUME);
+// The one-time mix re-seed runs on the director's own storage, so a surface
+// that streams music without building a bus graph still lands on (and stamps)
+// the shipped mix rather than an older one.
+assert.equal(data.get(MUSIC_VOLUME_KEY), String(DEFAULT_MUSIC_VOLUME), 'a fresh store is seeded');
+assert.equal(data.get(MIX_VERSION_KEY), String(MIX_VERSION), 'and stamped');
 assert.equal(music.request('menu'), true);
 assert.equal(media.src, '', 'pre-unlock request must not load music');
 music.unlock();
@@ -90,4 +96,15 @@ assert.equal(warnings.length, 1);
 music.request('not-a-cue');
 assert.equal(warnings.length, 1, 'unknown cue warns once');
 
-console.log('PASS music director: 21 assertions');
+// An install already stamped keeps the music level its player chose: the
+// re-seed is one-shot, not a policy that re-applies on every boot.
+const stampedData = new Map([[MUSIC_VOLUME_KEY, '0.5'], [MIX_VERSION_KEY, String(MIX_VERSION)]]);
+const stamped = new MusicDirector({
+  createAudio: () => new FakeAudio(),
+  storage: { getItem: (k) => stampedData.get(k) ?? null, setItem: (k, v) => stampedData.set(k, v) },
+  fadeMs: 0,
+});
+assert.equal(stamped.volume, 0.5, 'a stamped install keeps its chosen music level');
+assert.equal(stampedData.get(MUSIC_VOLUME_KEY), '0.5', 'and is not rewritten');
+
+console.log('PASS music director: 26 assertions');

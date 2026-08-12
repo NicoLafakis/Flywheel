@@ -3,6 +3,10 @@
 import { LEVELS, METROS, MECHANICS, LEVELS_PER_METRO, coinsForResult, starsForResult } from '../levels.js';
 import { isLevelUnlocked, storeSave, VOX_DEFAULTS } from '../save.js';
 import { ORBIT_RATE, ORBIT_RATE_RAMP } from '../controls.js';
+// The shipped mix, so the three slider rows cannot render a different resting
+// position from the one the game actually boots at. js/audio/mix.js owns the
+// numbers; this file only draws them.
+import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME } from '../audio/mix.js';
 import { buildBlockWord } from './blockword.js';
 import { buildSprocket } from './sprocket.js';
 
@@ -438,7 +442,7 @@ export class Screens {
     // how often a player reaches for them.
     const volRow = el(`<div class="set-row"><span class="set-label">🔊 Effects volume</span>
       <span class="set-val"><input type="range" min="0" max="1" step="0.05"
-        aria-label="Effects volume" value="${st.sfxVol !== undefined ? st.sfxVol : 1}"></span></div>`);
+        aria-label="Effects volume" value="${st.sfxVol !== undefined ? st.sfxVol : DEFAULT_SFX_VOLUME}"></span></div>`);
     const volSlider = volRow.querySelector('input');
     volSlider.oninput = () => {
       st.sfxVol = parseFloat(volSlider.value);
@@ -450,7 +454,7 @@ export class Screens {
     // crashes down (or the reverse) is the whole point of splitting these.
     const ambRow = el(`<div class="set-row"><span class="set-label">🌆 Ambience volume</span>
       <span class="set-val"><input type="range" min="0" max="1" step="0.05"
-        aria-label="Ambience volume" value="${st.ambVol !== undefined ? st.ambVol : 1}"></span></div>`);
+        aria-label="Ambience volume" value="${st.ambVol !== undefined ? st.ambVol : DEFAULT_AMBIENCE_VOLUME}"></span></div>`);
     const ambSlider = ambRow.querySelector('input');
     ambSlider.oninput = () => {
       st.ambVol = parseFloat(ambSlider.value);
@@ -461,7 +465,7 @@ export class Screens {
     // Independent of both sliders above: players can keep gameplay cues while
     // lowering the score. MusicDirector owns persistence, so standalone
     // arena.html inherits the same choice without importing the main save.
-    const musicVol = this.actions.musicVolume ? this.actions.musicVolume() : 0.65;
+    const musicVol = this.actions.musicVolume ? this.actions.musicVolume() : DEFAULT_MUSIC_VOLUME;
     const musicRow = el(`<div class="set-row"><span class="set-label">🎵 Music volume</span>
       <span class="set-val"><input type="range" min="0" max="1" step="0.05"
         aria-label="Music volume" value="${musicVol}"></span></div>`);

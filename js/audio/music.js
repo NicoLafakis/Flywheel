@@ -2,8 +2,13 @@
 // never decoded as one WebAudio pool: one HTMLAudioElement loads only the cue
 // the current screen or scene requests.
 
-export const MUSIC_VOLUME_KEY = 'flywheel.audio.musicVolume';
-export const DEFAULT_MUSIC_VOLUME = 0.65;
+import { DEFAULT_MUSIC_VOLUME, MUSIC_VOLUME_KEY, reseedAudioMix } from './mix.js';
+
+// Re-exported, not redefined: ./mix.js is the single description of all three
+// shipped levels (effects, ambience, music) so a retune is one edit rather than
+// a hunt across engine.js, save.js, main.js and the settings screen. Every
+// existing importer of these two names still imports them from here.
+export { DEFAULT_MUSIC_VOLUME, MUSIC_VOLUME_KEY };
 
 export const MUSIC_CUES = Object.freeze({
   menu: 'main-menu.mp3',
@@ -70,6 +75,12 @@ export class MusicDirector {
     this._warned = new Set();
     this._bindings = [];
 
+    // Same one-time re-seed the AudioEngine runs, against THIS director's
+    // storage: a surface that streams music without building a bus graph (and
+    // any test that injects its own store) still lands on the current mix.
+    // Stamped, so whichever of the two constructs first does the work and the
+    // other finds nothing to do.
+    reseedAudioMix(this._storage);
     try {
       const saved = parseFloat(this._storage && this._storage.getItem(MUSIC_VOLUME_KEY));
       if (Number.isFinite(saved)) this._music = clamp01(saved);

@@ -22,16 +22,70 @@ There is no master volume. `AudioEngine`'s master gain carries mute and nothing
 else (`muted ? 0 : MASTER_GAIN`); the player's levels live one layer down, one
 per bus, and none of them scales another:
 
-| Level | Rides | Covers | Persisted as |
-| --- | --- | --- | --- |
-| Effects | `sfx` bus gain | crashes, gulps, combo/milestone stingers, UI taps | `flywheel.audio.volume` |
-| Ambience | `amb` bus gain (`AMB_GAIN 0.55 × level`) | per-city beds, Chicago el-train rattle | `flywheel.audio.ambVolume` |
-| Music | `HTMLAudioElement.volume` | the streamed soundtrack | `flywheel.audio.musicVolume` |
+| Level | Default | Rides | Covers | Persisted as |
+| --- | --- | --- | --- | --- |
+| Effects | 0.7 | `sfx` bus gain | crashes, gulps, combo/milestone stingers, UI taps | `flywheel.audio.volume` |
+| Ambience | 0.4 | `amb` bus gain (`AMB_GAIN 0.55 × level`) | per-city beds, Chicago el-train rattle | `flywheel.audio.ambVolume` |
+| Music | 0.3 | `HTMLAudioElement.volume` | the streamed soundtrack | `flywheel.audio.musicVolume` |
+
+The mix descends deliberately: crashes lead, the city sits under them, the score
+sits under both.
 
 Music is not on the WebAudio graph at all, so it is unreachable from the two bus
 gains by construction. `MusicDirector._master` exists as a separate multiplier
 but stays at 1 in the game: nothing calls `setMasterVolume()`, so music answers
 only to its own slider, its ducking, and mute.
+
+## `js/audio/mix.js`: one description of the shipped mix
+
+The three defaults above, the three keys they persist under, and the mix-version
+stamp all live in `js/audio/mix.js`, which is deliberately dependency-free — it
+is three numbers and four strings, not the engine. Four unrelated layers need
+the same values and all four import them from there rather than restating a
+literal: `engine.js` (constructor fallbacks for effects and ambience, plus
+`VOL_KEY`/`AMB_VOL_KEY`), `music.js` (which re-exports `DEFAULT_MUSIC_VOLUME`
+and `MUSIC_VOLUME_KEY` so every existing importer keeps its import path),
+`save.js` (`defaultSettings()`), and `js/ui/screens.js` (the three slider rows'
+resting positions). `js/main.js` imports the effects and ambience numbers for
+its boot and `applySettings()` fallbacks. Retuning the mix is one edit in
+`mix.js`; a bare literal anywhere else is a drift bug waiting to happen, which
+is why `save.js` imports a constants module rather than the audio engine —
+persistence never points at render-side code.
+
+## Re-seeding an existing install
+
+Changing the defaults alone would be inaudible to anyone who has already played:
+`main.js` writes all three levels back to localStorage on every boot, so a
+stored older mix wins forever. `reseedAudioMix(storage)` closes that:
+
+- `flywheel.audio.mixVersion` holds an integer stamp; `MIX_VERSION` is the
+  current one.
+- Missing, unparseable, or lower than `MIX_VERSION` → all three levels are
+  overwritten with the shipped defaults and the stamp is written last, so a
+  store that fails partway through (quota, private mode) simply retries next
+  boot instead of recording a half-done re-seed. A stamp from a future build is
+  left alone rather than stomped backwards.
+- Equal or higher → nothing happens, forever. Every slider drag after the
+  re-seed is the player's and is never touched again.
+
+It fires from the `AudioEngine` constructor (before the two levels are read) and
+from the `MusicDirector` constructor (against that director's own storage), not
+only from `main.js` — that is what puts the arena, the hot-seat demo and the
+scene viewer on the new mix, since none of them has a save to consult. It is
+stamped and therefore idempotent, so whichever caller runs first does the work
+and the rest find nothing to do.
+
+`main.js` calls it explicitly BEFORE constructing `GameAudio`, and that ordering
+is load-bearing: it makes the main game the one caller that sees `reseeded ===
+true`, which is its cue to mirror the new levels into `save.settings.sfxVol` and
+`save.settings.ambVol`. Without that, the save's old levels would be written
+straight back over the freshly seeded keys a few lines later and nothing would
+change. It only stores the save when a value actually moved, so a brand-new
+player — who is also stamped on first boot, so the next retune knows where they
+stand — takes no extra write and cannot end up anywhere other than the plain
+defaults.
+
+A retune therefore costs two edits: the numbers in `mix.js`, and `MIX_VERSION`.
 
 `AudioEngine.volume`/`setVolume()` keep their pre-split names while meaning the
 EFFECTS level, because the arena, the hot-seat demo and the scene viewer already
@@ -58,12 +112,16 @@ the facade through `actions.applySettings()`; Music goes straight through
 `actions.setMusicVolume()` because `MusicDirector` owns its own persistence.
 The engine and director mirror all four values to `flywheel.audio.muted`,
 `flywheel.audio.volume`, `flywheel.audio.ambVolume`, and
-`flywheel.audio.musicVolume`, allowing standalone surfaces such as the arena to
-inherit the same choices without importing the campaign save.
+`flywheel.audio.musicVolume`, alongside the `flywheel.audio.mixVersion` stamp,
+allowing standalone surfaces such as the arena to inherit the same choices
+without importing the campaign save.
 
-`settings.ambVol` defaults to 1 and took no schema bump: an absent key reads as
-the default through every consumer's `typeof … === 'number'` guard, so upgrading
-players land on the ambience level they already had.
+`settings.sfxVol` and `settings.ambVol` took no schema bump, and retuning their
+defaults does not need one either: the key is present and its stored value is
+still legal, just from an older mix. An absent key reads as the current default
+through every consumer's `typeof … === 'number'` guard, and a present one is
+moved forward by `reseedAudioMix()` — which is the right mechanism precisely
+because it also reaches the save-less surfaces a migration could never touch.
 
 `js/audio/music.js` owns the cue registry and one reusable `HTMLAudioElement`:
 menu, shop, pause, results, and one cue per authored city. Gallery maps to
@@ -85,5 +143,7 @@ and major stingers duck music through `GameAudio`.
   never awaited by the game loop.
 - Music assets and their hashes are pinned by `assets/music/MANIFEST.json` and
   `tools/music-assets-selftest.mjs`; lifecycle behavior is covered by
-  `js/audio/music.test.mjs`, and the bus/level split by
-  `js/audio/engine.test.mjs` (run either with `node <path>`).
+  `js/audio/music.test.mjs`, and the bus/level split and the one-time re-seed
+  (fresh install, un-stamped old install, stamped install with chosen levels,
+  and a second boot after a re-seed) by `js/audio/engine.test.mjs` (run either
+  with `node <path>`).

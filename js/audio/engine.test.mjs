@@ -57,6 +57,11 @@ globalThis.window = { AudioContext: class { constructor() { ctx = new FakeCtx();
 const { AudioEngine } = await import('./engine.js');
 const { GameAudio } = await import('./game-audio.js');
 const { MusicDirector } = await import('./music.js');
+const {
+  AMB_VOLUME_KEY, MIX_VERSION, MIX_VERSION_KEY, MUSIC_VOLUME_KEY, SFX_VOLUME_KEY,
+  DEFAULT_AMBIENCE_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME,
+  reseedAudioMix,
+} = await import('./mix.js');
 
 const AMB_GAIN = 0.55;
 const MASTER_GAIN = 0.9;
@@ -69,15 +74,16 @@ assert.equal(engine.sfx.dest, engine.master);
 assert.equal(engine.amb.dest, engine.master);
 assert.equal(engine.master.dest, ctx.destination);
 
-// Defaults: master is mute-only, the two levels start full.
+// Defaults: master is mute-only, the two levels start on the shipped mix.
 assert.equal(engine.master.gain.value, MASTER_GAIN);
-assert.equal(engine.sfx.gain.value, 1);
-assert.equal(engine.amb.gain.value, AMB_GAIN);
+assert.equal(engine.sfx.gain.value, DEFAULT_SFX_VOLUME);
+assert.equal(engine.amb.gain.value, AMB_GAIN * DEFAULT_AMBIENCE_VOLUME);
 
-// (a) Effects at 0, ambience at 1: the city bed still plays, crashes are silent.
+// (a) Effects at 0, ambience untouched: the city bed still plays, crashes are silent.
 engine.setVolume(0);
 assert.equal(engine.sfx.gain.value, 0, 'effects slider at 0 silences the SFX bus');
-assert.equal(engine.amb.gain.value, AMB_GAIN, 'ambience is untouched by the effects slider');
+assert.equal(engine.amb.gain.value, AMB_GAIN * DEFAULT_AMBIENCE_VOLUME,
+  'ambience is untouched by the effects slider');
 assert.equal(engine.master.gain.value, MASTER_GAIN, 'master never carries a level');
 
 // (b) Ambience at 0, effects at 1: beds silent, crashes audible.
@@ -155,4 +161,75 @@ assert.equal(game.ambienceVolume, 0.2, 'the facade reports the engine level back
 assert.equal(game.engine.sfx.gain.value, 0.1);
 assert.equal(game.engine.amb.gain.value, AMB_GAIN * 0.2);
 
-console.log('PASS audio engine: 30 assertions');
+// ------------------------------------------------------------- mix re-seed
+// Retuning the shipped defaults is invisible on its own: main.js writes all
+// three levels back to localStorage on EVERY boot, so an existing player's
+// stored mix wins forever. The stamped one-time re-seed is what makes a retune
+// land — once — while leaving every later slider drag alone.
+const fakeStore = (seed = {}) => {
+  const m = new Map(Object.entries(seed));
+  return { map: m, getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) };
+};
+const realLS = globalThis.localStorage;
+
+// (a) Fresh install: nothing stored at all lands on the shipped mix and is
+// stamped, so the NEXT retune has a version to compare against.
+const freshStore = fakeStore();
+const freshRes = reseedAudioMix(freshStore);
+assert.equal(freshRes.reseeded, true, 'a fresh install is seeded once');
+assert.equal(freshStore.map.get(SFX_VOLUME_KEY), '0.7');
+assert.equal(freshStore.map.get(AMB_VOLUME_KEY), '0.4');
+assert.equal(freshStore.map.get(MUSIC_VOLUME_KEY), '0.3');
+assert.equal(freshStore.map.get(MIX_VERSION_KEY), String(MIX_VERSION), 'and stamped');
+// What it writes IS the plain default, so the seeded and unseeded paths cannot
+// hand a brand-new player two different mixes.
+assert.deepEqual([freshRes.sfxVol, freshRes.ambVol, freshRes.musicVol],
+  [DEFAULT_SFX_VOLUME, DEFAULT_AMBIENCE_VOLUME, DEFAULT_MUSIC_VOLUME],
+  'a fresh seed equals the plain defaults');
+
+// (b) THE case this exists for: someone who has already played, carrying the
+// old 1 / 1 / 0.65 mix and no stamp.
+const oldStore = fakeStore({ [SFX_VOLUME_KEY]: '1', [AMB_VOLUME_KEY]: '1', [MUSIC_VOLUME_KEY]: '0.65' });
+assert.equal(reseedAudioMix(oldStore).reseeded, true, 'an unstamped install is re-seeded');
+assert.equal(oldStore.map.get(SFX_VOLUME_KEY), '0.7');
+assert.equal(oldStore.map.get(AMB_VOLUME_KEY), '0.4');
+assert.equal(oldStore.map.get(MUSIC_VOLUME_KEY), '0.3');
+// An engine built on that store hears the new mix with no save involved, which
+// is what keeps the arena and the scene viewer off the old balance.
+globalThis.localStorage = oldStore;
+const reseededEngine = new AudioEngine();
+globalThis.localStorage = realLS;
+assert.equal(reseededEngine.volume, DEFAULT_SFX_VOLUME, 'a save-less surface inherits the new effects level');
+assert.equal(reseededEngine.ambienceVolume, DEFAULT_AMBIENCE_VOLUME, 'and the new ambience level');
+
+// (c) Already stamped, with levels the player deliberately chose: untouched.
+const chosenStore = fakeStore({
+  [SFX_VOLUME_KEY]: '0.2', [AMB_VOLUME_KEY]: '0.9', [MUSIC_VOLUME_KEY]: '0.5',
+  [MIX_VERSION_KEY]: String(MIX_VERSION),
+});
+assert.equal(reseedAudioMix(chosenStore).reseeded, false, 'a stamped install is left alone');
+assert.equal(chosenStore.map.get(SFX_VOLUME_KEY), '0.2');
+assert.equal(chosenStore.map.get(AMB_VOLUME_KEY), '0.9');
+assert.equal(chosenStore.map.get(MUSIC_VOLUME_KEY), '0.5');
+globalThis.localStorage = chosenStore;
+const keptEngine = new AudioEngine();
+globalThis.localStorage = realLS;
+assert.equal(keptEngine.volume, 0.2, 'a stamped player keeps the effects level they chose');
+assert.equal(keptEngine.ambienceVolume, 0.9, 'and the ambience level they chose');
+const keptMusic = new MusicDirector({ createAudio: () => new FakeAudioEl(), storage: chosenStore, fadeMs: 0 });
+assert.equal(keptMusic.volume, 0.5, 'and the music level they chose');
+
+// (d) A second boot after a re-seed does not re-seed, so a drag made AFTER the
+// retune survives every later boot.
+oldStore.setItem(SFX_VOLUME_KEY, '0.15');
+assert.equal(reseedAudioMix(oldStore).reseeded, false, 'the stamp makes it fire exactly once per install');
+assert.equal(oldStore.map.get(SFX_VOLUME_KEY), '0.15', 'a level chosen after the re-seed survives');
+
+// Private mode / no storage: degrade to the in-memory mix, never to a throw.
+const blocked = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
+const blockedRes = reseedAudioMix(blocked);
+assert.equal(blockedRes.reseeded, false, 'a blocked store never claims a re-seed');
+assert.equal(blockedRes.sfxVol, DEFAULT_SFX_VOLUME, 'and still reports the shipped mix');
+assert.equal(reseedAudioMix(null).reseeded, false, 'no storage at all is survivable');
+
+console.log('PASS audio engine: 55 assertions');

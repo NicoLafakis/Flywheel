@@ -14,6 +14,7 @@ import { mountReadyGate } from './ui/ready.js';
 import { TIERS } from './quality.js';
 
 import { GameAudio } from './audio/game-audio.js';
+import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_SFX_VOLUME, reseedAudioMix } from './audio/mix.js';
 
 const canvas = document.getElementById('game-canvas');
 const hud = new HUD();
@@ -25,11 +26,26 @@ const save = loadSave();
 // truth on this surface; the engine also mirrors every setting into
 // localStorage, which is the only store the arena demo has — so muting or
 // moving any of the three level sliders here carries over there.
+// One-time re-seed FIRST, before the engine is built and before the save's
+// levels are applied. Order is load-bearing in both directions: the engine runs
+// the same stamped call in its constructor (which is what covers the arena and
+// the scene viewer), so calling it here is what makes the main game the one
+// caller that sees `reseeded` and can therefore also move the save's two keys
+// onto the new mix. Without that, the lines below would write the save's old
+// levels straight back over the freshly seeded ones and nothing would change.
+const mix = reseedAudioMix();
+if (mix.reseeded && save.settings
+  && (save.settings.sfxVol !== mix.sfxVol || save.settings.ambVol !== mix.ambVol)) {
+  save.settings.sfxVol = mix.sfxVol;
+  save.settings.ambVol = mix.ambVol;
+  storeSave(save);
+}
+
 const audio = new GameAudio().init();
 window.__audio = audio; // debug hook, same idiom as scene-view.html
 audio.setMuted(save.muted);
-audio.setVolume(save.settings && typeof save.settings.sfxVol === 'number' ? save.settings.sfxVol : 1);
-audio.setAmbienceVolume(save.settings && typeof save.settings.ambVol === 'number' ? save.settings.ambVol : 1);
+audio.setVolume(save.settings && typeof save.settings.sfxVol === 'number' ? save.settings.sfxVol : DEFAULT_SFX_VOLUME);
+audio.setAmbienceVolume(save.settings && typeof save.settings.ambVol === 'number' ? save.settings.ambVol : DEFAULT_AMBIENCE_VOLUME);
 
 // ------------------------------------------------------------------ game state
 let state = 'menu'; // menu | intro | playing | paused | results
@@ -176,8 +192,8 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
   setAmbienceVolume(v) { audio.setAmbienceVolume(v); },
   applySettings() {
     storeSave(save);
-    audio.setVolume(typeof save.settings.sfxVol === 'number' ? save.settings.sfxVol : 1);
-    audio.setAmbienceVolume(typeof save.settings.ambVol === 'number' ? save.settings.ambVol : 1);
+    audio.setVolume(typeof save.settings.sfxVol === 'number' ? save.settings.sfxVol : DEFAULT_SFX_VOLUME);
+    audio.setAmbienceVolume(typeof save.settings.ambVol === 'number' ? save.settings.ambVol : DEFAULT_AMBIENCE_VOLUME);
     if (controls) controls.settings = save.settings;
     if (cam) {
       cam.distScale = save.settings.camDist;

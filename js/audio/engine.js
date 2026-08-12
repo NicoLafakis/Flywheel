@@ -15,13 +15,24 @@
 // iframe) degrades to silence rather than to an error.
 
 import { RNG } from '../rng.js';
+import {
+  AMB_VOLUME_KEY,
+  DEFAULT_AMBIENCE_VOLUME,
+  DEFAULT_SFX_VOLUME,
+  SFX_VOLUME_KEY,
+  reseedAudioMix,
+} from './mix.js';
+
+// The effects and ambience defaults and their keys live in ./mix.js, which is
+// the one file all three levels are described in (save.js and the settings
+// screen read the same constants). Re-exported here because this module is
+// where the two buses are owned, so a caller reasoning about the SFX bus does
+// not have to know the constants were hoisted.
+export { DEFAULT_SFX_VOLUME, DEFAULT_AMBIENCE_VOLUME, reseedAudioMix };
 
 const MUTE_KEY = 'flywheel.audio.muted';
-// Historical key name: it predates the split and now holds the EFFECTS level.
-// Renaming it would silently reset every existing player's slider, which is a
-// worse trade than a key whose name is one generation out of date.
-const VOL_KEY = 'flywheel.audio.volume';
-const AMB_VOL_KEY = 'flywheel.audio.ambVolume';
+const VOL_KEY = SFX_VOLUME_KEY;
+const AMB_VOL_KEY = AMB_VOLUME_KEY;
 const MASTER_GAIN = 0.9;   // unmuted ceiling; mute is the only thing master carries
 const AMB_GAIN = 0.55;     // ambience headroom under the beds, before the slider
 
@@ -34,12 +45,20 @@ export class AudioEngine {
     this.master = null; this.sfx = null; this.amb = null;
     this._muted = false;
     try { this._muted = localStorage.getItem(MUTE_KEY) === '1'; } catch { /* private mode */ }
-    this._vol = 1;
+    // Before the levels are read, not after: an install still carrying an older
+    // shipped mix is moved onto the current one here, so the reads below see the
+    // new numbers. This is the seam every surface passes through — the arena,
+    // the hot-seat demo and the scene viewer all construct an AudioEngine and
+    // have no save to consult — which is why the re-seed lives at the engine
+    // rather than in main.js. Stamped and idempotent: the main game calls it
+    // first (so it can also reconcile the save) and this call is then a no-op.
+    reseedAudioMix();
+    this._vol = DEFAULT_SFX_VOLUME;
     try {
       const v = parseFloat(localStorage.getItem(VOL_KEY));
       if (Number.isFinite(v)) this._vol = Math.min(1, Math.max(0, v));
     } catch { /* private mode */ }
-    this._ambVol = 1;
+    this._ambVol = DEFAULT_AMBIENCE_VOLUME;
     try {
       const v = parseFloat(localStorage.getItem(AMB_VOL_KEY));
       if (Number.isFinite(v)) this._ambVol = Math.min(1, Math.max(0, v));
