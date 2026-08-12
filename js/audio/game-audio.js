@@ -5,8 +5,9 @@
 // demo, and the dev scene viewer) sounds the same:
 //   eat        -> gulp, pitched DEEPER as the hole grows (radius-keyed)
 //   combo      -> tick rising with level; level 5+ adds the big pluck
-//   crash      -> weight tiers: debris scatter / small collapse / skyscraper
-//                 collapse with rumble bed + glass, ducking the ambience
+//   crash      -> ONE voice per BUILDING, not per falling piece: nearby impacts
+//                 are pooled into a collapse, sized by the pooled block count,
+//                 and anything short of a collapse stays silent
 //   milestone  -> pizzicato stinger; 'roar' tier gets the orchestral hit
 //   derail     -> THE moment: screech first, crash landing a beat later
 //   ambience   -> per-city bed (Chicago el, Brooklyn, Manhattan, Boston
@@ -18,6 +19,9 @@
 // full level, which is the pre-distance behaviour.
 //
 // Deterministic-sim-safe: reads events, never touches sim state (ADR-0003).
+// The collapse pooling below is a render-side buffer for exactly that reason:
+// the sim's event stream is untouched, so two peers with different speakers
+// still step bit-identically.
 
 import { AudioEngine } from './engine.js';
 import { MusicDirector } from './music.js';
@@ -56,6 +60,35 @@ const ATT_ZERO = 160;
 // LOUD — the rattle now also fades as the train circles away from the hole).
 const TRAIN_VOL = 0.3;
 
+// --------------------------------------------------------- collapse pooling
+// The sim reports one 'crash' per CHUNK that lands hard (js/voxelsim.js's
+// _splitChunk), and one toppling tower sheds a dozen of them over a couple of
+// seconds. Voicing each one stacked the same bang on itself and re-ducked the
+// bed every few frames, which is the jarring part. So impacts are pooled into
+// COLLAPSES here, render-side, and each collapse speaks exactly once.
+//
+// CRASH_RADIUS: impacts landing inside this of a live collapse's centroid are
+// the same building coming down. City scenes span ~250 m and a tower's rubble
+// field is a good deal tighter than that, so 18 m keeps two buildings on
+// opposite sides of a block apart while still catching a wide spill.
+const CRASH_RADIUS = 18;
+// Hold before speaking, so the weight class reflects the whole building rather
+// than whichever slab happened to hit first. Each further impact pushes the
+// deadline out by CRASH_EXTEND, but never past CRASH_MAX_HOLD from the first
+// hit — beyond that the sound would start visibly late.
+const CRASH_HOLD = 0.25;
+const CRASH_EXTEND = 0.15;
+const CRASH_MAX_HOLD = 0.6;
+// Once a collapse has spoken, further impacts on the same spot add nothing for
+// this long. The window is refreshed while rubble keeps arriving, so a tower
+// that settles for four seconds still only ever made one sound.
+const CRASH_SUPPRESS = 2.0;
+// Pooled block count -> weight class. These are the pre-pooling numbers, now
+// read against a whole building instead of one fragment: under CRASH_SMALL is
+// pieces falling off something, and pieces falling off something are SILENT.
+const CRASH_BIG = 26;
+const CRASH_SMALL = 9;
+
 /** Gulp pitch from hole radius: SIZE 1 (r 1.1) bright, SIZE 12 (r 6.6) deep. */
 function gulpRate(radius) {
   const t = Math.max(0, Math.min(1, ((radius || 1.1) - 1.1) / (6.6 - 1.1)));
@@ -80,6 +113,9 @@ export class GameAudio {
     this._lastEat = -1;
     this._lastScreech = -10;
     this._lastDerailCrash = -10;
+    // Live collapses: impacts still pooling, plus the ones that have spoken and
+    // are swallowing their own tail. Rarely more than two or three entries.
+    this._collapses = [];
   }
 
   /** Call once at page setup. Binds the autoplay unlock; the first user
@@ -125,6 +161,7 @@ export class GameAudio {
    * flat bed. */
   updateListener(x, z, moverSim) {
     this._lx = x; this._lz = z; this._hasListener = true;
+    this.tick();
     if (!this._trainHandle || !Array.isArray(moverSim)) return;
     let best = Infinity;
     for (const rt of moverSim) {
@@ -175,6 +212,11 @@ export class GameAudio {
   _stopScene(fade = 0.8) {
     if (this._ambHandle) { this._ambHandle.stop(fade); this._ambHandle = null; }
     if (this._trainHandle) { this._trainHandle.stop(fade); this._trainHandle = null; }
+    // Anything still pooling is DROPPED, not flushed: the surface that was
+    // feeding impacts has gone away (level teardown, results reveal, a scene
+    // swap), and a collapse banging over the results screen a beat after the
+    // city faded out is the same jarring miss this pooling exists to fix.
+    this._collapses.length = 0;
   }
   stopScene() { this._sceneWanted = null; this._stopScene(); }
 
@@ -182,12 +224,82 @@ export class GameAudio {
   /** Feed a drained sim event batch. `opts.quiet` plays another player's
    * eats at reduced volume (the arena: your rival chews in the distance). */
   handleEvents(events, opts = {}) {
+    this.tick();   // an empty batch is still a frame: pooled collapses ripen
     for (const ev of events) this.handleEvent(ev, opts);
+  }
+
+  /** Per-frame pump for the collapse pool. Free to call with nothing pending,
+   * and already reached from updateListener() and every drained event, so the
+   * three game surfaces pump it without extra wiring; a surface that drives
+   * neither should call it from its frame loop so the last building of a quiet
+   * moment still gets its voice. */
+  tick() {
+    this._tickCollapses(this.engine.ctx ? this.engine.ctx.currentTime : 0);
+  }
+
+  /** Find the live collapse this impact belongs to, or open a new one.
+   * Positionless impacts (a surface that never set x/z) all share one pool —
+   * without coordinates there is nothing to tell two buildings apart. */
+  _collapseFor(positioned, x, z, now) {
+    for (const c of this._collapses) {
+      if (c.positioned !== positioned) continue;
+      if (positioned && Math.hypot(x - c.x, z - c.z) > CRASH_RADIUS) continue;
+      return c;
+    }
+    const c = {
+      positioned, x, z, sx: 0, sz: 0, total: 0,
+      first: now, due: now + CRASH_HOLD, voiced: false, until: 0,
+    };
+    this._collapses.push(c);
+    return c;
+  }
+
+  /** Speak the ripe collapses and retire the ones done swallowing their tail. */
+  _tickCollapses(now) {
+    for (let i = this._collapses.length - 1; i >= 0; i--) {
+      const c = this._collapses[i];
+      if (c.voiced) {
+        if (now >= c.until) this._collapses.splice(i, 1);
+      } else if (now >= c.due) {
+        this._voiceCollapse(c, now);
+      }
+    }
+  }
+
+  /** The one sound a building gets. Weight class comes from the POOLED block
+   * count, position from the impacts' mass-weighted centroid. */
+  _voiceCollapse(c, now) {
+    c.voiced = true;
+    c.until = now + CRASH_SUPPRESS;
+    const n = c.total;
+    if (n < CRASH_SMALL) return;   // pieces falling off something, not a collapse
+    const a = c.positioned ? this._att(c.x, c.z) : 1;
+    if (a < 0.05) return;          // too far to hear — skip the nodes
+    const e = this.engine;
+    // The layer delays are NOT compensated for the hold. They are the shape of
+    // the sound — bang, then glass, then settling grit — and the hold only
+    // moves where that shape starts, which is the one thing compressing them
+    // would not fix. At CRASH_MAX_HOLD the onset sits 0.6 s behind the first
+    // slab, well inside the seconds a tower spends coming apart on screen.
+    if (n >= CRASH_BIG) {                // a tower came down
+      e.play('crash-big', { vol: 1.0 * a });
+      e.play('rumble', { vol: 0.8 * a });
+      e.playRandom(GLASS, { vol: 0.7 * a, delay: 0.25 });
+      e.playRandom(DEBRIS, { vol: 0.6 * a, delay: 0.45 });
+      e.duckAmbience(3.5, 0.25);
+      this.music.duck(3.5, 0.35);
+    } else {                             // low building / big slab
+      e.play('crash-small', { vol: 0.85 * a });
+      e.playRandom(DEBRIS, { vol: 0.6 * a, delay: 0.2 });
+      if (n >= 16) e.playRandom(GLASS, { vol: 0.5 * a, delay: 0.35 });
+      e.duckAmbience(2.0, 0.45);
+    }
   }
 
   handleEvent(ev, { quiet = false } = {}) {
     const e = this.engine;
     const now = e.ctx ? e.ctx.currentTime : 0;
+    this._tickCollapses(now);
     switch (ev.type) {
       case 'eat': {
         if (now - this._lastEat < 0.055) return;   // a plowed row is one mouthful
@@ -206,26 +318,22 @@ export class GameAudio {
         break;
       }
       case 'crash': {
-        // ev.size = blocks in the settled pool: the collapse's weight class.
-        const n = ev.size || 1;
-        const a = ev.x != null ? this._att(ev.x, ev.z) : 1;
-        if (a < 0.05) break;               // too far to hear — skip the nodes
-        if (n >= 26) {                     // a tower came down
-          e.play('crash-big', { vol: 1.0 * a });
-          e.play('rumble', { vol: 0.8 * a });
-          e.playRandom(GLASS, { vol: 0.7 * a, delay: 0.25 });
-          e.playRandom(DEBRIS, { vol: 0.6 * a, delay: 0.45 });
-          e.duckAmbience(3.5, 0.25);
-          this.music.duck(3.5, 0.35);
-        } else if (n >= 9) {               // low building / big slab
-          e.play('crash-small', { vol: 0.85 * a });
-          e.playRandom(DEBRIS, { vol: 0.6 * a, delay: 0.2 });
-          if (n >= 16) e.playRandom(GLASS, { vol: 0.5 * a, delay: 0.35 });
-          e.duckAmbience(2.0, 0.45);
-        } else {                           // debris scatter
-          e.playRandom(DEBRIS, { vol: 0.55 * a });
-          if (n >= 4) e.playRandom(DEBRIS, { vol: 0.4 * a, delay: 0.12 });
+        // ONE chunk of a building hitting something — never a sound on its own.
+        // It joins (or opens) the collapse pooling at that spot; _voiceCollapse
+        // decides, once, what the whole building sounded like.
+        if (!e.ctx) break;                 // no clock to pool against, no sound
+        const n = Math.max(1, ev.size || 1);
+        const positioned = ev.x != null;
+        const x = positioned ? ev.x : 0;
+        const z = positioned ? ev.z : 0;
+        const c = this._collapseFor(positioned, x, z, now);
+        if (c.voiced) { c.until = now + CRASH_SUPPRESS; break; }   // the tail
+        c.total += n;
+        if (positioned) {
+          c.sx += x * n; c.sz += z * n;
+          c.x = c.sx / c.total; c.z = c.sz / c.total;
         }
+        c.due = Math.min(c.first + CRASH_MAX_HOLD, Math.max(c.due, now + CRASH_EXTEND));
         break;
       }
       case 'growth':

@@ -99,6 +99,68 @@ full every time a skyscraper came down. Both setters apply live, including to a
 bed that is already looping and to a duck ramp still in flight (a slider drag
 cancels the scheduled values and wins).
 
+## Collapses: one voice per building, not per falling piece
+
+`js/voxelsim.js` emits a `crash` event from `_splitChunk()` every time a chunk
+of at least three blocks hits something at over 4 m/s. One toppling tower does
+that a dozen times over a couple of seconds, so `crash` is a **piece-landed**
+signal, not a building-fell signal. Reading it as the latter stacked the same
+bang on itself and re-ducked the bed every few frames, which is what made a
+demolition sound jarring rather than heavy.
+
+`GameAudio` therefore pools impacts into collapses before voicing anything. The
+pooling is entirely render-side (ADR-0003): the sim's event stream is unchanged,
+so two peers with different speakers still step bit-identically.
+
+- Impacts landing within **18 m** of a live collapse's centroid are the same
+  building. City scenes span ~250 m and a tower's rubble field is far tighter
+  than that, so the radius separates two buildings across a block while still
+  catching a wide spill. Impacts with no `x`/`z` — a surface that never set a
+  listener — all share one pool, since without coordinates there is nothing to
+  tell two sites apart.
+- A collapse is **held 0.25 s** from its first impact before speaking, and each
+  further impact pushes that out by 0.15 s, capped at **0.6 s**. The hold is
+  what makes the weight class reflect the whole building rather than whichever
+  slab happened to land first; the cap is what keeps the onset from arriving
+  visibly late.
+- It then speaks **once**, sized by the POOLED block count and positioned at the
+  impacts' mass-weighted centroid, attenuated by the same `_att()` listener
+  model as before. The tier thresholds are the pre-pooling numbers (26+ = the
+  skyscraper treatment with rumble bed and glass; 9+ = the low-building crash),
+  now read against a whole building instead of one fragment.
+- **Under 9 pooled blocks is silent.** That is the pieces-falling case; it used
+  to play a debris scatter, and the absence of that scatter is most of what the
+  fix is.
+- For **2 s** after speaking — refreshed while rubble keeps arriving — further
+  impacts at that spot are swallowed, so a tower that settles for four seconds
+  still only ever made one sound. Once the window lapses, a genuinely new
+  collapse on the same spot voices again.
+
+The layer delays inside a voice (glass at 0.25 s, debris at 0.45 s) are
+deliberately *not* compensated for the hold: they are the shape of the sound,
+and the hold moves only where that shape starts.
+
+The pool is pumped by `tick()`, which is reached from `updateListener()` and
+from every drained event, so the main game and the arena need no extra wiring.
+The hot-seat demo feeds no listener position, so `js/demo/demo.js` calls
+`audio.tick()` from its frame loop — without it, the last building of a lull
+would sit pooled until the next event arrived. `_stopScene()` **drops** anything
+still pooling rather than flushing it: the surface feeding impacts has gone
+away, and a collapse banging over the results reveal a beat after the city faded
+out is the same miss the pooling exists to fix.
+
+One voice per collapse also fixes the engine's per-name fatigue ducking, which
+was working against the mix rather than for it. Fatigue deposits energy per
+sound name with a ~4 s half-life; twenty impacts drove `crash-big` to roughly a
+tenth of its level within one collapse, so the tower that mattered arrived
+pre-fatigued and the tail was inaudible mush. A single play lands at full weight
+and still leaves fatigue doing its real job — damping a second and third tower
+felled in quick succession. No change was needed there.
+
+`js/main.js` reads the same raw `crash` events for camera shake and is
+deliberately left per-fragment: a small additive nudge per piece reads as ground
+tremor, which is right, where a repeated bang does not.
+
 ## Main-game wiring
 
 `js/main.js` creates one `GameAudio` instance, exposes it as `window.__audio`
@@ -133,9 +195,12 @@ and major stingers duck music through `GameAudio`.
 
 - Audio variants use the seeded `RNG` from `js/rng.js`; the repository-wide
   `Math.random()` ban still applies even though sound is presentation-only.
-- `updateListener(x, z, moverSim)` attenuates crash and derail events from full
-  at 25 m to silent at 160 m. In Chicago it also glides the train bed toward the
-  nearest car that remains on the rails.
+- `updateListener(x, z, moverSim)` attenuates collapses and derail events from
+  full at 25 m to silent at 160 m — for a collapse, measured at the pooled
+  centroid at the moment it speaks, not at each impact. In Chicago the same feed
+  glides the train bed toward the nearest car that remains on the rails. It also
+  pumps the collapse pool, which is why the two surfaces that call it need no
+  separate `tick()`.
 - Arena peers have no stepping mover sim, so they can provide the local hole
   position but not a live train position. Their train bed remains at base level.
 - `debris-metal.ogg` is preloaded but currently has no event mapping.
@@ -143,7 +208,10 @@ and major stingers duck music through `GameAudio`.
   never awaited by the game loop.
 - Music assets and their hashes are pinned by `assets/music/MANIFEST.json` and
   `tools/music-assets-selftest.mjs`; lifecycle behavior is covered by
-  `js/audio/music.test.mjs`, and the bus/level split and the one-time re-seed
-  (fresh install, un-stamped old install, stamped install with chosen levels,
-  and a second boot after a re-seed) by `js/audio/engine.test.mjs` (run either
-  with `node <path>`).
+  `js/audio/music.test.mjs`; the bus/level split and the one-time re-seed (fresh
+  install, un-stamped old install, stamped install with chosen levels, and a
+  second boot after a re-seed) by `js/audio/engine.test.mjs`; and the collapse
+  pooling — one tower to one voice, pieces falling to silence, two simultaneous
+  collapses to two voices, suppression expiry, one duck per voice, and the
+  positionless surface — by `js/audio/game-audio.test.mjs` (all run with
+  `node <path>`).

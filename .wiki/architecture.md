@@ -239,8 +239,12 @@ only its own bus (`save` mirrors all of it into the engine's localStorage
 keys, so the arena — which has no save — inherits the same choices). Known
 gaps: the arena PEER feeds no mover positions (its sim never steps), so its
 el bed stays flat; `debris-metal.ogg` is preloaded but has no call site yet.
-Bus/level split coverage lives in `js/audio/engine.test.mjs`. Full detail in
-`modules/audio.md`.
+Collapse sounds are pooled per BUILDING rather than per falling chunk: the
+sim's `crash` event fires once per chunk that lands hard, so nearby impacts are
+gathered render-side into one collapse, voiced once on their combined block
+count, and anything short of a real collapse is silent. Bus/level split
+coverage lives in `js/audio/engine.test.mjs` and collapse pooling in
+`js/audio/game-audio.test.mjs`. Full detail in `modules/audio.md`.
 
 **Original game music, built 2026-08-11:** `js/audio/music.js` streams one of
 ten proprietary MP3s from `assets/music/` through a reusable media element,

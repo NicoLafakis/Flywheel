@@ -210,6 +210,11 @@ function frame(ts) {
     if (remaining <= 0) { remaining = 0; endMatch(); }
   }
 
+  // The hot-seat screen is the one surface that never feeds a listener
+  // position, so this is its only per-frame pump: it is what lets the last
+  // building of a lull finish pooling and speak. The other two surfaces reach
+  // the same pump through updateListener().
+  audio.tick();
   view.update([duel.hole(0), duel.hole(1)]);
   view.render();
   updateHud();
