@@ -18,7 +18,8 @@ tying everything together.
 |------|---------|
 | `js/main.js` | Boot, state machine (menu/intro/playing/paused/results), loop, audio; branches campaign vs voxel sandbox (`isVoxelSandbox`) |
 | `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, the announcement queue and its three backends (`#toast`, `#big-pop`, `#hype-band`); `updateSandbox()` variant for the voxel mode (live `CLEARED x% / 50% · SIZE n` readout, dimmed coin pill via `body.mode-sandbox`, the score plate's count-up, and the combo ring — chain, window drain and the multiplier read from `voxelsim.js`'s exported ladder, never re-derived; see [ADR-0015](../adr/0015-scoring-ladder-is-a-table-the-hud-reads.md)) |
-| `js/ui/screens.js` | Title (branded landing: sprocket + `FLYWHEEL` wordmark + tagline plate, PLAY BROOKLYN CTA, coin bank, `FREE_PLAY`-driven voxel-scene chip shelf with per-city cleared/best records, quiet SHOP/SETTINGS), shop, results, pause (two-step confirms for run-discarding buttons), mechanic intro |
+| `js/ui/screens.js` | Title (branded landing over a live city backdrop: sprocket + `FLYWHEEL` wordmark + tagline plate, PLAY BROOKLYN CTA as the screen's one saturated element, a save-derived status strip — biggest hole, best score, coin bank and the coin gap to the next unlock — a `FREE_PLAY`-driven voxel-scene chip shelf with per-city cleared/best records, one silhouetted locked card carrying its unlock price in words, and a demoted SHOP/SETTINGS row), shop, results, pause (two-step confirms for run-discarding buttons), mechanic intro |
+| `js/ui/menuscene.js` | The live city behind the landing screen — the same `VoxelSandboxSim` + `VoxelWorld3D` + `ChaseCamera` trio the sandbox mounts, on the same canvas, on autopilot (held establishing orbit, never released; a scripted heading sweep drives the hole so the skyline is actively being eaten). Scheduled, never blocking: `startMenuScene` only arms a timer, `tickMenuScene` is folded into `main.js`'s single rAF loop, and `stopMenuScene` disposes from `teardownWorld` before any game world claims the canvas |
 | `js/ui/ready.js` | Level-start "READY?" gate overlay (`mountReadyGate`) — the visual reference for the brand layer; renders the shared wordmark at gate scale over the live 3D establishing shot |
 | `js/ui/blockword.js` | Shared block-wordmark builder (`buildBlockWord`) — per-character gold slab letters with outline ring, extrude, deterministic index-derived tilt/stagger/bob. Used by both `screens.js` (`FLYWHEEL`) and `ready.js` (`READY?`) so the two never drift apart. See `.wiki/adr/0005-shared-brand-layer.md` |
 | `js/ui/sprocket.js` | Brand mark builder (`buildSprocket`) — rotating 12-tooth wheel with an empty center (the hole/protagonist), used on the landing screen |
@@ -41,6 +42,48 @@ tying everything together.
   than each owning a copy. Edit the shared primitives, not a per-screen fork;
   gate-only sizing/scrim/exit rules stay under the `#ready-gate` prefix. See
   `.wiki/conventions.md` and `.wiki/adr/0005-shared-brand-layer.md`.
+- The landing backdrop is opt-out by construction: `menuscene.js` puts
+  `body.fw-scene` on only once a scene has built, and every rule that changes
+  the landing screen for a live city is keyed off that class — so a weak
+  device (few cores, little memory, LOW graphics or Performance Mode), a
+  missing WebGL context or a throw during the build all land on the original
+  flat dark field with no second code path. Its lifetime is the title screen's
+  lifetime and nothing else has to remember: `showTitle` calls
+  `actions.menuScene(true)`, and `showLoading`/`showShop`/`showSettings` each
+  call it with `false`. Reduced motion (either source) freezes the camera drift
+  by passing a zero orbit arc and keeps the city.
+- Legibility over the backdrop is a scrim, not a panel: `.fw-landing`'s
+  translucent fill and backdrop blur are dropped when the scene is up and
+  replaced by a fixed layered gradient (warm pool behind the wordmark, a band
+  under the chip shelf, an overall vignette). The type still carries its own
+  outline ring, same as the READY gate's `.rg-scrim`.
+- Everything the landing screen says about the player comes from
+  `personalBest()`/`nextUnlock()` in `screens.js`, which read only the save. A
+  record that was never set renders no cell rather than a zero, and the locked
+  card is the cheapest unowned row across `SKINS`/`INDICATOR_SKINS`/`ITEMS` —
+  cities are never locked, so shop content is the only thing that is.
+- That next-unlock row has TWO states and one flag (`save.coins >= price`)
+  decides both halves, so the strip and the card can never disagree. Short: the
+  strip is a goal (bar + `N to go`) and the card is `.fw-chip--locked`, dashed,
+  reading `UNLOCKS AT n COINS`. Covered: the bar goes entirely (a full bar is a
+  finished journey drawn as a pending one), the strip names the item under
+  `READY TO BUY`, and the card becomes `.fw-chip--ready` — solid frame, gold
+  accent, gold coin instead of the lock disc, reading `BUY NOW · n COINS`.
+- Phone portrait (`max-width: 640px`, portrait) is a distinct composition, not a
+  squeeze: `#mp-link` leaves the top-right corner it shared with the centred
+  sprocket and becomes a full-width top rail (index.html, same breakpoint) whose
+  band `.fw-landing` reserves as padding, so the header stack cannot collide at
+  any width. Below it only the card shelf flexes — everything else is
+  `flex: none`, the shelf scrolls inside a 44vh cap with a 190px floor on its
+  group, and the scrim's lower band lifts — which keeps the screen itself from
+  scrolling and leaves a strip of live city legible between the strip and the
+  shelf. `menuscene.js` pulls its establishing radius back (112 vs 74) on a
+  narrow portrait viewport so that strip carries skyline rather than one facade.
+- Landing-screen feel is token-driven (`--fw-press`/`--fw-release`/`--fw-back`/
+  `--fw-lift`/`--fw-stagger` on `.fw-landing`). Reduced motion swaps those
+  tokens rather than removing the animations, so a press still answers; every
+  state change is transform/opacity only, and the unlock bar fills by
+  `scaleX` so nothing on the screen animates layout.
 - `screens.js`'s `FREE_PLAY` list is the single place the voxel-scene chip
   shelf's order/labels/tags live; `startVoxelSandbox(scene)` takes the
   `scene` id straight from it, and the sandbox's own `'gallery'` default

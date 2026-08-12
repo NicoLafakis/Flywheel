@@ -49,6 +49,46 @@ function el(html) {
   return d.firstChild;
 }
 
+// ---------------------------------------------------------------- save reads
+// Everything the landing screen says about the player is derived here, from the
+// save and only from the save. Nothing on that screen is allowed to be a
+// plausible-looking number: if a record has never been set, the row that would
+// have shown it is not rendered.
+
+// The best run anywhere, across every scene. Per-scene bests already ride on
+// the city chips; this is the one number that answers "how big have I got",
+// which is the question a player actually carries between sessions.
+// `bestScore` only exists from save v16 on, so an older record legitimately has
+// none and reports null rather than 0 — never measured is not the same as zero.
+function personalBest(save) {
+  let size = 0, score = 0, runs = 0;
+  for (const rec of Object.values(save.sandbox || {})) {
+    if (!rec) continue;
+    runs += rec.completions || 0;
+    if ((rec.bestSize || 0) > size) size = rec.bestSize;
+    if ((rec.bestScore || 0) > score) score = rec.bestScore;
+  }
+  return { size, score: score || null, runs };
+}
+
+// The cheapest thing the player does not own yet — one shelf built from the
+// three real registries, so the menu can never advertise a price the shop does
+// not charge or an item the shop does not stock. Everything free or owned is
+// out; when nothing is left, there is no next unlock and the caller renders
+// neither the bar nor the locked card.
+function nextUnlock(save) {
+  const owned = save.ownedItems || [];
+  let best = null;
+  const consider = (row, kind) => {
+    if (!row || !row.price || owned.includes(row.id)) return;
+    if (!best || row.price < best.price) best = { id: row.id, name: row.name, price: row.price, kind, css: row.css };
+  };
+  for (const s of SKINS) consider(s, 'HOLE SKIN');
+  for (const i of INDICATOR_SKINS) consider(i, 'NAV INDICATOR');
+  for (const it of ITEMS) consider(it, 'UPGRADE');
+  return best;
+}
+
 export class Screens {
   constructor(root, save, actions) {
     this.root = root;
@@ -69,6 +109,11 @@ export class Screens {
   showTitle() {
     this.clear();
     if (this.actions.music) this.actions.music('menu');
+    // The live city behind this screen (js/ui/menuscene.js). Mounting the
+    // landing screen is what turns it on and every takeover below turns it off,
+    // so its lifetime is exactly this screen's lifetime and no caller has to
+    // remember either half.
+    if (this.actions.menuScene) this.actions.menuScene(true);
     // Two independent sources of "hold still": the in-game setting, read here,
     // and the OS preference, handled by the prefers-reduced-motion block in
     // main.css. Either one alone is enough to park the sprocket and the letters.
@@ -100,22 +145,67 @@ export class Screens {
 
     // Returning-player recognition (playtest finding: a seeded save rendered
     // byte-identical to a first visit). The bank belongs on the front door, not
-    // three screens deep in SHOP. Hidden at zero — a first-run player has no
-    // bank to recognize and the pill would be pure noise.
-    if (this.save.coins > 0) {
-      s.appendChild(el(`<div class="fw-bank">🪙 ${this.save.coins}</div>`));
+    // three screens deep in SHOP — and next to it, what the bank is FOR: the
+    // cheapest thing still locked, named, with the gap to it.
+    //
+    // Every value here is read from the save. A first-run player has no record
+    // and no bank, so the whole strip is absent rather than rendered full of
+    // zeroes — the strip is recognition, and there is nothing yet to recognise.
+    const pb = personalBest(this.save);
+    const unlock = nextUnlock(this.save);
+    if (this.save.coins > 0 || pb.runs > 0) {
+      const strip = el(`<div class="fw-status"></div>`);
+      if (pb.size > 0) {
+        strip.appendChild(el(`<div class="fw-stat"><span class="fw-stat-k">BIGGEST HOLE</span><span class="fw-stat-v">SIZE ${pb.size}</span></div>`));
+      }
+      if (pb.score !== null) {
+        strip.appendChild(el(`<div class="fw-stat"><span class="fw-stat-k">BEST SCORE</span><span class="fw-stat-v">${pb.score.toLocaleString('en-US')}</span></div>`));
+      }
+      if (unlock) {
+        // Width is set once, at render, on a transform-scaled fill — the bar
+        // never animates a layout property.
+        //
+        // Two states, and they are genuinely different sentences. While the bank
+        // is short, this is a GOAL: a bar, the gap in coins, and the price to
+        // beat. Once the bank covers the price it is an OFFER, so the bar goes
+        // entirely — a full bar plus a countdown label is a progress meter for a
+        // journey already finished, and it read as pending next to a card that
+        // said UNLOCKS AT. The locked card below switches on the same flag, so
+        // the strip and the card can never disagree about whether the player can
+        // buy the thing.
+        const need = Math.max(0, unlock.price - this.save.coins);
+        const pct = Math.max(0, Math.min(1, this.save.coins / unlock.price));
+        strip.appendChild(need > 0
+          ? el(`<div class="fw-stat fw-stat--goal">
+              <span class="fw-stat-k">🪙 ${this.save.coins} · NEXT UNLOCK ${unlock.price}</span>
+              <span class="fw-bar"><span class="fw-bar-fill" style="transform:scaleX(${pct.toFixed(3)})"></span></span>
+              <span class="fw-stat-note">${need} to go</span>
+            </div>`)
+          : el(`<div class="fw-stat fw-stat--goal fw-stat--ready">
+              <span class="fw-stat-k">🪙 ${this.save.coins} · READY TO BUY</span>
+              <span class="fw-stat-v">${unlock.name}</span>
+              <span class="fw-stat-note">${unlock.price} coins · get it in the shop</span>
+            </div>`));
+      } else {
+        strip.appendChild(el(`<div class="fw-stat fw-stat--goal"><span class="fw-stat-k">🪙 ${this.save.coins}</span><span class="fw-stat-note">everything unlocked</span></div>`));
+      }
+      s.appendChild(strip);
     }
 
     const group = el(`<section class="fw-group" aria-labelledby="fw-free-play"></section>`);
     group.appendChild(el(`<div class="fw-group-label" id="fw-free-play">Choose a city · collect coins · grow big</div>`));
     const chips = el(`<div class="fw-chips"></div>`);
+    let stagger = 0;
     for (const sc of FREE_PLAY) {
       // The SANDBOX entry carries no scene id; 'gallery' is startVoxelSandbox's
       // own default and the key recordSandboxResult writes under.
       const rec = (this.save.sandbox || {})[sc.scene || 'gallery'];
       const progress = rec && rec.completions > 0
         ? `<span class="fw-chip-progress">CLEARED ×${rec.completions} · BEST SIZE ${rec.bestSize}</span>` : '';
-      const chip = el(`<button type="button" class="fw-chip">
+      // --i drives the entrance stagger in css/main.css: 40 ms per item, and the
+      // index keeps counting across the locked card below so the whole shelf
+      // deals out in one pass rather than in two overlapping ones.
+      const chip = el(`<button type="button" class="fw-chip${sc.tag ? ' fw-chip--lead' : ''}" style="--i:${stagger++}">
         <span class="fw-chip-name">${sc.name}</span>
         <span class="fw-chip-sub">${sc.sub}</span>
         ${progress}
@@ -123,6 +213,28 @@ export class Screens {
       </button>`);
       chip.onclick = () => this.actions.startVoxelSandbox(sc.scene);
       chips.appendChild(chip);
+    }
+    // One locked thing, named, with its condition in words. Every city is open
+    // — nothing in the save gates a scene — so the only genuinely locked
+    // content in this game is what coins buy, and this is the cheapest row the
+    // player has not bought yet, drawn as a silhouette: the shape is there, the
+    // colour is not. It reads as a card in the same shelf because it is the
+    // same shelf: this is where "what's next" lives. Clicking it goes to the
+    // shop, which is where the condition is met.
+    if (unlock) {
+      // Locked and affordable are two states of one card, not one state. The
+      // card used to print its price unconditionally, so a player holding 240
+      // coins was told a 100-coin skin "UNLOCKS AT 100 COINS" — a condition
+      // already met, drawn as a silhouette. Same flag as the strip above.
+      const affordable = this.save.coins >= unlock.price;
+      const card = el(`<button type="button" class="fw-chip ${affordable ? 'fw-chip--ready' : 'fw-chip--locked'}" style="--i:${stagger++}">
+        <span class="fw-lock-art" aria-hidden="true"></span>
+        <span class="fw-chip-name">${unlock.name}</span>
+        <span class="fw-chip-sub">${unlock.kind}</span>
+        <span class="fw-chip-progress">${affordable ? `BUY NOW · ${unlock.price} COINS` : `UNLOCKS AT ${unlock.price} COINS`}</span>
+      </button>`);
+      card.onclick = () => this.showShop();
+      chips.appendChild(card);
     }
     group.appendChild(chips);
     s.appendChild(group);
@@ -147,6 +259,7 @@ export class Screens {
 
   showLoading(label) {
     this.clear();
+    if (this.actions.menuScene) this.actions.menuScene(false);
     const s = el(`<div class="screen"><h2>BUILDING CITY…</h2>
       <p style="opacity:0.7">${label}</p></div>`);
     this.root.appendChild(s);
@@ -186,6 +299,7 @@ export class Screens {
 
   showShop() {
     this.clear();
+    if (this.actions.menuScene) this.actions.menuScene(false);
     if (this.actions.music) this.actions.music('shop');
     const s = el(`<div class="screen"><h2>SHOP</h2>
       <div class="coins">&#128176; ${this.save.coins} coins</div>
@@ -336,6 +450,7 @@ export class Screens {
 
   showSettings(onBack) {
     this.clear();
+    if (this.actions.menuScene) this.actions.menuScene(false);
     const st = this.save.settings;
     const s = el(`<div class="screen"><h2>SETTINGS</h2></div>`);
     // `set-panel` widens the panel and trims its padding at phone width; every

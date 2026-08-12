@@ -59,6 +59,24 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
   #mp-link { padding: 8px 12px 8px 17px; }
   .mp-sub { display: none; }
 }
+/* Narrow PORTRAIT is the collision case and it is structural, not cosmetic: the
+   plate is pinned to the right edge, the sprocket is centred, and below ~640px
+   their boxes simply intersect — no amount of trimming the plate moves it out of
+   the mark's way, because the mark grows with the viewport too. So the plate
+   stops being a corner badge and becomes the screen's top rail: full width,
+   above everything, one row. The landing screen reserves the band it occupies
+   (see .fw-landing's padding-top in css/main.css under the same breakpoint), so
+   nothing in the header stack can sit under it at any width. 44px minimum so it
+   is still a thumb target. */
+@media (max-width: 640px) and (orientation: portrait) {
+  #mp-link {
+    top: calc(10px + var(--sai-top, 0px));
+    right: calc(12px + var(--sai-right, 0px));
+    left: calc(12px + var(--sai-left, 0px));
+    flex-direction: row; align-items: center; justify-content: center;
+    min-height: 44px; padding: 0 14px 0 19px; gap: 0;
+  }
+}
 @media (orientation: landscape) and (max-height: 480px) {
   #mp-link {
     top: calc(8px + var(--sai-top, 0px)); right: calc(8px + var(--sai-right, 0px));

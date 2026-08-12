@@ -1200,3 +1200,346 @@ body.rg-gate-up #hud * { pointer-events: none; }
      been pushed somewhere rather than as an empty target. */
   #touch-hint .th-knob { animation: none; transform: translate(-119%, -119%); }
 }
+
+/* ---------- Landing: the live city behind the title ----------
+   js/ui/menuscene.js mounts a real sandbox scene on the game canvas and puts
+   body.fw-scene on when it succeeds. EVERY rule in this block is keyed off that
+   class, which is what makes the flat dark field the fallback rather than a
+   second thing to maintain: no scene, no class, and the landing screen renders
+   exactly as it did before.
+
+   The screen's own translucent fill has to go when the scene is up — a 72%
+   wash plus a 4px backdrop blur over a moving city is neither the city nor a
+   panel, it is mush. What replaces it is a fixed scrim that is dark where the
+   type is and clear where the skyline is: two edge bands for the wordmark and
+   the shelf, a vignette to seat the whole frame, and a warm pool behind the
+   hero. Same reasoning as the READY gate's rg-scrim, sized for a screen that
+   carries far more type than the gate does. */
+body.fw-scene .fw-landing {
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+body.fw-scene .fw-landing::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    /* the warm pool the wordmark sits in — brand hue, not black, so the mark
+       reads as lit by the city rather than cut out of it */
+    radial-gradient(60% 34% at 50% 30%,
+      rgba(28, 16, 6, .62) 0%, rgba(14, 10, 8, .34) 55%, rgba(10, 12, 22, 0) 100%),
+    /* the shelf's band: the chips are dark plates, and this is what stops a lit
+       facade showing through the gaps between them */
+    linear-gradient(180deg, rgba(6, 9, 18, 0) 40%, rgba(6, 9, 18, .74) 72%, rgba(5, 7, 14, .9) 100%),
+    linear-gradient(0deg, rgba(6, 9, 18, 0) 82%, rgba(6, 9, 18, .6) 100%),
+    radial-gradient(130% 96% at 50% 42%,
+      rgba(6, 9, 18, .18) 0%, rgba(6, 9, 18, .58) 66%, rgba(3, 5, 11, .88) 100%);
+}
+/* The scene fades in BEHIND a menu that is already on screen — the menu never
+   waits for it. Opacity only, one compositor property, and it runs once
+   because the class goes on at the moment the first frame is ready. */
+body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
+@keyframes fw-scene-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- Landing: weight ----------
+   PLAY is the only high-saturation, motion-carrying thing on this screen. The
+   cards and the utility row are still fully usable and fully legible; they are
+   quieter, which is a different thing from smaller. */
+
+/* Press/hover/focus feel, shared by every interactive element on the landing
+   screen. Tokens rather than literals so the reduced-motion block at the foot
+   of this file can swap the durations and the travel without turning any of it
+   off — a press that gives no feedback is a broken button, not a calm one. */
+.fw-landing {
+  --fw-press: 60ms;
+  --fw-release: 180ms;
+  --fw-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --fw-lift: -3px;
+  --fw-stagger: 40ms;
+}
+/* Layered, and tinted to the scene rather than to black: a warm near-navy for
+   the contact shadow and a low gold bloom for the spread, so a card lifting off
+   a lit city does not punch a grey hole in it. */
+.fw-landing .fw-chip,
+.fw-landing .fw-utility .btn,
+.fw-landing .fw-cta {
+  transition:
+    transform var(--fw-release) var(--fw-back),
+    box-shadow var(--fw-release) ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+.fw-landing .fw-chip:active,
+.fw-landing .fw-utility .btn:active,
+.fw-landing .fw-cta:active {
+  transform: scale(0.96);
+  transition-duration: var(--fw-press);
+  transition-timing-function: ease-out;
+}
+/* Keyboard and gamepad focus is a MATERIAL change — the card grows and gains a
+   rim — because a colour swap alone is invisible to anyone who cannot see the
+   colour and nearly invisible over a moving city. */
+.fw-landing .fw-chip:focus-visible,
+.fw-landing .fw-utility .btn:focus-visible,
+.fw-landing .fw-cta:focus-visible {
+  outline: none;
+  transform: scale(1.045);
+  border-color: var(--fw-gold);
+  box-shadow:
+    0 0 0 3px var(--fw-ink), 0 0 0 6px var(--fw-gold),
+    0 10px 22px rgba(4, 7, 16, .6);
+}
+
+/* The cards: quieter frame, quieter accent, same size. Only the lead card keeps
+   a full-strength gold bar, because only one card is the recommendation. */
+.fw-landing .fw-chip {
+  background: rgba(9, 12, 22, .82);
+  border-color: rgba(255, 255, 255, .14);
+  box-shadow: 0 3px 0 rgba(3, 5, 11, .55), 0 8px 18px rgba(4, 7, 16, .45);
+  min-height: 44px;
+  animation: fw-chip-in .3s cubic-bezier(.2, 1, .3, 1) calc(var(--i, 0) * var(--fw-stagger)) backwards;
+}
+.fw-landing .fw-chip::before { background: rgba(255, 210, 63, .32); }
+.fw-landing .fw-chip--lead::before { background: var(--fw-gold); }
+.fw-landing .fw-chip-name { color: rgba(255, 255, 255, .88); }
+.fw-landing .fw-chip:hover {
+  transform: translateY(var(--fw-lift));
+  background: rgba(20, 26, 42, .92);
+  border-color: rgba(255, 210, 63, .7);
+  box-shadow:
+    0 7px 0 rgba(3, 5, 11, .55), 0 14px 26px rgba(4, 7, 16, .55),
+    0 0 26px rgba(255, 170, 63, .16);
+}
+.fw-landing .fw-chip:hover::before { background: var(--fw-gold); }
+/* The START HERE pill was the second-loudest gold on the screen. It stays a
+   pill and stays gold-lettered, on a dark plate, so PLAY owns the only solid
+   gold fill above the fold. */
+.fw-landing .fw-chip-tag {
+  background: rgba(255, 210, 63, .14); color: var(--fw-gold);
+  border: 1px solid rgba(255, 210, 63, .45);
+}
+.fw-landing .fw-group-label { color: rgba(255, 255, 255, .52); }
+
+/* The utility row: last in the reading order, and now last in weight too. */
+.fw-landing .fw-utility .btn {
+  min-height: 44px; padding: 10px 24px;
+  background: rgba(8, 11, 20, .6);
+  color: rgba(255, 255, 255, .66);
+  border-color: rgba(255, 255, 255, .16);
+}
+.fw-landing .fw-utility .btn:hover {
+  transform: translateY(var(--fw-lift));
+  color: #fff; border-color: rgba(255, 210, 63, .7);
+  box-shadow: 0 8px 18px rgba(4, 7, 16, .5);
+}
+.fw-landing .fw-utility .btn:active { transform: scale(0.96); }
+/* The one element allowed to keep its full voice. */
+.fw-landing .fw-cta:hover {
+  transform: translateY(var(--fw-lift));
+  box-shadow:
+    0 10px 0 var(--fw-extrude-1), 0 18px 30px rgba(4, 7, 16, .6),
+    0 0 40px rgba(255, 138, 43, .28);
+}
+
+/* ---------- Landing: the player's own line ----------
+   Personal best and the gap to the next unlock, read from the save (see
+   personalBest/nextUnlock in js/ui/screens.js). One row, three cells, no cell
+   rendered for a record that has never been set. */
+.fw-status {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: stretch;
+  gap: 8px; width: min(660px, 100%);
+  animation: fw-chip-in .3s cubic-bezier(.2, 1, .3, 1) backwards;
+}
+.fw-stat {
+  display: flex; flex-direction: column; gap: 3px; justify-content: center;
+  background: rgba(9, 12, 22, .82); border: 2px solid rgba(255, 255, 255, .12);
+  border-radius: 12px; padding: 7px 14px;
+  box-shadow: 0 3px 0 rgba(3, 5, 11, .55);
+}
+.fw-stat--goal { flex: 1 1 220px; min-width: 200px; }
+.fw-stat-k {
+  font-size: 10px; font-weight: 800; letter-spacing: 1.6px;
+  color: rgba(255, 255, 255, .58); text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.fw-stat-v {
+  font-size: clamp(15px, 2.4vw, 19px); font-weight: 900; letter-spacing: .8px;
+  color: var(--fw-gold); font-variant-numeric: tabular-nums;
+  text-shadow: var(--fw-ring-2);
+}
+.fw-stat-note {
+  font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+  color: rgba(255, 255, 255, .5); font-variant-numeric: tabular-nums;
+}
+/* The bar fills by transform, never by width: the track is a fixed box and the
+   fill is scaled inside it, so nothing on this screen ever animates layout. */
+.fw-bar {
+  display: block; height: 8px; border-radius: 999px; overflow: hidden;
+  background: rgba(255, 255, 255, .12);
+  border: 1px solid rgba(0, 0, 0, .5);
+}
+.fw-bar-fill {
+  display: block; height: 100%; width: 100%; transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--fw-gold) 0%, var(--fw-gold-hot) 100%);
+}
+
+/* ---------- Landing: the locked card ----------
+   The cheapest unowned shop row, drawn in the city shelf as a silhouette: the
+   shape reads, the colour does not, and the condition is written out in words
+   underneath. Every city is open, so this is the only genuinely locked thing
+   the save knows about. */
+.fw-landing .fw-chip--locked {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, .16);
+  background: rgba(6, 8, 16, .78);
+  padding-right: 34px; /* the silhouette's column, so no line runs under it */
+}
+.fw-landing .fw-chip--locked::before { background: rgba(255, 255, 255, .14); }
+/* Cased like every other card on the shelf: the shelf is the vocabulary, and a
+   product name in title case would read as a different kind of row. */
+.fw-landing .fw-chip--locked .fw-chip-name {
+  color: rgba(255, 255, 255, .58); text-transform: uppercase;
+}
+.fw-landing .fw-chip--locked .fw-chip-sub { text-transform: uppercase; }
+.fw-landing .fw-chip--locked .fw-chip-progress { color: rgba(255, 210, 63, .78); }
+.fw-lock-art {
+  position: absolute; right: 9px; top: 10px; width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #05070e; border: 2px solid rgba(255, 255, 255, .22);
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, .95);
+}
+.fw-landing .fw-chip--locked:hover { border-style: solid; }
+
+@keyframes fw-chip-in {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Reduced motion, both sources: the durations and the travel are swapped out,
+   the feedback is not. A press still moves, a focus ring still grows, cards
+   still arrive — instantly, and without the back-out overshoot. The live city
+   keeps rendering; js/ui/menuscene.js is what freezes its camera drift. */
+@media (prefers-reduced-motion: reduce) {
+  .fw-landing {
+    --fw-press: 1ms; --fw-release: 1ms; --fw-back: linear;
+    --fw-lift: 0px; --fw-stagger: 0ms;
+  }
+  .fw-landing .fw-chip, .fw-status { animation: none; }
+  body.fw-scene #game-canvas { animation: none; }
+}
+.fw-still .fw-chip, .fw-still .fw-status { animation: none; }
+.fw-still {
+  --fw-press: 1ms; --fw-release: 1ms; --fw-back: linear;
+  --fw-lift: 0px; --fw-stagger: 0ms;
+}
+
+/* ---------- Landing: the affordable unlock ----------
+   The same row as .fw-chip--locked, in the state where the player can already
+   pay for it. A dashed silhouette and the words UNLOCKS AT read as a goal, and a
+   goal the bank has already met is a contradiction — so the frame goes solid,
+   the accent bar goes gold like a real offer, and the dark lock disc becomes a
+   coin. screens.js decides which of the two states renders; this file only draws
+   them. */
+.fw-landing .fw-chip--ready {
+  border-style: solid;
+  border-color: rgba(255, 210, 63, .5);
+  background: rgba(14, 12, 18, .84);
+  padding-right: 34px;
+}
+.fw-landing .fw-chip--ready::before { background: var(--fw-gold); }
+.fw-landing .fw-chip--ready .fw-chip-name {
+  color: rgba(255, 255, 255, .9); text-transform: uppercase;
+}
+.fw-landing .fw-chip--ready .fw-chip-sub { text-transform: uppercase; }
+.fw-landing .fw-chip--ready .fw-chip-progress { color: var(--fw-gold); }
+.fw-chip--ready .fw-lock-art {
+  background: var(--fw-gold);
+  border-color: rgba(74, 50, 0, .55);
+  box-shadow: inset 0 -3px 5px rgba(120, 74, 0, .55);
+}
+/* The strip's goal cell in the same state: no bar, because there is no gap left
+   to draw, and the note names the thing rather than counting down to it. */
+.fw-stat--ready .fw-stat-note { color: var(--fw-gold); }
+
+/* ---------- Landing on a phone: give the city back its band ----------
+   Phones are the primary platform, and in portrait the stack was tall enough to
+   cover the live scene end to end — the one thing this screen gained was the one
+   thing a phone player could not see. Four moves, all layout, none of them
+   shrinking a tap target below 44px or thinning the plates the type sits on:
+
+     1. The top rail is reserved for #mp-link (index.html, same breakpoint).
+     2. The status strip halves its height: the goal cell takes the full row and
+        every cell loses its outer padding rather than its type size.
+     3. The card shelf SCROLLS instead of forcing eight rows above the fold. It
+        is capped at 42vh and fades at its bottom edge, so the cut row reads as
+        "there is more" rather than as the end of the list.
+     4. The scrim's lower band lifts, because the chips are already opaque
+        plates — the band only ever needed to stop facades showing through the
+        GAPS between them, and at phone width those gaps are where the city is
+        allowed to be visible. */
+@media (max-width: 640px) and (orientation: portrait) {
+  .fw-landing {
+    /* 10px offset + 44px rail + 10px breathing room. */
+    padding-top: calc(64px + var(--sai-top));
+    padding-bottom: calc(14px + var(--sai-bottom));
+    gap: clamp(8px, 1.4vh, 14px);
+  }
+  .fw-hero { gap: clamp(4px, 1vh, 10px); }
+  .fw-hero-text { gap: clamp(4px, .9vh, 9px); }
+
+  .fw-status { gap: 6px; }
+  .fw-stat { padding: 5px 11px; border-radius: 10px; }
+  .fw-stat--goal { flex: 1 1 100%; min-width: 0; gap: 2px; }
+  .fw-stat-v { font-size: 15px; }
+
+  /* The shelf absorbs whatever height is left over and scrolls inside it, which
+     is what keeps the SCREEN from scrolling: everything above it — mark,
+     wordmark, PLAY, the strip — stays pinned where the player left it, and the
+     one scroll gesture on the page belongs to the list that has more rows than
+     fit. 150px floor so it can never collapse to a sliver on a short viewport
+     (below that the screen scrolls again, which is the correct fallback).
+     grid-auto-rows: min-content because a stretched row inside a bounded scroll
+     container clips the tallest card's last line — that is what ate START HERE.
+     Padding + matching negative margin so the focus ring's scale-up is not
+     clipped by the scroll container the cards now live inside. */
+  /* Only the shelf flexes. Everything else keeps its natural height — a flex
+     item that shrinks below its content does not compact, it spills, which is
+     how SHOP/SETTINGS ended up drawn underneath the cards on a short phone.
+     When even the shelf's floor cannot fit, the screen scrolls, which is the
+     correct fallback rather than a collision. */
+  .fw-landing > * { flex: none; }
+  /* A hard floor, not 0 and not min-content: at 0 the group shrinks past the
+     shelf's own 150px floor and spills over the utility row instead of
+     compressing, and min-content resolves to the shelf's full 44vh here, which
+     never yields any space back. 190px = the label plus that floor. Below it
+     the screen scrolls, which is the right fallback on a very short phone. */
+  .fw-group { flex: 1 1 auto; min-height: 190px; }
+  .fw-chips {
+    flex: 1 1 auto; min-height: 150px; max-height: 44vh;
+    grid-auto-rows: min-content; align-content: start;
+    overflow-y: auto; overflow-x: hidden;
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    padding: 4px; margin: -4px;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 92%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 0%, #000 92%, transparent 100%);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 210, 63, .45) transparent;
+  }
+  .fw-chips::-webkit-scrollbar { width: 4px; }
+  .fw-chips::-webkit-scrollbar-thumb {
+    background: rgba(255, 210, 63, .45); border-radius: 999px;
+  }
+  .fw-chips::-webkit-scrollbar-track { background: transparent; }
+  /* Two lines of the CC0 manifest, by height rather than by line-clamp: the
+     clamp collapsed the block to zero here, and silently dropping an attribution
+     is not a layout saving. */
+  .fw-credits { max-height: 2.9em; overflow: hidden; }
+  body.fw-scene .fw-landing::before {
+    background:
+      radial-gradient(66% 26% at 50% 24%,
+        rgba(28, 16, 6, .58) 0%, rgba(14, 10, 8, .3) 55%, rgba(10, 12, 22, 0) 100%),
+      linear-gradient(180deg, rgba(6, 9, 18, 0) 44%, rgba(6, 9, 18, .5) 76%, rgba(5, 7, 14, .72) 100%),
+      linear-gradient(0deg, rgba(6, 9, 18, 0) 84%, rgba(6, 9, 18, .5) 100%),
+      radial-gradient(140% 96% at 50% 40%,
+        rgba(6, 9, 18, .1) 0%, rgba(6, 9, 18, .42) 66%, rgba(3, 5, 11, .72) 100%);
+  }
+}

@@ -11,6 +11,7 @@ import { Controls } from './controls.js';
 import { HUD, ANN } from './ui/hud.js';
 import { Screens, SKINS, INDICATOR_SKINS } from './ui/screens.js';
 import { mountReadyGate } from './ui/ready.js';
+import { startMenuScene, stopMenuScene, tickMenuScene, resizeMenuScene } from './ui/menuscene.js';
 import { TIERS } from './quality.js';
 
 import { GameAudio } from './audio/game-audio.js';
@@ -185,6 +186,15 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     storeSave(save);
   },
   toggleMute() { save.muted = !save.muted; storeSave(save); audio.setMuted(save.muted); },
+  // The live city behind the title (js/ui/menuscene.js). Screens calls this
+  // with `true` when the landing screen mounts and `false` for every takeover
+  // that replaces it (loading, shop, settings), so the backdrop's lifetime is
+  // the title screen's lifetime and nothing else has to remember to stop it.
+  // Starting is idempotent, so a return trip from SHOP does not rebuild.
+  menuScene(on) {
+    if (on) startMenuScene(canvas, { settings: save.settings, skinId: equippedSkinId() });
+    else stopMenuScene();
+  },
   music(cue, opts) { audio.setMusicCue(cue, opts); },
   musicVolume() { return audio.musicVolume; },
   setMusicVolume(v) { audio.setMusicVolume(v); },
@@ -497,6 +507,10 @@ function startVoxelSandbox(scene = 'gallery') {
 }
 
 function teardownWorld() {
+  // The menu backdrop owns the same canvas a game world is about to claim, so
+  // it goes first and it goes here — this is the one function both start paths
+  // call before constructing anything.
+  stopMenuScene();
   if (readyGate) { readyGate.dismiss(); readyGate = null; }
   if (world) { world.dispose(); world = null; }
   sim = null;
@@ -678,6 +692,11 @@ function frame(ts) {
   } else if ((state === 'paused' || state === 'results') && world && cam) {
     world.update(0, []);
     world.render(cam.camera);
+  } else if (state === 'menu') {
+    // The title screen's live backdrop, folded into this loop rather than
+    // running one of its own. It is a no-op until the scene has built, and a
+    // permanent no-op on a device that never built one.
+    tickMenuScene(realDt);
   }
 }
 
@@ -700,6 +719,7 @@ function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   if (world) world.resize(w, h);
   if (cam) cam.resize(w / h);
+  resizeMenuScene(w, h);
   canvas.style.width = '100%';
   canvas.style.height = '100%';
 }
