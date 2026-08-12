@@ -31,6 +31,7 @@ this afternoon*. Most of what follows is not blocked.
 | Achievements | A trophy list that remembers what you have done | No — 96 designed, 0 built | The online backend, for the *saving* half only | Medium (per batch) |
 | Championship belts | Named titles somebody holds until you beat their number | No | The online backend | Large |
 | Multiplayer | Share a link, others join, everyone in the same city at once | No | The online backend, plus one product decision | Very large |
+| Public scoreboards and player names | A name on a per-city board and one overall standing, every number on them server-verified | No — fully planned (16 docs), nothing built | Two draft ADRs awaiting acceptance | Large |
 | Cambridge map | A tenth-of-a-square-mile HubSpot Cambridge to drive around and eat | **Yes — complete and playable** | Nothing | Done |
 | Cambridge hidden content | The things worth finding inside that map | No | Nothing (except the achievement rows) | Large |
 | Known defects | Fewer ways for the game to break in front of somebody | Several open | Nothing | Small each |
@@ -549,6 +550,39 @@ been scoped here.**
 - Two visual questions have been waiting on you and are genuinely yours: how low
   the sun sits, and whether the opening camera drifts or holds still
   (`STATUS.md:145-155`). *No build cost either way.*
+
+---
+
+## 8. Public scoreboards and player names
+
+**What a player gets.** A board per city and one overall standing (THE
+FLYWHEEL), a name claimed in a single field the first time a run earns a place —
+no account, no email, no sign-in — and the knowledge that every number up there
+was recomputed server-side from the run that produced it, so a score on the
+board is a score somebody actually played.
+
+**What exists today.** The complete planning package,
+[features/scoreboards-and-profiles/](features/scoreboards-and-profiles/) —
+sixteen documents: objective, PRD, requirements, technical design, anti-cheat,
+identity, privacy/moderation, threat model, test strategy, observability,
+rollout, migration plan, risk register, the task breakdown, and two draft ADRs
+in `adr-proposed/` (0016 the bounded ranked run, 0017 name ownership by device
+token). No code, no tables, no UI. The package's own finding is that
+[ADR-0012](adr/0012-replay-validated-leaderboard-trust.md)'s full re-simulation
+of every ranked run is not affordable for the shipped voxel game, so 0016
+narrows it: ranked scores come only from THE RUN, a bounded 90-second format
+with a server-issued seed and one pinned tune, which puts a fixed, known price
+on verification.
+
+**What it is waiting on.** Two acceptances that are genuinely yours: the two
+draft ADRs (they set the trust model and the identity model — everything else
+is execution), then the build order in
+[features/scoreboards-and-profiles/13-tasks.md](features/scoreboards-and-profiles/13-tasks.md).
+The Supabase project it needs already exists and is paid for; nothing here is
+blocked on the online-Flywheel phases.
+
+**Size.** Large — five phases of T-tasks plus three measurement gates, with a
+documented degrade order if any gate fails.
 
 ---
 

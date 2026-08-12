@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 ---
 
@@ -155,7 +155,7 @@ the cue to build some buildings more efficiently rather than to thin the map.
 Density, not block count, is what the validator actually checks. See
 `.wiki/modules/voxel.md` and `05-build-tasks.md` for the live task state.
 
-### Awaiting Nico — two decisions, neither answered
+### Awaiting Nico — three decisions, none answered
 
 *(The construction-vocabulary question that used to sit at the top of this list
 is answered and off it. ADR-0013 was accepted 2026-08-07 and the work has
@@ -176,6 +176,14 @@ draw calls went down, not up. See the Cambridge section above.)*
    A ±20° option exists at 15.16%; apparent orbit speed is now identical at
    every arc, so ±20 dominates ±30 on coverage. Gated on an unmeasured check:
    whether the arc endpoint eases or snaps.
+3. **Scoreboards & Profiles — accept the two draft ADRs?** The full
+   planning package (16 docs) landed 2026-08-12 in
+   `.wiki/features/scoreboards-and-profiles/`, nothing built. The accept-or-not
+   decisions are `adr-proposed/0016` (ranked scores come only from a bounded
+   90-second RUN, narrowing ADR-0012's full re-simulation to what the voxel
+   game can actually afford) and `adr-proposed/0017` (a name claimed in one
+   field, owned by a device token — no accounts). Roadmap section 8 has the
+   one-paragraph summary.
 
 ### Chicago Loop sandbox — map built and wired into free play
 
