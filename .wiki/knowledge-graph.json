@@ -1,30 +1,54 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-11T23:34:24+00:00",
+    "generatedAt": "2026-08-12T13:59:55+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
-      "files": 73,
+      "files": 77,
       "symbols": 27,
       "edges": 8,
       "modules": 2,
-      "reusedFromCache": 73
+      "reusedFromCache": 77
     }
   },
   "files": {
     "js/audio/engine.js": {
       "lang": "javascript",
-      "hash": "183c909e1f4be404e96d380cbe72a3062fc115c6a80c33dbd06efeb74fc30371",
-      "loc": 177,
+      "hash": "fc0b0a88497afc314a7c0f40584a52f9e024de1e9ca30dc18f7d879cb657a095",
+      "loc": 260,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/audio/engine.test.mjs": {
+      "lang": "javascript",
+      "hash": "ea417b2bf0a292a7bd36a932b84d788c61f7419e5eb3b5939fb0569ada40299c",
+      "loc": 158,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/audio/game-audio.js": {
       "lang": "javascript",
-      "hash": "7bb79bbed48f991b24d58f03d307d63a57db99f8d7c05340918226d5753058ae",
-      "loc": 204,
+      "hash": "a63c4448d797410eb3c43564e0b2a6a803899ce435ca828f97bb5f423ad6b143",
+      "loc": 269,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/audio/music.js": {
+      "lang": "javascript",
+      "hash": "a9edbaf5eb26c13711000f754ab30f5e48a0cadb0a248ceef611d632979fde9e",
+      "loc": 293,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/audio/music.test.mjs": {
+      "lang": "javascript",
+      "hash": "e033fcdd970d0e3e9d2243f99d8b2068edbd9fde41220825a7e7441a5454b732",
+      "loc": 93,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -68,8 +92,8 @@
     },
     "js/demo/arena.js": {
       "lang": "javascript",
-      "hash": "3a9793331067cf47b448eddf620ff5c280580683f66bd1b142df9a8174f197ae",
-      "loc": 899,
+      "hash": "4d487b0d2024dff681b747dccd797d1e55ec567aab45707bbc2724877484038b",
+      "loc": 909,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -124,8 +148,8 @@
     },
     "js/main.js": {
       "lang": "javascript",
-      "hash": "a25fb30dd995bb358c175f00f69dd5b742ca33ead2d9e1a342c98134e9329d1c",
-      "loc": 707,
+      "hash": "c3caf97355cf1801f75bbd1b8419369493180fe7fd57db5fdb2a94c37dcbd28a",
+      "loc": 723,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -308,8 +332,8 @@
     },
     "js/save.js": {
       "lang": "javascript",
-      "hash": "6fe659056a95a144bc1efaa9892320a9242f4225bbb25d26ef66a4b7ae2202cc",
-      "loc": 353,
+      "hash": "f812fa16a75b58ab9181dd4615f1b76d21a7d6067b67e7f2091ebe5818e633c9",
+      "loc": 359,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -407,8 +431,8 @@
     },
     "js/ui/screens.js": {
       "lang": "javascript",
-      "hash": "9fb4630d0b8e38448a66592c2b5cd9ea7f8a8badd983cfd68f9e9479048fbe7c",
-      "loc": 526,
+      "hash": "c0fbb76b0f1c1cf78e8e3961365e1974f0bfe47b7b797a8a059b98d0eb777254",
+      "loc": 566,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -742,6 +766,14 @@
       "symbols": [],
       "imports": []
     },
+    "tools/music-assets-selftest.mjs": {
+      "lang": "javascript",
+      "hash": "b5538ff9072fd750a46f5ec84afbd8cf699e17419ec2526829b48f7c058c418c",
+      "loc": 28,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/net-live-selftest.mjs": {
       "lang": "javascript",
       "hash": "6b4b3164f3953d3cf04503fd463971197bad775eb6f3e987078c08231c755d4f",
@@ -861,7 +893,10 @@
     "js": {
       "files": [
         "js/audio/engine.js",
+        "js/audio/engine.test.mjs",
         "js/audio/game-audio.js",
+        "js/audio/music.js",
+        "js/audio/music.test.mjs",
         "js/camera.js",
         "js/citygen.js",
         "js/controls.js",
@@ -928,6 +963,7 @@
         "tools/arena-selftest.mjs",
         "tools/chicago-probe.mjs",
         "tools/gen-partner-logo.mjs",
+        "tools/music-assets-selftest.mjs",
         "tools/net-live-selftest.mjs",
         "tools/net-match-selftest.mjs",
         "tools/net-selftest.mjs",

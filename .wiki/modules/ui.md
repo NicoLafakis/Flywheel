@@ -79,6 +79,13 @@ tying everything together.
   the prior `AUTO · <tier>` label and its live-watchdog staleness bug are
   gone along with the classifier). See `.wiki/modules/render.md`'s quality
   entries for the `TIERS` lever values and the removed system's history.
+- SETTINGS carries one Game sounds toggle (global mute) above three sibling
+  `.set-row` sliders: Effects volume, Ambience volume, Music volume, in that
+  order, the second cloned from the same row template as the first. There is
+  no master slider; each governs only its own audio bus. Effects and Ambience
+  write `settings.sfxVol`/`settings.ambVol` through `actions.applySettings()`;
+  Music goes straight through `actions.setMusicVolume()` since the music
+  director owns its own persistence. See `.wiki/modules/audio.md`.
 
 **Reconciled 2026-08-10:** `js/main.js`, `js/ui/hud.js` and `js/ui/screens.js`
 are unchanged since the score-combo-and-hype commit documented below. The

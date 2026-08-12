@@ -36,6 +36,11 @@ beatable headlessly.
   are quarantined, not read. v15's migration adds `equippedIndicator`
   (defaults to `'ind-default'`) for the shop's nav-indicator skins — see
   `.wiki/modules/ui.md`'s `INDICATOR_SKINS` gotcha.
+- `ambVol: 1` joined `defaultSettings()` for the ambience volume slider
+  (2026-08-12) without a version bump: same rationale as `pointMove`, an
+  absent key reads as the default through every consumer's `typeof … ===
+  'number'` guard, so an upgrading player's ambience level is just the
+  default rather than requiring a migration. See `.wiki/modules/audio.md`.
 - `starsForResult`: 1★ win, 2★ ≥20% time left, 3★ ≥35%.
 
 **Reconciled 2026-08-10:** the full day's commits — `js/voxelkit.js`'s twelve
