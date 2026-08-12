@@ -40,6 +40,7 @@ let cam = null;
 let controls = null;
 let readyGate = null; // live mountReadyGate handle, so teardown can dismiss it
 let lastSandboxScene = 'gallery'; // for pause-menu RESTART in the sandbox
+let activePlayMusicCue = 'gallery'; // owner decision: gallery stays music-free
 let accumulator = 0;
 let lastTs = 0;
 let shopBonus = { clock: 0, growth: 0 };
@@ -136,7 +137,13 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     }
   },
   startVoxelSandbox(scene) { startVoxelSandbox(scene); },
-  resume() { if (state === 'paused') { state = 'playing'; screens.clear(); } },
+  resume() {
+    if (state === 'paused') {
+      state = 'playing';
+      audio.setMusicCue(activePlayMusicCue);
+      screens.clear();
+    }
+  },
   // Sandbox-aware: the old `if (level)` guard made RESTART a dead button in
   // the sandbox (playtest finding — campaign ghost UI on the pause path).
   restart() {
@@ -161,6 +168,9 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     storeSave(save);
   },
   toggleMute() { save.muted = !save.muted; storeSave(save); audio.setMuted(save.muted); },
+  music(cue, opts) { audio.setMusicCue(cue, opts); },
+  musicVolume() { return audio.musicVolume; },
+  setMusicVolume(v) { audio.setMusicVolume(v); },
   applySettings() {
     storeSave(save);
     audio.setVolume(typeof save.settings.sfxVol === 'number' ? save.settings.sfxVol : 1);
@@ -236,6 +246,8 @@ function startLevel() {
   hud.show();
   screens.clear();
   state = 'playing';
+  activePlayMusicCue = 'gallery';
+  audio.setMusicCue(activePlayMusicCue, { restart: true });
   accumulator = 0;
   lastTs = performance.now();
 }
@@ -427,6 +439,8 @@ function startVoxelSandbox(scene = 'gallery') {
     hud.show();
     screens.clear();
     state = 'playing';
+    activePlayMusicCue = scene;
+    audio.setMusicCue(activePlayMusicCue, { restart: true });
     accumulator = 0;
     lastTs = performance.now();
     audio.startScene(scene);   // per-city bed; the gallery stays deliberately quiet
@@ -689,7 +703,11 @@ document.getElementById('screen-root').addEventListener('click', (e) => {
 });
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && state === 'playing') { state = 'paused'; screens.showPause(); }
-  else if (e.code === 'Escape' && state === 'paused') { state = 'playing'; screens.clear(); }
+  else if (e.code === 'Escape' && state === 'paused') {
+    state = 'playing';
+    audio.setMusicCue(activePlayMusicCue);
+    screens.clear();
+  }
 });
 
 // The boot splash (index.html) has done its job the moment the first screen

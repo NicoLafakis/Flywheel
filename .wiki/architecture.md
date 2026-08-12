@@ -232,6 +232,16 @@ arena — which has no save — inherits the same setting). Known gaps: the
 arena PEER feeds no mover positions (its sim never steps), so its el bed
 stays flat; `debris-metal.ogg` is preloaded but has no call site yet.
 
+**Original game music, built 2026-08-11:** `js/audio/music.js` streams one of
+ten proprietary MP3s from `assets/music/` through a reusable media element,
+rather than decoding the 47.49 MiB library into the SFX pool. A data registry
+maps menu, shop, pause, results, Brooklyn, Boston, Cambridge, Chicago, Lower
+Manhattan and Upper Manhattan; Gallery is deliberately silent. Cue offsets
+survive pause/shop detours, visibility changes pause/resume the appropriate
+cue, and `GameAudio` ducks music beneath major stingers. Music volume persists
+independently at `flywheel.audio.musicVolume` under the existing mute/master.
+The main game and arena both use the same facade and registry.
+
 **Also built (2026-08-10), separate surface:** `multiplayer.html` + `js/demo/`
 is a hot-seat two-player demo — two holes sharing one gallery sim, rendered by
 its own overhead camera (`js/demo/view.js`) and its own loop

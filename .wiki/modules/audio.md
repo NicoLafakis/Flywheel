@@ -10,10 +10,11 @@ covers:
 
 ## Purpose
 
-`AudioEngine` owns WebAudio loading, buses, fatigue ducking, persisted mute and
-volume, and mobile-safe unlock. `GameAudio` owns the mapping from drained sim
-events and scene lifecycle to sounds. Both are render-side: they read gameplay
-state only after `sim.step()` and never mutate it.
+`AudioEngine` owns WebAudio SFX/ambience loading, buses, fatigue ducking,
+persisted mute/master volume, and mobile-safe unlock. `MusicDirector` streams
+one state-aware MP3 at a time. `GameAudio` is the facade over both: it maps
+drained sim events and scene lifecycle to sound. All are render-side: they read
+gameplay state only after `sim.step()` and never mutate it.
 
 ## Main-game wiring
 
@@ -22,9 +23,17 @@ for smoke tests, feeds the local hole position each frame, and starts/stops city
 ambience with sandbox lifecycle. The old oscillator `blip()` path is gone.
 
 The SETTINGS Game sounds toggle and Sound volume slider update the save and the
-engine together. The engine mirrors them to `flywheel.audio.muted` and
-`flywheel.audio.volume`, allowing standalone surfaces such as the arena to
-inherit the same player choice without importing the campaign save.
+whole audio facade together. The new Music volume slider is independent beneath
+that master. The engine/director mirror them to `flywheel.audio.muted`,
+`flywheel.audio.volume`, and `flywheel.audio.musicVolume`, allowing standalone
+surfaces such as the arena to inherit the same choice without importing the
+campaign save.
+
+`js/audio/music.js` owns the cue registry and one reusable `HTMLAudioElement`:
+menu, shop, pause, results, and one cue per authored city. Gallery maps to
+deliberate silence. Only the requested file loads after the first gesture;
+pause/shop retain the previous cue's position, background tabs pause playback,
+and major stingers duck music through `GameAudio`.
 
 ## Gotchas
 
@@ -38,3 +47,6 @@ inherit the same player choice without importing the campaign save.
 - `debris-metal.ogg` is preloaded but currently has no event mapping.
 - A missing or not-yet-decoded sound is deliberately silent; audio loading is
   never awaited by the game loop.
+- Music assets and their hashes are pinned by `assets/music/MANIFEST.json` and
+  `tools/music-assets-selftest.mjs`; lifecycle behavior is covered by
+  `js/audio/music.test.mjs`.

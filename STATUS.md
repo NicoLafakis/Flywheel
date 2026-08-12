@@ -353,9 +353,13 @@ district sweep).
   included — the `blip()` oscillator is gone. Settings mute + volume drive
   the engine everywhere (save mirrors into the engine's localStorage keys,
   which the arena reads). Positional sounds and the el-train bed are
-  distance-attenuated off the local hole. Remaining gaps: no distance feed
-  for the arena *peer* (its sim never steps — flat train bed), and
-  `debris-metal.ogg` is still loaded but unheard.
+  distance-attenuated off the local hole. Ten original music tracks now stream
+  one at a time across menu, shop, authored cities, pause and results in both
+  the main game and arena; Gallery stays music-free. Music volume is separately
+  persisted under the existing mute/master controls. Remaining gaps: no
+  distance feed for the arena *peer* (its sim never steps — flat train bed),
+  `debris-metal.ogg` is still loaded but unheard, and objective LUFS/true-peak
+  analysis awaits an audio-analysis tool.
 - No unit tests beyond the validator; UI untested except smoke path.
 - Upper Manhattan's worst collapse (SIZE 8 into the CPW wall) still has a
   101 ms p95 (median is a fast 16.6 ms): `main.js`'s fixed-timestep catch-up
@@ -370,6 +374,11 @@ district sweep).
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
 
+- 2026-08-11: Original game music implemented: ten streamed MP3 cues
+  (menu/shop/six authored cities/pause/results), Gallery deliberate silence,
+  retained pause/shop positions, visibility-safe playback, major-stinger
+  ducking, independent persisted Music volume, main-game + arena lifecycle
+  wiring; music lifecycle 21 assertions and asset registry/hash self-test pass
 - 2026-08-11: Rival visibility (phases A–D of `.wiki/features/rival-visibility/`): protocol v3 per-slot keyframe attribution, player-colored crater tiles, coarse tug-of-war bar (digits only at the end), rival chevron, milestone callouts, end-of-match territory reveal — on arena.html, craters + bar shared to multiplayer.html; new `js/rival/` layer + `js/rival/rival.test.mjs` (58 checks); same pass: arena match camera switched to the sandbox-style progressive follow-zoom + `DuelView` dirty-only block sync with out-of-view mover culling (full-city rendering was the phones' big-city FPS killer; the full frame now shows only at the reveal); patterns 3/7 deferred to the 8-player pass
 - 2026-08-10: Live multiplayer shipped end to end: `sim.holes[]` multi-hole roster (`js/voxelsim.multihole.test.mjs`), `js/net/host.js`/`peer.js` wired over a loopback proof page (`netdemo.html`, `tools/net-match-selftest.mjs` 48/48), then a real two-device arena over Supabase Realtime (`arena.html`, `js/net/arena.js`, `js/vendor/supabase-realtime.module.js` — ADR-0014 pattern), proven with a live two-browser match at https://flywheel-woad.vercel.app/arena.html; `js/voxelscene-chicago.js` shipped incidentally (committed, not yet menu-wired, a concurrent session's in-progress work)
 - 2026-08-10: Score, combo and hype (`.wiki/features/score-combo-and-hype/`, ADR-0015): score plate with animated count-up, radial combo ring that drains the 1.5 s window and reports the sim's REAL multiplier (the old pill printed a level index as `x{n}` — x2 at chain 26 while the sim paid 1.1), table-driven combo ladder at chains 2/10/15/25/50/100/350/600 topping out at a named `MAX`, points-only ruling (SIZE ladder rebased onto `rawMass`, so a hot chain buys score and not growth), 9-row consumption phrase ladder against the scene goal with a full-width band, one priority-and-source announcement queue (a coin toast no longer erases a milestone mid-sentence), per-scene `bestCombo`/`bestScore` on the results screen and in the save (schema v15 → v16)

@@ -20,6 +20,7 @@
 // Deterministic-sim-safe: reads events, never touches sim state (ADR-0003).
 
 import { AudioEngine } from './engine.js';
+import { MusicDirector } from './music.js';
 
 // Scene id -> ambience bed name (null = deliberate quiet).
 export const SCENE_AMBIENCE = {
@@ -62,8 +63,11 @@ function gulpRate(radius) {
 }
 
 export class GameAudio {
-  constructor({ base = 'assets/audio/' } = {}) {
+  constructor({ base = 'assets/audio/', musicBase = 'assets/music/', musicDirector = null } = {}) {
     this.engine = new AudioEngine({ base });
+    this.music = musicDirector || new MusicDirector({ base: musicBase });
+    this.music.setMuted(this.engine.muted);
+    this.music.setMasterVolume(this.engine.volume);
     this._ambHandle = null;
     this._trainHandle = null;
     this._sceneWanted = null;
@@ -81,6 +85,7 @@ export class GameAudio {
    * the visitor actually engages. */
   init(target = window) {
     this.engine.attachUnlock(target);
+    this.music.init(target);
     this.engine.whenUnlocked(() => {
       if (this._loaded) return;
       this._loaded = true;
@@ -95,13 +100,17 @@ export class GameAudio {
   get muted() { return this.engine.muted; }
   toggleMuted() {
     const m = this.engine.toggleMuted();
+    this.music.setMuted(m);
     if (!m) this.engine.unlock();
     return m;
   }
   /** Driven by an external settings screen (the main game's save carries
    * mute + volume); the engine persists both, so the arena inherits them. */
-  setMuted(m) { this.engine.setMuted(m); }
-  setVolume(v) { this.engine.setVolume(v); }
+  setMuted(m) { this.engine.setMuted(m); this.music.setMuted(m); }
+  setVolume(v) { this.engine.setVolume(v); this.music.setMasterVolume(v); }
+  get musicVolume() { return this.music.volume; }
+  setMusicVolume(v) { this.music.setVolume(v); }
+  setMusicCue(cue, opts) { return this.music.request(cue, opts); }
 
   /** Per-frame listener feed. `moverSim` is the voxel sim's mover list
    * (null/undefined anywhere else): the Chicago bed tracks the nearest car
@@ -134,9 +143,9 @@ export class GameAudio {
   countdownGo() { this.engine.play('ui-confirm', { vol: 1.0, rate: 1.2 }); }
 
   // ---------------------------------------------------------------- finales
-  win() { this._stopScene(); this.engine.play('win', { vol: 1.0 }); }
-  lose() { this._stopScene(); this.engine.play('lose', { vol: 1.0 }); }
-  draw() { this._stopScene(); this.engine.play('milestone', { vol: 0.9 }); }
+  win() { this._stopScene(); this.music.duck(3.0, 0.3); this.engine.play('win', { vol: 1.0 }); }
+  lose() { this._stopScene(); this.music.duck(3.0, 0.3); this.engine.play('lose', { vol: 1.0 }); }
+  draw() { this._stopScene(); this.music.duck(2.5, 0.4); this.engine.play('milestone', { vol: 0.9 }); }
 
   // ---------------------------------------------------------------- scene
   /** Start (or queue, pre-gesture) the per-city ambience. Chicago also gets
@@ -201,6 +210,7 @@ export class GameAudio {
           e.playRandom(GLASS, { vol: 0.7 * a, delay: 0.25 });
           e.playRandom(DEBRIS, { vol: 0.6 * a, delay: 0.45 });
           e.duckAmbience(3.5, 0.25);
+          this.music.duck(3.5, 0.35);
         } else if (n >= 9) {               // low building / big slab
           e.play('crash-small', { vol: 0.85 * a });
           e.playRandom(DEBRIS, { vol: 0.6 * a, delay: 0.2 });
@@ -219,12 +229,14 @@ export class GameAudio {
         if (ev.tier === 'roar') {
           e.play('milestone-roar', { vol: 1.0 });
           e.duckAmbience(2.5, 0.35);
+          this.music.duck(2.5, 0.45);
         } else {
           e.play('milestone', { vol: 0.85 });
         }
         break;
       case 'goal':
         e.play('goal', { vol: 1.0 });
+        this.music.duck(2.5, 0.35);
         break;
       case 'derail': {
         // THE derailment. Screech leads, the crash lands a beat later, and
@@ -235,6 +247,7 @@ export class GameAudio {
           this._lastScreech = now;
           e.play('derail-screech', { vol: 1.0 * a });
           e.duckAmbience(4.0, 0.2);
+          this.music.duck(4.0, 0.3);
         }
         if (a >= 0.05 && now - this._lastDerailCrash > 2.5) {
           this._lastDerailCrash = now;

@@ -64,6 +64,7 @@ export class Screens {
   // which of them was the game.
   showTitle() {
     this.clear();
+    if (this.actions.music) this.actions.music('menu');
     // Two independent sources of "hold still": the in-game setting, read here,
     // and the OS preference, handled by the prefers-reduced-motion block in
     // main.css. Either one alone is enough to park the sprocket and the letters.
@@ -154,6 +155,7 @@ export class Screens {
 
   showSandboxResults(sim, onContinue) {
     this.clear();
+    if (this.actions.music) this.actions.music('results', { restart: true });
     const coins = sim.coinsCollected * 2 + 35;
     // Bank line projects the post-award total: recordSandboxResult runs in the
     // continue callback, so at render time save.coins is still pre-award.
@@ -180,6 +182,7 @@ export class Screens {
 
   showShop() {
     this.clear();
+    if (this.actions.music) this.actions.music('shop');
     const s = el(`<div class="screen"><h2>SHOP</h2>
       <div class="coins">&#128176; ${this.save.coins} coins</div>
       <div class="shop-items"></div></div>`);
@@ -265,6 +268,7 @@ export class Screens {
 
   showResults(level, sim, onContinue) {
     this.clear();
+    if (this.actions.music) this.actions.music('results', { restart: true });
     const stars = starsForResult(level, sim.timeLeft, sim.won);
     const coins = coinsForResult(level, stars, sim.player.bestCombo);
     const s = el(`<div class="screen">
@@ -287,6 +291,7 @@ export class Screens {
 
   showPause() {
     this.clear();
+    if (this.actions.music) this.actions.music('pause');
     const s = el(`<div class="screen"><h2>PAUSED</h2></div>`);
     const resume = el(`<button class="btn">RESUME</button>`);
     resume.onclick = () => this.actions.resume();
@@ -436,6 +441,19 @@ export class Screens {
       this.actions.applySettings();
     };
     panel.appendChild(volRow);
+
+    // Independent of the master Sound volume: players can keep gameplay cues
+    // while lowering the score. MusicDirector owns persistence, so standalone
+    // arena.html inherits the same choice without importing the main save.
+    const musicVol = this.actions.musicVolume ? this.actions.musicVolume() : 0.65;
+    const musicRow = el(`<div class="set-row"><span class="set-label">🎵 Music volume</span>
+      <span class="set-val"><input type="range" min="0" max="1" step="0.05"
+        aria-label="Music volume" value="${musicVol}"></span></div>`);
+    const musicSlider = musicRow.querySelector('input');
+    musicSlider.oninput = () => {
+      if (this.actions.setMusicVolume) this.actions.setMusicVolume(parseFloat(musicSlider.value));
+    };
+    panel.appendChild(musicRow);
 
     // Stacked: measured at 320px this label alone is 240px of a 276px row, so it
     // cannot share a line with a slider at any slider width worth dragging.

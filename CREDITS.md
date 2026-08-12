@@ -29,11 +29,11 @@ license — is `assets/audio/CREDITS.json`.
 
 ## Music
 
-The original Flywheel music masters in `music/` were created by Nico with Suno;
-implementation will move the shipping copies to `assets/music/`. The project
-owner states that it owns the copyright. All rights reserved. These tracks are
-proprietary project assets and are not covered by the CC0 dedication for sound
-effects above.
+The original Flywheel music in `assets/music/` was created by Nico with Suno.
+The project owner states that it owns the copyright. All rights reserved. These
+tracks are proprietary project assets and are not covered by the CC0 dedication
+for sound effects above. `assets/music/MANIFEST.json` records cue ownership,
+byte counts, and SHA-256 hashes.
 
 ## Engine
 

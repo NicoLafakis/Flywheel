@@ -81,6 +81,7 @@ const hud = el('hud');
 // init() binds the mobile autoplay unlock; the first tap on any landing
 // button both unlocks the context and starts the buffer preload.
 const audio = new GameAudio().init();
+audio.setMusicCue('menu');
 window.__audio = audio;   // debug/Playwright hook, same idiom as __arena
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') setMuteLabel(audio.toggleMuted());
@@ -284,6 +285,7 @@ function startMatchUI() {
   hideOverlays();
   hud.classList.add('on');
   state = 'playing';
+  audio.setMusicCue(scene, { restart: true });
   audio.startScene(scene);
   if (view && view.moverClockStart) view.moverClockStart();   // el train rides from match start
   setupRivalLayer();
@@ -613,6 +615,7 @@ function endMatch() {
   if (state === 'over') return;
   state = 'over';
   held.clear();
+  audio.setMusicCue('results', { restart: true });
   audio.stopScene();   // the reveal plays over quiet; the finale sting lands on the headline
   let mine = 0, theirs = 0;
   if (role === 'host') {

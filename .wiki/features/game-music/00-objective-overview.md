@@ -1,12 +1,12 @@
 # Game Music — Objective Overview
 
-**Tier:** 1 · **Date:** 2026-08-11 · **Status:** planning
+**Tier:** 1 · **Date:** 2026-08-11 · **Status:** implemented
 
 ## What was asked
 
 Add the supplied game-music files and give the player a music adjustment in
-the GUI. This package is paperwork only; implementation remains unbuilt. The
-source MP3 masters are committed under `music/` for the implementation pass.
+the GUI. The implementation now streams the committed MP3s from
+`assets/music/`; objective loudness/true-peak analysis remains outstanding.
 
 ## What it really serves
 
@@ -18,20 +18,20 @@ without losing gameplay cues.
 
 ## Source inventory
 
-Ten files currently live in `music/` (49,798,924 bytes / 47.49 MiB):
+Ten files ship in `assets/music/` (49,798,924 bytes / 47.49 MiB):
 
 | Source file | Intended cue | Size |
 |---|---|---:|
-| `Flywheel-Main_Menu.mp3` | Title and arena lobby | 3.77 MiB |
-| `Flywheel-Brooklyn.mp3` | Brooklyn match | 3.55 MiB |
-| `Flywheel-Boston.mp3` | Boston match | 5.43 MiB |
-| `Flywheel-Cambridge.mp3` | Cambridge match | 3.91 MiB |
-| `Flywheel-Chicago.mp3` | Chicago match | 5.52 MiB |
-| `Flywheel-Lower Manhattan.mp3` | Lower Manhattan match | 5.47 MiB |
-| `Flywheel-Upper Manhattan.mp3` | Upper Manhattan match | 5.38 MiB |
-| `Flywheel-Shop.mp3` | Shop | 6.90 MiB |
-| `Flywheel-Pause.mp3` | Pause overlay | 3.73 MiB |
-| `Flywheel-Post_Game.mp3` | Results | 3.83 MiB |
+| `main-menu.mp3` | Title and arena lobby | 3.77 MiB |
+| `brooklyn.mp3` | Brooklyn match | 3.55 MiB |
+| `boston.mp3` | Boston match | 5.43 MiB |
+| `cambridge.mp3` | Cambridge match | 3.91 MiB |
+| `chicago.mp3` | Chicago match | 5.52 MiB |
+| `lower-manhattan.mp3` | Lower Manhattan match | 5.47 MiB |
+| `upper-manhattan.mp3` | Upper Manhattan match | 5.38 MiB |
+| `shop.mp3` | Shop | 6.90 MiB |
+| `pause.mp3` | Pause overlay | 3.73 MiB |
+| `post-game.mp3` | Results | 3.83 MiB |
 
 No dedicated Gallery file was supplied. Gallery deliberately remains
 music-free; its gameplay SFX and environmental ambience still play.
