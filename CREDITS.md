@@ -27,6 +27,14 @@ license — is `assets/audio/CREDITS.json`.
 | [Gulp!](https://freesound.org/s/795472/) | DrBodkin | CC0 | Hole eat gulp |
 | [gulp_sounds](https://freesound.org/s/852988/) | takareads | CC0 | Hole eat gulp variants |
 
+## Music
+
+The original Flywheel music masters in `music/` were created by Nico with Suno;
+implementation will move the shipping copies to `assets/music/`. The project
+owner states that it owns the copyright. All rights reserved. These tracks are
+proprietary project assets and are not covered by the CC0 dedication for sound
+effects above.
+
 ## Engine
 
 - [three.js](https://threejs.org/) (MIT), vendored per ADR-0014.

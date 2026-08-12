@@ -67,10 +67,15 @@ what each is waiting on, and what could start today.
 | [adr/](adr/) | Architecture Decision Records |
 | [runbooks/](runbooks/) | Run/validate/deploy playbooks |
 | [findings/](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md) | Root-cause analyses: [RCA-2026-08-11 skyscraper launch and hanging debris](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md) (roof-snap teleport in the debris landing test, wall-scrape vy bounce, per-material gravity — **resolved, fixed by commit 235c82d the same day**); [RCA-2026-08-11 cambridge validator stall](findings/RCA-2026-08-11-cambridge-validator-stall.md) (the 780 s Cambridge excursion hits superlinear debris churn on the untiered physics — the full validator does not currently complete; **diagnosed, engine fix specified in §5, not yet landed**) |
-| [features/](features/) | Feature planning packages: [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (the `js/net/` layer is wired end to end and proven live over Supabase Realtime — a two-device arena at flywheel-woad.vercel.app/arena.html — but not yet called from `js/main.js` or any campaign/sandbox screen; accounts and leaderboards remain undesigned in code), [rival-visibility](features/rival-visibility/README.md) (phases A-D shipped 2026-08-11 — craters, tug bar, off-screen chevron, callouts, end reveal; two patterns deferred until 8-player), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary; engine change, primitive layer, scene registration and all ten districts committed, Phase 7's hidden content and the Phase 8 sign-off ahead) |
+| [features/](features/) | Feature planning packages: [game-music](features/game-music/00-objective-overview.md) (paperwork only), [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (the `js/net/` layer is wired end to end and proven live over Supabase Realtime — a two-device arena at flywheel-woad.vercel.app/arena.html — but not yet called from `js/main.js` or any campaign/sandbox screen; accounts and leaderboards remain undesigned in code), [rival-visibility](features/rival-visibility/README.md) (phases A-D shipped 2026-08-11 — craters, tug bar, off-screen chevron, callouts, end reveal; two patterns deferred until 8-player), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary; engine change, primitive layer, scene registration and all ten districts committed, Phase 7's hidden content and the Phase 8 sign-off ahead) |
 
 ## Feature planning packages
 
+- [features/game-music/](features/game-music/00-objective-overview.md) — Tier 1
+  plan for the ten supplied MP3s: streamed state-aware menu/shop/city/pause/results
+  music, independent persisted music volume, focus safety, and mix ducking.
+  Paperwork only; all cue and rights decisions are resolved in the
+  [requirements](features/game-music/01-requirements.md).
 - [features/online-flywheel/](features/online-flywheel/README.md) — the plan
   to take Flywheel from a single-player static toy to a networked product
   (accounts, achievements, a live shared arena, four leaderboard scopes) for
