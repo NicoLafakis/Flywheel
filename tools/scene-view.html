@@ -21,7 +21,7 @@
 <canvas id="c"></canvas>
 <script type="module">
 import * as THREE from 'three';
-import { VoxelSandboxSim } from '../js/voxelsim.js';
+import { VoxelSandboxSim, loadScene } from '../js/voxelsim.js';
 import { VoxelWorld3D } from '../js/voxelworld.js';
 import { GameAudio } from '../js/audio/game-audio.js';
 
@@ -34,6 +34,10 @@ canvas.width = innerWidth;
 canvas.height = innerHeight;
 
 const sceneId = q.get('scene') || 'chicago';
+// Authored scenes are fetched on demand now (js/voxelsim.js registry).
+// Top-level await in a module script: the viewer has nothing to paint until
+// the city exists anyway.
+await loadScene(sceneId);
 const sim = new VoxelSandboxSim({ seed: q.get('seed') || 'dev', scene: sceneId });
 const world = new VoxelWorld3D(canvas, sim, 'classic');
 world.resize(innerWidth, innerHeight);

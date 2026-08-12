@@ -27,9 +27,10 @@
 // Reduced motion freezes the camera drift and keeps the city: a still skyline
 // is the scene, an orbiting one is the motion.
 
-import { VoxelSandboxSim } from '../voxelsim.js';
+import { VoxelSandboxSim, loadScene } from '../voxelsim.js';
 import { VoxelWorld3D } from '../voxelworld.js';
 import { ChaseCamera } from '../camera.js';
+import { defaultTierForDevice } from '../quality.js';
 
 // The scene the CTA names. The backdrop and the button have to agree, or the
 // menu is advertising a city the player is not looking at.
@@ -67,7 +68,16 @@ function canRender() {
 function tooWeak(settings) {
   if (!canRender()) return true;
   if (settings && settings.perfMode) return true;
-  if (settings && settings.quality === 'low') return true;
+  // The EFFECTIVE tier, not the stored string: a phone that has never opened
+  // SETTINGS runs LOW while `quality` still reads 'high', and the backdrop is
+  // the single most expensive thing on the title screen — it builds and
+  // simulates the whole of Brooklyn behind a menu. Reading the raw key here
+  // would hand exactly the devices the LOW default exists for the one cost the
+  // default is meant to spare them.
+  const tier = settings && settings.qualityChosen
+    ? (settings.quality === 'low' ? 'low' : 'high')
+    : defaultTierForDevice();
+  if (tier === 'low') return true;
   const nav = navigator;
   if (typeof nav.hardwareConcurrency === 'number' && nav.hardwareConcurrency <= 4) return true;
   if (typeof nav.deviceMemory === 'number' && nav.deviceMemory < 4) return true;
@@ -92,10 +102,20 @@ export function startMenuScene(canvas, opts = {}) {
   timer = setTimeout(build, BUILD_DELAY_MS);
 }
 
-function build() {
+async function build() {
   timer = 0;
   if (active || !ctx) return;
   try {
+    // The city module is fetched on demand (js/voxelsim.js registry), so the
+    // backdrop's scene is downloaded here rather than at page load. Rule 1 above
+    // is what makes that safe AND what makes it a win: nothing on the title
+    // screen waits for this, and a player who never reaches Brooklyn never pays
+    // for it. `ctx` is re-checked after the await because `stop()` can run while
+    // the fetch is in flight — a fast click into SHOP is exactly that race, and
+    // building into a torn-down context would leak a world onto a canvas the
+    // menu no longer owns.
+    await loadScene(MENU_SCENE);
+    if (active || !ctx) return;
     const sim = new VoxelSandboxSim({ scene: MENU_SCENE });
     const world = new VoxelWorld3D(ctx.canvas, sim, ctx.skinId, {
       // The backdrop pays for none of the shadow pass. It is behind a scrim and

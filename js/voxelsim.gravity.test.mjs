@@ -15,7 +15,12 @@
 //      support under it (pre-fix: wall-scraped blocks hovered indefinitely,
 //      their downward velocity reflected every frame by a lateral contact)
 
-import { VoxelSandboxSim } from './voxelsim.js';
+import { VoxelSandboxSim, loadScene } from './voxelsim.js';
+
+// Authored city modules load on demand (js/voxelsim.js registry); the gallery
+// needs no load at all. Top-level await, so every construction below stays the
+// plain synchronous `new` it always was.
+await loadScene('boston');
 
 const DT = 1 / 60;
 let failures = 0;

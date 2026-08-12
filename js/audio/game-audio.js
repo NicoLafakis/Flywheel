@@ -1,5 +1,6 @@
 // The game-facing voice: one object that maps Flywheel sim events, scenes and
-// UI moments onto the curated CC0 library in assets/audio/ (see CREDITS.json).
+// UI moments onto the sound library in assets/audio/ (CC0 + original masters,
+// see CREDITS.json).
 //
 // Owns the theming decisions so every surface (main game, arena, hot-seat
 // demo, and the dev scene viewer) sounds the same:
@@ -51,6 +52,13 @@ const EATS = ['eat-1', 'eat-2', 'eat-3'];
 const DEBRIS = ['debris-1', 'debris-2', 'debris-3'];
 const GLASS = ['glass-1', 'glass-2'];
 
+// Sounds that ship as something other than OGG. The eat gulps are original
+// Flywheel masters (Suno, like the music — see assets/audio/CREDITS.json) and
+// arrived as MP3; every target browser decodes MP3, and re-encoding them to
+// OGG would be a second lossy pass for zero gain. Names stay 'eat-N' so no
+// call site or test knows the difference.
+const FILE_EXT = { 'eat-1': '.mp3', 'eat-2': '.mp3', 'eat-3': '.mp3' };
+
 // Distance model for positional sounds: full level inside ATT_FULL metres of
 // the listener, gone at ATT_ZERO. City scenes span ~250 m, so a collapse two
 // districts over reads as a distant thud rather than a point-blank bang.
@@ -97,7 +105,7 @@ function gulpRate(radius) {
 
 export class GameAudio {
   constructor({ base = 'assets/audio/', musicBase = 'assets/music/', musicDirector = null } = {}) {
-    this.engine = new AudioEngine({ base });
+    this.engine = new AudioEngine({ base, ext: FILE_EXT });
     this.music = musicDirector || new MusicDirector({ base: musicBase });
     this.music.setMuted(this.engine.muted);
     // Deliberately NO setMasterVolume() here: music is governed by its own

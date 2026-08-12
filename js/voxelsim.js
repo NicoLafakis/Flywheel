@@ -34,13 +34,62 @@
 
 import { RNG } from './rng.js';
 import { playerSpeedForRadius } from './tiers.js';
-import { buildManhattan } from './voxelscene-manhattan.js';
-import { buildUpperManhattan } from './voxelscene-upper-manhattan.js';
-import { buildBrooklyn } from './voxelscene-brooklyn.js';
-import { buildBoston } from './voxelscene-boston.js';
-import { buildCambridge } from './voxelscene-cambridge.js';
-import { buildChicago } from './voxelscene-chicago.js';
 import { sedan, bus, boxVan, bigTruck, motorcycle, tree, lampPost } from './voxelkit.js';
+
+// --- authored scenes, loaded on demand ---------------------------------------
+// The six cities are 1.19 MB of raw source between them (Cambridge alone is
+// 664 KB) and a session plays exactly ONE of them. Statically imported, all six
+// were downloaded, parsed and evaluated before the title screen could paint —
+// on a throttled phone connection that was the bulk of an 18.6 s cold load, paid
+// in full by a player who then picked Brooklyn.
+//
+// They are pure data-emitting builders — each takes the sim and calls `_block`
+// — so nothing else in this module needs them at module-evaluation time. That
+// is what makes the split safe: there is no cycle to break and no shared state
+// to initialise, only a function that has to exist by the time the constructor
+// reaches it.
+//
+// The constructor stays SYNCHRONOUS on purpose. Roughly fifty call sites build a
+// sim — six in the game and the demos, the rest in tools/ and the .test.mjs
+// files — and an async constructor is not a thing JavaScript has, so the honest
+// shape is an explicit `await loadScene(id)` before `new`. Callers that only
+// ever build the gallery (which is authored right here in `_buildScene`) need no
+// change at all; `loadScene` is a no-op for them.
+const SCENE_IMPORTERS = {
+  'manhattan': () => import('./voxelscene-manhattan.js').then((m) => m.buildManhattan),
+  'upper-manhattan': () => import('./voxelscene-upper-manhattan.js').then((m) => m.buildUpperManhattan),
+  'brooklyn': () => import('./voxelscene-brooklyn.js').then((m) => m.buildBrooklyn),
+  'boston': () => import('./voxelscene-boston.js').then((m) => m.buildBoston),
+  'cambridge': () => import('./voxelscene-cambridge.js').then((m) => m.buildCambridge),
+  'chicago': () => import('./voxelscene-chicago.js').then((m) => m.buildChicago),
+};
+const SCENE_BUILDERS = new Map();
+// In-flight promises, so two overlapping starts (a fast double-tap on a city
+// chip) share one module fetch instead of racing two.
+const SCENE_PENDING = new Map();
+
+/** True once `scene` can be constructed synchronously. Always true for the
+ *  gallery and for any id that names no authored scene — both fall through to
+ *  `_buildScene`, which needs nothing loaded. */
+export function sceneReady(scene) {
+  return !SCENE_IMPORTERS[scene] || SCENE_BUILDERS.has(scene);
+}
+
+/** Fetch and cache an authored scene's builder. Idempotent, and a no-op for the
+ *  gallery. MUST be awaited before `new VoxelSandboxSim({ scene })` for any of
+ *  the six cities — the constructor throws otherwise rather than silently
+ *  building a gallery under a Brooklyn label. */
+export async function loadScene(scene) {
+  if (!SCENE_IMPORTERS[scene]) return null;
+  if (SCENE_BUILDERS.has(scene)) return SCENE_BUILDERS.get(scene);
+  let p = SCENE_PENDING.get(scene);
+  if (!p) {
+    p = SCENE_IMPORTERS[scene]().then((fn) => { SCENE_BUILDERS.set(scene, fn); return fn; });
+    SCENE_PENDING.set(scene, p);
+  }
+  try { return await p; }
+  finally { SCENE_PENDING.delete(scene); }
+}
 
 // --- tuning ------------------------------------------------------------------
 const FINE = 0.25;          // fine grid resolution (m); blocks are fs fine cells per side (0.25/0.5/1/2 m)
@@ -426,12 +475,16 @@ export class VoxelSandboxSim {
     };
     this._supportSkipped = 0;  // coverage-only recalcs deferred by supportEvery
 
-    if (scene === 'manhattan') buildManhattan(this);
-    else if (scene === 'upper-manhattan') buildUpperManhattan(this);
-    else if (scene === 'brooklyn') buildBrooklyn(this);
-    else if (scene === 'boston') buildBoston(this);
-    else if (scene === 'cambridge') buildCambridge(this);
-    else if (scene === 'chicago') buildChicago(this);
+    // Authored scenes come from the on-demand registry at the top of this file.
+    // A missing builder is a programming error at the CALL SITE (a `new` that
+    // skipped `await loadScene`), so it throws by name rather than falling
+    // through to the gallery — a Brooklyn label over a gallery pile is the kind
+    // of wrong that passes a smoke test.
+    const authored = SCENE_IMPORTERS[scene] ? SCENE_BUILDERS.get(scene) : null;
+    if (SCENE_IMPORTERS[scene] && !authored) {
+      throw new Error(`VoxelSandboxSim: scene '${scene}' is not loaded — await loadScene('${scene}') before constructing`);
+    }
+    if (authored) authored(this);
     else this._buildScene();
     this.scene = scene;
     this.goal = GOALS[scene] || GOALS.gallery;

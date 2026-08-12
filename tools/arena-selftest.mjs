@@ -250,6 +250,8 @@ begin('8. determinism: same seed + same scene builds the identical city');
 {
   const V = await import(ROOT + 'js/voxelsim.js');
   const seed = A.deriveSeed('K7QM3');
+  // Authored city modules load on demand (js/voxelsim.js registry).
+  await V.loadScene('manhattan');
   const a = new V.VoxelSandboxSim({ seed, scene: 'manhattan' });
   const b = new V.VoxelSandboxSim({ seed, scene: 'manhattan' });
   check(`manhattan is a real city (${a.blocks.length} blocks)`, a.blocks.length > 10000);

@@ -1,7 +1,7 @@
 // Boot + screen state machine + game loop glue.
 
 import { Sim } from './sim.js';
-import { VoxelSandboxSim, sandboxSizeProgress } from './voxelsim.js';
+import { VoxelSandboxSim, sandboxSizeProgress, loadScene } from './voxelsim.js';
 import { getLevel, METROS } from './levels.js';
 import { loadSave, storeSave, recordLevelResult, recordSandboxResult, isLevelUnlocked } from './save.js';
 import { World3D } from './world3d.js';
@@ -12,7 +12,7 @@ import { HUD, ANN } from './ui/hud.js';
 import { Screens, SKINS, INDICATOR_SKINS } from './ui/screens.js';
 import { mountReadyGate } from './ui/ready.js';
 import { startMenuScene, stopMenuScene, tickMenuScene, resizeMenuScene } from './ui/menuscene.js';
-import { TIERS } from './quality.js';
+import { TIERS, defaultTierForDevice } from './quality.js';
 
 import { GameAudio } from './audio/game-audio.js';
 import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_SFX_VOLUME, reseedAudioMix } from './audio/mix.js';
@@ -64,9 +64,13 @@ let lastTs = 0;
 let shopBonus = { clock: 0, growth: 0 };
 
 // ------------------------------------------------------------------ quality tier
-// Two tiers, and the player picks one. Nothing here classifies the device and
-// nothing watches frame times: full graphics or not is the whole contract.
-// HIGH is the default, so an untouched settings screen ships the pre-tier sim.
+// Two tiers, and the player picks one. Nothing here watches frame times and
+// nothing adjusts mid-session: full graphics or not is the whole contract.
+// The DEFAULT does read the device once — a coarse-pointer phone that has never
+// opened SETTINGS starts on LOW, everything else on HIGH — because HIGH on a
+// phone measured as an unplayable frame rather than as better graphics. That is
+// a starting point, not a classifier: one press of the Graphics detail button
+// records a choice and this stops looking at the device forever (wantedTier).
 let tierName = wantedTier();
 // Debug hook, same idiom as window.__sim / __world / __cam / __controls.
 // `force` lets a harness (and a dev) push a tier without going through the
@@ -94,11 +98,21 @@ window.__quality = {
   }),
 };
 
-// The player's setting is the only authority. Anything unexpected — a key from
-// a hand-edited save, a value from a build that had more tiers — reads as HIGH
-// rather than as nothing, so a bad string can never leave the game untiered.
+// The player's setting is the only authority ONCE THERE IS ONE. Until then the
+// device picks the default: a coarse-pointer phone starts on LOW, everything
+// else on HIGH (js/quality.js `defaultTierForDevice`). `qualityChosen` is what
+// separates the two cases — it is written by the Graphics detail button and by
+// nothing else, so a player who has picked a tier keeps it on every device, and
+// a player who has not gets the one their hardware can actually run.
+//
+// Anything unexpected past that point — a key from a hand-edited save, a value
+// from a build that had more tiers — still reads as HIGH rather than as nothing,
+// so a bad string can never leave the game untiered.
 function wantedTier() {
-  return save.settings && save.settings.quality === 'low' ? 'low' : 'high';
+  const st = save.settings;
+  if (!st) return 'high';
+  if (!st.qualityChosen) return defaultTierForDevice();
+  return st.quality === 'low' ? 'low' : 'high';
 }
 
 // Push the current tier at both halves of the engine. Idempotent — every setter
@@ -376,7 +390,14 @@ function startVoxelSandbox(scene = 'gallery') {
   const sceneLabel = authored ? authored.label : 'SANDBOX';
   const hudLabel = authored ? authored.hud : 'SANDBOX';
   screens.showLoading(sceneLabel);
-  requestAnimationFrame(() => requestAnimationFrame(() => {
+  requestAnimationFrame(() => requestAnimationFrame(async () => {
+    // The city's own module is fetched here rather than at page load
+    // (js/voxelsim.js registry). The loading frame is already painted — it went
+    // up before these two rAFs — so the fetch happens under the same screen that
+    // already covers the multi-second build, and the READY gate that follows is
+    // mounted from inside this callback, after the await. Nothing downstream can
+    // observe the gap: `sim` is not assigned until the builder is in hand.
+    await loadScene(scene);
     teardownWorld();
     isVoxelSandbox = true;
     // Scopes the sandbox HUD hierarchy rules in main.css (coin pill dimmed,
@@ -537,7 +558,10 @@ function endLevel() {
 const FIXED_DT = 1 / 60;
 
 function frame(ts) {
-  requestAnimationFrame(frame);
+  // The handle is kept so the visibility listener can genuinely STOP the loop
+  // rather than leave a throttled one running in a hidden tab. Re-armed first,
+  // as it always was, so a throw anywhere below cannot kill the game loop.
+  loopHandle = requestAnimationFrame(frame);
   const rawDt = (ts - lastTs) / 1000 || 0;
   const realDt = Math.min(0.1, rawDt);
   lastTs = ts;
@@ -715,15 +739,81 @@ function endSandbox() {
   });
 }
 
-function resize() {
+// ------------------------------------------------------------------ resize
+// `world.resize` reallocates the drawing buffer and every shadow render target,
+// which is one of the most expensive single calls in the app. On a phone that is
+// not a rare event: iOS Safari and Chrome Android fire `resize` continuously for
+// the whole of the URL-bar collapse animation, DURING normal play, so an
+// undebounced listener paid a full reallocation per animation frame of a bar
+// sliding away — and many of those events report a size that has not changed at
+// all (an orientation-neutral scroll, a keyboard dismissal, a devtools repaint).
+//
+// Two guards, and they cover different halves of the problem. The rAF coalesce
+// collapses a burst of events into one reallocation per frame; the
+// dimension check drops the burst entirely when nothing actually moved, which is
+// the common case for the URL-bar animation's tail.
+//
+// The direct `resize()` is still there and still immediate, because the level
+// start paths call it against a renderer that was constructed one line earlier:
+// there is no previous size to compare against and nothing to coalesce with, so
+// it FORCES past both guards.
+let resizeRaf = 0;
+let lastResizeW = 0;
+let lastResizeH = 0;
+
+function applyResize(force) {
   const w = window.innerWidth, h = window.innerHeight;
+  if (!force && w === lastResizeW && h === lastResizeH) return;
+  lastResizeW = w; lastResizeH = h;
   if (world) world.resize(w, h);
   if (cam) cam.resize(w / h);
   resizeMenuScene(w, h);
   canvas.style.width = '100%';
   canvas.style.height = '100%';
 }
-window.addEventListener('resize', resize);
+
+function resize() {
+  if (resizeRaf) { cancelAnimationFrame(resizeRaf); resizeRaf = 0; }
+  applyResize(true);
+}
+
+window.addEventListener('resize', () => {
+  if (resizeRaf) return;
+  resizeRaf = requestAnimationFrame(() => { resizeRaf = 0; applyResize(false); });
+});
+
+// ------------------------------------------------------------------ visibility
+// A backgrounded tab was still holding everything: a 150-265 MB heap, a live GL
+// context and a loop that browsers throttle rather than stop. On iOS Safari that
+// combination is what gets a tab discarded outright — the player switches app,
+// takes a call, comes back to a reload and loses the run.
+//
+// So the loop is genuinely STOPPED, not slowed: `frame` stops re-arming itself
+// and the handle is cancelled, which means zero renders, zero sim steps and no
+// GPU work at all while hidden. The music engine already tracks visibility on
+// its own (js/audio/music.js), so this is only the loop's half.
+//
+// A hidden tab mid-run also becomes PAUSED. That is a product decision as much
+// as a performance one: coming back to a city that kept collapsing without you
+// is the same bad surprise either way, and the pause screen is the honest place
+// to land. `accumulator` and `lastTs` are both reset on the way back in — the
+// accumulator so the sim cannot try to replay the minutes it was away (the
+// sub-step cap would clamp it anyway, but into slow motion rather than into
+// nothing), and lastTs so the first frame back reports a normal delta instead of
+// however long the player was gone.
+let loopHandle = 0;
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (loopHandle) { cancelAnimationFrame(loopHandle); loopHandle = 0; }
+    if (state === 'playing') { state = 'paused'; screens.showPause(); }
+    accumulator = 0;
+  } else if (!loopHandle) {
+    lastTs = performance.now();
+    accumulator = 0;
+    loopHandle = requestAnimationFrame(frame);
+  }
+});
 
 document.getElementById('btn-pause').addEventListener('click', () => {
   if (state === 'playing') { state = 'paused'; screens.showPause(); }
@@ -756,4 +846,4 @@ const bootSplash = document.getElementById('boot-splash');
 if (bootSplash) bootSplash.remove();
 screens.showTitle();
 resize();
-requestAnimationFrame((ts) => { lastTs = ts; requestAnimationFrame(frame); });
+requestAnimationFrame((ts) => { lastTs = ts; loopHandle = requestAnimationFrame(frame); });

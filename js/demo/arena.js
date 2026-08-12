@@ -17,7 +17,7 @@
 // T-606), no spectators, no quick join.
 
 import * as THREE from 'three';
-import { VoxelSandboxSim, sandboxSpeedForRadius } from '../voxelsim.js';
+import { VoxelSandboxSim, sandboxSpeedForRadius, loadScene } from '../voxelsim.js';
 import { DuelView } from './view.js';
 // The rival-visibility layer (.wiki/features/rival-visibility/): colored
 // craters, tug-of-war bar, off-screen chevron, milestone callouts, end reveal.
@@ -274,7 +274,13 @@ function nextFrames() {
 
 /** Build the shared city and stamp the page with what was built, so a second
  * device (or a test) can read scene + block count straight off the DOM. */
-function buildCity(seed, sceneId) {
+async function buildCity(seed, sceneId) {
+  // The city module is fetched on demand (js/voxelsim.js registry). Both call
+  // sites already `await nextFrames()` behind a status line for exactly this
+  // reason — the build was always a multi-second wait with a message over it —
+  // so the fetch joins the wait the player is already being shown, and the seat
+  // negotiation that decides `sceneId` has already completed above.
+  await loadScene(sceneId);
   const s = new VoxelSandboxSim({ seed, scene: sceneId });
   document.body.dataset.scene = sceneId;
   document.body.dataset.blocks = String(s.blocks.length);
@@ -480,7 +486,7 @@ async function hostCity(pickedScene) {
   // before the multi-second stall, or the phone looks frozen.
   el('connecting-msg').textContent = `BUILDING ${sceneLabel(scene)}…`;
   await nextFrames();
-  sim = buildCity(roomHost.seed, scene);
+  sim = await buildCity(roomHost.seed, scene);
   tuneForDuel(sim);
   sim.holes[0].x = SPAWNS[0].x; sim.holes[0].z = SPAWNS[0].z;
 
@@ -572,7 +578,7 @@ async function joinCity(rawCode) {
 
   // The peer's own build of the same city: same seed, same scene, NEVER
   // stepped. Blocks die in it only when the wire says so.
-  sim = buildCity(seat.seed, scene);
+  sim = await buildCity(seat.seed, scene);
   peerBlockById = new Map();
   let maxBlockId = 0;
   for (const b of sim.blocks) {

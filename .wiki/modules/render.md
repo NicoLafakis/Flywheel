@@ -661,6 +661,36 @@ mutates sim state.
   so the tier table is still a no-op on that path; and `dpr` is still
   genuinely nothing on a 1x panel by construction, so HIGH vs LOW differs
   there in debris/support/contact rounds, not pixels.
+- **The DEFAULT became device-aware, and `maxSubSteps` dropped to 2 on both
+  tiers (2026-08-12).** Two measured phone fixes, neither of which revives
+  the removed classifier: nothing still watches frame times or adjusts
+  mid-session, and a made choice is never overruled. (1) A device that has
+  never opened SETTINGS now starts on the tier it can actually run:
+  `defaultTierForDevice()` (`js/quality.js`) returns `low` on a
+  coarse-pointer/no-hover device and `high` elsewhere, and `wantedTier()`
+  consults it only while `settings.qualityChosen` is false. The new
+  `qualityChosen` key (default false, deliberately no schema bump — an
+  absent boolean already reads as "never chose", which is the true answer
+  for every pre-existing save, including migrated ones: a migration
+  translating `auto`/`medium` onto the two rungs is not a choice a player
+  made) flips true on the first press of the Graphics detail button, after
+  which `quality` is the only authority on every device. Measured on a
+  Pixel-5 profile at 4x throttle: HIGH on Brooklyn never reached a playable
+  frame at all, LOW held a steerable frame — so the old HIGH default handed
+  phones a frozen tab. The menu backdrop (`js/ui/menuscene.js`'s `tooWeak`)
+  reads the same EFFECTIVE tier rather than the stored string, or exactly
+  the phones the default exists for would still build and simulate all of
+  Brooklyn behind the title screen. (2) `maxSubSteps` is 2 on BOTH tiers
+  (was 6 on HIGH). It is not a sim-trajectory lever — it lives in
+  `main.js`'s real-time catch-up loop, not in `sim.tune`, so HIGH stays
+  byte-identical per step and the validator (which never runs that loop) is
+  untouched. Six was the unexamined arithmetic ceiling `0.1 / FIXED_DT`:
+  the instant a device cannot finish one sub-step inside a frame it is
+  asked for six, and the measured result at 4x throttle was a 16x frame-time
+  blowup — Brooklyn pegged at ~1 fps, the sim advancing 6 s of game time
+  per 60 s of wall clock. A device that is coping never owes more than one
+  sub-step, so the cap costs it nothing; a device that is not gets slow
+  motion it can still steer instead of a freeze.
 - **History: the auto-detect + watchdog system this replaced (built
   2026-08-06/07, removed 2026-08-08).** The prior design classified device
   tier at boot (`detectTier`: coarse pointer, cores, memory, screen px, GL

@@ -349,7 +349,8 @@ district sweep).
   (delivery/school bus, billboard, subway stairs proper, waterfront/pier,
   helicopter), density re-skins of existing buildings (tower at 0.5 m bricks),
   possibly moving traffic and living pedestrians. Driven by playtesting.
-- Audio: the CC0 library (`js/audio/`) now voices every surface, main game
+- Audio: the sound library (`js/audio/` — CC0 save the three original
+  eat masters) now voices every surface, main game
   included — the `blip()` oscillator is gone. Settings mute + volume drive
   the engine everywhere (save mirrors into the engine's localStorage keys,
   which the arena reads). Positional sounds and the el-train bed are
@@ -362,11 +363,13 @@ district sweep).
   analysis awaits an audio-analysis tool.
 - No unit tests beyond the validator; UI untested except smoke path.
 - Upper Manhattan's worst collapse (SIZE 8 into the CPW wall) still has a
-  101 ms p95 (median is a fast 16.6 ms): `main.js`'s fixed-timestep catch-up
-  loop clamps at 6 steps/frame, so a step that crosses ~16.7 ms costs roughly
-  6× itself. Lowering the clamp would trade dropped frames for brief slow
-  motion during a big collapse — a pacing call, not a bug, left unmade. Also
-  deferred: shadow-map aliasing at SIZE 10-12, and the `roads` decor color
+  101 ms p95 (median is a fast 16.6 ms). `main.js`'s fixed-timestep catch-up
+  loop clamped at 6 steps/frame until 2026-08-12, when the clamp dropped to 2
+  on both quality tiers — the measured 4x-throttle blowup was the unexamined
+  ceiling asking a device that cannot finish one sub-step in a frame for six
+  (~1 fps, sim time at 1/10 wall clock). The trade is now made: brief slow
+  motion during a big collapse instead of dropped frames. Still deferred:
+  shadow-map aliasing at SIZE 10-12, and the `roads` decor color
   (`0x1c2030`) reading as near-black gashes through the park.
 
 ## Recent history
@@ -374,6 +377,14 @@ district sweep).
 Lean board: one line per shipped item — full detail lives in `CHANGELOG.md` +
 git log, not here. This section is NOT a changelog.
 
+- 2026-08-12: Mobile performance pass: the six city scene modules (1.19 MB)
+  now load on demand via `loadScene()` instead of at boot; phones that have never
+  opened SETTINGS default to quality LOW (`qualityChosen` marker, no schema bump);
+  `maxSubSteps` 6 → 2 on both tiers (kills the measured 1 fps catch-up spiral);
+  resize events coalesced + no-op sizes dropped; a hidden tab stops the loop and
+  lands on PAUSED; `vercel.json` declares cache policy. Same pass: the three eat
+  gulps are original MP3 masters (Suno), replacing the freesound CC0 gulps —
+  `AudioEngine` gained a per-name extension map; names and call sites unchanged
 - 2026-08-11: Original game music implemented: ten streamed MP3 cues
   (menu/shop/six authored cities/pause/results), Gallery deliberate silence,
   retained pause/shop positions, visibility-safe playback, major-stinger

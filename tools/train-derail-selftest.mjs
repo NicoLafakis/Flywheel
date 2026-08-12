@@ -31,7 +31,10 @@
 
 const ROOT = new URL('../', import.meta.url).href;
 
-const { VoxelSandboxSim, moverPose, comboMult } = await import(ROOT + 'js/voxelsim.js');
+const { VoxelSandboxSim, moverPose, comboMult, loadScene } = await import(ROOT + 'js/voxelsim.js');
+// Authored city modules load on demand (js/voxelsim.js registry). One
+// top-level await here keeps every `new VoxelSandboxSim` below synchronous.
+await loadScene('chicago');
 const S = await import(ROOT + 'js/net/snapshot.js');
 const P = await import(ROOT + 'js/net/protocol.js');
 const T = await import(ROOT + 'js/net/transport.js');

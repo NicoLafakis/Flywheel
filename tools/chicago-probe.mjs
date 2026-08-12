@@ -7,7 +7,7 @@
 // full scene matrix); it is the authoring loop's seconds-fast subset so the
 // hour-long full run never becomes the discovery surface.
 
-import { VoxelSandboxSim, moverArc, moverPose } from '../js/voxelsim.js';
+import { VoxelSandboxSim, moverArc, moverPose, loadScene } from '../js/voxelsim.js';
 import {
   CHICAGO_BOUNDS, CHICAGO_CROSSINGS, CHICAGO_DECOR, CHICAGO_DISTRICTS,
   CHICAGO_HEROES, CHICAGO_MOVERS, CHICAGO_ROAD_SPANS, CHICAGO_ROUTE,
@@ -27,6 +27,7 @@ const sizeLabel = (bl) => (bl.sx === bl.sy && bl.sy === bl.sz ? bl.sx : `${bl.sx
 
 console.log('Probing chicago rebuild...');
 const t0 = Date.now();
+await loadScene('chicago');   // authored scenes load on demand (js/voxelsim.js)
 const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'chicago' });
 console.log(`  built: ${sim.blocks.length} blocks, ${sim.grid.size} fine cells, ${(Date.now() - t0)} ms`);
 

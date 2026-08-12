@@ -8,7 +8,7 @@ import { Sim } from '../js/sim.js';
 import { isEdible } from '../js/tiers.js';
 import {
   VoxelSandboxSim, COMBO_THRESHOLDS, COMBO_STEP, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES,
-  MILESTONES, MILESTONE_TIERS, comboLevel, comboMult,
+  MILESTONES, MILESTONE_TIERS, comboLevel, comboMult, loadScene,
 } from '../js/voxelsim.js';
 import {
   BROOKLYN_CROSSINGS, BROOKLYN_OPEN_GROUND, BROOKLYN_ROAD_SPANS, BROOKLYN_STREETS,
@@ -34,6 +34,19 @@ import {
 } from '../js/voxelscene-chicago.js';
 import { CURRENT_VERSION, __freshSave, __MIGRATIONS } from '../js/save.js';
 import { readdirSync, readFileSync } from 'node:fs';
+
+// Authored city modules load on demand in the game (js/voxelsim.js registry), so
+// the validator has to ask for them before it constructs any of the six. It is
+// deliberately ALL of them, once, up here rather than beside each scene's block:
+// the validator's job is to prove every shipped scene, so there is no case where
+// one of these is not wanted, and a per-block load would turn every `new
+// VoxelSandboxSim` in this file into an await for no gain.
+//
+// This file also imports the scene modules' DATA tables statically above (street
+// grids, crossing lists). That is not a duplicate download in the game — nothing
+// the game ships imports this file — and it is what lets the geometry checks run
+// against the authored source of truth rather than against the built sim.
+await Promise.all(['manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago'].map(loadScene));
 
 const DT = 1 / 60;
 let failures = 0;

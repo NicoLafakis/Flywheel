@@ -116,12 +116,16 @@ tying everything together.
   for the input-side detail.
 - The quality row (`🎚 Graphics detail`) is a two-state HIGH/LOW toggle
   button, not a `<select>` — every other control on this screen is a button,
-  and two options make the cycle a straight flip (`js/ui/screens.js`). It
-  reads and writes `st.quality` directly; there is no `AUTO` state, no device
-  classifier, and nothing adjusts it while the screen is open (2026-08-08 —
-  the prior `AUTO · <tier>` label and its live-watchdog staleness bug are
-  gone along with the classifier). See `.wiki/modules/render.md`'s quality
-  entries for the `TIERS` lever values and the removed system's history.
+  and two options make the cycle a straight flip (`js/ui/screens.js`). The
+  label shows the EFFECTIVE tier: the stored `st.quality` once the player
+  has chosen, the device default (`defaultTierForDevice()` — phones start
+  LOW) until then, so the screen never tells a phone player their game is
+  running HIGH when it is not. Pressing the button cycles from the
+  displayed tier and sets `st.qualityChosen = true`, from which point the
+  stored value is the only authority on every device (2026-08-12; there is
+  still no `AUTO` state and nothing adjusts mid-session). See
+  `.wiki/modules/render.md`'s quality entries for the `TIERS` lever values,
+  the device-default measurement, and the removed system's history.
 - SETTINGS carries one Game sounds toggle (global mute) above three sibling
   `.set-row` sliders: Effects volume, Ambience volume, Music volume, in that
   order, the second cloned from the same row template as the first. There is

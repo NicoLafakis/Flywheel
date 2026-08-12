@@ -3,6 +3,7 @@
 import { LEVELS, METROS, MECHANICS, LEVELS_PER_METRO, coinsForResult, starsForResult } from '../levels.js';
 import { isLevelUnlocked, storeSave, VOX_DEFAULTS } from '../save.js';
 import { ORBIT_RATE, ORBIT_RATE_RAMP } from '../controls.js';
+import { defaultTierForDevice } from '../quality.js';
 // The shipped mix, so the three slider rows cannot render a different resting
 // position from the one the game actually boots at. js/audio/mix.js owns the
 // numbers; this file only draws them.
@@ -516,27 +517,39 @@ export class Screens {
     ctl('Look around (touch)', 'drag right ½');
     ctl('Zoom (touch)', 'pinch two fingers');
 
-    // Graphics detail, binary: full graphics or not. HIGH is the default and is
-    // the pre-tier sim exactly; LOW drops the pixel ratio, shadows, ambient life
-    // and the debris/support budgets (js/quality.js has the measured rationale
-    // for each). There is no AUTO — nothing classifies the device and nothing
-    // adjusts while playing, so the button reads the setting and only that.
+    // Graphics detail, binary: full graphics or not. LOW drops the pixel ratio,
+    // shadows, ambient life and the debris/support budgets (js/quality.js has
+    // the measured rationale for each). There is still no AUTO — nothing
+    // classifies the device while playing and nothing adjusts mid-session.
+    //
+    // The DEFAULT does depend on the device (phones start on LOW, desktops on
+    // HIGH), and the label has to show what the game is ACTUALLY running or the
+    // screen lies to a phone player about why their frames look the way they do.
+    // So the button reads the effective tier — the stored value once the player
+    // has chosen, the device default until then — and pressing it records that a
+    // choice now exists, after which the stored value is the only authority.
     //
     // Still the same button rather than a <select>: every other control on this
     // screen is a button, a native dropdown is the one widget that would look
     // imported, and two options make the cycle a straight toggle.
     const QUALITY_ORDER = ['high', 'low'];
     const QUALITY_LABEL = { high: 'HIGH', low: 'LOW' };
-    const qualityText = () => QUALITY_LABEL[st.quality] || QUALITY_LABEL.high;
+    const effectiveQuality = () => {
+      if (!st.qualityChosen) return defaultTierForDevice();
+      return st.quality === 'low' ? 'low' : 'high';
+    };
+    const qualityText = () => QUALITY_LABEL[effectiveQuality()] || QUALITY_LABEL.high;
     const qRow = el(`<div class="set-row"><span class="set-label">🎚 Graphics detail</span>
       <span class="set-val"><button class="btn secondary">${qualityText()}</button></span></div>`);
     const qBtn = qRow.querySelector('button');
     qBtn.onclick = () => {
-      // Fall back to the tier the LABEL is showing, not to a sentinel: an
-      // unrecognised stored value renders as HIGH, so starting the cycle
-      // anywhere else makes the first click look like it did nothing.
-      const i = Math.max(0, QUALITY_ORDER.indexOf(st.quality));
+      // Cycle from the tier the LABEL is showing, not from a sentinel and not
+      // from the raw stored string: an unchosen phone shows LOW while `quality`
+      // still holds 'high', and starting the cycle from the stored value would
+      // make the first press look like it did nothing.
+      const i = Math.max(0, QUALITY_ORDER.indexOf(effectiveQuality()));
       st.quality = QUALITY_ORDER[(i + 1) % QUALITY_ORDER.length];
+      st.qualityChosen = true;
       qBtn.textContent = qualityText();
       this.actions.applySettings();
     };

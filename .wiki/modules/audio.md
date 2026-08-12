@@ -16,6 +16,13 @@ streams one state-aware MP3 at a time. `GameAudio` is the facade over both: it
 maps drained sim events and scene lifecycle to sound. All are render-side: they
 read gameplay state only after `sim.step()` and never mutate it.
 
+The asset library (`assets/audio/`, manifest `CREDITS.json`) is CC0 except the
+three eat gulps, which are original Flywheel masters (Nico with Suno, like the
+music) and ship as MP3 (2026-08-12, replacing the freesound gulps). The engine
+loads `name + '.ogg'` unless the constructor's `ext` map says otherwise —
+`GameAudio`'s `FILE_EXT` carries the three `eat-N` names, so no call site,
+event name or test knows the files changed.
+
 ## Levels: three independent buses, one mute
 
 There is no master volume. `AudioEngine`'s master gain carries mute and nothing

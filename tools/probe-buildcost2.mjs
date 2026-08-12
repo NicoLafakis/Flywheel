@@ -36,7 +36,7 @@
 // quotable from a busy box while the timings are not. They are read once per
 // rep and cross-checked across every rep; a disagreement is a determinism
 // failure and hard-fails the run rather than being averaged away.
-import { VoxelSandboxSim } from '../js/voxelsim.js';
+import { VoxelSandboxSim, loadScene } from '../js/voxelsim.js';
 import { SURFACE_BY_ID } from '../js/voxeltiles.js';
 import { readFileSync } from 'node:fs';
 
@@ -188,6 +188,12 @@ const counts = new Map();
 if (!asJson) {
   process.stderr.write(`probe-buildcost2: ${scenes.length} scenes x ${N} reps, round-robin`);
 }
+// Authored city modules load on demand (js/voxelsim.js registry). Loaded BEFORE
+// the timing loop on purpose: this probe measures BUILD cost, and folding a
+// one-off module fetch+parse into rep 1 would put a fixed cost on one rep of one
+// scene and call it variance.
+for (const scene of scenes) await loadScene(scene);
+
 for (let rep = 0; rep < N; rep++) {
   for (const scene of scenes) {
     const t0 = performance.now();

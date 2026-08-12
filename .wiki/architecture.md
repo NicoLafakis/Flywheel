@@ -329,6 +329,33 @@ transform in between. Vendoring is compatible with all of that — a committed
 file is not a build step — where a package manager plus a bundler would put a
 generated artifact between the source and both consumers.
 
+**Cache policy is declared in `vercel.json`, and it splits on mutability
+(2026-08-12).** `/assets/**` (audio, music, skins — content that changes only
+by deliberate asset swap) ships `immutable` for a year; `/js/**` and `/css/**`
+ship `max-age=300` with a week of `stale-while-revalidate`, so a redeploy
+reaches players in minutes while a repeat visit never re-downloads the module
+graph in the critical path.
+
+**The six city scene modules are fetched on demand, not at boot (2026-08-12).**
+`voxelsim.js` keeps an importer registry (`loadScene`/`sceneReady`); the title
+screen, the menu backdrop, the single-player start path and the arena each
+await exactly the one city they are about to build. The six are 1.19 MB of
+source between them and a session plays one, so static imports put most of an
+18.6 s throttled cold load in front of the title screen for nothing. The
+sim constructor stays synchronous and throws by name if a city was not awaited
+first — see `.wiki/modules/voxel.md`'s module table.
+
+**A backgrounded tab stops entirely, and a noisy `resize` costs nothing
+(2026-08-12).** `main.js`'s loop cancels its own animation frame on
+`visibilitychange` (a hidden mid-run game also lands on the pause screen —
+coming back to a city that kept collapsing without you is the same bad
+surprise either way) and resets both the accumulator and the frame clock on
+return, so a suspended tab does zero renders, zero sim steps and no GPU work,
+and cannot try to replay its absence. `resize` events are coalesced to one
+reallocation per frame and dropped entirely when the size did not actually
+change, because mobile browsers fire them continuously through the URL-bar
+collapse animation during normal play.
+
 **The failure path is explicit, because a slow boot and a broken boot look
 identical to a player.** `#boot-splash` is pure HTML/CSS with no JS dependency,
 so a 10-15 s cold load never reads as a crashed tab; `js/main.js` removes it

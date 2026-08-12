@@ -3,6 +3,48 @@
 Detailed build history, migrated from STATUS.md (which is a lean board, not a
 changelog). Newest first. Commit-level history: `git log`.
 
+- 2026-08-12: **Mobile performance pass.** Measured on a Pixel-5 profile at
+  4x CPU throttle, then fixed: (1) the six authored city scene modules (1.19
+  MB of source between them, Cambridge alone 664 KB) no longer load at boot —
+  `js/voxelsim.js` gained an on-demand registry (`await loadScene(id)`, with
+  in-flight dedupe; the constructor stays synchronous and throws by name if a
+  city was not awaited), and the game start path, menu backdrop, arena, scene
+  viewer and tools each fetch exactly the city they build. Static imports put
+  most of an 18.6 s throttled cold load in front of the title screen; now the
+  title paints with zero city modules fetched. (2) The default quality tier
+  is device-aware for exactly as long as the player has not chosen:
+  `defaultTierForDevice()` starts coarse-pointer phones on LOW, and the new
+  `settings.qualityChosen` marker (deliberately no schema bump — absent reads
+  false, which is the true answer for every pre-existing save) flips on the
+  first Graphics-detail press, after which the stored tier is the only
+  authority. The settings label and the menu backdrop's `tooWeak` both read
+  the EFFECTIVE tier, so an unchosen phone is never told it runs HIGH and
+  never builds a Brooklyn backdrop it cannot afford. (3) `maxSubSteps` 6 → 2
+  on BOTH tiers: six was the arithmetic ceiling `0.1 / FIXED_DT` left
+  unexamined, and a device that cannot finish one sub-step in a frame was
+  asked for six — measured as a 16x frame-time blowup (Brooklyn at ~1 fps,
+  6 s of game time per 60 s of wall clock). The cap lives in `main.js`'s
+  real-time catch-up loop, not in `sim.tune`, so HIGH's sim trajectory stays
+  byte-identical and the validator is untouched; a struggling device now
+  gets steerable slow motion instead of a freeze. (4) `resize` events are
+  coalesced to one realloc per frame and dropped when nothing moved (mobile
+  browsers fire them continuously through the URL-bar collapse). (5) A
+  hidden tab now genuinely stops the loop (no renders, no sim steps, no GPU
+  work) and lands a mid-run game on PAUSED, with the accumulator and frame
+  clock reset on return. (6) `vercel.json` declares the cache split:
+  `/assets/**` immutable for a year, `/js/**` + `/css/**` five minutes with
+  a week of stale-while-revalidate. **Same pass:** the three eat gulps are
+  now original Flywheel MP3 masters (Nico with Suno) replacing the freesound
+  CC0 gulps — `AudioEngine` gained a per-name extension map (`FILE_EXT`), so
+  sound names, call sites and tests are unchanged; `CREDITS.json`/`CREDITS.md`
+  record the provenance swap. Verified: all headless selftests green (voxelsim
+  gravity/multihole, duel, rival, arena 72, net 132 + 48, train-derail 39,
+  chicago-probe, audio suites, music-assets), validator pre-Cambridge stages
+  clean (Cambridge excursion stall remains the documented open issue,
+  RCA-2026-08-11), and the in-browser harness
+  (`.playwright-mcp/verify.mjs` + `verify-backdrop.mjs`) proves the lazy
+  fetch, resize guard and visibility pause on a live page.
+
 - 2026-08-11: **Rival visibility shipped, phases A–D**
   (`.wiki/features/rival-visibility/`) — the answer to the two-phone
   playtest's "no sense of whose blocks were eaten". New `js/rival/` layer,

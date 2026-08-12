@@ -37,8 +37,12 @@ const MASTER_GAIN = 0.9;   // unmuted ceiling; mute is the only thing master car
 const AMB_GAIN = 0.55;     // ambience headroom under the beds, before the slider
 
 export class AudioEngine {
-  constructor({ base = 'assets/audio/' } = {}) {
+  constructor({ base = 'assets/audio/', ext = {} } = {}) {
     this.base = base;
+    // name -> file extension override, for the few sounds that ship as
+    // something other than OGG (the eat masters are MP3 — see FILE_EXT in
+    // game-audio.js). Anything not listed loads as '.ogg'.
+    this._ext = ext;
     this.ctx = null;             // created lazily, resumed on first gesture
     this.buffers = new Map();    // name -> AudioBuffer
     this._pendingLoads = new Map(); // name -> Promise (dedupe concurrent loads)
@@ -172,7 +176,8 @@ export class AudioEngine {
   }
 
   /** Fetch + decode a set of names ("ui-tap" -> assets/audio/ui-tap.ogg).
-   * Parallel, tolerant: a missing file logs once and stays silent. */
+   * Parallel, tolerant: a missing file logs once and stays silent. A name in
+   * the constructor's `ext` map fetches that extension instead of '.ogg'. */
   load(names) {
     if (!this._ensureCtx()) return Promise.resolve();
     return Promise.all(names.map((n) => this._loadOne(n))).then(() => {});
@@ -181,7 +186,7 @@ export class AudioEngine {
   _loadOne(name) {
     if (this.buffers.has(name)) return Promise.resolve();
     if (this._pendingLoads.has(name)) return this._pendingLoads.get(name);
-    const p = fetch(this.base + name + '.ogg')
+    const p = fetch(this.base + name + (this._ext[name] || '.ogg'))
       .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.arrayBuffer(); })
       .then((ab) => this.ctx.decodeAudioData(ab))
       .then((buf) => { this.buffers.set(name, buf); })

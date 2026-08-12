@@ -61,6 +61,26 @@ function defaultSettings() {
     // value is WRONG needs a migration; a key whose absent value is already the
     // default does not.
     quality: 'high',
+    // Has the player ever touched the Graphics detail button? `quality` alone
+    // cannot answer that, and the answer is what lets the DEFAULT differ by
+    // device without ever overruling a choice: a coarse-pointer device that has
+    // never been to SETTINGS starts on LOW (main.js `wantedTier`), a fine-pointer
+    // one starts on HIGH, and the moment the button is pressed this flips true
+    // and `quality` is the only authority from then on, on every device.
+    //
+    // Deliberately no schema bump, for exactly the reason `pointMove` above did
+    // not need one: an absent boolean reads as `false` through `!x`, and `false`
+    // is the correct answer for every save that predates the key — none of those
+    // players has pressed a button that did not yet write a marker. The reading
+    // is also the honest one for a MIGRATED `quality` value: v14 translated
+    // 'auto'/'medium'/'potato' onto the two remaining rungs, and a translation
+    // performed by a migration is not a choice a player made on a phone.
+    //
+    // This is the "marker written by the settings screen at the moment of the
+    // toggle" that the v13 note below asks for, generalised: version archaeology
+    // can distinguish "never saw the option" from "chose it" exactly once, and
+    // this key means the next re-default never has to guess.
+    qualityChosen: false,
     // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
     ...VOX_DEFAULTS,
   };
