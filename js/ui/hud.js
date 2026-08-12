@@ -202,6 +202,12 @@ export class HUD {
     // HUD; the payout is explained on the results screen where the math lives.
     this.timer.textContent = `🪙 ${sim.coinsCollected}/${sim.coins.length}`;
     this.timer.classList.remove('low');
+    if (sim.mode === 'run90') {
+      const seconds = Math.max(0, 90 - sim.rankedTicks / 60);
+      this.massLabel.textContent = `THE RUN · SIZE ${h.size} · ${Math.floor(cleared * 100)}% OF CHICAGO`;
+      this.timer.textContent = `${seconds.toFixed(1)} s`;
+      this.timer.classList.toggle('low', seconds <= 10);
+    }
     // The old sandbox combo pill printed `⚡ COMBO x{floor((chain-1)/25)+1}` —
     // a LEVEL INDEX in multiplier notation, which read x2 at chain 26 while the
     // sim awarded 1.1. It is replaced outright by the ring below, which reads

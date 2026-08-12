@@ -1,7 +1,9 @@
 // Boot + screen state machine + game loop glue.
 
 import { Sim } from './sim.js';
-import { VoxelSandboxSim, sandboxSizeProgress, loadScene } from './voxelsim.js';
+import {
+  RANKED_TICK_COUNT, RANKED_TUNE, VoxelSandboxSim, sandboxSizeProgress, loadScene,
+} from './voxelsim.js';
 import { getLevel, METROS } from './levels.js';
 import { loadSave, storeSave, recordLevelResult, recordSandboxResult, isLevelUnlocked } from './save.js';
 import { World3D } from './world3d.js';
@@ -16,11 +18,23 @@ import { TIERS, defaultTierForDevice } from './quality.js';
 
 import { GameAudio } from './audio/game-audio.js';
 import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_SFX_VOLUME, reseedAudioMix } from './audio/mix.js';
+import { createInputBuffer, encodeTrace, inputAt, writeInput } from './replay.js';
 
 const canvas = document.getElementById('game-canvas');
 const hud = new HUD();
 window.__hud = hud; // debug/smoke-test hook, same idiom as __sim / __cam / __controls
 const save = loadSave();
+
+// A failed submit stays local until the next useful network opportunity. This
+// work is deliberately outside the fixed simulation loop: reconnecting may
+// cause fetches, but it must never alter a completed replay.
+function drainSavedBoardOutbox() {
+  if (!Array.isArray(save.outbox) || !save.outbox.length) return;
+  void import('./board/outbox.js').then(({ drain }) => drain(save)).catch(() => {});
+}
+drainSavedBoardOutbox();
+window.addEventListener('online', drainSavedBoardOutbox);
+window.setInterval(drainSavedBoardOutbox, 60000);
 
 // ------------------------------------------------------------------ audio
 // The CC0 library + WebAudio engine (js/audio/). The save is the source of
@@ -58,6 +72,9 @@ let cam = null;
 let controls = null;
 let readyGate = null; // live mountReadyGate handle, so teardown can dismiss it
 let lastSandboxScene = 'gallery'; // for pause-menu RESTART in the sandbox
+let lastSandboxMode = 'freeplay';
+let rankedRun = null; // { inputs, ticks, ticket, move }; only allocated before a RUN starts
+let rankedLaunch = 0; // rejects a stale ticket response after a fast double-tap
 let activePlayMusicCue = 'gallery'; // owner decision: gallery stays music-free
 let accumulator = 0;
 let lastTs = 0;
@@ -169,6 +186,7 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     }
   },
   startVoxelSandbox(scene) { startVoxelSandbox(scene); },
+  startRankedRun(scene) { void startRankedRun(scene); },
   resume() {
     if (state === 'paused') {
       state = 'playing';
@@ -179,7 +197,8 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
   // Sandbox-aware: the old `if (level)` guard made RESTART a dead button in
   // the sandbox (playtest finding — campaign ghost UI on the pause path).
   restart() {
-    if (isVoxelSandbox) startVoxelSandbox(lastSandboxScene);
+    if (isVoxelSandbox && lastSandboxMode === 'run90') void startRankedRun(lastSandboxScene);
+    else if (isVoxelSandbox) startVoxelSandbox(lastSandboxScene, lastSandboxMode);
     else if (level) startLevel();
   },
   quitToMap() { teardownWorld(); state = 'menu'; hud.hide(); screens.showWorldMap(); },
@@ -378,8 +397,26 @@ const AUTHORED_SCENES = {
   },
 };
 
-function startVoxelSandbox(scene = 'gallery') {
+async function startRankedRun(scene) {
+  const launch = ++rankedLaunch;
+  screens.showLoading('STARTING THE RUN…');
+  let ticket = null;
+  try {
+    const { BOARDS_ENABLED } = await import('./board/config.js');
+    if (BOARDS_ENABLED) {
+      // The ticket is optional by design: no connection starts the identical
+      // local RUN, simply without a path onto the public board.
+      const board = await import('./board/run.js');
+      ticket = await board.startTicket(scene);
+    }
+  } catch { /* offline RUN stays playable */ }
+  if (launch !== rankedLaunch) return;
+  startVoxelSandbox(scene, 'run90', ticket);
+}
+
+function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) {
   lastSandboxScene = scene;
+  lastSandboxMode = mode;
   // The scene build blocks the main thread (~1.3 s sim + instancing for
   // Lower Manhattan) — show a loading frame first so the click never reads
   // as a frozen tab.
@@ -403,7 +440,7 @@ function startVoxelSandbox(scene = 'gallery') {
     // Scopes the sandbox HUD hierarchy rules in main.css (coin pill dimmed,
     // goal readout loud) without touching the campaign countdown styling.
     document.body.classList.add('mode-sandbox');
-    sim = new VoxelSandboxSim({ scene });
+    sim = new VoxelSandboxSim({ scene, mode, seed: mode === 'run90' ? (ticket ? ticket.seed : `local-run:${scene}`) : undefined });
     window.__sim = sim; // debug/validator hook
     world = new VoxelWorld3D(canvas, sim, equippedSkinId(), { indicatorId: equippedIndicatorId() });
     // The renderer reads the persisted setting at construction, but a mid-session
@@ -485,8 +522,14 @@ function startVoxelSandbox(scene = 'gallery') {
     // which writes the whole `tune` object's dev half and would otherwise be
     // the last word on it.
     startQuality();
+    // The ranked tune is deliberately the final physics writer. Quality and
+    // dev sliders may change rendering or a free-play sandbox, never THE RUN.
+    if (mode === 'run90') Object.assign(sim.tune, RANKED_TUNE);
+    rankedRun = mode === 'run90'
+      ? { inputs: createInputBuffer(RANKED_TICK_COUNT), ticks: 0, ticket, move: { x: 0, z: 0 } }
+      : null;
     resize();
-    hud.setLevel({ index: 'SANDBOX', clock: 999 }, hudLabel);
+    hud.setLevel({ index: mode === 'run90' ? 'RUN' : 'SANDBOX', clock: mode === 'run90' ? 90 : 999 }, hudLabel);
     hud.show();
     screens.clear();
     state = 'playing';
@@ -615,7 +658,18 @@ function frame(ts) {
     const maxSteps = (TIERS[tierName] || TIERS.high).maxSubSteps || 6;
     let steps = 0;
     while (accumulator >= FIXED_DT && steps < maxSteps) {
-      sim.step(FIXED_DT, move);
+      // Recording is a single pair of typed-array writes per fixed tick. It is
+      // independent of ticket/network state: an offline RUN remains a complete
+      // local trace rather than a different kind of play.
+      let fixedMove = move;
+      if (rankedRun && rankedRun.ticks < RANKED_TICK_COUNT) {
+        writeInput(rankedRun.inputs, rankedRun.ticks++, move.x, move.z);
+        // THE RUN is stepped from the same quantised pair that is stored. If
+        // the browser stepped raw joystick floats and Node replayed int8s, a
+        // perfectly honest trace could produce a different score.
+        fixedMove = inputAt(rankedRun.inputs, rankedRun.ticks - 1, rankedRun.move);
+      }
+      sim.step(FIXED_DT, fixedMove);
       accumulator -= FIXED_DT;
       steps++;
       if (sim.over) break;
@@ -729,6 +783,25 @@ function endSandbox() {
   state = 'results'; hud.hide();
   audio.stopScene();   // the results reveal plays over quiet, same as the arena
   const finished = sim;
+  if (finished.mode === 'run90') {
+    const trace = rankedRun && rankedRun.ticks === RANKED_TICK_COUNT
+      ? encodeTrace(rankedRun.inputs, rankedRun.ticks) : null;
+    const completedRun = rankedRun;
+    const resultScreen = screens.showRunResults(finished, trace, (toCities) => {
+      rankedRun = null;
+      if (toCities) { teardownWorld(); state = 'menu'; screens.showTitle(); }
+      else void startRankedRun(finished.scene);
+    });
+    if (trace && completedRun && completedRun.ticket) {
+      resultScreen.setRunId(completedRun.ticket.run_id);
+      void import('./board/run.js').then(({ finishRun }) => finishRun(save, completedRun.ticket, finished, completedRun.inputs))
+        .then((result) => resultScreen.setRankStatus(result))
+        .catch(() => resultScreen.setRankStatus({ verdict: 'queued' }));
+    } else {
+      resultScreen.setRankStatus({ verdict: 'unranked' });
+    }
+    return;
+  }
   screens.showSandboxResults(finished, (toCities, coins) => {
     recordSandboxResult(save, finished.scene, {
       coinsEarned: coins, size: finished.hole.size, elapsed: finished.time,
@@ -809,6 +882,7 @@ document.addEventListener('visibilitychange', () => {
     if (state === 'playing') { state = 'paused'; screens.showPause(); }
     accumulator = 0;
   } else if (!loopHandle) {
+    drainSavedBoardOutbox();
     lastTs = performance.now();
     accumulator = 0;
     loopHandle = requestAnimationFrame(frame);

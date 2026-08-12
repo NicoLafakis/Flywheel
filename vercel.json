@@ -1,6 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
+  "functions": {
+    "api/run/verify.mjs": { "maxDuration": 60 }
+  },
+  "crons": [
+    { "path": "/api/run/verify", "schedule": "* * * * *" }
+  ],
   "redirects": [
     { "source": "/multiplayer", "destination": "/arena", "permanent": false }
   ],

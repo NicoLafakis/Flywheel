@@ -19,10 +19,13 @@ levels.js ──► citygen.js ──► sim.js ──► world3d.js ──► s
                               60 Hz)
                                 ▲
 controls.js ──► move/orbit intents ──┘
-save.js ◄──► localStorage (schema v7 + migrations)
+save.js ◄──► localStorage (schema v17 + migrations)
 
 voxelsim.js ──► voxelworld.js        (voxel sandbox: same split,
  (seed, fixed 60 Hz)                  no citygen/levels)
+
+replay.js ──► Vercel API ──► voxelsim.js replay ──► Supabase public views
+ (quantized RUN inputs)  (ticketed)     (server score only)    (records)
 ```
 
 ## Boundaries
@@ -38,6 +41,11 @@ voxelsim.js ──► voxelworld.js        (voxel sandbox: same split,
   `main.js`'s state machine via an `actions` callback object.
 - **Glue** (`main.js`): boot, screen state machine, fixed-timestep loop,
   GameAudio wiring (see the audio section below).
+- **Boards** (`js/board/`, `api/`, `supabase/migrations/`): an optional outer
+  ring. The browser may read derived `security_invoker` record views with its
+  publishable key, but tickets, traces, names, moderation, and deletion cross
+  Vercel only. Server replay is another `voxelsim.js` caller; it cannot write
+  gameplay state, and the fixed loop never waits on a request.
 
 **Multi-hole sim, shipped 2026-08-10:** `VoxelSandboxSim` now runs a roster,
 `sim.holes[]`, rather than one hole. `sim.hole` is kept as an accessor for

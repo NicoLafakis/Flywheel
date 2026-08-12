@@ -8,6 +8,7 @@ import { defaultTierForDevice } from '../quality.js';
 // position from the one the game actually boots at. js/audio/mix.js owns the
 // numbers; this file only draws them.
 import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME } from '../audio/mix.js';
+import { BOARDS_ENABLED } from '../board/config.js';
 import { buildBlockWord } from './blockword.js';
 import { buildSprocket } from './sprocket.js';
 
@@ -241,6 +242,23 @@ export class Screens {
     s.appendChild(group);
 
     const util = el(`<div class="fw-utility"></div>`);
+    if (BOARDS_ENABLED) {
+      // THE RUN is deliberately a separate, bounded score attack rather than a
+      // disguised city clear. Chicago is the first ranked city because it is the
+      // measured low-cost verifier route; more cities join only after their own
+      // replay-budget gate passes.
+      const run = el(`<div class="fw-utility"><button type="button" class="btn secondary">RUN CHICAGO · 90 SECONDS</button></div>`);
+      run.querySelector('button').onclick = () => this.actions.startRankedRun('chicago');
+      s.appendChild(run);
+      const records = el(`<button type="button" class="btn secondary">RECORDS</button>`);
+      records.onclick = () => this.showBoards();
+      util.appendChild(records);
+      if (this.save.player && this.save.player.name) {
+        const profile = el(`<button type="button" class="btn secondary">PROFILE</button>`);
+        profile.onclick = () => this.showProfile();
+        util.appendChild(profile);
+      }
+    }
     const shop = el(`<button type="button" class="btn secondary">SHOP</button>`);
     shop.onclick = () => this.showShop();
     const settings = el(`<button type="button" class="btn secondary">SETTINGS</button>`);
@@ -296,6 +314,90 @@ export class Screens {
     const again = el(`<button class="btn">PLAY AGAIN</button>`); again.onclick = () => onContinue(false, coins);
     const cities = el(`<button class="btn secondary">CITIES</button>`); cities.onclick = () => onContinue(true, coins);
     s.append(again, cities); this.root.appendChild(s); this.current = 'results';
+  }
+
+  // A RUN ends on its fixed tick boundary, never by clearing a city. Its score
+  // is useful immediately but becomes public only after the server replays the
+  // trace; this local-first presentation keeps offline play honest and smooth.
+  showRunResults(sim, trace, onContinue) {
+    this.clear();
+    if (this.actions.music) this.actions.music('results', { restart: true });
+    const score = Math.floor(sim.hole.mass);
+    const traceNote = trace ? `${trace.length.toLocaleString('en-US')} B trace saved` : 'trace unavailable';
+    const s = el(`<div class="screen"><h2>THE RUN</h2><div class="results-stats">
+      <div>YOUR RUN <b>${score.toLocaleString('en-US')}</b></div>
+      <div>Best combo <b>${sim.hole.bestCombo}</b></div>
+      <div>Clock <b>90.0 s</b></div>
+      <div>SAVED — NOT RANKED (NO CONNECTION)</div>
+      <div>${traceNote}</div></div></div>`);
+    const status = s.querySelector('.results-stats').children[3];
+    const claim = el(`<div class="fw-claim-slot"></div>`);
+    const check = el(`<button class="btn secondary" type="button" hidden>CHECK BOARD STATUS</button>`);
+    let runId = null;
+    const setRankStatus = (result) => {
+      const verdict = result && result.verdict;
+      if (verdict === 'verified') {
+        status.textContent = `VERIFIED · ${Number(result.verified_score ?? score).toLocaleString('en-US')}`;
+        if (!(this.save.player && this.save.player.name) && runId) {
+          import('./boards.js').then(({ mountClaim }) => mountClaim(claim, {
+            save: this.save, runId, onClaimed: () => { status.textContent = 'VERIFIED · YOUR NAME IS ON THE BOARD'; check.hidden = true; },
+          }));
+        }
+      } else if (verdict === 'pending' || verdict === 'queued') {
+        status.textContent = 'SAVED — VERIFYING';
+      } else if (verdict === 'unranked') {
+        status.textContent = 'SAVED — NOT RANKED THIS TIME'; check.hidden = true;
+      } else {
+        status.textContent = 'SAVED — NOT RANKED';
+      }
+    };
+    check.onclick = async () => {
+      if (!runId) return;
+      check.disabled = true;
+      try {
+        const { status: readStatus } = await import('../board/run.js');
+        setRankStatus(await readStatus(runId));
+      } catch { status.textContent = 'STILL VERIFYING — TRY AGAIN SOON'; }
+      finally { check.disabled = false; }
+    };
+    const again = el(`<button class="btn">RUN AGAIN</button>`); again.onclick = () => onContinue(false);
+    const cities = el(`<button class="btn secondary">CITIES</button>`); cities.onclick = () => onContinue(true);
+    s.append(check, claim, again, cities); this.root.appendChild(s); this.current = 'results';
+    return {
+      setRankStatus,
+      setRunId: (id) => { runId = id; check.hidden = !id; },
+    };
+  }
+
+  async showBoards() {
+    this.clear();
+    if (this.actions.menuScene) this.actions.menuScene(false);
+    this.root.appendChild(el(`<div class="screen">LOADING RECORDSâ€¦</div>`));
+    try {
+      const { renderBoards } = await import('./boards.js');
+      await renderBoards(this.root, {
+        save: this.save, onBack: () => this.showTitle(), onProfile: () => this.showProfile(),
+      });
+      this.current = 'records';
+    } catch {
+      this.root.innerHTML = '';
+      const offline = el(`<div class="screen"><h2>RECORDS</h2><p>RECORDS ARE OFFLINE. PLAYING STILL WORKS.</p></div>`);
+      const back = el(`<button class="btn secondary">CITIES</button>`); back.onclick = () => this.showTitle();
+      offline.appendChild(back); this.root.appendChild(offline); this.current = 'records';
+    }
+  }
+
+  async showProfile() {
+    this.clear();
+    if (this.actions.menuScene) this.actions.menuScene(false);
+    this.root.appendChild(el(`<div class="screen">LOADING PROFILEâ€¦</div>`));
+    try {
+      const { renderProfile } = await import('./boards.js');
+      renderProfile(this.root, {
+        save: this.save, onBack: () => this.showTitle(), onRecords: () => this.showBoards(),
+      });
+      this.current = 'profile';
+    } catch { this.showTitle(); }
   }
 
   showShop() {

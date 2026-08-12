@@ -33,6 +33,8 @@ import {
   CHICAGO_XW_LEN,
 } from '../js/voxelscene-chicago.js';
 import { CURRENT_VERSION, __freshSave, __MIGRATIONS } from '../js/save.js';
+import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from '../js/fwmath.js';
+import { runBoardSelftest } from './board-selftest.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
 
 // Authored city modules load on demand in the game (js/voxelsim.js registry), so
@@ -190,7 +192,7 @@ function validateVoxelSandbox() {
   // state, and sweeping them in would replace a real invariant with noise.
   // The regex requires the open paren so that a header comment discussing
   // Math.random does not trip it.
-  const SIM_PURE_NAMED = ['rng', 'tiers', 'citygen', 'levels', 'sim', 'voxelsim', 'voxelkit', 'voxelforms'];
+  const SIM_PURE_NAMED = ['rng', 'tiers', 'citygen', 'levels', 'sim', 'voxelsim', 'voxelkit', 'voxelforms', 'fwmath'];
   const sceneFiles = readdirSync(new URL('../js/', import.meta.url))
     .filter((f) => /^voxelscene-.+\.js$/.test(f))
     .map((f) => f.replace(/\.js$/, ''))
@@ -247,6 +249,29 @@ function validateVoxelSandbox() {
   probeHeroIdentity(fresh, 'voxel sandbox', []);                  // no hero pair declared — vacuous
 
   console.log(`  voxel sandbox: eaten=${a.sim.hole.eatenCount}/${a.sim.totalBlocks} raw=${a.sim.hole.rawMass.toFixed(1)} score=${a.sim.hole.mass.toFixed(0)} peakChain=${a.sim.hole.bestCombo} radius=${a.sim.hole.radius.toFixed(2)} (t=10s: ${a.snap.eaten10}, t=20s: ${a.snap.eaten20})`);
+}
+
+// The helpers replace the only implementation-approximated math in replayed
+// voxel physics. These are structural checks, not a claim that the host libm
+// agrees with us: the shipped verifier and browser both evaluate this source.
+function validateFwMath() {
+  console.log('Validating deterministic ranked math...');
+  const eps = 1e-11;
+  if (Math.abs(fwHypot2(3, 4) - 5) > eps || Math.abs(fwHypot3(2, 3, 6) - 7) > eps) {
+    fail('fwmath: fixed hypot vectors are wrong');
+  }
+  for (const x of [-0.7, -0.35, -0.1, 0, 0.25, 0.7]) {
+    const sin = fwSin(x), cos = fwCos(x);
+    if (!Number.isFinite(sin) || !Number.isFinite(cos) || Math.abs(sin * sin + cos * cos - 1) > eps) {
+      fail(`fwmath: trig polynomial is unstable at ${x}`);
+    }
+  }
+  for (const cube of [1 / 64, 1 / 8, 1, 8, 125]) {
+    const root = fwCbrt(cube);
+    if (Math.abs(root * root * root - cube) > eps) fail(`fwmath: cbrt iteration is inaccurate at ${cube}`);
+  }
+  const src = readFileSync(new URL('../js/voxelsim.js', import.meta.url), 'utf8');
+  if (/Math\.(?:hypot|sin|cos|cbrt)\(/.test(src)) fail('fwmath: voxelsim still calls implementation-approximated ranked math');
 }
 
 function overlaps(a, b) {
@@ -1438,6 +1463,7 @@ function validateSaveSchema() {
   const fresh = __freshSave();
   const freshKeys = new Set(Object.keys(fresh));
   const freshSettingKeys = new Set(Object.keys(fresh.settings));
+  const freshPlayerKeys = new Set(Object.keys(fresh.player));
 
   // The one seed we can build honestly: the v1 legacy shape loadSave() accepts.
   // Historical freshSave() bodies are gone, so v1 is the only true entry point,
@@ -1453,6 +1479,8 @@ function validateSaveSchema() {
     if (extra.length) fail(`save schema: migration ${v}->${v + 1} adds top-level key(s) [${extra.join(', ')}] that freshSave() does not create — a save born at v${CURRENT_VERSION} will never have them`);
     const extraSet = Object.keys(s.settings || {}).filter((k) => !freshSettingKeys.has(k));
     if (extraSet.length) fail(`save schema: migration ${v}->${v + 1} adds settings key(s) [${extraSet.join(', ')}] that defaultSettings() does not create`);
+    const extraPlayer = Object.keys(s.player || {}).filter((k) => !freshPlayerKeys.has(k));
+    if (extraPlayer.length) fail(`save schema: migration ${v}->${v + 1} adds player key(s) [${extraPlayer.join(', ')}] that defaultPlayer() does not create`);
   }
   if (s.version !== CURRENT_VERSION) fail(`save schema: chain ended at v${s.version}, expected v${CURRENT_VERSION}`);
 
@@ -1460,8 +1488,23 @@ function validateSaveSchema() {
   if (missing.length) fail(`save schema: migrated save is missing top-level key(s) [${missing.join(', ')}] that freshSave() creates — an upgrading player never gets them`);
   const missingSet = [...freshSettingKeys].filter((k) => !(k in (s.settings || {})));
   if (missingSet.length) fail(`save schema: migrated save.settings is missing key(s) [${missingSet.join(', ')}] that defaultSettings() creates`);
+  const missingPlayer = [...freshPlayerKeys].filter((k) => !(k in (s.player || {})));
+  if (missingPlayer.length) fail(`save schema: migrated save.player is missing key(s) [${missingPlayer.join(', ')}] that defaultPlayer() creates`);
 
-  console.log(`  save schema: v1->v${CURRENT_VERSION} chain and freshSave() agree on ${freshKeys.size} top-level key(s) and ${freshSettingKeys.size} setting(s)`);
+  const v16 = {
+    version: 16, coins: 42, levels: {}, sandbox: {
+      chicago: { completions: 3, bestSize: 7, bestTime: 92, bestCombo: 11, bestScore: 8123 },
+    }, ownedItems: [], equippedSkin: 'classic', equippedIndicator: 'ind-default', muted: false,
+    settings: fresh.settings,
+  };
+  const v17 = __MIGRATIONS[16](v16);
+  const chicago = v17.sandbox.chicago;
+  if (v17.version !== 17 || chicago.completions !== 3 || chicago.bestSize !== 7 || chicago.bestTime !== 92
+    || chicago.bestCombo !== 11 || chicago.bestScore !== 8123) {
+    fail('save schema: v16->v17 does not preserve a real sandbox record');
+  }
+
+  console.log(`  save schema: v1->v${CURRENT_VERSION} chain and freshSave() agree on ${freshKeys.size} top-level key(s), ${freshSettingKeys.size} setting(s), and ${freshPlayerKeys.size} player key(s)`);
 }
 
 // --- reward-layer ladders (ADR-0015) -----------------------------------------
@@ -1692,6 +1735,8 @@ for (const level of levelsToCheck) {
 validateOfflineBoot();
 validateSaveSchema();
 validateRewardLadders();
+validateFwMath();
+console.log(`Validating THE RUN trace/replay (${runBoardSelftest()} assertions)...`);
 validateGalleryWinnable();
 validateVoxelSandbox();
 validateVoxelCollisions();

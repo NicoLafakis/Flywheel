@@ -18,6 +18,16 @@ covers:
 
 ## Goal runs and rewards
 
+## Ranked RUN
+
+`VoxelSandboxSim` also has a narrowly-scoped `run90` mode for ADR-0016. It is
+not a goal clear: the mode applies `RANKED_TUNE`, advances exactly 5,400
+fixed 1/60-second steps, then emits its own completion event. The main-game
+glue records the already-quantized movement pair used for each of those steps;
+`api/_verify.mjs` imports this same pure module and repeats the trace. Chicago
+is the sole ranked city until another authored scene passes the replay-cost
+gate. Render quality and free-play tuning never modify this pinned mode.
+
 Every sandbox is a complete replayable level. `VoxelSandboxSim` owns the
 authored SIZE goal and deterministic coin scatter, collects coins during
 `step()`, and emits coin/goal events. The renderer only mirrors those events.

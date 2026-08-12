@@ -1,0 +1,6 @@
+[
+  { "pattern": "fuck", "severity": 4, "category": "profanity" },
+  { "pattern": "shit", "severity": 4, "category": "profanity" },
+  { "pattern": "bitch", "severity": 3, "category": "profanity" },
+  { "pattern": "asshole", "severity": 4, "category": "harassment" }
+]

@@ -11,7 +11,7 @@ import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_SFX_VOLUME } from './audio/mix.js';
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 16;
+export const CURRENT_VERSION = 17;
 
 // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
 export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2 };
@@ -86,6 +86,13 @@ function defaultSettings() {
   };
 }
 
+// Public board identity only. The bearer token lives separately in
+// localStorage['fw-player']: saves are exportable, hand-editable, and can be
+// quarantined, so they are deliberately not an authentication container.
+function defaultPlayer() {
+  return { id: null, name: null, claimedAt: null };
+}
+
 // The shape a brand-new player starts on. It is NOT the union of what the
 // migration chain produces — it has to be checked against it, because the two
 // drift silently and only the migrated path gets exercised during development.
@@ -114,6 +121,11 @@ function freshSave() {
     equippedIndicator: 'ind-default',
     muted: false,
     settings: defaultSettings(),
+    player: defaultPlayer(),
+    // Ranked submissions wait here while offline or rate-limited. The board
+    // layer bounds the queue; the fresh shape must still carry it for a brand
+    // new save, which never executes a migration.
+    outbox: [],
   };
 }
 
@@ -298,6 +310,14 @@ const MIGRATIONS = {
   // upgrading player's existing per-scene rows simply have no bests yet, which
   // is honest: they were never measured.
   15: (s) => ({ ...s, version: 16 }),
+  // v17: public board identity and deferred ranked submissions. The device
+  // bearer stays outside this save (see defaultPlayer) by design.
+  16: (s) => ({
+    ...s,
+    version: 17,
+    player: { ...defaultPlayer(), ...(s.player || {}) },
+    outbox: Array.isArray(s.outbox) ? s.outbox : [],
+  }),
 };
 
 export function loadSave() {
@@ -385,10 +405,18 @@ export function recordSandboxResult(save, scene, { coinsEarned, size, elapsed, b
   storeSave(save);
 }
 
+// Board screens read the public identity from the save. This is the same
+// one-line seatbelt as the result recorders: a hand-edited or interrupted save
+// must never strand a player on a screen merely because its container is gone.
+export function ensurePlayer(save) {
+  if (!save.player) save.player = defaultPlayer();
+  return save.player;
+}
+
 // Exported for the schema guard in tools/validate.mjs, which has to build both
 // shapes to compare them. Nothing in the game imports either; the underscores
 // mark them as belonging to the guard rather than to gameplay.
-export { freshSave as __freshSave, MIGRATIONS as __MIGRATIONS };
+export { freshSave as __freshSave, MIGRATIONS as __MIGRATIONS, defaultPlayer as __defaultPlayer };
 
 export function isLevelUnlocked(save, levelIndex) {
   if (levelIndex <= 1) return true;

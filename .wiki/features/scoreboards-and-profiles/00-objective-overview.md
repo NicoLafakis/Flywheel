@@ -1,10 +1,17 @@
 # Scoreboards & Profiles — Objective Overview
 
-**Tier:** 3 · **Date:** 2026-08-12 · **Status:** planning, nothing built
+**Tier:** 3 · **Date:** 2026-08-12 · **Status:** accepted and implemented;
+release verification is recorded in `STATUS.md` and the delivery spec
 
 This is the spine. Every other doc in this package inherits its trajectory. Read
 it before you read a spec, or you will build the literal ask instead of the thing
 it serves.
+
+> **Delivery note (2026-08-12):** ADRs 0016 and 0017 were accepted together.
+> The shipped shape is one Chicago-only, fixed 5,400-tick RUN; `js/replay.js`,
+> `js/board/`, Vercel `api/`, and the additive `supabase/migrations/` implement
+> its trace, verification, records, and device-token profile lifecycle. The
+> historical planning rationale below remains append-only context.
 
 ---
 

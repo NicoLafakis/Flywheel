@@ -1,6 +1,6 @@
 # ADR-0016: The ranked unit is a bounded 90-second run; the city clear is never ranked
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-12
 - **Deciders:** Nico, Kimi
 - **Context package:** [.wiki/features/scoreboards-and-profiles/](../00-objective-overview.md)

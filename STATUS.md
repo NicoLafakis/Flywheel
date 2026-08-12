@@ -155,7 +155,7 @@ the cue to build some buildings more efficiently rather than to thin the map.
 Density, not block count, is what the validator actually checks. See
 `.wiki/modules/voxel.md` and `05-build-tasks.md` for the live task state.
 
-### Awaiting Nico — three decisions, none answered
+### Awaiting Nico — two visual decisions
 
 *(The construction-vocabulary question that used to sit at the top of this list
 is answered and off it. ADR-0013 was accepted 2026-08-07 and the work has
@@ -176,14 +176,12 @@ draw calls went down, not up. See the Cambridge section above.)*
    A ±20° option exists at 15.16%; apparent orbit speed is now identical at
    every arc, so ±20 dominates ±30 on coverage. Gated on an unmeasured check:
    whether the arc endpoint eases or snaps.
-3. **Scoreboards & Profiles — accept the two draft ADRs?** The full
-   planning package (16 docs) landed 2026-08-12 in
-   `.wiki/features/scoreboards-and-profiles/`, nothing built. The accept-or-not
-   decisions are `adr-proposed/0016` (ranked scores come only from a bounded
-   90-second RUN, narrowing ADR-0012's full re-simulation to what the voxel
-   game can actually afford) and `adr-proposed/0017` (a name claimed in one
-   field, owned by a device token — no accounts). Roadmap section 8 has the
-   one-paragraph summary.
+3. **Scoreboards & Profiles — accepted 2026-08-12.** ADR-0016 narrows ranked
+   scores to THE RUN, a bounded 90-second replay with a server-issued seed and
+   pinned tune. ADR-0017 makes a chosen display name a device-token capability,
+   not an account. The implementation and additive Supabase migrations are in
+   this release; its release evidence belongs in the scoreboards package and
+   the changelog entry below.
 
 ### Chicago Loop sandbox — map built and wired into free play
 
@@ -261,6 +259,16 @@ establishing overview/READY zoom, ends after clearing 50% of that map, and conta
 coin completion bonus; this intentionally makes the skin shelf a long-term
 goal rather than a one-session unlock.
 
+**Scoreboards & Profiles**: accepted ADRs 0016 and 0017 now add THE RUN, a
+Chicago-only 90-second, 5,400-tick score attack alongside free play. It records
+the quantized input stream locally, stays playable offline, and only submits a
+server-issued ticket when one is available. Vercel replays the trace with the
+same pure sim and publishes only its computed score through Supabase's
+rank-at-read-time city and overall views. Names are optional device-held bearer
+capabilities with transfer, reporting, operator moderation, and deletion flows;
+local sandbox history remains local and is never ranked. Save schema is v17
+with an additive `player` record and bounded submission outbox.
+
 **Voxel Sandbox**: physics complete and playtest-tuned, seven scenes: the
 city gallery (~3,800 blocks, ~30 object kinds in 7 districts), **Brooklyn**
 (~39,980 blocks, bridges to Coney Island - the showcase scene, the only one
@@ -303,7 +311,13 @@ district sweep).
   L21, tide L41, landmark L20 + finales + L91–100)
 - Combos (×3 cap), star ratings, coins, shop (skins + clock/growth items)
 - World map with locks/stars, results screen, mechanic intro cards
-- Saves: localStorage schema v11, migrations v1→v11, quarantine
+- Saves: localStorage schema v17, migrations v1→v17, quarantine; board tokens
+  are intentionally separate from the save and the bounded submission outbox
+  preserves ticketed RUNs across a reconnect
+- **Scoreboards & Profiles**: THE RUN (Chicago, 90 seconds), replay codec and
+  deterministic verifier, public city/overall records, optional profile names,
+  transfer, report, owner moderation, and player-requested deletion. Local city
+  clears remain device-local and are never sent to the board
 - Desktop tank controls (W/S throttle, A/D heading steering, Q/E camera orbit,
   R/F zoom — one scheme in campaign and sandbox) + an on-hole heading pointer
   that makes the heading visible + mobile (joystick direct steer + touch orbit)

@@ -1,0 +1,29 @@
+{
+  "baseline": "3959da0e79500c679ea9bd578cdec1b837cab0b0",
+  "checks": [
+    {
+      "id": "validator",
+      "cmd": "node tools/validate.mjs",
+      "criteria": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-7"],
+      "required": true,
+      "timeout": 1800,
+      "cwd": "."
+    },
+    {
+      "id": "board-selftest",
+      "cmd": "node tools/board-selftest.mjs",
+      "criteria": ["AC-2", "AC-3", "AC-4"],
+      "required": true,
+      "timeout": 300,
+      "cwd": "."
+    },
+    {
+      "id": "board-live-selftest",
+      "cmd": "node tools/board-live-selftest.mjs",
+      "criteria": ["AC-4", "AC-5", "AC-6", "AC-7"],
+      "required": true,
+      "timeout": 300,
+      "cwd": "."
+    }
+  ]
+}

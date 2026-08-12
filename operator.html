@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Flywheel · Board operator</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <main id="operator-root" class="screen">
+    <h1>BOARD OPERATOR</h1>
+    <p>Enter the operator secret. It is never stored in this page or this browser.</p>
+    <form id="operator-login">
+      <label>Operator secret <input type="password" name="secret" autocomplete="off" required></label>
+      <button class="btn" type="submit">OPEN QUEUE</button>
+    </form>
+    <p id="operator-status" role="status"></p>
+  </main>
+  <script type="module" src="js/operator.js"></script>
+</body>
+</html>

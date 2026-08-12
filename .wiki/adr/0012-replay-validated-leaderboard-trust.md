@@ -4,6 +4,12 @@
 - **Date:** 2026-08-06
 - **Deciders:** Nico, Claude
 
+> **Narrowed 2026-08-12 by [ADR-0016](0016-bounded-ranked-run.md).** The
+> non-negotiable trust rule remains: a public number is server-recomputed from
+> inputs. Its practical unit is now a bounded 90-second voxel RUN rather than
+> the retired campaign level; see ADR-0016 for the fixed tune, ticket and
+> replay-boundary decision.
+
 ## Context
 
 Flywheel is getting a public leaderboard, and it is getting one in a specific

@@ -24,6 +24,14 @@ Static browser game, no build step. Read `.wiki/INDEX.md` for the full wiki;
    placed first; landmark uses the documented eviction path only.
 6. Save schema changes: bump `CURRENT_VERSION` + add a migration in
    `save.js`; quarantine, never delete, bad saves.
+7. No browser-writable score reaches a board. A client may supply only a
+   claimed score for the server's verification-cost gate; the displayed score
+   is recomputed by the server from the replay.
+8. `js/board/**` never mutates simulation state and never imports three.js;
+   network work stays outside the synchronous fixed-step loop.
+9. Network is optional: an offline player can always start and finish every
+   city or RUN, and failed ranked submissions remain queued rather than
+   blocking play.
 
 ## House style
 

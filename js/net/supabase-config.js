@@ -6,7 +6,7 @@
 // and it ships to every client exactly like a Google Maps browser key does.
 // (Supabase docs: "publishable keys are safe to use in a browser".)
 //
-// The SECRET key (sb_secret_...) must NEVER appear in this file, in js/, or in
+// The server-only Supabase key must NEVER appear in this file, in js/, or in
 // anything the browser loads. It lives in .env.local (gitignored) and is used
 // only by server-side tooling.
 

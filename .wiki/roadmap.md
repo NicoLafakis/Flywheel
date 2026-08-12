@@ -561,25 +561,24 @@ no account, no email, no sign-in — and the knowledge that every number up ther
 was recomputed server-side from the run that produced it, so a score on the
 board is a score somebody actually played.
 
-**What exists today.** The complete planning package,
-[features/scoreboards-and-profiles/](features/scoreboards-and-profiles/) —
-sixteen documents: objective, PRD, requirements, technical design, anti-cheat,
-identity, privacy/moderation, threat model, test strategy, observability,
-rollout, migration plan, risk register, the task breakdown, and two draft ADRs
-in `adr-proposed/` (0016 the bounded ranked run, 0017 name ownership by device
-token). No code, no tables, no UI. The package's own finding is that
+**What exists today.** ADRs 0016 and 0017 are accepted and implemented. THE
+RUN is Chicago-only, fixed at 90 seconds / 5,400 ticks, and emits a compact
+quantized input trace. Vercel Functions mint/redeem tickets and replay the
+shared pure sim; Supabase's additive private tables plus public rank-at-read
+views publish only verified server scores. RECORDS / PROFILE, optional name
+claim, transfer, reporting, moderation, deletion, and the durable offline
+outbox are all present. The planning package remains the operational record.
+Its central finding is that
 [ADR-0012](adr/0012-replay-validated-leaderboard-trust.md)'s full re-simulation
 of every ranked run is not affordable for the shipped voxel game, so 0016
 narrows it: ranked scores come only from THE RUN, a bounded 90-second format
 with a server-issued seed and one pinned tune, which puts a fixed, known price
 on verification.
 
-**What it is waiting on.** Two acceptances that are genuinely yours: the two
-draft ADRs (they set the trust model and the identity model — everything else
-is execution), then the build order in
-[features/scoreboards-and-profiles/13-tasks.md](features/scoreboards-and-profiles/13-tasks.md).
-The Supabase project it needs already exists and is paid for; nothing here is
-blocked on the online-Flywheel phases.
+**What it is waiting on.** The release checks in the delivery spec, including a
+real low-end touch-device measurement for the declared performance gate. The
+Supabase project exists and is paid for; this feature is independent of the
+remaining online-Flywheel phases.
 
 **Size.** Large — five phases of T-tasks plus three measurement gates, with a
 documented degrade order if any gate fails.

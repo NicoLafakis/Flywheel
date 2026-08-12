@@ -16,9 +16,10 @@ tying everything together.
 
 | File | Purpose |
 |------|---------|
-| `js/main.js` | Boot, state machine (menu/intro/playing/paused/results), loop, audio; branches campaign vs voxel sandbox (`isVoxelSandbox`) |
+| `js/main.js` | Boot, state machine (menu/intro/playing/paused/results), loop, audio; branches campaign vs voxel sandbox (`isVoxelSandbox`). Its separate `run90` path quantizes and records each fixed-tick input before stepping the pinned RUN tune; it lazy-loads board code and drains a durable outbox only at boot/reconnect/focus/timer boundaries, never in the sim loop |
 | `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, the announcement queue and its three backends (`#toast`, `#big-pop`, `#hype-band`); `updateSandbox()` variant for the voxel mode (live `CLEARED x% / 50% · SIZE n` readout, dimmed coin pill via `body.mode-sandbox`, the score plate's count-up, and the combo ring — chain, window drain and the multiplier read from `voxelsim.js`'s exported ladder, never re-derived; see [ADR-0015](../adr/0015-scoring-ladder-is-a-table-the-hud-reads.md)) |
-| `js/ui/screens.js` | Title (branded landing over a live city backdrop: sprocket + `FLYWHEEL` wordmark + tagline plate, PLAY BROOKLYN CTA as the screen's one saturated element, a save-derived status strip — biggest hole, best score, coin bank and the coin gap to the next unlock — a `FREE_PLAY`-driven voxel-scene chip shelf with per-city cleared/best records, one silhouetted locked card carrying its unlock price in words, and a demoted SHOP/SETTINGS row), shop, results, pause (two-step confirms for run-discarding buttons), mechanic intro |
+| `js/ui/screens.js` | Title (branded landing over a live city backdrop: sprocket + `FLYWHEEL` wordmark + tagline plate, PLAY BROOKLYN CTA as the screen's one saturated element, a save-derived status strip — biggest hole, best score, coin bank and the coin gap to the next unlock — a `FREE_PLAY`-driven voxel-scene chip shelf with per-city cleared/best records, one silhouetted locked card carrying its unlock price in words, THE RUN / RECORDS / PROFILE utilities, and a demoted SHOP/SETTINGS row), shop, results, pause (two-step confirms for run-discarding buttons), mechanic intro |
+| `js/ui/boards.js` + `js/board/` | Lazy optional board layer: accessible public record tables and profile/claim/transfer/remove actions; direct PostgREST reads use only the publishable key, while every mutation goes through a Vercel Function with a timeout and offline fallback |
 | `js/ui/menuscene.js` | The live city behind the landing screen — the same `VoxelSandboxSim` + `VoxelWorld3D` + `ChaseCamera` trio the sandbox mounts, on the same canvas, on autopilot (held establishing orbit, never released; a scripted heading sweep drives the hole so the skyline is actively being eaten). Scheduled, never blocking: `startMenuScene` only arms a timer, `tickMenuScene` is folded into `main.js`'s single rAF loop, and `stopMenuScene` disposes from `teardownWorld` before any game world claims the canvas |
 | `js/ui/ready.js` | Level-start "READY?" gate overlay (`mountReadyGate`) — the visual reference for the brand layer; renders the shared wordmark at gate scale over the live 3D establishing shot |
 | `js/ui/blockword.js` | Shared block-wordmark builder (`buildBlockWord`) — per-character gold slab letters with outline ring, extrude, deterministic index-derived tilt/stagger/bob. Used by both `screens.js` (`FLYWHEEL`) and `ready.js` (`READY?`) so the two never drift apart. See `.wiki/adr/0005-shared-brand-layer.md` |
@@ -31,6 +32,10 @@ tying everything together.
 
 - Screens communicate **only** through the `actions` object passed to
   `Screens` — don't reach into `main.js` state from UI code.
+- THE RUN is not a city-clear variant. Its clock ends at 5,400 fixed steps and
+  a browser-displayed score is provisional until the server marks the replay
+  verified. Never make a board request from the fixed-step loop or treat a
+  save-side score as a public record.
 - `.screen` uses `justify-content: safe center` — plain `center` pushes
   overflowing content outside the scroll viewport (world map bug; fixed).
 - `window.__sim` / `window.__cam` are exposed as debug/smoke-test hooks; fine

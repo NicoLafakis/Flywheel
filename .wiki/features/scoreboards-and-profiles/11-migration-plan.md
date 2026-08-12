@@ -6,6 +6,14 @@
 Two migrations: the save schema, and what happens to the records existing players
 already have. The second is the one with a product decision in it.
 
+> **Applied 2026-08-12:** `js/save.js` now migrates v16 to v17 and initializes
+> the same shape for fresh saves. The forward-only Supabase migrations
+> `20260812204210_scoreboards_profiles.sql`,
+> `20260812205233_harden_scoreboards.sql`, and
+> `20260812211000_add_overall_board_rank.sql` are applied to the live Flywheel
+> project. They create a private raw-record surface, a browser-readable derived
+> publication, and rank-at-read-time views; no local score was backfilled.
+
 ---
 
 ## 1. The governing position
@@ -200,3 +208,12 @@ Deliberately not "all at once", and the first item is deliberately alone.
 
 Steps 2 and 3 are the ones with an ordering constraint that is easy to get wrong
 and expensive to discover late. Everything else can move.
+
+## 6. Delivery reconciliation
+
+The implementation deliberately kept the plan's ordering constraint inside one
+reviewable release: deterministic math and the trace codec landed before a
+network path could persist a trace; the schema and verifier landed before the
+title screen exposes RECORDS; moderation and deletion endpoints are present
+before public records are shown. Existing `save.sandbox` rows are retained
+unchanged and appear only under **YOUR HISTORY (THIS DEVICE)**.

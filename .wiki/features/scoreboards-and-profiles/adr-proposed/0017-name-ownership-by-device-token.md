@@ -1,6 +1,6 @@
 # ADR-0017: A name is owned by a device-held bearer token; there are no accounts
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-12
 - **Deciders:** Nico, Kimi
 - **Context package:** [.wiki/features/scoreboards-and-profiles/](../00-objective-overview.md)

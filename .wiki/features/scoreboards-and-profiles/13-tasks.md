@@ -6,7 +6,8 @@
 > [Rollout & runbook](10-rollout-and-runbook.md) · [Migration](11-migration-plan.md) ·
 > [Risk register](12-risk-register.md)
 
-**Date:** 2026-08-12 · **Status:** planning, nothing built
+**Date:** 2026-08-12 · **Status:** accepted and implemented; the task detail is
+retained as the delivery audit trail
 
 This is the build order: ordered, independently verifiable tasks. It exists so
 an implementer can pick one up and execute it without re-deriving a design
@@ -18,6 +19,13 @@ Nothing here invents design. Three IDs were assigned by the design docs before
 this file existed — **T-102** ([04](04-anti-cheat.md) §3A.3), **T-301**
 ([03](03-technical-design.md) §5) and the measurement gates **T-901/T-902/T-903**
 ([08](08-test-strategy.md) §4) — and they keep their numbers here.
+
+> **Delivery reconciliation (2026-08-12):** T-101 through T-503 are represented
+> by the v17 save migration, fixed-tick RUN/replay path, Vercel API, applied
+> Supabase migrations, optional UI, and moderation surface. Focused replay,
+> schema, API-syntax, RLS, and production checks are recorded in `SPEC.md` and
+> `STATUS.md`; T-901 remains an explicit real-device measurement rather than a
+> result inferred from this development machine.
 
 ---
 

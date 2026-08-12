@@ -33,6 +33,7 @@
 // 'brooklyn' (bridges → DUMBO → Downtown → Prospect Park → Coney Island).
 
 import { RNG } from './rng.js';
+import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from './fwmath.js';
 import { playerSpeedForRadius } from './tiers.js';
 import { sedan, bus, boxVan, bigTruck, motorcycle, tree, lampPost } from './voxelkit.js';
 
@@ -251,6 +252,20 @@ export const SANDBOX_COIN_COUNT = 60;
 export const SANDBOX_COIN_VALUE = 2;
 export const SANDBOX_GOAL_BONUS = 35;
 
+// THE RUN's complete physics contract. This is separate from display quality:
+// every ranked client and the server verifier use these values, so a phone can
+// draw less without creating a different score trajectory.
+export const RANKED_TUNE_ID = 'ranked-v1';
+// Increment only when the deterministic RUN's gameplay behaviour changes.
+// The verifier keeps old rows as `unverifiable`; it must never label a
+// cross-version replay as a cheat merely because a physics bug was fixed.
+export const RANKED_SIM_VERSION = 1;
+export const RANKED_TICK_COUNT = 90 * 60;
+export const RANKED_TUNE = Object.freeze({
+  gravity: GRAVITY, waveK: WAVE_K, creak: 0, speed: SPEED_MULT, attract: ATTRACT_ACC,
+  debrisCap: 280, contactBudget: 200, contactRounds: 2, supportEvery: 1,
+});
+
 // Shared progression curve for sandbox movement/camera feel. SIZE 1 is 0;
 // SIZE 12 (including its final fraction) is 1.
 export function sandboxSizeProgress(size, sizeFrac = 0) {
@@ -296,7 +311,7 @@ export function moverArc(path) {
   for (let i = 0; i < n; i++) {
     const a = path[i], b = path[(i + 1) % n];
     const dx = b[0] - a[0], dz = b[1] - a[1];
-    const len = Math.hypot(dx, dz);
+    const len = fwHypot2(dx, dz);
     if (len <= 0) continue;
     segs.push({ x: a[0], z: a[1], ux: dx / len, uz: dz / len, len, s0: total });
     total += len;
@@ -365,8 +380,11 @@ const DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1
 const REPOSE_DIRS = [1, 0, -1, 0, 0, 1, 0, -1];
 
 export class VoxelSandboxSim {
-  constructor({ seed = 'voxel-sandbox', scene = 'gallery' } = {}) {
+  constructor({ seed = 'voxel-sandbox', scene = 'gallery', mode = 'freeplay' } = {}) {
     this.rng = new RNG(seed);
+    this.mode = mode;
+    this.rankedTicks = 0;
+    this.runComplete = false;
     // THE ROSTER (ai-players FR-001/FR-002). `holes` is the canonical,
     // index-ordered collection; every per-hole quantity (mass, chain, SIZE,
     // coverage cache) lives ON the hole, never on the sim. `sim.hole` survives
@@ -473,6 +491,7 @@ export class VoxelSandboxSim {
       gravity: GRAVITY, waveK: WAVE_K, creak: 0, speed: SPEED_MULT, attract: ATTRACT_ACC,
       debrisCap: Infinity, contactBudget: Infinity, contactRounds: 2, supportEvery: 1,
     };
+    if (mode === 'run90') Object.assign(this.tune, RANKED_TUNE);
     this._supportSkipped = 0;  // coverage-only recalcs deferred by supportEvery
 
     // Authored scenes come from the on-demand registry at the top of this file.
@@ -666,7 +685,7 @@ export class VoxelSandboxSim {
   _collectCoinsFor(h) {
     const reach = h.radius + 0.7;
     for (const coin of this.coins) {
-      if (coin.collected || Math.hypot(coin.x - h.x, coin.z - h.z) > reach) continue;
+      if (coin.collected || fwHypot2(coin.x - h.x, coin.z - h.z) > reach) continue;
       coin.collected = true;
       this.coinsCollected++;
       // A coin SUSTAINS a chain; it is never a link in one. The asymmetry is
@@ -844,7 +863,7 @@ export class VoxelSandboxSim {
       // `Math.cbrt` is implementation-approximated in the spec and every
       // existing scene is cubes — this makes their bit-identity structural
       // instead of a property of whichever cbrt the engine ships.
-      sAvg: fsx === fsy && fsy === fsz ? sx : Math.cbrt(sx * sy * sz),
+      sAvg: fsx === fsy && fsy === fsz ? sx : fwCbrt(sx * sy * sz),
       x: (fx + fsx / 2) * FINE, y: (fy + fsy / 2) * FINE, z: (fz + fsz / 2) * FINE,
       vx: 0, vy: 0, vz: 0,
       rotX: 0, rotZ: 0, vRotX: 0, vRotZ: 0,
@@ -1519,7 +1538,7 @@ export class VoxelSandboxSim {
         for (let hi = 0; hi < nh; hi++) {
           const p = hp[hi];
           const dx = b.x - p.h.x, dz = b.z - p.h.z;
-          if (Math.hypot(dx, dz) < p.remR + (sp + 1.5) * p.hangScale) { hang[j] = 1; break; }
+          if (fwHypot2(dx, dz) < p.remR + (sp + 1.5) * p.hangScale) { hang[j] = 1; break; }
         }
       }
 
@@ -2043,7 +2062,7 @@ export class VoxelSandboxSim {
       for (let hi = 0; hi < nh; hi++) {
         const p = hp[hi];
         p._dx = p.h.x - c.cx; p._dz = p.h.z - c.cz;
-        p._d2 = Math.hypot(p._dx, p._dz) || 0.001; // a distance here, not d²
+        p._d2 = fwHypot2(p._dx, p._dz) || 0.001; // a distance here, not d²
       }
 
       // attraction zone: mild inward pull toward every hole in range keeps
@@ -2076,8 +2095,8 @@ export class VoxelSandboxSim {
       c.rotZ = Math.max(-0.7, Math.min(0.7, c.rotZ + c.vRotZ * dt));
 
       // sync constituent blocks, consume those sunk below the floor, detect impact
-      const cosZ = Math.cos(c.rotZ), sinZ = Math.sin(c.rotZ);
-      const cosX = Math.cos(c.rotX), sinX = Math.sin(c.rotX);
+      const cosZ = fwCos(c.rotZ), sinZ = fwSin(c.rotZ);
+      const cosX = fwCos(c.rotX), sinX = fwSin(c.rotX);
       let live = 0, impact = false;
       for (const cb of c.blocks) {
         if (cb.state === 'consumed') continue;
@@ -2108,7 +2127,7 @@ export class VoxelSandboxSim {
           const solidHit = topHit || directionalHit ? this._resolveStaticContacts(cb) : null;
           if (solidHit || topHit || directionalHit) {
             impact = true;
-            if (directionalHit && Math.hypot(c.vx, c.vy, c.vz) > 5) {
+            if (directionalHit && fwHypot3(c.vx, c.vy, c.vz) > 5) {
               directionalHit.damage = Math.min(0.95, directionalHit.damage + 0.2);
               this._watchDamage(directionalHit);
             }
@@ -2822,7 +2841,7 @@ export class VoxelSandboxSim {
             y: Number.isFinite(m.y) ? m.y : 0,
             fwd: Number.isFinite(m.speed) ? m.speed : 0,
             vy: 0, tilt: 0,
-            sAvg: Math.cbrt(L * W * H),  // the "bite size" skins read (biteFromEvent)
+            sAvg: fwCbrt(L * W * H),  // the "bite size" skins read (biteFromEvent)
           };
         }),
       };
@@ -3151,7 +3170,7 @@ export class VoxelSandboxSim {
       const sizeT = sandboxSizeProgress(h.size, h.sizeFrac);
       const speed = playerSpeedForRadius(h.radius) * this.tune.speed * (1 + SANDBOX_SPEED_RAMP * sizeT);
       if (m && (m.x || m.z)) {
-        const len = Math.hypot(m.x, m.z) || 1;
+        const len = fwHypot2(m.x, m.z) || 1;
         h.x += (m.x / len) * speed * dt;
         h.z += (m.z / len) * speed * dt;
         // `boundsRect` wins when a scene sets it (off-center maps need an
@@ -3252,6 +3271,16 @@ export class VoxelSandboxSim {
     // the player watches 99% forever. The 0.5 cities have enough slack to hide
     // it. 1e-9 of the total is ~1000x the accumulated error and still far below
     // the mass of the lightest single block, so it cannot win a scene early.
+    if (this.mode === 'run90') {
+      this.rankedTicks++;
+      if (this.rankedTicks >= RANKED_TICK_COUNT) {
+        this.runComplete = true;
+        this.over = true;
+        this.events.push({ type: 'run-complete', ticks: this.rankedTicks, hole: this.hole });
+      }
+      return;
+    }
+
     const goalMass = this.totalMass * this.goal.targetFraction - this.totalMass * 1e-9;
     if (!this.won) {
       // first hole in index order to cross the goal takes it — deterministic
