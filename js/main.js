@@ -13,28 +13,22 @@ import { Screens, SKINS, INDICATOR_SKINS } from './ui/screens.js';
 import { mountReadyGate } from './ui/ready.js';
 import { TIERS } from './quality.js';
 
+import { GameAudio } from './audio/game-audio.js';
+
 const canvas = document.getElementById('game-canvas');
 const hud = new HUD();
 window.__hud = hud; // debug/smoke-test hook, same idiom as __sim / __cam / __controls
 const save = loadSave();
 
-// ------------------------------------------------------------------ audio (tiny)
-let audioCtx = null;
-function blip(freq = 440, dur = 0.07, type = 'square', vol = 0.05) {
-  if (save.muted) return;
-  const sfxVol = (save.settings && typeof save.settings.sfxVol === 'number') ? save.settings.sfxVol : 1;
-  if (sfxVol <= 0) return;
-  try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.type = type; o.frequency.value = freq;
-    g.gain.value = vol * sfxVol;
-    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
-    o.connect(g).connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime + dur);
-  } catch (e) { /* audio unavailable */ }
-}
+// ------------------------------------------------------------------ audio
+// The CC0 library + WebAudio engine (js/audio/). The save is the source of
+// truth on this surface; the engine also mirrors both settings into
+// localStorage, which is the only store the arena demo has — so muting or
+// sliding the volume here carries over there.
+const audio = new GameAudio().init();
+window.__audio = audio; // debug hook, same idiom as scene-view.html
+audio.setMuted(save.muted);
+audio.setVolume(save.settings && typeof save.settings.sfxVol === 'number' ? save.settings.sfxVol : 1);
 
 // ------------------------------------------------------------------ game state
 let state = 'menu'; // menu | intro | playing | paused | results
@@ -166,9 +160,10 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     save.equippedIndicator = id;
     storeSave(save);
   },
-  toggleMute() { save.muted = !save.muted; storeSave(save); },
+  toggleMute() { save.muted = !save.muted; storeSave(save); audio.setMuted(save.muted); },
   applySettings() {
     storeSave(save);
+    audio.setVolume(typeof save.settings.sfxVol === 'number' ? save.settings.sfxVol : 1);
     if (controls) controls.settings = save.settings;
     if (cam) {
       cam.distScale = save.settings.camDist;
@@ -243,7 +238,6 @@ function startLevel() {
   state = 'playing';
   accumulator = 0;
   lastTs = performance.now();
-  blip(520, 0.12, 'triangle', 0.07);
 }
 
 // The renderer's sun direction, for whoever needs to reason about which faces
@@ -435,7 +429,7 @@ function startVoxelSandbox(scene = 'gallery') {
     state = 'playing';
     accumulator = 0;
     lastTs = performance.now();
-    blip(640, 0.15, 'triangle', 0.08);
+    audio.startScene(scene);   // per-city bed; the gallery stays deliberately quiet
     // The gate mounts over the live canvas, so the loop must already be running
     // for the establishing orbit to animate behind it. The hole stays parked
     // until the player starts — see the introHolding() check in frame().
@@ -443,17 +437,16 @@ function startVoxelSandbox(scene = 'gallery') {
     // alone would leave a live window keydown listener AND body.rg-gate-up set,
     // which strands the HUD invisible on the next campaign level.
     if (authored && authored.intro) {
-      // Arrival sting: lower and longer than the sandbox-start blip above,
-      // because it plays under a wide static overview rather than a cut.
-      blip(196, 0.5, 'triangle', 0.06);
-      blip(294, 0.42, 'sine', 0.05);
+      // Arrival beat under the wide static overview; the gate's own downbeat
+      // answers when the player starts the zoom.
+      audio.countdownTick();
       readyGate = mountReadyGate({
         title: 'READY?',
         subtitle: authored.intro.subtitle,   // the pill is sized for one short word
         reducedMotion: save.settings.reducedMotion,
         onStart: () => {
           readyGate = null;     // the gate tears itself down after onStart
-          blip(880, 0.14, 'triangle', 0.07);   // downbeat for the zoom
+          audio.countdownGo();   // downbeat for the zoom
           cam.releaseIntro();
         },
       });
@@ -463,7 +456,7 @@ function startVoxelSandbox(scene = 'gallery') {
       cam.beginIntro({ minR: sim.bounds, sun: sunDirOf(world) });
       readyGate = mountReadyGate({
         title: 'READY?', subtitle: 'SANDBOX', reducedMotion: save.settings.reducedMotion,
-        onStart: () => { readyGate = null; blip(880, 0.14, 'triangle', 0.07); cam.releaseIntro(); },
+        onStart: () => { readyGate = null; audio.countdownGo(); cam.releaseIntro(); },
       });
     }
   }));
@@ -473,13 +466,14 @@ function teardownWorld() {
   if (readyGate) { readyGate.dismiss(); readyGate = null; }
   if (world) { world.dispose(); world = null; }
   sim = null;
+  audio.stopScene();   // a level teardown silences the city bed with the city
 }
 
 function endLevel() {
   state = 'results';
   hud.hide();
   const won = sim.won;
-  blip(won ? 880 : 180, 0.3, won ? 'triangle' : 'sawtooth', 0.08);
+  if (won) audio.win(); else audio.lose();
   screens.showResults(level, sim, (stars, coins, toMap) => {
     recordLevelResult(save, level.index, {
       stars, mass: sim.player.mass, bestCombo: sim.player.bestCombo,
@@ -559,44 +553,37 @@ function frame(ts) {
     if (accumulator >= FIXED_DT) accumulator = 0;
     const events = sim.drainEvents();
     if (isVoxelSandbox) {
+      // The listener rides the local hole: positional sounds (collapses, the
+      // derailment) and the el-train bed fall off with distance from it.
+      audio.updateListener(sim.hole.x, sim.hole.z, sim.moverSim);
       for (const ev of events) {
-        if (ev.type === 'eat') {
-          // eat pitch rises with mass AND combo chain
-          blip(280 + Math.min(500, (ev.gained || 1) * 30) + Math.min(240, (ev.chain || 1) * 8), 0.04, 'square', 0.02);
-        } else if (ev.type === 'combo') {
+        audio.handleEvent(ev);   // gulps, combo ladder, tiered collapses, stingers
+        if (ev.type === 'combo') {
           // The combo track's OWN vocabulary: a bright tick rising with the
-          // level, and a fast concentric pulse from the meter itself. Never a
-          // screen phrase — those belong to consumption, which fires a handful
-          // of times a level where this fires every few seconds.
+          // level (GameAudio), and a fast concentric pulse from the meter itself.
+          // Never a screen phrase — those belong to consumption, which fires a
+          // handful of times a level where this fires every few seconds.
           hud.pulseCombo();
-          blip(520 + ev.level * 90, 0.06, 'triangle', 0.05);
           // Chatter damping (js/skins.js calls it that, for the same reason):
           // levels 1-4 cross every 7-10 s on a measured route, so they get a
           // tick and a meter change and nothing that costs a particle. Only the
           // rare steps are allowed to spend the screen.
           if (ev.level >= 5) {
-            blip(760 + ev.level * 90, 0.12, 'triangle', 0.05);
             world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius, ev.top ? 0xff2d1f : 0xffd23f);
             if (!save.settings.reducedMotion) cam.triggerShake(ev.top ? 0.35 : 0.2);
           }
         } else if (ev.type === 'crash') {
-          blip(Math.max(70, 130 - ev.size * 3), 0.1, 'sawtooth', 0.05);
           cam.triggerShake(Math.min(0.6, 0.1 + ev.size * 0.02));
         } else if (ev.type === 'growth') {
-          // SIZE level-up: arpeggio, shake, FOV punch, confetti burst, big pop
-          blip(523, 0.1, 'triangle', 0.08);
-          blip(659, 0.12, 'triangle', 0.07);
-          blip(784, 0.2, 'triangle', 0.07);
+          // SIZE level-up: sting (GameAudio), shake, FOV punch, confetti, big pop
           cam.triggerShake(0.4);
           cam.fovKick(7);
           world.spawnBurst(ev.hole.x, ev.hole.z, ev.hole.radius, 0xffd23f);
           hud.announce({ text: `SIZE ${ev.size}!`, source: 'size', priority: ANN.SIZE, ms: 1200, channel: 'pop' });
         } else if (ev.type === 'milestone') {
-          // Consumption: the widest thing in the mix. A two-note rising fanfare
-          // and a full-width band, scaled by the row's own tier.
+          // Consumption: the widest thing in the mix. GameAudio scales the
+          // fanfare by tier; the screen answers with the full-width band.
           const loud = ev.tier === 'roar';
-          blip(loud ? 440 : 520, 0.14, 'triangle', loud ? 0.09 : 0.06);
-          blip(loud ? 880 : 780, 0.26, 'triangle', loud ? 0.08 : 0.05);
           if (loud) {
             cam.fovKick(8);
             world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * 1.5, 0xffffff);
@@ -606,16 +593,10 @@ function frame(ts) {
             priority: ANN.MILESTONE, ms: 2000, channel: 'band',
           });
         } else if (ev.type === 'coin') {
-          blip(1040, 0.08, 'triangle', 0.06);
           hud.announce({ text: `COIN! +${ev.value}`, source: 'coin', priority: ANN.COIN, ms: 700 });
-        } else if (ev.type === 'goal') {
-          // No pop here any more. The milestone ladder's last row is exactly
-          // goal completion (FR-017) and fires in this same batch, one event
-          // earlier — so the run ends on the band, its loudest beat, instead of
-          // on a higher-priority pop that would erase it mid-sentence. The
-          // sting stays; the results screen carries the words.
-          blip(523, 0.12, 'triangle', 0.09); blip(784, 0.18, 'triangle', 0.08);
         }
+        // 'goal' needs no branch: GameAudio plays the sting, and the milestone
+        // ladder's last row (fired one event earlier) is the screen's beat.
       }
       // The sandbox used to drop the event stream on the floor here — nothing
       // downstream of the renderer wanted it. The equipped skin does: it reacts
@@ -630,10 +611,12 @@ function frame(ts) {
       hud.updateSandbox(sim);
       if (sim.over) endSandbox();
     } else {
+      audio.updateListener(sim.player.x, sim.player.z, null);
       for (const ev of events) {
         if (ev.type === 'eat') {
+          // Only the player's own mouth is mic'd; rival holes chew in silence.
           if (ev.hole.isPlayer) {
-            blip(300 + Math.min(600, ev.gained * 2), 0.05, 'square', 0.03);
+            audio.handleEvent(ev);
             if (ev.obj.tier >= 4) {
               cam.triggerShake(ev.obj.tier >= 6 ? 0.8 : 0.4);
             }
@@ -667,6 +650,7 @@ function frame(ts) {
 function endSandbox() {
   if (state === 'results') return;
   state = 'results'; hud.hide();
+  audio.stopScene();   // the results reveal plays over quiet, same as the arena
   const finished = sim;
   screens.showSandboxResults(finished, (toCities, coins) => {
     recordSandboxResult(save, finished.scene, {
@@ -692,6 +676,16 @@ document.getElementById('btn-pause').addEventListener('click', () => {
 });
 document.getElementById('btn-mute').addEventListener('click', () => {
   save.muted = !save.muted; storeSave(save);
+  audio.setMuted(save.muted);
+});
+// Menu voice: one delegated listener over every screen the Screens class
+// mounts. Primary CTAs confirm, secondary buttons tap, BACK steps out.
+document.getElementById('screen-root').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (/^BACK/.test(b.textContent.trim())) audio.uiBack();
+  else if (b.classList.contains('secondary')) audio.uiTap();
+  else audio.uiConfirm();
 });
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && state === 'playing') { state = 'paused'; screens.showPause(); }

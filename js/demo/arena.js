@@ -789,12 +789,19 @@ function frame(ts) {
   if (role === 'host') {
     const h1 = sim.holes[1];
     view.update([sim.holes[0], h1 || { x: 0, z: 0, radius: 0 }]);
+    // The host's ear sits on its own hole; the stepping sim can also report
+    // live train poses, so the el bed circles the Loop at the right level.
+    audio.updateListener(sim.holes[mySlot].x, sim.holes[mySlot].z, sim.moverSim);
   } else if (arenaPeer) {
     syncPeerConsumed();
     const ghosts = arenaPeer.ghosts();
     const g = ghosts.get(0) || arenaPeer.roster.bySlot.get(0)
       || { x: SPAWNS[0].x, z: SPAWNS[0].z, radius: 1.1 };
     view.update([g, arenaPeer.ownHole()]);
+    // No moverSim here: the peer's city build never steps, so its train poses
+    // are frozen at spawn. The el bed stays at its flat base level.
+    const ownH = arenaPeer.ownHole();
+    audio.updateListener(ownH.x, ownH.z, null);
     const frozen = !!(ghosts.get(0) && ghosts.get(0).frozen);
     view.holes[0].ring.material.opacity = frozen ? 0.35 : 0.95;
     view.holes[0].beacon.material.opacity = frozen ? 0.15 : 0.45;

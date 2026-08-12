@@ -130,6 +130,12 @@ export class Screens {
     util.append(shop, settings);
     s.appendChild(util);
 
+    // The same CC0 sound manifest the arena landing carries (arena.html
+    // #sound-credits): not legally required, given anyway.
+    s.appendChild(el(`<div class="fw-credits">SOUND EFFECTS · CC0 · KENNEY.NL · OPENGAMEART (THIMRAS, RANGO MANGO) ·
+      FREESOUND (THAIGHAUDIO, COGNITO PERCEPTU, BRAINCLAIM, CRAIGSMITH,
+      METROSTOCK99, QUBODUP, PUSHKIN, MRRAP4FOOD, DRBODKIN, TAKAREADS)</div>`));
+
     this.root.appendChild(s);
     this.current = 'title';
   }

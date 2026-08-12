@@ -328,3 +328,19 @@ Shipped (all pushed):
 
 **TURN_STATE**: DONE — no reply needed
 **NEXT_TURN**: whoever owns the menu wiring
+
+### [2026-08-11] - Agent Audio follow-up (main-game wiring + mix fixes)
+
+**Topic**: Completed the 2026-08-11 handoff above, plus two playtest mix complaints (el-train LOUD, no distance sensitivity) and the settings screen's dead sound controls.
+
+Shipped (working tree, validator run pending at time of writing):
+- `js/main.js` — `blip()` oscillator deleted outright. GameAudio now voices the sandbox + campaign event loops (juice — shakes, rings, announces — kept in place), scene beds start/stop with level lifecycle, results play `win()/lose()`, the ready-gate beats map to `countdownTick`/`countdownGo`, and one delegated click listener on `#screen-root` gives menus tap/back/confirm by button weight (so level launches confirm there, not in `startLevel`). Campaign eats only sound for `hole.isPlayer`.
+- Settings screen controls now real: `toggleMute()` and the sfxVol slider call `audio.setMuted` / `audio.setVolume`. Engine persists both (`flywheel.audio.muted`, `flywheel.audio.volume`), so the arena/demo/scene-view inherit whatever the main game last set — the mute fork is closed in practice.
+- Distance attenuation in `game-audio.js`: `updateListener(x, z, moverSim)` per frame; `crash`/`derail` scale from full at 25 m to silent at 160 m off the local hole. Chicago el bed base cut 0.5 → 0.3 and now tracks the nearest riding mover unit (glided via a new `setVol` on the engine's loop handle).
+- Listener feeds wired in `js/demo/arena.js` (host: live `sim.moverSim`; peer: hole only — its city build never steps, so no live train pose) and `tools/scene-view.html`. Hot-seat demo untouched by design (one room, one speaker).
+- Title screen now carries the same CC0 sound-credits line as the arena landing (item 3 of the handoff), styled in `css/main.css` (`.fw-credits`).
+
+Still open (noted in STATUS.md): arena peer's el bed stays flat; `debris-metal.ogg` preloaded but unheard. The handoff's temporary `Math.random()` use in `engine.js playRandom` was replaced with a seeded `RNG` before commit, keeping the repository-wide invariant intact.
+
+**TURN_STATE**: DONE — no reply needed
+**NEXT_TURN**: —

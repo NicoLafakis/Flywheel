@@ -1154,6 +1154,14 @@ body.rg-gate-up #hud * { pointer-events: none; }
 .fw-utility .btn:hover { color: #fff; border-color: var(--fw-gold); }
 .fw-utility .btn:active { transform: translateY(2px); box-shadow: none; }
 
+/* The CC0 sound manifest — the same quiet small type as arena.html's
+   #sound-credits, parked under the utility row on the landing screen. */
+.fw-credits {
+  max-width: min(560px, 92vw); font-size: 9px; letter-spacing: 1.2px;
+  line-height: 1.6; opacity: 0.38; font-weight: 600;
+  text-align: center; pointer-events: none;
+}
+
 /* phone landscape: ~390px tall. The hero turns on its side — mark beside the
    wordmark rather than above it — which is what buys back the ~140px the
    stacked version costs, and everything else just tightens. */

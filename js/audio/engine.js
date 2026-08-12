@@ -1,5 +1,5 @@
 // WebAudio engine: pooled decoded buffers, three gain buses, listener fatigue,
-// ambience ducking, persistent mute, and mobile-safe autoplay unlock.
+// ambience ducking, persistent mute + volume, and mobile-safe autoplay unlock.
 //
 // Render-side ONLY (ADR-0003): this module reads sim events and never writes
 // sim state, so two peers with different speakers stay bit-identical. Nothing
@@ -7,7 +7,11 @@
 // does not play, and a page with no AudioContext (old WebView, autoplay-denied
 // iframe) degrades to silence rather than to an error.
 
+import { RNG } from '../rng.js';
+
 const MUTE_KEY = 'flywheel.audio.muted';
+const VOL_KEY = 'flywheel.audio.volume';
+const MASTER_GAIN = 0.9;   // unmuted ceiling, before the volume setting scales it
 
 export class AudioEngine {
   constructor({ base = 'assets/audio/' } = {}) {
@@ -18,10 +22,18 @@ export class AudioEngine {
     this.master = null; this.sfx = null; this.amb = null;
     this._muted = false;
     try { this._muted = localStorage.getItem(MUTE_KEY) === '1'; } catch { /* private mode */ }
+    this._vol = 1;
+    try {
+      const v = parseFloat(localStorage.getItem(VOL_KEY));
+      if (Number.isFinite(v)) this._vol = Math.min(1, Math.max(0, v));
+    } catch { /* private mode */ }
     // Listener fatigue: every play of a name deposits "energy" that decays
     // over ~4 s; repeats land quieter the hotter the name is. Three minutes
     // of continuous demolition stays audible without staying LOUD.
     this._fatigue = new Map();   // name -> { at: seconds, energy }
+    // Audio variation stays presentation-only, but still uses the repository's
+    // one seeded randomness source so no new Math.random() exception leaks in.
+    this._rng = new RNG('audio-variants');
     this._unlocked = false;
     this._onUnlock = [];         // callbacks queued until the first gesture
   }
@@ -30,9 +42,23 @@ export class AudioEngine {
   setMuted(m) {
     this._muted = !!m;
     try { localStorage.setItem(MUTE_KEY, m ? '1' : '0'); } catch { /* best effort */ }
-    if (this.master) this.master.gain.value = m ? 0 : 0.9;
+    this._applyMaster();
   }
   toggleMuted() { this.setMuted(!this._muted); return this._muted; }
+
+  /** Settings-slider volume, 0..1, persisted. Scales the whole mix (both
+   * buses hang off master), which is what a player means by "sound volume". */
+  get volume() { return this._vol; }
+  setVolume(v) {
+    if (!Number.isFinite(v)) return;
+    this._vol = Math.min(1, Math.max(0, v));
+    try { localStorage.setItem(VOL_KEY, String(this._vol)); } catch { /* best effort */ }
+    this._applyMaster();
+  }
+
+  _applyMaster() {
+    if (this.master) this.master.gain.value = this._muted ? 0 : MASTER_GAIN * this._vol;
+  }
 
   /** Bind the one-time autoplay unlock to the page. Any pointer or key
    * gesture creates/resumes the context and flushes queued ambience. */
@@ -65,7 +91,7 @@ export class AudioEngine {
     try {
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = this._muted ? 0 : 0.9;
+      this.master.gain.value = this._muted ? 0 : MASTER_GAIN * this._vol;
       this.master.connect(this.ctx.destination);
       this.sfx = this.ctx.createGain();
       this.sfx.gain.value = 1.0;
@@ -130,7 +156,7 @@ export class AudioEngine {
 
   /** Pick one of several variant names at random and play it. */
   playRandom(names, opts) {
-    this.play(names[(Math.random() * names.length) | 0], opts);
+    this.play(this._rng.pick(names), opts);
   }
 
   /** Looping bed through the ambience bus. Returns a handle: stop(fadeSec). */
@@ -149,6 +175,11 @@ export class AudioEngine {
       src.start();
       const ctx = this.ctx;
       return {
+        /** Retarget the loop's level with a glide, so per-frame distance
+         * updates don't zipper. */
+        setVol(v, glide = 0.15) {
+          try { g.gain.setTargetAtTime(Math.max(0.0001, v), ctx.currentTime, glide); } catch { /* stopped */ }
+        },
         stop(fade = 0.8) {
           try {
             const now = ctx.currentTime;

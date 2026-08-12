@@ -37,7 +37,7 @@ voxelsim.js ──► voxelworld.js        (voxel sandbox: same split,
 - **UI** (`ui/hud.js`, `ui/screens.js`): DOM overlay; screens drive
   `main.js`'s state machine via an `actions` callback object.
 - **Glue** (`main.js`): boot, screen state machine, fixed-timestep loop,
-  audio blips.
+  GameAudio wiring (see the audio section below).
 
 **Multi-hole sim, shipped 2026-08-10:** `VoxelSandboxSim` now runs a roster,
 `sim.holes[]`, rather than one hole. `sim.hole` is kept as an accessor for
@@ -205,22 +205,32 @@ attribution record (`js/demo/arena.js` builds that record over
 `cityRawMassOf`), converging host and peer the same way block eats do. Full
 detail lives in `modules/voxel.md`'s chicago section.
 
-**Game audio, shipped 2026-08-11:** `js/audio/engine.js` (pooled decoded
+**Game audio, shipped 2026-08-11, main-game wiring landed the same day:**
+`js/audio/engine.js` (pooled decoded
 buffers, sfx/ambience buses, listener-fatigue ducking so repeat sounds decay
-instead of stacking, ambience ducking under big hits, persistent mute,
+instead of stacking, ambience ducking under big hits, persistent mute AND a
+persisted volume setting — `flywheel.audio.muted` / `flywheel.audio.volume`,
 mobile-safe autoplay unlock on first gesture) and `js/audio/game-audio.js`
 (the themed event map — eat gulps pitched deeper as the hole grows, a combo
 tick ladder, weight-tiered collapse sounds, milestone/roar/win/lose stingers,
 per-city ambience beds, and the derailment screech-then-crash, wired to the
-`derail` sim event). Render-side only, same rule as the rest of the render
-ring: it reads drained sim events and never writes sim state (ADR-0003). 32
-CC0 sound files ship in `assets/audio/` (1.25 MB); `CREDITS.md` +
-`assets/audio/CREDITS.json` carry the per-file source/author/license
-manifest. Wired into `arena.html`, the hot-seat `multiplayer.html` demo, and
-`tools/scene-view.html` — **not** into `js/main.js`'s campaign/sandbox game,
-which still uses its own tiny oscillator "audio blips" (see Glue above);
-main-game audio wiring was explicitly handed off to a concurrent session via
-`MESSAGES.md`.
+`derail` sim event). Positional events (`crash`, `derail`) attenuate by
+distance from the local hole — full inside 25 m, gone at 160 m — fed per
+frame via `updateListener(x, z, moverSim)`; the same feed drives the Chicago
+el-train bed, which tracks the nearest car still on the rails (base level
+0.3 after the flat 0.5 read as plainly loud). Render-side only, same rule as
+the rest of the render ring: it reads drained sim events and never writes
+sim state (ADR-0003). 32 CC0 sound files ship in `assets/audio/` (1.25 MB);
+`CREDITS.md` + `assets/audio/CREDITS.json` carry the per-file
+source/author/license manifest, and both landing screens show the small-type
+credit line. Wired into `js/main.js` (the `blip()` oscillator is deleted:
+sandbox + campaign events, scene beds, win/lose, and a delegated menu-click
+listener), `arena.html`, the hot-seat `multiplayer.html` demo, and
+`tools/scene-view.html`. The settings screen's mute toggle and volume slider
+drive the engine (`save` mirrors into the engine's localStorage keys, so the
+arena — which has no save — inherits the same setting). Known gaps: the
+arena PEER feeds no mover positions (its sim never steps), so its el bed
+stays flat; `debris-metal.ogg` is preloaded but has no call site yet.
 
 **Also built (2026-08-10), separate surface:** `multiplayer.html` + `js/demo/`
 is a hot-seat two-player demo — two holes sharing one gallery sim, rendered by

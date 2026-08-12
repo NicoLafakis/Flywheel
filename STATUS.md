@@ -349,7 +349,13 @@ district sweep).
   (delivery/school bus, billboard, subway stairs proper, waterfront/pier,
   helicopter), density re-skins of existing buildings (tower at 0.5 m bricks),
   possibly moving traffic and living pedestrians. Driven by playtesting.
-- Audio is placeholder blips.
+- Audio: the CC0 library (`js/audio/`) now voices every surface, main game
+  included — the `blip()` oscillator is gone. Settings mute + volume drive
+  the engine everywhere (save mirrors into the engine's localStorage keys,
+  which the arena reads). Positional sounds and the el-train bed are
+  distance-attenuated off the local hole. Remaining gaps: no distance feed
+  for the arena *peer* (its sim never steps — flat train bed), and
+  `debris-metal.ogg` is still loaded but unheard.
 - No unit tests beyond the validator; UI untested except smoke path.
 - Upper Manhattan's worst collapse (SIZE 8 into the CPW wall) still has a
   101 ms p95 (median is a fast 16.6 ms): `main.js`'s fixed-timestep catch-up

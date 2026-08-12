@@ -63,7 +63,7 @@ what each is waiting on, and what could start today.
 | [conventions.md](conventions.md) | Coding standards, naming, determinism rules |
 | [glossary.md](glossary.md) | Domain terms (tier, snack ring, tide, ...) |
 | [visual-direction.md](visual-direction.md) | Art-target gap analysis: current vs reference |
-| [modules/](modules/) | Per-module docs with `covers:` globs: [campaign](modules/campaign.md), [citygen](modules/citygen.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
+| [modules/](modules/) | Per-module docs with `covers:` globs: [audio](modules/audio.md), [campaign](modules/campaign.md), [citygen](modules/citygen.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
 | [adr/](adr/) | Architecture Decision Records |
 | [runbooks/](runbooks/) | Run/validate/deploy playbooks |
 | [findings/](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md) | Root-cause analyses: [RCA-2026-08-11 skyscraper launch and hanging debris](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md) (roof-snap teleport in the debris landing test, wall-scrape vy bounce, per-material gravity — **resolved, fixed by commit 235c82d the same day**); [RCA-2026-08-11 cambridge validator stall](findings/RCA-2026-08-11-cambridge-validator-stall.md) (the 780 s Cambridge excursion hits superlinear debris churn on the untiered physics — the full validator does not currently complete; **diagnosed, engine fix specified in §5, not yet landed**) |

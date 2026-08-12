@@ -95,6 +95,7 @@ function tick(now) {
   sim.step(FIXED_DT, moveAt(sim.time));
   const events = sim.events;
   sim.events = [];
+  audio.updateListener(sim.hole.x, sim.hole.z, sim.moverSim);
   audio.handleEvents(events);
   world.update(dt, events);
   frameCamera();
