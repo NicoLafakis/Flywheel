@@ -85,7 +85,10 @@ tying everything together.
   no master slider; each governs only its own audio bus. Effects and Ambience
   write `settings.sfxVol`/`settings.ambVol` through `actions.applySettings()`;
   Music goes straight through `actions.setMusicVolume()` since the music
-  director owns its own persistence. See `.wiki/modules/audio.md`.
+  director owns its own persistence. A slider's resting position, when the
+  save has no stored value yet, comes from `js/audio/mix.js`'s constants
+  rather than a literal in `screens.js`, so it can never show a different
+  number from what the game actually boots at. See `.wiki/modules/audio.md`.
 
 **Reconciled 2026-08-10:** `js/main.js`, `js/ui/hud.js` and `js/ui/screens.js`
 are unchanged since the score-combo-and-hype commit documented below. The

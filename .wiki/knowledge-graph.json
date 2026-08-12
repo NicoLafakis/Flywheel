@@ -1,54 +1,70 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-12T13:59:55+00:00",
+    "generatedAt": "2026-08-12T15:07:05+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
-      "files": 77,
+      "files": 79,
       "symbols": 27,
       "edges": 8,
       "modules": 2,
-      "reusedFromCache": 77
+      "reusedFromCache": 79
     }
   },
   "files": {
     "js/audio/engine.js": {
       "lang": "javascript",
-      "hash": "fc0b0a88497afc314a7c0f40584a52f9e024de1e9ca30dc18f7d879cb657a095",
-      "loc": 260,
+      "hash": "22bf77bd7f3a3c3fe5259c776a8e51585e67e7c88df803b43d980b195f334e38",
+      "loc": 279,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/audio/engine.test.mjs": {
       "lang": "javascript",
-      "hash": "ea417b2bf0a292a7bd36a932b84d788c61f7419e5eb3b5939fb0569ada40299c",
-      "loc": 158,
+      "hash": "c2f51e10aae3d757642a8a05a01843e882d43255f19524ba7802f96e8678fa73",
+      "loc": 235,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/audio/game-audio.js": {
       "lang": "javascript",
-      "hash": "a63c4448d797410eb3c43564e0b2a6a803899ce435ca828f97bb5f423ad6b143",
-      "loc": 269,
+      "hash": "bc0d5e13e482bc573e6bee782504a0db87c51f2bb10f24f8bb3255ca9b3081cc",
+      "loc": 377,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/audio/game-audio.test.mjs": {
+      "lang": "javascript",
+      "hash": "4ba2a75b196234f37d694bad56c54b278907b56aa0d7e5d24eebb24a0abb01b4",
+      "loc": 253,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/audio/mix.js": {
+      "lang": "javascript",
+      "hash": "29ab01fef4b610ceea07d78e1a6aafad5e68467cd8b159d64b7e1de74c5ac4e8",
+      "loc": 94,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/audio/music.js": {
       "lang": "javascript",
-      "hash": "a9edbaf5eb26c13711000f754ab30f5e48a0cadb0a248ceef611d632979fde9e",
-      "loc": 293,
+      "hash": "3eb428daddf3070f0faf0a91bead17fed3a0a280d40761ff44a0a122cc12c423",
+      "loc": 304,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/audio/music.test.mjs": {
       "lang": "javascript",
-      "hash": "e033fcdd970d0e3e9d2243f99d8b2068edbd9fde41220825a7e7441a5454b732",
-      "loc": 93,
+      "hash": "9dd1099db797ce288238ca0015b761d633ffe7e04ec13a4b66080577216886f2",
+      "loc": 110,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -100,8 +116,8 @@
     },
     "js/demo/demo.js": {
       "lang": "javascript",
-      "hash": "07d691a41ab28d8228eebbf9f0e31c55ea9df737e41ac8aebeef2895415439f9",
-      "loc": 224,
+      "hash": "22a2dcdcf6ed53f929d9d29c8ff60bfcee3d03b41e27facc092b549ed6d4fbd7",
+      "loc": 229,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -148,8 +164,8 @@
     },
     "js/main.js": {
       "lang": "javascript",
-      "hash": "c3caf97355cf1801f75bbd1b8419369493180fe7fd57db5fdb2a94c37dcbd28a",
-      "loc": 723,
+      "hash": "4abc98e04d02b18f4623c5eba0ae84f08caccff8f8504b304b84ed45caf9e1c3",
+      "loc": 739,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -332,8 +348,8 @@
     },
     "js/save.js": {
       "lang": "javascript",
-      "hash": "f812fa16a75b58ab9181dd4615f1b76d21a7d6067b67e7f2091ebe5818e633c9",
-      "loc": 359,
+      "hash": "feadb13fadd1793ad4ba0149358387d74e524107fc9e7c66e797c301d70c6913",
+      "loc": 377,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -431,8 +447,8 @@
     },
     "js/ui/screens.js": {
       "lang": "javascript",
-      "hash": "c0fbb76b0f1c1cf78e8e3961365e1974f0bfe47b7b797a8a059b98d0eb777254",
-      "loc": 566,
+      "hash": "7fe4304684e9f5a391167c94b7c0a51e1411f3ced1d5e43bf91dc1dc4887414c",
+      "loc": 570,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -895,6 +911,8 @@
         "js/audio/engine.js",
         "js/audio/engine.test.mjs",
         "js/audio/game-audio.js",
+        "js/audio/game-audio.test.mjs",
+        "js/audio/mix.js",
         "js/audio/music.js",
         "js/audio/music.test.mjs",
         "js/camera.js",

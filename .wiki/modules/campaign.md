@@ -16,7 +16,7 @@ beatable headlessly.
 | File | Purpose |
 |------|---------|
 | `js/levels.js` | `METROS`, `MECHANICS`, `levelDef(i)` formulas, stars/coins |
-| `js/save.js` | localStorage schema v15 (+settings), migrations v1→v15, quarantine |
+| `js/save.js` | localStorage schema v16 (+settings), migrations v1→v16, quarantine |
 | `tools/validate.mjs` | Overlap + snack-ring + greedy-bot margin proof for every campaign level, plus `validateCambridge()` (drives the voxel-sandbox Cambridge scene through the same kind of greedy bot) and `validateOfflineBoot()` (parses `index.html` and fails on any external-origin runtime dependency — see `architecture.md`'s Boot section) |
 
 ## Talks To

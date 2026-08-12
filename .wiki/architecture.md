@@ -213,7 +213,15 @@ instead of stacking, ambience ducking under big hits, mobile-safe autoplay
 unlock on first gesture) has no master volume: its master gain carries mute
 and nothing else, and each bus holds its own persisted level —
 `flywheel.audio.volume` for effects (`sfx` bus), `flywheel.audio.ambVolume`
-for ambience (`amb` bus, scaled by a fixed `AMB_GAIN`). `duckAmbience()`
+for ambience (`amb` bus, scaled by a fixed `AMB_GAIN`). The three defaults
+(0.7 effects, 0.4 ambience, 0.3 music), the four localStorage keys, and a
+one-time `reseedAudioMix()` that moves an already-installed player onto a
+retuned mix without a schema bump all live in the dependency-free
+`js/audio/mix.js`; `engine.js`, `music.js`, `save.js`, and
+`js/ui/screens.js` import from there instead of restating the numbers, and
+the reseed itself runs from both the `AudioEngine` and `MusicDirector`
+constructors so the arena, hot-seat demo, and scene viewer land on the new
+mix too. `duckAmbience()`
 ducks to and restores from the live ambience level rather than a hardcoded
 constant, so a slider change during a duck ramp still wins. `js/audio/game-audio.js`
 is the facade over the engine and `MusicDirector` (the themed event map — eat
