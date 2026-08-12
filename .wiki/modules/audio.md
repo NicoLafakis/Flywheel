@@ -11,10 +11,39 @@ covers:
 ## Purpose
 
 `AudioEngine` owns WebAudio SFX/ambience loading, buses, fatigue ducking,
-persisted mute/master volume, and mobile-safe unlock. `MusicDirector` streams
-one state-aware MP3 at a time. `GameAudio` is the facade over both: it maps
-drained sim events and scene lifecycle to sound. All are render-side: they read
-gameplay state only after `sim.step()` and never mutate it.
+persisted mute and per-bus levels, and mobile-safe unlock. `MusicDirector`
+streams one state-aware MP3 at a time. `GameAudio` is the facade over both: it
+maps drained sim events and scene lifecycle to sound. All are render-side: they
+read gameplay state only after `sim.step()` and never mutate it.
+
+## Levels: three independent buses, one mute
+
+There is no master volume. `AudioEngine`'s master gain carries mute and nothing
+else (`muted ? 0 : MASTER_GAIN`); the player's levels live one layer down, one
+per bus, and none of them scales another:
+
+| Level | Rides | Covers | Persisted as |
+| --- | --- | --- | --- |
+| Effects | `sfx` bus gain | crashes, gulps, combo/milestone stingers, UI taps | `flywheel.audio.volume` |
+| Ambience | `amb` bus gain (`AMB_GAIN 0.55 × level`) | per-city beds, Chicago el-train rattle | `flywheel.audio.ambVolume` |
+| Music | `HTMLAudioElement.volume` | the streamed soundtrack | `flywheel.audio.musicVolume` |
+
+Music is not on the WebAudio graph at all, so it is unreachable from the two bus
+gains by construction. `MusicDirector._master` exists as a separate multiplier
+but stays at 1 in the game: nothing calls `setMasterVolume()`, so music answers
+only to its own slider, its ducking, and mute.
+
+`AudioEngine.volume`/`setVolume()` keep their pre-split names while meaning the
+EFFECTS level, because the arena, the hot-seat demo and the scene viewer already
+call them; `flywheel.audio.volume` keeps its name for the same reason, so no
+existing player's slider resets. Ambience adds `ambienceVolume`/
+`setAmbienceVolume()` alongside them, mirrored on `GameAudio`.
+
+`duckAmbience()` ramps down to and back up to `AMB_GAIN × ambience level`, never
+to a constant — restoring to a literal would hand the ambience slider back at
+full every time a skyscraper came down. Both setters apply live, including to a
+bed that is already looping and to a duck ramp still in flight (a slider drag
+cancels the scheduled values and wins).
 
 ## Main-game wiring
 
@@ -22,12 +51,19 @@ gameplay state only after `sim.step()` and never mutate it.
 for smoke tests, feeds the local hole position each frame, and starts/stops city
 ambience with sandbox lifecycle. The old oscillator `blip()` path is gone.
 
-The SETTINGS Game sounds toggle and Sound volume slider update the save and the
-whole audio facade together. The new Music volume slider is independent beneath
-that master. The engine/director mirror them to `flywheel.audio.muted`,
-`flywheel.audio.volume`, and `flywheel.audio.musicVolume`, allowing standalone
-surfaces such as the arena to inherit the same choice without importing the
-campaign save.
+SETTINGS carries one Game sounds toggle (the global mute) and three sibling
+sliders in order: Effects volume, Ambience volume, Music volume. Effects and
+Ambience write `settings.sfxVol` and `settings.ambVol` into the save and reach
+the facade through `actions.applySettings()`; Music goes straight through
+`actions.setMusicVolume()` because `MusicDirector` owns its own persistence.
+The engine and director mirror all four values to `flywheel.audio.muted`,
+`flywheel.audio.volume`, `flywheel.audio.ambVolume`, and
+`flywheel.audio.musicVolume`, allowing standalone surfaces such as the arena to
+inherit the same choices without importing the campaign save.
+
+`settings.ambVol` defaults to 1 and took no schema bump: an absent key reads as
+the default through every consumer's `typeof … === 'number'` guard, so upgrading
+players land on the ambience level they already had.
 
 `js/audio/music.js` owns the cue registry and one reusable `HTMLAudioElement`:
 menu, shop, pause, results, and one cue per authored city. Gallery maps to
@@ -49,4 +85,5 @@ and major stingers duck music through `GameAudio`.
   never awaited by the game loop.
 - Music assets and their hashes are pinned by `assets/music/MANIFEST.json` and
   `tools/music-assets-selftest.mjs`; lifecycle behavior is covered by
-  `js/audio/music.test.mjs`.
+  `js/audio/music.test.mjs`, and the bus/level split by
+  `js/audio/engine.test.mjs` (run either with `node <path>`).

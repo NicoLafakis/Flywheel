@@ -67,7 +67,9 @@ export class GameAudio {
     this.engine = new AudioEngine({ base });
     this.music = musicDirector || new MusicDirector({ base: musicBase });
     this.music.setMuted(this.engine.muted);
-    this.music.setMasterVolume(this.engine.volume);
+    // Deliberately NO setMasterVolume() here: music is governed by its own
+    // slider and by mute, nothing else. Wiring the effects level in at boot is
+    // what used to make turning effects down turn the score down with it.
     this._ambHandle = null;
     this._trainHandle = null;
     this._sceneWanted = null;
@@ -104,10 +106,14 @@ export class GameAudio {
     if (!m) this.engine.unlock();
     return m;
   }
-  /** Driven by an external settings screen (the main game's save carries
-   * mute + volume); the engine persists both, so the arena inherits them. */
+  /** Driven by an external settings screen (the main game's save carries mute
+   * and all three levels); the engine and the director persist their own, so
+   * the arena and the hot-seat demo inherit every one of them. */
   setMuted(m) { this.engine.setMuted(m); this.music.setMuted(m); }
-  setVolume(v) { this.engine.setVolume(v); this.music.setMasterVolume(v); }
+  /** Effects only — crashes, gulps, UI. Independent of ambience and music. */
+  setVolume(v) { this.engine.setVolume(v); }
+  get ambienceVolume() { return this.engine.ambienceVolume; }
+  setAmbienceVolume(v) { this.engine.setAmbienceVolume(v); }
   get musicVolume() { return this.music.volume; }
   setMusicVolume(v) { this.music.setVolume(v); }
   setMusicCue(cue, opts) { return this.music.request(cue, opts); }

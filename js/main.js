@@ -22,13 +22,14 @@ const save = loadSave();
 
 // ------------------------------------------------------------------ audio
 // The CC0 library + WebAudio engine (js/audio/). The save is the source of
-// truth on this surface; the engine also mirrors both settings into
+// truth on this surface; the engine also mirrors every setting into
 // localStorage, which is the only store the arena demo has — so muting or
-// sliding the volume here carries over there.
+// moving any of the three level sliders here carries over there.
 const audio = new GameAudio().init();
 window.__audio = audio; // debug hook, same idiom as scene-view.html
 audio.setMuted(save.muted);
 audio.setVolume(save.settings && typeof save.settings.sfxVol === 'number' ? save.settings.sfxVol : 1);
+audio.setAmbienceVolume(save.settings && typeof save.settings.ambVol === 'number' ? save.settings.ambVol : 1);
 
 // ------------------------------------------------------------------ game state
 let state = 'menu'; // menu | intro | playing | paused | results
@@ -171,9 +172,12 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
   music(cue, opts) { audio.setMusicCue(cue, opts); },
   musicVolume() { return audio.musicVolume; },
   setMusicVolume(v) { audio.setMusicVolume(v); },
+  ambienceVolume() { return audio.ambienceVolume; },
+  setAmbienceVolume(v) { audio.setAmbienceVolume(v); },
   applySettings() {
     storeSave(save);
     audio.setVolume(typeof save.settings.sfxVol === 'number' ? save.settings.sfxVol : 1);
+    audio.setAmbienceVolume(typeof save.settings.ambVol === 'number' ? save.settings.ambVol : 1);
     if (controls) controls.settings = save.settings;
     if (cam) {
       cam.distScale = save.settings.camDist;

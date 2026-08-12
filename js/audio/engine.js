@@ -1,5 +1,12 @@
 // WebAudio engine: pooled decoded buffers, three gain buses, listener fatigue,
-// ambience ducking, persistent mute + volume, and mobile-safe autoplay unlock.
+// ambience ducking, persistent mute + per-bus levels, and mobile-safe autoplay
+// unlock.
+//
+// Bus model: master carries MUTE ONLY. The two child buses each carry their own
+// persisted player level — `sfx` the effects slider, `amb` the ambience slider —
+// so one can sit at zero while the other plays. Music is not on this graph at
+// all (it is an HTMLAudioElement in music.js with its own slider), which is why
+// nothing here scales it.
 //
 // Render-side ONLY (ADR-0003): this module reads sim events and never writes
 // sim state, so two peers with different speakers stay bit-identical. Nothing
@@ -10,8 +17,13 @@
 import { RNG } from '../rng.js';
 
 const MUTE_KEY = 'flywheel.audio.muted';
+// Historical key name: it predates the split and now holds the EFFECTS level.
+// Renaming it would silently reset every existing player's slider, which is a
+// worse trade than a key whose name is one generation out of date.
 const VOL_KEY = 'flywheel.audio.volume';
-const MASTER_GAIN = 0.9;   // unmuted ceiling, before the volume setting scales it
+const AMB_VOL_KEY = 'flywheel.audio.ambVolume';
+const MASTER_GAIN = 0.9;   // unmuted ceiling; mute is the only thing master carries
+const AMB_GAIN = 0.55;     // ambience headroom under the beds, before the slider
 
 export class AudioEngine {
   constructor({ base = 'assets/audio/' } = {}) {
@@ -26,6 +38,11 @@ export class AudioEngine {
     try {
       const v = parseFloat(localStorage.getItem(VOL_KEY));
       if (Number.isFinite(v)) this._vol = Math.min(1, Math.max(0, v));
+    } catch { /* private mode */ }
+    this._ambVol = 1;
+    try {
+      const v = parseFloat(localStorage.getItem(AMB_VOL_KEY));
+      if (Number.isFinite(v)) this._ambVol = Math.min(1, Math.max(0, v));
     } catch { /* private mode */ }
     // Listener fatigue: every play of a name deposits "energy" that decays
     // over ~4 s; repeats land quieter the hotter the name is. Three minutes
@@ -46,18 +63,50 @@ export class AudioEngine {
   }
   toggleMuted() { this.setMuted(!this._muted); return this._muted; }
 
-  /** Settings-slider volume, 0..1, persisted. Scales the whole mix (both
-   * buses hang off master), which is what a player means by "sound volume". */
+  /** Effects level, 0..1, persisted. Rides the SFX bus only: gulps, crashes,
+   * UI taps and stingers. Named `volume`/`setVolume` because every existing
+   * caller (arena, hot-seat demo, scene viewer) already speaks that name. */
   get volume() { return this._vol; }
   setVolume(v) {
     if (!Number.isFinite(v)) return;
     this._vol = Math.min(1, Math.max(0, v));
     try { localStorage.setItem(VOL_KEY, String(this._vol)); } catch { /* best effort */ }
-    this._applyMaster();
+    this._applySfx();
   }
 
+  /** Ambience level, 0..1, persisted. Rides the AMB bus only: the per-city
+   * beds and the Chicago el-train rattle. */
+  get ambienceVolume() { return this._ambVol; }
+  setAmbienceVolume(v) {
+    if (!Number.isFinite(v)) return;
+    this._ambVol = Math.min(1, Math.max(0, v));
+    try { localStorage.setItem(AMB_VOL_KEY, String(this._ambVol)); } catch { /* best effort */ }
+    this._applyAmbience();
+  }
+
+  /** The ambience bus's resting gain. duckAmbience() ramps back to THIS, never
+   * to a literal — restoring to a constant would hand the player's slider back
+   * at full the first time a tower came down. */
+  _ambLevel() { return AMB_GAIN * this._ambVol; }
+
   _applyMaster() {
-    if (this.master) this.master.gain.value = this._muted ? 0 : MASTER_GAIN * this._vol;
+    if (this.master) this.master.gain.value = this._muted ? 0 : MASTER_GAIN;
+  }
+
+  _applySfx() {
+    if (this.sfx) this.sfx.gain.value = this._vol;
+  }
+
+  /** Live even mid-duck: a slider drag during a collapse's recovery ramp has to
+   * win, so the scheduled ramp is cancelled rather than left to overwrite us. */
+  _applyAmbience() {
+    if (!this.amb) return;
+    const g = this.amb.gain;
+    try {
+      const now = this.ctx ? this.ctx.currentTime : 0;
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(this._ambLevel(), now);
+    } catch { g.value = this._ambLevel(); }
   }
 
   /** Bind the one-time autoplay unlock to the page. Any pointer or key
@@ -91,13 +140,13 @@ export class AudioEngine {
     try {
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = this._muted ? 0 : MASTER_GAIN * this._vol;
+      this.master.gain.value = this._muted ? 0 : MASTER_GAIN;
       this.master.connect(this.ctx.destination);
       this.sfx = this.ctx.createGain();
-      this.sfx.gain.value = 1.0;
+      this.sfx.gain.value = this._vol;
       this.sfx.connect(this.master);
       this.amb = this.ctx.createGain();
-      this.amb.gain.value = 0.55;
+      this.amb.gain.value = this._ambLevel();
       this.amb.connect(this.master);
     } catch { this.ctx = null; return false; }
     return true;
@@ -193,16 +242,19 @@ export class AudioEngine {
     } catch { return null; }
   }
 
-  /** Big moments push the ambience bed down and let it breathe back up. */
+  /** Big moments push the ambience bed down and let it breathe back up.
+   * Both ends of the ramp are relative to the player's ambience level, so a
+   * collapse never restores the bed louder than the slider asked for. */
   duckAmbience(sec = 2.5, depth = 0.3) {
     if (!this.ctx || !this.amb) return;
     try {
       const now = this.ctx.currentTime;
       const g = this.amb.gain;
+      const level = this._ambLevel();
       g.cancelScheduledValues(now);
       g.setValueAtTime(g.value, now);
-      g.linearRampToValueAtTime(0.55 * depth, now + 0.08);
-      g.linearRampToValueAtTime(0.55, now + sec);
+      g.linearRampToValueAtTime(level * depth, now + 0.08);
+      g.linearRampToValueAtTime(level, now + sec);
     } catch { /* best effort */ }
   }
 }

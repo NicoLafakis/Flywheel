@@ -51,9 +51,10 @@ does not add a 47.49 MiB boot download or obscure gameplay cues.
   migration.
 - **When** Game sounds is OFF, **then** music, ambience, and SFX are all silent;
   **when** it returns ON, **then** the independent music level is restored.
-- **When** the existing Sound volume changes, **then** it remains the master
-  level. Effective music level is master × music × cue mix, so neither control
-  can make music exceed its authored ceiling.
+- **When** Effects volume or Ambience volume changes, **then** the music level
+  does not move. There is no master level over the three sliders: each governs
+  its own bus, and music's effective level is music × duck × fade, which cannot
+  exceed its authored ceiling.
 
 ### Loading, focus, and mix
 

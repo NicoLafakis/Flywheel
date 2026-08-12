@@ -432,9 +432,13 @@ export class Screens {
     };
     panel.appendChild(muteRow);
 
-    const volRow = el(`<div class="set-row"><span class="set-label">🔊 Sound volume</span>
+    // Three independent levels, no master among them: EFFECTS (crashes, gulps,
+    // UI), AMBIENCE (the city beds and the el-train rattle) and MUSIC. Game
+    // sounds above is the one global off switch. Ordered loudest-to-quietest by
+    // how often a player reaches for them.
+    const volRow = el(`<div class="set-row"><span class="set-label">🔊 Effects volume</span>
       <span class="set-val"><input type="range" min="0" max="1" step="0.05"
-        value="${st.sfxVol !== undefined ? st.sfxVol : 1}"></span></div>`);
+        aria-label="Effects volume" value="${st.sfxVol !== undefined ? st.sfxVol : 1}"></span></div>`);
     const volSlider = volRow.querySelector('input');
     volSlider.oninput = () => {
       st.sfxVol = parseFloat(volSlider.value);
@@ -442,8 +446,20 @@ export class Screens {
     };
     panel.appendChild(volRow);
 
-    // Independent of the master Sound volume: players can keep gameplay cues
-    // while lowering the score. MusicDirector owns persistence, so standalone
+    // The city under the demolition: keeping the beds up while pulling the
+    // crashes down (or the reverse) is the whole point of splitting these.
+    const ambRow = el(`<div class="set-row"><span class="set-label">🌆 Ambience volume</span>
+      <span class="set-val"><input type="range" min="0" max="1" step="0.05"
+        aria-label="Ambience volume" value="${st.ambVol !== undefined ? st.ambVol : 1}"></span></div>`);
+    const ambSlider = ambRow.querySelector('input');
+    ambSlider.oninput = () => {
+      st.ambVol = parseFloat(ambSlider.value);
+      this.actions.applySettings();
+    };
+    panel.appendChild(ambRow);
+
+    // Independent of both sliders above: players can keep gameplay cues while
+    // lowering the score. MusicDirector owns persistence, so standalone
     // arena.html inherits the same choice without importing the main save.
     const musicVol = this.actions.musicVolume ? this.actions.musicVolume() : 0.65;
     const musicRow = el(`<div class="set-row"><span class="set-label">🎵 Music volume</span>
