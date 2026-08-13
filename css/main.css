@@ -1398,8 +1398,8 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
 
 /* ---------- Landing: the player's own line ----------
    Personal best and the gap to the next unlock, read from the save (see
-   personalBest/nextUnlock in js/ui/screens.js). One row, three cells, no cell
-   rendered for a record that has never been set. */
+   personalBest/nextUnlock in js/ui/screens.js). One row, up to two cells, no
+   cell rendered for a record that has never been set. */
 .fw-status {
   display: flex; flex-wrap: wrap; justify-content: center; align-items: stretch;
   gap: 8px; width: min(660px, 100%);

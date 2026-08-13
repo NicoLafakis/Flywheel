@@ -70,12 +70,17 @@ function el(html) {
 // have shown it is not rendered.
 
 // The best run anywhere, across every scene. Per-scene bests already ride on
-// the city chips; this is the one number that answers "how big have I got",
+// the city chips; this is the one number that answers "how well have I played",
 // which is the question a player actually carries between sessions.
 // `bestScore` only exists from save v16 on, so an older record legitimately has
 // none and reports null rather than 0 — never measured is not the same as zero.
+// Deliberately no biggest-SIZE cell: a global high-water mark on the hole's own
+// radius is a low bar every returning player has already maxed, so it stopped
+// being recognition and became furniture. Per-city SIZE stays on the chips,
+// where it is earned against that city rather than against the player's whole
+// history.
 function personalBest(save) {
-  let size = 0, score = 0, runs = 0;
+  let score = 0, runs = 0;
   for (const rec of Object.values(save.sandbox || {})) {
     if (!rec) continue;
     // `runs`, not `completions`: since the 180 s clock landed, `completions`
@@ -84,10 +89,9 @@ function personalBest(save) {
     // to count finished runs. `?? completions` covers a record written by a
     // build older than the migration.
     runs += rec.runs ?? rec.completions ?? 0;
-    if ((rec.bestSize || 0) > size) size = rec.bestSize;
     if ((rec.bestScore || 0) > score) score = rec.bestScore;
   }
-  return { size, score: score || null, runs };
+  return { score: score || null, runs };
 }
 
 // The cheapest thing the player does not own yet — one shelf built from the
@@ -170,13 +174,15 @@ export class Screens {
     // Every value here is read from the save. A first-run player has no record
     // and no bank, so the whole strip is absent rather than rendered full of
     // zeroes — the strip is recognition, and there is nothing yet to recognise.
+    //
+    // The strip can never render as an empty bordered box: BEST SCORE is
+    // optional, but the coin row below it is an if/else and both arms append, so
+    // any save that opens this block contributes at least one cell. Anything
+    // added here that is conditional on BOTH sides has to bring its own guard.
     const pb = personalBest(this.save);
     const unlock = nextUnlock(this.save);
     if (this.save.coins > 0 || pb.runs > 0) {
       const strip = el(`<div class="fw-status"></div>`);
-      if (pb.size > 0) {
-        strip.appendChild(el(`<div class="fw-stat"><span class="fw-stat-k">BIGGEST HOLE</span><span class="fw-stat-v">SIZE ${pb.size}</span></div>`));
-      }
       if (pb.score !== null) {
         strip.appendChild(el(`<div class="fw-stat"><span class="fw-stat-k">BEST SCORE</span><span class="fw-stat-v">${pb.score.toLocaleString('en-US')}</span></div>`));
       }
