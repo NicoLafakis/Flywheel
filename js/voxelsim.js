@@ -194,13 +194,28 @@ export const COMBO_WINDOW = 1.5;
 // until level 7 is a feat (crossed once or twice in a thirteen-minute clear)
 // and level 8 is the summit (the longest chain measured across a complete clear
 // was 528).
-export const COMBO_THRESHOLDS = [2, 10, 15, 25, 50, 100, 350, 600];
+//
+// EVERY ENTRY IS A STEP THE PLAYER FEELS (T-501). This list used to open with
+// `2`, against a mapping of `level = i + 1` — and level 1 is already the floor,
+// so crossing index 0 awarded exactly what a chain of 0 already had. A chain of
+// 2 scored what a chain of 0 scored, while the published head said otherwise.
+// The defect was structural rather than a bad number: ANY value at index 0 was
+// inert, so re-tuning `2` would have fixed nothing. The entry is gone and the
+// mapping is `level = i + 2`, which leaves every rung x1..x8 on exactly the
+// chain range it already had — this is a representation fix and no score moves,
+// so there is NO `RANKED_SIM_VERSION` implication. The proof is that the literal
+// chain-to-multiplier table in tools/validate.mjs passes unchanged.
+//
+// Whether the first real step belongs at 10 is a separate tuning question this
+// deliberately does not answer; it now has a clean seam to be answered on.
+export const COMBO_THRESHOLDS = [10, 15, 25, 50, 100, 350, 600];
 // FR-013's two named constants. STEP is what one level is worth — a WHOLE extra
 // helping, the owner's ruling — and MAX_LEVEL is the tail rule: the ladder tops
 // out here and hands out nothing past it, so the summit has a name instead of
-// being one more number going up.
+// being one more number going up. `+ 1` is the x1 floor, which is a level with
+// no threshold: every hole is on it before it has eaten anything.
 export const COMBO_STEP = 1;
-export const COMBO_MAX_LEVEL = COMBO_THRESHOLDS.length;
+export const COMBO_MAX_LEVEL = COMBO_THRESHOLDS.length + 1;
 // Display names, indexed by level. Level 8 used to be 'MAX' rather than a
 // number, which made the top of the ladder the one rung whose VALUE the game
 // never showed: a player counting the steps they had seen concluded the ceiling
@@ -214,10 +229,13 @@ export const COMBO_LEVEL_NAMES = ['', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 
 // Level 1 is the floor, including a chain of 0 or 1: a hole that has eaten one
 // block is not on a combo, but the multiplier it scores at is still x1, so the
 // ladder is total and the HUD never has to special-case "no chain".
+//
+// `i + 2`, not `i + 1`: the floor occupies level 1 without a threshold, so the
+// FIRST threshold has to award level 2 or it awards nothing at all (T-501).
 export function comboLevel(chain) {
   let level = 1;
   for (let i = 0; i < COMBO_THRESHOLDS.length; i++) {
-    if (chain >= COMBO_THRESHOLDS[i]) level = i + 1; else break;
+    if (chain >= COMBO_THRESHOLDS[i]) level = i + 2; else break;
   }
   return level;
 }

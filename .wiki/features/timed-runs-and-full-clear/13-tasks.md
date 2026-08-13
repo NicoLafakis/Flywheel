@@ -261,16 +261,31 @@ finding nobody will action.
   is absent (not zeroed) when it was not earned, `recordSandboxResult` banks the
   same number the screen showed, and a validator guard fails on the ungated
   form.
-- **T-504 — two contradictory clocks during THE RUN.** `updateSandbox` writes the
-  coin readout into `#timer`, then overwrites it with the ranked countdown when
-  `sim.mode === 'run90'` (`js/ui/hud.js:241-248`), while `_updateClock(sim.timeLeft)`
-  runs unconditionally at the end of the same function. So a ranked run paints
-  `#level-clock` with the 180 s sandbox countdown and `#timer` with the 90 s
-  ranked one, at the same time, disagreeing — and the coin readout the sandbox
-  needs disappears for the duration. THE RUN is the one mode whose length is a
-  fixed decision of record (ADR-0016), so it is the worst possible place for the
-  HUD to state two of them. `index.html:136` also still ships `<div id="timer">75</div>`,
-  the start value of the campaign clock ramp that R-1.1 retired. *Done when:* a
-  ranked run shows exactly one countdown and it is the ranked one, the sandbox
-  keeps its coin readout, the stale initial text is gone, and a browser probe
-  asserts the count of visible countdowns rather than the text of one.
+- **T-504 — THE RUN's countdown is rendered into the coin readout's pill.**
+  `updateSandbox` writes the coin readout into `#timer`, then overwrites it with
+  the ranked countdown when `sim.mode === 'run90'` (`js/ui/hud.js:241-248`), so
+  a ranked run loses its coin readout for the whole run and shows its countdown
+  in a small grey chip with no warn or urgent state — while `#level-clock`, the
+  pill built for countdowns, sits switched off. `index.html`'s own comment
+  already warned that "one element cannot be both without one of them
+  disappearing"; this is that, live. `index.html:136` also still ships
+  `<div id="timer">75</div>`, the start value of the campaign clock ramp R-1.1
+  retired. *Done when:* a ranked run shows exactly one countdown, in
+  `#level-clock`, reading down from `RANKED_TICK_COUNT` rather than a literal
+  90; the sandbox keeps its coin readout; the stale initial text is gone; and a
+  browser probe asserts the COUNT of visible countdown elements rather than the
+  text of one.
+
+  **Correction, 2026-08-13.** This task first read "two contradictory clocks
+  during THE RUN — `#level-clock` on 180 s and `#timer` on 90 s, at the same
+  time". That was my error, from reading the call order in `updateSandbox` and
+  inferring both pills would paint without checking what `sim.timeLeft` holds in
+  run90. It holds `null` (`js/voxelsim.js:441`, guarded again at `:3396`), so
+  `_updateClock(null)` hides `#level-clock` and there was only ever ONE visible
+  countdown. The implementer measured it on the unfixed tree — `THE RUN: visible
+  countdowns: 1 -> [{"id":"timer","text":"86.8 s"}]` — and reported the
+  discrepancy before acting, which is why the fix went toward the design rather
+  than toward my description of the accident. The defect is real and the
+  acceptance criteria above were met unchanged; only the symptom was misstated.
+  Inferring runtime state from control flow instead of reading the value is the
+  mistake to not repeat.

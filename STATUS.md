@@ -47,14 +47,15 @@ call that closed them.
   "TIME'S UP" that prints "City cleared 3%" two lines above it. Harmless while a
   sandbox run could only end by reaching the goal; a live payout bug the moment
   the 180 s clock made timing out the ordinary ending.
-- **Two contradictory clocks during THE RUN** (T-504, 2026-08-13, **in
-  flight**). `updateSandbox` overwrites `#timer` with the 90 s ranked countdown
-  while `_updateClock(sim.timeLeft)` paints `#level-clock` with the 180 s
-  sandbox one, in the same function (`js/ui/hud.js:241-248`) — so a ranked run
-  shows two disagreeing clocks and loses its coin readout. THE RUN's length is a
-  decision of record (ADR-0016), which makes it the worst place for the HUD to
-  state two of them. `index.html:136` also still ships the retired campaign
-  ramp's `75` as the pill's initial text.
+- **THE RUN's countdown was rendered into the coin readout's pill** (T-504,
+  2026-08-13). `updateSandbox` overwrote `#timer` with the ranked countdown, so
+  a ranked run lost its coin readout entirely and showed its clock in a small
+  grey chip with no warn or urgent state, while `#level-clock` — the pill built
+  for countdowns — sat switched off. First written up here as "two contradictory
+  clocks"; that was wrong and is corrected in the task file. `sim.timeLeft` is
+  `null` in run90, so `_updateClock(null)` hid the second pill and there was only
+  ever one visible countdown. I had inferred it from the call order instead of
+  reading the value.
 - **T-901 failed, and it indicts the engine, not the tune** (2026-08-13). The
   physical-device requirement is retired in favour of the emulated Pixel-5 + 4x
   CPU throttle profile; measured over 13 runs, THE RUN holds a 100 ms median,

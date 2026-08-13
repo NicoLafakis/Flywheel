@@ -131,9 +131,18 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
            element cannot be both without one of them disappearing. Above the
            coin pill because the clock is the thing that ends the run.
            aria-live="off": it changes every frame and a polite live region
-           would queue a screen reader announcement per second. -->
+           would queue a screen reader announcement per second.
+
+           THE RUN paints this pill too (T-504). It used to write its countdown
+           into #timer below, which left this one hidden and the coin readout
+           destroyed for the length of the run — one element doing two jobs,
+           exactly as this comment warned. -->
       <div id="level-clock" class="hidden" role="timer" aria-live="off">3:00</div>
-      <div id="timer">75</div>
+      <!-- Empty, not "75". That was the start value of the campaign clock ramp
+           R-1.1 retired, so the HUD shipped holding a number no mode counts
+           down from any more; the sandbox overwrites it with the coin readout
+           on its first frame and the campaign with its own countdown. -->
+      <div id="timer"></div>
       <!-- Combo meter: radial, on the right, away from the goal stack on the
            left — the separation is what makes the two tellable apart in
            peripheral vision, and it is what gives the meter room to be a ring

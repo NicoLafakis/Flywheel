@@ -1538,8 +1538,13 @@ function validateRewardLadders() {
     fail('combo ladder: COMBO_THRESHOLDS is not a non-empty array — the ladder must be a data table');
   }
   if (typeof COMBO_STEP !== 'number' || !(COMBO_STEP > 0)) fail(`combo ladder: COMBO_STEP is not a positive number (${COMBO_STEP})`);
-  if (COMBO_MAX_LEVEL !== COMBO_THRESHOLDS.length) {
-    fail(`combo ladder: COMBO_MAX_LEVEL ${COMBO_MAX_LEVEL} does not match the ${COMBO_THRESHOLDS.length} thresholds — the tail rule and the table disagree`);
+  // One level per threshold, PLUS the x1 floor that every hole starts on. The
+  // check used to read `=== COMBO_THRESHOLDS.length`, which is what an inert
+  // head entry buys you: a table whose first row pays for nothing still counts,
+  // so the arithmetic balanced while one rung of the ladder did not exist
+  // (T-501).
+  if (COMBO_MAX_LEVEL !== COMBO_THRESHOLDS.length + 1) {
+    fail(`combo ladder: COMBO_MAX_LEVEL ${COMBO_MAX_LEVEL} does not match the ${COMBO_THRESHOLDS.length} thresholds + the x1 floor — the tail rule and the table disagree`);
   }
   if (COMBO_LEVEL_NAMES.length !== COMBO_MAX_LEVEL + 1) {
     fail(`combo ladder: ${COMBO_LEVEL_NAMES.length - 1} level name(s) for ${COMBO_MAX_LEVEL} level(s)`);
@@ -1549,12 +1554,31 @@ function validateRewardLadders() {
       fail(`combo ladder: thresholds not strictly increasing at index ${i} (${COMBO_THRESHOLDS[i - 1]} -> ${COMBO_THRESHOLDS[i]})`);
     }
   }
-  // The owner's curve (GWT-301): 2, 10, 15, 25, 50, 100, then the rare tail.
-  const WANT_HEAD = [2, 10, 15, 25, 50, 100];
+  // The owner's curve (GWT-301): the x1 floor, then steps at 10, 15, 25, 50,
+  // 100, then the rare tail. `2` used to head this list and is gone — see the
+  // inert-entry guard immediately below for why its removal moved no score.
+  const WANT_HEAD = [10, 15, 25, 50, 100];
   for (let i = 0; i < WANT_HEAD.length; i++) {
     if (COMBO_THRESHOLDS[i] !== WANT_HEAD[i]) {
       fail(`combo ladder: front-loaded head should be ${WANT_HEAD.join(', ')} — got ${COMBO_THRESHOLDS.slice(0, WANT_HEAD.length).join(', ')}`);
       break;
+    }
+  }
+
+  // EVERY ENTRY MUST DO SOMETHING (T-501). The ladder used to open with `2`
+  // against a mapping of `level = i + 1`, and level 1 is already the floor — so
+  // crossing index 0 awarded exactly what a chain of 0 already had. The game
+  // published a step the player could not feel, and the defect was structural:
+  // ANY value at index 0 was inert, so re-tuning `2` to `5` would have fixed
+  // nothing. This guard asks the LADDER FUNCTION whether the crossing changes
+  // the payout, rather than checking the index arithmetic that caused it — the
+  // same reason the literal table below exists instead of a restatement of
+  // `comboMult`'s body.
+  for (let i = 0; i < COMBO_THRESHOLDS.length; i++) {
+    const t = COMBO_THRESHOLDS[i];
+    const at = comboMult(t), below = comboMult(t - 1);
+    if (at === below) {
+      fail(`combo ladder: threshold ${t} (index ${i}) is INERT — a chain of ${t} awards x${at}, exactly what a chain of ${t - 1} awards. The table states a step the player cannot feel (T-501)`);
     }
   }
 
@@ -1571,15 +1595,15 @@ function validateRewardLadders() {
   // COMBO_MAX_LEVEL. Every boundary is sampled on both sides, because a table
   // that only samples mid-band cannot see an off-by-one at the edge.
   //
-  // NOTE, and it is a real finding rather than an oddity of the transcription:
-  // the first threshold (2) is INERT. `comboLevel` maps a crossing of
-  // thresholds[i] to level i+1, and level 1 is already the floor, so a chain of
-  // 2 scores exactly what a chain of 0 scores. The published head reads
-  // "2, 10, 15" but the player feels steps at 10 and 15 only. Recorded here as
-  // measured, NOT quietly fixed: changing it would move every score in the game
-  // and needs a RANKED_SIM_VERSION bump, so it is the owner's call.
+  // THIS TABLE IS ALSO THE PROOF FOR T-501. The inert head entry `2` was
+  // dropped from COMBO_THRESHOLDS and the mapping moved to `level = i + 2`;
+  // because the fix was chosen so that every rung keeps its exact chain range,
+  // these rows had to keep passing WITHOUT A SINGLE EDIT. If a future change to
+  // the ladder forces an edit here, that change moved scores and needs a
+  // RANKED_SIM_VERSION bump — the table is the tripwire, so do not "update" it
+  // to match new behaviour without saying so out loud.
   const LADDER = [
-    [0, 1], [1, 1], [2, 1], [3, 1], [9, 1],        // level 1 floor — note the inert 2
+    [0, 1], [1, 1], [2, 1], [3, 1], [9, 1],        // the x1 floor, threshold-free
     [10, 2], [11, 2], [14, 2],
     [15, 3], [16, 3], [24, 3],
     [25, 4], [26, 4], [49, 4],
@@ -1699,6 +1723,83 @@ function validateRewardLadders() {
     }
   }
 
+  // T-503: the finish bonus is a payout for FINISHING. It was added to the
+  // coin total unconditionally and printed unconditionally, so a run that timed
+  // out at 3% of the city collected +35 for reaching the goal on a screen whose
+  // own heading read "TIME'S UP". Harmless while the only way to end a sandbox
+  // run was to reach the goal; a live payout bug from the moment the 180 s clock
+  // made timing out the ordinary ending.
+  //
+  // TWO independent assertions, because the bug has two halves and either can
+  // be fixed without the other: the money and the copy. The copy check is
+  // per-line rather than a whole-body search — a `Finish bonus` sitting outside
+  // any `sim.won` conditional is the ungated form however the rest reads.
+  const sandboxResults = stripComments(
+    screensSrc.slice(screensSrc.indexOf('showSandboxResults('), screensSrc.indexOf('showRunResults(')),
+  );
+  if (!sandboxResults.includes('SANDBOX_GOAL_BONUS')) {
+    fail('js/ui/screens.js: showSandboxResults no longer mentions SANDBOX_GOAL_BONUS — this guard has stopped watching anything (T-503)');
+  } else {
+    if (!/sim\.won\s*\?\s*SANDBOX_GOAL_BONUS\s*:\s*0/.test(sandboxResults)) {
+      fail('js/ui/screens.js: showSandboxResults adds SANDBOX_GOAL_BONUS to the coin payout without gating it on sim.won — a run that timed out at 3% is paid for finishing (T-503)');
+    }
+    for (const line of sandboxResults.split('\n')) {
+      if (/Finish bonus/.test(line) && !/sim\.won/.test(line)) {
+        fail(`js/ui/screens.js prints the finish bonus unconditionally: ${line.trim().slice(0, 110)} — when it was not earned the line must be ABSENT, not "+0", which reads as a broken game rather than an unearned reward (T-503)`);
+      }
+      // The same rule one row down. Gating the BONUS alone left `Coins earned
+      // +0` on the screen of a run that collected nothing — a different row
+      // printing the same zero, and a zero on a results screen reads as a bug in
+      // the game rather than as an honest nil return. `Coins found 0/60` two
+      // lines above already says why the payout is nothing.
+      if (/Coins earned/.test(line) && !/coins\s*>\s*0/.test(line)) {
+        fail(`js/ui/screens.js prints the coin payout unconditionally: ${line.trim().slice(0, 110)} — a "+0" payout row must be absent (T-503)`);
+      }
+    }
+  }
+
+  // T-502: the stored stat key must say which quantity it holds. `best_combo`
+  // held a CHAIN COUNT, so the first surface to render it would have printed
+  // 530 under a word that reads as a multiplier — the same defect T-309/T-311
+  // closed on every player-facing readout, one layer down in the schema.
+  const verifySrc = stripComments(read('api/_verify.mjs'));
+  if (/\bbest_combo\b/.test(verifySrc)) {
+    fail('api/_verify.mjs stores `best_combo` — the value is a chain COUNT and the key must say so (`best_chain`, T-502)');
+  }
+  if (!/\bbest_chain:\s*sim\.hole\.bestCombo\b/.test(verifySrc)) {
+    fail('api/_verify.mjs no longer writes best_chain from sim.hole.bestCombo — this guard has stopped watching anything (T-502)');
+  }
+
+  // T-504: ONE countdown in the sandbox HUD, and #timer is not it. The ranked
+  // run used to write its clock into #timer — the sandbox's coin readout —
+  // while #level-clock sat hidden (run90 leaves `sim.timeLeft` null), so the
+  // one mode whose length is a decision of record rendered its clock in a pill
+  // with no endgame states and lost the coin readout for the duration.
+  //
+  // The real assertion for this is the browser probe that COUNTS visible
+  // countdowns; these two are the cheap source tripwires that keep the shape
+  // from coming back, plus the stale markup the same defect left behind.
+  const sandboxHud = stripComments(
+    hudSrc.slice(hudSrc.indexOf('updateSandbox(sim)'), hudSrc.indexOf('_updateClock(seconds)')),
+  );
+  if (/this\.timer\.textContent\s*=\s*`\$\{[^`]*seconds/.test(sandboxHud)) {
+    fail('js/ui/hud.js writes a countdown into #timer during a sandbox run — that element is the coin readout, and the countdown belongs in #level-clock (T-504)');
+  }
+  if (/\b90\s*-\s*sim\.rankedTicks/.test(sandboxHud)) {
+    fail('js/ui/hud.js derives the ranked countdown from a literal 90 — the ranked length is ADR-0016\'s decision of record and must come from RANKED_TICK_COUNT (T-504)');
+  }
+  // The same literal was on the RUN results screen ("Clock 90.0 s"), which made
+  // three statements of one decision. Found while proving T-504 and closed with
+  // it: a length stated in three places is a length that will disagree in one.
+  if (/Clock\s*<b>\s*\d/.test(stripComments(screensSrc))) {
+    fail('js/ui/screens.js prints the ranked clock as a literal — it must come from RANKED_TICK_COUNT, the one place ADR-0016\'s length is declared (T-504)');
+  }
+  const staleTimer = stripHtmlComments(indexSrc).match(/<div id="timer">([^<]*)<\/div>/);
+  if (!staleTimer) fail('index.html has no #timer element — this guard no longer watches anything (T-504)');
+  else if (staleTimer[1].trim() !== '') {
+    fail(`index.html ships #timer holding "${staleTimer[1].trim()}" — the start value of the campaign clock ramp R-1.1 retired, and no mode counts down from it any more (T-504)`);
+  }
+
   // B2 #1 (T-310): the ring's big number is the visually dominant readout in
   // the HUD and it is a chain count. It must carry a unit in the markup.
   const readout = stripHtmlComments(indexSrc).match(/<div class="cm-readout">[\s\S]*?<\/div>/);
@@ -1727,7 +1828,11 @@ function validateRewardLadders() {
     if (sandboxBlock.includes(m)) fail(`js/main.js sandbox dressing calls ${m}() directly — every announcement must go through hud.announce()`);
   }
 
-  console.log(`  combo ladder: ${COMBO_THRESHOLDS.length} levels (${COMBO_THRESHOLDS.join(', ')}), x1..x${comboMult(1e6)}, "${COMBO_LEVEL_NAMES[COMBO_MAX_LEVEL]}" from chain ${topAt}`);
+  // "N levels" counts the x1 floor plus one per threshold. It used to print
+  // `COMBO_THRESHOLDS.length` beside the raw array, which is how the inert head
+  // entry stayed invisible for so long: the line read "8 levels (2, 10, 15, …)"
+  // and every number in it was true, while one of those numbers bought nothing.
+  console.log(`  combo ladder: ${COMBO_THRESHOLDS.length + 1} levels (x1 floor, then ${COMBO_THRESHOLDS.join(', ')}), x1..x${comboMult(1e6)}, "${COMBO_LEVEL_NAMES[COMBO_MAX_LEVEL]}" from chain ${topAt}`);
   console.log(`  milestone ladder: ${MILESTONES.length} rows, ${(MILESTONES[0].at * 100).toFixed(0)}% -> ${(MILESTONES[MILESTONES.length - 1].at * 100).toFixed(0)}% of the scene goal`);
 }
 

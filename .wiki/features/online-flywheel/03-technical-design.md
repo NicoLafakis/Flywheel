@@ -230,7 +230,7 @@ RLS: `select` for `anon` where `is_active`; write only via service role.
 | `duration_ticks` | `int` NOT NULL | `time / (1/60)`, integral by construction |
 | `claimed_score` | `numeric` NOT NULL | What the client says. Never displayed as fact |
 | `verified_score` | `numeric` NULL | What the server's replay produced. This is the number boards read |
-| `stats` | `jsonb` NOT NULL DEFAULT `'{}'` | Server-computed: `mass`, `best_combo`, `stars`, `time_left`, `eaten_count`, `blocks`, `consumed_fraction`. All metrics read out of here, so a new metric needs no column |
+| `stats` | `jsonb` NOT NULL DEFAULT `'{}'` | Server-computed: `mass`, `best_chain`, `stars`, `time_left`, `eaten_count`, `blocks`, `consumed_fraction`. All metrics read out of here, so a new metric needs no column. (`best_chain`, not `best_combo`: it is a count of blocks eaten in one chain, and the shipped scoreboards table was renamed for that reason by T-502. This proposal's key list otherwise predates what shipped — the built table is in `scoreboards-and-profiles/03-technical-design.md`.) |
 | `verdict` | `text` NOT NULL DEFAULT `'pending'` | `pending` \| `verified` \| `attested` \| `mismatch` \| `unverifiable` \| `rejected` |
 | `verdict_detail` | `jsonb` NULL | Divergence tick, expected vs. actual, replay ms |
 | `submitted_at`, `verified_at` | `timestamptz` | |
@@ -296,7 +296,7 @@ metric an `insert`.
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | `text` PK | `'mass'`, `'time_to_target'`, `'best_combo'`, `'consumed_fraction'`, `'blocks_per_minute'` |
+| `id` | `text` PK | `'mass'`, `'time_to_target'`, `'best_chain'`, `'consumed_fraction'`, `'blocks_per_minute'` |
 | `title` | `text` NOT NULL | `'Most Devoured'` |
 | `stat_path` | `text` NOT NULL | JSON path into `runs.stats`, e.g. `'mass'`. The only place a metric touches a column |
 | `direction` | `text` NOT NULL | `'desc'` (higher wins) \| `'asc'` (lower wins) |
@@ -401,7 +401,7 @@ serialise — one wins, the other retries and finds it is now the challenger.
 `unlocked_at`; PK on the first two, so a re-unlock is a no-op upsert).
 
 `criteria` is a small declarative predicate evaluated by
-`fw_eval_achievement(criteria, run)` — `{"stat":"best_combo","gte":25}`,
+`fw_eval_achievement(criteria, run)` — `{"stat":"best_chain","gte":25}`,
 `{"mode":"campaign","level_index":100,"stat":"stars","gte":3}`,
 `{"count_distinct":"scene_id","gte":4}`. Anything the predicate language cannot
 express gets `criteria: {"manual": true}` and is granted by an explicit call
@@ -577,7 +577,7 @@ The most important function in the system.
   "build_version": "a1b2c3d",
   "sim_version": 1,
   "duration_ticks": 7412,
-  "claimed": { "mass": 1893.4, "best_combo": 31, "stars": 3, "time_left": 46.2 },
+  "claimed": { "mass": 1893.4, "best_chain": 31, "stars": 3, "time_left": 46.2 },
   "inputs": { "encoding": "rle-i8-v1", "tick_count": 7412, "b64": "…" },
   "arena": null,                 // see arena-finalize for the multi-hole case
   "client_run_id": "5f2c…"       // client-generated uuid; idempotency key
@@ -620,7 +620,7 @@ The most important function in the system.
 { "ok": true, "data": {
   "run_id": "…",
   "verdict": "verified",
-  "verified": { "mass": 1893.4, "best_combo": 31, "stars": 3 },
+  "verified": { "mass": 1893.4, "best_chain": 31, "stars": 3 },
   "boards": [ { "board_id":"…", "slug":"all-time-mass",
                 "rank": 4, "previous_rank": 11, "value": 1893.4 } ],
   "belts_won": [ { "slug":"the-heavyweight", "title":"THE HEAVYWEIGHT",

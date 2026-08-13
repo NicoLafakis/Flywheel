@@ -79,16 +79,19 @@ export async function verifyReplay(run, input) {
       verdict: 'verified',
       score,
       stats: {
-        // `best_combo` is a CHAIN COUNT — blocks eaten inside one unbroken
-        // 1.5 s chain — not a multiplier. The key name says combo, which is the
-        // same ambiguity T-309/T-310 just removed from every player-facing
-        // readout (audit B2 #16). Left as-is deliberately: renaming it is a
-        // stored-column change on rows that already exist, and nothing renders
-        // it today, so it is flagged here rather than migrated in a UI pass.
-        // If it ever reaches a screen, it must be labelled as a chain and the
-        // multiplier it bought printed beside it, exactly like the results
-        // screens now do (`comboMult(bestCombo)`).
-        raw_mass: Math.floor(sim.hole.rawMass), best_combo: sim.hole.bestCombo,
+        // `best_chain` is a CHAIN COUNT — blocks eaten inside one unbroken
+        // 1.5 s chain — not a multiplier, and the key now says so (T-502). It
+        // shipped as `best_combo`, which is the same ambiguity T-309/T-311
+        // removed from every player-facing readout (audit B2 #16): a stored 530
+        // under a key called combo reads as x530 against a ladder that stops at
+        // x8. Existing rows are moved by
+        // supabase/migrations/20260813120000_rename_run_stats_best_combo.sql.
+        //
+        // The multiplier that chain bought is deliberately not stored beside it:
+        // it is `comboMult(best_chain)`, and whatever surface first renders this
+        // must derive it from the sim's own ladder the way the results screens
+        // do, rather than carry a second copy that can drift.
+        raw_mass: Math.floor(sim.hole.rawMass), best_chain: sim.hole.bestCombo,
         eaten: sim.hole.eatenCount, size: sim.hole.size,
         consumed_fraction: sim.totalMass ? sim.hole.rawMass / sim.totalMass : 0,
       },

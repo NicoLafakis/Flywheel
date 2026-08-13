@@ -38,9 +38,26 @@ tying everything together.
   `null` (as the campaign `update()` does explicitly) to hide it, otherwise it
   writes `formatClock()` and toggles `.warn`/`.urgent` from the thresholds
   exported by `js/levelclock.js`. Never read 30/10 or 180 locally.
+  **THE RUN goes through the same pill (T-504, 2026-08-13)** — its seconds are
+  `(RANKED_TICK_COUNT - sim.rankedTicks) / 60`, never a literal 90, and never
+  `#timer`. It used to overwrite `#timer`, which left the ranked countdown in a
+  pill with no endgame states, hid `#level-clock` (run90 leaves `sim.timeLeft`
+  null), and destroyed the coin readout for the length of the run. The rule that
+  catches the next one: **count the visible countdowns, do not read one of
+  them** — a probe reading `#timer`'s text passes just as happily with a second
+  contradictory clock beside it.
 - The goal line reads `sim.won`, never `cleared >= sim.goal.targetFraction`.
   At `targetFraction` 1.0 that comparison is the exact expression the sim needs
   a 1e-9 epsilon for, so a real full clear would sit on "CLEARED 99%" forever.
+  **The sandbox results screen reads the same latch for its payout (T-503).**
+  `SANDBOX_GOAL_BONUS` used to be added unconditionally, so a run that timed out
+  at 3% was paid +35 for finishing on a screen headed "TIME'S UP". Rule for any
+  future payout row: gate it on the outcome latch, and when it was not earned
+  **omit the row** rather than printing `+0` — a zero on a results screen reads
+  as a broken game, not as an honest nil. That applies to the coin payout total
+  as much as to the bonus. The screen passes its computed payout into
+  `recordSandboxResult` through the continue callback, so the number banked is
+  the number displayed rather than a second calculation.
 - THE RUN is not a city-clear variant. Its clock ends at 5,400 fixed steps and
   a browser-displayed score is provisional until the server marks the replay
   verified. Never make a board request from the fixed-step loop or treat a

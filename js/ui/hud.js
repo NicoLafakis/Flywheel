@@ -1,6 +1,8 @@
 // HUD: mass bar, timer, combo, level banner, minimap, toasts.
 
-import { COMBO_WINDOW, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES, comboLevel } from '../voxelsim.js';
+import {
+  COMBO_WINDOW, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES, comboLevel, RANKED_TICK_COUNT,
+} from '../voxelsim.js';
 import { LEVEL_CLOCK_URGENT_SECONDS, LEVEL_CLOCK_WARN_SECONDS, formatClock } from '../levelclock.js';
 // The CAMPAIGN ladder is a different one — it caps at 3.0 where the voxel
 // ladder above caps at 8x. Imported so the campaign pill reads the multiplier
@@ -240,27 +242,40 @@ export class HUD {
     // HUD; the payout is explained on the results screen where the math lives.
     this.timer.textContent = `🪙 ${sim.coinsCollected}/${sim.coins.length}`;
     this.timer.classList.remove('low');
+    // THE RUN's countdown belongs in the countdown pill, not in this one (T-504).
+    // It used to overwrite #timer, which index.html's own comment says cannot be
+    // both ("one element cannot be both without one of them disappearing") — and
+    // the thing that disappeared was the coin readout, for the whole of the one
+    // mode whose length is a decision of record. Meanwhile #level-clock sat
+    // hidden, because `sim.timeLeft` is null in run90, so the run's clock was
+    // rendered in a pill with no endgame states while the pill that has them was
+    // switched off. One countdown, one element, every mode.
+    //
+    // Derived from RANKED_TICK_COUNT rather than a literal 90: the ranked length
+    // is ADR-0016's decision of record and the HUD must not hold a second copy
+    // of it, for the same reason the level clock reads LEVEL_CLOCK_SECONDS.
+    let clockSeconds = sim.timeLeft;
     if (sim.mode === 'run90') {
-      const seconds = Math.max(0, 90 - sim.rankedTicks / 60);
+      clockSeconds = Math.max(0, (RANKED_TICK_COUNT - sim.rankedTicks) / 60);
       this.massLabel.textContent = `THE RUN · SIZE ${h.size} · ${Math.floor(cleared * 100)}% OF CHICAGO`;
-      this.timer.textContent = `${seconds.toFixed(1)} s`;
-      this.timer.classList.toggle('low', seconds <= 10);
     }
     // The old sandbox combo pill printed `⚡ COMBO x{floor((chain-1)/25)+1}` —
     // a LEVEL INDEX in multiplier notation, which read x2 at chain 26 while the
     // sim awarded 1.1. It is replaced outright by the ring below, which reads
     // the sim's own exported ladder. The pill stays hidden in the sandbox.
     this.comboLabel.classList.add('hidden');
-    this._updateClock(sim.timeLeft);
+    this._updateClock(clockSeconds);
     this._updateScore(h.mass);
     this._updateCombo(h);
   }
 
-  // The countdown pill. `seconds` is the sim's own `timeLeft`, so the readout is
-  // SIM time and cannot drift from the tick the run actually ends on — a HUD
-  // that counted wall-clock seconds would show 0:00 while the sim kept running
-  // on a slow device. `null` means the mode has no level clock (THE RUN keeps
-  // its own bound), and the pill goes away rather than showing a zero.
+  // The countdown pill, and the ONLY countdown in the sandbox HUD (T-504).
+  // `seconds` is derived from a TICK COUNT — `sim.timeLeft` in free play,
+  // `RANKED_TICK_COUNT - rankedTicks` in THE RUN — so the readout is SIM time
+  // and cannot drift from the tick the run actually ends on; a HUD counting
+  // wall-clock seconds would show 0:00 while the sim kept running on a slow
+  // device. `null` means the mode has no countdown at all (the campaign, which
+  // keeps its own in #timer), and the pill goes away rather than showing a zero.
   _updateClock(seconds) {
     if (seconds === null || seconds === undefined) {
       if (this._clockStateShown !== 'off') {

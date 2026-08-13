@@ -55,6 +55,23 @@ consumer reads that one object.**
   chain into either quantity, and `js/ui/hud.js` imports `comboMult` rather than
   mirroring it.
 
+> **Amended 2026-08-13 (T-311, T-501).** The rung boundaries this ADR decided
+> are unchanged; two statements of them above are not how the code reads today.
+>
+> - The array is `[10, 15, 25, 50, 100, 350, 600]` and the level is `i + 2`, not
+>   the count of thresholds passed. Written as decided — `2` at index 0 under
+>   `i + 1` — the first entry was **inert**: level 1 is already the floor, so
+>   crossing `2` awarded what a chain of 0 awarded, and the game published a step
+>   the player could not feel. Any value at index 0 had that property, so this is
+>   a correction to the representation and not to the decision: every rung x1..x8
+>   still begins on exactly the chain this ADR ruled, and no score moved.
+>   `COMBO_MAX_LEVEL` is now `COMBO_THRESHOLDS.length + 1` for the same reason —
+>   the x1 floor is a level with no threshold.
+> - Level 8 is displayed as `x8`, not by the name `MAX`. Naming the top rung made
+>   the ceiling the one value the game never printed, next to a chain count that
+>   keeps climbing; the summit now reads as the summit through a `topped` state
+>   on the ring instead. See `.wiki/findings/RCA-2026-08-13-scoring-and-combo-audit.md`.
+
 **The consumption milestone ladder is the same shape**: `MILESTONES` is an
 ordered array of `{ at, text, tier }` where `at` is a fraction of the scene
 *goal*, replacing the `0.25`-step arithmetic that hard-coded four thresholds

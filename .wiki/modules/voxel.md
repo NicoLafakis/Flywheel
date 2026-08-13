@@ -241,20 +241,28 @@ clamps at ×10: Upper Manhattan's raw ratio is `round(86083/4200) = 21`, so it
 is pinned at the ceiling and cannot re-pace any harder however much mass a
 future pass adds.
 
-**The combo ladder, stated once (2026-08-13, T-311/T-312).** `COMBO_THRESHOLDS =
-[2, 10, 15, 25, 50, 100, 350, 600]`, `COMBO_STEP = 1`, `COMBO_MAX_LEVEL = 8`, so
-`comboMult` runs **x1 → x8** and x8 begins at a chain of 600. That is the number
-the HUD must show; `COMBO_LEVEL_NAMES`'s top rung is `x8` and no longer `MAX`.
-`tools/validate.mjs` pins this as a hard-coded literal table (both sides of every
-boundary) instead of the tautology it used to be — the old assertion recomputed
-`comboMult`'s own body and passed on a ladder paying x50.
+**The combo ladder, stated once (2026-08-13, T-311/T-312/T-501).**
+`COMBO_THRESHOLDS = [10, 15, 25, 50, 100, 350, 600]`, `COMBO_STEP = 1`,
+`COMBO_MAX_LEVEL = COMBO_THRESHOLDS.length + 1 = 8`, and `comboLevel` maps a
+crossing of `thresholds[i]` to **`level = i + 2`**. So `comboMult` runs
+**x1 → x8**, x1 is the threshold-free floor, and x8 begins at a chain of 600.
+That is the number the HUD must show; `COMBO_LEVEL_NAMES`'s top rung is `x8` and
+no longer `MAX`. `tools/validate.mjs` pins this as a hard-coded literal table
+(both sides of every boundary) instead of the tautology it used to be — the old
+assertion recomputed `comboMult`'s own body and passed on a ladder paying x50.
 
-**Known, reported, NOT fixed:** the first threshold (`2`) is **inert**.
-`comboLevel` maps a crossing of `thresholds[i]` to level `i+1`, and level 1 is
-already the floor, so a chain of 2 pays exactly what a chain of 0 pays. The
-ladder head reads "2, 10, 15" but the player only feels steps at 10 and 15.
-Correcting it moves every score in the game and needs a `RANKED_SIM_VERSION`
-bump, so it is the owner's call — see STATUS.md.
+**Why `i + 2` (T-501, fixed 2026-08-13).** The list used to open with `2` under a
+mapping of `i + 1`, and level 1 is already the floor — so crossing index 0
+awarded exactly what a chain of 0 awarded. A chain of 2 scored what a chain of 0
+scored while the published head said "2, 10, 15". The defect was structural
+rather than a bad number: **any** value at index 0 was inert, so re-tuning `2`
+would have fixed nothing. Dropping the entry and shifting the mapping leaves
+every rung on its exact previous chain range, so **no score moved** and there was
+no `RANKED_SIM_VERSION` implication — the literal table in `tools/validate.mjs`
+passing unedited is the proof, and it is deliberately kept as the tripwire: a
+future ladder change that forces an edit there is a change that moves scores.
+Whether the first real step belongs at 10 is a separate tuning question this
+leaves a clean seam for and does not answer.
 
 Because the ladder now reads RAW mass, the top levels are no longer priced
 against a combo that can no longer pay for them, and the thresholds came down

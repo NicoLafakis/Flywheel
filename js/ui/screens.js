@@ -11,7 +11,10 @@ import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME } fro
 import { BOARDS_ENABLED } from '../board/config.js';
 // The sandbox payout constants, so the results screen cannot advertise a coin
 // value or a finish bonus the sim does not define. js/voxelsim.js owns both.
-import { SANDBOX_COIN_VALUE, SANDBOX_GOAL_BONUS, comboMult } from '../voxelsim.js';
+// RANKED_TICK_COUNT joins them for the same reason: the run's length was typed
+// here as the literal "90.0 s", a third statement of ADR-0016's decision of
+// record beside the sim's constant and (until T-504) the HUD's own literal 90.
+import { SANDBOX_COIN_VALUE, SANDBOX_GOAL_BONUS, RANKED_TICK_COUNT, comboMult } from '../voxelsim.js';
 // The CAMPAIGN ladder, which is a different one — it caps at 3.0 where the
 // voxel ladder caps at 8x. Imported rather than restated so the results screen
 // cannot print a multiplier the campaign sim never awarded (T-309: it used to
@@ -323,7 +326,16 @@ export class Screens {
     // The two payout constants come from the sim rather than being typed here.
     // They were literals — `coinsCollected * 2 + 35` beside a "+35" in the copy
     // — which is three independent statements of two numbers that must agree.
-    const coins = sim.coinsCollected * SANDBOX_COIN_VALUE + SANDBOX_GOAL_BONUS;
+    // The finish bonus is a payout for FINISHING (T-503). It used to be added
+    // unconditionally, so a run that ran out of clock at 3% of the city was
+    // paid +35 for reaching a goal it never reached — on a screen whose own
+    // heading two lines below reads "TIME'S UP" and whose own body prints
+    // "City cleared 3%". Harmless while a sandbox run could only end by
+    // reaching the goal; a live payout bug from the moment the 180 s clock made
+    // timing out the ordinary ending. `sim.won` is the same latch the heading
+    // and the percentage read, so all three now state one outcome.
+    const bonus = sim.won ? SANDBOX_GOAL_BONUS : 0;
+    const coins = sim.coinsCollected * SANDBOX_COIN_VALUE + bonus;
     // Bank line projects the post-award total: recordSandboxResult runs in the
     // continue callback, so at render time save.coins is still pre-award.
     // The run's peak has to survive the run, or every celebration during it was
@@ -347,7 +359,8 @@ export class Screens {
       <div>Score <b>${score.toLocaleString('en-US')}</b>${newScore ? ' <span class="rec-new">BEST!</span>' : ''}</div>
       <div>Best chain <b>${best} eats at x${comboMult(best)}</b>${newCombo ? ' <span class="rec-new">BEST!</span>' : ''}</div>
       <div>Coins found <b>${sim.coinsCollected}/${sim.coins.length}</b></div>
-      <div>Finish bonus <b>+${SANDBOX_GOAL_BONUS}</b></div><div>Coins earned <b>+${coins}</b></div>
+      ${sim.won ? `<div>Finish bonus <b>+${SANDBOX_GOAL_BONUS}</b></div>` : ''}
+      ${coins > 0 ? `<div>Coins earned <b>+${coins}</b></div>` : ''}
       <div>Bank <b>🪙 ${this.save.coins + coins}</b></div></div></div>`);
     const again = el(`<button class="btn">PLAY AGAIN</button>`); again.onclick = () => onContinue(false, coins);
     const cities = el(`<button class="btn secondary">CITIES</button>`); cities.onclick = () => onContinue(true, coins);
@@ -365,7 +378,7 @@ export class Screens {
     const s = el(`<div class="screen"><h2>THE RUN</h2><div class="results-stats">
       <div>YOUR RUN <b>${score.toLocaleString('en-US')} pts</b></div>
       <div>Best chain <b>${sim.hole.bestCombo} eats at x${comboMult(sim.hole.bestCombo)}</b></div>
-      <div>Clock <b>90.0 s</b></div>
+      <div>Clock <b>${(RANKED_TICK_COUNT / 60).toFixed(1)} s</b></div>
       <div class="run-rank-status">SAVED — NOT RANKED (NO CONNECTION)</div>
       <div>${traceNote}</div></div></div>`);
     // By class, not by child index. The index was `children[3]`, which silently

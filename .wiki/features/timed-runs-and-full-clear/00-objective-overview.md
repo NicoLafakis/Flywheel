@@ -65,6 +65,11 @@ called out as a seam in [requirements](02-requirements.md) R-2.5.
 
 ## Why the multiplier reads wrong today
 
+*As-found state, 2026-08-13, kept as the diagnosis. Both lines below have since
+been corrected — `MAX` became `x8` (T-311) and the inert leading `2` was dropped
+with the mapping shifted to `i + 2` (T-501), which moved no score. Current truth:
+`.wiki/modules/voxel.md`.*
+
 Confirmed by inspection, `js/voxelsim.js:176-216`:
 
 ```

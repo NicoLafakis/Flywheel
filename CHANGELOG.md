@@ -3,6 +3,64 @@
 Detailed build history, migrated from STATUS.md (which is a lean board, not a
 changelog). Newest first. Commit-level history: `git log`.
 
+- 2026-08-13: **Four findings closed, not filed** (Phase 5 of
+  `.wiki/features/timed-runs-and-full-clear/`, T-501..T-504 — the out-of-scope
+  defects Phase 3 raised).
+  (1) **The head of the combo ladder did nothing.** `comboLevel` mapped a
+  crossing of `COMBO_THRESHOLDS[i]` to level `i + 1`, and level 1 is the floor,
+  so crossing index 0 awarded what a chain of 0 already had: a chain of 2 scored
+  exactly what a chain of 0 scored while the game published a step at 2. The
+  defect was structural, not a bad number — **any** value at index 0 was inert,
+  so re-tuning `2` to `5` would have fixed nothing. The entry is dropped, the
+  mapping is `level = i + 2`, and `COMBO_MAX_LEVEL` is `length + 1` (the x1
+  floor is a level with no threshold). Every rung x1..x8 keeps its exact chain
+  range, so **no score moved and there is no `RANKED_SIM_VERSION` implication**.
+  Proven twice over: the 27-row literal chain→multiplier table in
+  `tools/validate.mjs` passes **unedited**, and six scripted routes replay
+  bit-identically — gallery 19,149 (peak chain 601, so it crosses the top rung),
+  Manhattan 23,175 (peak 1,526), its district excursion 5,025, Brooklyn 6,397,
+  Boston 12,957, Chicago 7,228. A new guard asks the ladder FUNCTION whether
+  each threshold changes the payout, rather than checking the index arithmetic
+  that caused the bug.
+  (2) **The stored stat says which quantity it holds.** `runs.stats.best_combo`
+  was a chain COUNT under a multiplier's name — the schema-level twin of the
+  readout defect T-309/T-311 closed, and the first surface to render it would
+  have printed 530 against a ladder that stops at x8. Renamed to `best_chain`
+  in `api/_verify.mjs` (its only writer; there is no reader) with an idempotent
+  jsonb migration for existing rows. The multiplier that chain bought is
+  deliberately not stored beside it: it is `comboMult(best_chain)`, derived by
+  the same ladder every other surface reads.
+  (3) **The finish bonus is paid for finishing.** `SANDBOX_GOAL_BONUS` was added
+  to the coin payout unconditionally, so a run that ran out of clock at 3% of
+  the city collected +35 for reaching a goal it never reached — on a screen
+  whose own heading read "TIME'S UP". Harmless while reaching the goal was the
+  only way to end a sandbox run; a live payout bug from the moment the 180 s
+  clock made timing out the ordinary ending. Gated on `sim.won`, the same latch
+  the heading and the percentage read. The row is **absent** when unearned
+  rather than showing "+0" — and the same rule now applies one row down, because
+  gating only the bonus left `Coins earned +0` on the screen of a run that
+  collected nothing, which reads as a broken game rather than an honest nil.
+  Measured end to end: a timed-out run banks `coins × 2`, a full clear banks
+  `coins × 2 + 35`, and the bank moves by exactly the number the screen printed.
+  (4) **One countdown, in the pill built for it.** THE RUN wrote its clock into
+  `#timer` — the sandbox's coin readout — while `#level-clock` sat hidden
+  (`sim.timeLeft` is null in run90). So the one mode whose length is a decision
+  of record rendered its countdown in a pill with no endgame states, and the
+  coin readout vanished for the whole run. `index.html`'s own comment had
+  already warned that "one element cannot be both without one of them
+  disappearing". The countdown now goes to `#level-clock` in every mode, derived
+  from `RANKED_TICK_COUNT` rather than a literal 90 — as does the RUN results
+  screen's "Clock 90.0 s", found while proving this and closed with it, since a
+  length stated in three places is a length that will disagree in one. `#timer`
+  no longer ships holding `75`, the start value of the campaign clock ramp R-1.1
+  retired. The proof COUNTS visible countdowns in the browser rather than
+  reading one of them, because a probe that reads `#timer` passes just as
+  happily with a second contradictory clock beside it.
+  Every guard above was run against a deliberately broken build first — HEAD's
+  own files restored one at a time, plus the near-miss forms (the inert entry
+  re-tuned instead of removed; the mapping left at `i + 1`, which the literal
+  table catches as 23 moved scores; the money gated but the copy left
+  unconditional) — and every one failed before it passed.
 - 2026-08-13: **Score integrity and honest combo readouts** (Phase 3 of
   `.wiki/features/timed-runs-and-full-clear/`, closing
   `.wiki/findings/RCA-2026-08-13-scoring-and-combo-audit.md`).

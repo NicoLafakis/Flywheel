@@ -187,7 +187,7 @@ no `auth.users` foreign key.** This table is the entire identity system.
 | `client_build` | `text` NOT NULL | Git short SHA. |
 | `claimed_score` | `numeric` NOT NULL | **Read once, by the placement gate. Never displayed, never ranked.** |
 | `verified_score` | `numeric` NULL | What the server computed. The only number a board reads. |
-| `stats` | `jsonb` NOT NULL DEFAULT `'{}'` | Server-computed: `raw_mass`, `best_combo`, `eaten`, `size`, `consumed_fraction`. A new metric needs no column. |
+| `stats` | `jsonb` NOT NULL DEFAULT `'{}'` | Server-computed: `raw_mass`, `best_chain`, `eaten`, `size`, `consumed_fraction`. A new metric needs no column. `best_chain` is a COUNT of blocks eaten in one unbroken chain, not a multiplier — it shipped as `best_combo` and was renamed by T-502; the multiplier it bought is `comboMult(best_chain)` and is deliberately not stored. |
 | `verdict` | `text` NOT NULL DEFAULT `'pending'` | `pending` \| `verified` \| `unranked` \| `unverifiable` \| `mismatch` \| `flagged` |
 | `verdict_detail` | `jsonb` NULL | Divergence tick, expected vs actual, replay ms. |
 | `created_at`, `verified_at` | `timestamptz` | Server clock. Not client-writable. |
