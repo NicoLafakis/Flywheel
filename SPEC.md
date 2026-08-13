@@ -105,7 +105,13 @@ Paths: `.longhaul/**`, `SPEC.md`, all paths claimed by AC-1 through AC-6.
 
 ## Non-goals
 
-- Do not rank a 50% city clear, the live arena, or legacy local records.
+- Do not rank a free-play city run, the live arena, or legacy local records.
+  (This line read "a 50% city clear" until 2026-08-13. The rule it states is
+  unchanged and undiminished — only THE RUN is ranked — but the fraction it
+  named is gone: every scene's goal is now 100% of the city and a free-play run
+  ends on the 180 s clock at whatever percentage it reached. Naming a fraction
+  here would have made the rule sound like it was about how much of the city was
+  eaten, when it is about which MODE is ranked.)
 - Do not add accounts, email/password/OAuth authentication, cloud-save sync,
   chat, free text beyond a display name, seasons, belts, ghost replays, daily
   challenges, friend boards, or a new paid service.

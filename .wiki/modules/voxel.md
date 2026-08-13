@@ -18,6 +18,40 @@ covers:
 
 ## Goal runs and rewards
 
+**The goal is the whole city, and the clock is what ends the run** (2026-08-13).
+`SCENE_GOALS` (exported from `js/voxelsim.js`, formerly the private `GOALS`)
+carries `targetFraction: 1.0` on all seven scenes. 100% is a **scoring ceiling**,
+not a pass/fail win condition: a free-play run ends when the 180 s clock expires
+and the player is scored on the percentage reached. Flipping 100% into a hard
+win condition must remain a one-constant change.
+
+Clock fields on a non-ranked `VoxelSandboxSim`:
+
+| Field | Meaning |
+|-------|---------|
+| `clockLimit` | `LEVEL_CLOCK_TICKS` (10,800), or `null` in `run90` |
+| `clockTicks` | ticks elapsed — the authority; `timeLeft` is derived from it every step |
+| `timeLeft` | seconds remaining, or `null` in `run90` (the HUD hides the pill on `null`) |
+| `timedOut` | set once, with `over`, on the tick the clock expires |
+
+Counted in TICKS, not accumulated float seconds, so expiry is bit-exact and
+device-independent (a slow device gets the same game, not a shorter one). The
+clock block in `step()` sits AFTER the goal/win check, so a full clear on the
+final tick is a win rather than a time-out, and after the `run90` early return,
+so THE RUN never reaches it. Expiry emits `{type:'timeup'}`; the two endgame
+marks emit `{type:'clock', at}` once each at 30 s and 10 s.
+
+Because the goal is now the whole map, **any permanently uneatable mass makes a
+scene unwinnable**, not merely slower — the grade clause in `js/voxelforms.js`
+went from a tuning concern to a correctness one. `validateScenesWinnable()` in
+`tools/validate.mjs` is the net: it consumes every block of every scene in
+radial order and asserts `won`. It consumes in radial order deliberately —
+`rawMass` accumulates per block while `totalMass` is a `reduce()` in array
+order, so the same summands in a different order leave a float shortfall, which
+is why the win check carries a `totalMass * 1e-9` epsilon. The guard prints the
+shortfall as a percentage of that epsilon so a closing margin is visible before
+it crosses.
+
 ## Ranked RUN
 
 `VoxelSandboxSim` also has a narrowly-scoped `run90` mode for ADR-0016. It is
@@ -206,6 +240,21 @@ at its 86,083 mass) so progression pacing is scene-relative. The multiplier
 clamps at ×10: Upper Manhattan's raw ratio is `round(86083/4200) = 21`, so it
 is pinned at the ceiling and cannot re-pace any harder however much mass a
 future pass adds.
+
+**The combo ladder, stated once (2026-08-13, T-311/T-312).** `COMBO_THRESHOLDS =
+[2, 10, 15, 25, 50, 100, 350, 600]`, `COMBO_STEP = 1`, `COMBO_MAX_LEVEL = 8`, so
+`comboMult` runs **x1 → x8** and x8 begins at a chain of 600. That is the number
+the HUD must show; `COMBO_LEVEL_NAMES`'s top rung is `x8` and no longer `MAX`.
+`tools/validate.mjs` pins this as a hard-coded literal table (both sides of every
+boundary) instead of the tautology it used to be — the old assertion recomputed
+`comboMult`'s own body and passed on a ladder paying x50.
+
+**Known, reported, NOT fixed:** the first threshold (`2`) is **inert**.
+`comboLevel` maps a crossing of `thresholds[i]` to level `i+1`, and level 1 is
+already the floor, so a chain of 2 pays exactly what a chain of 0 pays. The
+ladder head reads "2, 10, 15" but the player only feels steps at 10 and 15.
+Correcting it moves every score in the game and needs a `RANKED_SIM_VERSION`
+bump, so it is the owner's call — see STATUS.md.
 
 Because the ladder now reads RAW mass, the top levels are no longer priced
 against a combo that can no longer pay for them, and the thresholds came down

@@ -17,7 +17,7 @@ tying everything together.
 | File | Purpose |
 |------|---------|
 | `js/main.js` | Boot, state machine (menu/intro/playing/paused/results), loop, audio; branches campaign vs voxel sandbox (`isVoxelSandbox`). Its separate `run90` path quantizes and records each fixed-tick input before stepping the pinned RUN tune; it lazy-loads board code and drains a durable outbox only at boot/reconnect/focus/timer boundaries, never in the sim loop |
-| `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, the announcement queue and its three backends (`#toast`, `#big-pop`, `#hype-band`); `updateSandbox()` variant for the voxel mode (live `CLEARED x% / 50% · SIZE n` readout, dimmed coin pill via `body.mode-sandbox`, the score plate's count-up, and the combo ring — chain, window drain and the multiplier read from `voxelsim.js`'s exported ladder, never re-derived; see [ADR-0015](../adr/0015-scoring-ladder-is-a-table-the-hud-reads.md)) |
+| `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, the announcement queue and its three backends (`#toast`, `#big-pop`, `#hype-band`); `updateSandbox()` variant for the voxel mode (live `CLEARED x% OF THE CITY · SIZE n` readout, the `#level-clock` countdown pill via `_updateClock()`, dimmed coin pill via `body.mode-sandbox`, the score plate's count-up, and the combo ring — chain, window drain and the multiplier read from `voxelsim.js`'s exported ladder, never re-derived; see [ADR-0015](../adr/0015-scoring-ladder-is-a-table-the-hud-reads.md)) |
 | `js/ui/screens.js` | Title (branded landing over a live city backdrop: sprocket + `FLYWHEEL` wordmark + tagline plate, PLAY BROOKLYN CTA as the screen's one saturated element, a save-derived status strip — biggest hole, best score, coin bank and the coin gap to the next unlock — a `FREE_PLAY`-driven voxel-scene chip shelf with per-city cleared/best records, one silhouetted locked card carrying its unlock price in words, THE RUN / RECORDS / PROFILE utilities, and a demoted SHOP/SETTINGS row), shop, results, pause (two-step confirms for run-discarding buttons), mechanic intro |
 | `js/ui/boards.js` + `js/board/` | Lazy optional board layer: accessible public record tables and profile/claim/transfer/remove actions; direct PostgREST reads use only the publishable key, while every mutation goes through a Vercel Function with a timeout and offline fallback |
 | `js/ui/menuscene.js` | The live city behind the landing screen — the same `VoxelSandboxSim` + `VoxelWorld3D` + `ChaseCamera` trio the sandbox mounts, on the same canvas, on autopilot (held establishing orbit, never released; a scripted heading sweep drives the hole so the skyline is actively being eaten). Scheduled, never blocking: `startMenuScene` only arms a timer, `tickMenuScene` is folded into `main.js`'s single rAF loop, and `stopMenuScene` disposes from `teardownWorld` before any game world claims the canvas |
@@ -32,6 +32,15 @@ tying everything together.
 
 - Screens communicate **only** through the `actions` object passed to
   `Screens` — don't reach into `main.js` state from UI code.
+- The countdown lives in `#level-clock`, its OWN pill — not in `#timer`, which
+  the sandbox already repurposed as the coin readout and the campaign still uses
+  as its own countdown. `_updateClock(seconds)` is the single entry point: pass
+  `null` (as the campaign `update()` does explicitly) to hide it, otherwise it
+  writes `formatClock()` and toggles `.warn`/`.urgent` from the thresholds
+  exported by `js/levelclock.js`. Never read 30/10 or 180 locally.
+- The goal line reads `sim.won`, never `cleared >= sim.goal.targetFraction`.
+  At `targetFraction` 1.0 that comparison is the exact expression the sim needs
+  a 1e-9 epsilon for, so a real full clear would sit on "CLEARED 99%" forever.
 - THE RUN is not a city-clear variant. Its clock ends at 5,400 fixed steps and
   a browser-displayed score is provisional until the server marks the replay
   verified. Never make a board request from the fixed-step loop or treat a
@@ -175,6 +184,31 @@ sharing a look, so a player can tell what fired without reading it:
 `#score-plate` in the left column carries the score (`hole.mass`) with an eased
 count-up, sized for its largest value so gaining a digit reflows nothing. All of
 it is scoped under `body.mode-sandbox`; the campaign HUD is untouched.
+
+**Amended 2026-08-13 (T-309..T-311): every readout states its unit.** The two
+combo ladders are different scales — the voxel ladder tops out at **8x**, the
+campaign ladder at **3.0x** — and the HUD was printing a chain COUNT in a
+multiplier's slot on both. The rule now, enforced by `tools/validate.mjs`'s
+source guards over `hud.js`, `screens.js`, `arena.js`, `index.html` and
+`arena.html`: **no `x${chain}` and no `x${bestCombo}`.** A number after an `x`
+must have come out of `comboMult` (voxel) or `comboMultiplier` (campaign).
+
+- The combo ring is a three-line stack: chain count, a `CHAIN` unit caption, and
+  the live multiplier. The unit is what makes the biggest number in the HUD
+  legible — it was a bare integer beside a multiplier arc.
+- `COMBO_LEVEL_NAMES`'s top rung is `x8`, not `MAX`. A word cannot be compared
+  to the rung below it, and the ceiling is a fact worth showing. The summit
+  reads as the summit through a paint-only `topped` glow (`#cm-mult`), which
+  costs no layout — a bordered pill collided with the arc at phone width.
+- Results rows read `530 eats at x7` (and `47 eats at x3.0` in campaign): one
+  `<b>` per row. `.results-stats b { float: right }` renders two bold values in
+  a row **right-to-left and detached from their label**, which no `innerText`
+  assertion can see; the validator now fails any results cell with two `<b>`s.
+
+The arena is under the same rule: it decides the match on the combo-multiplied
+points it prints, and its tug bar — still raw-mass — says `TERRITORY` so the two
+currencies cannot be confused. See `CHANGELOG.md` 2026-08-13 and
+`.wiki/findings/RCA-2026-08-13-scoring-and-combo-audit.md`.
 
 Every transient message now goes through **`hud.announce({ text, source,
 priority, ms, channel, tier })`** — one channel, a priority scale (`ANN`), and

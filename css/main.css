@@ -149,14 +149,49 @@ body {
   border-radius: 18px; padding: 6px 16px; min-width: 74px; text-align: center;
 }
 #timer.low { background: #ff4747; color: #fff; }
+/* ---------- the level clock ----------
+   Its own pill above the coin readout, in the same #hud-right column and built
+   from the same primitives as #timer so it reads as part of the HUD rather than
+   as a new visual language. Deliberately plain: a UI pass owns the treatment of
+   the 30 s / 10 s states after this, and what is here is the functional floor —
+   present, legible against a busy city, and never overlapping the goal stack
+   (which is #hud-left) or the coin pill and combo ring (which stack under it).
+   Sized for its widest value in tabular figures, so counting down from 3:00
+   through 0:09 cannot reflow the column under it. */
+#level-clock {
+  display: block; margin-top: 8px; margin-left: auto; width: max-content;
+  background: var(--fw-plate); border: 2px solid var(--fw-ink-2);
+  color: #fff; font-weight: 900; font-size: clamp(18px, 3vw, 26px);
+  letter-spacing: 2px; border-radius: 18px; padding: 5px 16px;
+  text-align: center; font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+  text-shadow: var(--fw-ring-2);
+}
+#level-clock.hidden { display: none; }
+/* The two endgame states (R-1.5). Colour is never the only channel: WARN gains
+   the gold the HUD already uses for "pay attention", URGENT goes to the one red
+   on the HUD (--fw-heat-8, the same red MAX uses) AND grows. */
+#level-clock.warn { color: var(--fw-gold); border-color: var(--fw-gold); }
+#level-clock.urgent {
+  color: var(--fw-heat-8); border-color: var(--fw-heat-8);
+  font-size: clamp(22px, 3.8vw, 32px);
+  animation: level-clock-pulse 1s steps(1, end) infinite;
+}
+@keyframes level-clock-pulse {
+  0%, 60% { background: var(--fw-plate); }
+  61%, 100% { background: rgba(255, 45, 31, .28); }
+}
 /* Pause icon: two drawn bars replacing the ❙❙ text glyph (index.html). */
 .pause-glyph { display: inline-flex; gap: 4px; align-items: center; justify-content: center; }
 .pause-glyph span { width: 5px; height: 16px; border-radius: 2px; background: var(--text-dark); }
 /* Sandbox HUD hierarchy: the goal bar is the win condition, the coin pill is a
    side currency. The first playtest showed the loud "0/60" pill pulling players
-   into coin-hunting while CLEAR 50% sat at 0.5% — so in the sandbox the pill
+   into coin-hunting while the goal sat at 0.5% — so in the sandbox the pill
    shrinks and dims, and the goal readout grows. Scoped by body.mode-sandbox so
-   the campaign HUD (which uses #timer as the countdown) is untouched. */
+   the campaign HUD (which uses #timer as the countdown) is untouched.
+   The finding originally read "CLEAR 50%", which is what the goal readout said
+   before every scene went to 100% of the city; the hierarchy it argues for is
+   unaffected by the number, and is if anything stronger now that the goal is
+   the whole map and the clock, not the coins, is what ends the run. */
 body.mode-sandbox #timer {
   font-size: clamp(12px, 1.8vw, 15px); font-weight: 700; opacity: .75;
   min-width: 0; padding: 4px 12px;
@@ -238,12 +273,29 @@ body.mode-sandbox #combo-meter.live { opacity: 1; }
   font-size: clamp(18px, 3.2vw, 26px); font-weight: 900; color: #fff;
   text-shadow: var(--fw-ring-2); font-variant-numeric: tabular-nums;
 }
+/* The unit for the number above it. Deliberately the smallest, quietest thing
+   in the ring: it has to be readable when looked at and invisible when not,
+   because the ring is glanced at eleven times a second during a chain. */
+.cm-unit {
+  font-size: clamp(6px, 1.05vw, 8px); font-weight: 700; letter-spacing: 1.4px;
+  color: rgba(255, 255, 255, .62); text-shadow: var(--fw-ring-2);
+  margin-top: 1px; line-height: 1;
+}
 /* The multiplier is the reason the chain count matters, so it is a separate
    line in the meter's own heat rather than another white number — colour is
    never the only channel, the two differ in size and position as well. */
 #cm-mult {
   margin-top: 2px; font-size: clamp(10px, 1.8vw, 13px); font-weight: 800;
   letter-spacing: 1px; color: var(--cm-heat); text-shadow: var(--fw-ring-2);
+}
+/* Topped out: the ladder's summit, expressed as a STATE rather than as the word
+   MAX over a chain count that keeps climbing (T-311). Deliberately PAINT ONLY —
+   no padding, no border box. The ring is 64px on a phone and the readout is
+   three lines inside a 46px inner diameter, so a treatment that grew the
+   multiplier's box pushed it onto the arc; a glow costs no layout at any size. */
+body.mode-sandbox #combo-meter.topped #cm-mult {
+  color: #fff;
+  text-shadow: 0 0 7px var(--cm-heat), 0 0 14px var(--cm-heat), var(--fw-ring-2);
 }
 /* Step pulse: a concentric ring OUT of the meter, ~250 ms. Short, sharp and
    repeatable — the opposite of the band's wide slow sweep, on purpose. */
@@ -315,10 +367,14 @@ body.mode-sandbox #combo-meter.broke .cm-arc { animation: cm-break .35s ease-in;
   body.mode-sandbox #combo-meter.step::after,
   body.mode-sandbox #combo-meter.broke .cm-arc { animation: none; }
   #hype-band.show { animation: hype-fade 2s ease-out forwards; }
+  /* The last-ten-seconds pulse stops; the colour, border and size step do not,
+     so the state is still unmistakable without anything moving. */
+  #level-clock.urgent { animation: none; background: rgba(255, 45, 31, .28); }
 }
 body.reduced-motion.mode-sandbox #score-plate.gain #score-value,
 body.reduced-motion.mode-sandbox #combo-meter.step::after,
 body.reduced-motion.mode-sandbox #combo-meter.broke .cm-arc { animation: none; }
+body.reduced-motion #level-clock.urgent { animation: none; background: rgba(255, 45, 31, .28); }
 body.reduced-motion #hype-band.show { animation: hype-fade 2s ease-out forwards; }
 /* The broken meter still has to be distinguishable from never-started without
    the collapse animation, so it holds a grey arc instead of moving. */

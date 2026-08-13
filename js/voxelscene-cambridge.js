@@ -6472,9 +6472,10 @@ function npFace(sim, o) {
   // THE SPANDREL IS ONE PIECE PER FACE PER STOREY EXCEPT AT GRADE, where it is
   // cut into ≤5 m runs. The grade clause is the reason and it is engine-derived
   // rather than stylistic: a piece at `gy === 0` past an 8 m plan diagonal is
-  // PERMANENTLY uneatable, it still counts toward `totalMass`, and it silently
-  // makes the 50% goal harder — so Archstone's 19 m ground spandrel would be
-  // 19 m of tower nobody can ever remove. `probeGradeDiagonal` fails it, which
+  // PERMANENTLY uneatable, it still counts toward `totalMass`, and since every
+  // scene went to targetFraction 1.0 that makes the scene UNWINNABLE rather
+  // than merely harder — so Archstone's 19 m ground spandrel would be 19 m of
+  // tower nobody can ever remove, and cambridge could never be cleared. `probeGradeDiagonal` fails it, which
   // is the clause working. One metre up the same member is a single piece and
   // that is not an inconsistency: nothing at height is subject to the clause,
   // because `_overVoid` swallows an elevated piece of any size whole.
@@ -9096,7 +9097,7 @@ function kendallStation(sim) {
   // The apron in four pieces, not one: a 7 x 6 m plinth at `gy === 0` is 9.08 m of
   // plan diagonal against the grade clause's 8, which `probeGradeDiagonal` fails —
   // and correctly, because a headhouse apron nobody can ever eat is 1.2 m³ of
-  // permanent mass working against the 50% goal.
+  // permanent mass that, at targetFraction 1.0, no run could ever clear.
   for (const [px, pz] of [[0, 0], [3.5, 0], [0, 3], [3.5, 3]]) {
     plinth(sim, { x: hx - 0.5 + px, y: 0, z: hz - 0.5 + pz, w: 3.5, d: 3, h: 0.25, mat: 'concrete', color: C.shelfApron });
   }
@@ -9159,8 +9160,9 @@ function longfellowBridge(sim) {
   const deckY = 5.5;
   // The abutment and the three bents, each cut into two pieces so nothing at grade
   // approaches the 8 m plan diagonal: a 10.5 x 2 m pier is 10.7 m of diagonal and
-  // would be a permanently uneatable bridge foot that still counts toward the 50%
-  // goal.
+  // would be a permanently uneatable bridge foot that still counts toward
+  // `totalMass` — and at targetFraction 1.0 that alone would make the scene
+  // unclearable, not just slower.
   const bents = [L.z0, L.z0 + 4, L.z0 + 9, L.z0 + 13];
   for (const bz of bents) {
     for (const px of [L.x0, L.x0 + 5.25]) {

@@ -79,13 +79,17 @@ begin('1. per-slot keyframe attribution round-trips cold (AC-01.5)');
 
   // The envelope round trip (what actually rides the wire).
   const env = P.encodeEnvelope('K', snap);
-  check('the keyframe envelope validates at v3', P.validate(env).ok);
+  check('the keyframe envelope validates at v4', P.validate(env).ok);
   const dec2 = P.decodeEnvelope(env);
   check('envelope round trip keeps the per-slot streams', dec2.eatenSlots.length === 3);
 
-  // AC-01.6: the version gate rejects the old protocol cleanly.
-  check('protocol version bumped to 3', P.PROTOCOL_VERSION === 3);
-  check('a v2 envelope is rejected by validate()', !P.validate({ ...env, v: 2 }).ok);
+  // AC-01.6: the version gate rejects the old protocol cleanly. v4 widened the
+  // per-hole mass field (T-307), so the version pinned here moved with it — and
+  // the rejection case moved to v3, the version actually in the wild, because a
+  // v3 client would misparse a v4 hole rather than merely fail to understand it.
+  check('protocol version bumped to 4', P.PROTOCOL_VERSION === 4);
+  check('a v3 envelope is rejected by validate()', !P.validate({ ...env, v: 3 }).ok);
+  check('a v2 envelope is still rejected by validate()', !P.validate({ ...env, v: 2 }).ok);
 
   // Malformed tails are dropped, not partially understood.
   const bytes = P.encodeSnapshot(snap);

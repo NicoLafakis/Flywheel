@@ -8,8 +8,10 @@ import { Sim } from '../js/sim.js';
 import { isEdible } from '../js/tiers.js';
 import {
   VoxelSandboxSim, COMBO_THRESHOLDS, COMBO_STEP, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES,
-  MILESTONES, MILESTONE_TIERS, comboLevel, comboMult, loadScene,
+  MILESTONES, MILESTONE_TIERS, RANKED_TICK_COUNT, SCENE_GOALS, comboLevel, comboMult,
+  loadScene,
 } from '../js/voxelsim.js';
+import { LEVEL_CLOCK_SECONDS, LEVEL_CLOCK_TICKS } from '../js/levelclock.js';
 import {
   BROOKLYN_CROSSINGS, BROOKLYN_OPEN_GROUND, BROOKLYN_ROAD_SPANS, BROOKLYN_STREETS,
   BROOKLYN_VEHICLES, vehicleBBox, XW_LEN,
@@ -192,7 +194,7 @@ function validateVoxelSandbox() {
   // state, and sweeping them in would replace a real invariant with noise.
   // The regex requires the open paren so that a header comment discussing
   // Math.random does not trip it.
-  const SIM_PURE_NAMED = ['rng', 'tiers', 'citygen', 'levels', 'sim', 'voxelsim', 'voxelkit', 'voxelforms', 'fwmath'];
+  const SIM_PURE_NAMED = ['rng', 'tiers', 'citygen', 'levels', 'sim', 'voxelsim', 'voxelkit', 'voxelforms', 'fwmath', 'levelclock'];
   const sceneFiles = readdirSync(new URL('../js/', import.meta.url))
     .filter((f) => /^voxelscene-.+\.js$/.test(f))
     .map((f) => f.replace(/\.js$/, ''))
@@ -1504,6 +1506,18 @@ function validateSaveSchema() {
     fail('save schema: v16->v17 does not preserve a real sandbox record');
   }
 
+  // v17->v18 splits `completions` (now FULL CLEARS only) from `runs` (finished
+  // runs) and adds `bestPercent`. An upgrading player's history must survive
+  // intact — those three clears were real goal completions under the rule that
+  // ran at the time — and `runs` must be SEEDED from them rather than starting
+  // at zero, or a returning player's city chip goes blank.
+  const v18 = __MIGRATIONS[17](v17);
+  const chi18 = v18.sandbox.chicago;
+  if (v18.version !== 18 || chi18.completions !== 3 || chi18.runs !== 3 || chi18.bestPercent !== 0
+    || chi18.bestSize !== 7 || chi18.bestTime !== 92 || chi18.bestCombo !== 11 || chi18.bestScore !== 8123) {
+    fail(`save schema: v17->v18 mishandled a real sandbox record (${JSON.stringify(chi18)})`);
+  }
+
   console.log(`  save schema: v1->v${CURRENT_VERSION} chain and freshSave() agree on ${freshKeys.size} top-level key(s), ${freshSettingKeys.size} setting(s), and ${freshPlayerKeys.size} player key(s)`);
 }
 
@@ -1544,29 +1558,64 @@ function validateRewardLadders() {
     }
   }
 
-  // Monotonic, starts at x1, and — the load-bearing line — the multiplier a HUD
-  // reading this ladder would display equals the multiplier the sim scores
-  // with, for every chain the game can reach. The HUD's value is recomputed
-  // here from `comboLevel` + the named constants, which is exactly the path
-  // js/ui/hud.js takes; if anyone reintroduces a second expression there, the
-  // source guard below catches it and this one catches the arithmetic.
-  if (comboMult(1) !== 1) fail(`combo ladder: multiplier at chain 1 is ${comboMult(1)}, must be x1`);
-  if (comboMult(0) !== 1) fail(`combo ladder: multiplier with no chain is ${comboMult(0)}, must be x1`);
-  let prevMult = comboMult(0), topAt = null;
+  // THE LITERAL TABLE (T-312, audit B5). What stood here compared `comboMult(c)`
+  // against `1 + (comboLevel(c) - 1) * COMBO_STEP` — which is character for
+  // character the body of `comboMult`. It could not fail. Change the step to 7,
+  // invert the ladder, cap it at 2: the assertion passes, because both sides
+  // move together. A check written in the shape of the thing it audits proves
+  // nothing (same class as the float-sum guard in this repo's process notes).
+  //
+  // These are hard literals, transcribed from the owner's ruling — thresholds
+  // 2, 10, 15, 25, 50, 100, 350, 600, one whole helping per step, ceiling 8x —
+  // and NOT computed from COMBO_THRESHOLDS, comboLevel, COMBO_STEP or
+  // COMBO_MAX_LEVEL. Every boundary is sampled on both sides, because a table
+  // that only samples mid-band cannot see an off-by-one at the edge.
+  //
+  // NOTE, and it is a real finding rather than an oddity of the transcription:
+  // the first threshold (2) is INERT. `comboLevel` maps a crossing of
+  // thresholds[i] to level i+1, and level 1 is already the floor, so a chain of
+  // 2 scores exactly what a chain of 0 scores. The published head reads
+  // "2, 10, 15" but the player feels steps at 10 and 15 only. Recorded here as
+  // measured, NOT quietly fixed: changing it would move every score in the game
+  // and needs a RANKED_SIM_VERSION bump, so it is the owner's call.
+  const LADDER = [
+    [0, 1], [1, 1], [2, 1], [3, 1], [9, 1],        // level 1 floor — note the inert 2
+    [10, 2], [11, 2], [14, 2],
+    [15, 3], [16, 3], [24, 3],
+    [25, 4], [26, 4], [49, 4],
+    [50, 5], [51, 5], [99, 5],
+    [100, 6], [101, 6], [349, 6],
+    [350, 7], [351, 7], [599, 7],
+    [600, 8], [601, 8], [5000, 8], [1e6, 8],       // the tail rule: nothing past 8
+  ];
+  for (const [chain, want] of LADDER) {
+    const got = comboMult(chain);
+    if (got !== want) fail(`combo ladder: chain ${chain} awards x${got}, the ruled ladder says x${want}`);
+  }
+  // Monotonic and non-skipping across the whole reachable range — the property
+  // the literal table cannot express because it only samples.
+  let prevMult = comboMult(0);
   for (let c = 1; c <= 1000; c++) {
     const m = comboMult(c);
-    const hudWouldShow = 1 + (comboLevel(c) - 1) * COMBO_STEP;
-    if (m !== hudWouldShow) {
-      fail(`combo ladder: at chain ${c} the sim awards x${m} and the HUD would show x${hudWouldShow}`);
-      break;
-    }
     if (m < prevMult) { fail(`combo ladder: multiplier decreased at chain ${c} (x${prevMult} -> x${m})`); break; }
-    if (comboLevel(c) > COMBO_MAX_LEVEL) { fail(`combo ladder: chain ${c} resolved to level ${comboLevel(c)}, past the named top level ${COMBO_MAX_LEVEL}`); break; }
-    if (topAt === null && comboLevel(c) === COMBO_MAX_LEVEL) topAt = c;
+    if (m > prevMult + 1) { fail(`combo ladder: multiplier jumped a rung at chain ${c} (x${prevMult} -> x${m})`); break; }
+    if (m > 8) { fail(`combo ladder: chain ${c} awards x${m}, past the ruled ceiling of x8`); break; }
     prevMult = m;
   }
-  if (comboMult(1e6) !== 1 + (COMBO_MAX_LEVEL - 1) * COMBO_STEP) {
-    fail('combo ladder: an absurd chain exceeds the capped top multiplier — the tail rule is not holding');
+  const topAt = LADDER.find(([, m]) => m === 8)[0];
+
+  // T-311: every rung must be legible AS A NUMBER. The top rung used to be the
+  // string 'MAX', which meant x8 — the actual ceiling — was the one value the
+  // game never printed, so a player counting the steps they had seen concluded
+  // the top was x7. Literal expectation, again not derived from the array.
+  const WANT_NAMES = ['', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8'];
+  if (COMBO_LEVEL_NAMES.join('|') !== WANT_NAMES.join('|')) {
+    fail(`combo ladder: level names are [${COMBO_LEVEL_NAMES.join(', ')}], must be [${WANT_NAMES.join(', ')}] — every rung states its multiplier as a number`);
+  }
+  for (let lvl = 1; lvl <= COMBO_MAX_LEVEL; lvl++) {
+    if (!/^x\d+(\.\d+)?$/.test(COMBO_LEVEL_NAMES[lvl] || '')) {
+      fail(`combo ladder: level ${lvl} is named "${COMBO_LEVEL_NAMES[lvl]}" — a rung labelled instead of numbered hides its own value (T-311)`);
+    }
   }
 
   // Milestones: strictly increasing, inside (0, 1], last exactly on the goal.
@@ -1582,21 +1631,93 @@ function validateRewardLadders() {
     fail(`milestone ladder: last threshold is ${MILESTONES[MILESTONES.length - 1].at}, must be exactly 1 so the loudest beat lands on goal completion`);
   }
 
-  // Source guards. The ladder must exist ONCE, in the sim, exported — and the
-  // HUD must read it rather than mirror it (GWT-202, SYS-209).
-  const hudSrc = readFileSync(new URL('../js/ui/hud.js', import.meta.url), 'utf8');
-  if (!/import\s*\{[^}]*comboMult[^}]*\}\s*from\s*'\.\.\/voxelsim\.js'/.test(hudSrc)) {
-    fail("js/ui/hud.js does not import comboMult from ../voxelsim.js — a HUD that re-derives the multiplier is the defect this package closed");
-  }
-  // Comments are stripped first: hud.js deliberately QUOTES the old expression
-  // where it explains why the pill was removed, and a guard that cannot tell a
-  // warning label from live code fails on the documentation of its own bug.
+  // --- source guards ---------------------------------------------------------
+  // The ladder must exist ONCE, in the sim, exported — and every surface must
+  // READ it rather than mirror it (GWT-202, SYS-209). Extended past hud.js in
+  // T-312 to cover the whole B2 readout inventory, because the old guard
+  // watched exactly one file while the same defect was live in two others.
+  //
+  // Comments are stripped first: these files deliberately QUOTE the defects
+  // they fixed, and a guard that cannot tell a warning label from live code
+  // fails on the documentation of its own bug.
   const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\n'"`]*\/\/.*$/gm, '');
+  const stripHtmlComments = (src) => src.replace(/<!--[\s\S]*?-->/g, '');
+  const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
+
+  const hudSrc = read('js/ui/hud.js');
+  const screensSrc = read('js/ui/screens.js');
+  const arenaSrc = read('js/demo/arena.js');
+  const indexSrc = read('index.html');
+  const simSrc = read('js/voxelsim.js');
+
+  if (!/export function comboMult/.test(simSrc)) fail('js/voxelsim.js does not export comboMult');
+  // The HUD ring must take its multiplier from the sim's exported ladder. It
+  // reads COMBO_LEVEL_NAMES now rather than calling comboMult per frame, so the
+  // guard accepts either — what it refuses is a HUD that names neither.
+  if (!/import\s*\{[^}]*(comboMult|COMBO_LEVEL_NAMES)[^}]*\}\s*from\s*'\.\.\/voxelsim\.js'/.test(hudSrc)) {
+    fail("js/ui/hud.js does not import the ladder (comboMult / COMBO_LEVEL_NAMES) from ../voxelsim.js — a HUD that re-derives the multiplier is the defect this package closed");
+  }
   if (/chain\s*-\s*1\s*\)\s*\/\s*25/.test(stripComments(hudSrc))) {
     fail('js/ui/hud.js still contains the old (chain - 1) / 25 level expression');
   }
-  const simSrc = readFileSync(new URL('../js/voxelsim.js', import.meta.url), 'utf8');
-  if (!/export function comboMult/.test(simSrc)) fail('js/voxelsim.js does not export comboMult');
+
+  // B2 #4, #7 (T-309): no surface may put a literal `x` in front of a CHAIN.
+  // `x${chain}` and `x${...bestCombo}` are chain counts wearing multiplier
+  // clothing — the exact defect ADR-0015 closed for the sandbox HUD, which was
+  // still live on the campaign HUD pill and the campaign results screen.
+  // A BARE path only — `x${p.chain}`, `x${sim.player.bestCombo}`. Deliberately
+  // no `(`, so `x${comboMult(h.chain)}` and `x${campaignComboMult(p.chain)}`
+  // pass: those ARE multipliers, derived from the chain by the sim's own ladder,
+  // which is the whole point. The defect is the raw count wearing the notation.
+  const CHAIN_WITH_X = /x\$\{\s*[\w.]*\b(chain|bestCombo)\b\s*\}/;
+  for (const [name, src] of [['js/ui/hud.js', hudSrc], ['js/ui/screens.js', screensSrc], ['js/demo/arena.js', arenaSrc]]) {
+    const m = stripComments(src).match(CHAIN_WITH_X);
+    if (m) fail(`${name} prints a chain count with an "x" in front of it (\`${m[0]}\`) — that is a multiplier's notation on a block count (T-309)`);
+  }
+
+  // B2 #5, #6 (T-310): a chain count must state its unit. Every rendering of
+  // `bestCombo` in the results screens has to sit next to the word "chain", so
+  // the number a player carries away cannot be read as a multiplier.
+  for (const line of stripComments(screensSrc).split('\n')) {
+    if (!/\$\{[^}]*bestCombo[^}]*\}/.test(line)) continue;
+    if (!/chain/i.test(line)) {
+      fail(`js/ui/screens.js renders bestCombo with no unit: ${line.trim().slice(0, 110)} — a bare chain under a "combo" label is the readout the owner read as a multiplier (T-310)`);
+    }
+  }
+  // Layout, not wording — and it is here because a text-only check missed it.
+  // `.results-stats b` is `float: right` (css/main.css), so TWO bold values in
+  // one row float right in DOM order and render right-to-left, detached from
+  // the label that names them. `Best chain <b>530 eats</b> · top multiplier
+  // <b>x7</b>` read correctly to innerText and rendered on screen as
+  // "Best chain · top multiplier   x7  530 eats". One value per row.
+  for (const [i, line] of stripComments(screensSrc).split('\n').entries()) {
+    for (const cell of line.split(/<\/div>|<br\s*\/?>/)) {
+      const bolds = (cell.match(/<b>/g) || []).length;
+      if (bolds > 1) {
+        fail(`js/ui/screens.js:${i + 1} puts ${bolds} <b> values in one results row — they are float:right and will render in reverse, detached from their labels: ${cell.trim().slice(0, 110)}`);
+      }
+    }
+  }
+
+  // B2 #1 (T-310): the ring's big number is the visually dominant readout in
+  // the HUD and it is a chain count. It must carry a unit in the markup.
+  const readout = stripHtmlComments(indexSrc).match(/<div class="cm-readout">[\s\S]*?<\/div>/);
+  if (!readout) fail('index.html has no .cm-readout block — the combo ring markup moved and this guard no longer watches anything');
+  else if (!/cm-unit/.test(readout[0]) || !/CHAIN/i.test(readout[0])) {
+    fail(`index.html combo ring does not label its big number as a CHAIN: ${readout[0].replace(/\s+/g, ' ')} (T-310)`);
+  }
+
+  // B2 #11/#13, A6.5 (T-306): the arena's tug bar shows raw-mass territory
+  // while the plates above it show combo-multiplied points. The bar must say so.
+  const tug = stripHtmlComments(read('arena.html')).match(/<div id="tug-ends">[\s\S]*?<\/div>/);
+  if (!tug) fail('arena.html has no #tug-ends block — the tug bar markup moved and this guard no longer watches anything');
+  else if (!/TERRITORY/i.test(tug[0])) {
+    fail(`arena.html tug bar is unlabelled: ${tug[0].replace(/\s+/g, ' ')} — it shows raw mass beside a combo-multiplied score and must not be readable as the score (T-306)`);
+  }
+  // A6.4 (T-305): the winner must be decided on the currency the frame prints.
+  if (/winIdx\s*=[^;]*split\[[01]\]\.mass/.test(stripComments(arenaSrc))) {
+    fail('js/demo/arena.js decides the winner on finalSplit().mass (raw, un-multiplied) while printing combo-multiplied PTS — two verdicts in one frame (T-305)');
+  }
 
   // Every gameplay announcement goes through the queue (GWT-604): the sandbox
   // event dressing must not reach for the presentation backends directly.
@@ -1610,36 +1731,186 @@ function validateRewardLadders() {
   console.log(`  milestone ladder: ${MILESTONES.length} rows, ${(MILESTONES[0].at * 100).toFixed(0)}% -> ${(MILESTONES[MILESTONES.length - 1].at * 100).toFixed(0)}% of the scene goal`);
 }
 
-// --- the gallery must be winnable ---------------------------------------------
+// --- every scene must be winnable ---------------------------------------------
 // A full clear of a targetFraction-1.0 scene must set `won`. This is not a
 // theoretical guard: `hole.rawMass` is accumulated one add per block as the city
 // is eaten, while `totalMass` is a reduce() over the same blocks in ARRAY order.
 // Identical summands, different order, so float rounding leaves rawMass a few
-// parts in 1e12 short — and the gallery, the only scene that must eat 100% of
-// the city, could consume all 3798 blocks and never win. The HUD floors the
-// percentage, so it read 99% forever. Found in live play, fixed with a relative
-// epsilon in js/voxelsim.js.
+// parts in 1e12 short — a scene could consume every block it has and never win.
+// The HUD floors the percentage, so it read 99% forever. Found in live play,
+// fixed with a relative epsilon in js/voxelsim.js.
+//
+// This used to be `validateGalleryWinnable`, because the gallery was the only
+// 1.0 scene and the 0.5 cities had half a city of slack hiding the shortfall.
+// Every scene is 1.0 now (R-2.1), so every scene is exposed to the same float
+// hazard and every scene is checked here (T-204). The failure messages name the
+// scene — with seven of them, "the win check needs its epsilon" on its own does
+// not say which city could not be finished.
 //
 // The order matters and is the whole reason this check is written the way it is:
 // eating in ARRAY order reproduces totalMass bit-for-bit and passes even on the
 // broken code. Radial order — nearest first, which is roughly how a real hole
 // eats — is one of the orders that actually loses, so that is what runs here.
-function validateGalleryWinnable() {
-  console.log('Validating the gallery is winnable (float-order guard on the win check)...');
+//
+// Cost, measured 2026-08-13 on this machine: 34.0 s for all seven, of which
+// 26.4 s is scene BUILD (Boston 6.3 s, Chicago 6.1 s, Cambridge 5.8 s) and the
+// rest is the clear. That is the price of the guard covering every scene rather
+// than the one cheap one; it is bounded work with no excursion in it.
+function validateScenesWinnable() {
+  console.log('Validating every scene is winnable (float-order guard on the win check)...');
+  // The TABLE first, and separately: it is free, it covers all seven whatever
+  // happens below, and it is the assertion R-2.1 actually makes.
+  for (const [scene, goal] of Object.entries(SCENE_GOALS)) {
+    if (goal.targetFraction !== 1) {
+      fail(`scene goal: '${scene}' has targetFraction ${goal.targetFraction}, expected 1 — the goal is the whole city on every scene (R-2.1)`);
+    }
+  }
+  for (const scene of Object.keys(SCENE_GOALS)) {
+    const sim = new VoxelSandboxSim({ seed: 'validator', scene });
+    if (sim.goal.targetFraction !== 1) {
+      fail(`win guard [${scene}]: sim built with targetFraction ${sim.goal.targetFraction} — this guard only means anything at 100%`);
+      continue;
+    }
+    const radial = sim.blocks.slice().sort((p, q) => Math.hypot(p.x, p.z) - Math.hypot(q.x, q.z));
+    for (const b of radial) if (b.state !== 'consumed') sim._consume(b);
+    sim.step(1 / 60, { x: 0, z: 0 });
+    const left = sim.blocks.filter((b) => b.state !== 'consumed').length;
+    const shortfall = sim.totalMass - sim.hole.rawMass;
+    const epsilon = sim.totalMass * 1e-9;
+    if (left > 0) fail(`win guard [${scene}]: ${left} block(s) survived a full clear — the harness is not clearing the city`);
+    if (!sim.won) {
+      fail(`win guard [${scene}]: consumed all ${sim.totalBlocks} blocks and won is still false (shortfall ${shortfall.toExponential(3)} vs epsilon ${epsilon.toExponential(3)}) — the win check needs its epsilon`);
+    }
+    // The RESIDUAL, printed rather than merely compared. A guard that only says
+    // pass cannot show the margin closing: if a scene grows and its accumulated
+    // float error creeps toward the epsilon, this line is where it shows up
+    // BEFORE the day it crosses.
+    console.log(`  ${scene}: ${sim.totalBlocks} blocks consumed, survivors=${left}, shortfall=${shortfall.toExponential(3)}, epsilon=${epsilon.toExponential(3)} (${(Math.abs(shortfall) / epsilon * 100).toFixed(2)}% of it), won=${sim.won}`);
+  }
+}
+
+// --- the 180 s level clock (R-1) ----------------------------------------------
+// Three separate claims, and they fail for different reasons, so each gets its
+// own assertion and its own message.
+//
+//   1. ONE declaration (T-101). The constant is grepped for in js/, because the
+//      failure mode this closes is a SECOND copy — a scene, tier or platform
+//      quietly holding its own 180 — which no behavioural test can see.
+//   2. A city run ends at exactly LEVEL_CLOCK_TICKS (T-102), deterministically,
+//      and every tick before that it is still running.
+//   3. THE RUN is untouched (T-107): it ends at 5,400 ticks, it never sets
+//      `timedOut`, and it carries no level clock at all.
+function validateLevelClock() {
+  console.log('Validating the level clock...');
+  if (LEVEL_CLOCK_SECONDS !== 180) {
+    fail(`level clock: LEVEL_CLOCK_SECONDS is ${LEVEL_CLOCK_SECONDS}, expected 180 (R-1.1)`);
+  }
+  if (LEVEL_CLOCK_TICKS !== LEVEL_CLOCK_SECONDS * 60) {
+    fail(`level clock: LEVEL_CLOCK_TICKS (${LEVEL_CLOCK_TICKS}) is not LEVEL_CLOCK_SECONDS * 60 — the two would expire on different ticks`);
+  }
+
+  // One declaration, nowhere else (T-101). Two greps, because a second copy can
+  // arrive wearing either of two disguises and neither catches the other:
+  //   (a) the same NAME re-declared somewhere else, which an import would have
+  //       made unnecessary;
+  //   (b) a differently-named constant holding the same number.
+  //
+  // (b) is deliberately name-gated to clock-ish identifiers rather than looking
+  // for a bare 180. 180 is degrees, metres and milliseconds as often as it is
+  // seconds — js/voxelworld.js legitimately carries `SHADOW_EXTENT_MAX = 180`,
+  // a shadow-map extent in metres — and a guard that fires on that is a guard
+  // people turn off. What is actually being caught is a SECOND CLOCK.
+  const jsFiles = readdirSync(new URL('../js/', import.meta.url)).filter((f) => f.endsWith('.js') && f !== 'levelclock.js');
+  const NAME_RE = /LEVEL_CLOCK_(?:SECONDS|TICKS)\s*=/;
+  const CLOCKISH_RE = /(?:const|let|var)\s+[A-Za-z_$][\w$]*(?:CLOCK|TIMER|COUNTDOWN|DURATION|TIME_?LIMIT|SECONDS|TICKS)[\w$]*\s*=\s*(?:180|10800)\s*[;,)\n]/i;
+  // The greps are checked against known inputs before they are trusted. A text
+  // guard that has only ever returned "clean" has not been shown to detect
+  // anything; these four lines are the difference between a guard and a comment.
+  for (const bad of ['const SANDBOX_CLOCK = 180;\n', 'const matchDurationTicks = 10800;\n', 'export const LEVEL_CLOCK_SECONDS = 180;\n']) {
+    if (!(CLOCKISH_RE.test(bad) || NAME_RE.test(bad))) fail(`level clock: the second-copy grep does not detect \`${bad.trim()}\` — the guard is inert`);
+  }
+  for (const ok of ['const SHADOW_EXTENT_MAX = 180;\n', 'const HUE_SPAN = 180;\n']) {
+    if (CLOCKISH_RE.test(ok)) fail(`level clock: the second-copy grep fires on \`${ok.trim()}\`, which is not a clock — it will be turned off`);
+  }
+  for (const f of jsFiles) {
+    const src = readFileSync(new URL(`../js/${f}`, import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\n'"`]*\/\/.*$/gm, '');
+    if (NAME_RE.test(src)) {
+      fail(`level clock: js/${f} re-declares LEVEL_CLOCK_SECONDS/LEVEL_CLOCK_TICKS — R-1.1 allows exactly one declaration, in js/levelclock.js; import it instead`);
+    }
+    if (CLOCKISH_RE.test(src)) {
+      fail(`level clock: js/${f} declares a clock/duration constant equal to 180 or 10800 — that is a second copy of the level clock; import LEVEL_CLOCK_SECONDS from js/levelclock.js instead`);
+    }
+  }
+  // The campaign reads the same constant rather than ramping its own (T-101).
+  const offCampaign = LEVELS.filter((l) => l.clock !== LEVEL_CLOCK_SECONDS);
+  if (offCampaign.length) {
+    fail(`level clock: ${offCampaign.length} campaign level(s) carry their own clock, first L${offCampaign[0].index} at ${offCampaign[0].clock}s`);
+  }
+
+  // (2) A real scene run ends on the tick, and not one tick earlier. The gallery
+  // is the cheap scene and the clock is scene-independent BY CONSTRUCTION — it
+  // is read from the constant, never from the scene — so this proves the tick
+  // without paying seven scene builds for one number. `clockLimit` is then
+  // asserted directly on a built city, which is the part that IS per-scene.
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'gallery' });
-  if (sim.goal.targetFraction !== 1) {
-    fail(`gallery win guard: expected targetFraction 1, got ${sim.goal.targetFraction} — this guard only means anything at 100%`);
-    return;
+  if (sim.clockLimit !== LEVEL_CLOCK_TICKS) {
+    fail(`level clock: a freeplay sim opened with clockLimit ${sim.clockLimit}, expected ${LEVEL_CLOCK_TICKS}`);
   }
-  const radial = sim.blocks.slice().sort((p, q) => Math.hypot(p.x, p.z) - Math.hypot(q.x, q.z));
-  for (const b of radial) if (b.state !== 'consumed') sim._consume(b);
-  sim.step(1 / 60, { x: 0, z: 0 });
-  const left = sim.blocks.filter((b) => b.state !== 'consumed').length;
-  if (left > 0) fail(`gallery win guard: ${left} block(s) survived a full clear — the harness is not clearing the city`);
-  if (!sim.won) {
-    fail(`gallery win guard: consumed all ${sim.totalBlocks} blocks and won is still false (shortfall ${(sim.totalMass - sim.hole.rawMass).toExponential(3)}) — the win check needs its epsilon`);
+  if (sim.timeLeft !== LEVEL_CLOCK_SECONDS) {
+    fail(`level clock: a freeplay sim opened with timeLeft ${sim.timeLeft}, expected ${LEVEL_CLOCK_SECONDS}`);
   }
-  console.log(`  gallery winnable: ${sim.totalBlocks} blocks consumed, survivors=${left}, shortfall=${(sim.totalMass - sim.hole.rawMass).toExponential(3)}, won=${sim.won}`);
+  let endedAt = null, marks = [];
+  for (let i = 1; i <= LEVEL_CLOCK_TICKS + 120; i++) {
+    sim.step(DT, { x: 0, z: 0 });
+    for (const ev of sim.drainEvents()) if (ev.type === 'clock') marks.push({ at: ev.at, tick: i });
+    if (sim.over && endedAt === null) endedAt = i;
+  }
+  if (endedAt !== LEVEL_CLOCK_TICKS) {
+    fail(`level clock: an idle gallery run ended at tick ${endedAt}, expected exactly ${LEVEL_CLOCK_TICKS} (R-1.3)`);
+  }
+  if (!sim.timedOut || sim.won) {
+    fail(`level clock: expiry produced timedOut=${sim.timedOut} won=${sim.won} — a time-out is a normal ending that is not a win`);
+  }
+  if (sim.timeLeft !== 0) fail(`level clock: timeLeft is ${sim.timeLeft} after expiry, expected exactly 0`);
+  // (T-104) Both endgame states, once each, at the right ticks.
+  const expectMarks = [
+    { at: 30, tick: LEVEL_CLOCK_TICKS - 30 * 60 },
+    { at: 10, tick: LEVEL_CLOCK_TICKS - 10 * 60 },
+  ];
+  if (marks.length !== expectMarks.length
+      || marks.some((m, i) => m.at !== expectMarks[i].at || m.tick !== expectMarks[i].tick)) {
+    fail(`level clock: endgame states fired ${JSON.stringify(marks)}, expected ${JSON.stringify(expectMarks)} — each must fire exactly once, at its own tick`);
+  }
+
+  // Determinism: the clock is a tick counter, so two identical runs must expire
+  // on the same tick. Cheap, and it is the property R-1.4 actually promises.
+  const twin = new VoxelSandboxSim({ seed: 'validator', scene: 'gallery' });
+  let twinEnd = null;
+  for (let i = 1; i <= LEVEL_CLOCK_TICKS; i++) { twin.step(DT, { x: 0, z: 0 }); if (twin.over && twinEnd === null) twinEnd = i; }
+  if (twinEnd !== endedAt) fail(`level clock: two identical runs expired at different ticks (${endedAt} vs ${twinEnd})`);
+
+  // (3) THE RUN keeps its own bound and never acquires a level clock (T-107).
+  const ranked = new VoxelSandboxSim({ seed: 'validator', scene: 'gallery', mode: 'run90' });
+  if (ranked.clockLimit !== null) {
+    fail(`level clock: a run90 sim carries clockLimit ${ranked.clockLimit} — THE RUN must not inherit the 180 s limit (R-1.7)`);
+  }
+  if (ranked.timeLeft !== null) {
+    fail(`level clock: a run90 sim carries timeLeft ${ranked.timeLeft} — THE RUN has no level clock and must report none`);
+  }
+  let rankedEnd = null;
+  for (let i = 1; i <= RANKED_TICK_COUNT + 60 && rankedEnd === null; i++) {
+    ranked.step(DT, { x: 0, z: 0 });
+    if (ranked.over) rankedEnd = i;
+  }
+  if (rankedEnd !== RANKED_TICK_COUNT || !ranked.runComplete || ranked.timedOut) {
+    fail(`level clock: THE RUN ended at tick ${rankedEnd} (expected ${RANKED_TICK_COUNT}), runComplete=${ranked.runComplete}, timedOut=${ranked.timedOut}`);
+  }
+  if (ranked.clockTicks !== 0) {
+    fail(`level clock: THE RUN advanced clockTicks to ${ranked.clockTicks} — it must never consult the level clock (T-107)`);
+  }
+
+  console.log(`  level clock: ${LEVEL_CLOCK_SECONDS}s = ${LEVEL_CLOCK_TICKS} ticks, one declaration, campaign+sandbox agree; expiry at tick ${endedAt} (timedOut, not won); endgame states at ${marks.map((m) => `${m.at}s@${m.tick}`).join(', ')}; THE RUN still ends at ${rankedEnd} with clockTicks=${ranked.clockTicks}`);
 }
 
 // --- offline-boot guard -------------------------------------------------------
@@ -1705,10 +1976,21 @@ function validateOfflineBoot() {
   console.log(`  offline boot: ${refs} index.html reference(s), ${offsite === 0 ? 'all same-origin' : `${offsite} OFF-ORIGIN`}`);
 }
 
-console.log(`Validating ${levelsToCheck.length} level(s)...`);
+// Named sections, so ONE can be run on its own. This exists because the full
+// validator cannot currently complete — `validateCambridge` stalls for over an
+// hour (RCA-2026-08-11) — which meant a guard in an early section could not be
+// exercised against a deliberately broken tree without waiting on a hang that
+// has nothing to do with it. `FW_VALIDATE_SECTIONS=rewardLadders node
+// tools/validate.mjs` runs just that one. Unset, everything runs in order,
+// exactly as before.
+const wanted = (process.env.FW_VALIDATE_SECTIONS || '').split(',').map((s) => s.trim()).filter(Boolean);
+const section = (name, fn) => { if (!wanted.length || wanted.includes(name)) fn(); };
+
 let minMargin = Infinity, minMarginLevel = 0;
 let maxTimeToFirstEat = 0;
 
+if (!wanted.length || wanted.includes('campaignLevels')) {
+console.log(`Validating ${levelsToCheck.length} level(s)...`);
 for (const level of levelsToCheck) {
   const city = generateCity(level);
   checkOverlap(city, level.index);
@@ -1731,26 +2013,34 @@ for (const level of levelsToCheck) {
     console.log(`  L${level.index}: mass=${Math.floor(sim.player.mass)}/${level.target} timeLeft=${sim.timeLeft.toFixed(1)}s (${(margin * 100).toFixed(0)}%) firstEat=${firstEatTime?.toFixed(2)}s`);
   }
 }
+}
 
-validateOfflineBoot();
-validateSaveSchema();
-validateRewardLadders();
-validateFwMath();
-console.log(`Validating THE RUN trace/replay (${runBoardSelftest()} assertions)...`);
-validateGalleryWinnable();
-validateVoxelSandbox();
-validateVoxelCollisions();
-validateManhattan();
-validateUpperManhattan();
-validateBrooklyn();
-validateBoston();
-validateCambridge();
-validateChicago();
+section('offlineBoot', validateOfflineBoot);
+section('saveSchema', validateSaveSchema);
+section('rewardLadders', validateRewardLadders);
+section('fwMath', validateFwMath);
+section('runBoard', () => console.log(`Validating THE RUN trace/replay (${runBoardSelftest()} assertions)...`));
+section('levelClock', validateLevelClock);
+section('scenesWinnable', validateScenesWinnable);
+section('voxelSandbox', validateVoxelSandbox);
+section('voxelCollisions', validateVoxelCollisions);
+section('manhattan', validateManhattan);
+section('upperManhattan', validateUpperManhattan);
+section('brooklyn', validateBrooklyn);
+section('boston', validateBoston);
+section('cambridge', validateCambridge);
+section('chicago', validateChicago);
 
 console.log('---');
+// The margin summary is only meaningful when the campaign section actually ran.
+// Printing "worst margin Infinity% (L0)" after a single-section run would read
+// as a result rather than as an absence of one.
+const marginNote = Number.isFinite(minMargin)
+  ? `Worst time margin: ${(minMargin * 100).toFixed(1)}% (L${minMarginLevel}). Slowest first eat: ${maxTimeToFirstEat.toFixed(2)}s.`
+  : `Campaign levels not run (FW_VALIDATE_SECTIONS=${process.env.FW_VALIDATE_SECTIONS}).`;
 if (failures === 0) {
-  console.log(`ALL PASS. Worst time margin: ${(minMargin * 100).toFixed(1)}% (L${minMarginLevel}). Slowest first eat: ${maxTimeToFirstEat.toFixed(2)}s.`);
+  console.log(`ALL PASS. ${marginNote}`);
 } else {
-  console.error(`${failures} failure(s). Worst margin ${(minMargin * 100).toFixed(1)}% at L${minMarginLevel}.`);
+  console.error(`${failures} failure(s). ${marginNote}`);
   process.exit(1);
 }

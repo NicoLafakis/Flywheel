@@ -641,11 +641,24 @@ function endMatch() {
 }
 
 /**
- * The territory reveal (pattern 6). The WINNER is decided by the attribution
- * record — the same per-block, raw-mass data the craters and the bar showed
- * all match — because that record is bit-identical on both screens by
- * construction (AC-06.1/06.2); the score lines below it show each side's
- * combo-multiplied points as flavor.
+ * The territory reveal (pattern 6).
+ *
+ * THE SCORE WINS. The winner is decided on the same combo-multiplied points the
+ * reveal prints, not on the attribution record's raw mass. This used to go the
+ * other way — the record decided and the points were "flavor" — which let the
+ * frame read "YOU 3,400 PTS / RIVAL 1,900 PTS" above "RIVAL TAKES THE CITY"
+ * (audit A6.4). Two currencies, two verdicts, one screen.
+ *
+ * Why score and not mass: ADR-0015 already ruled that the combo BUYS score and
+ * the boards RANK score. If raw mass decided the match, a combo would carry no
+ * competitive meaning in multiplayer — the one mode where the whole point of
+ * chaining is to beat someone. The player who chains better wins.
+ *
+ * The bar and the percentages keep showing the attribution record's raw-mass
+ * TERRITORY, and are labelled as territory (`#reveal-label`, `#tug-ends`) so
+ * neither can be read as the score. That record is still what makes the reveal
+ * agree across both screens: it is bit-identical on host and peer by
+ * construction (AC-06.1/06.2), so the two sides always paint the same city.
  */
 function startReveal(mineScore, theirsScore) {
   revealState = 'running';
@@ -677,7 +690,10 @@ function startReveal(mineScore, theirsScore) {
   }
 
   const mineIdx = mySlot, rivalIdx = mySlot === 0 ? 1 : 0;
-  const winIdx = split[0].mass === split[1].mass ? -1 : (split[0].mass > split[1].mass ? 0 : 1);
+  // Decided on the printed points (see the header comment). Both scores are
+  // already floored by the caller, so this compares exactly the integers on
+  // screen — a tie here is a tie the player can read off the frame.
+  const winIdx = mineScore === theirsScore ? -1 : (mineScore > theirsScore ? mineIdx : rivalIdx);
   el('reveal-head').textContent = ' ';
   el('reveal-lines').innerHTML =
     `YOU &nbsp;${mineScore.toLocaleString()} PTS<br>${rivalName} &nbsp;${theirsScore.toLocaleString()} PTS`;

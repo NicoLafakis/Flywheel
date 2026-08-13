@@ -177,6 +177,9 @@
     display: flex; justify-content: space-between; margin-top: 3px;
     font-size: 9px; letter-spacing: 1.6px; font-weight: 700; opacity: 0.8;
   }
+  /* Reads as a caption for the bar, not as a third competitor: no slot color,
+     dimmer than the two names, and the same 9px so it cannot dominate them. */
+  #tug-label { font-weight: 600; opacity: 0.55; letter-spacing: 2.2px; }
 
   /* ---------- rival visibility: off-screen chevron (pattern 4) ---------- */
   #chevrons { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
@@ -319,7 +322,12 @@
   </div>
   <div id="tug">
     <div id="tug-track"></div>
-    <div id="tug-ends"><span id="tug-you">YOU</span><span id="tug-rival">RIVAL</span></div>
+    <!-- The bar shows raw-mass TERRITORY, while the plates above it show
+         combo-multiplied PTS — two different currencies that move at different
+         rates and can point opposite ways during a hot chain (audit A6.5).
+         The score is what decides the match (see startReveal), so this caption
+         exists to stop the bar being read as the score. -->
+    <div id="tug-ends"><span id="tug-you">YOU</span><span id="tug-label">TERRITORY</span><span id="tug-rival">RIVAL</span></div>
   </div>
   <div id="chevrons"></div>
 </div>

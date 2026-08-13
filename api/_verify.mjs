@@ -30,7 +30,18 @@ export async function verifyReplay(run, input) {
   try {
     await loadScene(run.scene_id);
     const sim = new VoxelSandboxSim({ seed: run.seed, scene: run.scene_id, mode: run.mode });
-    Object.assign(sim.tune, RANKED_TUNE);
+    // ASSERT the ranked tune, do not re-assign it. The constructor replaces a
+    // ranked sim's tune with a frozen copy of RANKED_TUNE; re-assigning here
+    // would paper over a constructor that stopped doing so, which is precisely
+    // the class of defect audit A5.1 was — a write that silently made the
+    // server and the client disagree. A failure here is a build problem, not a
+    // player problem, so it is `unverifiable` (the run keeps its trace and can
+    // be re-verified) rather than `mismatch` (which would blame the player).
+    for (const key of Object.keys(RANKED_TUNE)) {
+      if (sim.tune[key] !== RANKED_TUNE[key]) {
+        return { verdict: 'unverifiable', detail: { reason: 'ranked_tune', key } };
+      }
+    }
     const move = { x: 0, z: 0 };
     for (let tick = 0; tick < run.tick_count; tick++) {
       inputAt(inputs, tick, move);
@@ -39,15 +50,56 @@ export async function verifyReplay(run, input) {
     if (!sim.runComplete || sim.rankedTicks !== RANKED_TICK_COUNT) {
       return { verdict: 'mismatch', detail: { reason: 'cutoff' } };
     }
+    const score = Math.floor(sim.hole.mass);
+    // T-303 (audit A5.3). Both numbers have always been in the same table row
+    // and were never compared, which is why A5.1 and A5.2 could ship silently:
+    // a comparison would have caught either the first time it ran. The server's
+    // number stays authoritative — this does not change what gets published,
+    // it makes a disagreement SAYABLE.
+    //
+    // The tolerance is exactly zero, and that is a claim about the system, not
+    // a convenience: both sides floor the same accumulator, `js/fwmath.js` pins
+    // every transcendental, inputs are stepped from the same int8 pair that was
+    // stored, and the ranked tune is now total and frozen on both sides. The
+    // audit reproduced the control run bit-identically. So after T-301/T-302
+    // there is no legitimate way for these to differ by one point, and a run
+    // that does differ was computed under physics the server cannot reproduce —
+    // a stale client build or a tampered one. Either way it must not rank.
+    // `claimed_score` may be absent on a historical row; that is not a
+    // disagreement, so it is skipped rather than failed.
+    const claimed = run.claimed_score;
+    if (typeof claimed === 'number' && Number.isFinite(claimed) && claimed !== score) {
+      return {
+        verdict: 'mismatch',
+        score,
+        detail: { reason: 'score', claimed_score: claimed, computed_score: score, delta: claimed - score },
+      };
+    }
     return {
       verdict: 'verified',
-      score: Math.floor(sim.hole.mass),
+      score,
       stats: {
+        // `best_combo` is a CHAIN COUNT — blocks eaten inside one unbroken
+        // 1.5 s chain — not a multiplier. The key name says combo, which is the
+        // same ambiguity T-309/T-310 just removed from every player-facing
+        // readout (audit B2 #16). Left as-is deliberately: renaming it is a
+        // stored-column change on rows that already exist, and nothing renders
+        // it today, so it is flagged here rather than migrated in a UI pass.
+        // If it ever reaches a screen, it must be labelled as a chain and the
+        // multiplier it bought printed beside it, exactly like the results
+        // screens now do (`comboMult(bestCombo)`).
         raw_mass: Math.floor(sim.hole.rawMass), best_combo: sim.hole.bestCombo,
         eaten: sim.hole.eatenCount, size: sim.hole.size,
         consumed_fraction: sim.totalMass ? sim.hole.rawMass / sim.totalMass : 0,
       },
-      detail: { replay_ms: Math.round(performance.now() - started) },
+      // `claimed_score` is recorded on EVERY verified run, not only on the
+      // failing ones. A divergence that only becomes visible once it trips a
+      // threshold cannot be trend-watched, and the agreeing runs are the
+      // evidence that the zero tolerance above is calibrated rather than lucky.
+      detail: {
+        replay_ms: Math.round(performance.now() - started),
+        claimed_score: typeof claimed === 'number' ? claimed : null,
+      },
     };
   } catch (error) {
     return { verdict: 'unverifiable', detail: { reason: 'server_replay', message: error.message } };

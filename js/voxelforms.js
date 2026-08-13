@@ -41,8 +41,13 @@
 //   - Grade clause (hard, engine-derived). Any piece at `gy === 0` must have a
 //     plan diagonal <= 8 m: sqrt((sx-0.1)^2 + (sz-0.1)^2). Past ~9.7 m it is
 //     PERMANENTLY uneatable — it still counts toward `totalMass` and can never
-//     be removed from it, which silently makes the 50% goal harder.
-//     `probeGradeDiagonal` fails the build.
+//     be removed from it. This clause used to be described as "silently makes
+//     the 50% goal harder"; since every scene went to targetFraction 1.0 it is
+//     strictly worse than that — one violating piece makes the scene
+//     UNWINNABLE, because the goal is now the whole map and that mass can never
+//     leave `totalMass`. `probeGradeDiagonal` fails the build, and
+//     `validateScenesWinnable` in tools/validate.mjs is the second net: it
+//     consumes every block in every scene and asserts `won`.
 //   - Bite clause (authoring). No single piece carries more than ~5% of its
 //     structure's mass; a structure should take at least ~20 bites. In practice
 //     that caps a floor plate at one BAY (4–6 m), not one floor: a 20 x 20 m

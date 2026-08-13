@@ -9,6 +9,15 @@ import { defaultTierForDevice } from '../quality.js';
 // numbers; this file only draws them.
 import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME } from '../audio/mix.js';
 import { BOARDS_ENABLED } from '../board/config.js';
+// The sandbox payout constants, so the results screen cannot advertise a coin
+// value or a finish bonus the sim does not define. js/voxelsim.js owns both.
+import { SANDBOX_COIN_VALUE, SANDBOX_GOAL_BONUS, comboMult } from '../voxelsim.js';
+// The CAMPAIGN ladder, which is a different one — it caps at 3.0 where the
+// voxel ladder caps at 8x. Imported rather than restated so the results screen
+// cannot print a multiplier the campaign sim never awarded (T-309: it used to
+// print the raw chain COUNT with an `x` in front, which read x47 for a run that
+// scored at 3.0).
+import { comboMultiplier as campaignComboMult } from '../sim.js';
 import { buildBlockWord } from './blockword.js';
 import { buildSprocket } from './sprocket.js';
 
@@ -66,7 +75,12 @@ function personalBest(save) {
   let size = 0, score = 0, runs = 0;
   for (const rec of Object.values(save.sandbox || {})) {
     if (!rec) continue;
-    runs += rec.completions || 0;
+    // `runs`, not `completions`: since the 180 s clock landed, `completions`
+    // counts FULL CLEARS of a city, which almost no run is (js/save.js v18). The
+    // question this strip answers is "has this player played before", so it has
+    // to count finished runs. `?? completions` covers a record written by a
+    // build older than the migration.
+    runs += rec.runs ?? rec.completions ?? 0;
     if ((rec.bestSize || 0) > size) size = rec.bestSize;
     if ((rec.bestScore || 0) > score) score = rec.bestScore;
   }
@@ -202,8 +216,18 @@ export class Screens {
       // The SANDBOX entry carries no scene id; 'gallery' is startVoxelSandbox's
       // own default and the key recordSandboxResult writes under.
       const rec = (this.save.sandbox || {})[sc.scene || 'gallery'];
+      // Two different sentences, because the 180 s clock made them two different
+      // facts (R-2.6). CLEARED ×N is reserved for genuine full clears of the
+      // whole city and would read as a lie on a run that ended at 4%; every
+      // other player who has finished a run gets the record they actually set,
+      // which is how far they got. A record from before the migration has no
+      // `runs`, so it falls back to `completions` and keeps its old line.
+      const runs = rec ? (rec.runs ?? rec.completions ?? 0) : 0;
       const progress = rec && rec.completions > 0
-        ? `<span class="fw-chip-progress">CLEARED ×${rec.completions} · BEST SIZE ${rec.bestSize}</span>` : '';
+        ? `<span class="fw-chip-progress">CLEARED ×${rec.completions} · BEST SIZE ${rec.bestSize}</span>`
+        : (runs > 0
+          ? `<span class="fw-chip-progress">BEST ${Math.floor((rec.bestPercent || 0) * 100)}% · SIZE ${rec.bestSize}</span>`
+          : '');
       // --i drives the entrance stagger in css/main.css: 40 ms per item, and the
       // index keeps counting across the locked card below so the whole shelf
       // deals out in one pass rather than in two overlapping ones.
@@ -289,10 +313,17 @@ export class Screens {
     this.showTitle();
   }
 
+  // A sandbox run now ends TWO ways and both are normal endings (R-1.3): the
+  // clock runs out, or the player clears the whole city. Neither is a failure
+  // state and neither takes an error path — the same screen renders both, and
+  // the outcome it reports is the percentage reached.
   showSandboxResults(sim, onContinue) {
     this.clear();
     if (this.actions.music) this.actions.music('results', { restart: true });
-    const coins = sim.coinsCollected * 2 + 35;
+    // The two payout constants come from the sim rather than being typed here.
+    // They were literals — `coinsCollected * 2 + 35` beside a "+35" in the copy
+    // — which is three independent statements of two numbers that must agree.
+    const coins = sim.coinsCollected * SANDBOX_COIN_VALUE + SANDBOX_GOAL_BONUS;
     // Bank line projects the post-award total: recordSandboxResult runs in the
     // continue callback, so at render time save.coins is still pre-award.
     // The run's peak has to survive the run, or every celebration during it was
@@ -304,12 +335,19 @@ export class Screens {
     const best = sim.hole.bestCombo;
     const newScore = score > (prev.bestScore || 0);
     const newCombo = best > (prev.bestCombo || 0);
-    const s = el(`<div class="screen"><h2>GOAL COMPLETE</h2><div class="results-stats">
-      <div>${sim.goal.name}</div><div>City cleared <b>${Math.round(sim.hole.rawMass / sim.totalMass * 100)}%</b></div>
+    // Against the WHOLE city, which is now also the goal (R-2.1/R-2.2). `won`
+    // rather than a second fraction comparison, for the same float reason the
+    // HUD reads the latch: at targetFraction 1.0 a real full clear lands a few
+    // parts in 1e12 short and would print 99%.
+    const cleared = sim.totalMass ? sim.hole.rawMass / sim.totalMass : 0;
+    const clearedPct = sim.won ? 100 : Math.floor(cleared * 100);
+    const newPercent = !sim.won && cleared > (prev.bestPercent || 0);
+    const s = el(`<div class="screen"><h2>${sim.won ? 'GOAL COMPLETE' : "TIME'S UP"}</h2><div class="results-stats">
+      <div>${sim.goal.name}</div><div>City cleared <b>${clearedPct}%</b>${newPercent ? ' <span class="rec-new">BEST!</span>' : ''}</div>
       <div>Score <b>${score.toLocaleString('en-US')}</b>${newScore ? ' <span class="rec-new">BEST!</span>' : ''}</div>
-      <div>Best combo <b>${best}</b>${newCombo ? ' <span class="rec-new">BEST!</span>' : ''}</div>
+      <div>Best chain <b>${best} eats at x${comboMult(best)}</b>${newCombo ? ' <span class="rec-new">BEST!</span>' : ''}</div>
       <div>Coins found <b>${sim.coinsCollected}/${sim.coins.length}</b></div>
-      <div>Finish bonus <b>+35</b></div><div>Coins earned <b>+${coins}</b></div>
+      <div>Finish bonus <b>+${SANDBOX_GOAL_BONUS}</b></div><div>Coins earned <b>+${coins}</b></div>
       <div>Bank <b>🪙 ${this.save.coins + coins}</b></div></div></div>`);
     const again = el(`<button class="btn">PLAY AGAIN</button>`); again.onclick = () => onContinue(false, coins);
     const cities = el(`<button class="btn secondary">CITIES</button>`); cities.onclick = () => onContinue(true, coins);
@@ -325,12 +363,15 @@ export class Screens {
     const score = Math.floor(sim.hole.mass);
     const traceNote = trace ? `${trace.length.toLocaleString('en-US')} B trace saved` : 'trace unavailable';
     const s = el(`<div class="screen"><h2>THE RUN</h2><div class="results-stats">
-      <div>YOUR RUN <b>${score.toLocaleString('en-US')}</b></div>
-      <div>Best combo <b>${sim.hole.bestCombo}</b></div>
+      <div>YOUR RUN <b>${score.toLocaleString('en-US')} pts</b></div>
+      <div>Best chain <b>${sim.hole.bestCombo} eats at x${comboMult(sim.hole.bestCombo)}</b></div>
       <div>Clock <b>90.0 s</b></div>
-      <div>SAVED — NOT RANKED (NO CONNECTION)</div>
+      <div class="run-rank-status">SAVED — NOT RANKED (NO CONNECTION)</div>
       <div>${traceNote}</div></div></div>`);
-    const status = s.querySelector('.results-stats').children[3];
+    // By class, not by child index. The index was `children[3]`, which silently
+    // repoints at whatever row happens to sit fourth — one added or reordered
+    // stat line and the board status would start overwriting the clock.
+    const status = s.querySelector('.run-rank-status');
     const claim = el(`<div class="fw-claim-slot"></div>`);
     const check = el(`<button class="btn secondary" type="button" hidden>CHECK BOARD STATUS</button>`);
     let runId = null;
@@ -498,7 +539,7 @@ export class Screens {
       <div class="results-stats">
         Mass <b>${Math.floor(sim.player.mass)} / ${level.target}</b><br>
         Time left <b>${Math.ceil(sim.timeLeft)}s</b><br>
-        Best combo <b>x${sim.player.bestCombo}</b><br>
+        Best chain <b>${sim.player.bestCombo} eats at x${campaignComboMult(sim.player.bestCombo).toFixed(1)}</b><br>
         Coins earned <b>+${coins}</b>
       </div></div>`);
     const cont = el(`<button class="btn">${sim.won ? 'CONTINUE' : 'RETRY'}</button>`);

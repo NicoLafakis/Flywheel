@@ -1,5 +1,7 @@
 // 100-level campaign definition. Pure data + deterministic formulas; no rendering.
 
+import { LEVEL_CLOCK_SECONDS } from './levelclock.js';
+
 export const METROS = [
   { id: 'suburbs',  name: 'SUBURBS',       theme: { ground: 0x7ab55c, water: 0x3f9fd8, sky: 0xbfe8ff, palette: [0xe08a68, 0xe8c86a, 0x8fb8d8, 0xe88a9a, 0x9a8fd0, 0x7cc9a0] } },
   { id: 'downtown', name: 'DOWNTOWN',      theme: { ground: 0x7f8c99, water: 0x2f6f9f, sky: 0xaad4f5, palette: [0x8fb8d8, 0xc9d6e2, 0xe2a36a, 0x9b7bff, 0x6a8caf, 0xd8d8d8] } },
@@ -25,9 +27,18 @@ function levelDef(index) {
 
   const isFinale = inMetro === LEVELS_PER_METRO - 1;
 
-  // Size & clock ramp
+  // Size ramp. The CLOCK no longer ramps: every playable level is 180 s (R-1.1),
+  // read from the one declaration in js/levelclock.js. The old formula ran
+  // 75 s -> ~160 s across the campaign, which meant the length of a level was a
+  // per-level number nobody could state; keeping it here would also have been a
+  // second copy of the limit, which is exactly what R-1.1 forbids.
+  //
+  // Downstream this moves one derived value: js/citygen.js times the tide
+  // events at `level.clock * (0.35 + i * 0.25)`, so tides now fire later in
+  // absolute seconds on every level. That is a campaign-only sim-output change
+  // and is deliberate — the tides stay at the same FRACTION of the run.
   const size = 90 + g * 0.8 + metroIndex * 2;                      // 90 .. ~177 m
-  const clock = Math.round(75 + g * 0.75 + metroIndex * 3);        // 75 .. ~160 s
+  const clock = LEVEL_CLOCK_SECONDS;
 
   // Mechanics availability by campaign position
   const hasGolden = index >= 6;

@@ -2,7 +2,7 @@
 
 import { Sim } from './sim.js';
 import {
-  RANKED_TICK_COUNT, RANKED_TUNE, VoxelSandboxSim, sandboxSizeProgress, loadScene,
+  RANKED_TICK_COUNT, VoxelSandboxSim, sandboxSizeProgress, loadScene,
 } from './voxelsim.js';
 import { getLevel, METROS } from './levels.js';
 import { loadSave, storeSave, recordLevelResult, recordSandboxResult, isLevelUnlocked } from './save.js';
@@ -138,7 +138,14 @@ function wantedTier() {
 function applyQuality() {
   const spec = TIERS[tierName] || TIERS.high;
   if (world && world.setQuality) world.setQuality(spec);
-  if (sim && sim.tune) {
+  // RENDER quality is always applied — a phone may draw less at any time. The
+  // PHYSICS half stops at a ranked sim (T-302, audit A5.2): these four are the
+  // device-tier levers, and re-applying them mid-run rewrote ranked physics with
+  // no guard at all. Measured on the ordinary LOW-tier phone value
+  // (`supportEvery: 2`): 945.95 against a 2231.9625 baseline, a 58% loss — and
+  // note the sign, the player was robbed rather than favoured. `tuneLocked` is
+  // the sim's own flag, so this cannot drift from the mode test that set it.
+  if (sim && sim.tune && !sim.tuneLocked) {
     sim.tune.debrisCap = spec.debrisCap;
     sim.tune.contactBudget = spec.contactBudget;
     sim.tune.contactRounds = spec.contactRounds;
@@ -259,10 +266,16 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     applyVoxTuning();
   },
 });
+window.__screens = screens; // debug/smoke-test hook, same idiom as __sim / __hud
 
 // Dev voxel tuning sliders → the running sandbox sim (no-op elsewhere).
+// Never a ranked sim (T-302, audit A5.2). The ADVANCED sliders persist in the
+// save, so a player who once moved Gravity carried that value into every later
+// RUN through this function's mid-run reapply — measured at 4438.43 against a
+// 2231.9625 baseline. A ranked sim's tune is also frozen, so without this guard
+// the write would throw rather than merely diverge.
 function applyVoxTuning() {
-  if (!sim || !sim.tune) return;
+  if (!sim || !sim.tune || sim.tuneLocked) return;
   const st = save.settings;
   sim.tune.gravity = st.voxGravity;
   sim.tune.waveK = st.voxWaveK;
@@ -517,14 +530,18 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
     cam.setSandboxSizeProgress(0);
     controls.setSandboxSizeProgress(0);
     window.__controls = controls; // debug hook — the sizeT ramp has two consumers
-    applyVoxTuning(); // dev sliders from the save
+    applyVoxTuning(); // dev sliders from the save — no-ops on a ranked sim
     // After the sim and the renderer both exist, and after applyVoxTuning —
     // which writes the whole `tune` object's dev half and would otherwise be
     // the last word on it.
     startQuality();
-    // The ranked tune is deliberately the final physics writer. Quality and
-    // dev sliders may change rendering or a free-play sandbox, never THE RUN.
-    if (mode === 'run90') Object.assign(sim.tune, RANKED_TUNE);
+    // No ranked re-assign here any more. The constructor is now the ONLY writer
+    // of a ranked tune: it replaces the object with a frozen copy of
+    // RANKED_TUNE, and the two functions above return early on `tuneLocked`.
+    // The old line was `Object.assign(sim.tune, RANKED_TUNE)`, which read as
+    // "the ranked tune is the final physics writer" but was only true at run
+    // start — every later applySettings() re-opened it (audit A5.2), and a
+    // merge could never clear a key RANKED_TUNE did not carry (audit A5.1).
     rankedRun = mode === 'run90'
       ? { inputs: createInputBuffer(RANKED_TICK_COUNT), ticks: 0, ticket, move: { x: 0, z: 0 } }
       : null;
@@ -720,6 +737,17 @@ function frame(ts) {
           });
         } else if (ev.type === 'coin') {
           hud.announce({ text: `COIN! +${ev.value}`, source: 'coin', priority: ANN.COIN, ms: 700 });
+        } else if (ev.type === 'clock') {
+          // The endgame states (R-1.5). Fired by the sim at exact ticks, so both
+          // arrive once and at the same moment on every device. The visual state
+          // is the clock pill itself (js/ui/hud.js reads the same thresholds);
+          // this is the audible half, on the countdown cue the audio layer
+          // already has, plus one short announcement through the queue.
+          audio.countdownTick();
+          hud.announce({
+            text: ev.at <= 10 ? `${ev.at} SECONDS!` : `${ev.at} SECONDS LEFT`,
+            source: 'clock', priority: ANN.CLOCK, ms: 1400,
+          });
         }
         // 'goal' needs no branch: GameAudio plays the sting, and the milestone
         // ladder's last row (fired one event earlier) is the screen's beat.
@@ -806,6 +834,12 @@ function endSandbox() {
     recordSandboxResult(save, finished.scene, {
       coinsEarned: coins, size: finished.hole.size, elapsed: finished.time,
       bestCombo: finished.hole.bestCombo, score: finished.hole.mass,
+      // Both halves of the outcome, because the clock made them different
+      // questions (R-2.2). `won` is a genuine full clear of the city and is what
+      // `completions` counts; `percent` is what the player actually reached in
+      // the 180 s and is the record almost every run will set.
+      won: finished.won,
+      percent: finished.totalMass ? finished.hole.rawMass / finished.totalMass : 0,
     });
     if (toCities) { teardownWorld(); state = 'menu'; screens.showTitle(); }
     else startVoxelSandbox(finished.scene);

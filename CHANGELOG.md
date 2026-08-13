@@ -3,6 +3,100 @@
 Detailed build history, migrated from STATUS.md (which is a lean board, not a
 changelog). Newest first. Commit-level history: `git log`.
 
+- 2026-08-13: **Score integrity and honest combo readouts** (Phase 3 of
+  `.wiki/features/timed-runs-and-full-clear/`, closing
+  `.wiki/findings/RCA-2026-08-13-scoring-and-combo-audit.md`).
+  (1) **The ranked release blocker.** `RANKED_TUNE` is now a COMPLETE physics
+  description — it names `perfMode` too — and a `run90` sim's `tune` is
+  replaced rather than merged, then double-locked (`Object.freeze` on the
+  object, `writable: false` on the property, so `sim.tune = {…}` is refused as
+  well as `sim.tune.x = 1`). `Object.assign` could never clear a key its source
+  lacked, which is exactly how SETTINGS → "Smoother play" leaked into ranked
+  physics. `js/main.js` gates every physics lever on `!sim.tuneLocked` while
+  still applying RENDER quality, and the server asserts the tune instead of
+  assigning it (`unverifiable`, not `mismatch` — a build problem is not the
+  player's fault). Measured: server 2231.9625, hostile client 2231.9625
+  (delta 0), pre-fix client 2247.9250. Driving all 19 controls on the pause
+  SETTINGS screen mid-run moves nothing; the same routine moves five tune keys
+  on a free-play sim. **No `RANKED_SIM_VERSION` bump**: adding `perfMode: false`
+  leaves the server byte-identical (`undefined` and `false` take the same
+  branch), so stored traces replay to the same verdicts.
+  (2) **The server compares the two numbers it always had.** A claimed score
+  that disagrees with the replayed one is a `score` mismatch at zero tolerance,
+  and the claim is recorded either way — including on the `unranked` placement
+  gate, whose trust boundary is now written down rather than re-derived.
+  (3) **The arena judges the currency it prints.** THE SCORE WINS: the winner
+  comes off the combo-multiplied points on screen, not `finalSplit().mass`.
+  ADR-0015 already ruled that the combo buys score and the boards rank score;
+  if raw mass decided the match, a combo would carry no competitive meaning in
+  the one mode where you are beating someone. The tug bar keeps showing
+  raw-mass territory and now says `TERRITORY` so it cannot be read as the score.
+  (4) **Protocol v4.** The per-hole `mass_q` field went u16 → u32 (a hole is 12
+  bytes, a worked-example snapshot 156). The u16 clamped a peer's readable score
+  at 16383.75 while the shipped 180 s Chicago route scores 7,425 — 14,709.5 if
+  every block it ate had landed at the 8x ceiling, so the old cap sat at 1.11x
+  the hard bound of a route we ship. New cap 1,073,741,823.75 = 1082x the
+  whole-city-at-8x bound of 992,377.
+  (5) **Every combo readout states its unit.** `Best combo x47` on the campaign
+  results screen and `COMBO x47` on the campaign HUD pill were chain counts in
+  multiplier notation against a ladder that caps at **3.0**; both now read
+  `47 eats at x3.0` off `comboMultiplier`. The RUN and sandbox results say
+  `530 eats at x7`. The HUD ring's big number — the largest text in the HUD —
+  carries a `CHAIN` unit under it. `COMBO_LEVEL_NAMES` numbers its top rung
+  `x8` instead of naming it `MAX`, so the real ceiling is finally shown; the
+  summit reads as the summit through a paint-only `topped` state instead of a
+  label sitting over a number that keeps climbing.
+  (6) **The validator's tautology is gone.** The load-bearing combo assertion
+  compared `comboMult(c)` against that function's own inlined body and passed on
+  any code — proven: it reports ALL PASS on a ladder paying x50. It is replaced
+  by a literal chain→multiplier table transcribed from the ruling, and the
+  source guards now cover the whole audit B2 inventory (hud, screens, arena,
+  index.html, arena.html) plus the float-layout trap that two `<b>` values in
+  one results row renders in reverse. All ten breakages were run against a
+  deliberately broken tree first and every one failed. `FW_VALIDATE_SECTIONS`
+  lets a single section run, since the full validator still stalls in
+  `validateCambridge`.
+- 2026-08-13: **The 180 s clock and the full-clear goal** (Phases 1–2 of
+  `.wiki/features/timed-runs-and-full-clear/`). (1) New pure module
+  `js/levelclock.js` holds the ONE declaration — `LEVEL_CLOCK_SECONDS = 180`,
+  its tick count, the 30 s/10 s endgame thresholds and `formatClock()`. It has
+  zero imports on purpose: the campaign chain (`levels.js` → `sim.js`) and the
+  sandbox (`voxelsim.js`, which `api/_verify.mjs` also imports) must both read
+  it without dragging each other in. `js/levels.js` dropped its
+  `75 + g*0.75 + metroIndex*3` formula; all 100 levels now carry the constant.
+  Knock-on: `js/citygen.js` times tides at `level.clock * (0.35 + i*0.25)`, a
+  DERIVED value, so campaign tides fire later in absolute seconds — a campaign
+  sim-output change that does not touch `sim_version` (ranked `run90` only).
+  (2) City runs had no timer at all and now have one. `VoxelSandboxSim` counts
+  `clockTicks` (ticks, not accumulated float seconds, so expiry is bit-exact
+  and device-independent) and sets `timedOut` + `over` at 10,800. The block
+  sits after the goal/win check — a full clear on the final tick is a win — and
+  after the `run90` early return, so THE RUN is untouched and its `clockLimit`
+  is `null`. (3) Expiry is a NORMAL ending: it lands on the results screen
+  under `TIME'S UP` carrying the percentage reached, score, best chain and
+  coins. Not a failure state. (4) `GOALS` → exported `SCENE_GOALS`, with
+  `targetFraction: 1.0` on all seven scenes. 100% is a scoring ceiling, not a
+  win condition. The sweep past the literal `0.5` mattered more than the
+  constant: `js/ui/hud.js` compared `cleared >= targetFraction`, which had half
+  a city of slack at 0.5 and becomes the exact expression the sim needs a 1e-9
+  epsilon for at 1.0 — it now reads the `sim.won` latch, or a real full clear
+  would sit on "CLEARED 99%" forever. `js/save.js` v18 splits `completions`
+  (full clears only) from the new `runs` (finished runs) and adds
+  `bestPercent`; `bestTime` is only set on a win, since a timed-out run always
+  takes exactly the clock and would otherwise drive every scene to 180. The
+  city chips, RECORDS history and results screen follow that split. Nothing was
+  needed on the back end — `api/_verify.mjs` already reports
+  `rawMass / totalMass` over the whole map and no board view names a fraction.
+  (5) New HUD pill `#level-clock` (its own element: `#timer` is already the
+  sandbox coin readout and the campaign countdown), built from existing
+  `--fw-*` tokens, with `.warn`/`.urgent` states; both reduced-motion paths
+  (OS media query and the in-game `body.reduced-motion` setting) drop the pulse
+  and keep the colour and size step. (6) `tools/validate.mjs` gained
+  `validateLevelClock()` and `validateScenesWinnable()` — the latter replaces
+  the gallery-only guard and consumes every block of all seven scenes in radial
+  order, because the epsilon it is testing only fails in some consumption
+  orders.
+
 - 2026-08-12: **Mobile performance pass.** Measured on a Pixel-5 profile at
   4x CPU throttle, then fixed: (1) the six authored city scene modules (1.19
   MB of source between them, Cambridge alone 664 KB) no longer load at boot —

@@ -26,10 +26,18 @@ beatable headlessly.
 
 ## Gotchas
 
-- Level params are *formulas* over index (size, clock, target, mechanics);
-  the validator's margin gate (win with ≥ 15% clock left) is what makes a
-  formula change safe. Never hand-edit a single level's target without
-  re-running the full proof.
+- Level params are *formulas* over index (size, target, mechanics); the
+  validator's margin gate (win with ≥ 15% clock left) is what makes a formula
+  change safe. Never hand-edit a single level's target without re-running the
+  full proof.
+- `clock` is NO LONGER a formula (2026-08-13). Every level carries exactly
+  `LEVEL_CLOCK_SECONDS` from `js/levelclock.js` — 180 s, one declaration shared
+  with the sandbox — and `validateLevelClock()` asserts all 100 levels agree.
+  The old `75 + g * 0.75 + metroIndex * 3` ladder gave 75–160 s. Consequence
+  worth knowing: `js/citygen.js` times tides at `level.clock * (0.35 + i*0.25)`,
+  a value DERIVED from the clock, so tides now fire later in absolute seconds on
+  every campaign level. That is a campaign sim-output change; it does not touch
+  `sim_version`, which covers only the ranked `run90` path.
 - Mechanic rollout schedule: golden L6, rivals L21, tide L41, landmark L20;
   landmark also on all metro finales + L91–100.
 - Save version bumps need a `MIGRATIONS[oldV]` entry; future-version saves

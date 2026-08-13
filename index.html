@@ -126,6 +126,13 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
       <!-- CSS-drawn bars, not a text glyph: ❙❙ fell back to a missing-glyph
            box on systems without that codepoint (playtest finding). -->
       <button id="btn-pause" class="round-btn" title="Pause"><span class="pause-glyph"><span></span><span></span></span></button>
+      <!-- The level clock (R-1.2). Its own pill rather than a second job for
+           #timer, which the sandbox already uses as the coin readout — one
+           element cannot be both without one of them disappearing. Above the
+           coin pill because the clock is the thing that ends the run.
+           aria-live="off": it changes every frame and a polite live region
+           would queue a screen reader announcement per second. -->
+      <div id="level-clock" class="hidden" role="timer" aria-live="off">3:00</div>
       <div id="timer">75</div>
       <!-- Combo meter: radial, on the right, away from the goal stack on the
            left — the separation is what makes the two tellable apart in
@@ -138,8 +145,14 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
           <circle class="cm-track" cx="50" cy="50" r="42"></circle>
           <circle class="cm-arc" cx="50" cy="50" r="42"></circle>
         </svg>
+        <!-- Three lines, and the middle one is the point: the big number is a
+             CHAIN COUNT, not a multiplier. Unlabelled it was the visually
+             dominant readout in the HUD at 18-26px against the honest
+             multiplier's 10-13px, so "my combo hit 530" was the number players
+             carried away and read as 530x (audit B2, T-310). -->
         <div class="cm-readout">
           <span id="cm-chain">0</span>
+          <span class="cm-unit">CHAIN</span>
           <span id="cm-mult">x1</span>
         </div>
       </div>

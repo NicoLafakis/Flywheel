@@ -183,7 +183,10 @@ back to a full-city view at that reveal). This closed the one real wire gap
 the package found: **protocol v3** (`js/net/protocol.js`) adds per-slot eaten
 RLE streams to keyframe payloads, so a client healing from a keyframe (a late
 joiner, or any peer that fell behind) learns *who* ate a block, not just that
-it was eaten — previously the keyframe's eaten bitset was anonymous. Craters
+it was eaten — previously the keyframe's eaten bitset was anonymous. The wire is now at **protocol v4**, which widened
+the per-hole `mass_q` field from u16 to u32 — the u16 hard-clamped a peer's
+readable score at 16383.75, within 11% of the shipped Chicago route's own
+maximum (T-307). Craters
 and the tug bar are also shared onto the hot-seat `multiplayer.html` demo.
 Headless coverage: `js/rival/rival.test.mjs`. Two patterns from the package's
 seven (size-as-threat legibility and its own tasks T11/T12) are deliberately

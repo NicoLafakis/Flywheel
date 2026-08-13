@@ -1,13 +1,21 @@
 // HUD: mass bar, timer, combo, level banner, minimap, toasts.
 
-import { COMBO_WINDOW, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES, comboLevel, comboMult } from '../voxelsim.js';
+import { COMBO_WINDOW, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES, comboLevel } from '../voxelsim.js';
+import { LEVEL_CLOCK_URGENT_SECONDS, LEVEL_CLOCK_WARN_SECONDS, formatClock } from '../levelclock.js';
+// The CAMPAIGN ladder is a different one — it caps at 3.0 where the voxel
+// ladder above caps at 8x. Imported so the campaign pill reads the multiplier
+// the campaign sim awards rather than restating an expression here, which is
+// exactly how the old sandbox pill came to disagree with its sim (ADR-0015).
+import { comboMultiplier as campaignComboMult } from '../sim.js';
 
 // The arc's circumference at r=42, matching css/main.css's stroke-dasharray.
 const CM_CIRCUM = 2 * Math.PI * 42;
 
 // Announcement priorities. One scale, so a future reward system arrives through
 // the same door with a rank instead of a new channel (SYS-605).
-export const ANN = { COIN: 10, COMBO: 30, SIZE: 50, MILESTONE: 70, GOAL: 90 };
+// CLOCK sits above MILESTONE and below GOAL on purpose: "10 seconds left" must
+// not be buried under a consumption phrase, but nothing outranks the run ending.
+export const ANN = { COIN: 10, COMBO: 30, SIZE: 50, MILESTONE: 70, CLOCK: 80, GOAL: 90 };
 
 export class HUD {
   constructor() {
@@ -17,6 +25,12 @@ export class HUD {
     this.massLabel = document.getElementById('mass-label');
     this.comboLabel = document.getElementById('combo-label');
     this.timer = document.getElementById('timer');
+    this.levelClock = document.getElementById('level-clock');
+    // Last rendered clock text and state, so the countdown touches the DOM once
+    // per second rather than once per frame — the same caching idiom the score
+    // plate and the combo readout already use.
+    this._clockTextShown = null;
+    this._clockStateShown = null;
     this.toast = document.getElementById('toast');
     this.bigPop = document.getElementById('big-pop');
     this.minimap = document.getElementById('minimap');
@@ -174,9 +188,20 @@ export class HUD {
     const t = Math.ceil(sim.timeLeft);
     this.timer.textContent = t;
     this.timer.classList.toggle('low', t <= 10);
+    // The campaign keeps its countdown in #timer, which it has always owned
+    // (the sandbox is the mode that repurposed #timer as a coin readout and
+    // therefore needed a pill of its own). Turned off EXPLICITLY rather than
+    // left alone: the HUD instance outlives a mode switch, so a sandbox run
+    // followed by a campaign level would otherwise strand a frozen countdown.
+    this._updateClock(null);
     if (p.chain >= 2) {
       this.comboLabel.classList.remove('hidden');
-      this.comboLabel.textContent = `COMBO x${p.chain}`;
+      // CHAIN, then the multiplier that chain actually buys — read from the
+      // campaign sim's own ladder, which caps at 3.0. This used to print
+      // `COMBO x{chain}`, so a 47-eat chain claimed x47 for a run scoring at
+      // x3.0 (T-309). Same defect ADR-0015 closed for the sandbox pill, still
+      // live here because the campaign HUD was never part of that pass.
+      this.comboLabel.textContent = `CHAIN ${p.chain} · x${campaignComboMult(p.chain).toFixed(1)}`;
     } else {
       this.comboLabel.classList.add('hidden');
     }
@@ -193,10 +218,23 @@ export class HUD {
     // the player whether they were at 0.1% or 10% (playtest finding — the bar
     // was the only progress channel and it had no scale). SIZE rides the same
     // line so the grow ladder is visible between size-up pops.
+    // The target is only worth printing when it is NOT the whole city. At
+    // targetFraction 1.0 "CLEARED 4% / 100% OF THE CITY" states its denominator
+    // twice — the sentence already ends in "OF THE CITY". Computed rather than
+    // deleted so the line still reads correctly if a scene is ever given a
+    // partial goal again (R-2.5 keeps that a one-constant change).
     const goalPct = Math.round(sim.goal.targetFraction * 100);
-    this.massLabel.textContent = cleared >= sim.goal.targetFraction
+    const targetSuffix = goalPct >= 100 ? '' : ` / ${goalPct}%`;
+    // `sim.won`, NOT a second `cleared >= targetFraction` comparison here. That
+    // comparison was safe while cities sat at 0.5 and half a city of slack hid
+    // the float shortfall; at targetFraction 1.0 it is the exact expression the
+    // sim needs a 1e-9 epsilon for (see the win check in js/voxelsim.js), so a
+    // real full clear would land on 0.9999999999 and the HUD would sit on
+    // "CLEARED 99%" forever while the sim had already awarded the goal. One
+    // latch, read by both.
+    this.massLabel.textContent = sim.won
       ? `${sim.goal.name} · GOAL REACHED · SIZE ${h.size}`
-      : `CLEARED ${Math.floor(cleared * 100)}% / ${goalPct}% OF THE CITY · SIZE ${h.size}`;
+      : `CLEARED ${Math.floor(cleared * 100)}%${targetSuffix} OF THE CITY · SIZE ${h.size}`;
     this.massBar.style.width = `${(cleared * 100).toFixed(1)}%`;
     // No "+2" suffix: the per-coin value read as an unexplained orphan on the
     // HUD; the payout is explained on the results screen where the math lives.
@@ -213,8 +251,40 @@ export class HUD {
     // sim awarded 1.1. It is replaced outright by the ring below, which reads
     // the sim's own exported ladder. The pill stays hidden in the sandbox.
     this.comboLabel.classList.add('hidden');
+    this._updateClock(sim.timeLeft);
     this._updateScore(h.mass);
     this._updateCombo(h);
+  }
+
+  // The countdown pill. `seconds` is the sim's own `timeLeft`, so the readout is
+  // SIM time and cannot drift from the tick the run actually ends on — a HUD
+  // that counted wall-clock seconds would show 0:00 while the sim kept running
+  // on a slow device. `null` means the mode has no level clock (THE RUN keeps
+  // its own bound), and the pill goes away rather than showing a zero.
+  _updateClock(seconds) {
+    if (seconds === null || seconds === undefined) {
+      if (this._clockStateShown !== 'off') {
+        this._clockStateShown = 'off';
+        this.levelClock.classList.add('hidden');
+      }
+      return;
+    }
+    const text = formatClock(seconds);
+    if (text !== this._clockTextShown) {
+      this._clockTextShown = text;
+      this.levelClock.textContent = text;
+    }
+    // Thresholds come from js/levelclock.js — the same numbers the sim fires its
+    // endgame events on, so the pill can never change state on a different
+    // second from the cue.
+    const state = seconds <= LEVEL_CLOCK_URGENT_SECONDS ? 'urgent'
+      : seconds <= LEVEL_CLOCK_WARN_SECONDS ? 'warn' : 'normal';
+    if (state !== this._clockStateShown) {
+      this._clockStateShown = state;
+      this.levelClock.classList.remove('hidden');
+      this.levelClock.classList.toggle('warn', state === 'warn');
+      this.levelClock.classList.toggle('urgent', state === 'urgent');
+    }
   }
 
   // Animated count-up. Eased toward the live value on real time, so a big gain
@@ -263,9 +333,15 @@ export class HUD {
     if (level !== this._comboLevelShown) {
       this._comboLevelShown = level;
       this.comboMeter.style.setProperty('--cm-heat', `var(--fw-heat-${Math.min(8, level)})`);
-      this.comboMultEl.textContent = level >= COMBO_MAX_LEVEL
-        ? COMBO_LEVEL_NAMES[COMBO_MAX_LEVEL]
-        : `x${comboMult(h.chain)}`;
+      // One expression for every rung including the top. The old code branched
+      // at COMBO_MAX_LEVEL to print the word `MAX` instead of the number, so x8
+      // — the actual ceiling — was never shown to anyone (T-311). The summit
+      // now reads as the summit through a STATE on the ring rather than through
+      // a label, because the chain count beside it keeps climbing forever and a
+      // label saying "stopped" over a climbing number is what made the ceiling
+      // unreadable in the first place.
+      this.comboMultEl.textContent = COMBO_LEVEL_NAMES[level];
+      this.comboMeter.classList.toggle('topped', level >= COMBO_MAX_LEVEL);
     }
     if (live !== this._comboLive) {
       this._comboLive = live;
@@ -300,6 +376,11 @@ export class HUD {
   resetSandboxMeters() {
     this._scoreShown = 0; this._scoreTextShown = -1; this._chainShown = -1;
     this._comboLevelShown = -1; this._comboLive = false;
+    // The clock too, or a RESTART inherits the previous run's endgame state and
+    // opens on a red 0:00 until the first frame writes over it.
+    this._clockTextShown = null; this._clockStateShown = null;
+    this.levelClock.classList.remove('warn', 'urgent');
+    this.levelClock.classList.add('hidden');
     this._scoreLast = performance.now();
     this.comboMeter.classList.remove('live', 'step', 'broke');
     this.scoreValue.textContent = '0';

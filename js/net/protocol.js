@@ -32,7 +32,15 @@
 // found (.wiki/features/rival-visibility/00-objective-overview.md): live
 // events always carried the eater's slot; the keyframe forgot it. Same hard
 // version gate: a v2 client meeting a v3 room fails cleanly.
-export const PROTOCOL_VERSION = 3;
+//
+// v4: the per-hole mass field widened from u16 to u32 (a hole is 12 bytes, not
+// 10) because a u16 at 1/4 resolution hard-clamped a peer's readable score at
+// 16383.75 — see Q.MASS for the measurement that showed the shipped Chicago
+// route already sits within 11% of that. The version bump is load-bearing
+// rather than ceremonial: a v3 client reading a v4 snapshot would parse the
+// high half of mass_q as radius and heading and desync visibly, so it must be
+// refused at the door instead. Same hard gate; the check is at `validate`.
+export const PROTOCOL_VERSION = 4;
 
 /**
  * Pseudo-slot for "eaten, eater unknown" in a keyframe's per-slot streams —
@@ -122,7 +130,19 @@ const CONTROL_SET = new Set(Object.values(CONTROL));
 
 export const Q = Object.freeze({
   POS_CM: 100,        // i16 x_cm, z_cm — cm, +-327 m
-  MASS: 4,            // u16 mass_q = mass * 4
+  // u32 mass_q = mass * 4. This was a u16 through protocol v3, capping a peer's
+  // readable score at 16383.75 (audit A6.1) — and that was not a theoretical
+  // ceiling. Measured, seed 'probe-seed', the scripted 180 s Chicago route:
+  //   realised score        7,425.3   (raw 1,838.7 at an average 4.04x)
+  //   same route, all at 8x   14,709.5  <- the old cap was 1.11x THIS
+  //   whole city at 8x       992,376.8
+  // So a player on the shipped route who chained better than average was
+  // already within 11% of freezing their own score on the peer's screen, and no
+  // u16 scale can hold the whole-city bound without a resolution so coarse the
+  // rival's plate would visibly tick in steps. Four bytes ends the class of bug
+  // instead of relocating it: the cap is now 1,073,741,823.75, which is 1082x
+  // the absolute most any player can score in any city on any route.
+  MASS: 4,
   RADIUS: 20,         // u8  radius_q = radius * 20, 0..12.75 m
   HEADING: 256 / (Math.PI * 2), // u8 heading_q
 });
@@ -131,7 +151,7 @@ export const LIMITS = Object.freeze({
   MAX_HOLES: 255,        // u8 hole_count
   MAX_EVENTS: 255,       // u8 event_count
   MAX_POS_M: 327.67,     // i16 cm
-  MAX_MASS: 16383.75,    // u16 / 4
+  MAX_MASS: 0xffffffff / 4,  // u32 / 4 — see Q.MASS for the measured headroom
   MAX_RADIUS_M: 12.75,   // u8 / 20
   MAX_TICK: 0xffff,      // low 16 bits, wraps every ~18 min at 60 Hz
   MAX_TIME_LEFT_CS: 0xffff,
@@ -141,7 +161,10 @@ export const LIMITS = Object.freeze({
 });
 
 const SNAPSHOT_HEADER_BYTES = 12;
-const HOLE_BYTES = 10;
+// 12 since protocol v4, was 10: mass_q went u16 -> u32 (see Q.MASS). At the
+// design doc's worked example (8 holes, 12 events) a snapshot is 156 bytes
+// rather than 140 — 2.6 KB/s down per peer at 12 Hz instead of 2.3.
+const HOLE_BYTES = 12;
 const EVENT_BYTES_NARROW = 4;
 const EVENT_BYTES_WIDE = 6;
 export const INTENT_BYTES = 6;
@@ -230,7 +253,7 @@ export function quantizeSnapshot(snap) {
       state: h.state & 0xff,
       x: clamp(Math.round(h.x * Q.POS_CM), -32768, 32767) / Q.POS_CM,
       z: clamp(Math.round(h.z * Q.POS_CM), -32768, 32767) / Q.POS_CM,
-      mass: clamp(Math.round(h.mass * Q.MASS), 0, 0xffff) / Q.MASS,
+      mass: clamp(Math.round(h.mass * Q.MASS), 0, 0xffffffff) / Q.MASS,
       radius: clamp(Math.round(h.radius * Q.RADIUS), 0, 0xff) / Q.RADIUS,
       heading: Math.round(wrapAngle(h.heading || 0) * Q.HEADING) % 256 / Q.HEADING,
     })),
@@ -312,7 +335,7 @@ export function encodeSnapshot(snap) {
     dv.setUint8(o, h.state & 0xff); o += 1;
     dv.setInt16(o, clamp(Math.round(h.x * Q.POS_CM), -32768, 32767), true); o += 2;
     dv.setInt16(o, clamp(Math.round(h.z * Q.POS_CM), -32768, 32767), true); o += 2;
-    dv.setUint16(o, clamp(Math.round(h.mass * Q.MASS), 0, 0xffff), true); o += 2;
+    dv.setUint32(o, clamp(Math.round(h.mass * Q.MASS), 0, 0xffffffff), true); o += 4;
     dv.setUint8(o, clamp(Math.round(h.radius * Q.RADIUS), 0, 0xff)); o += 1;
     dv.setUint8(o, Math.round(wrapAngle(h.heading || 0) * Q.HEADING) % 256); o += 1;
   }
@@ -368,9 +391,9 @@ export function decodeSnapshot(bytes) {
       state: dv.getUint8(o + 1),
       x: dv.getInt16(o + 2, true) / Q.POS_CM,
       z: dv.getInt16(o + 4, true) / Q.POS_CM,
-      mass: dv.getUint16(o + 6, true) / Q.MASS,
-      radius: dv.getUint8(o + 8) / Q.RADIUS,
-      heading: dv.getUint8(o + 9) / Q.HEADING,
+      mass: dv.getUint32(o + 6, true) / Q.MASS,
+      radius: dv.getUint8(o + 10) / Q.RADIUS,
+      heading: dv.getUint8(o + 11) / Q.HEADING,
     };
     o += HOLE_BYTES;
   }
@@ -555,6 +578,11 @@ export function validate(env) {
           seen.add(h.slot);
           if (!isFiniteNum(h.x) || !isFiniteNum(h.z)) return fail('hole position is not finite');
           if (Math.abs(h.x) > LIMITS.MAX_POS_M || Math.abs(h.z) > LIMITS.MAX_POS_M) return fail('hole position out of world range');
+          // Structurally unfireable for a decoded snapshot — `decodeSnapshot`
+          // reads mass out of a fixed-width field, so it cannot produce a value
+          // outside [0, MAX_MASS] (audit A6.1 item 4). Kept deliberately: it is
+          // the assertion that the field width and MAX_MASS still agree, and it
+          // is what would catch the next change to either.
           if (h.mass < 0 || h.mass > LIMITS.MAX_MASS) return fail('hole mass out of range');
           if (h.radius < 0 || h.radius > LIMITS.MAX_RADIUS_M) return fail('hole radius out of range');
         }

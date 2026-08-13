@@ -188,11 +188,11 @@ header  (12 bytes)
   u8   event_count
   u16  reserved
 
-per hole (10 bytes × N)
+per hole (12 bytes × N)
   u8   slot
   u8   state                bit0 alive, bit1 disconnected, bit2 swallowing
   i16  x_cm, z_cm           world position in cm, ±327 m — every shipped scene fits
-  u16  mass_q               mass × 4, 0..16383 (cap is well under)
+  u32  mass_q               mass × 4, 0..1,073,741,823 (protocol v4; was u16)
   u8   radius_q             radius × 20, 0..12.75 m (PLAYER_MAX_RADIUS is 6.0)
   u8   heading_q            heading × 256/2π
 
@@ -202,9 +202,22 @@ per event (4 bytes × E)      eats since the last snapshot
   u16  object_id            index into the city's object array
 ```
 
-At 8 holes and 12 events: 12 + 80 + 48 = **140 bytes**, ~190 base64'd. At 12 Hz
-that is **2.3 KB/s down per peer**. A 3-minute match moves under 500 KB total
+At 8 holes and 12 events: 12 + 96 + 48 = **156 bytes**, ~208 base64'd. At 12 Hz
+that is **2.6 KB/s down per peer**. A 3-minute match moves under 560 KB total
 per client. On venue wifi this is invisible.
+
+> **Protocol v4 (T-307).** `mass_q` was a u16 through v3, which put a hard
+> ceiling of 16383.75 on a peer's readable score — above it the peer's own
+> readout froze while the host's kept climbing, and the two screens printed
+> different numbers for the same player forever (audit A6.1). That was not a
+> theoretical cap. Measured on seed `probe-seed`, the shipped 180 s Chicago
+> route scores **7,425.3** (raw 1,838.7 at an average 4.04x), and **14,709.5**
+> if every block it ate had landed at the 8x combo ceiling — so the old cap sat
+> at 1.11x the hard bound of a route we ship. Widening to u32 costs 2 bytes per
+> hole per snapshot and raises the cap to 1,073,741,823.75, which is **1082x**
+> the absolute whole-city-at-8x bound of 992,377. The version gate is
+> load-bearing: a v3 client parsing a v4 hole would read the high half of
+> `mass_q` as radius and heading, so it must be refused rather than tolerated.
 
 Object ids are indices into the deterministically-generated city array, which
 is identical on every client. That is the second dividend of ADR-0003 in this

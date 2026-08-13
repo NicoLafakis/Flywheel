@@ -11,7 +11,7 @@ import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_SFX_VOLUME } from './audio/mix.js';
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 17;
+export const CURRENT_VERSION = 18;
 
 // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
 export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2 };
@@ -114,7 +114,9 @@ function freshSave() {
     coins: 0,
     // levelIndex (1-based) -> { stars, bestMass, bestCombo, won }
     levels: {},
-    // scene id -> { completions, bestSize, bestTime }; added by migration 10
+    // scene id -> { completions, runs, bestSize, bestTime, bestCombo, bestScore,
+    // bestPercent }; added by migration 10, extended by 15->16 and 17->18.
+    // `completions` is FULL CLEARS of the city; `runs` is finished runs.
     sandbox: {},
     ownedItems: [],       // shop item ids
     equippedSkin: 'classic',
@@ -318,6 +320,32 @@ const MIGRATIONS = {
     player: { ...defaultPlayer(), ...(s.player || {}) },
     outbox: Array.isArray(s.outbox) ? s.outbox : [],
   }),
+  // v18: the 180 s clock split one number into two. `completions` used to be
+  // "runs finished", because a sandbox run could only END by reaching the goal;
+  // now a run ends on the clock and reaching the goal is a full clear of the
+  // whole city, which most runs will not manage. So `completions` keeps its
+  // NAME and narrows to full clears only, `runs` counts finished runs, and
+  // `bestPercent` stores the furthest the player has got — the record almost
+  // every run will actually set (R-2.2).
+  //
+  // Same shape-only bump as v16: no top-level key is added, so the
+  // freshSave()/MIGRATIONS key-set guard has nothing new to hold, and
+  // `recordSandboxResult` fills both new fields in from an old record's
+  // defaults rather than assuming them.
+  //
+  // Existing `completions` values are LEFT ALONE rather than zeroed. They were
+  // honest goal completions under the rule that ran at the time; rewriting them
+  // to fit today's rule would be inventing history, and seeding `runs` from
+  // them is the closest true statement available (every completion was a run).
+  17: (s) => ({
+    ...s,
+    version: 18,
+    sandbox: Object.fromEntries(Object.entries(s.sandbox || {}).map(([scene, rec]) => [
+      scene, rec && typeof rec === 'object'
+        ? { ...rec, runs: rec.runs ?? rec.completions ?? 0, bestPercent: rec.bestPercent ?? 0 }
+        : rec,
+    ])),
+  }),
 };
 
 export function loadSave() {
@@ -391,15 +419,30 @@ export function recordLevelResult(save, levelIndex, { stars, mass, bestCombo, wo
 // record through the same call, so there is exactly one write path for a
 // finished sandbox run. `|| 0` on the previous values covers a v15 record that
 // predates both fields — a real case for every upgrading player.
-export function recordSandboxResult(save, scene, { coinsEarned, size, elapsed, bestCombo = 0, score = 0 }) {
+export function recordSandboxResult(save, scene, {
+  coinsEarned, size, elapsed, bestCombo = 0, score = 0, won = true, percent = 0,
+}) {
   if (!save.sandbox) save.sandbox = {};
   const prev = save.sandbox[scene] || { completions: 0, bestSize: 0, bestTime: null };
   save.sandbox[scene] = {
-    completions: prev.completions + 1,
+    // A FULL CLEAR of the city, not a finished run — see the v18 migration. The
+    // default is `won = true` so a caller that predates the clock (and could
+    // therefore only ever have finished by reaching the goal) still records what
+    // it meant.
+    completions: prev.completions + (won ? 1 : 0),
+    runs: (prev.runs ?? prev.completions ?? 0) + 1,
     bestSize: Math.max(prev.bestSize, size),
-    bestTime: prev.bestTime === null ? elapsed : Math.min(prev.bestTime, elapsed),
+    // Only a full clear sets a TIME, because only a full clear has one: a run
+    // that ends on the clock always took exactly the clock, so recording it
+    // would drive every scene's `bestTime` to 180 and erase the real records.
+    bestTime: won ? (prev.bestTime === null || prev.bestTime === undefined
+      ? elapsed : Math.min(prev.bestTime, elapsed)) : (prev.bestTime ?? null),
     bestCombo: Math.max(prev.bestCombo || 0, bestCombo),
     bestScore: Math.max(prev.bestScore || 0, Math.floor(score)),
+    // Fraction of the WHOLE city (R-2.2), 0..1. Stored as the fraction rather
+    // than as a rounded percentage so the display owns the rounding and a later
+    // change of precision does not need a migration.
+    bestPercent: Math.max(prev.bestPercent || 0, Math.min(1, Math.max(0, percent))),
   };
   save.coins += coinsEarned;
   storeSave(save);

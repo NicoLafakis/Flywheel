@@ -33,6 +33,9 @@
 // 'brooklyn' (bridges → DUMBO → Downtown → Prospect Park → Coney Island).
 
 import { RNG } from './rng.js';
+import {
+  LEVEL_CLOCK_TICKS, LEVEL_CLOCK_URGENT_SECONDS, LEVEL_CLOCK_WARN_SECONDS,
+} from './levelclock.js';
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from './fwmath.js';
 import { playerSpeedForRadius } from './tiers.js';
 import { sedan, bus, boxVan, bigTruck, motorcycle, tree, lampPost } from './voxelkit.js';
@@ -198,9 +201,15 @@ export const COMBO_THRESHOLDS = [2, 10, 15, 25, 50, 100, 350, 600];
 // being one more number going up.
 export const COMBO_STEP = 1;
 export const COMBO_MAX_LEVEL = COMBO_THRESHOLDS.length;
-// Display names, indexed by level. Level 8 is named rather than numbered
-// because "get to MAX" is a goal a booth visitor understands in three seconds.
-export const COMBO_LEVEL_NAMES = ['', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'MAX'];
+// Display names, indexed by level. Level 8 used to be 'MAX' rather than a
+// number, which made the top of the ladder the one rung whose VALUE the game
+// never showed: a player counting the steps they had seen concluded the ceiling
+// was x7, while the number visibly climbing next to that label was the chain
+// COUNT, not a multiplier. That pairing is the most likely origin of "it maxes
+// out at 100x" (audit B3, T-311). Every rung is now numbered; the summit still
+// reads as the summit through the ring's `topped` state, which is a state, not
+// a label sitting over something that keeps going up.
+export const COMBO_LEVEL_NAMES = ['', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8'];
 
 // Level 1 is the floor, including a chain of 0 or 1: a hole that has eaten one
 // block is not on a combo, but the multiplier it scores at is still x1, so the
@@ -218,10 +227,17 @@ export function comboMult(chain) {
 
 // --- the consumption milestone ladder (FR-015..FR-018) -----------------------
 // Ordered rows of { at, text, tier } where `at` is a fraction of the SCENE
-// GOAL, not of the whole city — so a targetFraction 0.5 scene and the gallery's
-// 1.0 both stage across their whole run without either being re-tuned. The last
-// row is exactly 1.0, which is goal completion, so the run ends on its loudest
-// beat rather than a beat before or after it.
+// GOAL. Every scene's goal is now the whole city (R-2.1), so `at` is also a
+// fraction of the whole city — the indirection stays because the goal table is
+// still the single source of the denominator (R-2.5's seam), not because the
+// two numbers currently differ. The last row is exactly 1.0, which is goal
+// completion, so a full clear ends on the loudest beat rather than a beat
+// before or after it.
+//
+// Consequence of the 100% goal, and it is the intended one: these phrases now
+// stage across the WHOLE map. 'HALFWAY GONE!' fires at half the city, where it
+// used to fire at a quarter of it, and 'TOTAL CONSUMPTION!' means what it says.
+// On a real city most runs will hear only the first row or two inside 180 s.
 //
 // This is DATA and it is meant to be edited as data: change a word, add a row,
 // reorder the volume, without touching a line of logic. `tier` selects how loud
@@ -239,14 +255,27 @@ export const MILESTONES = [
   { at: 1.00, text: 'TOTAL CONSUMPTION!',    tier: 'roar'  },
 ];
 
-const GOALS = {
+// The goal table. `targetFraction` is 1.0 on EVERY scene (R-2.1): the goal is
+// the whole city, not half of it, and every consumer measures against the whole
+// map — the HUD bar and its percentage, the milestone ladder, the win check, the
+// results screen and the saved records.
+//
+// 100% is a SCORING CEILING, not a pass/fail win condition (R-2.5). The run ends
+// on the 180 s clock and the player is scored on the percentage reached; a full
+// clear is routine on the gallery, monumental on a city, and still sets `won`.
+// Exported so `tools/validate.mjs` can hold the table itself rather than
+// re-listing the scenes, and so the guard's failure message can name the scene.
+//
+// THE SEAM (R-2.5): making 100% a hard win condition again is a one-line change
+// here — nothing downstream reads a fraction of its own.
+export const SCENE_GOALS = {
   gallery: { name: 'CLEAR THE COLLECTION', targetFraction: 1.0 },
-  manhattan: { name: 'OPEN THE FINANCIAL DISTRICT', targetFraction: 0.5 },
-  'upper-manhattan': { name: 'RECLAIM CENTRAL PARK', targetFraction: 0.5 },
-  brooklyn: { name: 'CONNECT THE BOROUGHS', targetFraction: 0.5 },
-  boston: { name: 'SWALLOW THE SEAPORT', targetFraction: 0.5 },
-  cambridge: { name: 'SWALLOW THE SPROCKET', targetFraction: 0.5 },
-  chicago: { name: 'LOOP THE LOOP', targetFraction: 0.5 },
+  manhattan: { name: 'OPEN THE FINANCIAL DISTRICT', targetFraction: 1.0 },
+  'upper-manhattan': { name: 'RECLAIM CENTRAL PARK', targetFraction: 1.0 },
+  brooklyn: { name: 'CONNECT THE BOROUGHS', targetFraction: 1.0 },
+  boston: { name: 'SWALLOW THE SEAPORT', targetFraction: 1.0 },
+  cambridge: { name: 'SWALLOW THE SPROCKET', targetFraction: 1.0 },
+  chicago: { name: 'LOOP THE LOOP', targetFraction: 1.0 },
 };
 export const SANDBOX_COIN_COUNT = 60;
 export const SANDBOX_COIN_VALUE = 2;
@@ -261,9 +290,21 @@ export const RANKED_TUNE_ID = 'ranked-v1';
 // cross-version replay as a cheat merely because a physics bug was fixed.
 export const RANKED_SIM_VERSION = 1;
 export const RANKED_TICK_COUNT = 90 * 60;
+// This table must name EVERY key `step()` reads off `this.tune`, not merely the
+// ones something happens to write today. `perfMode` was missing until 2026-08-13
+// and that single omission was a release blocker (audit A5.1): the ranked tune
+// was applied with `Object.assign`, which cannot delete a key it does not carry,
+// so a player with SETTINGS → "Smoother play" ON kept `perfMode: true` into a
+// ranked run and scored 2247.9250 against the server's 2231.9625 on the same
+// trace. Adding the key is only half the fix — a merge is the wrong operation
+// for a total contract, so the constructor now REPLACES the tune object with a
+// frozen copy of this one. `validateRankedTuneIsTotal()` in tools/validate.mjs
+// greps every `tune.<key>` read in this file and fails if one is unpinned, which
+// is what stops the next lever from repeating the same defect.
 export const RANKED_TUNE = Object.freeze({
   gravity: GRAVITY, waveK: WAVE_K, creak: 0, speed: SPEED_MULT, attract: ATTRACT_ACC,
   debrisCap: 280, contactBudget: 200, contactRounds: 2, supportEvery: 1,
+  perfMode: false,
 });
 
 // Shared progression curve for sandbox movement/camera feel. SIZE 1 is 0;
@@ -385,6 +426,26 @@ export class VoxelSandboxSim {
     this.mode = mode;
     this.rankedTicks = 0;
     this.runComplete = false;
+    // --- the level clock (R-1) ------------------------------------------------
+    // Every non-ranked run is bounded by LEVEL_CLOCK_TICKS. THE RUN is the one
+    // exception and it is expressed as `clockLimit === null` rather than as a
+    // mode test at the expiry site: run90 keeps its own server-seeded 5,400-tick
+    // bound (ADR-0016) and must never consult the 180 s constant (T-107). The
+    // early return in step() means the block below is unreachable in run90
+    // anyway; the null is the second lock on the same door.
+    this.clockLimit = mode === 'run90' ? null : LEVEL_CLOCK_TICKS;
+    this.clockTicks = 0;
+    // Seconds remaining, derived from the tick count so it is exact rather than
+    // accumulated. `null` in run90 — never 0, which a HUD would render as an
+    // expired clock. Callers must treat null as "this mode has no level clock".
+    this.timeLeft = this.clockLimit === null ? null : this.clockLimit / 60;
+    // Set when the clock, rather than the goal, ended the run. `over` alone
+    // cannot tell the two apart and the results screen needs to.
+    this.timedOut = false;
+    this._clockMarks = this.clockLimit === null ? [] : [
+      LEVEL_CLOCK_WARN_SECONDS, LEVEL_CLOCK_URGENT_SECONDS,
+    ].map((at) => ({ at, tick: this.clockLimit - at * 60 }));
+    this._clockMarkIdx = 0;    // next unfired endgame state, monotonic like _massMarkIdx
     // THE ROSTER (ai-players FR-001/FR-002). `holes` is the canonical,
     // index-ordered collection; every per-hole quantity (mass, chain, SIZE,
     // coverage cache) lives ON the hole, never on the sim. `sim.hole` survives
@@ -487,11 +548,34 @@ export class VoxelSandboxSim {
     // so a fresh default-tier sim is byte-identical to the pre-tier build and
     // `tools/validate.mjs` never sees a tier at all. Anything that changes
     // physics has to keep that property.
-    this.tune = {
-      gravity: GRAVITY, waveK: WAVE_K, creak: 0, speed: SPEED_MULT, attract: ATTRACT_ACC,
-      debrisCap: Infinity, contactBudget: Infinity, contactRounds: 2, supportEvery: 1,
-    };
-    if (mode === 'run90') Object.assign(this.tune, RANKED_TUNE);
+    // A ranked run REPLACES this object rather than merging into it, and freezes
+    // the result. Merging was the A5.1 defect: `Object.assign(tune, RANKED_TUNE)`
+    // leaves behind any key RANKED_TUNE does not mention, so one settings toggle
+    // silently ran different physics than the server. Replacement makes the
+    // ranked tune total by construction — a lever that is not in RANKED_TUNE
+    // simply does not exist on a ranked sim — and the freeze makes any writer
+    // that is added later fail loudly at the write instead of quietly publishing
+    // a score the server will not reproduce. `tuneLocked` is the flag callers
+    // test so they never have to know the mode string (see js/main.js).
+    this.tuneLocked = mode === 'run90';
+    if (this.tuneLocked) {
+      // Freezing the OBJECT stops `sim.tune.gravity = 100`; it does not stop
+      // `sim.tune = {...}`, which would swap the whole contract out and put us
+      // straight back in A5.1. The probe for this fix caught that gap, so the
+      // property itself is non-writable too. The constructor is the only
+      // assignment of `this.tune` anywhere in the repo, so nothing legitimate
+      // loses a door here.
+      Object.defineProperty(this, 'tune', {
+        value: Object.freeze({ ...RANKED_TUNE }),
+        writable: false, configurable: false, enumerable: true,
+      });
+    } else {
+      this.tune = {
+        gravity: GRAVITY, waveK: WAVE_K, creak: 0, speed: SPEED_MULT, attract: ATTRACT_ACC,
+        debrisCap: Infinity, contactBudget: Infinity, contactRounds: 2, supportEvery: 1,
+        perfMode: false,
+      };
+    }
     this._supportSkipped = 0;  // coverage-only recalcs deferred by supportEvery
 
     // Authored scenes come from the on-demand registry at the top of this file.
@@ -506,7 +590,7 @@ export class VoxelSandboxSim {
     if (authored) authored(this);
     else this._buildScene();
     this.scene = scene;
-    this.goal = GOALS[scene] || GOALS.gallery;
+    this.goal = SCENE_GOALS[scene] || SCENE_GOALS.gallery;
     this.coins = this._placeCoins();
     this.coinsCollected = 0;
     this._assertCellKeyRange(scene);
@@ -3265,12 +3349,16 @@ export class VoxelSandboxSim {
     // is accumulated one add per block as the city is eaten; `totalMass` is a
     // reduce() over the same blocks in placement order. Same summands, different
     // order, so float rounding leaves rawMass a few parts in 1e12 BELOW
-    // totalMass even after every block is gone. Any scene whose targetFraction
-    // is 1.0 — the gallery is the only one — can therefore consume 3798 of 3798
-    // blocks, sit at 100.000%, and never win; the HUD floors the percentage, so
-    // the player watches 99% forever. The 0.5 cities have enough slack to hide
-    // it. 1e-9 of the total is ~1000x the accumulated error and still far below
-    // the mass of the lightest single block, so it cannot win a scene early.
+    // totalMass even after every block is gone. A scene whose targetFraction is
+    // 1.0 can therefore consume 3798 of 3798 blocks, sit at 100.000%, and never
+    // win; the HUD floors the percentage, so the player watches 99% forever.
+    // 1e-9 of the total is ~1000x the accumulated error and still far below the
+    // mass of the lightest single block, so it cannot win a scene early.
+    //
+    // This used to be a gallery-only hazard, because the gallery was the only
+    // 1.0 scene and the 0.5 cities had half a city of slack hiding it. Every
+    // scene is 1.0 now (R-2.1), so every scene depends on this epsilon and the
+    // guard in tools/validate.mjs runs against all of them, not just the one.
     if (this.mode === 'run90') {
       this.rankedTicks++;
       if (this.rankedTicks >= RANKED_TICK_COUNT) {
@@ -3292,6 +3380,33 @@ export class VoxelSandboxSim {
           this.events.push({ type: 'goal', goal: this.goal, hole: h });
           break;
         }
+      }
+    }
+
+    // --- the level clock (R-1.3) ---------------------------------------------
+    // LAST in the step, and after the goal check on purpose: a full clear landing
+    // on the same tick the clock runs out is a win, not a time-out. Counted in
+    // TICKS, so expiry is the same tick on every device (R-1.4) and a slow phone
+    // gets the same game rather than a shorter one. Pausing simply stops calling
+    // step(), so nothing here has to know about pause or tab visibility (R-1.6).
+    //
+    // Expiry is a NORMAL ending. It sets the same `over` latch the goal does and
+    // lands on the same results screen carrying the percentage reached; `won`
+    // stays false and `timedOut` says which of the two happened.
+    if (this.clockLimit !== null) {
+      this.clockTicks++;
+      this.timeLeft = Math.max(0, (this.clockLimit - this.clockTicks) / 60);
+      // The 30 s and 10 s endgame states, monotonic by index so a mark can only
+      // ever fire once (the same rule the milestone ladder runs on).
+      while (this._clockMarkIdx < this._clockMarks.length
+             && this.clockTicks >= this._clockMarks[this._clockMarkIdx].tick) {
+        const mark = this._clockMarks[this._clockMarkIdx++];
+        this.events.push({ type: 'clock', at: mark.at, timeLeft: this.timeLeft, hole: this.hole });
+      }
+      if (!this.over && this.clockTicks >= this.clockLimit) {
+        this.timedOut = true;
+        this.over = true;
+        this.events.push({ type: 'timeup', ticks: this.clockTicks, hole: this.hole });
       }
     }
   }

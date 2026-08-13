@@ -51,9 +51,15 @@ function localHistory(save) {
   const list = element('div', 'results-stats');
   let entries = 0;
   for (const [scene, record] of Object.entries(save.sandbox || {})) {
-    if (!record || !record.completions) continue;
+    // Gated on RUNS, not on clears. `completions` means a full clear of the
+    // whole city since the 180 s clock landed (js/save.js v18), so gating here
+    // would hide every local record a player has actually set. "local clears"
+    // becomes "runs" for the same reason — the number never counted clears
+    // under the new rule, and the word has to say which quantity it is.
+    const runs = record ? (record.runs ?? record.completions ?? 0) : 0;
+    if (!runs) continue;
     entries++;
-    list.appendChild(element('div', '', `${scene.toUpperCase()} · ${record.completions} local clears · best ${Number(record.bestScore || 0).toLocaleString('en-US')}`));
+    list.appendChild(element('div', '', `${scene.toUpperCase()} · ${runs} local runs · best ${Number(record.bestScore || 0).toLocaleString('en-US')}`));
   }
   if (!entries) list.appendChild(element('div', '', 'No local city records yet.'));
   return list;

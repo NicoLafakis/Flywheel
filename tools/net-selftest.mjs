@@ -116,9 +116,11 @@ begin('1. protocol round-trips');
     events: Array.from({ length: 12 }, (_, i) => ({ slot: i % 8, flags: 0, objectId: 1000 + i })),
   };
   const bytes = P.encodeSnapshot(doc);
-  eq('doc worked example is 140 bytes (04 §4.1)', bytes.length, 140);
+  // 156, not 04 §4.1's original 140: protocol v4 widened mass_q to u32 so a
+  // peer's score stops clamping at 16383.75 (T-307). 16 bytes at 8 holes.
+  eq('doc worked example is 156 bytes (04 §4.1, protocol v4)', bytes.length, 156);
   const b64 = P.toBase64(bytes);
-  check(`doc worked example base64 is ~190 chars (got ${b64.length})`, b64.length >= 180 && b64.length <= 200);
+  check(`doc worked example base64 is ~208 chars (got ${b64.length})`, b64.length >= 200 && b64.length <= 220);
   deepEq('base64 is its own inverse', Array.from(P.fromBase64(b64)), Array.from(bytes));
   eq('intent is 6 bytes (04 §4.1)', P.encodeIntent({ slot: 1, seq: 2, x: 1, z: 0 }).length, 6);
   check(`worst random snapshot stays under the 1 KB target (${worstBytes} B)`, worstBytes <= 1024);
@@ -129,6 +131,19 @@ begin('1. protocol round-trips');
   eq('voxel-scale object id survives (wide ids)', wback.events[0].objectId, 82894);
   check('wide-id snapshot sets FLAG.WIDE_IDS', !!(wback.flags & P.FLAG.WIDE_IDS));
   check('narrow snapshot does not set FLAG.WIDE_IDS', !(P.decodeSnapshot(bytes).flags & P.FLAG.WIDE_IDS));
+
+  // T-307 / audit A6.1. The v3 u16 mass field clamped a peer's readable score
+  // at 16383.75, and that was reachable: the shipped 180 s Chicago route scores
+  // 7,425, or 14,709 if every block it ate had landed at the 8x combo ceiling.
+  // The literals below are deliberately NOT derived from Q.MASS — a test that
+  // computes its own expectation from the constant it is checking passes on any
+  // value of that constant.
+  const bigHole = { slot: 0, state: 1, x: 0, z: 0, mass: 250000.25, radius: 2, heading: 0 };
+  const bigBack = P.decodeSnapshot(P.encodeSnapshot({ ...doc, holes: [bigHole] }));
+  eq('a 250,000.25 score survives the wire (v3 clamped it to 16383.75)', bigBack.holes[0].mass, 250000.25);
+  eq('the mass cap is 1,073,741,823.75', P.LIMITS.MAX_MASS, 1073741823.75);
+  check(`the cap clears the whole-city-at-8x bound (992,377) by 1082x`,
+    P.LIMITS.MAX_MASS / 992377 > 1000);
 
   // 16-bit wrap compare (04 §6).
   check('tickIsNewer handles the wrap', P.tickIsNewer(2, 65534) && !P.tickIsNewer(65534, 2) && !P.tickIsNewer(5, 5));

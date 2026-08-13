@@ -15,6 +15,26 @@ function payloadFromBase64(value) {
   return bytes;
 }
 
+// COST control, and it is driven by a number the client supplies (audit A5.5,
+// T-304). Deliberate, with the trust boundary stated here so the next reader
+// does not have to re-derive it:
+//
+//  - Over-reporting cannot buy a placement. It buys a REPLAY, after which the
+//    server's own score is the only one published and (since T-303) a claim
+//    that disagrees is a `score` mismatch. The cost of that abuse is bounded by
+//    MAX_SUBMISSIONS_PER_HOUR above, per device and per origin.
+//  - Under-reporting cannot gain anything either — an `unranked` run is not on
+//    the board. It costs the PLAYER a legitimate placement, and, now that
+//    verification also serves as an integrity signal, it suppresses that signal:
+//    a client running wrong physics goes unnoticed because its run is never
+//    replayed. That is the new consequence this gate acquired in T-303, and it
+//    is the reason the claim is recorded below.
+//
+// What makes the boundary acceptable is that `unranked` is NOT terminal:
+// `fw_accept_run` has already stored the trace and its hash by this point, so
+// any gated run can be re-verified later without the player resubmitting.
+// Deciding whether to spend a replay on every submission instead is a hosting
+// cost call, not a code call — flagged for the owner rather than assumed here.
 async function placementGate(sceneId, claimedScore) {
   const rows = await rest(`runs?select=verified_score&scene_id=eq.${encodeURIComponent(sceneId)}&verdict=eq.verified&order=verified_score.desc&limit=25`);
   return rows.length < 25 || claimedScore > Number(rows[rows.length - 1].verified_score);
@@ -72,7 +92,16 @@ export default async function handler(req, res) {
       headers: { prefer: 'return=minimal' },
     });
     if (first.verdict === 'pending' && !await placementGate(ticket.scene_id, data.claimed_score)) {
-      await rpc('fw_record_verdict', { p_run_id: data.run_id, p_verdict: 'unranked', p_detail: { reason: 'placement_gate' } });
+      // Record the number that made this decision and the bar it failed. The
+      // old detail was `{reason:'placement_gate'}` alone, which made a run
+      // discarded on a bad client's own claim indistinguishable from one that
+      // genuinely could not place — and the trace is still stored, so this is
+      // the information needed to re-verify it later.
+      await rpc('fw_record_verdict', {
+        p_run_id: data.run_id,
+        p_verdict: 'unranked',
+        p_detail: { reason: 'placement_gate', claimed_score: data.claimed_score, unverified_claim: true },
+      });
       ok(res, { run_id: data.run_id, verdict: 'unranked' }); return;
     }
     ok(res, { run_id: data.run_id, verdict: first.verdict });

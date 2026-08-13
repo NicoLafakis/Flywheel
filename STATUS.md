@@ -19,26 +19,25 @@ call that closed them.
 
 ## In progress
 
-- **Timed Runs & Full Clear** (2026-08-13, owner instruction) — a hard 180 s
-  clock on every level, `targetFraction` to 1.0 on every scene front and back,
-  score-accumulation correctness in single player / arena / ranked verifier, and
-  honest combo readouts (the ladder's true ceiling is **8x**; the `Best combo
-  530` the owner saw is a chain count in a multiplier's slot). Package:
+- **Timed Runs & Full Clear** (2026-08-13, owner instruction) — Phases 1-3 are
+  landed (see Recent history): the 180 s clock, `targetFraction` 1.0 everywhere,
+  ranked score integrity, and honest combo readouts. Package:
   `.wiki/features/timed-runs-and-full-clear/`. Design call recorded there: the
   clock ends the run and the player is scored on the percentage reached, so 100%
   is a scoring ceiling rather than a pass/fail win condition — otherwise every
   city level is an automatic loss. Genre precedent: Hole.io's two-minute match.
-- **Ranked runs can publish a different score than the player saw** (T-301/T-303,
-  2026-08-13, **release blocker**). `perfMode` is a physics lever `RANKED_TUNE`
-  cannot clear, so SETTINGS → "Smoother play" alone splits client and server:
-  measured 2247.93 vs 2231.96 on one identical trace. Changing any setting
-  mid-run reopens it wider — the ordinary LOW-tier phone value costs **58%** of
-  the score, against the player. The server never compares its computed score to
-  the claimed one, so it is silent by construction. Also confirmed: the arena
-  picks its winner on raw mass while printing combo-multiplied points three lines
-  away, and the validator's load-bearing combo assertion is a tautology that
-  passes on broken code. Full evidence:
-  `.wiki/findings/RCA-2026-08-13-scoring-and-combo-audit.md`; fixes are T-301..T-312.
+  Still open in the package: T-404 map snapshot caching and T-405 wall-clock
+  honesty (both listed under Not started), T-308's per-hole combo attribution
+  (deferred to ride with T-606 host migration), and the UI polish pass on the
+  new readouts.
+- **`COMBO_THRESHOLDS[0] = 2` is inert** (found 2026-08-13 during T-312,
+  **reported not fixed**). `comboLevel` maps a crossing of `thresholds[i]` to
+  level `i+1`, and level 1 is already the floor — so a chain of 2 scores exactly
+  what a chain of 0 scores. The published ladder head reads "2, 10, 15" but the
+  player only ever feels steps at 10 and 15. Fixing it moves every score in the
+  game and needs a `RANKED_SIM_VERSION` bump, so it is the owner's call; it wants
+  the same window as the other sim-output changes, while the board holds one run
+  and zero claimed names.
 - **T-901 failed, and it indicts the engine, not the tune** (2026-08-13). The
   physical-device requirement is retired in favour of the emulated Pixel-5 + 4x
   CPU throttle profile; measured over 13 runs, THE RUN holds a 100 ms median,
@@ -78,7 +77,8 @@ call that closed them.
 - **Online Flywheel** (2026-08-10) — a real two-device match is live at
   https://flywheel-woad.vercel.app/arena.html, which put Phase 6 ahead of
   Phases 1-5 by product decision. Open: host migration/succession (**T-606** — a
-  vanished host freezes the match today), server-minted rooms (T-602),
+  vanished host freezes the match today, and **T-308**'s per-hole combo
+  attribution rides with it by owner's call), server-minted rooms (T-602),
   spectators, more than two seated players (the netcode supports 8, the arena
   page seats 2), accounts, achievements, the four-scope leaderboard. Nothing in
   `js/net/` is reachable from `js/main.js`: `arena.html`, `netdemo.html` and
@@ -200,10 +200,13 @@ from one shared brand layer (`js/ui/blockword.js`, `--fw-*` tokens). The world
 map and level select are deliberately still on the old treatment.
 
 **Progression** — the campaign is no longer reachable from the game. City
-sandboxes are replayable goal runs: shared establishing overview → READY zoom,
-clear 50% of the map, 60 deterministic coins, 2 coins per pickup plus a 35-coin
-completion bonus (which makes the skin shelf a long-term goal, not a
-one-session unlock).
+sandboxes are replayable goal runs: shared establishing overview → READY zoom, a
+180 s clock (`js/levelclock.js`, the one declaration both the campaign and the
+sandbox read), the whole map as the goal, 60 deterministic coins, 2 coins per
+pickup plus a 35-coin completion bonus (which makes the skin shelf a long-term
+goal, not a one-session unlock). The clock, not the goal, ends the run: expiry
+is a normal ending that lands on the results screen carrying the percentage
+reached, and 100% is a scoring ceiling rather than a pass/fail condition.
 
 **Scenes** — seven, all reachable from the title menu, all loaded on demand
 (`await loadScene(id)`); detail in `.wiki/modules/voxel.md`: gallery (~3,800
@@ -250,6 +253,19 @@ only authority.
 One line per shipped item, newest first. Full detail lives in `CHANGELOG.md`,
 the feature packages under `.wiki/features/`, and `git log` — not here.
 
+- 2026-08-13 — Score integrity & honest combo readouts (T-301..T-312, closing the
+  release blocker): `RANKED_TUNE` made a complete, double-locked physics
+  description and every physics lever gated on `!sim.tuneLocked`; the server now
+  compares its replayed score against the claimed one; the arena decides the
+  match on the points it prints (**the score wins**, ADR-0015) and the tug bar is
+  labelled `TERRITORY`; protocol v4 widens `mass_q` to u32 (the u16 clamped a
+  peer's readable score at 16,383.75 against a 14,709.5 route bound); every combo
+  readout states its unit and the true 8x ceiling is a number, not `MAX`; the
+  validator's tautological ladder assertion is replaced by a literal table with
+  source guards over the whole readout inventory, all proven against a
+  deliberately broken build
+- 2026-08-13 — Timed Runs & Full Clear phases 1-2: the 180 s clock
+  (`js/levelclock.js`) and `targetFraction` 1.0 on every scene
 - 2026-08-12 — Scoreboards & Profiles: THE RUN, replay-verified boards,
   device-token names, Vercel API, four Supabase migrations, save v17
 - 2026-08-12 — Mobile perf: on-demand city modules, device-aware default tier,
