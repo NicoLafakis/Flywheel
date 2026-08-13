@@ -191,13 +191,23 @@ Recorded under global rule 13: a finding raised is a finding owned.
   and of T-901's 4x shortfall. *Done when:* a sustained Cambridge run holds a
   bounded awake-debris population and the T-901 re-measure moves. **Changes sim
   output — state the `sim_version` implication and land it while the board holds
-  one run and zero claimed names.**
+  one run and zero claimed names.** **LANDED 2026-08-13** (ADR-0018): retirement
+  on proven stationarity via `_latchJammed` — 30 consecutive still steps, 1 mm
+  anchor-referenced drift tolerance, parked/loose-support/stale-grounded
+  exclusions. Drain test `js/voxelsim.drain.test.mjs` ALL PASS; full validator
+  completes end to end for the first time. T-901 re-measure is still owed.
 - **T-403 — rebuild the audit system.** `tools/validate.mjs` is one serial run
   where a single 780 s excursion takes the whole suite down and everything behind
   it, including `validateChicago()`, never executes. Split into independently
   runnable per-scene probes with a fast default path; demote long deterministic
   excursions to an opt-in soak. *Done when:* the default suite runs in seconds
-  and a stalling scene cannot block the others.
+  and a stalling scene cannot block the others. **LANDED 2026-08-13:** the
+  validator is a parallel orchestrator (nine section groups as concurrent child
+  processes; `FW_VALIDATE_SEQ=1` for serial, `FW_VALIDATE_SECTIONS=x` for one
+  section) and Cambridge's 780 s double excursion is demoted behind
+  `FW_VALIDATE_SOAK=1` — the gate runs the route's opening 240 s, measured past
+  the cost knee at simT ~270. Default gate: ALL PASS in 72 s wall; full 780 s
+  soak: ALL PASS, 61 m wall.
 - **T-404 — map snapshot caching.** A Chicago build costs ~34 s on the throttled
   profile, paid before every RUN and again on every RUN AGAIN. Maps are
   deterministic and identical for every player, so this is a precomputed static

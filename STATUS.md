@@ -69,26 +69,27 @@ Budget: 5,000 tokens.
   **neither was applied**. The shortfall is cumulative and debris-driven, which
   makes it the same defect as the validator stall. Evidence:
   `.wiki/findings/T-901-2026-08-13-ranked-run-on-throttled-mobile.md`.
-- **The debris-drain defect** (T-402, 2026-08-11 diagnosed / 2026-08-13 scoped) —
-  the awake-debris population never drains, so per-step cost climbs with elapsed
-  route time. One engine defect makes the validator unusable *and* ranked play
-  impossible on a phone. It changes sim output, so it wants to land while the
-  board holds one run and zero claimed names.
+- **The debris-drain defect** (T-402, 2026-08-11 diagnosed / 2026-08-13 scoped
+  and **LANDED**) — the awake-debris population never drained, so per-step cost
+  climbed with elapsed route time. Fixed by ADR-0018: retirement on proven
+  stationarity (`_latchJammed`, 30 still steps, 1 mm anchor-referenced drift),
+  with parked/loose-support/stale-grounded exclusions. Regression test:
+  `js/voxelsim.drain.test.mjs` (ALL PASS). The T-901 throttled-mobile re-measure
+  is still owed.
 
-- **The audit system needs rebuilding before it can gate anything** (T-403,
-  2026-08-11, reaffirmed 2026-08-13). `node tools/validate.mjs` does not
-  complete a run at all: `validateCambridge()`'s 780 s double excursion hits
-  superlinear debris churn — the awake-debris population never drains (16 bodies
-  at simT 10 s → 738 at 320 s; `_supportBelow` ~32% of CPU), so 93,600 steps
-  cost 78 minutes and 2.33 GB, and everything ordered behind it — including
-  `validateChicago()` — never runs. **Diagnosed, not fixed**
-  (`.wiki/findings/RCA-2026-08-11-cambridge-validator-stall.md`); the same
-  mechanism predicts a progressive slowdown in a long Cambridge session on the
-  top tier. Owner's call: don't just unstick this one route — replace the audit
-  design with something that runs in a usable time, then re-run it. Two blocked
-  items are waiting on that re-run: Chicago's end-to-end proof and Brooklyn's
-  unfinished code-health audit. Operative gates meanwhile: `tools/chicago-probe.mjs`
-  and the per-feature selftests.
+- **The audit system is rebuilt and gates again** (T-403, **LANDED**
+  2026-08-13). `node tools/validate.mjs` completes end to end: it is a parallel
+  orchestrator — nine section groups (cheap guards, campaign levels,
+  scenes-winnable, one per authored scene) run as concurrent child processes
+  with per-section timing, so a slow scene cannot block the others
+  (`FW_VALIDATE_SEQ=1` for the serial pass, `FW_VALIDATE_SECTIONS=x` for one
+  section). Cambridge's 780 s double excursion is demoted behind
+  `FW_VALIDATE_SOAK=1`; the default gate runs the route's opening 240 s, cut
+  ahead of the measured cost knee at simT ~270 (the back 540 s cost ~29 wall-
+  minutes even post-T-402). Default gate measured ALL PASS at 72 s wall; the
+  full soak measured ALL PASS at 61 m wall —
+  previously the run never completed at all
+  (`.wiki/findings/RCA-2026-08-11-cambridge-validator-stall.md`).
 - **Code-health audit from the Brooklyn pass** (2026-08-04) — still unfinished
   (*"Seems like you're auto-creating code spaghetti here potentially, but I
   can't tell"*), and now explicitly downstream of the audit-system rebuild

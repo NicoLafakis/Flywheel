@@ -41,7 +41,8 @@ The reliable check, against the static server from "Run locally":
 
 ## Validate (required before commits touching sim/citygen/levels/tiers/voxelsim)
 
-1. `node tools/validate.mjs` — expect `ALL PASS`. The validator is an
+1. `node tools/validate.mjs` — expect `ALL PASS` in ~70 s wall (measured 72 s
+   on 2026-08-13). The validator is an
    ORCHESTRATOR by default: the section groups (cheap guards, campaign levels,
    scenes-winnable, and one per authored scene) run as concurrent child
    processes, so wall time is the slowest group rather than the serial sum and
@@ -54,7 +55,12 @@ The reliable check, against the static server from "Run locally":
    ([RCA-2026-08-11](../findings/RCA-2026-08-11-cambridge-validator-stall.md));
    the root cause was unretirable jammed debris, fixed engine-side by T-402
    (ADR-0018), and the parallel orchestrator makes the remaining cost
-   concurrent. The scene-specific fast selftests (`tools/chicago-probe.mjs`,
+   concurrent. One more flag: `FW_VALIDATE_SOAK=1` opts back into the long
+   deterministic excursion the default gate trims — Cambridge's full 780 s
+   route with the SIZE ≥ 7 ladder floor; the gate runs the route's opening
+   240 s (T-403). Run the soak after changes that could move late-route
+   physics, not on every commit. The scene-specific fast selftests
+   (`tools/chicago-probe.mjs`,
    `tools/probe-aniso.mjs`, `tools/train-derail-selftest.mjs`, and the other
    `tools/*-probe.mjs`/`tools/*-selftest.mjs` scripts) remain the quick
    iteration loop, but they are no longer a substitute gate.

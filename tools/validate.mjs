@@ -1334,7 +1334,6 @@ function validateCambridge() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'cambridge' });
 
   const WP = CAMBRIDGE_ROUTE;
-  const DURATION = WP[WP.length - 1].until;
 
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'cambridge');                                                 // 1
@@ -1368,6 +1367,17 @@ function validateCambridge() {
   // route rather than a validator-local one. Same two properties Boston's leans
   // on: it never parks, and every leg runs end to end onto ground the opening
   // has not already taken.
+  //
+  // GATE VS SOAK (T-403). The full route is 780 s, and its back third is where
+  // the big collapses — and their cost — live. Measured on this tree
+  // (post-T-402): the opening 240 sim-seconds cost ~19 wall-seconds per
+  // excursion while the remaining 540 cost ~29 wall-MINUTES (the knee is at
+  // simT ~270, where the mill/University Park collapses begin). The default
+  // gate therefore runs the opening 240 s, which still proves determinism,
+  // progression and an un-stalled sim; the full 780 s double excursion with
+  // the SIZE >= 7 ladder floor is the opt-in soak: FW_VALIDATE_SOAK=1.
+  const SOAK = !!process.env.FW_VALIDATE_SOAK;
+  const DURATION = SOAK ? WP[WP.length - 1].until : 240;
   const runExcursion = () => {
     const run = new VoxelSandboxSim({ seed: 'validator', scene: 'cambridge' });
     for (let i = 0; i < DURATION * 60; i++) {
@@ -1384,14 +1394,22 @@ function validateCambridge() {
   if (a.hole.eatenCount !== b.hole.eatenCount || a.hole.mass.toFixed(6) !== b.hole.mass.toFixed(6)) {
     fail(`cambridge: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
   }
-  if (a.hole.eatenCount < 300) fail(`cambridge: only ${a.hole.eatenCount} blocks eaten on the scripted excursion (expected >=300)`);
-  // Floor = the SIZE this excursion reached on HEAD's combo-mass ladder, which
-  // is 7 — the longest route in the game, so it earns the highest floor of any
-  // scene. Cambridge is not granted a lower bar for being newer (ADR-0015).
-  if (a.hole.size < 7) fail(`cambridge: excursion reached only SIZE ${a.hole.size} (expected >=7 — SIZE ladder too steep?)`);
+  if (SOAK) {
+    if (a.hole.eatenCount < 300) fail(`cambridge: only ${a.hole.eatenCount} blocks eaten on the scripted excursion (expected >=300)`);
+    // Floor = the SIZE this excursion reached on HEAD's combo-mass ladder, which
+    // is 7 — the longest route in the game, so it earns the highest floor of any
+    // scene. Cambridge is not granted a lower bar for being newer (ADR-0015).
+    if (a.hole.size < 7) fail(`cambridge: excursion reached only SIZE ${a.hole.size} (expected >=7 — SIZE ladder too steep?)`);
+  } else {
+    // Gate floors, measured on this tree at the 240 s cut: eaten 1724, SIZE 3.
+    // The ladder-steepness clause stays with the soak, where the full route
+    // actually reaches the top of it.
+    if (a.hole.eatenCount < 1000) fail(`cambridge: only ${a.hole.eatenCount} blocks eaten on the 240 s gate excursion (expected >=1000)`);
+    if (a.hole.size < 3) fail(`cambridge: gate excursion reached only SIZE ${a.hole.size} (expected >=3)`);
+  }
 
   probeFinitePositions(a.blocks, 'cambridge', 'after excursion');
-  console.log(`  cambridge sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} peakChain=${a.hole.bestCombo} score=${a.hole.mass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+  console.log(`  cambridge sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} peakChain=${a.hole.bestCombo} score=${a.hole.mass.toFixed(0)} blockers=${sim.cameraBlockers.length} (${SOAK ? 'soak: full 780 s route' : 'gate: opening 240 s of the route — FW_VALIDATE_SOAK=1 runs all 780 s'})`);
 }
 
 function validateChicago() {
@@ -2160,6 +2178,12 @@ function validateOfflineBoot() {
 //                                    is how the orchestrator's children run, and
 //                                    the way to exercise one guard against a
 //                                    deliberately broken tree.
+//   FW_VALIDATE_SOAK=1 node ...      opt back into the long deterministic
+//                                    excursion(s) the default gate trims —
+//                                    Cambridge's full 780 s route with its
+//                                    SIZE >= 7 ladder floor (T-403; the gate
+//                                    runs the opening 240 s, see
+//                                    validateCambridge).
 //
 // Every mode prints ALL PASS only when nothing failed, and exits non-zero
 // otherwise — the AGENTS.md gate is mode-independent.
