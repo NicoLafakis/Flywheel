@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Scaling deliberately left on, unlike arena.html's game viewport. See the
+     comment on the same line in privacy.html for why. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flywheel - Terms of Use</title>
+<!-- Inlined rather than <link>ed to css/main.css. The full reasoning is in
+     privacy.html's head; the short version is that main.css opens with
+     `html, body, #app { overflow: hidden }` plus `user-select: none`, which is
+     correct for a game that owns the viewport and fatal for a document you
+     scroll and copy out of - and these two pages use almost none of its 1,600
+     lines anyway. The block below is byte-identical to privacy.html's on
+     purpose: the two documents are a matched pair, and a reader who follows the
+     link between them must not feel the page change register. Palette tokens
+     are copied from main.css's :root by value so a legal page renders
+     standalone even if nothing else in the repo is present. -->
+<style>
+  :root {
+    color-scheme: dark;
+    /* Copied from css/main.css :root. Same palette, standalone file. */
+    --fw-gold: #ffd23f;
+    --fw-gold-hot: #ff8a3f;
+    --fw-extrude: #8e2f00;
+    --fw-bg: #0e1220;
+    --fw-plate: rgba(12, 16, 28, .92);
+    --fw-rule: rgba(255, 255, 255, .12);
+    --fw-text: rgba(255, 255, 255, .86);
+    --fw-quiet: rgba(255, 255, 255, .56);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--fw-bg);
+    color: var(--fw-text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    /* Bigger than the HUD's type and looser than any screen in the game. A
+       legal page is read in paragraphs, not glanced at in pills. */
+    font-size: clamp(16px, 1rem + .18vw, 18px);
+    line-height: 1.7;
+    /* A URL is the one token here long enough to push a phone into horizontal
+       scroll, and the contact line carries one. */
+    overflow-wrap: break-word;
+  }
+
+  /* ~65ch of measure, centred, with the gutter growing with the viewport so the
+     text never touches a phone edge and never sprawls on a desktop. */
+  .doc {
+    max-width: 65ch;
+    margin: 0 auto;
+    padding: clamp(22px, 6vw, 56px) clamp(20px, 6vw, 32px) clamp(48px, 9vw, 80px);
+  }
+
+  a { color: var(--fw-gold); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { color: var(--fw-gold-hot); }
+  /* Same focus treatment as .btn:focus-visible in css/main.css, so keyboard
+     focus looks like the rest of the game rather than like a browser default. */
+  a:focus-visible { outline: 3px solid var(--fw-gold); outline-offset: 3px; border-radius: 3px; }
+
+  .back {
+    display: inline-block; margin-bottom: clamp(20px, 5vw, 34px);
+    font-size: 12px; font-weight: 800; letter-spacing: 2px;
+    text-transform: uppercase; text-decoration: none; color: var(--fw-quiet);
+  }
+  .back:hover { color: var(--fw-gold); }
+
+  h1 {
+    font-size: clamp(30px, 7vw, 44px); line-height: 1.12; letter-spacing: .5px;
+    color: var(--fw-gold);
+    /* One step of the wordmark's extrude, at document scale. Enough to say
+       "same game", far short of the block letters on the title screen. */
+    text-shadow: 0 2px 0 rgba(142, 47, 0, .75);
+  }
+  .updated {
+    margin-top: 10px; font-size: 12px; font-weight: 800; letter-spacing: 1.6px;
+    text-transform: uppercase; color: var(--fw-quiet);
+  }
+
+  /* The rule above each heading is the vertical rhythm: it makes the document
+     scannable by section without needing a table of contents. */
+  h2 {
+    margin-top: clamp(34px, 7vw, 52px); padding-top: clamp(22px, 4vw, 30px);
+    border-top: 1px solid var(--fw-rule);
+    font-size: clamp(19px, 3.6vw, 24px); line-height: 1.25; letter-spacing: .3px;
+    color: #fff;
+  }
+  h2 + p, h2 + ul { margin-top: .85em; }
+  p { margin-top: 1.05em; }
+
+  ul { margin: 1.05em 0 0; padding-left: 1.25em; }
+  li { margin-top: .75em; }
+  li::marker { color: var(--fw-gold); }
+  strong { color: #fff; font-weight: 700; }
+
+  /* The one section a reader in a hurry should not be able to miss, as a plate
+     with a gold edge - the one place on the page that borrows the game's own
+     card vocabulary. */
+  .lede {
+    margin-top: clamp(26px, 5vw, 36px);
+    background: var(--fw-plate);
+    border: 1px solid var(--fw-rule); border-left: 4px solid var(--fw-gold);
+    border-radius: 12px;
+    padding: clamp(16px, 4vw, 22px) clamp(16px, 4vw, 24px);
+  }
+  .lede h2 {
+    margin-top: 0; padding-top: 0; border-top: 0;
+    font-size: 12px; font-weight: 800; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--fw-gold);
+  }
+  .lede p { margin-top: .7em; }
+
+  .doc-nav {
+    margin-top: clamp(40px, 8vw, 60px); padding-top: clamp(20px, 4vw, 26px);
+    border-top: 1px solid var(--fw-rule);
+    display: flex; flex-wrap: wrap; gap: 10px clamp(18px, 5vw, 30px);
+    font-size: 12px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase;
+  }
+  .doc-nav a { text-decoration: none; }
+  .doc-nav a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<main class="doc">
+  <a class="back" href="index.html">&#8592; Back to Flywheel</a>
+
+  <h1>Terms of Use</h1>
+  <p class="updated">Last updated 13 August 2026</p>
+
+  <section class="lede">
+    <h2>Acceptance</h2>
+    <p>By playing Flywheel you agree to these terms. If you do not agree, do not
+    play.</p>
+  </section>
+
+  <h2>The game</h2>
+  <p>Flywheel is provided free of charge for personal, non-commercial play. You may
+  play it; you may not sell it, rent it, or present it as your own.</p>
+
+  <h2>Fair play</h2>
+  <p>The public board exists because every ranked score is replayed and verified on
+  the server. To keep that meaningful:</p>
+  <ul>
+    <li>Do not modify the game, its memory, or its network traffic to influence a
+    score.</li>
+    <li>Do not automate play or submit runs you did not play.</li>
+    <li>Do not attempt to interfere with the verifier or the board.</li>
+  </ul>
+  <p>Scores that fail verification are rejected. Scores obtained by any of the above
+  may be removed without notice.</p>
+
+  <h2>Display names</h2>
+  <p>You choose your own name, and you are responsible for it. Names that are
+  offensive, harassing, impersonate someone else, or exist to advertise something
+  may be renamed or hidden. A name is held by a secret token stored in your
+  browser. Whoever holds that token holds the name, so treat it accordingly.</p>
+
+  <h2>No accounts, no recovery</h2>
+  <p>Flywheel has no accounts. Your progress and your name token live only in your
+  browser. Clearing your browser's storage, using a different browser, or using a
+  different device means starting over. This is by design, and there is no
+  recovery path.</p>
+
+  <h2>Availability</h2>
+  <p>The game is provided as-is and as-available. We do not promise it will be
+  online, error-free, or that the board will be preserved. Any part of it may
+  change or be withdrawn at any time.</p>
+
+  <h2>No warranty</h2>
+  <p>To the fullest extent permitted by law, Flywheel is provided without warranties
+  of any kind, express or implied, including any implied warranties of
+  merchantability, fitness for a particular purpose, and non-infringement.</p>
+
+  <h2>Limitation of liability</h2>
+  <p>To the fullest extent permitted by law, the operator of Flywheel is not liable
+  for any indirect, incidental, or consequential damages arising from your use of
+  the game, or for any loss of saved progress, records, or board placement.</p>
+
+  <h2>Ownership and third-party assets</h2>
+  <p>The game, its code, and its original assets belong to their author. Sound
+  effects are used under CC0 and are credited on the title screen and in the
+  repository. Those credits stay with any copy you make of the parts they cover.</p>
+
+  <h2>Changes</h2>
+  <p>These terms may change. The date at the top changes with them, and continuing
+  to play after that means you accept the revision.</p>
+
+  <h2>Governing law</h2>
+  <p>These terms are governed by the laws of the United States, without regard to
+  conflict-of-law rules.
+  <!-- TODO(nico): name a state if you want a specific forum --></p>
+
+  <h2>Contact</h2>
+  <!-- Same treatment as the contact URL in privacy.html, and for the same
+       reason: <wbr> gives the line breaker a legal break at each path boundary
+       so a phone splits the URL after a slash rather than mid-word, without
+       putting a copyable character or a printed hyphen inside the address. The
+       two documents are a matched pair and must break identically. -->
+  <p><a href="https://github.com/NicoLafakis/Flywheel/issues" rel="noopener noreferrer">https://github.com/<wbr>NicoLafakis/<wbr>Flywheel/<wbr>issues</a></p>
+
+  <nav class="doc-nav" aria-label="Flywheel documents">
+    <a href="index.html">Play Flywheel</a>
+    <a href="privacy.html">Privacy Policy</a>
+  </nav>
+</main>
+</body>
+</html>

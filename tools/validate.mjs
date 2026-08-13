@@ -2040,45 +2040,91 @@ function validateLevelClock() {
 // root-relative and same-document paths all pass; anything with a scheme or a
 // protocol-relative "//host" prefix fails.
 const OFFSITE_RE = /^(?:[a-z][a-z0-9+.-]*:)?\/\//i;
+// Every HTML page this repo ships, and whether it is the one that boots the
+// game. `importmap: true` is index.html ALONE and must stay that way: the two
+// legal pages are plain documents that import nothing, so requiring a map of
+// them would fail correct files. Everything else — the <script src> and
+// <link href> sweeps, and what counts as off-origin — is identical for all
+// three, which is the whole point of the list.
+//
+// privacy.html and terms.html joined on 2026-08-13, the day they landed. They
+// are pure inline markup with zero external references today, and zero is
+// exactly the state a guard exists to hold: a single <link> to a Google font is
+// one line away, it would look completely normal in review, and nothing would
+// have complained. They are also the pages most likely to be opened by someone
+// who has never loaded the game, on a connection we do not control.
+const OFFLINE_PAGES = [
+  { file: 'index.html', importmap: true },
+  { file: 'privacy.html', importmap: false },
+  { file: 'terms.html', importmap: false },
+];
 function validateOfflineBoot() {
-  console.log('Validating offline boot (index.html has no off-origin dependencies)...');
-  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  let refs = 0, offsite = 0;
+  console.log(`Validating offline boot (${OFFLINE_PAGES.length} shipped page(s) have no off-origin dependencies)...`);
+  let offsite = 0;
+  const scanned = [];
 
-  const map = /<script[^>]*type=["']importmap["'][^>]*>([\s\S]*?)<\/script>/i.exec(html);
-  if (!map) {
-    fail('offline boot: index.html has no importmap — js/*.js import "three" as a bare specifier and nothing resolves it');
-  } else {
-    let imports;
+  for (const page of OFFLINE_PAGES) {
+    const { file } = page;
+    // A page that cannot be read must FAIL, never contribute a quiet zero: a
+    // renamed or deleted file would otherwise scan to "0 references, all
+    // same-origin" and read exactly like a clean page. The empty check is the
+    // same hole one step along — a truncated write also scans to zero.
+    let html;
     try {
-      imports = JSON.parse(map[1]).imports || {};
+      html = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
     } catch (e) {
-      fail(`offline boot: the importmap in index.html is not valid JSON (${e.message}) — the browser drops the whole map and every bare import fails`);
-      imports = {};
+      fail(`offline boot: cannot read ${file} (${e.code || e.message}) — it is in the shipped-page list, so either the file moved and OFFLINE_PAGES needs updating, or the page is missing from the deploy`);
+      scanned.push(`${file} UNREADABLE`);
+      continue;
     }
-    for (const [spec, target] of Object.entries(imports)) {
-      refs++;
-      if (OFFSITE_RE.test(target)) {
-        offsite++;
-        fail(`offline boot: importmap resolves "${spec}" to ${target} — the game cannot boot without that host, so a flaky connection (venue wifi, a CDN blip) leaves the player stuck on the LOADING splash forever. Vendor it under js/vendor/ and point the map at the local path.`);
+    if (!html.trim()) {
+      fail(`offline boot: ${file} is empty — an empty file scans to zero references and reads as a clean page, which is why this is checked rather than assumed`);
+      scanned.push(`${file} EMPTY`);
+      continue;
+    }
+    let refs = 0;
+
+    if (page.importmap) {
+      const map = /<script[^>]*type=["']importmap["'][^>]*>([\s\S]*?)<\/script>/i.exec(html);
+      if (!map) {
+        fail(`offline boot: ${file} has no importmap — js/*.js import "three" as a bare specifier and nothing resolves it`);
+      } else {
+        let imports;
+        try {
+          imports = JSON.parse(map[1]).imports || {};
+        } catch (e) {
+          fail(`offline boot: the importmap in ${file} is not valid JSON (${e.message}) — the browser drops the whole map and every bare import fails`);
+          imports = {};
+        }
+        for (const [spec, target] of Object.entries(imports)) {
+          refs++;
+          if (OFFSITE_RE.test(target)) {
+            offsite++;
+            fail(`offline boot: importmap in ${file} resolves "${spec}" to ${target} — the game cannot boot without that host, so a flaky connection (venue wifi, a CDN blip) leaves the player stuck on the LOADING splash forever. Vendor it under js/vendor/ and point the map at the local path.`);
+          }
+        }
       }
     }
-  }
 
-  for (const [re, what] of [
-    [/<script[^>]*\ssrc=["']([^"']+)["']/gi, 'script'],
-    [/<link[^>]*\shref=["']([^"']+)["']/gi, 'stylesheet/link'],
-  ]) {
-    for (const m of html.matchAll(re)) {
-      refs++;
-      if (OFFSITE_RE.test(m[1])) {
-        offsite++;
-        fail(`offline boot: index.html loads a ${what} from ${m[1]} — an off-origin fetch the page cannot boot (or cannot render) without. Vendor it into the repo and reference it by relative path.`);
+    for (const [re, what] of [
+      [/<script[^>]*\ssrc=["']([^"']+)["']/gi, 'script'],
+      [/<link[^>]*\shref=["']([^"']+)["']/gi, 'stylesheet/link'],
+    ]) {
+      for (const m of html.matchAll(re)) {
+        refs++;
+        if (OFFSITE_RE.test(m[1])) {
+          offsite++;
+          fail(`offline boot: ${file} loads a ${what} from ${m[1]} — an off-origin fetch the page cannot boot (or cannot render) without. Vendor it into the repo and reference it by relative path.`);
+        }
       }
     }
+    // Bytes as well as reference count, so a zero is legible as "scanned and
+    // clean" rather than as "never opened". Naming every page is what makes the
+    // line evidence of coverage instead of a claim of it.
+    scanned.push(`${file} ${refs} ref/${(html.length / 1024).toFixed(1)}kB`);
   }
 
-  console.log(`  offline boot: ${refs} index.html reference(s), ${offsite === 0 ? 'all same-origin' : `${offsite} OFF-ORIGIN`}`);
+  console.log(`  offline boot: ${OFFLINE_PAGES.length} page(s) scanned [${scanned.join(', ')}], ${offsite === 0 ? 'all same-origin' : `${offsite} OFF-ORIGIN`}`);
 }
 
 // Named sections, so ONE can be run on its own. This exists because the full

@@ -1210,6 +1210,18 @@ body.rg-gate-up #hud * { pointer-events: none; }
 .fw-utility .btn:hover { color: #fff; border-color: var(--fw-gold); }
 .fw-utility .btn:active { transform: translateY(2px); box-shadow: none; }
 
+/* The landing screen's footer: the sound manifest and the legal line, as one
+   stack. They sit inside a wrapper rather than as two children of .fw-landing
+   because that container's gap is a SECTION gap (up to 24px) — the right
+   distance between the shelf and the utility row, and far too much between two
+   lines of the same fine print. Wrapping also costs the screen one gap instead
+   of two, which matters on a screen whose content already exceeds a typical
+   desktop viewport height before either line is drawn. */
+.fw-foot {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  max-width: 100%;
+}
+
 /* The CC0 sound manifest — the same quiet small type as arena.html's
    #sound-credits, parked under the utility row on the landing screen. */
 .fw-credits {
@@ -1217,6 +1229,29 @@ body.rg-gate-up #hud * { pointer-events: none; }
   line-height: 1.6; opacity: 0.38; font-weight: 600;
   text-align: center; pointer-events: none;
 }
+
+/* The legal footer, under the sound manifest and quieter than it: the manifest
+   is a thank-you the game chooses to print, this is the fine print every page
+   carries. Two plain links to two standalone documents (privacy.html,
+   terms.html) — not .btn, not .fw-utility, because nothing here is a place to
+   play and giving them pill geometry would put them in the same reading tier as
+   SHOP.
+
+   The one thing that is NOT minimised is the hit box: 10px line-height plus 7px
+   of vertical padding is a 24px target, which is the WCAG 2.2 minimum, and the
+   padding is what carries it rather than the type size. Fine print is allowed to
+   be small; it is not allowed to be unclickable on a phone. */
+.fw-legal {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 0 clamp(12px, 4vw, 22px);
+  font-size: 9px; font-weight: 700; letter-spacing: 1.6px;
+}
+.fw-legal a {
+  display: inline-block; padding: 7px 6px; line-height: 10px;
+  color: rgba(255, 255, 255, .4); text-decoration: none;
+}
+.fw-legal a:hover { color: var(--fw-gold); text-decoration: underline; }
+.fw-legal a:focus-visible { outline: 2px solid var(--fw-gold); outline-offset: 2px; }
 
 /* phone landscape: ~390px tall. The hero turns on its side — mark beside the
    wordmark rather than above it — which is what buys back the ~140px the
@@ -1426,6 +1461,38 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
   color: rgba(255, 255, 255, .5); font-variant-numeric: tabular-nums;
 }
+
+/* ---------- Landing: the identity chip ----------
+   The first cell of the strip, and the only one that is a control: it is the
+   player's name on the row that holds the player's records, and it opens the
+   PROFILE screen. A real <button>, not a styled div with a click handler, so it
+   is in the tab order, answers Enter and Space, and reports itself as a button
+   to a screen reader without anyone having to hand-fit a role.
+
+   It borrows .fw-stat's plate wholesale and only adds what a button needs: the
+   font a button does not inherit, the pointer, and the press/hover/focus feel
+   the rest of the landing screen already uses via its tokens (so the
+   reduced-motion block further down swaps the durations here too, rather than
+   this being a second thing to remember). */
+.fw-id {
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  align-items: flex-start; min-height: 44px;
+  transition: border-color var(--fw-release, 160ms) ease,
+              transform var(--fw-press, 60ms) var(--fw-back, ease);
+}
+/* The note line is the affordance — VIEW PROFILE / HOW TO CLAIM ONE — so it is
+   the one .fw-stat-note on the screen that is not quiet. */
+.fw-id .fw-stat-note { color: var(--fw-gold); }
+.fw-id:hover { border-color: var(--fw-gold); }
+.fw-id:active { transform: scale(.97); }
+.fw-id:focus-visible { outline: 3px solid var(--fw-gold); outline-offset: 3px; }
+/* No name yet. The VALUE goes quiet and the invitation stays gold: NO NAME YET
+   rendered in the same gold as a personal best would read as a thing achieved,
+   which is the opposite of what the cell is saying. */
+.fw-id--none .fw-stat-v {
+  color: rgba(255, 255, 255, .62); text-shadow: none;
+  font-size: clamp(13px, 2vw, 15px); letter-spacing: 1.2px;
+}
 /* The bar fills by transform, never by width: the track is a fixed box and the
    fill is scaled inside it, so nothing on this screen ever animates layout. */
 .fw-bar {
@@ -1624,6 +1691,22 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
 .fw-board-table tbody tr:nth-child(odd) { background: rgba(255, 255, 255, .035); }
 .fw-board-report { min-height: 34px; padding: 6px 10px; font-size: 10px; }
 .fw-board-note { max-width: 620px; color: rgba(255, 255, 255, .67); line-height: 1.5; }
+/* The route to a name, on the PROFILE screen (js/ui/screens.js showProfile).
+   The identity chip now brings players here who hold no name at all, so this
+   screen has to end in a door and not just in a fact. Grouped in one column so
+   the sentence and the button read as a single block — .screen centres its
+   children individually, and a lone .btn between two board notes reads as a
+   stray control rather than as the consequence of the paragraph above it. */
+.fw-claim-path {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  width: min(620px, 100%);
+  /* Above: separation from boards.js's own empty-state line, which is a
+     different sentence and was reading as one run-on paragraph with this one.
+     Below: clearance for the .btn's 5px extrude and 18px cast shadow, which the
+     YOUR HISTORY heading that follows was sitting inside. */
+  margin: 10px 0 20px;
+}
+
 .fw-claim-slot { width: min(520px, 100%); }
 .fw-claim-slot form { display: flex; gap: 8px; width: min(520px, 100%); }
 .fw-claim-slot input {

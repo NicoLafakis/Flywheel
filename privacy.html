@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Deliberately NOT arena.html's viewport line. That one carries
+     maximum-scale=1, user-scalable=no because it is a game surface where a
+     pinch means "zoom the camera" and a browser zoom would fight the canvas.
+     This is a document someone reads, possibly on a phone, possibly with poor
+     eyesight, and pinch-to-zoom is the only assistive control a plain reader
+     has. Locking it out of a legal page would be a real accessibility failure
+     for no gain, so scaling stays on. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flywheel - Privacy Policy</title>
+<!-- Inlined rather than <link>ed to css/main.css, for two independent reasons.
+     (1) main.css would actively break this page: its very first rules are
+     `html, body, #app { overflow: hidden }` plus `user-select: none` and
+     `touch-action: none` on the body, which is exactly right for a full-screen
+     game that owns the viewport and exactly wrong for a document you scroll and
+     copy text out of. Undoing those from here would mean shipping a stylesheet
+     to fight a stylesheet. (2) These pages use almost none of main.css's 1,600
+     lines - no HUD, no chips, no wordmark - so linking it would cost a second
+     same-origin request for a rounding error of used rules. What IS shared is
+     the palette: the tokens below are copied from main.css's :root by value,
+     because a legal page must render standalone even if every other file in the
+     repo is missing. Same colours, different typographic register - the game's
+     screens are dense uppercase HUD furniture, this is long-form reading. -->
+<style>
+  :root {
+    color-scheme: dark;
+    /* Copied from css/main.css :root. Same palette, standalone file. */
+    --fw-gold: #ffd23f;
+    --fw-gold-hot: #ff8a3f;
+    --fw-extrude: #8e2f00;
+    --fw-bg: #0e1220;
+    --fw-plate: rgba(12, 16, 28, .92);
+    --fw-rule: rgba(255, 255, 255, .12);
+    --fw-text: rgba(255, 255, 255, .86);
+    --fw-quiet: rgba(255, 255, 255, .56);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--fw-bg);
+    color: var(--fw-text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    /* Bigger than the HUD's type and looser than any screen in the game. A
+       legal page is read in paragraphs, not glanced at in pills. */
+    font-size: clamp(16px, 1rem + .18vw, 18px);
+    line-height: 1.7;
+    /* A URL is the one token here long enough to push a phone into horizontal
+       scroll, and the contact line carries one. */
+    overflow-wrap: break-word;
+  }
+
+  /* ~65ch of measure, centred, with the gutter growing with the viewport so the
+     text never touches a phone edge and never sprawls on a desktop. */
+  .doc {
+    max-width: 65ch;
+    margin: 0 auto;
+    padding: clamp(22px, 6vw, 56px) clamp(20px, 6vw, 32px) clamp(48px, 9vw, 80px);
+  }
+
+  a { color: var(--fw-gold); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { color: var(--fw-gold-hot); }
+  /* Same focus treatment as .btn:focus-visible in css/main.css, so keyboard
+     focus looks like the rest of the game rather than like a browser default. */
+  a:focus-visible { outline: 3px solid var(--fw-gold); outline-offset: 3px; border-radius: 3px; }
+
+  .back {
+    display: inline-block; margin-bottom: clamp(20px, 5vw, 34px);
+    font-size: 12px; font-weight: 800; letter-spacing: 2px;
+    text-transform: uppercase; text-decoration: none; color: var(--fw-quiet);
+  }
+  .back:hover { color: var(--fw-gold); }
+
+  h1 {
+    font-size: clamp(30px, 7vw, 44px); line-height: 1.12; letter-spacing: .5px;
+    color: var(--fw-gold);
+    /* One step of the wordmark's extrude, at document scale. Enough to say
+       "same game", far short of the block letters on the title screen. */
+    text-shadow: 0 2px 0 rgba(142, 47, 0, .75);
+  }
+  .updated {
+    margin-top: 10px; font-size: 12px; font-weight: 800; letter-spacing: 1.6px;
+    text-transform: uppercase; color: var(--fw-quiet);
+  }
+
+  /* The rule above each heading is the vertical rhythm: it makes the document
+     scannable by section without needing a table of contents. */
+  h2 {
+    margin-top: clamp(34px, 7vw, 52px); padding-top: clamp(22px, 4vw, 30px);
+    border-top: 1px solid var(--fw-rule);
+    font-size: clamp(19px, 3.6vw, 24px); line-height: 1.25; letter-spacing: .3px;
+    color: #fff;
+  }
+  h2 + p, h2 + ul { margin-top: .85em; }
+  p { margin-top: 1.05em; }
+
+  ul { margin: 1.05em 0 0; padding-left: 1.25em; }
+  li { margin-top: .75em; }
+  li::marker { color: var(--fw-gold); }
+  strong { color: #fff; font-weight: 700; }
+
+  /* The short version, as a plate with a gold edge - the one place on the page
+     that borrows the game's own card vocabulary, because it is the one part a
+     reader in a hurry should not be able to miss. */
+  .lede {
+    margin-top: clamp(26px, 5vw, 36px);
+    background: var(--fw-plate);
+    border: 1px solid var(--fw-rule); border-left: 4px solid var(--fw-gold);
+    border-radius: 12px;
+    padding: clamp(16px, 4vw, 22px) clamp(16px, 4vw, 24px);
+  }
+  .lede h2 {
+    margin-top: 0; padding-top: 0; border-top: 0;
+    font-size: 12px; font-weight: 800; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--fw-gold);
+  }
+  .lede p { margin-top: .7em; }
+
+  .doc-nav {
+    margin-top: clamp(40px, 8vw, 60px); padding-top: clamp(20px, 4vw, 26px);
+    border-top: 1px solid var(--fw-rule);
+    display: flex; flex-wrap: wrap; gap: 10px clamp(18px, 5vw, 30px);
+    font-size: 12px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase;
+  }
+  .doc-nav a { text-decoration: none; }
+  .doc-nav a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<main class="doc">
+  <a class="back" href="index.html">&#8592; Back to Flywheel</a>
+
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated 13 August 2026</p>
+
+  <section class="lede">
+    <h2>The short version</h2>
+    <p>Flywheel has no accounts, no sign-in, no email address, no password, no
+    cookies, no analytics, and no advertising. Nothing you do in the game is sent
+    anywhere unless you choose to put a score on the public board.</p>
+  </section>
+
+  <h2>What stays on your device</h2>
+  <p>Your progress lives in your browser's local storage and never leaves it. That
+  includes your unlocked cities, coin bank, per-city records, audio and control
+  settings, and the display name you have claimed, if any.</p>
+  <p>Clearing your browser's storage for this site erases all of it. There is no
+  backup and no recovery, because there is no account for us to restore it from.</p>
+
+  <h2>What is sent when you post a score</h2>
+  <p>Posting a score to the public board is a deliberate action. Only then does
+  anything leave your device, and only the following:</p>
+  <ul>
+    <li><strong>A display name you choose.</strong> You pick it; we do not derive it
+    from anything.</li>
+    <li><strong>A random device key.</strong> Your browser generates 24 random bytes
+    the first time the board is used. It is not derived from your hardware, your
+    browser configuration, or anything else about you. It is a random number, and it
+    is not a fingerprint. It exists so a single browser cannot flood the board.</li>
+    <li><strong>A recording of the run.</strong> Every input you made during the run,
+    plus the score you are claiming, the run's statistics, and which build of the game
+    you played. The server replays the run to confirm the score is real. This is the
+    whole reason the board can be trusted without asking anyone to sign in.</li>
+    <li><strong>A name token.</strong> When you claim a name, the server generates a
+    secret and sends it to you once. We store only its SHA-256 hash. We cannot read
+    the token back out, and we cannot recover it for you if you lose it.</li>
+  </ul>
+
+  <h2>Your IP address</h2>
+  <p>We do not store your IP address. When a request reaches the server, the address
+  is put through a keyed cryptographic hash and truncated, and only that digest is
+  kept, to limit how often one connection can submit. The digest cannot be turned
+  back into your address.</p>
+
+  <h2>What is public</h2>
+  <p>If you claim a name, that name appears on the public scoreboard next to your
+  verified score and the run's statistics. Nothing else about you is published.</p>
+
+  <h2>Removing yourself</h2>
+  <p>The PROFILE screen has a remove control. It deletes your player record and the
+  name it holds. You can also simply clear this site's browser storage, which
+  removes the local save and the name token from your device.</p>
+
+  <h2>Who else handles this data</h2>
+  <ul>
+    <li><strong>Vercel</strong> hosts the site and runs the server functions.</li>
+    <li><strong>Supabase</strong> provides the database that holds the board.</li>
+  </ul>
+  <p>There is no one else. No analytics provider, no advertising network, no error
+  tracker, no third-party script of any kind.</p>
+
+  <h2>Children</h2>
+  <p>Flywheel is not directed at children under 13, and we do not knowingly collect
+  information from them. Since the game asks for no personal information at all,
+  there is nothing for a child to disclose beyond a display name they choose.</p>
+
+  <h2>Changes</h2>
+  <p>If this policy changes, the date at the top changes with it.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy can be raised at the project's issue tracker:
+  <!-- The URL is the longest unbreakable token on the page, and on a phone it is
+       wider than the measure. body's overflow-wrap:break-word keeps it from
+       forcing horizontal scroll, but break-word is a last resort: with no legal
+       break opportunity inside the string the browser splits at an arbitrary
+       character, which is how this rendered as ".../Flywheel/issue" + a lone "s".
+       <wbr> supplies the opportunities at the path boundaries so the break lands
+       after a slash instead. It is the right tool rather than a zero-width space
+       (U+200B), which is a real character and rides along into anything the
+       reader copies, or a soft hyphen, which prints a dash that is not in the
+       URL. This page is meant to survive being printed and retyped, so neither
+       is acceptable. overflow-wrap stays as the net for anything longer still. -->
+  <a href="https://github.com/NicoLafakis/Flywheel/issues" rel="noopener noreferrer">https://github.com/<wbr>NicoLafakis/<wbr>Flywheel/<wbr>issues</a>
+  <!-- TODO(nico): swap for an email if you want one --></p>
+
+  <nav class="doc-nav" aria-label="Flywheel documents">
+    <a href="index.html">Play Flywheel</a>
+    <a href="terms.html">Terms of Use</a>
+  </nav>
+</main>
+</body>
+</html>

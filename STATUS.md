@@ -13,9 +13,14 @@ Budget: 5,000 tokens.
 
 ## Awaiting Nico
 
-Nothing. Every open question on this board has been decided — the sun-elevation,
-intro-orbit and T-901 items that used to sit here are recorded below with the
-call that closed them.
+- **Two fields in the legal pages** (2026-08-13). Both shipped with a working
+  fallback, so neither blocks anything; both are genuinely his to decide and are
+  marked `TODO(nico)` in the HTML. (1) **Contact route** — `privacy.html` and
+  `terms.html` currently point at the GitHub issue tracker, which is real and
+  reachable. An email address would be better if he wants one. (2) **Governing
+  law** — `terms.html` names the United States without a state. Naming a state
+  fixes a forum; leaving it is normal for a free game. Everything else in both
+  documents is settled and sourced from code.
 
 ## In progress
 
@@ -274,6 +279,16 @@ only authority.
 One line per shipped item, newest first. Full detail lives in `CHANGELOG.md`,
 the feature packages under `.wiki/features/`, and `git log` — not here.
 
+- 2026-08-13 — Player identity and legal pages (owner request): `BIGGEST HOLE`
+  dropped from the landing strip (a lifetime high-water mark on the hole's own
+  radius, maxed early and never moving again — the per-city `SIZE` on the chips
+  is the honest version and stays); the PROFILE button moved out of the utility
+  row and into the head of the status strip as an identity chip, ungated, so the
+  one screen explaining how to get a board name is no longer hidden from
+  everyone who lacks one, and `showProfile()` gained the real claim route;
+  `privacy.html` and `terms.html` added as standalone inlined documents with a
+  `PRIVACY · TERMS` line in the landing footer, every factual claim sourced from
+  `js/board/player.js`, `api/_lib.mjs` and the schema rather than drafted
 - 2026-08-13 — Score integrity & honest combo readouts (T-301..T-312, closing the
   release blocker): `RANKED_TUNE` made a complete, double-locked physics
   description and every physics lever gated on `!sim.tuneLocked`; the server now

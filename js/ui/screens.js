@@ -179,10 +179,37 @@ export class Screens {
     // optional, but the coin row below it is an if/else and both arms append, so
     // any save that opens this block contributes at least one cell. Anything
     // added here that is conditional on BOTH sides has to bring its own guard.
+    // The identity chip below is the same shape of promise in the other
+    // direction — it is an if/else with no third arm, so when boards are on it
+    // ADDS a cell and can never be the reason the row is empty.
     const pb = personalBest(this.save);
     const unlock = nextUnlock(this.save);
     if (this.save.coins > 0 || pb.runs > 0) {
       const strip = el(`<div class="fw-status"></div>`);
+      // Who the player IS heads the row that holds their records — this strip is
+      // the player's own line, and identity belongs at the front of it. It used
+      // to be a PROFILE button in the utility row beside SHOP, gated on
+      // `save.player.name`, which hid the one screen that explains how to get a
+      // name from precisely the players who do not have one. Both states are
+      // the same control now: named, it says who you are; unnamed, it says the
+      // name is available and what it costs to get. One door to one room.
+      if (BOARDS_ENABLED) {
+        const claimed = this.save.player && this.save.player.name;
+        const id = el(`<button type="button" class="fw-stat fw-id${claimed ? '' : ' fw-id--none'}">
+          <span class="fw-stat-k">PLAYER</span>
+          <span class="fw-stat-v"></span>
+          <span class="fw-stat-note">${claimed ? 'VIEW PROFILE' : 'HOW TO CLAIM ONE'}</span>
+        </button>`);
+        // textContent, not interpolation: every other value on this screen comes
+        // from a registry or is a number, but a board name is text a player
+        // typed. It is server-validated on claim and it is still not markup.
+        id.querySelector('.fw-stat-v').textContent = claimed ? this.save.player.name : 'NO NAME YET';
+        id.setAttribute('aria-label', claimed
+          ? `Profile for ${this.save.player.name}`
+          : 'No board name yet. Open the profile screen to see how to claim one.');
+        id.onclick = () => this.showProfile();
+        strip.appendChild(id);
+      }
       if (pb.score !== null) {
         strip.appendChild(el(`<div class="fw-stat"><span class="fw-stat-k">BEST SCORE</span><span class="fw-stat-v">${pb.score.toLocaleString('en-US')}</span></div>`));
       }
@@ -286,11 +313,11 @@ export class Screens {
       const records = el(`<button type="button" class="btn secondary">RECORDS</button>`);
       records.onclick = () => this.showBoards();
       util.appendChild(records);
-      if (this.save.player && this.save.player.name) {
-        const profile = el(`<button type="button" class="btn secondary">PROFILE</button>`);
-        profile.onclick = () => this.showProfile();
-        util.appendChild(profile);
-      }
+      // No PROFILE button here. The identity chip at the head of the status
+      // strip is the one route to that screen; a second door in the utility row
+      // would be the same room reached two ways, and this row is for the places
+      // that are not about the player (RECORDS is everyone's, SHOP and SETTINGS
+      // are the game's).
     }
     const shop = el(`<button type="button" class="btn secondary">SHOP</button>`);
     shop.onclick = () => this.showShop();
@@ -299,11 +326,30 @@ export class Screens {
     util.append(shop, settings);
     s.appendChild(util);
 
+    // The screen's footer: the CC0 sound manifest and the legal line. ONE child
+    // of the landing stack rather than two, because they are one block — and
+    // because .fw-landing's gap is a section gap (up to 24px), which is the
+    // wrong distance between two lines of the same fine print and is pure
+    // vertical cost on a screen that already scrolls at typical desktop heights.
+    const foot = el(`<div class="fw-foot"></div>`);
     // The same CC0 sound manifest the arena landing carries (arena.html
     // #sound-credits): not legally required, given anyway.
-    s.appendChild(el(`<div class="fw-credits">SOUND EFFECTS · CC0 · KENNEY.NL · OPENGAMEART (THIMRAS, RANGO MANGO) ·
+    foot.appendChild(el(`<div class="fw-credits">SOUND EFFECTS · CC0 · KENNEY.NL · OPENGAMEART (THIMRAS, RANGO MANGO) ·
       FREESOUND (THAIGHAUDIO, COGNITO PERCEPTU, BRAINCLAIM, CRAIGSMITH,
       METROSTOCK99, QUBODUP, PUSHKIN, MRRAP4FOOD, DRBODKIN, TAKAREADS)</div>`));
+
+    // Fine print, and drawn as fine print — quieter than the sound manifest
+    // above it, because the manifest is a thank-you and this is a footer. Plain
+    // <a> to two plain documents rather than buttons into the state machine:
+    // privacy.html and terms.html are standalone pages that have to render for
+    // someone who arrives on a shared link with the game never booting, so the
+    // route to them is the same route a search engine or a store review would
+    // take. Same-origin, no target, so the back button returns to the title.
+    foot.appendChild(el(`<div class="fw-legal">
+      <a href="privacy.html">PRIVACY</a>
+      <a href="terms.html">TERMS</a>
+    </div>`));
+    s.appendChild(foot);
 
     this.root.appendChild(s);
     this.current = 'title';
@@ -432,7 +478,7 @@ export class Screens {
   async showBoards() {
     this.clear();
     if (this.actions.menuScene) this.actions.menuScene(false);
-    this.root.appendChild(el(`<div class="screen">LOADING RECORDSâ€¦</div>`));
+    this.root.appendChild(el(`<div class="screen">LOADING RECORDS…</div>`));
     try {
       const { renderBoards } = await import('./boards.js');
       await renderBoards(this.root, {
@@ -450,12 +496,39 @@ export class Screens {
   async showProfile() {
     this.clear();
     if (this.actions.menuScene) this.actions.menuScene(false);
-    this.root.appendChild(el(`<div class="screen">LOADING PROFILEâ€¦</div>`));
+    this.root.appendChild(el(`<div class="screen">LOADING PROFILE…</div>`));
     try {
       const { renderProfile } = await import('./boards.js');
       renderProfile(this.root, {
         save: this.save, onBack: () => this.showTitle(), onRecords: () => this.showBoards(),
       });
+      // The identity chip brings players here who have no name at all, which
+      // that button was gated against before — so this screen is now the place
+      // the game explains how a name is obtained, and it has to be honest about
+      // it. boards.js already states the FACT ("EARN A VERIFIED RUN TO CLAIM
+      // ONE") and that stays the sentence; what it cannot state is the door,
+      // because THE RUN is a main.js action the board layer has no handle on.
+      // There is exactly one claim flow in this codebase — showRunResults mounts
+      // mountClaim when the server verdict comes back `verified` and the device
+      // holds no name — so the whole path is: play THE RUN, get verified, claim
+      // on that results screen. No other route is invented here, because no
+      // other route exists.
+      if (!(this.save.player && this.save.player.name) && this.actions.startRankedRun) {
+        // Anchored to the empty-state note by class rather than by child index,
+        // for the reason showRunResults documents: an index silently repoints at
+        // whatever happens to sit there after the next edit. With no name there
+        // is no transfer note, so this is the only .fw-board-note on the screen.
+        const note = this.root.querySelector('.fw-board-note');
+        const path = el(`<div class="fw-claim-path">
+          <p class="fw-board-note">A name comes from a verified place on the board, not from a sign-up. Play THE RUN; if the server verifies your score, the claim form appears on that run's results screen.</p>
+        </div>`);
+        // Same label as the title screen's, so it reads as the same door rather
+        // than a second one.
+        const run = el(`<button type="button" class="btn">RUN CHICAGO · 90 SECONDS</button>`);
+        run.onclick = () => this.actions.startRankedRun('chicago');
+        path.appendChild(run);
+        if (note) note.after(path); else this.root.querySelector('.screen').appendChild(path);
+      }
       this.current = 'profile';
     } catch { this.showTitle(); }
   }
