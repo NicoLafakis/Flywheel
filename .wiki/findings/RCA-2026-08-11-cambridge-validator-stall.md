@@ -1,7 +1,62 @@
 # RCA: validateCambridge never completes — the 780 s excursion hits superlinear debris churn
 
+> ## ⚠ CORRECTED 2026-08-13 — §2's named mechanism is wrong, and §5's "real fix" is a no-op
+>
+> **The symptom, the profile and the cost curve in this document are all correct
+> and reproduce exactly.** A different tree on 2026-08-13 landed on this
+> document's own numbers at the same sim times — 335 awake bodies at 200 s, 385
+> at 270 s — so §3's table is sound and was used as the instrument check for the
+> fix. What is wrong is the *attribution*, and it is wrong in a way that sent the
+> first implementation attempt at a change that would have altered nothing.
+>
+> **§2.2 blames the awake-debris growth on rubble resting on rubble** never being
+> marked `_wantSleep`. Measured on the validator's own Cambridge drive loop,
+> counting the awake set by *why* each body is awake, that population is **zero
+> for the first 170 seconds and 6 of 385 at 270 s** — roughly 1% of the problem,
+> and absent entirely for the period during which the curve establishes itself.
+>
+> **§5's "the real fix is engine-level debris retirement — promote settled rubble
+> into the heightmap/`_top` so the layer above gains SOLID support and can
+> sleep" is already implemented.** That is precisely what the sleep commit does
+> at `js/voxelsim.js:2499` (`this._topAdd(b)`), and the walk states the same
+> intent in a comment at `js/voxelsim.js:2451-2453`. Writing that fix again
+> changes nothing. This section is the most dangerous part of the document,
+> because it reads as an unimplemented plan and is in fact a description of
+> shipped behaviour.
+>
+> **The actual mechanism is geometric fixed points the sleep gate refuses to
+> retire.** A body wedged between an immovable partner and another awake body
+> converges to a fixed point within each step and then reproduces it bit for bit
+> forever — one traced body's first penetration changed by 8.88e-16 (one ULP)
+> over 60 consecutive steps while moving under 1 mm. Because that penetration
+> stays above the 0.05 threshold, `_separate` re-stamps `_inContact` every step
+> (`js/voxelsim.js:2806-2810`) and the sleep commit refuses the body forever
+> (`:2489`). Census at simT 120 s: **78 of 101 awake bodies are jammed** —
+> permanent contact, zero motion — 4 churning, 19 genuinely drainable. That is
+> why `_supportBelow` is ~32% of CPU: 77% of the bodies calling it should not
+> exist. The gate's stated premise, that a block frozen mid-overlap can never
+> separate, is already false for exactly these bodies: they are not separating.
+>
+> The fix is therefore retirement on **proven stationarity**, not on
+> contact-freedom. Decision: ADR-0018. Evidence, census tables, the traced fixed
+> point and the threshold sweep:
+> `.wiki/features/timed-runs-and-full-clear/03-technical-design.md`.
+>
+> **Why this is corrected in place rather than rewritten:** the measurement in
+> this document is good and the conclusion drawn from it was not, which is the
+> more useful thing for the next reader to see. §2.2 and §5 below are left as
+> written, with this header governing them — read them as the as-found
+> hypothesis, not as findings.
+
 - **Date:** 2026-08-11
-- **Status:** **Diagnosed, not fixed.** No code was changed for this finding. The mechanism is an engine characteristic (awake-debris population grows without bound during sustained eating on the untiered default physics), and every candidate small fix either only buys a constant factor or changes physics underneath the validator's determinism gates — see §5. The full validator therefore does NOT currently run end-to-end; `tools/chicago-probe.mjs` and the other fast selftests remain the working gates.
+- **Status (2026-08-13):** **Cost curve confirmed; mechanism corrected; fix in
+  progress under T-402.** No code was changed for this finding on 2026-08-11.
+  The awake-debris population does grow without bound during sustained eating on
+  the untiered default physics, and that growth is what costs the run — but the
+  *reason* the population grows is not the one §2.2 gives, and the fix §5 calls
+  "the real one" is already in the file. See the correction header above before
+  reading §2.2 or §5.
+- **Status (2026-08-11, as written):** **Diagnosed, not fixed.** No code was changed for this finding. The mechanism is an engine characteristic (awake-debris population grows without bound during sustained eating on the untiered default physics), and every candidate small fix either only buys a constant factor or changes physics underneath the validator's determinism gates — see §5. The full validator therefore does NOT currently run end-to-end; `tools/chicago-probe.mjs` and the other fast selftests remain the working gates.
 - **Reporter:** two consecutive `node tools/validate.mjs` runs (2026-08-10 and 2026-08-11) went silent for >1 h after the `cambridge district density` line and had to be killed.
 - **Severity:** High for the toolchain (the shared validator is unusable end-to-end, so nothing behind Cambridge in the call order — including the new `validateChicago` — ever runs in a full pass). Latent Medium for the product: the same mechanism predicts a progressive slowdown in a long uninterrupted Cambridge session on the highest device tier (see §6).
 - **Investigator:** headless instrumented reproduction + V8 CPU profile; numbers below are from this session's runs.
