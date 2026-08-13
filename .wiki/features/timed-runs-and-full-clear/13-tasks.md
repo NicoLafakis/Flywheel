@@ -64,33 +64,115 @@ as parallel agents — this repo has already paid for that mistake once
 
 ## Phase 3 — scoring and the multiplier (R-3, R-4)
 
-Findings from the scoring audit land here as concrete tasks when it reports;
-these are the ones already confirmed by inspection.
+Every task below is anchored to a **CONFIRMED** finding in
+[RCA-2026-08-13-scoring-and-combo-audit](../../findings/RCA-2026-08-13-scoring-and-combo-audit.md),
+with its numbers. Two findings that turned out to be clean are recorded at the
+bottom so nobody re-walks them.
 
-- **T-301 — readout inventory.** Enumerate every combo surface and record which
-  quantity each renders: chain, level, or multiplier (R-4.1). *Done when:* the
-  table exists in this package and every row cites file:line.
-- **T-302 — honest labels.** Chain counts are labelled as chains; multipliers are
-  labelled as multipliers and are capped with their label (R-4.2, R-4.3, R-4.4).
-  *Done when:* `Best combo 530` no longer reads as a multiplier anywhere, and no
-  displayed multiplier exceeds the ladder's true ceiling of 8x.
-- **T-303 — paid equals shown.** The multiplier the sim applies and the one the
-  HUD shows are identical at the same moment, arena surfaces included (R-4.5).
-  *Done when:* a headless run asserts equality every tick.
-- **T-304 — single-player accumulation.** One authoritative accumulator, every
-  display reading from it (R-3.1). *Done when:* displayed score equals the summed
-  consumption for a scripted run.
-- **T-305 — arena convergence.** Peer display converges to host authority; no
-  double-count or drop across a keyframe heal (R-3.2). *Done when:* a loopback
-  match ends with both sides on the same number.
-- **T-306 — verifier parity.** `api/_verify.mjs` returns the client's score for
-  the same trace (R-3.3). *Done when:* a fixture trace scores bit-identically on
-  both sides. **Release blocker.**
-- **T-307 — order-independent sums.** Any order-dependent float accumulation is
-  made order-independent or its bound is documented (R-3.4). *Done when:* a
-  harness that consumes in several different orders agrees on the total —
-  and the harness is proven against a deliberately broken build first, because a
-  check that consumes in the same order as the code it audits passes on bugs.
+### Ranked score integrity — release blockers
+
+- **T-301 — `perfMode` must not survive into a ranked run** (audit A5.1).
+  `js/voxelsim.js:2579` reads `tune.perfMode` as a contact-rounds override;
+  `RANKED_TUNE` has no such key, so `Object.assign` cannot clear it and a player
+  with SETTINGS → "Smoother play" ON runs different physics than the server.
+  Measured on one identical trace: client **2247.9250**, server **2231.9625**.
+  *Done when:* the ranked tune is a complete physics description — every lever the
+  sim reads is pinned by it, proven by a test that sets every settings key to a
+  hostile value and still reproduces the server's score. **Release blocker.**
+- **T-302 — freeze the physics for the duration of a ranked run** (audit A5.2).
+  Pause is reachable during a RUN and the pause screen offers SETTINGS; every
+  toggle calls `applySettings()` → `startQuality()` + `applyVoxTuning()`
+  (`js/main.js:258-259`), neither of which has a `run90` guard. Measured swings
+  against the 2231.9625 baseline: `supportEvery = 2` (the ordinary LOW-tier phone
+  value) → **945.95, a 58% loss**; a realistic mid-run LOW-tier apply at t=30 s →
+  1853.80; a persisted `gravity = 100` from the ADVANCED sliders → 4438.43.
+  Note the sign on the common phone case: **the player is robbed, not favoured.**
+  *Done when:* no settings path can write `sim.tune` or the quality levers while
+  `mode === 'run90'`, proven by driving every control on the pause SETTINGS screen
+  mid-run and reproducing the baseline score exactly. **Release blocker.**
+- **T-303 — the server must compare the two numbers** (audit A5.3).
+  `api/_verify.mjs:42-51` computes a score and returns `verified` without ever
+  reading `run.claimed_score`, and there is no `mismatch` reason for a score
+  disagreement. Both numbers are already in the same row. *Done when:* a
+  divergence beyond a stated tolerance produces an explicit verdict and is
+  observable, rather than being silently overwritten.
+- **T-304 — `placementGate` trusts a client number** (audit A5.5).
+  `api/run/submit.mjs:18-21,74` decides whether to replay a run at all by
+  comparing the **client-supplied** `claimed_score` against 25th place, so a run
+  that under-reports is marked `unranked` without ever being verified. *Done
+  when:* the gate cannot be driven by an unverified client value, or the
+  trust boundary is documented as deliberate with its consequence stated.
+
+### Multiplayer currency
+
+- **T-305 — the arena must judge and print the same currency** (audit A6.4).
+  `js/demo/arena.js:680` picks the winner on `finalSplit().mass`, which is **raw,
+  un-multiplied** mass (`js/rival/attribution.js:55-56`), while `:683` prints
+  `Math.floor(hole.mass)`, the **combo-multiplied** score. The reveal can read
+  "YOU 3,400 PTS / RIVAL 1,900 PTS" above "RIVAL TAKES THE CITY". The code comment
+  at `:645-649` shows this was a deliberate flavour choice; it is still two
+  contradictory verdicts in one frame and is the strongest candidate for the
+  owner's "scores not adding up in multiplayer". *Done when:* one currency decides
+  and is displayed, or the two are visually separated so neither reads as the
+  other's total. **Owner-visible behaviour change — say which currency won.**
+- **T-306 — the live HUD and the tug bar disagree the same way** (audit A6.5).
+  `js/demo/arena.js:740-741` prints combo-multiplied points while the bar
+  underneath (`:417-418`) shows raw-mass shares, so they move at different rates
+  and can point opposite ways during a hot chain. *Done when:* consistent with
+  T-305's ruling.
+- **T-307 — the peer's wire score has a hard clamp at 16383.75** (audit A6.1).
+  A 180 s scripted Chicago route already reaches 7,425 points — 45% of the cap —
+  so this is a real ceiling in the same order of magnitude as live values, not a
+  theoretical one. *Done when:* the clamp is raised or the quantisation is
+  rescaled, with the new headroom stated against a measured route.
+- **T-308 — attribution can drop credit under host migration** (audit A6.3,
+  SUSPECTED). A successor's keyframe would mark a slice of the city eaten with no
+  owner, and the tug bar and end reveal would silently renormalise over the
+  remainder. Not reachable today (no migration path in `js/demo/arena.js`), so
+  this rides with **T-606** host migration rather than shipping now — recorded so
+  migration does not land on top of it unknowingly.
+
+### The multiplier tells the truth
+
+- **T-309 — fix the two readouts that print a chain with an `x`** (audit B2 #4,
+  #7). `js/ui/screens.js:501` prints `` `Best combo x${bestCombo}` `` on the
+  campaign results screen — and the campaign ladder caps at **3.0**
+  (`js/sim.js:9-12`), so `x47` overstates the real multiplier by 15.7x.
+  `js/ui/hud.js:177-182` prints `` `COMBO x${chain}` `` on the campaign HUD. This
+  is the exact defect ADR-0015 closed for the sandbox HUD, still live on the
+  campaign path. *Done when:* neither surface puts an `x` in front of a chain.
+- **T-310 — label the chain counts as chains** (audit B2 #1, #5, #6).
+  The RUN results line the owner read as 530x (`js/ui/screens.js:329`), the
+  sandbox equivalent (`:304,310`), and the unlabelled big number on the HUD combo
+  ring (`js/ui/hud.js:259-262`) — which is the visually dominant readout at
+  18-26px against the honest multiplier's 10-13px. *Done when:* every one states
+  its unit, and the number a player calls "my combo" cannot be read as a
+  multiplier.
+- **T-311 — `MAX` must not sit over a climbing number** (audit B3).
+  `h.chain` has no ceiling, so the ring shows `600 / MAX` and later `900 / MAX`.
+  Also: the multiplier ladder displays `x1..x7, MAX`, so the number **8 is never
+  shown** and a player counting the steps concludes the top is 7. This is the most
+  likely origin of the owner's "it maxes out at 100x" belief. *Done when:* the cap
+  is legible as a number and nothing climbs past a label that says it stopped.
+- **T-312 — replace the tautological validator assertion** (audit B5).
+  `tools/validate.mjs:1556-1562` compares `comboMult(c)` against
+  `1 + (comboLevel(c) - 1) * COMBO_STEP` — which is `comboMult`'s entire body
+  inlined — so it passes on any code, including broken code, over all 1,000
+  iterations. The narrow source-text guard at `:1587-1594` inspects only
+  `js/ui/hud.js` and would catch neither T-309 site. *Done when:* the assertion
+  compares against an independent expectation (a literal table), the guard covers
+  every readout named in the audit's B2 inventory, and **both are proven by
+  running them against a deliberately broken build first.**
+
+### Checked and clean — do not re-audit
+
+- **The single-player accumulator is exact** (audit A1). `hole.mass` equals the
+  sum of every award bit-for-bit; reordering the summands moves it by ~1e-12,
+  and `Math.floor` before display means it can never move a shown digit.
+- **Nothing is double-counted** (audit A2), and ranked determinism itself is
+  sound (audit A5.4): `js/fwmath.js` pins the transcendentals, inputs are stepped
+  from the same int8 pair that gets stored, and `maxSubSteps` throttles wall-clock
+  catch-up without dropping a recorded tick.
 
 ## Phase 4 — items this work surfaced (owned, not parked)
 

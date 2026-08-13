@@ -28,6 +28,17 @@ call that closed them.
   clock ends the run and the player is scored on the percentage reached, so 100%
   is a scoring ceiling rather than a pass/fail win condition — otherwise every
   city level is an automatic loss. Genre precedent: Hole.io's two-minute match.
+- **Ranked runs can publish a different score than the player saw** (T-301/T-303,
+  2026-08-13, **release blocker**). `perfMode` is a physics lever `RANKED_TUNE`
+  cannot clear, so SETTINGS → "Smoother play" alone splits client and server:
+  measured 2247.93 vs 2231.96 on one identical trace. Changing any setting
+  mid-run reopens it wider — the ordinary LOW-tier phone value costs **58%** of
+  the score, against the player. The server never compares its computed score to
+  the claimed one, so it is silent by construction. Also confirmed: the arena
+  picks its winner on raw mass while printing combo-multiplied points three lines
+  away, and the validator's load-bearing combo assertion is a tautology that
+  passes on broken code. Full evidence:
+  `.wiki/findings/RCA-2026-08-13-scoring-and-combo-audit.md`; fixes are T-301..T-312.
 - **T-901 failed, and it indicts the engine, not the tune** (2026-08-13). The
   physical-device requirement is retired in favour of the emulated Pixel-5 + 4x
   CPU throttle profile; measured over 13 runs, THE RUN holds a 100 ms median,
