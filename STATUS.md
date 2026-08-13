@@ -30,14 +30,31 @@ call that closed them.
   honesty (both listed under Not started), T-308's per-hole combo attribution
   (deferred to ride with T-606 host migration), and the UI polish pass on the
   new readouts.
-- **`COMBO_THRESHOLDS[0] = 2` is inert** (found 2026-08-13 during T-312,
-  **reported not fixed**). `comboLevel` maps a crossing of `thresholds[i]` to
-  level `i+1`, and level 1 is already the floor — so a chain of 2 scores exactly
-  what a chain of 0 scores. The published ladder head reads "2, 10, 15" but the
-  player only ever feels steps at 10 and 15. Fixing it moves every score in the
-  game and needs a `RANKED_SIM_VERSION` bump, so it is the owner's call; it wants
-  the same window as the other sim-output changes, while the board holds one run
-  and zero claimed names.
+- **`COMBO_THRESHOLDS[0] = 2` is inert** (T-501, found 2026-08-13 during T-312,
+  **in flight**). `comboLevel` maps a crossing of `thresholds[i]` to level `i+1`,
+  and level 1 is already the floor — so a chain of 2 scores exactly what a chain
+  of 0 scores. The published ladder head reads "2, 10, 15" but the player only
+  ever feels steps at 10 and 15. First reported as needing a
+  `RANKED_SIM_VERSION` bump; that was wrong on re-check. The defect is
+  structural — **any** value at index 0 is inert, so moving `2` to `5` would fix
+  nothing — and the structural fix (drop the entry, map `level = i + 2`,
+  `MAX_LEVEL = length + 1`) leaves every rung x1..x8 on its exact current chain
+  range. No score moves and no version bumps. The proof is free: the 27-entry
+  literal `LADDER` table in `tools/validate.mjs` must pass unchanged.
+- **The finish bonus pays out on a run that finished nothing** (T-503,
+  2026-08-13, **in flight**). `js/ui/screens.js:326` adds `SANDBOX_GOAL_BONUS`
+  unconditionally and line 350 prints "Finish bonus +35" — on a screen headed
+  "TIME'S UP" that prints "City cleared 3%" two lines above it. Harmless while a
+  sandbox run could only end by reaching the goal; a live payout bug the moment
+  the 180 s clock made timing out the ordinary ending.
+- **Two contradictory clocks during THE RUN** (T-504, 2026-08-13, **in
+  flight**). `updateSandbox` overwrites `#timer` with the 90 s ranked countdown
+  while `_updateClock(sim.timeLeft)` paints `#level-clock` with the 180 s
+  sandbox one, in the same function (`js/ui/hud.js:241-248`) — so a ranked run
+  shows two disagreeing clocks and loses its coin readout. THE RUN's length is a
+  decision of record (ADR-0016), which makes it the worst place for the HUD to
+  state two of them. `index.html:136` also still ships the retired campaign
+  ramp's `75` as the pill's initial text.
 - **T-901 failed, and it indicts the engine, not the tune** (2026-08-13). The
   physical-device requirement is retired in favour of the emulated Pixel-5 + 4x
   CPU throttle profile; measured over 13 runs, THE RUN holds a 100 ms median,
@@ -128,9 +145,12 @@ call that closed them.
   are sim time. Even the unthrottled emulated phone finishes a 90 s ranked run in
   100.5 s. Verification is unaffected; the player-facing framing is not the
   player's time.
-- **Preserve the T-901 harness** (T-401, 2026-08-13) — the 13-run measurement
-  harness lives in a session-scoped scratchpad and will evaporate. It blocks any
-  re-measure, so it moves into `tools/` first.
+- **`best_combo` is a chain count under a multiplier's name** (T-502,
+  2026-08-13) — written by `api/_verify.mjs` into a column nothing renders yet.
+  The ambiguity T-309/T-311 just removed from every player-facing readout is
+  still live in the stored schema, and the first surface to render it will
+  reproduce the "it maxes out at 100x" confusion. Needs a Supabase migration;
+  land it while the board holds one run and zero claimed names.
 
 ## Established facts — measured, don't re-derive
 
@@ -266,6 +286,9 @@ the feature packages under `.wiki/features/`, and `git log` — not here.
   deliberately broken build
 - 2026-08-13 — Timed Runs & Full Clear phases 1-2: the 180 s clock
   (`js/levelclock.js`) and `targetFraction` 1.0 on every scene
+- 2026-08-13 — T-401: the T-901 mobile measurement preserved as a re-runnable
+  instrument (`tools/perf/`), with a quotability gate that refuses `n<5`,
+  truncated smoke runs, page errors or a SwiftShader fallback
 - 2026-08-12 — Scoreboards & Profiles: THE RUN, replay-verified boards,
   device-token names, Vercel API, four Supabase migrations, save v17
 - 2026-08-12 — Mobile perf: on-demand city modules, device-aware default tier,

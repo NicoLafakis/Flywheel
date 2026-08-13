@@ -216,3 +216,61 @@ Recorded under global rule 13: a finding raised is a finding owned.
   entry point is hardcoded to Chicago, so half that gate is unmeasurable through
   the product. *Done when:* either the gate text is corrected to match ADR-0016's
   one-city-at-a-time rule, or Brooklyn is given its own ranked entry and gate.
+
+## Phase 5 — found while landing Phases 1–3 (2026-08-13)
+
+Raised by the implementer as out-of-scope for its own phase and verified against
+the tree by the orchestrator before being written down. Recorded here rather
+than mentioned in a report, because a finding that lives only in a message is a
+finding nobody will action.
+
+- **T-501 — the head of the combo ladder is inert.** `comboLevel` sets
+  `level = i + 1` when the chain crosses `COMBO_THRESHOLDS[i]`
+  (`js/voxelsim.js:217-223`), and level 1 is already the floor — so crossing
+  index 0 awards the value a chain of 0 already had. A chain of 2 scores exactly
+  what a chain of 0 scores. **Any** value at index 0 is inert; the defect is
+  structural, not a bad number. The published head reads "2, 10, 15" and the
+  validator prints "8 levels (2, 10, 15, …)", so the game states a step the
+  player cannot feel. *Fix without moving a single score:* drop `2` from the
+  array, make the mapping `level = i + 2`, and set
+  `COMBO_MAX_LEVEL = COMBO_THRESHOLDS.length + 1`. Every rung x1..x8 keeps its
+  exact current chain range, so there is no `RANKED_SIM_VERSION` implication —
+  this is a representation fix, not a tuning change. *Done when:* every entry in
+  `COMBO_THRESHOLDS` changes the multiplier when crossed, the literal `LADDER`
+  table in `tools/validate.mjs` is unchanged and still passes (that is the proof
+  scores did not move), and every consumer of the array — the HUD ring's
+  next-rung arc above all — has been swept, not just the definition.
+  Whether the first real step belongs at 10 is a separate tuning question; this
+  task leaves a clean seam for it and deliberately does not answer it.
+- **T-502 — `best_combo` is a chain count under a multiplier's name.** Written by
+  `api/_verify.mjs` into a column nothing currently renders. The same ambiguity
+  T-309/T-311 just removed from every player-facing readout is still live in the
+  stored schema, and the first surface that renders it will reproduce the "it
+  maxes out at 100x" confusion the audit traced. *Done when:* the column says
+  which quantity it holds, the writer and any reader move with it, and the
+  migration runs against Supabase. Land it while the board holds one run and
+  zero claimed names — the cheapest window this rename will ever have.
+- **T-503 — the finish bonus pays out on a run that finished nothing.**
+  `js/ui/screens.js:326` adds `SANDBOX_GOAL_BONUS` unconditionally, and line 350
+  prints "Finish bonus +35" — on a screen whose own heading two lines earlier
+  reads "TIME'S UP" and whose own body prints "City cleared 3%". Harmless while
+  a sandbox run could only end by reaching the goal; a live payout bug the
+  moment the 180 s clock made timing out the ordinary ending. The screen already
+  has `sim.won` in scope, which is what makes this an inconsistency the player
+  can read off one frame. *Done when:* the bonus is gated on `sim.won`, the line
+  is absent (not zeroed) when it was not earned, `recordSandboxResult` banks the
+  same number the screen showed, and a validator guard fails on the ungated
+  form.
+- **T-504 — two contradictory clocks during THE RUN.** `updateSandbox` writes the
+  coin readout into `#timer`, then overwrites it with the ranked countdown when
+  `sim.mode === 'run90'` (`js/ui/hud.js:241-248`), while `_updateClock(sim.timeLeft)`
+  runs unconditionally at the end of the same function. So a ranked run paints
+  `#level-clock` with the 180 s sandbox countdown and `#timer` with the 90 s
+  ranked one, at the same time, disagreeing — and the coin readout the sandbox
+  needs disappears for the duration. THE RUN is the one mode whose length is a
+  fixed decision of record (ADR-0016), so it is the worst possible place for the
+  HUD to state two of them. `index.html:136` also still ships `<div id="timer">75</div>`,
+  the start value of the campaign clock ramp that R-1.1 retired. *Done when:* a
+  ranked run shows exactly one countdown and it is the ranked one, the sandbox
+  keeps its coin readout, the stale initial text is gone, and a browser probe
+  asserts the count of visible countdowns rather than the text of one.
