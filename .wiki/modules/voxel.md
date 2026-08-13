@@ -88,7 +88,7 @@ bottom-up, along material bond strengths.
 | `js/voxelscene-boston.js` | `buildBoston(sim)`: Seaport, Fort Point and the BCEC (82,894 blocks, 2.0 blocks/m²) — see the Boston section below |
 | `js/voxelforms.js` | The twelve anisotropic primitives ADR-0013 unlocked (`slab`, `column`, `beam`, `panel`, `mullion`, `cornice`, `pier`, `plinth`, `tread`, and the rest), sitting below `js/voxelkit.js`. Geometry only — no named buildings, no city semantics. Pure sim |
 | `js/voxelscene-cambridge.js` | `buildCambridge(sim)`: East Cambridge around 2 Canal Park, the first scene authored in the `voxelforms.js` vocabulary. All ten districts built and the map complete at 72,943 blocks with the dead-ground census at zero; wired into the sim's scene dispatch, `AUTHORED_SCENES` and `FREE_PLAY`, and validated by `validateCambridge()`. Phase 7's hidden content and the Phase 8 sign-off are still ahead |
-| `js/voxelscene-chicago.js` | `buildChicago(sim)`: the Loop and Chicago River map, ground-up rebuilt on the Cambridge method (44,578 blocks, SIZE 7 reachable via `tools/chicago-probe.mjs`). Real street grid single-sourced through `CHICAGO_STREETS`; the river wraps north and west with three bascule bridges (LaSalle, State, DuSable); the 'L' Loop is a full four-corner elevated circuit (Lake/Wabash/Van Buren/Wells) with three stations (State/Lake, Washington/Wabash, Quincy) and a four-car CTA train riding it continuously via the mover seam — simulated, not just drawn: it derails at eaten track, runs the streets as a runaway, and a derailed car is eatable (see the Chicago section below). ~15 named landmarks (Willis Tower, Board of Trade/Ceres, Marina City, the Chicago Theatre blade, Cloud Gate, Wrigley, Tribune, and more). **Fully menu-reachable as of 2026-08-11:** `chicago` joined `js/net/protocol.js`'s `ARENA_SCENES` allowlist and the arena's HOST A CITY picker, and, the same day, `js/main.js`'s `AUTHORED_SCENES` entry plus `js/ui/screens.js`'s FREE_PLAY card landed the scene in the single-player menu too (adopted from a concurrent session). `tools/validate.mjs`'s `validateChicago()` (9501241) now runs Chicago through the same 19-probe contract plus scripted-excursion gates as Cambridge (deterministic double excursion, `eatenCount >= 300`, `SIZE >= 7`). It cannot currently prove green end to end, though: the FULL validator does not complete a run at all, because `validateCambridge()` — which runs before Chicago in file order — stalls on its own 780 s excursion (superlinear debris-churn cost, diagnosed not fixed; see [RCA-2026-08-11-cambridge-validator-stall](../findings/RCA-2026-08-11-cambridge-validator-stall.md)). `tools/chicago-probe.mjs` therefore remains the operative headless correctness gate for this scene until that stall is resolved |
+| `js/voxelscene-chicago.js` | `buildChicago(sim)`: the Loop and Chicago River map, ground-up rebuilt on the Cambridge method (44,578 blocks, SIZE 7 reachable via `tools/chicago-probe.mjs`). Real street grid single-sourced through `CHICAGO_STREETS`; the river wraps north and west with three bascule bridges (LaSalle, State, DuSable); the 'L' Loop is a full four-corner elevated circuit (Lake/Wabash/Van Buren/Wells) with three stations (State/Lake, Washington/Wabash, Quincy) and a four-car CTA train riding it continuously via the mover seam — simulated, not just drawn: it derails at eaten track, runs the streets as a runaway, and a derailed car is eatable (see the Chicago section below). ~15 named landmarks (Willis Tower, Board of Trade/Ceres, Marina City, the Chicago Theatre blade, Cloud Gate, Wrigley, Tribune, and more). **Fully menu-reachable as of 2026-08-11:** `chicago` joined `js/net/protocol.js`'s `ARENA_SCENES` allowlist and the arena's HOST A CITY picker, and, the same day, `js/main.js`'s `AUTHORED_SCENES` entry plus `js/ui/screens.js`'s FREE_PLAY card landed the scene in the single-player menu too (adopted from a concurrent session). `tools/validate.mjs`'s `validateChicago()` (9501241) now runs Chicago through the same 19-probe contract plus scripted-excursion gates as Cambridge (deterministic double excursion, `eatenCount >= 300`, `SIZE >= 7`). It now also proves green end to end in a full pass: the Cambridge stall that used to block every section after it in file order was rooted in unretirable jammed debris (superlinear contact cost), fixed engine-side by T-402 (ADR-0018), and the validator now runs all section groups as concurrent child processes so wall time is the slowest group rather than the serial sum. `tools/chicago-probe.mjs` remains the fast iteration loop for this scene |
 | `js/voxelworld.js` | `VoxelWorld3D`: one `InstancedMesh` per material + brick size with per-instance paint colors, cached static transforms, and per-frame dynamic motion; renders `sceneDecor` (roads/sidewalks/parks/bike paths/markings/water) |
 | `js/voxelsurfaces.js` | three.js binding for `voxeltiles.js`'s procedural surface registry (canvas-generated textures for `sim.sceneSurfaces`); zero cost until a scene names a surface. Owns the metals-only PMREM-probe rule — see the Boston section below |
 
@@ -629,19 +629,20 @@ especially
   (`validateChicago()`) runs the full shared contract too, on its own tables,
   with the same `eatenCount >= 300` / `SIZE >= 7` excursion floor Cambridge
   set.
-  **The full `node tools/validate.mjs` run does not currently complete
-  end-to-end**, so `validateChicago` (and everything else that runs after
-  Cambridge in file order) never actually executes in a full pass —
-  `validateCambridge()`'s own 780 s scripted excursion hits superlinear
-  debris-churn cost on the untiered physics and stalls for 1-2+ wall-hours;
-  see [RCA-2026-08-11-cambridge-validator-stall](../findings/RCA-2026-08-11-cambridge-validator-stall.md)
-  (diagnosed, not fixed — the real fix is an engine-level debris-retirement
-  change, scoped as its own pass). Until that lands, the working gates are
-  the scene-specific fast selftests instead: `tools/chicago-probe.mjs` for
-  Chicago, `tools/train-derail-selftest.mjs` for the Chicago 'L', and the
-  other `tools/*-probe.mjs`/`tools/*-selftest.mjs` scripts for their scenes —
-  treat these as the operative validation surface, not `validate.mjs`, until
-  the stall is resolved.
+  The full `node tools/validate.mjs` run completes end to end again. The old
+  stall — `validateCambridge()`'s 780 s scripted excursion hitting superlinear
+  debris-churn cost for 1-2+ wall-hours
+  ([RCA-2026-08-11-cambridge-validator-stall](../findings/RCA-2026-08-11-cambridge-validator-stall.md))
+  — was rooted in unretirable jammed debris and fixed engine-side by T-402
+  (ADR-0018: retirement on proven stationarity). On top of that the validator
+  is now an orchestrator: each section group (cheap guards, campaign levels,
+  scenes-winnable, one per authored scene) runs as a concurrent child process,
+  so wall time is the slowest group instead of the serial sum;
+  `FW_VALIDATE_SEQ=1` restores the serial pass and `FW_VALIDATE_SECTIONS=x`
+  runs one section. The scene-specific fast selftests (`tools/chicago-probe.mjs`
+  for Chicago, `tools/train-derail-selftest.mjs` for the Chicago 'L', and the
+  other `tools/*-probe.mjs`/`tools/*-selftest.mjs` scripts) stay as the quick
+  iteration loop, not as a substitute gate.
 
 ## Gotchas
 

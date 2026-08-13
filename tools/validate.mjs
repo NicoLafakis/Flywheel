@@ -38,6 +38,8 @@ import { CURRENT_VERSION, __freshSave, __MIGRATIONS } from '../js/save.js';
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from '../js/fwmath.js';
 import { runBoardSelftest } from './board-selftest.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // Authored city modules load on demand in the game (js/voxelsim.js registry), so
 // the validator has to ask for them before it constructs any of the six. It is
@@ -50,7 +52,15 @@ import { readdirSync, readFileSync } from 'node:fs';
 // grids, crossing lists). That is not a duplicate download in the game — nothing
 // the game ships imports this file — and it is what lets the geometry checks run
 // against the authored source of truth rather than against the built sim.
-await Promise.all(['manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago'].map(loadScene));
+//
+// Skipped in orchestrator mode (no FW_VALIDATE_SECTIONS and no FW_VALIDATE_SEQ,
+// see the execution-modes block at the bottom): the parent spawns one child per
+// section group and never constructs a sim itself, so paying six scene loads in
+// the parent would be pure overhead. Every CHILD sets FW_VALIDATE_SECTIONS and
+// therefore lands here with the guard true.
+if (process.env.FW_VALIDATE_SECTIONS || process.env.FW_VALIDATE_SEQ) {
+  await Promise.all(['manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago'].map(loadScene));
+}
 
 const DT = 1 / 60;
 let failures = 0;
@@ -2127,20 +2137,97 @@ function validateOfflineBoot() {
   console.log(`  offline boot: ${OFFLINE_PAGES.length} page(s) scanned [${scanned.join(', ')}], ${offsite === 0 ? 'all same-origin' : `${offsite} OFF-ORIGIN`}`);
 }
 
-// Named sections, so ONE can be run on its own. This exists because the full
-// validator cannot currently complete — `validateCambridge` stalls for over an
-// hour (RCA-2026-08-11) — which meant a guard in an early section could not be
-// exercised against a deliberately broken tree without waiting on a hang that
-// has nothing to do with it. `FW_VALIDATE_SECTIONS=rewardLadders node
-// tools/validate.mjs` runs just that one. Unset, everything runs in order,
-// exactly as before.
+// --- execution modes -----------------------------------------------------------
+// TWO modes, one command:
+//
+//   node tools/validate.mjs          ORCHESTRATOR. Each section group below runs
+//                                    as its own child process with
+//                                    FW_VALIDATE_SECTIONS=<group>, concurrently.
+//                                    The scenes are CPU-bound single-threaded
+//                                    sims, so a serial full pass priced in
+//                                    wall-hours once debris churn went
+//                                    superlinear (RCA-2026-08-11); parallel
+//                                    children make the wall time the SLOWEST
+//                                    group instead of the sum. Children are
+//                                    processes, not threads, so each keeps this
+//                                    file's module-level `failures`/exit
+//                                    semantics untouched and no section can
+//                                    share state with another.
+//   FW_VALIDATE_SEQ=1 node ...       the pre-parallel behaviour: every section,
+//                                    in file order, in this process. The debug
+//                                    and timing-forensics mode.
+//   FW_VALIDATE_SECTIONS=a,b ...     run only the named section(s), here. This
+//                                    is how the orchestrator's children run, and
+//                                    the way to exercise one guard against a
+//                                    deliberately broken tree.
+//
+// Every mode prints ALL PASS only when nothing failed, and exits non-zero
+// otherwise — the AGENTS.md gate is mode-independent.
 const wanted = (process.env.FW_VALIDATE_SECTIONS || '').split(',').map((s) => s.trim()).filter(Boolean);
-const section = (name, fn) => { if (!wanted.length || wanted.includes(name)) fn(); };
+const sectionTimes = [];
+const section = (name, fn) => {
+  if (!wanted.length || wanted.includes(name)) {
+    const t0 = performance.now();
+    fn();
+    const secs = (performance.now() - t0) / 1000;
+    sectionTimes.push([name, secs]);
+    console.log(`  [${name}] ${secs.toFixed(1)}s`);
+  }
+};
+
+if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
+  // ORCHESTRATOR (see the modes comment above). Groups are the parallelism
+  // unit: the cheap guards share one child because each is seconds at most and
+  // a process per guard would be spawn overhead, not speed. Every heavy scene
+  // gets its own child.
+  const groups = [
+    ['core', 'offlineBoot,saveSchema,rewardLadders,fwMath,runBoard,voxelSandbox,voxelCollisions,levelClock'],
+    ['campaignLevels', 'campaignLevels'],
+    ['scenesWinnable', 'scenesWinnable'],
+    ['manhattan', 'manhattan'],
+    ['upperManhattan', 'upperManhattan'],
+    ['brooklyn', 'brooklyn'],
+    ['boston', 'boston'],
+    ['cambridge', 'cambridge'],
+    ['chicago', 'chicago'],
+  ];
+  const self = fileURLToPath(import.meta.url);
+  const t0 = performance.now();
+  const jobs = groups.map(([label, sections]) => new Promise((resolve) => {
+    const start = performance.now();
+    // The optional [levelIndex] argument only means anything to the campaign
+    // section, so only that child inherits it.
+    const args = [self];
+    if (label === 'campaignLevels' && process.argv[2]) args.push(process.argv[2]);
+    const child = spawn(process.execPath, args, {
+      env: { ...process.env, FW_VALIDATE_SECTIONS: sections },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { out += d; });
+    child.on('error', (e) => resolve({ label, code: 1, out: `${out}\nspawn failed: ${e.message}\n`, secs: (performance.now() - start) / 1000 }));
+    child.on('close', (code) => resolve({ label, code, out, secs: (performance.now() - start) / 1000 }));
+  }));
+  const results = await Promise.all(jobs);
+  for (const r of results) {
+    process.stdout.write(`\n--- ${r.label} (${r.secs.toFixed(1)}s) ---\n${r.out.trimEnd()}\n`);
+  }
+  const failed = results.filter((r) => r.code !== 0);
+  const wall = (performance.now() - t0) / 1000;
+  console.log('---');
+  if (failed.length === 0) {
+    console.log(`ALL PASS. ${groups.length} section group(s) in parallel, ${wall.toFixed(1)}s wall.`);
+  } else {
+    console.error(`${failed.length} section group(s) FAILED: ${failed.map((r) => r.label).join(', ')} (${wall.toFixed(1)}s wall).`);
+    process.exit(1);
+  }
+} else {
 
 let minMargin = Infinity, minMarginLevel = 0;
 let maxTimeToFirstEat = 0;
 
-if (!wanted.length || wanted.includes('campaignLevels')) {
+section('campaignLevels', () => {
 console.log(`Validating ${levelsToCheck.length} level(s)...`);
 for (const level of levelsToCheck) {
   const city = generateCity(level);
@@ -2164,7 +2251,7 @@ for (const level of levelsToCheck) {
     console.log(`  L${level.index}: mass=${Math.floor(sim.player.mass)}/${level.target} timeLeft=${sim.timeLeft.toFixed(1)}s (${(margin * 100).toFixed(0)}%) firstEat=${firstEatTime?.toFixed(2)}s`);
   }
 }
-}
+});
 
 section('offlineBoot', validateOfflineBoot);
 section('saveSchema', validateSaveSchema);
@@ -2189,9 +2276,12 @@ console.log('---');
 const marginNote = Number.isFinite(minMargin)
   ? `Worst time margin: ${(minMargin * 100).toFixed(1)}% (L${minMarginLevel}). Slowest first eat: ${maxTimeToFirstEat.toFixed(2)}s.`
   : `Campaign levels not run (FW_VALIDATE_SECTIONS=${process.env.FW_VALIDATE_SECTIONS}).`;
+const totalSecs = sectionTimes.reduce((s, [, t]) => s + t, 0);
 if (failures === 0) {
-  console.log(`ALL PASS. ${marginNote}`);
+  console.log(`ALL PASS. ${marginNote} Sections: ${totalSecs.toFixed(1)}s.`);
 } else {
   console.error(`${failures} failure(s). ${marginNote}`);
   process.exit(1);
+}
+
 }

@@ -41,18 +41,23 @@ The reliable check, against the static server from "Run locally":
 
 ## Validate (required before commits touching sim/citygen/levels/tiers/voxelsim)
 
-1. `node tools/validate.mjs` — expect `ALL PASS` (~30 s for 100 levels + voxel).
-   **Current caveat:** the full run does not currently complete end-to-end.
-   `validateCambridge()`'s 780 s scripted excursion hits superlinear
-   debris-churn cost on the untiered physics and stalls for 1-2+ wall-hours,
-   so nothing that runs after it in file order (including `validateChicago()`)
-   ever actually executes in a full pass — see
-   [RCA-2026-08-11-cambridge-validator-stall](../findings/RCA-2026-08-11-cambridge-validator-stall.md)
-   (diagnosed, not fixed). Until that lands, treat the scene-specific fast
-   selftests as the operative gates instead: `tools/chicago-probe.mjs`,
+1. `node tools/validate.mjs` — expect `ALL PASS`. The validator is an
+   ORCHESTRATOR by default: the section groups (cheap guards, campaign levels,
+   scenes-winnable, and one per authored scene) run as concurrent child
+   processes, so wall time is the slowest group rather than the serial sum and
+   every group prints its own seconds. Two escape hatches:
+   `FW_VALIDATE_SEQ=1 node tools/validate.mjs` runs the pre-parallel serial
+   pass in one process (debug/timing forensics), and
+   `FW_VALIDATE_SECTIONS=cambridge node tools/validate.mjs` runs a single
+   named section. The historic caveat is retired: `validateCambridge()` used
+   to stall 1-2+ wall-hours on superlinear debris churn
+   ([RCA-2026-08-11](../findings/RCA-2026-08-11-cambridge-validator-stall.md));
+   the root cause was unretirable jammed debris, fixed engine-side by T-402
+   (ADR-0018), and the parallel orchestrator makes the remaining cost
+   concurrent. The scene-specific fast selftests (`tools/chicago-probe.mjs`,
    `tools/probe-aniso.mjs`, `tools/train-derail-selftest.mjs`, and the other
-   `tools/*-probe.mjs`/`tools/*-selftest.mjs` scripts each run in seconds and
-   cover their scene/system directly.
+   `tools/*-probe.mjs`/`tools/*-selftest.mjs` scripts) remain the quick
+   iteration loop, but they are no longer a substitute gate.
 2. Campaign failures are printed per level with the invariant broken:
    - `overlap` → placement bug in `citygen.js` (check snack-ring-first and
      landmark eviction invariants, see `.wiki/modules/citygen.md`)
