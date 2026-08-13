@@ -13,20 +13,37 @@ Budget: 5,000 tokens.
 
 ## Awaiting Nico
 
-1. **T-901 — the real-device gate on Scoreboards** (2026-08-12). The delivery
-   spec requires a genuine low-end *physical* touch-device measurement of THE
-   RUN and explicitly rules out a browser CPU-throttle result as a substitute.
-   This workspace has no confirmed device, so it needs a phone opening
-   https://flywheel-woad.vercel.app and a frame-time reading. T-902's
-   predeclared branch rides on it: miss the budget and THE RUN drops 90 s → 60 s.
-
-*(Nothing else is blocked on Nico. The sun-elevation and intro-orbit questions
-that used to sit here are answered below.)*
+Nothing. Every open question on this board has been decided — the sun-elevation,
+intro-orbit and T-901 items that used to sit here are recorded below with the
+call that closed them.
 
 ## In progress
 
-- **The audit system needs rebuilding before it can gate anything**
-  (2026-08-11, reaffirmed 2026-08-13). `node tools/validate.mjs` does not
+- **Timed Runs & Full Clear** (2026-08-13, owner instruction) — a hard 180 s
+  clock on every level, `targetFraction` to 1.0 on every scene front and back,
+  score-accumulation correctness in single player / arena / ranked verifier, and
+  honest combo readouts (the ladder's true ceiling is **8x**; the `Best combo
+  530` the owner saw is a chain count in a multiplier's slot). Package:
+  `.wiki/features/timed-runs-and-full-clear/`. Design call recorded there: the
+  clock ends the run and the player is scored on the percentage reached, so 100%
+  is a scoring ceiling rather than a pass/fail win condition — otherwise every
+  city level is an automatic loss. Genre precedent: Hole.io's two-minute match.
+- **T-901 failed, and it indicts the engine, not the tune** (2026-08-13). The
+  physical-device requirement is retired in favour of the emulated Pixel-5 + 4x
+  CPU throttle profile; measured over 13 runs, THE RUN holds a 100 ms median,
+  350 ms p95 and **0.231 sim/wall** — a "90-second" run costs 6 min 30 s of real
+  time. Both predeclared fallbacks were measured and neither closes a ~4x gap, so
+  **neither was applied**. The shortfall is cumulative and debris-driven, which
+  makes it the same defect as the validator stall. Evidence:
+  `.wiki/findings/T-901-2026-08-13-ranked-run-on-throttled-mobile.md`.
+- **The debris-drain defect** (T-402, 2026-08-11 diagnosed / 2026-08-13 scoped) —
+  the awake-debris population never drains, so per-step cost climbs with elapsed
+  route time. One engine defect makes the validator unusable *and* ranked play
+  impossible on a phone. It changes sim output, so it wants to land while the
+  board holds one run and zero claimed names.
+
+- **The audit system needs rebuilding before it can gate anything** (T-403,
+  2026-08-11, reaffirmed 2026-08-13). `node tools/validate.mjs` does not
   complete a run at all: `validateCambridge()`'s 780 s double excursion hits
   superlinear debris churn — the awake-debris population never drains (16 bodies
   at simT 10 s → 738 at 320 s; `_supportBelow` ~32% of CPU), so 93,600 steps
@@ -90,6 +107,19 @@ that used to sit here are answered below.)*
   colour `0x1c2030` reads as near-black gashes through the park.
 - **Tests** — nothing beyond the validator and the per-feature selftests; UI
   untested except the smoke path.
+- **Map snapshot caching** (T-404, 2026-08-13) — a Chicago build costs ~34 s on
+  the throttled profile, paid before every RUN and again on every RUN AGAIN. Maps
+  are deterministic and identical for every player, so the fix is a precomputed
+  static asset plus a client-side cache, not per-user Supabase storage and not an
+  accounts feature. Measure before building: the win is real only if hydrating
+  the blob beats the grid writes it replaces.
+- **Wall-clock honesty** (T-405, 2026-08-13) — "90 seconds" and now "3 minutes"
+  are sim time. Even the unthrottled emulated phone finishes a 90 s ranked run in
+  100.5 s. Verification is unaffected; the player-facing framing is not the
+  player's time.
+- **Preserve the T-901 harness** (T-401, 2026-08-13) — the 13-run measurement
+  harness lives in a session-scoped scratchpad and will evaporate. It blocks any
+  re-measure, so it moves into `tools/` first.
 
 ## Established facts — measured, don't re-derive
 

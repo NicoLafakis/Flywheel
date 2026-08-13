@@ -138,9 +138,25 @@ Paths: `.longhaul/**`, `SPEC.md`, all paths claimed by AC-1 through AC-6.
 
 ## Open questions
 
-- T-901 requires a genuine low-end touch-device measurement. This workspace has
-  no confirmed physical test device. A browser CPU-throttle result is useful
-  evidence but does not satisfy the stated real-device gate.
+- ~~T-901 requires a genuine low-end touch-device measurement.~~ **Closed
+  2026-08-13 — gate redefined by the owner, then measured, and it FAILED.** The
+  physical-device requirement is retired: it is unreproducible, unautomatable,
+  and cannot be re-run when the code changes. The gate is now the emulated
+  Pixel-5 profile at 4x CPU throttle that `js/quality.js` already cites as its
+  own evidence base. Measured 2026-08-13, 13 runs, min-of-5 round-robin with an
+  unthrottled control arm: median frame 100 ms, p95 350 ms, and a sim/wall ratio
+  of **0.231** — a "90-second" ranked run costs 6 min 30 s of real time.
+  **Both predeclared fallbacks were measured and neither closes the gap**:
+  `contactRounds: 1` bought ~12% (inside the shipping arm's own run-to-run
+  spread, and it worsens the median) and the 60-second cut still lands at 0.388.
+  Neither branch has been applied — applying `contactRounds: 1` would change a
+  frozen ranked constant and bump `sim_version` to buy nothing. The gap is ~4x
+  and is cumulative and debris-driven, which makes it the same root cause as the
+  validator stall; the fix is the debris-drain defect, not a tuning lever. Full
+  evidence:
+  [T-901-2026-08-13-ranked-run-on-throttled-mobile](.wiki/findings/T-901-2026-08-13-ranked-run-on-throttled-mobile.md).
+  THE RUN must not be advertised as ranked-ready on low-end hardware until this
+  is re-measured green.
 - T-300 must prove the zero-dependency Vercel API deployment and confirm that
   `SUPABASE_SECRET_KEY` and a new `FW_TICKET_SECRET` are configured in Vercel;
   no secret values will enter the repository.

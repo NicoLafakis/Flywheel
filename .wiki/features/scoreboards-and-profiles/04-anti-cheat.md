@@ -118,11 +118,10 @@ single excursion**, with
 [RCA-2026-08-11](../../findings/RCA-2026-08-11-cambridge-validator-stall.md)
 projecting 1–2+ hours per excursion.
 
-*(Note for whoever owns Chicago: this probe measured `blocks=44578` /
-`totalMass=124047`, where `STATUS.md` records 23,151 / 236,224. The discrepancy is
-not load-bearing for anything in this doc — the conclusion holds at either figure
-— but somebody should reconcile it. A concurrent session was editing
-`js/voxelsim.js` while this ran, which is the most likely explanation.)*
+*(Reconciled 2026-08-13: this probe's `blocks=44578` was right and `STATUS.md`
+was stale. Chicago was rebuilt on the Cambridge method on 2026-08-11
+(`b843c34`), 23,151 → 44,578 blocks, and the board had not caught up; it has
+since been corrected. The conclusion here holds at either figure.)*
 
 > **Finding 1. Full re-simulation of a completed Flywheel city run is not
 > viable — not on Vercel, not on Supabase Edge Functions, not on any runtime this
