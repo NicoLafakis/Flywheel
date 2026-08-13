@@ -113,6 +113,10 @@ const GROUP_BOND = 0.45;     // min connection strength for two blocks to share 
 const CHUNK_MIN = 3;         // smaller detached groups become individual debris
 const CHUNK_CAP = 64;        // max blocks per rigid chunk
 const FRESH_WINDOW = 0.6;    // seconds after detaching during which blocks may chunk up
+const JAM_STEPS = 30;        // steps a grounded body must hold its position before it may
+                             // retire WHILE in contact — see _latchJammed (T-402)
+const JAM_EPS = 1e-3;        // per-axis drift (m) allowed across those steps, measured from
+                             // the anchor rather than step to step so creep cannot accumulate
 const REMOVAL_FRAC = 0.95;   // support-removal zone = hole radius × this (≈ visible opening)
 const FLOOR_CANTILEVER = 1;  // ground-floor cells over the void hold at most this many meters
 const HANG_CAP = 1.8;        // max seconds a cantilever over the void creaks before letting go
@@ -2425,6 +2429,11 @@ export class VoxelSandboxSim {
       if (b.y <= rest) {
         b._grounded = true;
         b._looseSup = looseSup;
+        // Proof that this body was integrated and snapped THIS step. `_grounded`
+        // alone cannot carry that: a body over a void `continue`s out of the walk
+        // above before the flag is re-cleared, so it keeps last step's value.
+        // `_latchJammed` needs the stronger claim (T-402).
+        b._groundT = this.time;
         b.y = rest;
         if (b.vy < 0) b.vy = b.vy < -2 ? -b.vy * 0.25 : 0;
         b.vx *= 1 - 3 * dt; b.vz *= 1 - 3 * dt;
@@ -2478,7 +2487,9 @@ export class VoxelSandboxSim {
     this._debrisCursor = -1;
     if (this.tune.debrisCap !== Infinity) this._capDebris(this.tune.debrisCap);
     this._resolveDebrisContacts();
-    // commit sleep candidates: grounded, slow, and now provably contact-free.
+    this._latchJammed();
+    // commit sleep candidates: grounded, slow, and now provably contact-free —
+    // or provably STILL, which is the jam path `_latchJammed` opens.
     // Even inside the attraction zone — constant vacuum pressure on resting
     // blocks is what ground piles into self-clipping churn; the hole wakes
     // sleepers when it reaches them (overVoid), and support loss wakes the rest.
@@ -2486,8 +2497,17 @@ export class VoxelSandboxSim {
     for (const b of f) {
       if (!b._wantSleep) continue;
       b._wantSleep = false;
-      if (b.state !== 'falling' || b.parentChunk || b.asleep || b._inContact) continue;
+      // A jam-latched body is allowed past the contact gate, and only that body:
+      // it has held one position for JAM_STEPS consecutive steps, so the overlap
+      // holding `_inContact` true is a fixed point the solver is not resolving
+      // and never will. Everything else still has to be contact-free.
+      const jam = b._jamReady === true;
+      b._jamReady = false;
+      if (b.state !== 'falling' || b.parentChunk || b.asleep || (b._inContact && !jam)) continue;
       b.asleep = true;
+      // Woken bodies must re-prove stillness from scratch rather than resume a
+      // stale count against a stale anchor.
+      b._jamSteps = 0;
       b.vx = 0; b.vy = 0; b.vz = 0; b.vRotX = 0; b.vRotZ = 0;
       const [fx, , fz] = this._foot(b);
       const colK = cellKey(fx + (b.fsx >> 1), fz + (b.fsz >> 1));
@@ -2522,6 +2542,91 @@ export class VoxelSandboxSim {
       let w = 0;
       for (let i = 0; i < f.length; i++) if (!f[i]._retired) f[w++] = f[i];
       f.length = w;
+    }
+  }
+
+  // JAM RETIREMENT (T-402). The one thing that made the awake-debris population
+  // grow without bound, and with it the per-step cost of any long session.
+  //
+  // A body wedged between an immovable partner (a sleeper, or a standing
+  // structure block) and another mover converges to a GEOMETRIC FIXED POINT
+  // inside a single step, and then reproduces it forever. Traced on Cambridge,
+  // the same body, every step, identical values:
+  //
+  //   sep 13655<-13658 movO=true  pen=0.1588   (awake partner)
+  //   sep 13655<-13653 movO=false pen=0.0809   (sleeper)
+  //   sep 13655<-13658 movO=true  pen=0.0793
+  //   sep 13655<-13653 movO=false pen=0.0388
+  //   ...                         net displacement 0.0000
+  //
+  // Over 60 consecutive steps that first penetration drifted by 8.88e-16 (one
+  // ULP) and the body moved under 1 mm. Because 0.1588 is above `_separate`'s
+  // 0.05 threshold, `_inContact` is re-stamped every step, and the sleep commit
+  // reads that as "mid-overlap" and refuses to retire it. Measured at simT 120 s
+  // on the validator's own Cambridge route: 78 of 101 awake bodies were in
+  // exactly that state — stationary, grounded on solid support, doing no
+  // physical work, and structurally impossible to retire. One accumulates per
+  // collapse that leaves a block pinched, and nothing could ever remove one.
+  //
+  // The contact gate exists because "a block frozen mid-overlap can never
+  // separate". For this population that premise is already false: the overlap is
+  // not separating whether or not we freeze it. So rather than relax the
+  // threshold — which would also free bodies still genuinely mid-collapse — a
+  // body may retire while in contact once it has PROVEN it is not moving.
+  //
+  // Position is read here, after `_resolveDebrisContacts`, so it is the
+  // post-solve pose the renderer already draws. Retirement moves nothing.
+  _latchJammed() {
+    const f = this._falling;
+    for (let i = 0; i < f.length; i++) {
+      const b = f[i];
+      if (b.state !== 'falling' || b.parentChunk || b.asleep) continue;
+      // Eligibility is the walk's own sleep rule plus three exclusions:
+      //
+      //   `_groundT !== this.time` — the body must have been integrated and
+      //     snapped onto its support THIS step. A body over a void `continue`s
+      //     out of the walk before `_grounded` is re-cleared, so the flag alone
+      //     can be a stale claim from last step.
+      //   `_budgetHold` — parked bodies are not integrated at all
+      //     (`_stepDebris` skips them), so they satisfy "did not move" by
+      //     construction. Retiring them would let the device-tier contact budget
+      //     decide which bodies leave the sim, which is a physics divergence
+      //     between a phone and a desktop — RANKED_TUNE's `contactBudget: 200`
+      //     included. The one exclusion this path cannot do without.
+      //   `_looseSup` — a sleeper recorded on a LOOSE support has no wake path
+      //     (RCA-2026-08-11, skyscraper-launch-and-hanging-debris; guard added
+      //     in 57d0652). This is the identical condition `_capDebris` applies,
+      //     so this path is strictly MORE conservative than the walk's own sleep
+      //     path: same support rule, plus JAM_STEPS of proven stillness.
+      if (b._groundT !== this.time || !b._grounded || b._looseSup || b._budgetHold ||
+          b.vx * b.vx + b.vz * b.vz >= 0.06) {
+        b._jamSteps = 0;
+        continue;
+      }
+      if (b._jamSteps > 0 &&
+          Math.abs(b.x - b._jamX) < JAM_EPS &&
+          Math.abs(b.y - b._jamY) < JAM_EPS &&
+          Math.abs(b.z - b._jamZ) < JAM_EPS) {
+        b._jamSteps++;
+      } else {
+        // moved (or first eligible step): re-anchor and start counting again
+        b._jamSteps = 1;
+        b._jamX = b.x; b._jamY = b.y; b._jamZ = b.z;
+      }
+      if (b._jamSteps >= JAM_STEPS) {
+        // NOT gated on `!b._wantSleep`. The walk sets `_wantSleep` on this very
+        // population every step (grounded, on solid support, slow) and the commit
+        // then throws it away on `_inContact` — that pair IS the defect. Gating
+        // here on the flag being unset made the latch a no-op: measured, awake
+        // held at 100 bodies with 79 of them counting toward a threshold they
+        // were never allowed to act on.
+        b._wantSleep = true;
+        b._jamReady = true;
+        // Grounded means `b.y` was snapped to `support + sy/2` this step, so this
+        // IS the surface it is resting on — no probe needed and no chance of
+        // recording one it is not touching. Same rule `_capDebris` uses.
+        b._sleepSupport = b.y - b.sy / 2;
+      }
     }
   }
 
