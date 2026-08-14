@@ -539,7 +539,9 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
           const res = isRegister
             ? await registerPlayer(save, nameInput.value.trim(), passInput.value)
             : await loginPlayer(save, nameInput.value.trim(), passInput.value);
-          note.textContent = `WELCOME BACK, ${res.name}! Your scores and identity are active.`;
+          note.textContent = res.isOffline
+            ? `PROFILE ACTIVE! Welcome, ${res.name} (Local/Offline Mode).`
+            : `WELCOME, ${res.name}! Your scores and identity are active.`;
           setTimeout(refresh, 600);
         } catch (err) {
           submitBtn.disabled = false;
