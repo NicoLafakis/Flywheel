@@ -94,22 +94,31 @@ function personalBest(save) {
   return { score: score || null, runs };
 }
 
-// The cheapest thing the player does not own yet — one shelf built from the
-// three real registries, so the menu can never advertise a price the shop does
-// not charge or an item the shop does not stock. Everything free or owned is
-// out; when nothing is left, there is no next unlock and the caller renders
-// neither the bar nor the locked card.
+// The shelf the landing screen's goal meter points at — built from the three
+// real registries, so the menu can never advertise a price the shop does not
+// charge or an item the shop does not stock.
+//
+// The goal is the cheapest thing the player does not own AND cannot yet afford.
+// A meter aimed at a price the bank already covers is a progress bar for a
+// journey already finished: the moment coins cross a skin's price, the goal
+// rolls up to the next higher rung instead of continuing to suggest the one
+// already in reach. Only when everything left is affordable does the cheapest
+// unbought row come back, as a READY TO BUY offer; when nothing is left, there
+// is no next unlock and the caller renders neither the bar nor the locked card.
 function nextUnlock(save) {
   const owned = save.ownedItems || [];
-  let best = null;
+  let goal = null;   // cheapest unowned row priced above the bank
+  let ready = null;  // cheapest unowned row the bank already covers
   const consider = (row, kind) => {
     if (!row || !row.price || owned.includes(row.id)) return;
-    if (!best || row.price < best.price) best = { id: row.id, name: row.name, price: row.price, kind, css: row.css };
+    const entry = { id: row.id, name: row.name, price: row.price, kind, css: row.css };
+    if (row.price > save.coins) { if (!goal || row.price < goal.price) goal = entry; }
+    else if (!ready || row.price < ready.price) ready = entry;
   };
   for (const s of SKINS) consider(s, 'HOLE SKIN');
   for (const i of INDICATOR_SKINS) consider(i, 'NAV INDICATOR');
   for (const it of ITEMS) consider(it, 'UPGRADE');
-  return best;
+  return goal || ready;
 }
 
 export class Screens {
@@ -169,7 +178,7 @@ export class Screens {
     // Returning-player recognition (playtest finding: a seeded save rendered
     // byte-identical to a first visit). The bank belongs on the front door, not
     // three screens deep in SHOP — and next to it, what the bank is FOR: the
-    // cheapest thing still locked, named, with the gap to it.
+    // next rung it has not reached yet, named, with the gap to it.
     //
     // Every value here is read from the save. A first-run player has no record
     // and no bank, so the whole strip is absent rather than rendered full of
@@ -278,11 +287,12 @@ export class Screens {
     }
     // One locked thing, named, with its condition in words. Every city is open
     // — nothing in the save gates a scene — so the only genuinely locked
-    // content in this game is what coins buy, and this is the cheapest row the
-    // player has not bought yet, drawn as a silhouette: the shape is there, the
-    // colour is not. It reads as a card in the same shelf because it is the
-    // same shelf: this is where "what's next" lives. Clicking it goes to the
-    // shop, which is where the condition is met.
+    // content in this game is what coins buy, and this is the goal row from
+    // nextUnlock: the cheapest row the bank has not reached yet (or, once every
+    // remaining row is affordable, the cheapest unbought one), drawn as a
+    // silhouette: the shape is there, the colour is not. It reads as a card in
+    // the same shelf because it is the same shelf: this is where "what's next"
+    // lives. Clicking it goes to the shop, which is where the condition is met.
     if (unlock) {
       // Locked and affordable are two states of one card, not one state. The
       // card used to print its price unconditionally, so a player holding 240
@@ -482,7 +492,12 @@ export class Screens {
     try {
       const { renderBoards } = await import('./boards.js');
       await renderBoards(this.root, {
-        save: this.save, onBack: () => this.showTitle(), onProfile: () => this.showProfile(),
+        save: this.save,
+        onBack: () => this.showTitle(),
+        onProfile: () => this.showProfile(),
+        onStartCity: (scene) => this.actions.startVoxelSandbox(scene),
+        onStartCampaign: () => this.showLevelSelect(),
+        onStartRankedRun: (scene) => this.actions.startRankedRun(scene),
       });
       this.current = 'records';
     } catch {
@@ -500,7 +515,12 @@ export class Screens {
     try {
       const { renderProfile } = await import('./boards.js');
       renderProfile(this.root, {
-        save: this.save, onBack: () => this.showTitle(), onRecords: () => this.showBoards(),
+        save: this.save,
+        onBack: () => this.showTitle(),
+        onRecords: () => this.showBoards(),
+        onStartCity: (scene) => this.actions.startVoxelSandbox(scene),
+        onStartCampaign: () => this.showLevelSelect(),
+        onStartRankedRun: (scene) => this.actions.startRankedRun(scene),
       });
       // The identity chip brings players here who have no name at all, which
       // that button was gated against before — so this screen is now the place

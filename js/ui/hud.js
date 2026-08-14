@@ -41,6 +41,10 @@ export class HUD {
     this.toastTimer = null;
     this._minimapShown = null; // no mode has declared itself yet
 
+    // --- active powerups UI layer ---
+    this.powerupBadges = document.getElementById('active-powerups');
+    this._activePowerUpsCount = 0;
+
     // --- sandbox reward layer -------------------------------------------------
     this.scorePlate = document.getElementById('score-plate');
     this.scoreValue = document.getElementById('score-value');
@@ -187,8 +191,10 @@ export class HUD {
     const frac = Math.min(1, p.mass / sim.level.target);
     this.massBar.style.width = `${(frac * 100).toFixed(1)}%`;
     this.massLabel.textContent = `${Math.floor(p.mass)} / ${sim.level.target} collected`;
-    const t = Math.ceil(sim.timeLeft);
-    this.timer.textContent = t;
+    const t = Math.max(0, Math.ceil(sim.timeLeft));
+    const mins = Math.floor(t / 60);
+    const secs = t % 60;
+    this.timer.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
     this.timer.classList.toggle('low', t <= 10);
     // The campaign keeps its countdown in #timer, which it has always owned
     // (the sandbox is the mode that repurposed #timer as a coin readout and
@@ -207,6 +213,7 @@ export class HUD {
     } else {
       this.comboLabel.classList.add('hidden');
     }
+    this._updatePowerUps(sim.activePowerUps);
   }
 
   // Voxel sandbox variant: SIZE level + progress to the next size on the
@@ -267,6 +274,42 @@ export class HUD {
     this._updateClock(clockSeconds);
     this._updateScore(h.mass);
     this._updateCombo(h);
+    this._updatePowerUps(h.activePowerUps);
+  }
+
+  _updatePowerUps(activeList) {
+    if (!this.powerupBadges) return;
+    if (!activeList || activeList.length === 0) {
+      if (this._activePowerUpsCount !== 0) {
+        this.powerupBadges.innerHTML = '';
+        this._activePowerUpsCount = 0;
+      }
+      return;
+    }
+    this._activePowerUpsCount = activeList.length;
+
+    const html = activeList.map((act) => {
+      const spec = act.spec || {};
+      const pct = Math.max(0, Math.min(100, (act.remaining / (act.duration || 1)) * 100));
+      const secs = Math.ceil(act.remaining);
+      const colorHex = '#' + (spec.color || 0x00d2ff).toString(16).padStart(6, '0');
+      const glowHex = '#' + (spec.glowColor || 0x0055ff).toString(16).padStart(6, '0');
+      return `
+        <div class="powerup-pill" style="--pu-color: ${colorHex}; --pu-border: ${colorHex}; --pu-glow: ${glowHex};">
+          <span class="pu-icon">${spec.icon || '⚡'}</span>
+          <div class="pu-details">
+            <div class="pu-name-row">
+              <span>${spec.name || 'POWER-UP'}</span>
+              <span class="pu-timer">${secs}s</span>
+            </div>
+            <div class="pu-bar-bg">
+              <div class="pu-bar-fill" style="width: ${pct.toFixed(1)}%;"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    this.powerupBadges.innerHTML = html;
   }
 
   // The countdown pill, and the ONLY countdown in the sandbox HUD (T-504).
@@ -404,6 +447,7 @@ export class HUD {
     this.comboArc.style.strokeDashoffset = CM_CIRCUM.toFixed(2);
     this._clearChannel('band'); this._clearChannel('toast'); this._clearChannel('pop');
     this._ann = null;
+    this._updatePowerUps([]);
   }
 
   drawMinimap(sim) {

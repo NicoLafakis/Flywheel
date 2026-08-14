@@ -12,7 +12,8 @@ export default async function handler(req, res) {
     if (!isUuid(data.player_id) || !isDeviceKey(data.device_key)) {
       fail(res, 400, 'BAD_PLAYER', 'A player and this device are required.'); return;
     }
-    const player = await playerForToken(data.player_id, data.player_token);
+    const playerToken = data.token || data.player_token;
+    const player = await playerForToken(data.player_id, playerToken);
     if (!player) { fail(res, 401, 'PLAYER_TOKEN_INVALID', 'This device no longer owns that name.'); return; }
     const expires_at = new Date(Date.now() + TRANSFER_TTL_MS).toISOString();
     for (let tries = 0; tries < 5; tries++) {

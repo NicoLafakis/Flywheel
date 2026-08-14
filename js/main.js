@@ -713,6 +713,7 @@ function frame(ts) {
           // rare steps are allowed to spend the screen.
           if (ev.level >= 5) {
             world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius, ev.top ? 0xff2d1f : 0xffd23f);
+            world.spawnGoldenSparkles(ev.hole.x, ev.hole.z, ev.hole.radius, 10);
             if (!save.settings.reducedMotion) cam.triggerShake(ev.top ? 0.35 : 0.2);
           }
         } else if (ev.type === 'crash') {
@@ -721,7 +722,7 @@ function frame(ts) {
           // SIZE level-up: sting (GameAudio), shake, FOV punch, confetti, big pop
           cam.triggerShake(0.4);
           cam.fovKick(7);
-          world.spawnBurst(ev.hole.x, ev.hole.z, ev.hole.radius, 0xffd23f);
+          world.spawnBurst(ev.hole.x, ev.hole.z, ev.hole.radius, 0xffd23f, ev.size);
           hud.announce({ text: `SIZE ${ev.size}!`, source: 'size', priority: ANN.SIZE, ms: 1200, channel: 'pop' });
         } else if (ev.type === 'milestone') {
           // Consumption: the widest thing in the mix. GameAudio scales the
@@ -729,13 +730,15 @@ function frame(ts) {
           const loud = ev.tier === 'roar';
           if (loud) {
             cam.fovKick(8);
-            world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * 1.5, 0xffffff);
+            world.spawnBurst(ev.hole.x, ev.hole.z, ev.hole.radius * 1.3, 0xff7700, 8);
           }
+          world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * (loud ? 1.6 : 1.2), loud ? 0xffffff : 0xffd23f);
           hud.announce({
             text: ev.text, tier: ev.tier, source: 'milestone',
             priority: ANN.MILESTONE, ms: 2000, channel: 'band',
           });
         } else if (ev.type === 'coin') {
+          world.spawnGoldenSparkles(ev.hole.x, ev.hole.z, ev.hole.radius, 16);
           hud.announce({ text: `COIN! +${ev.value}`, source: 'coin', priority: ANN.COIN, ms: 700 });
         } else if (ev.type === 'clock') {
           // The endgame states (R-1.5). Fired by the sim at exact ticks, so both
@@ -748,6 +751,31 @@ function frame(ts) {
             text: ev.at <= 10 ? `${ev.at} SECONDS!` : `${ev.at} SECONDS LEFT`,
             source: 'clock', priority: ANN.CLOCK, ms: 1400,
           });
+        } else if (ev.type === 'powerup_collect') {
+          audio.play('milestone', { vol: 0.9 });
+          cam.triggerShake(0.35);
+          cam.fovKick(4);
+          const spec = ev.powerup.spec || {};
+          hud.announce({
+            text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
+            source: 'powerup',
+            priority: ANN.SIZE,
+            ms: 1800,
+            channel: 'toast',
+          });
+        } else if (ev.type === 'powerup_spawn') {
+          audio.play('coin', { vol: 0.7 });
+          const reasonText = ev.reason === 'score_100k' ? '100K PTS BONUS' : '500 MULT BONUS';
+          hud.announce({
+            text: `🎁 ${reasonText}! POWER-UP DROPPED!`,
+            source: 'powerup_drop',
+            priority: ANN.COMBO,
+            ms: 1600,
+            channel: 'toast',
+          });
+        } else if (ev.type === 'quake') {
+          cam.triggerShake(0.7);
+          audio.play('rumble', { vol: 1.0 });
         }
         // 'goal' needs no branch: GameAudio plays the sting, and the milestone
         // ladder's last row (fired one event earlier) is the screen's beat.
@@ -774,13 +802,48 @@ function frame(ts) {
             if (ev.obj.tier >= 4) {
               cam.triggerShake(ev.obj.tier >= 6 ? 0.8 : 0.4);
             }
-            if (ev.obj.golden) hud.showToast('GOLDEN! 8x mass', 1200);
+            if (ev.obj.golden) {
+              hud.showToast('GOLDEN! 8x mass', 1200);
+              if (world && world.spawnGoldenSparkles) world.spawnGoldenSparkles(ev.hole.x, ev.hole.z, ev.hole.radius, 16);
+            }
             if (ev.obj.kind === 'landmark') {
               hud.showToast('LANDMARK SWALLOWED!', 2000);
               cam.triggerShake(1.4);
-              if (world) world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius);
+              if (world) {
+                if (world.spawnShockRing) world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * 1.8, 0xffffff);
+                if (world.spawnBurst) world.spawnBurst(ev.hole.x, ev.hole.z, ev.hole.radius * 1.4, 0xffd23f, 10);
+              }
             }
           }
+        } else if (ev.type === 'bounce') {
+          if (ev.hole && ev.hole.isPlayer && !save.settings.reducedMotion) {
+            cam.triggerShake(0.2);
+          }
+        } else if (ev.type === 'powerup_collect') {
+          audio.play('milestone', { vol: 0.9 });
+          cam.triggerShake(0.35);
+          cam.fovKick(4);
+          const spec = ev.powerup.spec || {};
+          hud.announce({
+            text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
+            source: 'powerup',
+            priority: ANN.SIZE,
+            ms: 1800,
+            channel: 'toast',
+          });
+        } else if (ev.type === 'powerup_spawn') {
+          audio.play('coin', { vol: 0.7 });
+          const reasonText = ev.reason === 'score_100k' ? '100K PTS BONUS' : '500 MULT BONUS';
+          hud.announce({
+            text: `🎁 ${reasonText}! POWER-UP DROPPED!`,
+            source: 'powerup_drop',
+            priority: ANN.COMBO,
+            ms: 1600,
+            channel: 'toast',
+          });
+        } else if (ev.type === 'quake') {
+          cam.triggerShake(0.7);
+          audio.play('rumble', { vol: 1.0 });
         } else if (ev.type === 'tide') hud.showToast('THE TIDE IS RISING!', 2500);
         else if (ev.type === 'unlocked') hud.showToast('LANDMARK SHIELD DOWN!', 2500);
       }
@@ -832,7 +895,7 @@ function endSandbox() {
   }
   screens.showSandboxResults(finished, (toCities, coins) => {
     recordSandboxResult(save, finished.scene, {
-      coinsEarned: coins, size: finished.hole.size, elapsed: finished.time,
+      coinsEarned: coins, elapsed: finished.time,
       bestCombo: finished.hole.bestCombo, score: finished.hole.mass,
       // Both halves of the outcome, because the clock made them different
       // questions (R-2.2). `won` is a genuine full clear of the city and is what

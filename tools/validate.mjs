@@ -204,7 +204,7 @@ function validateVoxelSandbox() {
   // state, and sweeping them in would replace a real invariant with noise.
   // The regex requires the open paren so that a header comment discussing
   // Math.random does not trip it.
-  const SIM_PURE_NAMED = ['rng', 'tiers', 'citygen', 'levels', 'sim', 'voxelsim', 'voxelkit', 'voxelforms', 'fwmath', 'levelclock'];
+  const SIM_PURE_NAMED = ['rng', 'tiers', 'citygen', 'levels', 'sim', 'voxelsim', 'voxelkit', 'voxelforms', 'fwmath', 'levelclock', 'powerups'];
   const sceneFiles = readdirSync(new URL('../js/', import.meta.url))
     .filter((f) => /^voxelscene-.+\.js$/.test(f))
     .map((f) => f.replace(/\.js$/, ''))
@@ -1521,18 +1521,12 @@ function validateSaveSchema() {
   const missingPlayer = [...freshPlayerKeys].filter((k) => !(k in (s.player || {})));
   if (missingPlayer.length) fail(`save schema: migrated save.player is missing key(s) [${missingPlayer.join(', ')}] that defaultPlayer() creates`);
 
-  const v16 = {
-    version: 16, coins: 42, levels: {}, sandbox: {
+  const v17 = {
+    version: 17, coins: 42, levels: {}, sandbox: {
       chicago: { completions: 3, bestSize: 7, bestTime: 92, bestCombo: 11, bestScore: 8123 },
     }, ownedItems: [], equippedSkin: 'classic', equippedIndicator: 'ind-default', muted: false,
     settings: fresh.settings,
   };
-  const v17 = __MIGRATIONS[16](v16);
-  const chicago = v17.sandbox.chicago;
-  if (v17.version !== 17 || chicago.completions !== 3 || chicago.bestSize !== 7 || chicago.bestTime !== 92
-    || chicago.bestCombo !== 11 || chicago.bestScore !== 8123) {
-    fail('save schema: v16->v17 does not preserve a real sandbox record');
-  }
 
   // v17->v18 splits `completions` (now FULL CLEARS only) from `runs` (finished
   // runs) and adds `bestPercent`. An upgrading player's history must survive

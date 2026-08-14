@@ -3,9 +3,18 @@
 
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 
-export const RANKED_SCENES = Object.freeze(['chicago']);
+export const RANKED_SCENES = Object.freeze(['chicago', 'brooklyn', 'boston', 'cambridge', 'manhattan', 'upper-manhattan']);
 export const TICKET_TTL_MS = 15 * 60 * 1000;
 export const MAX_REQUEST_BYTES = 65536;
+
+// Weekly seasons anchor: Monday 00:00:00 UTC, Aug 10, 2026 (Season 1).
+const SEASON_EPOCH_MS = Date.UTC(2026, 7, 10, 0, 0, 0); // 2026-08-10T00:00:00Z
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function currentWeeklySeasonId(nowMs = Date.now()) {
+  const elapsed = Math.max(0, nowMs - SEASON_EPOCH_MS);
+  return 1 + Math.floor(elapsed / WEEK_MS);
+}
 
 export function json(res, status, payload) {
   res.status(status).setHeader('content-type', 'application/json; charset=utf-8');
@@ -102,6 +111,17 @@ export function randomCode(length) {
 }
 export function sha256Hex(value) { return createHash('sha256').update(value).digest('hex'); }
 export function sha256Bytes(value) { return createHash('sha256').update(value).digest(); }
+
+export function hashPassword(password) {
+  const secret = requiredEnv('FW_TICKET_SECRET');
+  return createHmac('sha256', secret).update(password.normalize('NFKC')).digest();
+}
+
+export function verifyPassword(password, storedHashHex) {
+  const expected = Buffer.from(storedHashHex, 'hex');
+  const actual = hashPassword(password);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
 
 // Rate-limit network origins without retaining an address in the database.
 // Vercel supplies the left-most forwarded address; local development falls back

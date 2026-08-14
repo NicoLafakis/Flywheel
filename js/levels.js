@@ -58,11 +58,10 @@ function levelDef(index) {
   const landmarkUnlockMass = hasLandmark ? 400 + (index - 20) * 10 : 0;
   const landmarkRewardMass = hasLandmark ? 500 + (index - 20) * 25 : 0;
 
-  // Estimated edible mass grows with district area and tier mix; target ~62% of
-  // the greedy bot's haul (see docs/TUNING.md). Validator enforces the margin.
+  // 100% completion goal for every level: target = 100% of edible mass
   const density = 0.9 + metroIndex * 0.12;
   const estimatedMass = size * size * 0.055 * density + (hasLandmark ? landmarkRewardMass : 0);
-  const target = Math.floor(estimatedMass * 0.62);
+  const target = Math.floor(estimatedMass);
 
   return {
     index,

@@ -1,7 +1,7 @@
 import {
   TICKET_TTL_MS, RANKED_SCENES, body, errorResponse, fail, isDeviceKey, method,
   newRunId, newSeed, ok, rest, makeTicket, playerForToken, requiredEnv,
-  originRateKey,
+  originRateKey, currentWeeklySeasonId,
 } from '../_lib.mjs';
 import { RANKED_TUNE_ID } from '../../js/voxelsim.js';
 

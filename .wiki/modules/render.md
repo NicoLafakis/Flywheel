@@ -17,7 +17,8 @@ mutates sim state.
 
 | File | Purpose |
 |------|---------|
-| `js/world3d.js` | Scene build from city data, mesh caches, eat/flood anims, event sync |
+| `js/world3d.js` | Scene build from city data, mesh caches, eat/flood anims, event sync, and FX particle systems (vortex debris, golden sparkles, celebration bursts, skid dust, blocker sparks) |
+| `js/voxelworld.js` | Voxel sandbox rendering, block instance synchronization, ambient layers (`atmosphere`, `gulls`, `pigeons`, `steam`, `neon`, `surf`, `ferries`), and particle systems |
 | `js/camera.js` | `ChaseCamera`: follow, orbit, zoom, building-occlusion pull-in, opt-in follow-direction yaw |
 | `js/controls.js` | Keyboard + touch joystick/orbit + optional world-space point-to-move → camera-relative move intents |
 | `js/skins.js` | Hole skin registry (25 skins) + heading-indicator registry (`INDICATOR_SKINS`, 6 rows) + geometry primitives + per-frame runtime; consumed by `world3d.js`/`voxelworld.js` for the mesh and re-exported by `js/ui/screens.js` for the shop |

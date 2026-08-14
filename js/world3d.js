@@ -438,6 +438,49 @@ export class World3D {
       this.scene.add(m);
       return m;
     });
+
+    // Power-up 3D beacons
+    this.powerupMeshes = new Map();
+    for (const pu of sim.powerups || []) {
+      this._addPowerUpMesh(pu);
+    }
+  }
+
+  _addPowerUpMesh(pu) {
+    if (this.powerupMeshes.has(pu.id)) return;
+    const group = new THREE.Group();
+    const color = pu.spec ? pu.spec.color : 0x00d2ff;
+    const glowColor = pu.spec ? pu.spec.glowColor : 0x0055ff;
+
+    const base = new THREE.Mesh(cylGeo(), mat(0x1a1a24, { emissive: color }));
+    base.scale.set(0.85, 0.12, 0.85);
+    base.position.y = 0.06;
+    group.add(base);
+
+    const ring = new THREE.Mesh(ringGeo(), mat(color, { emissive: color }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.55;
+    ring.scale.setScalar(0.75);
+    group.add(ring);
+
+    const core = new THREE.Mesh(boxGeo(), mat(color, { emissive: glowColor }));
+    core.scale.set(0.5, 0.5, 0.5);
+    core.position.y = 0.55;
+    group.add(core);
+
+    group.position.set(pu.x, 0, pu.z);
+    this.scene.add(group);
+    this.powerupMeshes.set(pu.id, { group, core, ring, pu });
+  }
+
+  spawnPowerUpCollectBurst(x, z, color = 0x00d2ff, count = 20) {
+    this.spawnBurst(x, z, 2.4, color, 4);
+    this.spawnShockRing(x, z, 2.5, color);
+  }
+
+  spawnPowerUpSpawnBeams(x, z, color = 0x00d2ff) {
+    this.spawnBurst(x, z, 1.8, color, 2);
+    this.spawnShockRing(x, z, 1.6, color);
   }
 
   syncHole(mesh, h) {
@@ -452,33 +495,147 @@ export class World3D {
     this.perfMode = !!on;
   }
 
-  spawnEatParticles(x, z, color = 0xdddddd, count = 8) {
+  spawnEatParticles(x, z, color = 0xdddddd, count = 8, hradius = 1) {
     if (this.perfMode) count = Math.min(count, 4);
-    const geo = sphereGeo();
+    const geo = boxGeo();
     const matP = mat(color, { flat: true });
     for (let i = 0; i < count; i++) {
-      const p = new THREE.Mesh(geo, matP);
-      p.scale.setScalar(0.15 + pseudoRand() * 0.2);
-      p.position.set(x + (pseudoRand() - 0.5) * 0.8, 0.2, z + (pseudoRand() - 0.5) * 0.8);
-      this.scene.add(p);
       const angle = pseudoRand() * Math.PI * 2;
-      const speed = 1.5 + pseudoRand() * 2.5;
-      const vx = Math.cos(angle) * speed;
-      const vz = Math.sin(angle) * speed;
-      const vy = 2.0 + pseudoRand() * 2.0;
+      const startDist = Math.max(0.5, hradius * (1.05 + pseudoRand() * 0.35));
+      const px = x + Math.cos(angle) * startDist;
+      const pz = z + Math.sin(angle) * startDist;
+      const p = new THREE.Mesh(geo, matP);
+      const s = 0.12 + pseudoRand() * 0.14;
+      p.scale.setScalar(s);
+      p.position.set(px, 0.15 + pseudoRand() * 0.2, pz);
+      this.scene.add(p);
       this.particles = this.particles || [];
-      this.particles.push({ mesh: p, vx, vy, vz, life: 0.45, maxLife: 0.45 });
+      this.particles.push({
+        mesh: p,
+        isVortex: true,
+        angle,
+        dist: startDist,
+        startDist,
+        radialSpeed: (hradius * 2.2 + 2.0) * (0.8 + pseudoRand() * 0.5),
+        angularSpeed: (4.0 + pseudoRand() * 6.0) * (pseudoRand() < 0.5 ? 1 : -1),
+        vy: -0.8 - pseudoRand() * 0.8,
+        vr: (pseudoRand() - 0.5) * 12,
+        size: s,
+        life: 0.35 + pseudoRand() * 0.2,
+        maxLife: 0.55,
+      });
     }
   }
 
-  spawnShockRing(x, z, radius) {
-    const ring = new THREE.Mesh(ringGeo(), mat(0x66ccff, { emissive: 0x66ccff }));
+  spawnShockRing(x, z, radius, color = 0x66ccff) {
+    const ring = new THREE.Mesh(ringGeo(), mat(color, { emissive: color }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(x, 0.05, z);
     ring.scale.setScalar(radius);
     this.scene.add(ring);
     this.particles = this.particles || [];
     this.particles.push({ mesh: ring, isRing: true, life: 0.4, maxLife: 0.4, startRadius: radius });
+  }
+
+  spawnBurst(x, z, radius, color = 0xffd23f, sizeLevel = 1) {
+    const geo = boxGeo();
+    const isBig = sizeLevel >= 5;
+    const count = this.perfMode ? (isBig ? 18 : 12) : (isBig ? 36 : 24);
+    const palette = [0xffd23f, 0xff2d75, 0x00f0ff, 0x76ff03, 0xffffff, color];
+    this.spawnShockRing(x, z, radius * 1.1, color);
+
+    for (let i = 0; i < count; i++) {
+      const c = palette[i % palette.length];
+      const m = new THREE.Mesh(geo, mat(c, { flat: true }));
+      const a = (i / count) * Math.PI * 2 + (pseudoRand() - 0.5) * 0.5;
+      const sp = (isBig ? 4.5 : 3.0) + pseudoRand() * (isBig ? 5 : 3.5);
+      m.position.set(x + Math.cos(a) * radius * 0.5, 0.3, z + Math.sin(a) * radius * 0.5);
+      const s = 0.12 + pseudoRand() * (isBig ? 0.16 : 0.1);
+      m.scale.setScalar(s);
+      this.scene.add(m);
+      this.particles = this.particles || [];
+      this.particles.push({
+        mesh: m,
+        vx: Math.cos(a) * sp,
+        vy: (isBig ? 4.5 : 3.0) + pseudoRand() * (isBig ? 4.5 : 3.0),
+        vz: Math.sin(a) * sp,
+        vr: (pseudoRand() - 0.5) * 12,
+        life: 0.75 + pseudoRand() * 0.35,
+        maxLife: 1.1,
+      });
+    }
+  }
+
+  spawnGoldenSparkles(x, z, radius, count = 14) {
+    if (this.perfMode) count = Math.min(count, 6);
+    const geo = boxGeo();
+    for (let i = 0; i < count; i++) {
+      const c = i % 3 === 0 ? 0xffffff : (i % 2 === 0 ? 0xffe066 : 0xffa500);
+      const m = new THREE.Mesh(geo, mat(c, { flat: true, emissive: c }));
+      const angle = pseudoRand() * Math.PI * 2;
+      const r = pseudoRand() * radius * 0.8;
+      m.position.set(x + Math.cos(angle) * r, 0.15 + pseudoRand() * 0.2, z + Math.sin(angle) * r);
+      m.scale.setScalar(0.08 + pseudoRand() * 0.08);
+      this.scene.add(m);
+      this.particles = this.particles || [];
+      this.particles.push({
+        mesh: m,
+        isSparks: true,
+        vx: (pseudoRand() - 0.5) * 1.8,
+        vy: 3.0 + pseudoRand() * 3.0,
+        vz: (pseudoRand() - 0.5) * 1.8,
+        vr: (pseudoRand() - 0.5) * 14,
+        life: 0.4 + pseudoRand() * 0.25,
+        maxLife: 0.65,
+      });
+    }
+  }
+
+  spawnBlockerImpact(x, z, radius, dirX = 0, dirZ = 0) {
+    const geo = boxGeo();
+    const count = this.perfMode ? 5 : 10;
+    const len = Math.hypot(dirX, dirZ) || 1;
+    const nx = dirX / len, nz = dirZ / len;
+    for (let i = 0; i < count; i++) {
+      const c = i % 2 === 0 ? 0xffeedd : 0xbbbbbb;
+      const m = new THREE.Mesh(geo, mat(c, { flat: true }));
+      m.position.set(x + nx * radius * 0.8, 0.2 + pseudoRand() * 0.25, z + nz * radius * 0.8);
+      m.scale.setScalar(0.08 + pseudoRand() * 0.08);
+      this.scene.add(m);
+      const spreadAngle = Math.atan2(nz, nx) + (pseudoRand() - 0.5) * 1.4;
+      const sp = 2.0 + pseudoRand() * 3.5;
+      this.particles = this.particles || [];
+      this.particles.push({
+        mesh: m,
+        vx: Math.cos(spreadAngle) * sp,
+        vy: 1.8 + pseudoRand() * 2.5,
+        vz: Math.sin(spreadAngle) * sp,
+        vr: (pseudoRand() - 0.5) * 14,
+        life: 0.3 + pseudoRand() * 0.2,
+        maxLife: 0.5,
+      });
+    }
+  }
+
+  spawnDustPuff(x, z, size = 0.45, vx = 0, vz = 0) {
+    if (this.particles && this.particles.length > (this.perfMode ? 35 : 100)) return;
+    const geo = boxGeo();
+    const m = new THREE.Mesh(geo, mat(0xd0d5dd, { flat: true, transparent: true, opacity: 0.35 }));
+    m.position.set(x + (pseudoRand() - 0.5) * 0.25, 0.05, z + (pseudoRand() - 0.5) * 0.25);
+    m.scale.setScalar(size * 0.6);
+    this.scene.add(m);
+    this.particles = this.particles || [];
+    this.particles.push({
+      mesh: m,
+      isDust: true,
+      startScale: size,
+      vx: vx * 0.3 + (pseudoRand() - 0.5) * 0.4,
+      vy: 0.25 + pseudoRand() * 0.35,
+      vz: vz * 0.3 + (pseudoRand() - 0.5) * 0.4,
+      vr: (pseudoRand() - 0.5) * 2,
+      life: 0.32,
+      maxLife: 0.32,
+    });
   }
 
   // Decompose a group into small cube voxel particles that crumble into the hole
@@ -633,9 +790,34 @@ export class World3D {
   // Apply sim events (eats, tides, unlock) then per-frame animation.
   update(dt, events) {
     const sim = this.sim;
+    // Animate hovering and spinning on power-up items
+    for (const item of this.powerupMeshes.values()) {
+      const bob = Math.sin(this.time * 3.5 + item.pu.id * 1.5) * 0.14;
+      item.core.position.y = 0.55 + bob;
+      item.ring.position.y = 0.55 + bob;
+      item.core.rotation.y = this.time * 2.2;
+      item.core.rotation.x = this.time * 1.4;
+      item.ring.rotation.z = this.time * 1.8;
+    }
+
     const st = this._skinFrame(dt, sim.player);
     for (const ev of events) {
-      if (ev.type === 'enter' || ev.flooded) {
+      if (ev.type === 'powerup_collect') {
+        const item = this.powerupMeshes.get(ev.powerup.id);
+        if (item) {
+          this.scene.remove(item.group);
+          this.powerupMeshes.delete(ev.powerup.id);
+        }
+        const color = ev.powerup.spec ? ev.powerup.spec.color : 0x00d2ff;
+        this.spawnPowerUpCollectBurst(ev.powerup.x, ev.powerup.z, color);
+      } else if (ev.type === 'powerup_spawn') {
+        this._addPowerUpMesh(ev.powerup);
+        const color = ev.powerup.spec ? ev.powerup.spec.color : 0x00d2ff;
+        this.spawnPowerUpSpawnBeams(ev.powerup.x, ev.powerup.z, color);
+      } else if (ev.type === 'quake') {
+        this.spawnShockRing(ev.x, ev.z, ev.radius || 24, 0xff7700);
+        this.spawnBurst(ev.x, ev.z, 3.5, 0xffaa00, 16);
+      } else if (ev.type === 'enter' || ev.flooded) {
         // The bite fires on `enter`, NOT on `eat`. `enter` is pushed the moment
         // the object commits and starts descending; `eat` only lands when the
         // swallow completes, 0.22-0.62 s later (sim.js swallowDuration). A jaw
@@ -648,7 +830,7 @@ export class World3D {
         const g = this.meshById.get(ev.obj.id);
         if (g) {
           if (ev.type === 'enter' && ev.hole) {
-            this.spawnEatParticles(ev.obj.x, ev.obj.z, ev.obj.golden ? GOLD : 0xd8dce2, ev.obj.tier >= 4 ? 14 : 8);
+            this.spawnEatParticles(ev.obj.x, ev.obj.z, ev.obj.golden ? GOLD : 0xd8dce2, ev.obj.tier >= 4 ? 14 : 8, ev.hole.radius);
             this.fractureMeshToVoxels(g, ev.hole, ev.dur || 0.45);
           } else {
             const a = { g, t: 0, x: ev.obj.x, z: ev.obj.z, dur: ev.dur || 0.45 };
@@ -664,6 +846,11 @@ export class World3D {
       } else if (ev.type === 'bounce') {
         const g = this.meshById.get(ev.obj.id);
         if (g) this.bouncing.push({ g, obj: ev.obj, t: 0 });
+        if (ev.hole) {
+          const dx = (ev.obj.x ?? ev.hole.x) - ev.hole.x;
+          const dz = (ev.obj.z ?? ev.hole.z) - ev.hole.z;
+          this.spawnBlockerImpact(ev.hole.x, ev.hole.z, ev.hole.radius, dx, dz);
+        }
       } else if (ev.type === 'eject') {
         // Object was ejected mid-swallow! Cancel its entry animation & re-register mesh
         const ai = this.anims.findIndex((a) => a.g.userData.id === ev.obj.id);
@@ -690,6 +877,30 @@ export class World3D {
         this.water.scale.set(1.2, 1, 1);
         this.water.position.z = b.zmax + (this.city.size - (b.zmax - b.zmin)) * 0.25;
         this.water.position.x = (b.xmin + b.xmax) / 2;
+      }
+    }
+
+    // Hole movement tracking for ground dust puffs
+    const p = sim.player;
+    const lastX = this._lastPX ?? p.x;
+    const lastZ = this._lastPZ ?? p.z;
+    const moveDist = Math.hypot(p.x - lastX, p.z - lastZ);
+    const speed = dt > 0 ? (moveDist / dt) : 0;
+    this._lastPX = p.x;
+    this._lastPZ = p.z;
+
+    if (!this.reducedMotion && dt > 0) {
+      this._dustTimer = (this._dustTimer || 0) + dt;
+      if (speed > 2.8 && this._dustTimer > 0.07) {
+        this._dustTimer = 0;
+        const dirX = (p.x - lastX) / (moveDist || 1);
+        const dirZ = (p.z - lastZ) / (moveDist || 1);
+        this.spawnDustPuff(
+          p.x - dirX * p.radius * 0.85,
+          p.z - dirZ * p.radius * 0.85,
+          0.32 + p.radius * 0.06,
+          -dirX * 1.5, -dirZ * 1.5
+        );
       }
     }
 
@@ -722,16 +933,17 @@ export class World3D {
       }
     }
 
-    // bounced props: follow sim position with a little hop
+    // blocker bounces: compress + spring back
     for (let i = this.bouncing.length - 1; i >= 0; i--) {
-      const bn = this.bouncing[i];
-      bn.t += dt;
-      bn.g.position.x = bn.obj.x;
-      bn.g.position.z = bn.obj.z;
-      bn.g.position.y = Math.sin(Math.min(Math.PI, bn.t * 10)) * 0.4;
-      if (!bn.obj.moving) {
-        bn.g.position.y = 0;
+      const b = this.bouncing[i];
+      b.t += dt;
+      const t = b.t;
+      if (t > 0.3) {
+        b.g.scale.set(1, 1, 1);
         this.bouncing.splice(i, 1);
+      } else {
+        const squish = Math.sin(t * Math.PI / 0.3) * 0.2;
+        b.g.scale.set(1 + squish * 0.5, 1 - squish, 1 + squish * 0.5);
       }
     }
 
@@ -772,6 +984,31 @@ export class World3D {
         if (p.isRing) {
           p.mesh.scale.setScalar(p.startRadius * (1 + (1 - k) * 0.8));
           p.mesh.material.opacity = k;
+        } else if (p.isVortex) {
+          p.angle += p.angularSpeed * dt;
+          p.dist -= p.radialSpeed * dt;
+          p.mesh.position.x = sim.player.x + Math.cos(p.angle) * Math.max(0.01, p.dist);
+          p.mesh.position.z = sim.player.z + Math.sin(p.angle) * Math.max(0.01, p.dist);
+          p.mesh.position.y += p.vy * dt;
+          const scale = Math.max(0.01, p.size * (p.dist / p.startDist) * k);
+          p.mesh.scale.set(scale, scale, scale);
+          p.mesh.rotation.y += p.vr * dt;
+          p.mesh.material.opacity = Math.min(1, k * 1.4);
+        } else if (p.isDust) {
+          p.mesh.position.x += p.vx * dt;
+          p.mesh.position.y += p.vy * dt;
+          p.mesh.position.z += p.vz * dt;
+          const s = p.startScale * (0.6 + (1 - k) * 0.9);
+          p.mesh.scale.set(s, s * 0.6, s);
+          p.mesh.material.opacity = k * 0.35;
+        } else if (p.isSparks) {
+          p.vy -= 12 * dt;
+          p.mesh.position.x += p.vx * dt;
+          p.mesh.position.y += p.vy * dt;
+          p.mesh.position.z += p.vz * dt;
+          p.mesh.rotation.x += p.vr * dt;
+          p.mesh.rotation.y += p.vr * dt;
+          p.mesh.material.opacity = k * (0.6 + 0.4 * Math.sin(p.life * 35));
         } else {
           p.mesh.position.x += p.vx * dt;
           p.mesh.position.y += p.vy * dt;
@@ -779,7 +1016,7 @@ export class World3D {
           p.vy -= 9.8 * dt;
           p.mesh.scale.setScalar((0.15 + (1 - k) * 0.1) * k);
         }
-        if (p.life <= 0) {
+        if (p.life <= 0 || (p.isVortex && p.dist <= 0.05)) {
           this.scene.remove(p.mesh);
           this.particles.splice(i, 1);
         }
@@ -806,6 +1043,10 @@ export class World3D {
   }
   resize(w, h) { this.renderer.setSize(w, h, false); }
   dispose() {
+    if (this.powerupMeshes) {
+      for (const item of this.powerupMeshes.values()) this.scene.remove(item.group);
+      this.powerupMeshes.clear();
+    }
     if (this.skin) {
       this.playerMesh.remove(this.skin.local);
       this.scene.remove(this.skin.world);

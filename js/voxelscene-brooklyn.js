@@ -872,6 +872,18 @@ export function buildBrooklyn(sim) {
     bikePaths, laneMarkers, crosswalks, water, boardwalk,
   };
 
+  // Surface registry rollout — render-side only; the sim never reads it.
+  // The same full-coverage map every scene carries (js/voxelsurfaces.js);
+  // rubber/leaf stay unmapped on Boston's documented judgement.
+  sim.sceneSurfaces = {
+    brick: 'mat_brick_red',
+    glass: 'mat_glass_curtain',
+    concrete: 'mat_concrete_precast',
+    steel: 'mat_metal_seam',
+    panel: 'mat_metal_seam',
+    wood: 'mat_timber_dock',
+  };
+
   // Render-only ambient life. Never physical, never eatable — VoxelWorld3D owns
   // all of it and the physics grid never sees a single one.
   sim.sceneAmbient = {

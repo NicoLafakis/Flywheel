@@ -10549,26 +10549,20 @@ export function cambridgeShell(sim, buildings, opts = {}) {
 
   // Procedural surfaces, bound by matType in js/voxelsurfaces.js.
   //
-  // THIS IS NOT FREE, AND IT USED TO BE. `01` §2.3's win only reaches UNSURFACED
-  // buckets: the key keeps the extent triple whenever a block is surfaced,
-  // because surfaceMaterial() bakes the tile repeat per metre. Under the old
-  // cube ladder that cost almost nothing — a scene had nine distinct sizes, so
-  // five surfaced materials bought at most a few dozen buckets. This district
-  // has NINETY-FIVE distinct extents, so surfacing multiplies rather than adds.
-  // Measured on the shipped build (`_phase5-deliverables/buckets.mjs`):
+  // FREE NOW — THE MEASUREMENT BELOW IS HISTORY. It dates from the per-size
+  // bucket path, where surfacing a matType cost one bucket per distinct brick
+  // size and this scene's 539 concrete extents ran the block draw calls to
+  // 938. The Tier-2 texture-array path whose trigger this comment declared
+  // "now met" was built (js/voxelsurfaces.js `surfaceArrayMaterial`): every
+  // surfaced block in the scene shares one bucket, and Cambridge renders its
+  // 938-bucket set in ONE draw — measured 1009 → 75 total draw calls on the
+  // establishing frame (`_texture-array-deliverables/` A/B sweep). The old
+  // table, kept because the fallback path still prices surfaces this way:
   //
   //             surfaced (as shipped)     surfaces removed
   //   Variant A     21 / 20 buckets          21 / 8
   //   Variant B1    73 / 72                  73 / 8
   //   Variant B2   115 / 109                115 / 8
-  //
-  // — Tier 1 alone, then Tier 1 plus P1.2's key change. One InstancedMesh per
-  // bucket, so declaring these five materials costs this district 101 block
-  // draw calls, and P1.2 can only reclaim 6 of them. Still a long way inside
-  // STATUS.md:276's ~800 revisit threshold on one district; NOT obviously so
-  // across ten, which is Phase 6's to watch. The Tier-2 texture-array seam
-  // (voxelworld.js:617-625) is the thing that would collapse it, and its stated
-  // trigger — "a second, larger scene declares surfaces" — is now met.
   //
   // The district is authored to read correctly with this object deleted — the
   // mill's identity is in its massing and its seven brick tones, not in a tile.

@@ -199,6 +199,173 @@ export function isSurface(id) {
   return typeof id === 'string' && SURFACE_BY_ID.has(id);
 }
 
+// ------------------------------------------------------- Tier-2 array material
+// ONE material for every surfaced block in a scene. The per-bucket path above
+// costs one InstancedMesh per (surface, brick size) pair, which priced full
+// coverage at 200 draw calls on Chicago and 989 on Cambridge — measured, not
+// estimated. Here the tiles live in two DataArrayTextures (albedo + ORM), the
+// surface choice is a per-instance attribute, and the per-metre repeat is
+// another, so every surfaced block in a scene draws in ONE call regardless of
+// how many brick sizes it uses.
+//
+// The registry rows are resolution-parameterised (assembleField takes res), so
+// the layers are regenerated at the array's uniform resolution rather than
+// resampled — mat_default's mortar border scales by n and reads identically at
+// 256. tools/shimmer.mjs still gates the authored rows; nothing in
+// js/voxeltiles.js changed.
+const ARRAY_ALBEDO_RES = 256;
+const ARRAY_ORM_RES = 128;
+
+// id -> layer index is the SURFACES array order. It is stable (a literal array,
+// append-only by the registry's add-a-row rule) and it never crosses the
+// network or a save, so a bare index is safe.
+const SURFACE_LAYER = new Map(SURFACES.map((s, i) => [s.id, i]));
+
+// The two facts voxelworld needs per block when it fills the instance
+// attributes: which layer, and whether the tile repeats per metre.
+export function surfaceArrayLayer(id) { return SURFACE_LAYER.has(id) ? SURFACE_LAYER.get(id) : 0; }
+export function surfacePerMetre(id) { const s = SURFACE_BY_ID.get(id); return !!s && s.uv === 'metre'; }
+
+function albedoArrayTexture(maxAniso) {
+  const n = ARRAY_ALBEDO_RES, layers = SURFACES.length;
+  const data = new Uint8Array(n * n * 4 * layers);
+  SURFACES.forEach((spec, i) => {
+    // `.data` — buildTilePixels returns { n, data }, and TypedArray.set on the
+    // bare object has no `length` and silently writes NOTHING (all-zero tiles,
+    // black city — caught by the Boston probe, not by a type error).
+    data.set(buildTilePixels({ ...spec, res: n }).data, i * n * n * 4);
+  });
+  const t = new THREE.DataArrayTexture(data, n, n, layers);
+  // Same settings as the per-surface albedo textures: a MULTIPLIER is data,
+  // never colour, and a facade is read at a grazing angle almost always.
+  t.colorSpace = THREE.NoColorSpace;
+  // RepeatWrapping for the whole array: 'metre' rows wrap by construction and
+  // 'brick' rows sample [0,1] exactly, where repeat and clamp are the same.
+  t.wrapS = THREE.RepeatWrapping;
+  t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.anisotropy = Math.min(8, maxAniso || 1);
+  t.needsUpdate = true;
+  t.name = 'tex_array_albmul';
+  return t;
+}
+
+function ormArrayTexture() {
+  const n = ARRAY_ORM_RES, layers = SURFACES.length;
+  const data = new Uint8Array(n * n * 4 * layers);
+  SURFACES.forEach((spec, i) => {
+    // buildOrmPixels derives its resolution as res>>1 (floor 64); passing 256
+    // lands every row on the array's uniform 128. Rows with roughVar 0 (the
+    // identity row) pack their constant scalars, so every layer can share one
+    // ORM-fed shader path and the glTF scalar-at-1.0 convention holds for all.
+    data.set(buildOrmPixels({ ...spec, res: n << 1 }).data, i * n * n * 4);
+  });
+  const t = new THREE.DataArrayTexture(data, n, n, layers);
+  t.colorSpace = THREE.NoColorSpace;
+  t.wrapS = THREE.RepeatWrapping;
+  t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.needsUpdate = true;
+  t.name = 'tex_array_orm';
+  return t;
+}
+
+let arrayMat = null;
+
+// The single surfaced-block material. Per-instance attributes `aSurf` (array
+// layer) and `aRepeat` (UV repeat: sAvg for 'metre' surfaces, 1 otherwise) are
+// written once at bucket build; paint stays in instanceColor, so this one
+// program replaces the whole surfaced bucket set.
+//
+// Requires WebGL2 (sampler2DArray) — the caller guards on
+// renderer.capabilities.isWebGL2 and falls back to surfaceMaterial() buckets.
+export function surfaceArrayMaterial(maxAniso = 4, renderer = null) {
+  if (arrayMat) return arrayMat;
+  const orm = ormArrayTexture();
+  const m = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    // Scalars at 1.0: the ORM layers carry absolute values (glTF convention —
+    // see baseMaterial above for why the scalar must not double up).
+    roughness: 1.0,
+    metalness: 1.0,
+    flatShading: true,
+    map: albedoArrayTexture(maxAniso),
+    roughnessMap: orm,
+    metalnessMap: orm,
+  });
+  // One probe for every layer, not the per-material metals-only attach of the
+  // bucket path: the ORM metalness channel already gates the reflection
+  // per-fragment, so dielectrics pick up only the physical F0 sheen while
+  // metals get the real reflection they need to not render black. 0.35 splits
+  // the registry's two metal envInt values (0.35 seam / 0.50 rust) toward the
+  // one surface scenes actually declare.
+  const env = surfaceEnvironment(renderer);
+  if (env) {
+    m.envMap = env;
+    m.envMapIntensity = 0.35;
+  }
+  m.onBeforeCompile = (shader) => {
+    // Anchors are the #include LINES, not the chunk contents: onBeforeCompile
+    // runs before three resolves includes, so 'uniform sampler2D map;' is not
+    // in the source yet (the first pass of this learned that the hard way).
+    // Each map chunk is therefore restated here in full, with the sampler
+    // widened to an array and the per-instance layer/repeat folded in. The
+    // restated fragments track r160's chunks exactly, minus DECODE_VIDEO_TEXTURE
+    // (video textures only — these are generated DataArrayTextures).
+    const vs = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\n\tvSurf = aSurf;\n\tvRepeat = aRepeat;'
+    );
+    let fs = shader.fragmentShader;
+    const swaps = [
+      ['#include <map_pars_fragment>',
+        '#ifdef USE_MAP\n\tuniform sampler2DArray map;\n#endif'],
+      ['#include <roughnessmap_pars_fragment>',
+        '#ifdef USE_ROUGHNESSMAP\n\tuniform sampler2DArray roughnessMap;\n#endif'],
+      ['#include <metalnessmap_pars_fragment>',
+        '#ifdef USE_METALNESSMAP\n\tuniform sampler2DArray metalnessMap;\n#endif'],
+      ['#include <map_fragment>',
+        `#ifdef USE_MAP
+	vec4 sampledDiffuseColor = texture( map, vec3( vMapUv * vRepeat, vSurf ) );
+	diffuseColor *= sampledDiffuseColor;
+#endif`],
+      ['#include <roughnessmap_fragment>',
+        `float roughnessFactor = roughness;
+#ifdef USE_ROUGHNESSMAP
+	vec4 texelRoughness = texture( roughnessMap, vec3( vRoughnessMapUv * vRepeat, vSurf ) );
+	roughnessFactor *= texelRoughness.g;
+#endif`],
+      ['#include <metalnessmap_fragment>',
+        `float metalnessFactor = metalness;
+#ifdef USE_METALNESSMAP
+	vec4 texelMetalness = texture( metalnessMap, vec3( vMetalnessMapUv * vRepeat, vSurf ) );
+	metalnessFactor *= texelMetalness.b;
+#endif`],
+    ];
+    let ok = vs !== shader.vertexShader;
+    let missing = ok ? '' : 'begin_vertex';
+    for (const [from, to] of swaps) {
+      if (fs.indexOf(from) === -1) { ok = false; missing = from; break; }
+      fs = fs.replace(from, to);
+    }
+    // Fail safe, same rule as applyHoleClipping: if a chunk anchor moved under
+    // us (a three upgrade), leave the program alone so it still links — a city
+    // without tiles beats a city that does not render. The sweep's console
+    // capture is where a miss would surface.
+    if (!ok) { console.error('surfaceArrayMaterial: shader anchor missing, array path disabled —', missing); return; }
+    shader.vertexShader = 'attribute float aSurf;\nattribute float aRepeat;\nvarying float vSurf;\nvarying float vRepeat;\n' + vs;
+    shader.fragmentShader = 'varying float vSurf;\nvarying float vRepeat;\n' + fs;
+  };
+  m.name = 'mat_array';
+  arrayMat = m;
+  return m;
+}
+
+
 // Released from voxelworld.js dispose() on the same refcount that frees the
 // shared geometry, so surfaces live exactly as long as the last world.
 export function disposeSurfaces() {
@@ -210,6 +377,13 @@ export function disposeSurfaces() {
     m.dispose();
   }
   surfCache.clear();
+  if (arrayMat) {
+    // The array material owns the two biggest textures in the pipeline
+    // (256²x9 albedo + 128²x9 ORM); same shared-lifetime rule as the caches.
+    for (const t of [arrayMat.map, arrayMat.roughnessMap]) if (t) t.dispose();
+    arrayMat.dispose();
+    arrayMat = null;
+  }
   if (envRT) { envRT.dispose(); envRT = null; }
 }
 

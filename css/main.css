@@ -317,6 +317,83 @@ body.mode-sandbox #combo-meter.broke .cm-arc { animation: cm-break .35s ease-in;
   100% { opacity: 0; stroke: #6b7280; }
 }
 
+/* ---------- active power-up badges ---------- */
+#active-powerups {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+  pointer-events: none;
+  z-index: 15;
+}
+.powerup-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.90);
+  border: 1.5px solid var(--pu-border, #00d2ff);
+  box-shadow: 0 0 14px var(--pu-glow, rgba(0, 210, 255, 0.45)), 0 4px 12px rgba(0, 0, 0, 0.5);
+  border-radius: 20px;
+  padding: 4px 10px 4px 6px;
+  font-family: inherit;
+  font-weight: 800;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: pu-enter 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes pu-enter {
+  0% { opacity: 0; transform: translateX(20px) scale(0.8); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+.pu-icon {
+  font-size: 17px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+}
+.pu-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 76px;
+}
+.pu-name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 9.5px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  color: var(--pu-color, #fff);
+  text-transform: uppercase;
+}
+.pu-timer {
+  font-size: 10.5px;
+  font-weight: 900;
+  color: #fff;
+  margin-left: 6px;
+}
+.pu-bar-bg {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.pu-bar-fill {
+  height: 100%;
+  background: var(--pu-color, #00d2ff);
+  box-shadow: 0 0 6px var(--pu-color, #00d2ff);
+  border-radius: 2px;
+  transition: width 0.05s linear;
+}
+
 /* ---------- consumption band ----------
    Full-width, horizontal, gold on ink: the widest thing in the mix, fired a
    handful of times in a whole level. It sits ABOVE the play area in the same
@@ -576,7 +653,7 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
   color: #fff; box-shadow: 0 5px 0 #7a1408, 0 10px 18px rgba(0,0,0,.45);
 }
 
-.metro-row { width: min(880px, 94vw); margin-bottom: 18px; }
+.metro-row { width: min(1180px, 94vw); margin-bottom: 18px; }
 .metro-row h3 { margin: 8px 0; font-size: clamp(15px, 2.6vw, 20px); color: #ffd23f; }
 .level-cards { display: flex; flex-wrap: wrap; gap: 8px; }
 .level-card {
@@ -590,7 +667,7 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
 .level-card .mech { font-size: 15px; }
 .level-card:hover:not(.locked) { border-color: var(--accent); }
 
-.shop-items { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; max-width: 900px; }
+.shop-items { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; max-width: min(1180px, 94vw); }
 .shop-item {
   width: 200px; background: var(--panel); border-radius: 14px; padding: 14px;
   border: 2px solid rgba(255,255,255,.3); text-align: center;
@@ -1719,3 +1796,143 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   .fw-claim-slot form { flex-direction: column; }
   .fw-claim-slot .btn { width: 100%; }
 }
+
+/* ---------- Global Branded Scrollbars ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 210, 63, .45) rgba(8, 11, 20, .6);
+}
+::-webkit-scrollbar {
+  width: 8px; height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(8, 11, 20, .65); border-radius: 999px;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--fw-gold) 0%, var(--fw-orange-2) 100%);
+  border-radius: 999px; border: 2px solid rgba(8, 11, 20, .85);
+  box-shadow: 0 0 6px rgba(255, 210, 63, .25);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--fw-gold-hot) 0%, var(--fw-orange-1) 100%);
+  box-shadow: 0 0 10px rgba(255, 210, 63, .45);
+}
+
+/* ---------- Enhanced Records & Statistics Suite ---------- */
+.fw-records-wrap {
+  width: min(1180px, 96vw); display: flex; flex-direction: column; gap: 16px;
+  align-items: center; text-align: left; position: relative;
+}
+.fw-records-tabs {
+  display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 6px;
+}
+.fw-records-tab--active {
+  background: linear-gradient(180deg, var(--fw-orange-1) 0%, var(--fw-orange-2) 44%, var(--fw-orange-3) 100%) !important;
+  color: #2b1200 !important; font-weight: 900 !important;
+  box-shadow: 0 4px 0 var(--fw-extrude-1), 0 8px 16px rgba(0,0,0,.5) !important;
+}
+.fw-stat-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px; width: 100%;
+}
+.fw-stat-card {
+  background: rgba(9, 12, 22, .88); border: 2px solid rgba(255, 255, 255, .12);
+  border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column;
+  gap: 4px; box-shadow: 0 4px 0 rgba(3, 5, 11, .55);
+}
+.fw-stat-card .k {
+  font-size: 10px; font-weight: 800; letter-spacing: 1.4px;
+  color: rgba(255, 255, 255, .6); text-transform: uppercase;
+}
+.fw-stat-card .v {
+  font-size: clamp(16px, 2.6vw, 22px); font-weight: 900;
+  color: var(--fw-gold); font-variant-numeric: tabular-nums;
+  text-shadow: var(--fw-ring-2);
+}
+.fw-stat-card .sub {
+  font-size: 11px; font-weight: 700; color: rgba(255, 255, 255, .5);
+}
+.fw-section-header {
+  font-size: 13px; font-weight: 900; letter-spacing: 1.2px;
+  color: rgba(255, 255, 255, .85); text-transform: uppercase;
+  margin: 12px 0 4px; display: flex; justify-content: space-between;
+  align-items: center; width: 100%;
+}
+.fw-city-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 14px; width: 100%;
+}
+.fw-city-card {
+  background: rgba(12, 16, 28, .88); border: 2px solid rgba(255, 255, 255, .14);
+  border-radius: 14px; padding: 14px; display: flex; flex-direction: column;
+  gap: 8px; position: relative; transition: transform .18s ease, border-color .18s ease;
+  box-shadow: 0 4px 0 rgba(3, 5, 11, .6);
+}
+.fw-city-card:hover {
+  border-color: rgba(255, 210, 63, .6); transform: translateY(-2px);
+}
+.fw-city-card-header {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
+}
+.fw-city-card-title {
+  font-size: 15px; font-weight: 900; color: #fff; letter-spacing: .8px;
+}
+.fw-city-card-sub {
+  font-size: 11px; color: rgba(255, 255, 255, .55); line-height: 1.3;
+}
+.fw-badge {
+  display: inline-block; padding: 3px 8px; border-radius: 6px;
+  font-size: 10px; font-weight: 800; letter-spacing: .8px;
+  text-transform: uppercase; white-space: nowrap;
+}
+.fw-badge--mastered {
+  background: rgba(255, 210, 63, .18); color: var(--fw-gold);
+  border: 1px solid rgba(255, 210, 63, .5);
+}
+.fw-badge--cleared {
+  background: rgba(0, 240, 255, .14); color: #00f0ff;
+  border: 1px solid rgba(0, 240, 255, .4);
+}
+.fw-badge--unplayed {
+  background: rgba(255, 255, 255, .06); color: rgba(255, 255, 255, .45);
+  border: 1px dashed rgba(255, 255, 255, .2);
+}
+.fw-city-stats-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12px; font-variant-numeric: tabular-nums; padding: 4px 0;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+}
+.fw-city-stats-row .lbl { color: rgba(255, 255, 255, .55); font-weight: 600; }
+.fw-city-stats-row .val { color: #fff; font-weight: 800; }
+.fw-city-stats-row .val.highlight { color: var(--fw-gold); }
+.fw-city-play-btn {
+  margin-top: 6px; width: 100%; padding: 8px 12px;
+  font-size: 12px; font-weight: 800; letter-spacing: .8px;
+}
+.fw-campaign-banner {
+  background: linear-gradient(135deg, rgba(28, 20, 10, .92) 0%, rgba(12, 16, 28, .92) 100%);
+  border: 2px solid rgba(255, 210, 63, .35); border-radius: 14px;
+  padding: 16px; width: 100%; display: flex; flex-wrap: wrap;
+  justify-content: space-between; align-items: center; gap: 14px;
+  box-shadow: 0 4px 0 rgba(3, 5, 11, .6);
+}
+.fw-campaign-info h4 { margin: 0 0 4px; color: var(--fw-gold); font-size: 16px; font-weight: 900; }
+.fw-campaign-info p { margin: 0; color: rgba(255, 255, 255, .7); font-size: 12px; }
+
+/* ---------- Scroll Affordance Indicator ---------- */
+.fw-scroll-hint {
+  position: sticky; bottom: 8px; z-index: 10; margin-top: -36px;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(12, 16, 28, .92); border: 1.5px solid rgba(255, 210, 63, .6);
+  border-radius: 999px; padding: 6px 18px; color: var(--fw-gold);
+  font-size: 11px; font-weight: 800; letter-spacing: 1px;
+  text-transform: uppercase; pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .65), 0 0 16px rgba(255, 210, 63, .25);
+  transition: opacity .25s ease, transform .25s ease;
+  animation: fw-bob 2.4s ease-in-out infinite;
+}
+.fw-scroll-hint.is-hidden {
+  opacity: 0; transform: translateY(10px); pointer-events: none;
+}
+
+

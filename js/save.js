@@ -423,7 +423,7 @@ export function recordSandboxResult(save, scene, {
   coinsEarned, size, elapsed, bestCombo = 0, score = 0, won = true, percent = 0,
 }) {
   if (!save.sandbox) save.sandbox = {};
-  const prev = save.sandbox[scene] || { completions: 0, bestSize: 0, bestTime: null };
+  const prev = save.sandbox[scene] || { completions: 0, bestTime: null };
   save.sandbox[scene] = {
     // A FULL CLEAR of the city, not a finished run — see the v18 migration. The
     // default is `won = true` so a caller that predates the clock (and could

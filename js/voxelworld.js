@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { moverArc, moverPose } from './voxelsim.js';
 import { loadSave } from './save.js';
-import { surfaceMaterial, isSurface, disposeSurfaces } from './voxelsurfaces.js';
+import { surfaceMaterial, isSurface, disposeSurfaces, surfaceArrayMaterial, surfaceArrayLayer, surfacePerMetre } from './voxelsurfaces.js';
 import { makeSkin, INDICATOR_BY_ID } from './skins.js';
 
 // Read-only peek at the persisted SETTINGS block, so player preferences apply
@@ -698,58 +698,70 @@ export class VoxelWorld3D {
       mesh.castShadow = false; mesh.receiveShadow = false;
       this.coinMeshes.set(coin.id, mesh); this.scene.add(mesh);
     }
+
+    // Power-up 3D beacons
+    this.powerupMeshes = new Map();
+    this._powerupGeos = {
+      core: new THREE.OctahedronGeometry(0.52, 0),
+      ring: new THREE.TorusGeometry(0.78, 0.08, 8, 20),
+      base: new THREE.CylinderGeometry(0.85, 0.95, 0.14, 14),
+    };
+    this._ownedGeos.push(this._powerupGeos.core, this._powerupGeos.ring, this._powerupGeos.base);
+    for (const pu of sim.powerups || []) {
+      this._addPowerUpMesh(pu);
+    }
+
     // Marks a skin lays on the GROUND (Attribution's touchpoints, Compounding's
     // trail) must stay where they were laid, so they are parented to the scene
     // and not to the hole. Empty for most skins; the group costs nothing.
     this.scene.add(this.skin.world);
 
-    // One InstancedMesh per material — times block size, but ONLY where a
-    // surface is declared; paint rides in instanceColor. Nothing here
+    // One InstancedMesh per material — times block size, but ONLY in the
+    // no-WebGL2 fallback; paint rides in instanceColor. Nothing here
     // enumerates legal brick sizes.
     //
-    // SURFACES are what put `b.s` in the key, and they are no longer free.
-    // `sim.sceneSurfaces` maps a matType to a registry id (js/voxeltiles.js);
-    // surface is a function of matType, so the surface prefix itself still adds
-    // no partitions. The size term does: surfacing a matType costs one bucket
-    // per distinct brick size it uses, where unsurfaced it costs exactly one.
-    // Measured — Boston is the only scene that declares surfaces, and its six
-    // surfaced matTypes take it from 8 buckets to 23 (+15); Brooklyn, if it
-    // ever declares them, would go 8 → 26. That is the real price of a surface
-    // pass, and it is the trigger condition the texture-array seam below is
-    // waiting for.
+    // SURFACES used to put `b.s` in the key, and they were not free: surfacing
+    // a matType cost one bucket per distinct brick size it used, where
+    // unsurfaced it cost exactly one. That price is what the Tier-2 array
+    // path (the `arrayMat` below) removed — every surfaced block in a scene
+    // now shares ONE bucket and one draw call, so the old measurements belong
+    // to the fallback only: Boston paid 8 → 23 (+15), Cambridge's five
+    // declared matTypes had grown to 938, and full-coverage Chicago would
+    // have cost 200. With the array, all three sit at one surfaced bucket
+    // apiece (measured: every scene's total draw calls went DOWN when its
+    // textures went on).
     //
     // An unknown id is ignored rather than honoured, so a typo in a scene
     // degrades to today's look instead of silently doubling the bucket count.
     //
     // SEAM, deliberately not built — per-BLOCK surface override. Today surface
-    // is a function of matType alone, which is what keeps the surface PREFIX
-    // from partitioning anything (the size term is what costs, see above).
-    // A per-block override (a 7th positional argument on voxelsim's _block, or a
-    // `b.surface` field) would let one steel crane be corroded while the rest of
-    // the steel is not. `surfOf` is the single place that would change: read
-    // `b.surface` first, fall back to the matType map. TRIGGER: a scene needs
-    // two different surfaces on the SAME matType. Until then the override would
-    // cost a bucket per variant and buy nothing, because a scene that wants a
-    // different surface can already declare a different matType.
-    //
-    // SEAM, deliberately not built — WebGL2 texture array. Would collapse all
-    // surfaced buckets into one draw by moving the surface id into a per-instance
-    // attribute and the tiles into a 2D array texture. TRIGGER: distinct
-    // materials exceeding the 12-material mobile cap, or a scene where surface
-    // must vary per block (above). Measured today: Boston pays 23 buckets where
-    // its unsurfaced twin pays 8, so unlike before this WOULD now collapse
-    // something real — 15 buckets on the one scene that uses surfaces. Still
-    // not built, because 23 is a long way inside budget; it becomes worth
-    // building when a second, larger scene declares surfaces.
+    // is a function of matType alone. A per-block override (a 7th positional
+    // argument on voxelsim's _block, or a `b.surface` field) would let one
+    // steel crane be corroded while the rest of the steel is not. `surfOf` is
+    // the single place that would change: read `b.surface` first, fall back
+    // to the matType map; the array path would key the attribute off the same
+    // result. TRIGGER: a scene needs two different surfaces on the SAME
+    // matType. Until then the override would buy nothing, because a scene
+    // that wants a different surface can already declare a different matType.
     const surfaceMap = sim.sceneSurfaces || null;
     const surfOf = (b) => {
       if (!surfaceMap) return null;
       const id = surfaceMap[b.matType];
       return isSurface(id) ? id : null;
     };
+    // Tier-2 texture array (the built half of the seam note above). On WebGL2
+    // every surfaced block shares ONE bucket and one material: the surface
+    // choice and the per-metre repeat ride per-instance attributes, so a scene
+    // pays one draw call for surfaces no matter how many brick sizes it uses.
+    // The per-size bucket path below stays as the no-WebGL2 fallback; both go
+    // through applyHoleClipping.
+    const arrayMat = surfaceMap && this.renderer.capabilities.isWebGL2
+      ? surfaceArrayMaterial(this._maxAnisotropy, this.renderer)
+      : null;
     this.imMeshes = [];
     this._surfaced = false;
     const byMat = new Map();
+    const arrayList = [];
     for (const b of sim.blocks) {
       // Paint belongs in instanceColor; batching only by physical material
       // keeps a detailed city from turning every paint variant into another
@@ -772,12 +784,33 @@ export class VoxelWorld3D {
       // The key carries the full triple rather than the characteristic length
       // so that Tier-2 per-axis tile repeat can land without re-partitioning.
       const surf = surfOf(b);
+      if (surf && arrayMat) { arrayList.push(b); continue; }
       const ext = b.sx === b.sy && b.sy === b.sz ? b.sx : b.sx + 'x' + b.sy + 'x' + b.sz;
       const k = surf ? surf + ':' + b.matType + ':' + ext : b.matType;
       if (!byMat.has(k)) byMat.set(k, { surf, size: surf ? b.sAvg : null, list: [] });
       byMat.get(k).list.push(b);
     }
     const boxG = boxGeo();
+    // The array bucket: one InstancedMesh for every surfaced block, on a CLONE
+    // of the shared box (the per-instance attributes are per-world, so the
+    // geometry cannot be the cached one; it is therefore registered for
+    // disposal with this world's own geometries). Inserted last — with depth
+    // testing, bucket order only settles exact depth ties, and those were
+    // always arbitrary (Map insertion order over sim.blocks) anyway.
+    if (arrayList.length) {
+      const arrayGeo = boxG.clone();
+      const layers = new Float32Array(arrayList.length);
+      const repeats = new Float32Array(arrayList.length);
+      arrayList.forEach((b, i) => {
+        const id = surfOf(b);
+        layers[i] = surfaceArrayLayer(id);
+        repeats[i] = surfacePerMetre(id) ? b.sAvg : 1;
+      });
+      arrayGeo.setAttribute('aSurf', new THREE.InstancedBufferAttribute(layers, 1));
+      arrayGeo.setAttribute('aRepeat', new THREE.InstancedBufferAttribute(repeats, 1));
+      this._ownedGeos.push(arrayGeo);
+      byMat.set('array', { surf: 'array', size: null, list: arrayList, geo: arrayGeo });
+    }
     const white = new THREE.Color(1, 1, 1);
     const tmpColor = new THREE.Color();
     for (const bucket of byMat.values()) {
@@ -796,14 +829,17 @@ export class VoxelWorld3D {
       // insertion order over sim.blocks — so this is a re-roll of an undefined
       // result, not a regression of a defined one.
       let bMat;
-      if (surf) {
+      if (surf === 'array') {
+        bMat = arrayMat;
+        this._surfaced = true;
+      } else if (surf) {
         bMat = surfaceMaterial(surf, size, this._maxAnisotropy, this.renderer);
         this._surfaced = true;
       } else {
         bMat = mat(0xffffff);
       }
       applyHoleClipping(bMat);
-      const im = new THREE.InstancedMesh(boxG, bMat, list.length);
+      const im = new THREE.InstancedMesh(bucket.geo || boxG, bMat, list.length);
       this._registerShadow(im, true, true);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       list.forEach((b, i) => {
@@ -1047,6 +1083,31 @@ export class VoxelWorld3D {
       });
     }
     return sites;
+  }
+
+  // Atmospheric motes: subtle dust flecks and sea spray drifting softly across the city
+  _deriveAtmosphere(o) {
+    const rnd = mulberry32(hash32('atmosphere' + (this.sim.sceneName || 'city')));
+    const bounds = this.sim.bounds || { minX: -60, maxX: 60, minZ: -60, maxZ: 60 };
+    const width = Math.max(20, (bounds.maxX - bounds.minX) || 120);
+    const depth = Math.max(20, (bounds.maxZ - bounds.minZ) || 120);
+    const count = clampInt(o.count, 8, 48, this.perfMode ? 16 : 32);
+    const motes = [];
+    for (let i = 0; i < count; i++) {
+      motes.push({
+        x: bounds.minX + rnd() * width,
+        y: 1.2 + rnd() * 8.0,
+        z: bounds.minZ + rnd() * depth,
+        driftX: (rnd() - 0.5) * 0.6 + 0.25,
+        driftZ: (rnd() - 0.5) * 0.6,
+        bobSpeed: 0.6 + rnd() * 0.8,
+        bobAmp: 0.2 + rnd() * 0.3,
+        ph: rnd() * Math.PI * 2,
+        size: 0.10 + rnd() * 0.12,
+        bounds,
+      });
+    }
+    return motes;
   }
 
   // The shoreline, not the water: find a water edge lying within a couple of
@@ -1337,8 +1398,8 @@ export class VoxelWorld3D {
   _buildAmbient(spec) {
     // 'auto' on the whole block asks for every layer to be derived, which is
     // what a scene still being reshaped wants: no coordinates to go stale.
-    if (spec === 'auto') spec = { gulls: 'auto', surf: 'auto', ferries: 'auto', steam: 'auto', neon: 'auto', pigeons: 'auto' };
-    if (!spec || typeof spec !== 'object') return;
+    if (spec === 'auto') spec = { gulls: 'auto', surf: 'auto', ferries: 'auto', steam: 'auto', neon: 'auto', pigeons: 'auto', atmosphere: 'auto' };
+    if (!spec || typeof spec !== 'object') spec = { atmosphere: 'auto' };
     const a = {};
     this.ambientRepairs = [];
     try {
@@ -1354,6 +1415,8 @@ export class VoxelWorld3D {
       if (n && n.length) this._initNeon(a, n);
       const p = this._resolveAmbient('pigeons', spec.pigeons, this._derivePigeons);
       if (p && p.length) this._initPigeons(a, p);
+      const atm = this._resolveAmbient('atmosphere', spec.atmosphere, this._deriveAtmosphere);
+      if (atm && atm.length) this._initAtmosphere(a, atm);
     } catch (e) {
       // A malformed ambient payload must never take the level down with it.
       console.warn('[voxelworld] sceneAmbient ignored:', e);
@@ -1667,6 +1730,23 @@ export class VoxelWorld3D {
     a.pigeons = { birds, mesh };
   }
 
+  _initAtmosphere(a, list) {
+    if (!list || !list.length) return;
+    const mesh = this._ambientMesh(
+      boxGeo(),
+      this._ambientMat({ opts: { color: 0xffffff, roughness: 0.9, metalness: 0, flatShading: true, transparent: true, opacity: 0.5 } }),
+      list.length, true
+    );
+    const c = this._ac;
+    for (let i = 0; i < list.length; i++) {
+      const isWarm = (i % 3 !== 0);
+      c.setHex(isWarm ? 0xfff4d0 : 0xd8e8ff);
+      mesh.setColorAt(i, c);
+    }
+    mesh.instanceColor.needsUpdate = true;
+    a.atmosphere = { motes: list, mesh };
+  }
+
   // ------------------------------------------------------------- reduced UX
   // Signature matches ChaseCamera.setReducedMotion (camera.js:39).
   setReducedMotion(val) {
@@ -1869,9 +1949,10 @@ export class VoxelWorld3D {
   // -------------------------------------------------------------- particles
   // Expanding shock wave ring at the hole — growth/combo/milestone juice.
   spawnShockRing(x, z, radius, color = 0x66ccff) {
+    if (this.particles.length > (this.perfMode ? 50 : 160)) return;
     const ring = new THREE.Mesh(
       ringGeo(),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 })
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false })
     );
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(x, 0.03, z);
@@ -1880,24 +1961,235 @@ export class VoxelWorld3D {
     this.particles.push({ mesh: ring, isRing: true, life: 0.45, maxLife: 0.45, startRadius: radius });
   }
 
-  // Confetti burst of small cubes flying out of the hole — SIZE-level juice.
+  // Confetti burst of cubes flying out of the hole — SIZE-level and celebration juice.
   // Render-side only; Math.random is allowed here (never in the sim).
-  spawnBurst(x, z, radius, color = 0xffd23f) {
+  spawnBurst(x, z, radius, color = 0xffd23f, sizeLevel = 1) {
     const geo = boxGeo();
-    for (let i = 0; i < 26; i++) {
-      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-        color: i % 3 === 0 ? 0xffffff : color, transparent: true,
-      }));
-      const a = (i / 26) * Math.PI * 2 + Math.random() * 0.4;
-      const sp = 4 + Math.random() * 5;
-      m.position.set(x + Math.cos(a) * radius * 0.6, 0.35, z + Math.sin(a) * radius * 0.6);
-      m.scale.setScalar(0.1 + Math.random() * 0.14);
+    const isBig = sizeLevel >= 5;
+    const count = this.perfMode ? (isBig ? 24 : 16) : (isBig ? 48 : 32);
+    const palette = [0xffd23f, 0xff2d75, 0x00f0ff, 0x76ff03, 0xffffff, color];
+    this.spawnShockRing(x, z, radius * 1.1, color);
+
+    for (let i = 0; i < count; i++) {
+      if (this.particles.length > (this.perfMode ? 60 : 180)) break;
+      const c = palette[i % palette.length];
+      const mat = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.95, depthWrite: false });
+      const m = new THREE.Mesh(geo, mat);
+      const a = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+      const sp = (isBig ? 5 : 3.5) + Math.random() * (isBig ? 6 : 4);
+      m.position.set(x + Math.cos(a) * radius * 0.5, 0.35, z + Math.sin(a) * radius * 0.5);
+      const s = 0.12 + Math.random() * (isBig ? 0.18 : 0.12);
+      m.scale.setScalar(s);
       this.scene.add(m);
       this.particles.push({
-        mesh: m, vx: Math.cos(a) * sp, vy: 3.5 + Math.random() * 4, vz: Math.sin(a) * sp,
-        vr: (Math.random() - 0.5) * 12, life: 0.75, maxLife: 0.75,
+        mesh: m,
+        vx: Math.cos(a) * sp,
+        vy: (isBig ? 5.0 : 3.5) + Math.random() * (isBig ? 5.0 : 3.5),
+        vz: Math.sin(a) * sp,
+        vr: (Math.random() - 0.5) * 14,
+        life: 0.8 + Math.random() * 0.4,
+        maxLife: 1.2,
       });
     }
+  }
+
+  // Radiant upward fountain of sparkling golden particles for coins and golden items
+  spawnGoldenSparkles(x, z, radius, count = 16) {
+    if (this.perfMode) count = Math.min(count, 8);
+    const geo = boxGeo();
+    for (let i = 0; i < count; i++) {
+      if (this.particles.length > (this.perfMode ? 60 : 180)) break;
+      const mat = new THREE.MeshBasicMaterial({
+        color: i % 3 === 0 ? 0xffffff : (i % 2 === 0 ? 0xffe066 : 0xffa500),
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      });
+      const m = new THREE.Mesh(geo, mat);
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.random() * radius * 0.8;
+      m.position.set(x + Math.cos(angle) * r, 0.15 + Math.random() * 0.2, z + Math.sin(angle) * r);
+      const s = 0.08 + Math.random() * 0.10;
+      m.scale.setScalar(s);
+      this.scene.add(m);
+      this.particles.push({
+        mesh: m,
+        isSparks: true,
+        vx: (Math.random() - 0.5) * 2.0,
+        vy: 3.5 + Math.random() * 3.5,
+        vz: (Math.random() - 0.5) * 2.0,
+        vr: (Math.random() - 0.5) * 16,
+        life: 0.45 + Math.random() * 0.3,
+        maxLife: 0.75,
+      });
+    }
+  }
+
+  _addPowerUpMesh(pu) {
+    if (this.powerupMeshes.has(pu.id)) return;
+    const group = new THREE.Group();
+    const color = pu.spec ? pu.spec.color : 0x00d2ff;
+    const glowColor = pu.spec ? pu.spec.glowColor : 0x0055ff;
+    
+    const coreMat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: glowColor,
+      emissiveIntensity: 0.85,
+      roughness: 0.2,
+      metalness: 0.8,
+    });
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: color,
+      emissiveIntensity: 0.7,
+      roughness: 0.3,
+    });
+    const baseMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1a24,
+      emissive: color,
+      emissiveIntensity: 0.25,
+      roughness: 0.7,
+    });
+    this._ownedMats.push(coreMat, ringMat, baseMat);
+
+    const base = new THREE.Mesh(this._powerupGeos.base, baseMat);
+    base.position.y = 0.07;
+    group.add(base);
+
+    const ring = new THREE.Mesh(this._powerupGeos.ring, ringMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.65;
+    group.add(ring);
+
+    const core = new THREE.Mesh(this._powerupGeos.core, coreMat);
+    core.position.y = 0.65;
+    group.add(core);
+
+    group.position.set(pu.x, 0, pu.z);
+    this.scene.add(group);
+    this.powerupMeshes.set(pu.id, { group, core, ring, pu });
+  }
+
+  // Radiant burst when collecting a power-up
+  spawnPowerUpCollectBurst(x, z, color = 0x00d2ff, count = 28) {
+    if (this.perfMode) count = Math.min(count, 12);
+    const geo = boxGeo();
+    for (let i = 0; i < count; i++) {
+      if (this.particles.length > (this.perfMode ? 60 : 200)) break;
+      const mat = new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? color : 0xffffff,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      });
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, 0.5 + Math.random() * 0.4, z);
+      const s = 0.12 + Math.random() * 0.14;
+      m.scale.setScalar(s);
+      this.scene.add(m);
+      const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+      const sp = 4.0 + Math.random() * 5.5;
+      this.particles.push({
+        mesh: m,
+        isSparks: true,
+        vx: Math.cos(angle) * sp,
+        vy: 3.5 + Math.random() * 5.0,
+        vz: Math.sin(angle) * sp,
+        vr: (Math.random() - 0.5) * 16,
+        life: 0.6 + Math.random() * 0.4,
+        maxLife: 1.0,
+      });
+    }
+    this.spawnShockRing(x, z, 2.8, color);
+  }
+
+  // Vertical radiant column/burst when a bonus powerup is spawned
+  spawnPowerUpSpawnBeams(x, z, color = 0x00d2ff, count = 16) {
+    if (this.perfMode) count = Math.min(count, 8);
+    const geo = boxGeo();
+    for (let i = 0; i < count; i++) {
+      if (this.particles.length > (this.perfMode ? 60 : 200)) break;
+      const mat = new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? color : 0xffffff,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      });
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x + (Math.random() - 0.5) * 0.6, 0.2 + Math.random() * 0.4, z + (Math.random() - 0.5) * 0.6);
+      m.scale.set(0.1, 0.4 + Math.random() * 0.6, 0.1);
+      this.scene.add(m);
+      this.particles.push({
+        mesh: m,
+        isSparks: true,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: 6.0 + Math.random() * 4.0,
+        vz: (Math.random() - 0.5) * 1.5,
+        vr: 0,
+        life: 0.5 + Math.random() * 0.3,
+        maxLife: 0.8,
+      });
+    }
+    this.spawnShockRing(x, z, 1.8, color);
+  }
+
+  // Impact chip sparks when bouncing off a solid blocker / wall
+  spawnBlockerImpact(x, z, radius, dirX = 0, dirZ = 0) {
+    const geo = boxGeo();
+    const count = this.perfMode ? 6 : 14;
+    const len = Math.hypot(dirX, dirZ) || 1;
+    const nx = dirX / len, nz = dirZ / len;
+    for (let i = 0; i < count; i++) {
+      if (this.particles.length > (this.perfMode ? 60 : 180)) break;
+      const mat = new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? 0xffeedd : 0xcccccc,
+        transparent: true,
+        opacity: 0.9,
+      });
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x + nx * radius * 0.8, 0.2 + Math.random() * 0.3, z + nz * radius * 0.8);
+      const s = 0.08 + Math.random() * 0.10;
+      m.scale.setScalar(s);
+      this.scene.add(m);
+      const spreadAngle = Math.atan2(nz, nx) + (Math.random() - 0.5) * 1.5;
+      const sp = 2.5 + Math.random() * 4.0;
+      this.particles.push({
+        mesh: m,
+        vx: Math.cos(spreadAngle) * sp,
+        vy: 2.0 + Math.random() * 3.0,
+        vz: Math.sin(spreadAngle) * sp,
+        vr: (Math.random() - 0.5) * 16,
+        life: 0.35 + Math.random() * 0.25,
+        maxLife: 0.6,
+      });
+    }
+  }
+
+  // Soft rolling ground dust / skid puffs
+  spawnDustPuff(x, z, size = 0.45, vx = 0, vz = 0) {
+    if (this.particles.length > (this.perfMode ? 40 : 140)) return;
+    const geo = boxGeo();
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xd0d5dd,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x + (Math.random() - 0.5) * 0.3, 0.05, z + (Math.random() - 0.5) * 0.3);
+    m.scale.setScalar(size * 0.6);
+    this.scene.add(m);
+    this.particles.push({
+      mesh: m,
+      isDust: true,
+      startScale: size,
+      vx: vx * 0.3 + (Math.random() - 0.5) * 0.5,
+      vy: 0.3 + Math.random() * 0.4,
+      vz: vz * 0.3 + (Math.random() - 0.5) * 0.5,
+      vr: (Math.random() - 0.5) * 2,
+      life: 0.35,
+      maxLife: 0.35,
+    });
   }
 
   // ------------------------------------------------------------ ambient tick
@@ -1927,6 +2219,7 @@ export class VoxelWorld3D {
     if (a.steam) this._tickSteam(a.steam, dt);
     if (a.neon) this._tickNeon(a.neon, t);
     if (a.pigeons) this._tickPigeons(a.pigeons, dt, t);
+    if (a.atmosphere) this._tickAtmosphere(a.atmosphere, dt, t);
   }
 
   _tickGulls(g, t) {
@@ -2148,6 +2441,30 @@ export class VoxelWorld3D {
     mesh.instanceMatrix.needsUpdate = true;
   }
 
+  _tickAtmosphere(atm, dt, t) {
+    const { motes, mesh } = atm;
+    const out = this._aOut, v = this._av, sc = this._as;
+    for (let i = 0; i < motes.length; i++) {
+      const m = motes[i];
+      const b = m.bounds;
+      const w = b.maxX - b.minX;
+      const d = b.maxZ - b.minZ;
+      let px = m.x + t * m.driftX;
+      let pz = m.z + t * m.driftZ;
+      if (px > b.maxX) px = b.minX + ((px - b.minX) % w);
+      else if (px < b.minX) px = b.maxX - ((b.minX - px) % w);
+      if (pz > b.maxZ) pz = b.minZ + ((pz - b.minZ) % d);
+      else if (pz < b.minZ) pz = b.maxZ - ((b.minZ - pz) % d);
+
+      const py = m.y + Math.sin(t * m.bobSpeed + m.ph) * m.bobAmp;
+      v.set(px, py, pz);
+      sc.setScalar(m.size * (0.85 + 0.15 * Math.sin(t * 1.5 + m.ph)));
+      out.compose(v, Q_ID, sc);
+      mesh.setMatrixAt(i, out);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+
   // ------------------------------------------------------------------- skins
   //
   // One reused state object per world — this runs 60 times a second for the
@@ -2248,12 +2565,41 @@ export class VoxelWorld3D {
     // the hole grows.
     this.headingArrow.rotation.y = h.heading || 0;
     this.headingArrow.scale.setScalar(Math.max(0.001, h.radius * INDICATOR_SCALE));
+
+    // Animate hovering and spinning on power-up items
+    for (const item of this.powerupMeshes.values()) {
+      const bob = Math.sin(this.time * 3.5 + item.pu.id * 1.5) * 0.16;
+      item.core.position.y = 0.65 + bob;
+      item.ring.position.y = 0.65 + bob;
+      item.core.rotation.y = this.time * 2.2;
+      item.core.rotation.x = this.time * 1.4;
+      item.ring.rotation.z = this.time * 1.8;
+    }
+
     for (const ev of events || []) {
       if (ev.type === 'coin') {
         const mesh = this.coinMeshes.get(ev.coin.id);
         if (mesh) { this.scene.remove(mesh); this.coinMeshes.delete(ev.coin.id); }
+        this.spawnGoldenSparkles(h.x, h.z, h.radius);
+      } else if (ev.type === 'powerup_collect') {
+        const item = this.powerupMeshes.get(ev.powerup.id);
+        if (item) {
+          this.scene.remove(item.group);
+          this.powerupMeshes.delete(ev.powerup.id);
+        }
+        const puColor = ev.powerup.spec ? ev.powerup.spec.color : 0x00d2ff;
+        this.spawnPowerUpCollectBurst(ev.powerup.x, ev.powerup.z, puColor);
+      } else if (ev.type === 'powerup_spawn') {
+        this._addPowerUpMesh(ev.powerup);
+        const puColor = ev.powerup.spec ? ev.powerup.spec.color : 0x00d2ff;
+        this.spawnPowerUpSpawnBeams(ev.powerup.x, ev.powerup.z, puColor);
+      } else if (ev.type === 'quake') {
+        this.spawnShockRing(ev.x, ev.z, ev.radius || 24, 0xff7700);
+        this.spawnBurst(ev.x, ev.z, 3.5, 0xffaa00, 16);
       } else if (ev.type === 'eat') {
         this._spawnEatParticles(h.x, h.z, h.radius);
+      } else if (ev.type === 'crash') {
+        this.spawnBlockerImpact(ev.x || h.x, ev.z || h.z, 1.4, 0, 0);
       }
     }
 
@@ -2265,6 +2611,60 @@ export class VoxelWorld3D {
     // rim toward white by it, so the combo build-up and the about-to-drop blink
     // read identically on all seventeen rather than only on the flat ring.
     this._skinFrame(dt, h, glow, events);
+
+    // Track hole speed and steering for dust puffs and combo rim sparks
+    const lastX = this._lastHoleX ?? h.x;
+    const lastZ = this._lastHoleZ ?? h.z;
+    const moveDist = Math.hypot(h.x - lastX, h.z - lastZ);
+    const speed = dt > 0 ? (moveDist / dt) : 0;
+    this._lastHoleX = h.x;
+    this._lastHoleZ = h.z;
+
+    if (!this.reducedMotion && dt > 0) {
+      this._dustTimer = (this._dustTimer || 0) + dt;
+      if (speed > 2.8 && this._dustTimer > 0.065) {
+        this._dustTimer = 0;
+        const dirX = (h.x - lastX) / (moveDist || 1);
+        const dirZ = (h.z - lastZ) / (moveDist || 1);
+        this.spawnDustPuff(
+          h.x - dirX * h.radius * 0.85,
+          h.z - dirZ * h.radius * 0.85,
+          0.32 + h.radius * 0.06,
+          -dirX * 1.5, -dirZ * 1.5
+        );
+      }
+      // Combo electric rim sparks when chain >= 10
+      if (h.chain >= 10) {
+        this._comboSparkTimer = (this._comboSparkTimer || 0) + dt;
+        const sparkInterval = h.chain >= 25 ? 0.04 : 0.09;
+        if (this._comboSparkTimer >= sparkInterval && this.particles.length < (this.perfMode ? 40 : 120)) {
+          this._comboSparkTimer = 0;
+          const a = Math.random() * Math.PI * 2;
+          const sx = h.x + Math.cos(a) * h.radius;
+          const sz = h.z + Math.sin(a) * h.radius;
+          const sparkMat = new THREE.MeshBasicMaterial({
+            color: h.chain >= 50 ? 0xff2d75 : (h.chain >= 25 ? 0xffd23f : 0x00f0ff),
+            transparent: true,
+            opacity: 0.95,
+            depthWrite: false,
+          });
+          const sm = new THREE.Mesh(boxGeo(), sparkMat);
+          sm.position.set(sx, 0.08 + Math.random() * 0.15, sz);
+          sm.scale.setScalar(0.08 + Math.random() * 0.08);
+          this.scene.add(sm);
+          this.particles.push({
+            mesh: sm,
+            isSparks: true,
+            vx: Math.cos(a) * (1.5 + Math.random() * 2.0),
+            vy: 2.5 + Math.random() * 2.5,
+            vz: Math.sin(a) * (1.5 + Math.random() * 2.0),
+            vr: (Math.random() - 0.5) * 14,
+            life: 0.25 + Math.random() * 0.2,
+            maxLife: 0.45,
+          });
+        }
+      }
+    }
 
     // Reduced Motion: pose the ambient set once at t=0 and never touch it
     // again — birds perched, ferry at its berth, signage at a steady glow.
@@ -2291,7 +2691,7 @@ export class VoxelWorld3D {
       }
     }
 
-    // shock rings: expand + fade; burst cubes: fly, bounce, fade
+    // particles: shock rings, vortex debris, sparks, dust puffs, celebration confetti
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.life -= dt;
@@ -2299,6 +2699,31 @@ export class VoxelWorld3D {
       if (p.isRing) {
         p.mesh.scale.setScalar(p.startRadius * (1 + (1 - k) * 0.8));
         p.mesh.material.opacity = k * 0.9;
+      } else if (p.isVortex) {
+        p.angle += p.angularSpeed * dt;
+        p.dist -= p.radialSpeed * dt;
+        p.mesh.position.x = h.x + Math.cos(p.angle) * Math.max(0.01, p.dist);
+        p.mesh.position.z = h.z + Math.sin(p.angle) * Math.max(0.01, p.dist);
+        p.mesh.position.y += p.vy * dt;
+        const scale = Math.max(0.01, p.size * (p.dist / p.startDist) * k);
+        p.mesh.scale.set(scale, scale, scale);
+        p.mesh.rotation.y += p.vr * dt;
+        p.mesh.material.opacity = Math.min(1, k * 1.4);
+      } else if (p.isDust) {
+        p.mesh.position.x += p.vx * dt;
+        p.mesh.position.y += p.vy * dt;
+        p.mesh.position.z += p.vz * dt;
+        const s = p.startScale * (0.6 + (1 - k) * 0.9);
+        p.mesh.scale.set(s, s * 0.6, s);
+        p.mesh.material.opacity = k * 0.35;
+      } else if (p.isSparks) {
+        p.vy -= 12 * dt;
+        p.mesh.position.x += p.vx * dt;
+        p.mesh.position.y += p.vy * dt;
+        p.mesh.position.z += p.vz * dt;
+        p.mesh.rotation.x += p.vr * dt;
+        p.mesh.rotation.y += p.vr * dt;
+        p.mesh.material.opacity = k * (0.6 + 0.4 * Math.sin(p.life * 35));
       } else {
         p.vy -= 14 * dt;
         p.mesh.position.x += p.vx * dt;
@@ -2312,9 +2737,9 @@ export class VoxelWorld3D {
         }
         p.mesh.material.opacity = k;
       }
-      if (p.life <= 0) {
+      if (p.life <= 0 || (p.isVortex && p.dist <= 0.05)) {
         this.scene.remove(p.mesh);
-        p.mesh.material.dispose();
+        if (p.mesh.material) p.mesh.material.dispose();
         this.particles.splice(i, 1);
       }
     }
@@ -2329,37 +2754,43 @@ export class VoxelWorld3D {
   }
 
   _spawnEatParticles(hx, hz, hradius) {
-    if (this.particles.length > 60) return;
-    const count = 2 + Math.floor(Math.random() * 3);
+    const maxP = this.perfMode ? 40 : 140;
+    if (this.particles.length > maxP) return;
+    const count = this.perfMode ? 3 : (3 + Math.floor(Math.random() * 4));
     const particleGeo = boxGeo();
     const c = new THREE.Color();
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const r = hradius * (0.85 + Math.random() * 0.2);
-      const px = hx + Math.cos(angle) * r;
-      const pz = hz + Math.sin(angle) * r;
-      const py = 0.08 + Math.random() * 0.2;
+      const startDist = hradius * (1.05 + Math.random() * 0.35);
+      const px = hx + Math.cos(angle) * startDist;
+      const pz = hz + Math.sin(angle) * startDist;
+      const py = 0.12 + Math.random() * 0.25;
 
       const mat = new THREE.MeshBasicMaterial({
-        color: c.setHSL(0.08 + Math.random() * 0.05, 0.9, 0.5 + Math.random() * 0.2),
+        color: c.setHSL(0.08 + Math.random() * 0.08, 0.85, 0.45 + Math.random() * 0.25),
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.95,
         depthWrite: false,
       });
       const mesh = new THREE.Mesh(particleGeo, mat);
       mesh.position.set(px, py, pz);
-      const s = 0.12 + Math.random() * 0.15;
+      const s = 0.12 + Math.random() * 0.14;
       mesh.scale.set(s, s, s);
       mesh.renderOrder = 9000;
       this.scene.add(mesh);
       this.particles.push({
         mesh,
-        vx: -Math.cos(angle) * (1.2 + Math.random() * 1.5),
-        vy: 1.0 + Math.random() * 1.5,
-        vz: -Math.sin(angle) * (1.2 + Math.random() * 1.5),
-        vr: (Math.random() - 0.5) * 8,
-        life: 0.3 + Math.random() * 0.2,
-        maxLife: 0.5,
+        isVortex: true,
+        angle,
+        dist: startDist,
+        startDist,
+        radialSpeed: (hradius * 2.2 + 2.0) * (0.8 + Math.random() * 0.5),
+        angularSpeed: (4.0 + Math.random() * 6.0) * (Math.random() < 0.5 ? 1 : -1),
+        vy: -0.8 - Math.random() * 0.8,
+        vr: (Math.random() - 0.5) * 12,
+        size: s,
+        life: 0.35 + Math.random() * 0.2,
+        maxLife: 0.55,
       });
     }
   }
@@ -2667,6 +3098,8 @@ export class VoxelWorld3D {
     if (this.decorMesh) { this.scene.remove(this.decorMesh); this.decorMesh = null; }
     for (const mesh of this.coinMeshes.values()) this.scene.remove(mesh);
     this.coinMeshes.clear();
+    for (const item of this.powerupMeshes.values()) this.scene.remove(item.group);
+    this.powerupMeshes.clear();
     // The skin owns geometry AND materials (one pair per part) and its world
     // group is parented to the scene, not to the hole, so it needs removing
     // from both places — _ownedMats never saw either.

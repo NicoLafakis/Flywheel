@@ -4,6 +4,10 @@
 import { TIERS, isEdible, playerRadiusForMass, playerSpeedForRadius, GOLDEN_MULTIPLIER } from './tiers.js';
 import { generateCity } from './citygen.js';
 import { RNG } from './rng.js';
+import {
+  POWERUP_TYPES, createPowerUp, pickRandomPowerUpType, activatePowerUp,
+  stepActivePowerUps, hasActivePowerUp,
+} from './powerups.js';
 
 export const COMBO_WINDOW = 1.5;
 export const COMBO_MAX_MULT = 3;
@@ -27,20 +31,24 @@ function holeRadius(h) { return playerRadiusForMass(h.mass); }
 const MAX_SWALLOW = 2;
 const BOUNCE_SPEED = 4;
 
-function swallowDuration(obj, hole) {
-  return 0.22 + Math.min(1, obj.radius / hole.radius) * 0.4;
+function swallowDuration(obj, hole, fastSwallow = false) {
+  const base = 0.22 + Math.min(1, obj.radius / hole.radius) * 0.4;
+  return fastSwallow ? base * 0.5 : base;
 }
 
-function inMouth(hole, obj) {
+function inMouth(hole, obj, titanActive = false) {
   const dx = obj.x - hole.x, dz = obj.z - hole.z;
-  const reach = hole.radius + obj.radius * 0.5;
+  const rad = titanActive ? hole.radius * 1.5 : hole.radius;
+  const reach = rad + obj.radius * 0.5;
   return dx * dx + dz * dz <= reach * reach;
 }
 
 function contactAndProcess(hole, obj, sim) {
   if (obj.eaten || obj.shielded || obj.committed) return;
-  if (!inMouth(hole, obj)) return;
-  if (!isEdible(hole.radius, obj.tier)) {
+  const titan = hole.isPlayer && hasActivePowerUp(sim.activePowerUps, POWERUP_TYPES.TITAN);
+  if (!inMouth(hole, obj, titan)) return;
+  const edible = isEdible(titan ? hole.radius * 1.5 : hole.radius, titan ? Math.max(1, obj.tier - 2) : obj.tier);
+  if (!edible) {
     // Doesn't fit the opening: movable props bounce off the rim.
     if (obj.tier <= 4 && sim.time >= (obj.bounceCd || 0)) {
       const dx = obj.x - hole.x, dz = obj.z - hole.z;
@@ -57,7 +65,8 @@ function contactAndProcess(hole, obj, sim) {
   const dx = obj.x - hole.x, dz = obj.z - hole.z;
   const dist = Math.hypot(dx, dz);
   const holeSpeed = Math.hypot(hole.vx || 0, hole.vz || 0);
-  if (hole.isPlayer && dist > hole.radius * 0.85 && holeSpeed > 10.0 && obj.tier <= 4 && sim.time >= (obj.bounceCd || 0)) {
+  const currentRad = titan ? hole.radius * 1.5 : hole.radius;
+  if (hole.isPlayer && dist > currentRad * 0.85 && holeSpeed > 10.0 && obj.tier <= 4 && sim.time >= (obj.bounceCd || 0)) {
     const len = dist || 1;
     obj.vx = (dx / len) * (BOUNCE_SPEED * 1.5) + (hole.vx || 0) * 0.4;
     obj.vz = (dz / len) * (BOUNCE_SPEED * 1.5) + (hole.vz || 0) * 0.4;
@@ -67,10 +76,12 @@ function contactAndProcess(hole, obj, sim) {
     return;
   }
 
-  if (hole.swallowing.length >= MAX_SWALLOW) return; // plugged — waits at the rim
+  const chrono = hole.isPlayer && hasActivePowerUp(sim.activePowerUps, POWERUP_TYPES.CHRONO);
+  const maxSwallow = chrono ? 4 : MAX_SWALLOW;
+  if (hole.swallowing.length >= maxSwallow) return; // plugged — waits at the rim
   obj.committed = true;
   obj.enterT = 0;
-  obj.enterDur = swallowDuration(obj, hole);
+  obj.enterDur = swallowDuration(obj, hole, chrono);
   hole.swallowing.push(obj);
   sim.events.push({ type: 'enter', obj, hole, dur: obj.enterDur });
 }
@@ -80,7 +91,8 @@ function completeEat(hole, obj, sim) {
   hole.chainTimer = COMBO_WINDOW;
   hole.chain += 1;
   hole.bestCombo = Math.max(hole.bestCombo, hole.chain);
-  const gained = obj.mass * (obj.golden ? GOLDEN_MULTIPLIER : 1) * comboMultiplier(hole.chain);
+  const frenzyMult = (hole.isPlayer && hasActivePowerUp(sim.activePowerUps, POWERUP_TYPES.FRENZY)) ? 2.0 : 1.0;
+  const gained = obj.mass * (obj.golden ? GOLDEN_MULTIPLIER : 1) * comboMultiplier(hole.chain) * frenzyMult;
   hole.mass += gained;
   hole.radius = holeRadius(hole);
   hole.eatenCount += 1;
@@ -114,6 +126,35 @@ export class Sim {
     this.over = false;
     this.won = false;
     this.events = [];   // drained by the renderer each frame
+
+    // Power-ups
+    this.powerups = this._placePowerups();
+    this.activePowerUps = [];
+    this.nextScorePowerUpThreshold = 100000;
+    this.nextMultPowerUpThreshold = 500;
+    this._nextPowerUpId = this.powerups.length + 1;
+  }
+
+  _placePowerups() {
+    const b = this.city.bounds;
+    const out = [];
+    const count = 5;
+    const padding = 8;
+    const types = [
+      POWERUP_TYPES.VORTEX,
+      POWERUP_TYPES.SPEED,
+      POWERUP_TYPES.TITAN,
+      POWERUP_TYPES.QUAKE,
+      POWERUP_TYPES.FRENZY,
+      POWERUP_TYPES.CHRONO,
+    ];
+    for (let i = 0; i < count; i++) {
+      const type = types[i % types.length];
+      const x = this.rng.float(b.xmin + padding, b.xmax - padding);
+      const z = this.rng.float(b.zmin + padding, b.zmax - padding);
+      out.push(createPowerUp(i + 1, type, x, z, 'map'));
+    }
+    return out;
   }
 
   boundsNow() { return this.city.bounds; }
@@ -139,11 +180,43 @@ export class Sim {
     this.events.push({ type: 'tide', bounds: { ...b } });
   }
 
+  _triggerQuake(hole) {
+    const range = 24.0;
+    this.city.hash.query(hole.x, hole.z, range, (o) => {
+      if (o.eaten || o.committed) return;
+      const dx = o.x - hole.x, dz = o.z - hole.z;
+      const d = Math.hypot(dx, dz) || 1;
+      if (d <= range) {
+        if (o.shielded && o.tier <= 5) o.shielded = false;
+        o.vx = (dx / d) * (BOUNCE_SPEED * 2.0);
+        o.vz = (dz / d) * (BOUNCE_SPEED * 2.0);
+        o.moving = true;
+        o.bounceCd = this.time + 0.4;
+      }
+    });
+    this.events.push({ type: 'quake', x: hole.x, z: hole.z, radius: range });
+  }
+
+  _spawnBonusPowerUp(reason, p) {
+    const angle = this.rng.float(0, Math.PI * 2);
+    const dist = this.rng.float(6, 14);
+    const b = this.city.bounds;
+    const x = Math.min(b.xmax - 4, Math.max(b.xmin + 4, p.x + Math.cos(angle) * dist));
+    const z = Math.min(b.zmax - 4, Math.max(b.zmin + 4, p.z + Math.sin(angle) * dist));
+    const type = pickRandomPowerUpType(this.rng);
+    const pu = createPowerUp(this._nextPowerUpId++, type, x, z, reason);
+    this.powerups.push(pu);
+    return pu;
+  }
+
   // move: {x, z} normalized intent in world space for the player.
   step(dt, move) {
     if (this.over) return;
     this.time += dt;
     this.timeLeft = Math.max(0, this.level.clock - this.time);
+
+    // --- active powerups tick ---
+    stepActivePowerUps(this.activePowerUps, dt);
 
     // --- tides ---
     const tides = this.city.tides;
@@ -161,7 +234,8 @@ export class Sim {
 
     // --- player movement ---
     const p = this.player;
-    const pspeed = playerSpeedForRadius(p.radius) * (1 + this.growthBonus * 0) ;
+    const speedMultiplier = hasActivePowerUp(this.activePowerUps, POWERUP_TYPES.SPEED) ? 1.7 : 1.0;
+    const pspeed = playerSpeedForRadius(p.radius) * (1 + this.growthBonus * 0) * speedMultiplier;
     p.vx = 0; p.vz = 0;
     if (move && (move.x || move.z)) {
       const len = Math.hypot(move.x, move.z) || 1;
@@ -169,6 +243,49 @@ export class Sim {
       p.vz = (move.z / len) * pspeed;
       p.x += p.vx * dt;
       p.z += p.vz * dt;
+    }
+
+    // --- vortex vacuum pull ---
+    if (hasActivePowerUp(this.activePowerUps, POWERUP_TYPES.VORTEX)) {
+      this.city.hash.query(p.x, p.z, 18, (o) => {
+        if (o.eaten || o.committed) return;
+        const dx = p.x - o.x, dz = p.z - o.z;
+        const d = Math.hypot(dx, dz);
+        if (d > 0.5 && d < 18) {
+          const force = (1 - d / 18) * 16 * dt;
+          o.x += (dx / d) * force;
+          o.z += (dz / d) * force;
+          o.moving = true;
+          this.city.hash.update(o);
+        }
+      });
+    }
+
+    // --- power-up collection ---
+    const puReach = p.radius + 1.2;
+    for (const pu of this.powerups) {
+      if (pu.collected) continue;
+      const dx = pu.x - p.x, dz = pu.z - p.z;
+      if (dx * dx + dz * dz <= puReach * puReach) {
+        pu.collected = true;
+        activatePowerUp(this.activePowerUps, pu, p, this);
+        if (pu.type === POWERUP_TYPES.QUAKE) {
+          this._triggerQuake(p);
+        }
+        this.events.push({ type: 'powerup_collect', powerup: pu, hole: p });
+      }
+    }
+
+    // --- dynamic reward milestones: 100k points & 500 mult ---
+    if (p.mass >= this.nextScorePowerUpThreshold) {
+      const pu = this._spawnBonusPowerUp('score_100k', p);
+      this.nextScorePowerUpThreshold += 100000;
+      this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'score_100k', hole: p });
+    }
+    if (p.chain >= this.nextMultPowerUpThreshold) {
+      const pu = this._spawnBonusPowerUp('mult_500', p);
+      this.nextMultPowerUpThreshold += 500;
+      this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'mult_500', hole: p });
     }
 
     // --- rivals: greedy nearest-edible policy, deterministic ---
@@ -220,7 +337,9 @@ export class Sim {
 
     // --- combo decay ---
     for (const h of [p, ...this.rivals]) {
-      if (h.chainTimer > 0) {
+      if (h.isPlayer && hasActivePowerUp(this.activePowerUps, POWERUP_TYPES.FRENZY)) {
+        if (h.chain > 0) h.chainTimer = COMBO_WINDOW;
+      } else if (h.chainTimer > 0) {
         h.chainTimer -= dt;
         if (h.chainTimer <= 0) h.chain = 0;
       }
@@ -228,7 +347,9 @@ export class Sim {
 
     // --- eating: fit checks, bounces, swallow queues ---
     const eatAround = (hole) => {
-      this.city.hash.query(hole.x, hole.z, hole.radius + 3, (o) => {
+      const titan = hole.isPlayer && hasActivePowerUp(this.activePowerUps, POWERUP_TYPES.TITAN);
+      const searchR = (titan ? hole.radius * 1.5 : hole.radius) + 3;
+      this.city.hash.query(hole.x, hole.z, searchR, (o) => {
         contactAndProcess(hole, o, this);
       });
     };

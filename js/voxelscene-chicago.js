@@ -1211,6 +1211,18 @@ export function buildChicago(sim) {
   sim.boundsRect = CHICAGO_BOUNDS;
   sim.coinAnchors = CHICAGO_COIN_ANCHORS;
   sim.sceneDecor = CHICAGO_DECOR;
+  // Surface registry rollout — render-side only; the sim never reads it, so
+  // the ranked replay is untouched. The same full-coverage map every scene
+  // carries (js/voxelsurfaces.js); rubber/leaf stay unmapped on Boston's
+  // documented judgement.
+  sim.sceneSurfaces = {
+    brick: 'mat_brick_red',
+    glass: 'mat_glass_curtain',
+    concrete: 'mat_concrete_precast',
+    steel: 'mat_metal_seam',
+    panel: 'mat_metal_seam',
+    wood: 'mat_timber_dock',
+  };
   sim.sceneAmbient = CHICAGO_AMBIENT;
   sim.sceneMovers = CHICAGO_MOVERS;
   sim.cameraBlockers = generateBlockers(sim);

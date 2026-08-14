@@ -30,13 +30,45 @@ export function savePlayerSecret(secret) {
   try { localStorage.setItem(PLAYER_KEY, JSON.stringify(secret)); } catch { /* claim still renders from save */ }
 }
 
-export async function claimName(save, name, runId) {
+export async function registerPlayer(save, name, password, runId = null) {
+  const result = await post('/auth/register', { name, password, run_id: runId, device_key: deviceKey() });
+  savePlayerSecret({ player_id: result.player_id, token: result.token });
+  const player = ensurePlayer(save);
+  player.id = result.player_id;
+  player.name = result.name;
+  player.claimedAt = new Date().toISOString();
+  storeSave(save);
+  return result;
+}
+
+export async function loginPlayer(save, name, password) {
+  const result = await post('/auth/login', { name, password, device_key: deviceKey() });
+  savePlayerSecret({ player_id: result.player_id, token: result.token });
+  const player = ensurePlayer(save);
+  player.id = result.player_id;
+  player.name = result.name;
+  player.claimedAt = new Date().toISOString();
+  storeSave(save);
+  return result;
+}
+
+export async function claimName(save, name, runId = null) {
   const result = await post('/name/claim', { name, run_id: runId, device_key: deviceKey() });
   savePlayerSecret({ player_id: result.player_id, token: result.token });
   const player = ensurePlayer(save);
   player.id = result.player_id;
   player.name = result.name;
   player.claimedAt = new Date().toISOString();
+  storeSave(save);
+  return result;
+}
+
+export async function renamePlayer(save, name) {
+  const secret = playerSecret();
+  if (!secret) throw new Error('This browser does not hold the name token.');
+  const result = await post('/name/rename', { ...secret, name, device_key: deviceKey() });
+  const player = ensurePlayer(save);
+  player.name = result.name;
   storeSave(save);
   return result;
 }

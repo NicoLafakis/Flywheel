@@ -39,6 +39,10 @@ import {
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from './fwmath.js';
 import { playerSpeedForRadius } from './tiers.js';
 import { sedan, bus, boxVan, bigTruck, motorcycle, tree, lampPost } from './voxelkit.js';
+import {
+  POWERUP_TYPES, createPowerUp, pickRandomPowerUpType, activatePowerUp,
+  stepActivePowerUps, hasActivePowerUp,
+} from './powerups.js';
 
 // --- authored scenes, loaded on demand ---------------------------------------
 // The six cities are 1.19 MB of raw source between them (Cambridge alone is
@@ -615,6 +619,11 @@ export class VoxelSandboxSim {
     this.goal = SCENE_GOALS[scene] || SCENE_GOALS.gallery;
     this.coins = this._placeCoins();
     this.coinsCollected = 0;
+    this.powerupRng = new RNG((seed || 'sandbox') + ':powerups');
+    this.powerups = this._placePowerups();
+    this.nextScorePowerUpThreshold = 100000;
+    this.nextMultPowerUpThreshold = 500;
+    this._nextPowerUpId = this.powerups.length + 1;
     this._assertCellKeyRange(scene);
     this._buildNeighbors();
     this._buildZones();
@@ -693,6 +702,7 @@ export class VoxelSandboxSim {
       chain: 0, chainTimer: 0, bestCombo: 0, eatenCount: 0, isPlayer: index === 0,
       size: 1, sizeFrac: 0, // SIZE level (1..12) + progress to the next level
       index,
+      activePowerUps: [],
       _cov: new Set(), _covSpare: new Set(),
     };
   }
@@ -721,15 +731,17 @@ export class VoxelSandboxSim {
     for (let i = 0; i < H.length; i++) {
       const h = H[i], p = hp[i];
       p.h = h;
-      p.remR = h.radius * REMOVAL_FRAC;
+      const titan = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.TITAN);
+      const effectiveRadius = titan ? h.radius * 1.5 : h.radius;
+      p.remR = effectiveRadius * REMOVAL_FRAC;
       p.remR2 = p.remR * p.remR;
-      p.attractR = h.radius + ATTRACT_ZONE;
+      p.attractR = effectiveRadius + ATTRACT_ZONE;
       p.attractR2 = p.attractR * p.attractR;
-      const rimR = h.radius + INSTAB_ZONE + 0.5;
+      const rimR = effectiveRadius + INSTAB_ZONE + 0.5;
       p.rimR2 = rimR * rimR;
-      p.instabR = h.radius + INSTAB_ZONE + 0.6;
+      p.instabR = effectiveRadius + INSTAB_ZONE + 0.6;
       p.instabR2 = p.instabR * p.instabR;
-      p.hangScale = h.radius / MAX_RADIUS;
+      p.hangScale = effectiveRadius / MAX_RADIUS;
       p._dx = 0; p._dz = 0; p._d2 = 0;
     }
     return hp;
@@ -810,6 +822,85 @@ export class VoxelSandboxSim {
       // flash in the renderer with no combo on screen.
       if (h.chain > 0) h.chainTimer = COMBO_WINDOW;
       this.events.push({ type: 'coin', coin, value: SANDBOX_COIN_VALUE, hole: h });
+    }
+  }
+
+  _placePowerups() {
+    const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
+    const out = [];
+    const count = 6;
+    const types = [
+      POWERUP_TYPES.VORTEX,
+      POWERUP_TYPES.SPEED,
+      POWERUP_TYPES.TITAN,
+      POWERUP_TYPES.QUAKE,
+      POWERUP_TYPES.FRENZY,
+      POWERUP_TYPES.CHRONO,
+    ];
+    for (let i = 0; i < count; i++) {
+      const type = types[i % types.length];
+      out.push(createPowerUp(
+        i + 1,
+        type,
+        r.minX + (r.maxX - r.minX) * (0.12 + this.powerupRng.next() * 0.76),
+        r.minZ + (r.maxZ - r.minZ) * (0.12 + this.powerupRng.next() * 0.76),
+        'map'
+      ));
+    }
+    return out;
+  }
+
+  _collectPowerups() {
+    for (let hi = 0; hi < this.holes.length; hi++) {
+      const h = this.holes[hi];
+      this._collectPowerupsFor(h);
+    }
+  }
+
+  _triggerVoxelQuake(hole) {
+    const range = 10.0;
+    const range2 = range * range;
+    let count = 0;
+    for (let i = 0; i < this.blocks.length; i++) {
+      const b = this.blocks[i];
+      if (b.state !== 'static' && b.state !== 'unstable') continue;
+      const dx = b.x - hole.x, dz = b.z - hole.z;
+      if (dx * dx + dz * dz <= range2) {
+        b.state = 'unstable';
+        b.damage = 1.0;
+        b.failRate = 0;
+        this._watchDamage(b);
+        this._dirtyComps.add(this._compOf[b.bi]);
+        count++;
+        if (count >= 40) break;
+      }
+    }
+    if (count > 0) this._graphDirty = true;
+    this.events.push({ type: 'quake', x: hole.x, z: hole.z, radius: range, hole });
+  }
+
+  _spawnBonusPowerUp(reason, h) {
+    const angle = this.powerupRng.next() * 6.283185307179586;
+    const dist = 8 + this.powerupRng.next() * 10;
+    const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
+    const x = Math.min(r.maxX - 4, Math.max(r.minX + 4, h.x + fwCos(angle) * dist));
+    const z = Math.min(r.maxZ - 4, Math.max(r.minZ + 4, h.z + fwSin(angle) * dist));
+    const type = pickRandomPowerUpType(this.powerupRng);
+    const pu = createPowerUp(this._nextPowerUpId++, type, x, z, reason);
+    this.powerups.push(pu);
+    return pu;
+  }
+
+  _collectPowerupsFor(h) {
+    const reach = h.radius + 1.2;
+    for (const pu of this.powerups) {
+      if (pu.collected || fwHypot2(pu.x - h.x, pu.z - h.z) > reach) continue;
+      pu.collected = true;
+      activatePowerUp(h.activePowerUps, pu, h, this);
+      if (pu.type === POWERUP_TYPES.QUAKE) {
+        this._triggerVoxelQuake(h);
+      }
+      this.events.push({ type: 'powerup_collect', powerup: pu, hole: h });
     }
   }
 
@@ -1289,6 +1380,18 @@ export class VoxelSandboxSim {
       this._box(-4, 4.5, 23.5, 6, 2, 2, 'panel', 0.5, 0xf7c948);
       this._box(-1, 4.5, 23.5, 6, 2, 2, 'panel', 0.5, 0xf7c948); // parked train cars
     }
+    // Surface registry rollout — render-side only (the sim never reads this;
+    // VoxelWorld3D does, and on WebGL2 draws it all in one array-backed call).
+    // The same full-coverage map every scene carries; rubber/leaf stay unmapped
+    // on Boston's documented judgement (tyres and canopies read worse tiled).
+    this.sceneSurfaces = {
+      brick: 'mat_brick_red',
+      glass: 'mat_glass_curtain',
+      concrete: 'mat_concrete_precast',
+      steel: 'mat_metal_seam',
+      panel: 'mat_metal_seam',
+      wood: 'mat_timber_dock',
+    };
   }
 
   // Neighbors are found by scanning each face's fine cells, so mixed-size
@@ -3298,7 +3401,8 @@ export class VoxelSandboxSim {
     h.chain += 1;
     h.chainTimer = COMBO_WINDOW;
     h.bestCombo = Math.max(h.bestCombo, h.chain);
-    const gained = raw * comboMult(h.chain);
+    const frenzyMult = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.FRENZY) ? 2.0 : 1.0;
+    const gained = raw * comboMult(h.chain) * frenzyMult;
     h.mass += gained;      // the SCORE: combo-multiplied, and displayed as such
     h.rawMass += raw;      // un-multiplied: the goal bar, the milestones and the SIZE ladder
     h.eatenCount += 1;
@@ -3366,7 +3470,11 @@ export class VoxelSandboxSim {
       const h = holes[hi];
       const m = moves ? moves[hi] : (hi === 0 ? move : null);
 
-      if (h.chainTimer > 0) {
+      stepActivePowerUps(h.activePowerUps, dt);
+
+      if (hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.FRENZY)) {
+        if (h.chain > 0) h.chainTimer = COMBO_WINDOW;
+      } else if (h.chainTimer > 0) {
         h.chainTimer -= dt;
         if (h.chainTimer <= 0) h.chain = 0;
       }
@@ -3375,7 +3483,8 @@ export class VoxelSandboxSim {
       // grows: bigger holes cover the district faster instead of feeling
       // sluggish at the end of the ladder.
       const sizeT = sandboxSizeProgress(h.size, h.sizeFrac);
-      const speed = playerSpeedForRadius(h.radius) * this.tune.speed * (1 + SANDBOX_SPEED_RAMP * sizeT);
+      const speedBoost = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.SPEED) ? 1.7 : 1.0;
+      const speed = playerSpeedForRadius(h.radius) * this.tune.speed * (1 + SANDBOX_SPEED_RAMP * sizeT) * speedBoost;
       if (m && (m.x || m.z)) {
         const len = fwHypot2(m.x, m.z) || 1;
         h.x += (m.x / len) * speed * dt;
@@ -3386,8 +3495,40 @@ export class VoxelSandboxSim {
         h.x = Math.min(r ? r.maxX : this.bounds, Math.max(r ? r.minX : -this.bounds, h.x));
         h.z = Math.min(r ? r.maxZ : this.bounds, Math.max(r ? r.minZ : -this.bounds, h.z));
       }
+
+      // Dynamic reward milestones: 100k points & 500 mult
+      if (h.mass >= this.nextScorePowerUpThreshold) {
+        const pu = this._spawnBonusPowerUp('score_100k', h);
+        this.nextScorePowerUpThreshold += 100000;
+        this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'score_100k', hole: h });
+      }
+      if (h.chain >= this.nextMultPowerUpThreshold) {
+        const pu = this._spawnBonusPowerUp('mult_500', h);
+        this.nextMultPowerUpThreshold += 500;
+        this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'mult_500', hole: h });
+      }
     }
     this._collectCoins();
+    this._collectPowerups();
+
+    // Vortex vacuum pull on active loose movers
+    for (let hi = 0; hi < holes.length; hi++) {
+      const h = holes[hi];
+      if (hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.VORTEX)) {
+        const vr = 22.0, vr2 = vr * vr;
+        for (const b of this._falling) {
+          if (!b || b.consumed) continue;
+          const dx = h.x - b.x, dz = h.z - b.z;
+          const d2 = dx * dx + dz * dz;
+          if (d2 > 0.25 && d2 < vr2) {
+            const d = fwHypot2(dx, dz);
+            const pull = (1 - d / vr) * 35.0 * dt;
+            b.vx += (dx / (d || 1)) * pull;
+            b.vz += (dz / (d || 1)) * pull;
+          }
+        }
+      }
+    }
 
     // 0. camera blockers whose height band emptied since the last step. Done
     // before the graph work so the camera never renders a frame against a

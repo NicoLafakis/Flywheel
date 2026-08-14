@@ -30,7 +30,9 @@ async function read(path, key) {
   }
 }
 
-export function cityBoard(sceneId) {
-  return read(`v_city_board?scene_id=eq.${encodeURIComponent(sceneId)}&order=rank.asc&limit=25`, `city:${sceneId}`);
+export function cityBoard(sceneId, seasonId = null) {
+  const seasonParam = typeof seasonId === 'number' ? `&season_id=eq.${encodeURIComponent(seasonId)}` : '';
+  const cacheKey = typeof seasonId === 'number' ? `city:${sceneId}:s${seasonId}` : `city:${sceneId}`;
+  return read(`v_city_board?scene_id=eq.${encodeURIComponent(sceneId)}${seasonParam}&order=rank.asc&limit=25`, cacheKey);
 }
 export function overallBoard() { return read('v_overall?order=rank.asc&limit=25', 'overall'); }

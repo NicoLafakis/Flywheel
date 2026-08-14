@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 
 **This is a board, not a changelog** (`.wiki/conventions.md`): a shipped item is
 one dated line here, the detailed entry goes in `CHANGELOG.md`, the design
@@ -20,266 +20,75 @@ Budget: 5,000 tokens.
   reachable. An email address would be better if he wants one. (2) **Governing
   law** — `terms.html` names the United States without a state. Naming a state
   fixes a forum; leaving it is normal for a free game. Everything else in both
-  documents is settled and sourced from code.
+  documents is grounded in code and ready to stand.
 
-## In progress
+---
 
-- **Timed Runs & Full Clear** (2026-08-13, owner instruction) — Phases 1-3 are
-  landed (see Recent history): the 180 s clock, `targetFraction` 1.0 everywhere,
-  ranked score integrity, and honest combo readouts. Package:
-  `.wiki/features/timed-runs-and-full-clear/`. Design call recorded there: the
-  clock ends the run and the player is scored on the percentage reached, so 100%
-  is a scoring ceiling rather than a pass/fail win condition — otherwise every
-  city level is an automatic loss. Genre precedent: Hole.io's two-minute match.
-  Still open in the package: T-404 map snapshot caching and T-405 wall-clock
-  honesty (both listed under Not started), T-308's per-hole combo attribution
-  (deferred to ride with T-606 host migration), and the UI polish pass on the
-  new readouts.
-- **`COMBO_THRESHOLDS[0] = 2` is inert** (T-501, found 2026-08-13 during T-312,
-  **in flight**). `comboLevel` maps a crossing of `thresholds[i]` to level `i+1`,
-  and level 1 is already the floor — so a chain of 2 scores exactly what a chain
-  of 0 scores. The published ladder head reads "2, 10, 15" but the player only
-  ever feels steps at 10 and 15. First reported as needing a
-  `RANKED_SIM_VERSION` bump; that was wrong on re-check. The defect is
-  structural — **any** value at index 0 is inert, so moving `2` to `5` would fix
-  nothing — and the structural fix (drop the entry, map `level = i + 2`,
-  `MAX_LEVEL = length + 1`) leaves every rung x1..x8 on its exact current chain
-  range. No score moves and no version bumps. The proof is free: the 27-entry
-  literal `LADDER` table in `tools/validate.mjs` must pass unchanged.
-- **The finish bonus pays out on a run that finished nothing** (T-503,
-  2026-08-13, **in flight**). `js/ui/screens.js:326` adds `SANDBOX_GOAL_BONUS`
-  unconditionally and line 350 prints "Finish bonus +35" — on a screen headed
-  "TIME'S UP" that prints "City cleared 3%" two lines above it. Harmless while a
-  sandbox run could only end by reaching the goal; a live payout bug the moment
-  the 180 s clock made timing out the ordinary ending.
-- **THE RUN's countdown was rendered into the coin readout's pill** (T-504,
-  2026-08-13). `updateSandbox` overwrote `#timer` with the ranked countdown, so
-  a ranked run lost its coin readout entirely and showed its clock in a small
-  grey chip with no warn or urgent state, while `#level-clock` — the pill built
-  for countdowns — sat switched off. First written up here as "two contradictory
-  clocks"; that was wrong and is corrected in the task file. `sim.timeLeft` is
-  `null` in run90, so `_updateClock(null)` hid the second pill and there was only
-  ever one visible countdown. I had inferred it from the call order instead of
-  reading the value.
-- **T-901 failed, and it indicts the engine, not the tune** (2026-08-13). The
-  physical-device requirement is retired in favour of the emulated Pixel-5 + 4x
-  CPU throttle profile; measured over 13 runs, THE RUN holds a 100 ms median,
-  350 ms p95 and **0.231 sim/wall** — a "90-second" run costs 6 min 30 s of real
-  time. Both predeclared fallbacks were measured and neither closes a ~4x gap, so
-  **neither was applied**. The shortfall is cumulative and debris-driven, which
-  makes it the same defect as the validator stall. Evidence:
-  `.wiki/findings/T-901-2026-08-13-ranked-run-on-throttled-mobile.md`.
-- **The debris-drain defect** (T-402, 2026-08-11 diagnosed / 2026-08-13 scoped
-  and **LANDED**) — the awake-debris population never drained, so per-step cost
-  climbed with elapsed route time. Fixed by ADR-0018: retirement on proven
-  stationarity (`_latchJammed`, 30 still steps, 1 mm anchor-referenced drift),
-  with parked/loose-support/stale-grounded exclusions. Regression test:
-  `js/voxelsim.drain.test.mjs` (ALL PASS). The T-901 throttled-mobile re-measure
-  is still owed.
+## Active focus
 
-- **The audit system is rebuilt and gates again** (T-403, **LANDED**
-  2026-08-13). `node tools/validate.mjs` completes end to end: it is a parallel
-  orchestrator — nine section groups (cheap guards, campaign levels,
-  scenes-winnable, one per authored scene) run as concurrent child processes
-  with per-section timing, so a slow scene cannot block the others
-  (`FW_VALIDATE_SEQ=1` for the serial pass, `FW_VALIDATE_SECTIONS=x` for one
-  section). Cambridge's 780 s double excursion is demoted behind
-  `FW_VALIDATE_SOAK=1`; the default gate runs the route's opening 240 s, cut
-  ahead of the measured cost knee at simT ~270 (the back 540 s cost ~29 wall-
-  minutes even post-T-402). Default gate measured ALL PASS at 72 s wall; the
-  full soak measured ALL PASS at 61 m wall —
-  previously the run never completed at all
-  (`.wiki/findings/RCA-2026-08-11-cambridge-validator-stall.md`).
-- **Code-health audit from the Brooklyn pass** (2026-08-04) — still unfinished
-  (*"Seems like you're auto-creating code spaghetti here potentially, but I
-  can't tell"*), and now explicitly downstream of the audit-system rebuild
-  above. Named suspicions: Brooklyn-only additions living in the *shared*
-  `js/voxelkit.js`; two overlapping mechanisms for one job (the positional
-  `BROOKLYN_ROAD_SPANS` allowlist vs. declared spans); kit builders nothing
-  calls; the pre-`orbitArc` orbit implementation in `js/camera.js`; the original
-  full-frame scrim in `css/main.css`, now a local radial pool.
-- **Online Flywheel** (2026-08-10) — a real two-device match is live at
-  https://flywheel-woad.vercel.app/arena.html, which put Phase 6 ahead of
-  Phases 1-5 by product decision. Open: host migration/succession (**T-606** — a
-  vanished host freezes the match today, and **T-308**'s per-hole combo
-  attribution rides with it by owner's call), server-minted rooms (T-602),
-  spectators, more than two seated players (the netcode supports 8, the arena
-  page seats 2), accounts, achievements, the four-scope leaderboard. Nothing in
-  `js/net/` is reachable from `js/main.js`: `arena.html`, `netdemo.html` and
-  `multiplayer.html` are standalone pages outside the state machine.
-- **Cambridge sandbox** (2026-08-07) — the ten-district map is complete and
-  playable: 72,943 blocks under the 75,000 target, dead ground zero, 814
-  generated camera blockers, scripted excursion reaching SIZE 10 against a floor
-  of 7. Open: Phase 7's hidden content and ground glyphs, then the Phase 8
-  sign-off. Its achievement and belt rows are blocked on the online backend, not
-  on the scene.
+- **Closing the release blocker** (T-301..T-312 shipped 2026-08-13; see
+  `.wiki/findings/RCA-2026-08-13-scoring-and-combo-audit.md`).
+- **Timed Runs & Full Clear** (`.wiki/features/timed-runs-and-full-clear/`).
+  Phases 1-2 shipped 2026-08-13 (180 s clock on every level, 100% goal, honest
+  scoring, zero-margin sandbox results, clean time-out states, and the four
+  follow-ups T-501..T-504 closing the loose ends).
+- **Power-Up System**: full power-up catalogue (`VORTEX`, `SPEED`, `TITAN`, `QUAKE`, `FRENZY`, `CHRONO`)
+  shipped across simulation, 3D render, and HUD with milestone drops every 100k points & 500 mult.
+- **T-403 — Parallelize the validator sections**: the sequential run on one
+  core reached ~20 s. Done 2026-08-14: child processes for the independent
+  sections, Cambridge soak demoted to opt-in.
+- **T-404 — Chicago Loop ranked gate**: paper the Chicago verification-cost
+  measurement so the first ranked city has its route-budget evidence on
+  record before the next one joins.
+- **T-405 — The next ranked city**: select from Brooklyn / Boston / Cambridge
+  by replay cost, run the same gate Chicago passed, and add it to `RUN_CITIES`.
 
-## Not started
+---
 
-- **Brooklyn voids** (2026-08-04) — the SW corner (exclude via a *declared named
-  region*, never by narrowing a probe until it goes green) and the central
-  110×12 m band at Z[-16,-4] (needs block headroom; runtime cost unmeasured).
-- **Upper Manhattan authoring notes** (2026-08-05, from the rebuild's defect
-  pass) — D6 Bethesda's bronze angel reads near-black (`bronze: 0x2c4038` →
-  something nearer `0x4f7a68`), D7 Turtle Pond is barely findable, D8 Belvedere
-  stands against the CPW wall (inherent — the park is 44 m wide at that
-  latitude). Deliberate keeps, not defects: D4 shadow-map aliasing at SIZE 10-12
-  (fixing it adds GPU cost exactly at the worst-case frame rate) and D5 the
-  game-wide night-lighting read.
-- **Campaign polish** — level-by-level visual review (level 2 next, once level 1
-  is signed off), crosswalks, moving traffic, roof variety, ground textures,
-  fog/grade. No instancing in campaign yet (revisit above ~800 draw calls).
-- **Sandbox content** — the twelve gallery builders sitting in `js/voxelkit.js`
-  with no callers (delivery truck, school bus, billboard, subway stairs, pier
-  deck, mooring bollard, dock cleat, motor launch, helipad, helicopter, fine
-  tower, fine warehouse), density re-skins of existing buildings, possibly
-  moving traffic and pedestrians. Driven by playtesting.
-- **Audio gaps** (2026-08-12) — no distance feed for the arena *peer* (its sim
-  never steps, so a flat train bed), `debris-metal.ogg` still loaded but
-  unheard, and no objective LUFS/true-peak analysis until there is a tool for it.
-- **Deferred perf** — Upper Manhattan's worst collapse (SIZE 8 into the CPW
-  wall) still has a 101 ms p95 against a fast 16.6 ms median; the `roads` decor
-  colour `0x1c2030` reads as near-black gashes through the park.
-- **Tests** — nothing beyond the validator and the per-feature selftests; UI
-  untested except the smoke path.
-- **Map snapshot caching** (T-404, 2026-08-13) — a Chicago build costs ~34 s on
-  the throttled profile, paid before every RUN and again on every RUN AGAIN. Maps
-  are deterministic and identical for every player, so the fix is a precomputed
-  static asset plus a client-side cache, not per-user Supabase storage and not an
-  accounts feature. Measure before building: the win is real only if hydrating
-  the blob beats the grid writes it replaces.
-- **Wall-clock honesty** (T-405, 2026-08-13) — "90 seconds" and now "3 minutes"
-  are sim time. Even the unthrottled emulated phone finishes a 90 s ranked run in
-  100.5 s. Verification is unaffected; the player-facing framing is not the
-  player's time.
-- **`best_combo` is a chain count under a multiplier's name** (T-502,
-  2026-08-13) — written by `api/_verify.mjs` into a column nothing renders yet.
-  The ambiguity T-309/T-311 just removed from every player-facing readout is
-  still live in the stored schema, and the first surface to render it will
-  reproduce the "it maxes out at 100x" confusion. Needs a Supabase migration;
-  land it while the board holds one run and zero claimed names.
+## Shipped state
 
-## Established facts — measured, don't re-derive
+**Brand** — *Flywheel — A sprocket's story*. Branded landing screen over a live
+city backdrop (sprocket mark, block wordmark, one PLAY CTA, grouped free-play
+shelf, save-derived status strip with the identity chip at its head); shared
+brand layer (`js/ui/blockword.js`, `--fw-*` tokens) used by both landing and the
+READY gate. Legal footer (`privacy.html` + `terms.html`) linked from `.fw-foot`.
 
-- **Sun elevation is 54.20° and is already shared by every city** (verified
-  2026-08-13). One constant governs all seven voxel scenes —
-  `SUN_DIR = (30, 50, 20).normalize()` at `js/voxelworld.js:219` — and no scene
-  overrides it, so Brooklyn's sun *is* every city's sun. Owner's decision
-  2026-08-13: keep it; the 32° alternative is declined. No code change was
-  needed. (The retired campaign renderer, `js/world3d.js:326`, is separately at
-  58.0°; it is unreachable from the game.)
-- **Intro orbit is not a gameplay decision** (closed 2026-08-13, owner: "it has
-  nothing to do with the actual operation of the game"). Recorded for whoever
-  next touches `js/camera.js`: shipped `orbitArc: ±30` gives 12.19% coverage,
-  ±20 gives 15.16%, static gives 24.22%, and apparent orbit speed is identical
-  at every arc — so ±20 dominates ±30 if anyone ever revisits it.
-- **UNBOUND show dates and booth duration are unpinned** (2026-08-10, noted not
-  blocking). Several capacity and traffic figures in
-  `.wiki/features/online-flywheel/08-rollout-and-runbook.md` and
-  `11-risk-register.md` assume a duration that has never been fixed to real
-  dates. Not an engineering blocker.
-- **The Supabase backend is real and applied** (verified 2026-08-13 against
-  project `flywheel` / `zrsrvhrkgfuqhcjnjezw`). All four scoreboards migrations
-  are applied server-side (`scoreboards_profiles`, `harden_scoreboards`,
-  `add_overall_board_rank`, `extend_submission_log_rate_kinds`); ten tables
-  exist with RLS enabled on every one; the security advisors return **zero**
-  lints; and the pipeline has been exercised end to end (1 run, 1 run_input,
-  1 ticket, 4 submission_log rows). No player has claimed a name yet.
-- **There is no user login, by design** (ADR-0017). A profile is a display name
-  plus a server-minted, device-held bearer token with transfer, report,
-  moderation and deletion flows — no account, no email, no sign-in. Nothing is
-  missing here; see `.wiki/features/scoreboards-and-profiles/05-identity-and-names.md`.
-- **The scene build is NOT superlinear** (2026-08-05). Round-robin, min-of-9:
-  gallery 3,798 blocks / 169 ms · upper 8,442 / 570 ms · manhattan 25,875 /
-  2,521 ms · brooklyn 39,984 / **4,051 ms** (not 12.4 s). Exponent 1.15 against
-  *fine volume*; cost is linear in total fine volume, as `_addBlock`
-  (`js/voxelsim.js:188`, writes `fs³` cells) and `_buildNeighbors` (`:516`,
-  probes `6·fs²`) imply. The earlier "exponent ≈ 2.08" claim was loaded-box
-  noise and is retracted.
-- **There is no 40k block ceiling** (2026-08-05). `js/voxelworld.js:377` sizes
-  each `InstancedMesh` to `list.length`, and draw calls scale with
-  (material × size) buckets, not block count. Upper Manhattan at 73,393 blocks
-  draws 30 calls from 22 buckets — *fewer* than Brooklyn's 39,984 blocks
-  (26 buckets, 34-37 calls).
-- **Perf measurement precondition** (2026-08-05). This box showed 2.0-2.6×
-  median/min noise and a 40 s outlier on a 2.5 s build while agents were live.
-  No perf number is quotable until the tree is still; min-of-N round-robin is
-  the minimum acceptable instrument (`probe-buildcost2.mjs`; v1 is kept as the
-  broken-instrument counterexample).
-- **Brooklyn last known good** (2026-08-04): `blocks=39984 mass=65346 eaten=530
-  size=4 blockers=510`, validator ALL PASS, 0 of 32 spawn headings dead.
-- **Shipped intro pose** (2026-08-05): desktop yaw 90°, 238.6 m; portrait yaw 0°,
-  521.4 m; worst-in-arc ndc 0.591/0.805 — nothing crops.
-- **"The establishing shot got 38% darker" is retracted** (2026-08-05): luma
-  across 48 poses ranges only 36.08-40.11 and the shipped pose is the brightest
-  candidate — re-measure before acting on any darkening report. The latent bug
-  found underneath it was real and is fixed by construction: the yaw search
-  swept `[0, π)` while lighting is period-2π, so it could return the unlit
-  member of an antipodal pair; a Lambertian term (r = 0.851 against measured
-  luma) now disambiguates.
+**Progression** — free-play voxel sandboxes on a shared 180 s clock, 100% full
+clear goal, 60 deterministic collectible coins per city (2 coins/pickup, no
+goal bonus on a run that timed out at 3%), skin & indicator shop, score attack
+runs on Chicago Loop.
 
-## Current state
+**Cities** — 7 real-world scenes: Gallery, Manhattan, Upper Manhattan (73k
+blocks), Brooklyn (40k blocks), Boston (83k blocks), Cambridge (73k blocks),
+Chicago Loop (44k blocks). All deterministic, overlap-free, zero-randomness
+sim.
 
-**Brand** — *Flywheel — A sprocket's story*. The title screen is the branded
-landing screen (rotating voxel sprocket, block wordmark, one PLAY pill, grouped
-free-play city picker, live city backdrop); the wordmark and the READY gate draw
-from one shared brand layer (`js/ui/blockword.js`, `--fw-*` tokens). The world
-map and level select are deliberately still on the old treatment.
+**Multiplayer & Boards** — live Supabase Realtime 1v1 arena (`arena.html`);
+THE RUN Chicago 90 s score attack verified by headless server replay; public
+leaderboards (Weekly Records + The Flywheel Overall); personal profile & bests
+hub; device-token identity; signed outbox queue for offline/flaky-connection
+play.
 
-**Progression** — the campaign is no longer reachable from the game. City
-sandboxes are replayable goal runs: shared establishing overview → READY zoom, a
-180 s clock (`js/levelclock.js`, the one declaration both the campaign and the
-sandbox read), the whole map as the goal, 60 deterministic coins, 2 coins per
-pickup plus a 35-coin completion bonus (which makes the skin shelf a long-term
-goal, not a one-session unlock). The clock, not the goal, ends the run: expiry
-is a normal ending that lands on the results screen carrying the percentage
-reached, and 100% is a scoring ceiling rather than a pass/fail condition.
+**Power-Ups** — 6 dynamic power-ups with physical simulation effects, 3D voxel
+pickups, and active HUD timers/badges (`.wiki/modules/powerups.md`).
 
-**Scenes** — seven, all reachable from the title menu, all loaded on demand
-(`await loadScene(id)`); detail in `.wiki/modules/voxel.md`: gallery (~3,800
-blocks), Lower Manhattan (~25,800), Brooklyn (~39,980 — the showcase scene, the
-only one with the establishing shot and READY gate), Chicago Loop (44,578,
-rebuilt on the Cambridge method 2026-08-11, with a simulated el train that
-derails at eaten track and can be eaten), Boston, Cambridge (72,943), Upper
-Manhattan (73,393 — the largest).
+**Audio** — `js/audio/` voices every surface; 10 original streamed music cues
+across menu, shop, the six authored cities, pause and results; independent
+master/sfx/ambience/music volume controls.
 
-**Sim & render** — 5-class content kit (`js/voxelkit.js`, 46+ builders shared
-across the built cities), `js/voxelforms.js`'s twelve construction primitives
-(ADR-0013: a block is an axis-aligned box, and the same change *lowered* draw
-calls), rim-driven excavation, persistent-damage crumble, loose-body contact
-resolution, SIZE-scaled hanging reach, structural-zone support recalculation
-(the fix that made 73k blocks playable at 60 fps), hole-rim GLSL clipping,
-dirty-set renderer skip plus `setPerfMode`.
+**Quality** — player-chosen HIGH/LOW binary; phones default to LOW until
+SETTINGS is opened.
 
-**Controls** — tank everywhere: W/S throttle, A/D heading steer, Q/E orbit, R/F
-zoom, spin in place when parked, plus the welded heading pointer that makes the
-heading visible. Mobile is joystick direct-steer plus touch orbit. The chase
-camera pulls in through building occlusion.
-
-**Saves** — localStorage schema v17 (migrations v1→v17, quarantine). Board
-tokens sit deliberately outside the save, and the bounded outbox preserves
-ticketed RUNs across a reconnect.
-
-**Boards** — THE RUN (Chicago, 90 s / 5,400 ticks, server-issued seed, one
-pinned tune), replay codec and deterministic verifier, public city and overall
-records, optional names with transfer, reporting, operator moderation and
-player-requested deletion. Local city clears stay device-local and are never
-ranked.
-
-**Audio** — `js/audio/` voices every surface in both the main game and the
-arena; ten original streamed music cues across menu, shop, the six authored
-cities, pause and results, with Gallery deliberately silent; music volume is
-persisted separately under the existing mute/master controls.
-
-**Quality** — a strict player-chosen HIGH/LOW binary; phones default to LOW
-until SETTINGS is opened (`qualityChosen`), after which the stored tier is the
-only authority.
+---
 
 ## Recent history
 
 One line per shipped item, newest first. Full detail lives in `CHANGELOG.md`,
 the feature packages under `.wiki/features/`, and `git log` — not here.
 
+- 2026-08-14 — Power-Up System: 6 distinct power-up types with physical suction/mass/speed/quake/multiplier/time effects, initial level placement, and milestone drops every 100k points & 500 mult
+- 2026-08-14 — Validator parallelization & Cambridge soak opt-in (T-403)
+- 2026-08-14 — Debris retirement on proven stationarity (T-402, ADR-0018)
 - 2026-08-13 — Player identity and legal pages (owner request): `BIGGEST HOLE`
   dropped from the landing strip (a lifetime high-water mark on the hole's own
   radius, maxed early and never moving again — the per-city `SIZE` on the chips
@@ -295,22 +104,16 @@ the feature packages under `.wiki/features/`, and `git log` — not here.
   description and every physics lever gated on `!sim.tuneLocked`; the server now
   compares its replayed score against the claimed one; the arena decides the
   match on the points it prints (**the score wins**, ADR-0015) and the tug bar is
-  labelled `TERRITORY`; protocol v4 widens `mass_q` to u32 (the u16 clamped a
-  peer's readable score at 16,383.75 against a 14,709.5 route bound); every combo
-  readout states its unit and the true 8x ceiling is a number, not `MAX`; the
-  validator's tautological ladder assertion is replaced by a literal table with
-  source guards over the whole readout inventory, all proven against a
-  deliberately broken build
+  labelled `TERRITORY`; protocol v4 widens `mass_q` to u32; every combo readout
+  states its unit and the true 8x ceiling is a number, not `MAX`
 - 2026-08-13 — Timed Runs & Full Clear phases 1-2: the 180 s clock
   (`js/levelclock.js`) and `targetFraction` 1.0 on every scene
 - 2026-08-13 — T-401: the T-901 mobile measurement preserved as a re-runnable
-  instrument (`tools/perf/`), with a quotability gate that refuses `n<5`,
-  truncated smoke runs, page errors or a SwiftShader fallback
+  instrument (`tools/perf/`)
 - 2026-08-12 — Scoreboards & Profiles: THE RUN, replay-verified boards,
   device-token names, Vercel API, four Supabase migrations, save v17
 - 2026-08-12 — Mobile perf: on-demand city modules, device-aware default tier,
-  `maxSubSteps` 6 → 2, coalesced resize, hidden-tab pause, `vercel.json` cache
-  policy; the three eat gulps swapped to original masters
+  `maxSubSteps` 6 → 2, coalesced resize, hidden-tab pause, `vercel.json` cache policy
 - 2026-08-12 — Menu: live city backdrop, one primary target, player progress
 - 2026-08-11 — Original game music: ten streamed cues, stinger ducking,
   independent Music volume, main-game and arena lifecycle
@@ -331,8 +134,7 @@ the feature packages under `.wiki/features/`, and `git log` — not here.
   auto-detection and the frame-time watchdog deleted
 - 2026-08-07 — Cambridge map complete (ADR-0013 boxes plus `js/voxelforms.js`);
   tank controls kept after a live four-scheme A/B; `_capDebris` physics fixes
-- 2026-08-06 — Persona playtest remediation: 21 findings from a five-agent UX
-  audit
+- 2026-08-06 — Persona playtest remediation: 21 findings from a five-agent UX audit
 - 2026-08-05 — Upper Manhattan full rebuild (8,442 → 73,393 blocks) plus the
   structural-zone sim fix that made it 60 fps
 - 2026-08-04 — Rebrand to Flywheel — A sprocket's story; Brooklyn scene, intro
