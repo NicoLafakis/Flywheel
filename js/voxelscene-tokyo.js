@@ -1,4 +1,7 @@
-// Tokyo (Neo-Shinjuku, Shibuya Scramble, Kabukicho, Meiji Jingu & Yamanote Line)
+// Tokyo (Nishi-Shinjuku, Kabukicho & Golden Gai, Shibuya Scramble, Yoyogi & Meiji Jingu)
+// Real rail geography: the JR Chūō Line runs east-west through the terminal while
+// the Yamanote Line runs north-south on its own elevated track, breaking at the
+// station — no Shinkansen has ever served Shinjuku.
 // Built ground-up on the Cambridge/Chicago architectural method:
 //   - Strict real-world geospatial layout and declared street table
 //   - Rigorous palette discipline with named hero accents
@@ -91,20 +94,25 @@ export const TOKYO_VEHICLES = [
 ];
 
 export const TOKYO_ROAD_SPANS = [
-  // Shinkansen Viaduct overpass at Koshu-kaido & cross avenues (y: 5m and up)
+  // Chūō Line viaduct overpass at Koshu-kaido & cross avenues (y: 5m and up)
   { minX: -105, maxX: 105, minZ: -3, maxZ: 3, minY: 4.5 },
   // Station concourse bridges
   { minX: -40, maxX: -30, minZ: -40, maxZ: -30, minY: 5.0 },
+  // Yamanote Line elevated track (N-S at x: 8..9) crossing the E-W arterials
+  { minX: 7, maxX: 10, minZ: -71, maxZ: -61, minY: 4.0 },
+  { minX: 7, maxX: 10, minZ: -36, maxZ: -26, minY: 4.0 },
+  { minX: 7, maxX: 10, minZ: 34, maxZ: 44, minY: 4.0 },
+  { minX: 7, maxX: 10, minZ: 69, maxZ: 79, minY: 4.0 },
 ];
 
 export const TOKYO_OPEN_GROUND = [];
 
 export const TOKYO_DISTRICTS = [
   { id: 'shinjuku_skyscrapers', name: 'Nishi-Shinjuku Skyscraper Ward', rect: { minX: -105, maxX: -40, minZ: -95, maxZ: 10 }, gapFloor: 15 },
-  { id: 'kabukicho_yokocho',    name: 'Kabukicho & Omoide Yokocho Alleys', rect: { minX: -40, maxX: 50, minZ: -95, maxZ: -10 }, gapFloor: 15 },
+  { id: 'kabukicho_yokocho',    name: 'Kabukicho & Golden Gai Alleys', rect: { minX: -40, maxX: 50, minZ: -95, maxZ: -10 }, gapFloor: 15 },
   { id: 'shinjuku_station',     name: 'JR Shinjuku Terminal & Viaduct', rect: { minX: -105, maxX: 105, minZ: -10, maxZ: 15 }, gapFloor: 15 },
   { id: 'shibuya_scramble',     name: 'Shibuya Crossing & 109 Fashion Ward', rect: { minX: -105, maxX: 0, minZ: 15, maxZ: 95 }, gapFloor: 15 },
-  { id: 'meiji_shrine',         name: 'Meiji Jingu Sacred Shrine & Pagoda', rect: { minX: 0, maxX: 105, minZ: 15, maxZ: 95 }, gapFloor: 15 },
+  { id: 'meiji_shrine',         name: 'Meiji Jingu Sacred Shrine & Grand Gate', rect: { minX: 0, maxX: 105, minZ: 15, maxZ: 95 }, gapFloor: 15 },
 ];
 
 // Color Palette
@@ -126,11 +134,11 @@ const C = {
 };
 
 export const TOKYO_HEROES = [
-  { id: 'tocho_twins', name: 'Tokyo Metropolitan Government Building', colorKey: C.vermilionTorii, bbox: { minX: -105, maxX: -80, minZ: -65, maxZ: -45 } },
+  { id: 'tocho_twins', name: 'Tokyo Metropolitan Government Building', colorKey: 0x8d99ae, bbox: { minX: -105, maxX: -80, minZ: -65, maxZ: -45 } },
   { id: 'cocoon_tower', name: 'Mode Gakuen Cocoon Tower', colorKey: C.neonCyan, bbox: { minX: -60, maxX: -40, minZ: -30, maxZ: -10 } },
-  { id: 'docomo_spire', name: 'NTT Docomo Yoyogi Tower', colorKey: C.goldFinial, bbox: { minX: -105, maxX: -80, minZ: -25, maxZ: -5 } },
+  { id: 'docomo_spire', name: 'NTT Docomo Yoyogi Tower', colorKey: C.goldFinial, bbox: { minX: -26, maxX: -18, minZ: 16, maxZ: 24 } },
   { id: 'shibuya_109', name: 'Shibuya 109 Fashion Landmark', colorKey: C.neonMagenta, bbox: { minX: -60, maxX: -45, minZ: 45, maxZ: 65 } },
-  { id: 'meiji_pagoda', name: 'Meiji Jingu 5-Tier Pagoda', colorKey: C.vermilionTorii, bbox: { minX: 50, maxX: 60, minZ: 45, maxZ: 55 } },
+  { id: 'meiji_shinmon', name: 'Meiji Jingu Minami-Shinmon Grand Gate', colorKey: C.cypressWood, bbox: { minX: 49, maxX: 58, minZ: 46, maxZ: 52 } },
 ];
 
 export function buildTokyo(sim) {
@@ -155,7 +163,8 @@ export function buildTokyo(sim) {
   parks.push({ x: -105, z: -95, w: 30, d: 22, color: 0x386641 }); // Shinjuku Central Park
   plaza.push({ x: -105, z: -95, w: 65, d: 85, color: 0x4a4e69 }); // Nishi-Shinjuku Civic Plaza
   plaza.push({ x: -80, z: 20, w: 70, d: 70, color: 0x3d5a80 });   // Shibuya Scramble Central Square
-  cobbles.push({ x: -35, z: -95, w: 95, d: 60, color: 0x343a40 }); // Omoide Yokocho & Kabukicho alleys
+  cobbles.push({ x: -35, z: -95, w: 95, d: 60, color: 0x343a40 }); // Kabukicho & Golden Gai alleys
+  cobbles.push({ x: -64, z: -11, w: 20, d: 8, color: 0x343a40 });  // Omoide Yokocho lane by the west-exit tracks
   sand.push({ x: 20, z: 25, w: 65, d: 65, color: 0xc4b595 });     // Meiji Shrine Raked Gravel Courtyards
 
   // Build Roads and Sidewalks from the Street Table
@@ -225,10 +234,10 @@ export function buildTokyo(sim) {
   // HERO LANDMARK: Tokyo Metropolitan Government Building (Tochō Twin Towers, 30m)
   // Block NW3 (x: -105..-76, z: -65..-37)
   {
-    // Twin Tower South (30m tall)
-    kenneySkyscraper(sim, -100, -60, 8, 10, 30, 0x2b2d42, 0xd90429, 'helipad');
+    // Twin Tower South (30m tall) — light granite lattice, observation decks (no helipads)
+    kenneySkyscraper(sim, -100, -60, 8, 10, 30, 0x9aa0a6, 0x6c757d, 'flat');
     // Twin Tower North (30m tall)
-    kenneySkyscraper(sim, -88, -60, 8, 10, 30, 0x2b2d42, 0xd90429, 'helipad');
+    kenneySkyscraper(sim, -88, -60, 8, 10, 30, 0x9aa0a6, 0x6c757d, 'flat');
     
     // Central Assembly Hall (y: 0..8 between towers at x: -92..-88)
     for (let y = 0; y < 8; y++) {
@@ -276,9 +285,10 @@ export function buildTokyo(sim) {
   }
 
   // HERO LANDMARK: NTT Docomo Yoyogi Tower (32m with 4-Sided Clock & Spire)
-  // Block NW5 (x: -105..-76, z: -25..-5)
+  // Yoyogi side of the terminal, SOUTH of the viaduct — where the real tower
+  // stands (it was never in Nishi-Shinjuku). Block Y1 (x: -26..-18, z: 16..24).
   {
-    const ox = -96, oz = -25;
+    const ox = -26, oz = 16;
     kenneySkyscraper(sim, ox, oz, 8, 8, 26, 0x3d5a80, 0x9a7868, 'flat');
     for (let y = 27; y < 30; y++) {
       for (let x = 2; x <= 5; x++) for (let z = 2; z <= 5; z++) {
@@ -313,7 +323,7 @@ export function buildTokyo(sim) {
   }
 
   // =========================================================================
-  // 3. DISTRICT 2: KABUKICHO, GOLDEN GAI & AKIHABARA (48 IZAKAYAS & ARCADES)
+  // 3. DISTRICT 2: KABUKICHO & GOLDEN GAI (48 IZAKAYAS & GAME CENTERS)
   // Block NC (x: -33..8, z: -94..-10)
   // =========================================================================
 
@@ -351,7 +361,7 @@ export function buildTokyo(sim) {
     B(tx + 7, 19, tz + 2, 'glass', 1, 0xf77f00, 'mat_shop_window');
   }
 
-  // 48-Unit Izakaya & Dining Alley Labyrinth (Golden Gai / Omoide Yokocho)
+  // 48-Unit Izakaya & Dining Alley Labyrinth (Golden Gai)
   const izakaya = (ox, oz, nameCol, roofCol) => {
     for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
       const edge = x === 0 || x === 3 || z === 0 || z === 2;
@@ -383,9 +393,16 @@ export function buildTokyo(sim) {
     }
   }
 
-  // Akihabara Sega & Taito Arcade Mega-Towers
-  commercialPodium(-8, -92, 8, 8, 5, 0xd90429, 0x111111); // SEGA Arcade Red
-  commercialPodium(2, -92, 6, 8, 5, 0x0077b6, 0x111111);  // TAITO Station Blue
+  // Omoide Yokocho ("Memory Lane") — tiny eateries huddled by the west-exit
+  // tracks, a separate district from Kabukicho/Golden Gai east of the station.
+  izakaya(-62, -8, 0x8a3030, 0x2b2d42);
+  izakaya(-56, -8, 0x8a6a3a, 0x4a5759);
+  izakaya(-50, -8, 0x3a5068, 0x1b4965);
+
+  // Kabukicho Game Center Towers (TAITO Station Shinjuku & GiGO — both real
+  // Kabukicho presences; Akihabara is 4km away and SEGA left arcades in 2022)
+  commercialPodium(-8, -92, 8, 8, 5, 0xd90429, 0x111111); // GiGO Kabukicho Red
+  commercialPodium(2, -92, 6, 8, 5, 0x0077b6, 0x111111);  // TAITO Station Shinjuku Blue
 
   // Vending Machine Banks
   const vendingBank = (vx, vz) => {
@@ -439,7 +456,7 @@ export function buildTokyo(sim) {
   commercialPodium(86, -25, 16, 10, 5, 0x3d5a80, 0x2b2d42);
 
   // =========================================================================
-  // 5. DISTRICT 3: TOKAIDO SHINKANSEN & JR YAMANOTE LINE TERMINAL COMPLEX
+  // 5. DISTRICT 3: JR CHŪŌ LINE (E-W) & YAMANOTE LINE (N-S) TERMINAL COMPLEX
   // =========================================================================
 
   // JR Shinjuku Central Multi-Level Station Concourse
@@ -463,7 +480,7 @@ export function buildTokyo(sim) {
       B(x, 5, Z0 + 4.5, 'glass', 0.5, 0x90e0ef, 'mat_shop_window');
     }
 
-    // Shinkansen Bullet Train Series N700
+    // JR Chūō Line Rapid Service — Series E233 (stainless body, orange stripe)
     const trainCar = (tx, isLead = false) => {
       for (let i = 0; i < 7; i++) {
         const bx = tx + i * 0.5;
@@ -473,9 +490,9 @@ export function buildTokyo(sim) {
             const bz = Z0 + 1.0 + dz * 0.5;
             const isWin = dy === 1 && (dz === 0 || dz === 2);
             const isLivery = dy === 0 && (dz === 0 || dz === 2);
-            let mat = 'steel', col = 0xffffff, surf = 'mat_suburban_siding';
+            let mat = 'steel', col = 0xd8d8d8, surf = 'mat_suburban_siding';
             if (isWin) { mat = 'glass'; col = 0x1d3557; surf = 'mat_shop_window'; }
-            else if (isLivery) { mat = 'panel'; col = 0x0077b6; surf = 'mat_awning_stripe'; }
+            else if (isLivery) { mat = 'panel'; col = 0xf15a22; surf = 'mat_awning_stripe'; }
             B(bx, by, bz, mat, 0.5, col, surf);
           }
         }
@@ -487,16 +504,41 @@ export function buildTokyo(sim) {
     };
     trainCar(-28, false); trainCar(-21, false); trainCar(-14, false); trainCar(-7, true);
 
-    // JR Yamanote Line Series E235 Commuter Train
-    const yamanoteCar = (tx) => {
+  }
+
+  // JR Yamanote Line Elevated Track (N-S at x: 8..9, breaking at the terminal)
+  // The Yamanote runs north-south through Shinjuku in reality, so it gets its
+  // own viaduct; two segments terminate at the station rather than crossing
+  // the Chūō Line viaduct. Piers skip the arterial street bands.
+  {
+    const TX = 8;
+    const isStreetBand = (z) =>
+      (z >= -71 && z <= -61) || (z >= -36 && z <= -26) ||
+      (z >= 34 && z <= 44) || (z >= 69 && z <= 79);
+    for (const [zSeg0, zSeg1] of [[-95, -14], [14, 95]]) {
+      for (let z = zSeg0; z <= zSeg1; z++) {
+        B(TX, 4, z, 'steel', 1, 0x6c757d, 'mat_warehouse_roll');
+        B(TX + 1, 4, z, 'steel', 1, 0x6c757d, 'mat_warehouse_roll');
+        B(TX + 0.25, 4.5, z, 'concrete', 0.5, 0xf0f0f0, 'mat_suburban_siding');
+        if (z % 6 === 0 && !isStreetBand(z)) {
+          for (let y = 0; y < 4; y++) {
+            B(TX, y, z, 'concrete', 1, 0xdcdcdc, 'mat_suburban_siding');
+            B(TX + 1, y, z, 'concrete', 1, 0xdcdcdc, 'mat_suburban_siding');
+          }
+        }
+      }
+    }
+
+    // JR Yamanote Line Series E235 Commuter Train (N-S, yellow-green stripe)
+    const yamanoteCar = (tz) => {
       for (let i = 0; i < 7; i++) {
-        const bx = tx + i * 0.5;
+        const bz = tz + i * 0.5;
         for (let dy = 0; dy < 3; dy++) {
           const by = 5.0 + dy * 0.5;
-          for (let dz = 0; dz < 3; dz++) {
-            const bz = Z0 + 2.8 + dz * 0.5;
-            const isWin = dy === 1 && (dz === 0 || dz === 2);
-            const isGreen = dy === 0 && (dz === 0 || dz === 2);
+          for (let dx = 0; dx < 3; dx++) {
+            const bx = 8.0 + dx * 0.5;
+            const isWin = dy === 1 && (dx === 0 || dx === 2);
+            const isGreen = dy === 0 && (dx === 0 || dx === 2);
             let mat = 'steel', col = 0xa8a8a8, surf = 'mat_suburban_siding';
             if (isWin) { mat = 'glass'; col = 0x1d3557; surf = 'mat_shop_window'; }
             else if (isGreen) { mat = 'panel'; col = 0x80b918; surf = 'mat_awning_stripe'; }
@@ -505,7 +547,8 @@ export function buildTokyo(sim) {
         }
       }
     };
-    yamanoteCar(5); yamanoteCar(12); yamanoteCar(19); yamanoteCar(26);
+    yamanoteCar(-60); yamanoteCar(-56); yamanoteCar(-52); yamanoteCar(-48);
+    yamanoteCar(46); yamanoteCar(50); yamanoteCar(54); yamanoteCar(58);
   }
 
   // =========================================================================
@@ -587,20 +630,22 @@ export function buildTokyo(sim) {
   // 7. DISTRICT 5: MEIJI JINGU SHRINE, SACRED FOREST & MINATO RESIDENCES
   // =========================================================================
 
-  // HERO LANDMARK: Great Vermilion Torii Gate (12m tall cypress gate)
+  // HERO LANDMARK: Great Cypress Torii Gate (12m tall, unpainted wood)
+  // The real Meiji Jingu torii is bare cypress — vermilion torii belong to
+  // Fushimi Inari and Heian Jingu, not here.
   {
     const tx = 25, tz = 25;
     for (let y = 0; y < 6; y++) {
-      B(tx, y, tz, 'steel', 1, C.vermilionTorii);
-      B(tx + 6, y, tz, 'steel', 1, C.vermilionTorii);
+      B(tx, y, tz, 'steel', 1, C.cypressWood);
+      B(tx + 6, y, tz, 'steel', 1, C.cypressWood);
     }
     for (let x = -1; x <= 7; x++) {
-      B(tx + x, 6, tz, 'steel', 1, C.vermilionTorii);
-      B(tx + x, 7, tz, 'wood', 1, 0x111111, 'mat_clay_shingles');
+      B(tx + x, 6, tz, 'steel', 1, C.cypressWood);
+      B(tx + x, 7, tz, 'wood', 1, C.darkTimber, 'mat_clay_shingles');
     }
-    B(tx + 1, 5, tz, 'steel', 1, C.vermilionTorii);
-    B(tx + 5, 5, tz, 'steel', 1, C.vermilionTorii);
-    for (let x = 1; x <= 5; x++) B(tx + x, 4, tz, 'steel', 1, C.vermilionTorii);
+    B(tx + 1, 5, tz, 'steel', 1, C.cypressWood);
+    B(tx + 5, 5, tz, 'steel', 1, C.cypressWood);
+    for (let x = 1; x <= 5; x++) B(tx + x, 4, tz, 'steel', 1, C.cypressWood);
   }
 
   // Wall of Consecrated Sake Barrels (Kazaridaru)
@@ -612,23 +657,29 @@ export function buildTokyo(sim) {
     }
   }
 
-  // HERO LANDMARK: 5-Tier Japanese Wooden Pagoda (18m tall)
+  // HERO LANDMARK: Minami-Shinmon Grand Shrine Gate (unpainted cypress, copper roof)
+  // Meiji Jingu is a Shinto shrine — it has no pagoda (that was Senso-ji bleeding
+  // in). Its actual signature structure is this grand wooden gate at the south
+  // approach, so it takes the pagoda's old footprint.
   {
-    const px = 50, pz = 45;
-    for (let tier = 0; tier < 5; tier++) {
-      const y0 = tier * 3;
-      for (let x = 0; x < 6; x++) for (let z = 0; z < 6; z++) {
-        const edge = x === 0 || x === 5 || z === 0 || z === 5;
-        const corner = (x === 0 || x === 5) && (z === 0 || z === 5);
-        B(px + x, y0, pz + z, (edge && !corner) ? 'wood' : 'steel', 1, 0x7f4f24, 'mat_suburban_siding');
-        B(px + x, y0 + 1, pz + z, (edge && !corner) ? 'wood' : 'steel', 1, edge ? C.vermilionTorii : 0x7f4f24, 'mat_suburban_siding');
-      }
-      for (let x = 0; x < 6; x++) for (let z = 0; z < 6; z++) {
-        B(px + x, y0 + 2, pz + z, 'wood', 1, C.clayShingle, 'mat_clay_shingles');
-      }
+    const gx = 50, gz = 47;
+    // Four cypress columns (two main pillars + two rear support posts)
+    for (let y = 0; y < 8; y++) {
+      B(gx, y, gz, 'wood', 1, C.cypressWood, 'mat_suburban_siding');
+      B(gx + 6, y, gz, 'wood', 1, C.cypressWood, 'mat_suburban_siding');
+      B(gx, y, gz + 2, 'wood', 1, C.darkTimber, 'mat_suburban_siding');
+      B(gx + 6, y, gz + 2, 'wood', 1, C.darkTimber, 'mat_suburban_siding');
     }
-    for (let h = 0; h < 4; h++) B(px + 2, 15 + h, pz + 2, 'steel', 1, C.goldFinial);
-    sim.cameraBlockers.push({ minX: px, maxX: px + 6, minZ: pz, maxZ: pz + 6, h: 20 });
+    // Architrave beams spanning the pillars
+    for (let x = 0; x <= 6; x++) {
+      B(gx + x, 8, gz, 'wood', 1, C.cypressWood, 'mat_suburban_siding');
+      B(gx + x, 8, gz + 2, 'wood', 1, C.cypressWood, 'mat_suburban_siding');
+    }
+    // Gabled copper-patina roof, three stepped courses
+    BOX(gx - 1, 9, gz - 1, 9, 1, 5, 'wood', 1, C.copperPatina, 'mat_clay_shingles');
+    BOX(gx, 10, gz, 7, 1, 3, 'wood', 1, C.copperPatina, 'mat_clay_shingles');
+    BOX(gx + 1, 11, gz, 5, 1, 3, 'wood', 1, C.copperPatina, 'mat_clay_shingles');
+    sim.cameraBlockers.push({ minX: gx - 1, maxX: gx + 7, minZ: gz - 1, maxZ: gz + 3, h: 12 });
   }
 
   // Haiden Main Worship Hall (Cypress timbers & gabled copper roof)
@@ -638,7 +689,7 @@ export function buildTokyo(sim) {
       const edge = x === 0 || x === 11 || z === 0 || z === 9;
       const corner = (x === 0 || x === 11) && (z === 0 || z === 9);
       B(hx + x, 0, hz + z, corner ? 'steel' : 'concrete', 1, 0xe9ecef, 'mat_suburban_siding');
-      B(hx + x, 1, hz + z, corner ? 'steel' : 'wood', 1, edge ? C.vermilionTorii : 0xddb892, 'mat_suburban_siding');
+      B(hx + x, 1, hz + z, corner ? 'steel' : 'wood', 1, edge ? C.darkTimber : 0xddb892, 'mat_suburban_siding');
       B(hx + x, 2, hz + z, 'wood', 1, C.copperPatina, 'mat_clay_shingles');
     }
     BOX(hx + 1, 3, hz + 1, 10, 1, 8, 'wood', 1, C.copperPatina, 'mat_clay_shingles');
@@ -652,8 +703,8 @@ export function buildTokyo(sim) {
     for (let x = 0; x < 8; x++) for (let z = 0; z < 6; z++) {
       const isCol = (x === 0 || x === 7 || x === 3 || x === 4) && (z === 0 || z === 5 || z === 2 || z === 3);
       if (isCol) {
-        B(kx + x, 1, kz + z, 'steel', 1, C.vermilionTorii);
-        B(kx + x, 2, kz + z, 'steel', 1, C.vermilionTorii);
+        B(kx + x, 1, kz + z, 'steel', 1, C.cypressWood);
+        B(kx + x, 2, kz + z, 'steel', 1, C.cypressWood);
       }
     }
     BOX(kx, 3, kz, 8, 1, 6, 'wood', 1, C.copperPatina, 'mat_clay_shingles');

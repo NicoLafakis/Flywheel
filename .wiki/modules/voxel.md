@@ -11,10 +11,16 @@ covers:
   - "js/voxelscene-boston.js"
   - "js/voxelscene-cambridge.js"
   - "js/voxelscene-chicago.js"
+  - "js/voxelscene-tokyo.js"
 ---
 # Voxel Sandbox (pile physics)
 
 ## Purpose
+
+**Tokyo accuracy note (2026-08-15)**: `js/voxelscene-tokyo.js` follows real Tokyo
+geography — Chūō Line E-W / Yamanote Line N-S (no Shinkansen at Shinjuku), Meiji
+Jingu structures in unpainted cypress with a Minami-Shinmon gate (no pagoda),
+Docomo Tower in Yoyogi south of the terminal, Omoide Yokocho at the west exit.
 
 ## Goal runs and rewards
 
