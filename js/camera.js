@@ -429,7 +429,7 @@ export class ChaseCamera {
   }
 
   // ---------------------------------------------------------- earthquake cinematic
-  startEarthquakeCinematic({ x0, z0, x1, z1, angle, length, duration = 2.0, onComplete, reducedMotion = false }) {
+  startEarthquakeCinematic({ x0, z0, x1, z1, angle, length, duration = 5.8, onComplete, reducedMotion = false }) {
     this.quakeCinematic = {
       x0, z0, x1, z1, angle, length,
       duration: Math.max(1.4, duration),
@@ -1122,6 +1122,10 @@ export class ChaseCamera {
       const ov = Math.max(this._overviewDist(), dist * 1.02);
       dist *= Math.pow(ov / dist, this._introK);
     }
+    // Preserve the frame's ordinary chase distance before a cinematic changes
+    // `dist`; the pickup finale must return to this real value, not a stale or
+    // out-of-scope camera calculation.
+    const liveDist = dist;
 
     // Earthquake Cinematic Cutscene Camera Override
     if (this.quakeCinematic) {
@@ -1139,40 +1143,64 @@ export class ChaseCamera {
         dist = dist + (overviewDist - dist) * blend;
       } else {
         let cineLookX, cineLookZ, cineDist, cinePitch, cineYaw;
-        if (progress < 0.20) {
-          // Phase 0: Freeze & tight dramatic angle on hole
-          const u = progress / 0.20;
+        if (progress < 0.12) {
+          // Phase 0: hit-stop. The first text slam gets one clean frozen frame.
           cineLookX = qc.x0;
           cineLookZ = qc.z0;
-          cineDist = 10.0;
-          cinePitch = 0.35;
+          cineDist = 13.0;
+          cinePitch = 0.30;
           cineYaw = qc.angle + Math.PI;
-          this.triggerShake(0.35 * (1 - u));
-        } else if (progress < 0.45) {
-          // Phase 1: Hypersonic whip-pan to the far end of the fault line
-          const u = (progress - 0.20) / 0.25;
+          this.triggerShake(0.45);
+        } else if (progress < 0.54) {
+          // Phases 1-3: three hard-cut arcade close-ups on the player. Each
+          // shot attacks from a distinct angle while the overlay slams EARTH,
+          // QUAKE, then TIME into the centre of the screen.
+          const shot = Math.min(2, Math.floor((progress - 0.12) / 0.14));
+          const shotStart = 0.12 + shot * 0.14;
+          const u = Math.min(1, (progress - shotStart) / 0.14);
+          const easeU = u * u * (3 - 2 * u);
+          const shotYaw = [qc.angle + Math.PI * 0.50, qc.angle - Math.PI * 0.62, qc.angle + Math.PI][shot];
+          const shotPitch = [0.26, 0.63, 0.34][shot];
+          const shotDist = [7.0, 8.5, 6.2][shot];
+          cineLookX = qc.x0;
+          cineLookZ = qc.z0;
+          cineDist = 27.0 - (27.0 - shotDist) * easeU;
+          cinePitch = shotPitch;
+          cineYaw = shotYaw;
+          this.triggerShake(0.12 + (1 - easeU) * 0.16);
+        } else if (progress < 0.74) {
+          // Phase 4: launch from the player to the furthest fault endpoint.
+          const u = (progress - 0.54) / 0.20;
           const easeU = u * u * (3 - 2 * u);
           cineLookX = qc.x0 + (qc.x1 - qc.x0) * easeU;
           cineLookZ = qc.z0 + (qc.z1 - qc.z0) * easeU;
-          cineDist = 12.0 + easeU * Math.min(36, qc.length * 0.38);
-          cinePitch = 0.35 + easeU * 0.25;
-          // Swivel to face back along the fault line corridor
-          const startYaw = qc.angle + Math.PI;
-          const targetYaw = qc.angle + 0.25;
-          cineYaw = startYaw + (targetYaw - startYaw) * easeU;
-        } else if (progress < 0.85) {
-          // Phase 2: Dynamic tracking camera following the propagating rupture
-          const u = (progress - 0.45) / 0.40;
-          const leadU = Math.min(1, u + 0.12);
-          cineLookX = qc.x0 + (qc.x1 - qc.x0) * leadU;
-          cineLookZ = qc.z0 + (qc.z1 - qc.z0) * leadU;
-          cineDist = Math.max(18, Math.min(38, qc.length * 0.42));
-          cinePitch = 0.54;
-          cineYaw = qc.angle + 0.3 + Math.sin(u * Math.PI * 4) * 0.06;
-          this.triggerShake(0.5);
+          cineDist = 9.0 + easeU * Math.min(42, qc.length * 0.42);
+          cinePitch = 0.38 + easeU * 0.18;
+          cineYaw = qc.angle + Math.PI;
+        } else if (progress < 0.82) {
+          // Phase 5: hold at the distant endpoint and pull a deliberate 180.
+          const u = (progress - 0.74) / 0.08;
+          const easeU = u * u * (3 - 2 * u);
+          cineLookX = qc.x1;
+          cineLookZ = qc.z1;
+          cineDist = Math.max(22, Math.min(42, qc.length * 0.42));
+          cinePitch = 0.56;
+          cineYaw = qc.angle + Math.PI + Math.PI * easeU;
+          this.triggerShake(0.24);
+        } else if (progress < 0.94) {
+          // Phase 6: chase the glowing fissure back toward the player so the
+          // camera reads each collapse as the fault passes beneath it.
+          const u = (progress - 0.82) / 0.12;
+          const easeU = u * u * (3 - 2 * u);
+          cineLookX = qc.x1 + (qc.x0 - qc.x1) * easeU;
+          cineLookZ = qc.z1 + (qc.z0 - qc.z1) * easeU;
+          cineDist = Math.max(15, Math.min(34, qc.length * 0.34));
+          cinePitch = 0.52;
+          cineYaw = qc.angle + Math.sin(u * Math.PI * 5) * 0.045;
+          this.triggerShake(0.34);
         } else {
-          // Phase 3: Smooth return to player
-          const u = (progress - 0.85) / 0.15;
+          // Phase 7: Smooth return to the live chase camera.
+          const u = (progress - 0.94) / 0.06;
           const easeU = u * u * (3 - 2 * u);
           const blendOut = 1 - easeU;
           cineLookX = qc.x0 * blendOut + tx * easeU;
@@ -1184,7 +1212,7 @@ export class ChaseCamera {
           tz = cineLookZ;
         }
 
-        if (progress < 0.85) {
+        if (progress < 0.94) {
           tx = cineLookX;
           tz = cineLookZ;
           dist = cineDist;
@@ -1320,7 +1348,7 @@ export class ChaseCamera {
           const u = (progress - 0.75) / 0.25;
           const easeU = u * u * (3 - 2 * u);
           const startDist = 4.6;
-          dist = startDist + (baseDist - startDist) * easeU;
+          dist = startDist + (liveDist - startDist) * easeU;
           this.pitch = 0.85 + (dc.savedPitch - 0.85) * easeU;
           this.yaw = (dc.savedYaw + Math.PI) + ((dc.savedYaw) - (dc.savedYaw + Math.PI)) * easeU;
         }

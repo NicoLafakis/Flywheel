@@ -1143,7 +1143,7 @@ export class Screens {
     this.current = 'pu_showcase';
   }
 
-  showDragonballCollectCinematic({ powerup, onSkip, onDone, audio, reducedMotion = false } = {}) {
+  showDragonballCollectCinematic({ powerup, onSkip, onDone, audio, reducedMotion = false, duration = 3.4 } = {}) {
     this.dismissDragonballCollectCinematic();
     const spec = (powerup && powerup.spec) || (powerup && POWERUP_SPECS[powerup.type]) || {
       id: 'boost',
@@ -1242,10 +1242,11 @@ export class Screens {
       }
     }, 1680));
 
-    // Auto complete at 2.4s
+    // The reveal card is the explanatory half of the pickup. Keep it up long
+    // enough to read, while the caller keeps the fixed-step simulation paused.
     timeouts.push(setTimeout(() => {
       if (!done) finish();
-    }, 2400));
+    }, Math.max(2400, duration * 1000)));
 
     const finish = () => {
       if (done) return;
@@ -1294,14 +1295,19 @@ export class Screens {
     }
   }
 
-  showEarthquakeCinematic({ onSkip, reducedMotion = false } = {}) {
+  showEarthquakeCinematic({ onSkip, reducedMotion = false, duration = 5.8 } = {}) {
     this.dismissEarthquakeCinematic();
-    const overlay = el(`<div id="quake-cinematic-overlay">
+    const overlay = el(`<div id="quake-cinematic-overlay" class="${reducedMotion ? 'reduced-motion' : ''}">
       <div class="quake-cinematic-bar top"></div>
       ${reducedMotion ? '' : `
         <div class="quake-impact-flash"></div>
         <div class="quake-dragonball-aura"></div>
         <div class="quake-speed-lines"></div>
+        <div class="quake-zoom-stage stage-earth" aria-hidden="true">
+          <div class="quake-word quake-word-earth">EARTH</div>
+          <div class="quake-word quake-word-quake">QUAKE</div>
+          <div class="quake-word quake-word-time">TIME!</div>
+        </div>
       `}
       <div class="quake-anime-banner">
         <div class="quake-banner-sub">⚡ DRAGON BALL SUPER SAIYAN QUAKE ⚡</div>
@@ -1312,6 +1318,17 @@ export class Screens {
     </div>`);
 
     let done = false;
+    const timeouts = [];
+    const stage = overlay.querySelector('.quake-zoom-stage');
+    if (stage) {
+      // Keep the text slams in lockstep with the camera's three player shots.
+      const cueScale = duration / 5.8;
+      for (const [delay, className] of [[650, 'stage-earth'], [1460, 'stage-quake'], [2270, 'stage-time'], [3100, 'stage-rift']]) {
+        timeouts.push(setTimeout(() => {
+          if (!done) stage.className = `quake-zoom-stage ${className}`;
+        }, delay * cueScale));
+      }
+    }
     const handleSkip = (e) => {
       if (done) return;
       if (e && e.type === 'keydown') {
@@ -1328,6 +1345,7 @@ export class Screens {
     overlay.addEventListener('touchstart', handleSkip, { passive: true });
 
     this._quakeOverlayCleanup = () => {
+      timeouts.forEach(clearTimeout);
       window.removeEventListener('keydown', handleSkip);
       overlay.removeEventListener('click', handleSkip);
       overlay.removeEventListener('touchstart', handleSkip);

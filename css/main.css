@@ -2850,6 +2850,71 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   animation: quakeSpeedZoom 0.08s infinite alternate ease-in-out;
 }
 
+/* The three text slams are deliberately centre-stage: this is a super-move
+   declaration, not HUD copy. They only animate transform, opacity and filter
+   so the short arcade cuts stay compositor-friendly on phones. */
+.quake-zoom-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.quake-word {
+  position: absolute;
+  opacity: 0;
+  color: #fff8d6;
+  font-size: clamp(54px, 15vw, 164px);
+  font-weight: 950;
+  font-style: italic;
+  letter-spacing: clamp(3px, 1.2vw, 14px);
+  line-height: 0.82;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 12px #fff0a3,
+    0 0 26px #ff8a00,
+    0 0 52px #e12b00,
+    0 5px 0 #6d0f00,
+    0 10px 0 #210400,
+    0 18px 30px rgba(0, 0, 0, 0.92);
+  -webkit-text-stroke: clamp(1px, 0.34vw, 4px) #3a0800;
+}
+
+.quake-zoom-stage.stage-earth .quake-word-earth {
+  animation: quakeWordEarth 0.72s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.quake-zoom-stage.stage-quake .quake-word-quake {
+  animation: quakeWordQuake 0.72s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.quake-zoom-stage.stage-time .quake-word-time {
+  animation: quakeWordTime 0.72s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes quakeWordEarth {
+  0% { opacity: 0; transform: translate3d(-72vw, 38vh, 0) rotate(-17deg) scale(3.4); filter: blur(14px); }
+  46% { opacity: 1; transform: translate3d(0, 0, 0) rotate(-4deg) scale(0.9); filter: blur(0); }
+  68% { opacity: 1; transform: translate3d(0, 0, 0) rotate(-4deg) scale(1.08); }
+  100% { opacity: 0; transform: translate3d(12vw, -9vh, 0) rotate(-4deg) scale(1.26); filter: blur(2px); }
+}
+
+@keyframes quakeWordQuake {
+  0% { opacity: 0; transform: translate3d(78vw, -42vh, 0) rotate(14deg) scale(3.8); filter: blur(14px); }
+  46% { opacity: 1; transform: translate3d(0, 0, 0) rotate(3deg) scale(0.88); filter: blur(0); }
+  68% { opacity: 1; transform: translate3d(0, 0, 0) rotate(3deg) scale(1.11); }
+  100% { opacity: 0; transform: translate3d(-12vw, 10vh, 0) rotate(3deg) scale(1.30); filter: blur(2px); }
+}
+
+@keyframes quakeWordTime {
+  0% { opacity: 0; transform: translate3d(0, -92vh, 0) rotate(-8deg) scale(4.2); filter: blur(15px); }
+  46% { opacity: 1; transform: translate3d(0, 0, 0) rotate(-2deg) scale(0.84); filter: blur(0); }
+  68% { opacity: 1; transform: translate3d(0, 0, 0) rotate(-2deg) scale(1.14); }
+  100% { opacity: 0; transform: translate3d(0, 20vh, 0) rotate(-2deg) scale(1.34); filter: blur(2px); }
+}
+
 @keyframes quakeSpeedZoom {
   0% { transform: scale(1); opacity: 0.6; }
   100% { transform: scale(1.06); opacity: 0.85; }
@@ -2868,7 +2933,12 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   z-index: 12;
   text-align: center;
   pointer-events: none;
-  animation: quakeBannerSlam 0.38s cubic-bezier(0.18, 0.89, 0.32, 1.25) 0.06s forwards;
+}
+
+/* The fault-line title arrives once the three super-move declarations finish. */
+.quake-zoom-stage.stage-rift ~ .quake-anime-banner,
+#quake-cinematic-overlay.reduced-motion .quake-anime-banner {
+  animation: quakeBannerSlam 0.38s cubic-bezier(0.18, 0.89, 0.32, 1.25) forwards;
 }
 
 @keyframes quakeBannerSlam {
@@ -2916,6 +2986,18 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   border: 1px solid rgba(255, 255, 255, 0.25);
   margin-top: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #quake-cinematic-overlay .quake-cinematic-bar,
+  #quake-cinematic-overlay .quake-anime-banner,
+  #quake-cinematic-overlay .quake-impact-flash,
+  #quake-cinematic-overlay .quake-dragonball-aura,
+  #quake-cinematic-overlay .quake-speed-lines,
+  #quake-cinematic-overlay .quake-word {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 /* -------------------------------------------------------------------------

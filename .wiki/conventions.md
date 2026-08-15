@@ -2,7 +2,13 @@
 
 ## Hard rules (validator-enforced or review-blocking)
 
-1. **No `Math.random()` in the pure-sim files** — all randomness there flows
+1. **Test-Driven Development (TDD) mandatory** — all features, bug fixes,
+   and sim modifications must follow the Red-Green-Refactor cycle: write the
+   failing test/assertion first (in `tools/validate.mjs` or relevant validator
+   harness), confirm failure, write minimal code to pass, and refactor cleanly
+   with zero regressions. No code is committed without automated test coverage.
+2. **No `Math.random()` in the pure-sim files** — all randomness there flows
+
    via `rng.js` (`RNG` class, seeded). Determinism is a product requirement
    (same seed → same level/scene). `tools/validate.mjs` enforces this on the
    seven named files (`rng`, `tiers`, `citygen`, `levels`, `sim`, `voxelsim`,
@@ -14,20 +20,20 @@
    `voxelworld.js` (facade/debris variation) use `Math.random()` on purpose for
    per-frame presentation that never touches sim state — sweeping those in
    would trade a real invariant for noise.
-2. **No three.js or DOM imports in the pure sim** (`rng.js`, `tiers.js`,
+3. **No three.js or DOM imports in the pure sim** (`rng.js`, `tiers.js`,
    `citygen.js`, `levels.js`, `sim.js`, `voxelsim.js`). The Node validator
    imports these.
-3. **Fixed timestep** — gameplay state changes only inside `sim.step(1/60)`.
+4. **Fixed timestep** — gameplay state changes only inside `sim.step(1/60)`.
    Render-side animation uses real `dt` and never touches sim state.
-4. **Single source of truth for size/edibility** — always `tiers.js`
+5. **Single source of truth for size/edibility** — always `tiers.js`
    (`radiusForTier`, `playerRadiusForMass`, `isEdible`). Never re-derive the
    1.35× ladder inline.
-5. **Placement goes through the tile funnel** — `place()` in `citygen.js`:
+6. **Placement goes through the tile funnel** — `place()` in `citygen.js`:
    snap to tile center, circle-overlap check, allowed-tile check, reserve.
    Never set coordinates directly (exceptions: the landmark's documented
    eviction path, and the snack ring's candidate-offset walk, which still
    goes through `place()`).
-6. **`freshSave()` and `MIGRATIONS` in `save.js` must agree** — they are two
+7. **`freshSave()` and `MIGRATIONS` in `save.js` must agree** — they are two
    independent descriptions of the same save object, and they drifted:
    migration 10 added `sandbox`, `freshSave()` never did, so every save born
    at v11+ (i.e. every *new* player, never an upgrading one) lacked it and

@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 ---
 
@@ -17,6 +17,38 @@ Last updated: 2026-08-14
 
 ## Shipped state
 
+- 2026-08-15 - Dragon Ball Pickup Camera Recovery:
+  - **Live Render Continuity**: Fixed the undefined return-distance reference
+    in the final non-quake pickup camera phase. The camera now eases back to
+    the current chase distance instead of throwing per frame, so the world
+    keeps rendering as Chrono Freeze (and every other non-quake power-up)
+    completes its explanatory card.
+
+- 2026-08-15 - Chrono Freeze Ice Cue Restored:
+  - **Sequenced Pickup Audio**: Collecting Chrono Freeze now plays the normal
+    power-up collection sound followed 250 ms later by its dedicated frozen-time
+    ice cue, in both campaign and voxel sandbox modes.
+
+- 2026-08-15 - Non-Quake Dragon Ball Pickup Sequences Restored:
+  - **Two-Stage Power-Up Flow**: Spawned Vortex, Turbo, Titan, Chain Frenzy,
+    and Chrono power-ups retain their Pokemon encounter intro, then play the
+    Dragon Ball collection camera move and explanatory effect card when picked
+    up. The fixed-step timer pauses for the 3.4-second card sequence.
+  - **Quake Isolation**: Fault Line Rupture is explicitly excluded from the
+    generic collector and retains its independently timed earthquake super-move.
+    All collection sequences retain Space/Enter/Escape/tap/click skipping and
+    the reduced-motion path.
+
+- 2026-08-15 - Fault Line Rupture Super-Move Expansion:
+  - **Dragon Ball Arcade Sequence**: Extended the cinematic to 5.8 seconds of
+    paused game time: three hard-cut player close-ups from distinct angles slam
+    **EARTH**, **QUAKE**, and **TIME!** into the center of the screen before
+    the camera launches to the distant endpoint, pulls a 180-degree turn, and
+    races back down the glowing rupture toward the player.
+  - **Motion-Safe Variant**: The sequence honors the operating system and
+    in-game reduced-motion settings with a 2.4-second overview hold, while the
+    normal version keeps the existing Space/Enter/Escape/tap/click skip path.
+
 - **Brand**: *Flywheel — A sprocket's story*. Branded landing screen over live city backdrop, block wordmark, legal footer.
 - **Progression**: Free-play voxel sandboxes on 180s clock, 100% full-clear goal, 60 deterministic collectible coins per city, skin & indicator shop.
 - **Cities (7 + Tokyo)**: Gallery, Manhattan, Upper Manhattan (73k blocks), Brooklyn (40k blocks), Boston (83k blocks), Cambridge (73k blocks), Chicago Loop (44k blocks), Tokyo (83k blocks).
@@ -24,6 +56,25 @@ Last updated: 2026-08-14
 - **Audio & Quality**: 10 streamed cues, independent audio mix controls, HIGH/LOW binary quality.
 
 ---
+
+- 2026-08-15 — Strict Test-Driven Development (TDD) Mandatory Standard:
+  - **Standardized TDD Workflow**: Mandated the Red-Green-Refactor development methodology across all codebase modifications. Established that tests/assertions must be written first in the validator suite (`tools/validate.mjs` or modular test harnesses) to prove expected failure before writing implementation code.
+  - **Agent & Contributor Alignment**: Added the TDD mandate and workflow instructions to [AGENTS.md](file:///C:/programming/nicos-apps/Flywheel/AGENTS.md), created [CLAUDE.md](file:///C:/programming/nicos-apps/Flywheel/CLAUDE.md), and updated [.wiki/conventions.md](file:///C:/programming/nicos-apps/Flywheel/.wiki/conventions.md) so all coding assistants adhere to TDD uniformly.
+
+- 2026-08-15 — Fault Line Rupture Cinematic Restored:
+  - **Live Presentation Wiring**: Reconnected the existing earthquake camera and
+    UI cinematic to the emitted `quake` event in both campaign and voxel
+    sandbox play. The sim resolves the rupture first, then the 2.4-second
+    sequence holds gameplay while it frames the player, whip-pans along the
+    fault, tracks the propagating destruction, and returns to chase view.
+  - **Safe Skip & Recovery**: Space, Enter, Escape, tap, or click skips to the
+    completed visual state; natural completion preserves the fissure's normal
+    8.5-second visual lifetime. The hold clears queued pointer movement and
+    resets the fixed-step accumulator on return, so no movement or gameplay
+    time advances unseen; a full-clear result waits until the cinematic ends.
+  - **Pickup Event Guard**: Protected the legacy call to the removed
+    `Screens.triggerActivePowerUpOverlay` method so collecting any power-up no
+    longer interrupts its event stream before the renderer receives it.
 
 - 2026-08-15 — Collected Power-Up 3D Mesh Disappearance & Scene Graph Cleanup:
   - **Instant Power-Up Despawn on Collection**: Fixed an issue in `voxelworld.js` and `world3d.js` where collected power-up meshes remained visible in the 3D scene after pickup. Added `_removePowerUpMesh(id)` with explicit Three.js node detachment, scene removal, and visibility silencing (`visible = false`).

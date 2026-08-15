@@ -83,7 +83,7 @@ window.addEventListener('touchstart', earlyUnlock, { passive: true });
 window.addEventListener('keydown', earlyUnlock, { passive: true });
 
 // ------------------------------------------------------------------ game state
-let state = 'menu'; // menu | intro | playing | paused | results
+let state = 'menu'; // menu | intro | playing | powerup_collect_cinematic | quake_cinematic | paused | results
 let isVoxelSandbox = false;
 let level = null;
 let sim = null;
@@ -382,6 +382,100 @@ function playNextPokemonSpawn() {
   } else {
     setTimeout(finishPokeIntro, 1500);
   }
+}
+
+// The quake is resolved by the pure sim before this is called.  This is only a
+// presentation hold: it gives the player a clear read on the rupture without
+// allowing the fixed-step loop or a queued movement target to advance unseen.
+function playEarthquakeCinematic(ev) {
+  if (!cam || !ev || ev.x0 == null || ev.z0 == null || ev.x1 == null || ev.z1 == null) return;
+
+  const previousState = state;
+  const reducedMotion = !!save.settings.reducedMotion
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const duration = reducedMotion ? 2.4 : 5.8;
+  let finished = false;
+  const finish = (skipped = false) => {
+    if (finished) return;
+    finished = true;
+
+    // A skip reveals the completed visual state immediately; natural completion
+    // leaves the fissure and its delayed collapses to finish in the live world.
+    if (skipped && world && world.skipQuakeCinematic) world.skipQuakeCinematic();
+    screens.dismissEarthquakeCinematic();
+    if (skipped && cam && cam.skipEarthquakeCinematic) cam.skipEarthquakeCinematic();
+
+    if (state === 'quake_cinematic') {
+      state = previousState === 'quake_cinematic' ? 'playing' : previousState;
+      accumulator = 0;
+      lastTs = performance.now();
+    }
+  };
+
+  controls?.cancelPointer();
+  state = 'quake_cinematic';
+  audio.playAnimeHitStop();
+  screens.showEarthquakeCinematic({
+    onSkip: () => finish(true),
+    reducedMotion,
+    duration,
+  });
+  cam.startEarthquakeCinematic({
+    x0: ev.x0,
+    z0: ev.z0,
+    x1: ev.x1,
+    z1: ev.z1,
+    angle: ev.angle,
+    length: ev.length,
+    duration,
+    reducedMotion,
+    onComplete: () => finish(false),
+  });
+}
+
+// Ground spawns already use the Pokemon encounter to announce themselves. This
+// is the second half of that contract: on collection, pause the fixed-step
+// world long enough for the Dragon Ball card to say what the earned power does.
+// Fault Line Rupture owns its longer bespoke sequence and is intentionally
+// excluded before this function is called.
+function playPowerUpCollectCinematic(powerup) {
+  if (!cam || !powerup || powerup.type === 'quake' || state !== 'playing') return;
+
+  const previousState = state;
+  const reducedMotion = !!save.settings.reducedMotion
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let finished = false;
+  const finish = (skipped = false) => {
+    if (finished) return;
+    finished = true;
+    screens.dismissDragonballCollectCinematic();
+    if (skipped && cam && cam.skipDragonballCinematic) cam.skipDragonballCinematic();
+
+    if (state === 'powerup_collect_cinematic') {
+      state = previousState;
+      accumulator = 0;
+      lastTs = performance.now();
+    }
+  };
+
+  const hole = isVoxelSandbox ? sim.hole : sim.player;
+  controls?.cancelPointer();
+  state = 'powerup_collect_cinematic';
+  screens.showDragonballCollectCinematic({
+    powerup,
+    audio,
+    onSkip: () => finish(true),
+    onDone: () => finish(false),
+    reducedMotion,
+    duration: 3.4,
+  });
+  cam.startDragonballCollectCinematic({
+    playerX: hole.x,
+    playerZ: hole.z,
+    duration: 3.4,
+    reducedMotion,
+    onComplete: () => finish(false),
+  });
 }
 
 function startLevel() {
@@ -706,6 +800,7 @@ function teardownWorld() {
   stopMenuScene();
   screens.dismissPokemonEncounterModal();
   screens.dismissEarthquakeCinematic();
+  screens.dismissDragonballCollectCinematic();
   pokeSpawnQueue = [];
   isShowingPokeSpawn = false;
   if (readyGate) { readyGate.dismiss(); readyGate = null; }
@@ -901,6 +996,8 @@ function frame(ts) {
         } else if (ev.type === 'powerup_collect') {
           audio.playPowerUpCollect();
           const isQuake = ev.powerup.type === 'quake' || (ev.powerup.spec && ev.powerup.spec.id === 'quake');
+          const isChrono = ev.powerup.type === 'chrono' || (ev.powerup.spec && ev.powerup.spec.id === 'chrono');
+          if (isChrono) audio.playChronoFreeze({ vol: 0.95, delay: 0.25 });
           if (isQuake) {
             audio.playFaultLineQuake();
             cam.triggerShake(1.2);
@@ -918,7 +1015,13 @@ function frame(ts) {
             ms: 2000,
             channel: 'band',
           });
-          screens.triggerActivePowerUpOverlay(ev.powerup.type);
+          // The active-effect overlays are rendered by HUD state. Older builds
+          // referenced a removed Screens method here, which would abort event
+          // processing immediately after any pickup (including a quake).
+          if (typeof screens.triggerActivePowerUpOverlay === 'function') {
+            screens.triggerActivePowerUpOverlay(ev.powerup.type);
+          }
+          if (!isQuake) playPowerUpCollectCinematic(ev.powerup);
         } else if (ev.type === 'powerup_spawn') {
           queuePokemonSpawnIntro(ev.powerup, sim, cam);
         } else if (ev.type === 'disaster') {
@@ -934,8 +1037,8 @@ function frame(ts) {
             channel: 'band',
           });
         } else if (ev.type === 'quake') {
-          cam.triggerShake(0.85);
           triggerHaptic(75);
+          playEarthquakeCinematic(ev);
         }
         // 'goal' needs no branch: GameAudio plays the sting, and the milestone
         // ladder's last row (fired one event earlier) is the screen's beat.
@@ -951,7 +1054,10 @@ function frame(ts) {
       cam.update(realDt, hole.x, hole.z, hole.radius, orbit, zoom, controls.orbitHeld, controls.heading);
       world.render(cam.camera);
       hud.updateSandbox(sim);
-      if (sim.over) endSandbox();
+      // A fault line can clear the final blocks in the same fixed step. Keep
+      // its presentation readable; the next playing frame opens results once
+      // the cinematic releases the state hold.
+      if (sim.over && state !== 'quake_cinematic' && state !== 'powerup_collect_cinematic') endSandbox();
     } else {
       audio.updateListener(sim.player.x, sim.player.z, null);
       for (const ev of events) {
@@ -1014,6 +1120,8 @@ function frame(ts) {
         } else if (ev.type === 'powerup_collect') {
           audio.playPowerUpCollect();
           const isQuake = ev.powerup.type === 'quake' || (ev.powerup.spec && ev.powerup.spec.id === 'quake');
+          const isChrono = ev.powerup.type === 'chrono' || (ev.powerup.spec && ev.powerup.spec.id === 'chrono');
+          if (isChrono) audio.playChronoFreeze({ vol: 0.95, delay: 0.25 });
           if (isQuake) {
             audio.playFaultLineQuake();
             cam.triggerShake(1.2);
@@ -1031,7 +1139,10 @@ function frame(ts) {
             ms: 2000,
             channel: 'band',
           });
-          screens.triggerActivePowerUpOverlay(ev.powerup.type);
+          if (typeof screens.triggerActivePowerUpOverlay === 'function') {
+            screens.triggerActivePowerUpOverlay(ev.powerup.type);
+          }
+          if (!isQuake) playPowerUpCollectCinematic(ev.powerup);
         } else if (ev.type === 'powerup_spawn') {
           queuePokemonSpawnIntro(ev.powerup, sim, cam);
         } else if (ev.type === 'disaster') {
@@ -1047,8 +1158,8 @@ function frame(ts) {
             channel: 'band',
           });
         } else if (ev.type === 'quake') {
-          cam.triggerShake(0.85);
           triggerHaptic(75);
+          playEarthquakeCinematic(ev);
         } else if (ev.type === 'tide') {
           hud.announce({
             text: 'THE TIDE IS RISING!',
@@ -1081,9 +1192,9 @@ function frame(ts) {
       world.render(cam.camera);
       hud.update(sim);
       hud.drawMinimap(sim);
-      if (sim.over) endLevel();
+      if (sim.over && state !== 'quake_cinematic' && state !== 'powerup_collect_cinematic') endLevel();
     }
-  } else if ((state === 'quake_cinematic' || state === 'powerup_encounter') && world && cam) {
+  } else if ((state === 'quake_cinematic' || state === 'powerup_collect_cinematic' || state === 'powerup_encounter') && world && cam) {
     world.update(realDt, []);
     const h = (sim && sim.hole) || (sim && sim.player) || { x: 0, z: 0, radius: 2 };
     cam.update(realDt, h.x, h.z, h.radius, 0, 0, false, null);

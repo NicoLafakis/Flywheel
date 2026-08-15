@@ -1476,192 +1476,389 @@ export class VoxelSandboxSim {
 
   _buildScene() {
     // =========================================================================
-    // THE LAB / SANDBOX: 4-QUARTER METROPOLIS (~120,000 BLOCKS)
-    //
-    // Q1 (WEST: x: -120..-60): Brooklyn-Style Skyscraper Grid (~27k blocks)
-    // Q2 (CENTER-WEST: x: -60..0): Modern Fine-Voxel Falling Skyscraper Grid (~27k blocks)
-    // Q3 (CENTER-EAST: x: 0..+60): Industrial Chunk-Break Falling Skyscraper Grid (~27k blocks)
-    // Q4 (EAST: x: +60..+120): Grand Street-Life, Vehicles, Trees & 75+ Hydrants District (~34k blocks)
+    // ZONE 1 (WEST: x: -85..-35) — OUR VOXEL MODELS WITH KENNEY TEXTURES
     // =========================================================================
 
-    const buildSkyscraperQuarter = (ox, oz, style) => {
-      let colA = 0x3d5a80, colB = 0xee6c4d, colC = 0x293241, colD = 0xf4a261, colE = 0x457b9d;
-      let wallMat1 = 'concrete', wallMat2 = 'brick', trimMat = 'steel';
-      let surfWall = 'mat_suburban_siding', surfBrick = 'mat_brick_red', surfTrim = 'mat_warehouse_roll';
-      let winSurf = 'mat_shop_window';
-
-      if (style === 2) {
-        colA = 0x2b2d42; colB = 0xffb703; colC = 0x1d3557; colD = 0x06d6a0; colE = 0x8d99ae;
-        wallMat1 = 'panel'; wallMat2 = 'concrete'; trimMat = 'steel';
-        surfWall = 'mat_suburban_siding'; surfBrick = 'mat_shop_window'; surfTrim = 'mat_awning_stripe';
-      } else if (style === 3) {
-        colA = 0x293241; colB = 0xd90429; colC = 0x457b9d; colD = 0xcc5a47; colE = 0x111111;
-        wallMat1 = 'steel'; wallMat2 = 'concrete'; trimMat = 'steel';
-        surfWall = 'mat_corrugated_rust'; surfBrick = 'mat_corrugated_rust'; surfTrim = 'mat_warehouse_roll';
+    // Suburban Row (West): 3 Pastel Cottages with wood siding & scalloped clay tiles
+    {
+      const ox = -75, oz = -8;
+      for (let x = 0; x < 5; x++) for (let z = 0; z < 4; z++) {
+        const edge = x === 0 || x === 4 || z === 0 || z === 3;
+        const isWin = edge && (x + z) % 2 === 1;
+        this._block(ox + x, 0, oz + z, 'concrete', 1, 0xfcf6bd, 'mat_suburban_siding');
+        this._block(ox + x, 1, oz + z, isWin ? 'glass' : 'concrete', 1, isWin ? 0x83c5be : 0xfcf6bd, isWin ? 'mat_shop_window' : 'mat_suburban_siding');
+        this._block(ox + x, 2, oz + z, 'wood', 1, 0xe07a5f, 'mat_clay_shingles');
       }
+      this._box(ox + 1, 3, oz + 1, 3, 1, 2, 'wood', 1, 0xd95d39, 'mat_clay_shingles');
+    }
+    {
+      const ox = -65, oz = -8;
+      for (let x = 0; x < 5; x++) for (let z = 0; z < 4; z++) {
+        const edge = x === 0 || x === 4 || z === 0 || z === 3;
+        const isWin = edge && (x + z) % 2 === 1;
+        this._block(ox + x, 0, oz + z, 'concrete', 1, 0xd8f3dc, 'mat_suburban_siding');
+        this._block(ox + x, 1, oz + z, isWin ? 'glass' : 'concrete', 1, isWin ? 0x74c69d : 0xd8f3dc, isWin ? 'mat_shop_window' : 'mat_suburban_siding');
+        this._block(ox + x, 2, oz + z, 'wood', 1, 0x40916c, 'mat_clay_shingles');
+      }
+      this._box(ox + 1, 3, oz + 1, 3, 1, 2, 'wood', 1, 0x2d6a4f, 'mat_clay_shingles');
+    }
+    {
+      const ox = -55, oz = -8;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 4; z++) {
+        const edge = x === 0 || x === 3 || z === 0 || z === 3;
+        const isWin = edge && (x + z) % 2 === 1;
+        this._block(ox + x, 0, oz + z, 'concrete', 1, 0xcae9ff, 'mat_suburban_siding');
+        this._block(ox + x, 1, oz + z, isWin ? 'glass' : 'concrete', 1, isWin ? 0x5fa8d3 : 0xcae9ff, isWin ? 'mat_shop_window' : 'mat_suburban_siding');
+        this._block(ox + x, 2, oz + z, 'wood', 1, 0x1b4965, 'mat_clay_shingles');
+      }
+      this._box(ox + 1, 3, oz + 1, 2, 1, 2, 'wood', 1, 0x1b4965, 'mat_clay_shingles');
+    }
 
-      // 4 Majestic Skyscraper Monoliths (6x6 to 8x8, 20m to 28m tall)
-      kenneySkyscraper(this, ox - 14, oz - 18, 8, 8, 28, colA, colB, 'helipad');
-      kenneySkyscraper(this, ox + 14, oz - 18, 6, 8, 24, colC, colD, 'cooling');
-      kenneySkyscraper(this, ox - 14, oz + 18, 6, 6, 22, colE, colB, 'cooling');
-      kenneySkyscraper(this, ox + 14, oz + 18, 8, 8, 26, colD, colA, 'helipad');
+    // Commercial Shopping Boulevard (West): Bakery, Pizzeria, Bookstore with candy striped awnings
+    {
+      const ox = -75, oz = 4;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
+        this._block(ox + x, 0, oz + z, 'concrete', 1, 0xffddd2, 'mat_suburban_siding');
+        this._block(ox + x, 1, oz + z, 'concrete', 1, 0xffddd2, 'mat_suburban_siding');
+        this._block(ox + x, 2, oz + z, 'wood', 1, 0x0077b6, 'mat_clay_shingles');
+      }
+      this._box(ox + 1, 3, oz + 1, 2, 1, 1, 'wood', 1, 0x023e8a, 'mat_clay_shingles');
+      for (let x = 0; x < 4; x++) this._block(ox + x, 1, oz - 1, 'panel', 1, 0xe63946, 'mat_awning_stripe');
+    }
+    {
+      const ox = -65, oz = 4;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
+        this._block(ox + x, 0, oz + z, 'concrete', 1, 0xfefae0, 'mat_suburban_siding');
+        this._block(ox + x, 1, oz + z, 'concrete', 1, 0xfefae0, 'mat_suburban_siding');
+        this._block(ox + x, 2, oz + z, 'wood', 1, 0x2b9348, 'mat_clay_shingles');
+      }
+      this._box(ox + 1, 3, oz + 1, 2, 1, 1, 'wood', 1, 0x007f5f, 'mat_clay_shingles');
+      for (let x = 0; x < 4; x++) this._block(ox + x, 1, oz - 1, 'panel', 1, 0x55a630, 'mat_awning_stripe');
+    }
+    {
+      const ox = -55, oz = 4;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
+        this._block(ox + x, 0, oz + z, 'concrete', 1, 0xffe5d9, 'mat_suburban_siding');
+        this._block(ox + x, 1, oz + z, 'concrete', 1, 0xffe5d9, 'mat_suburban_siding');
+        this._block(ox + x, 2, oz + z, 'wood', 1, 0xe76f51, 'mat_clay_shingles');
+      }
+      this._box(ox + 1, 3, oz + 1, 2, 1, 1, 'wood', 1, 0xf4a261, 'mat_clay_shingles');
+      for (let x = 0; x < 4; x++) this._block(ox + x, 1, oz - 1, 'panel', 1, 0xf3722c, 'mat_awning_stripe');
+    }
 
-      // 2 Mid-Rise Commercial Blocks (6x8 footprint, 12 layers)
-      const buildBlock = (bx, bz, layers, col) => {
-        for (let y = 0; y < layers; y++) {
-          for (let x = 0; x < 6; x++) {
-            for (let z = 0; z < 8; z++) {
-              const edge = x === 0 || x === 5 || z === 0 || z === 7;
-              const corner = (x === 0 || x === 5) && (z === 0 || z === 7);
-              const isSlab = y % 3 === 0;
-              if (!edge && !isSlab) continue;
-              if (isSlab) {
-                this._block(bx + x, y, bz + z, wallMat1, 1, 0xedf2f4, surfWall);
-              } else if (corner) {
-                this._block(bx + x, y, bz + z, trimMat, 1, col, surfTrim);
-              } else if (y % 3 === 1 && (x % 2 === 1 || z % 2 === 1)) {
-                this._block(bx + x, y, bz + z, 'glass', 1, 0x90e0ef, winSurf);
-              } else {
-                this._block(bx + x, y, bz + z, wallMat2, 1, col, surfBrick);
-              }
+    // Twin 2m Warehouses (West)
+    {
+      const ox = -80, oz = 16, S = 2;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
+        const edge = x === 0 || x === 3 || z === 0 || z === 2;
+        const corner = (x === 0 || x === 3) && (z === 0 || z === 2);
+        for (let y = 0; y < 3; y++) {
+          if (!edge) continue;
+          this._block(ox + x * S, y * S, oz + z * S, corner ? 'steel' : 'concrete', S, corner ? 0x588157 : 0xdde5b6, corner ? 'mat_warehouse_roll' : 'mat_suburban_siding');
+        }
+        this._block(ox + x * S, 3 * S, oz + z * S, 'wood', S, 0x4a5759, 'mat_clay_shingles');
+      }
+    }
+    {
+      const ox = -60, oz = 16, S = 2;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 4; z++) {
+        const edge = x === 0 || x === 3 || z === 0 || z === 3;
+        const corner = (x === 0 || x === 3) && (z === 0 || z === 3);
+        for (let y = 0; y < 3; y++) {
+          if (!edge) continue;
+          this._block(ox + x * S, y * S, oz + z * S, corner ? 'steel' : 'concrete', S, corner ? 0x3d5a80 : 0xe0fbfc, corner ? 'mat_corrugated_rust' : 'mat_suburban_siding');
+        }
+        this._block(ox + x * S, 3 * S, oz + z * S, 'wood', S, 0x293241, 'mat_clay_shingles');
+      }
+    }
+
+    // Civic Plaza & Fountain (West)
+    {
+      const ox = -75, oz = -18;
+      this._box(ox, 0, oz, 4, 1, 4, 'concrete', 1, 0xe9ecef, 'mat_suburban_siding');
+      this._block(ox + 1, 1, oz + 1, 'steel', 1, 0xced4da);
+      this._block(ox + 2, 1, oz + 1, 'steel', 1, 0xced4da);
+      this._block(ox + 1, 1, oz + 2, 'steel', 1, 0xced4da);
+      this._block(ox + 2, 1, oz + 2, 'steel', 1, 0xced4da);
+      this._block(ox + 1, 2, oz + 1, 'steel', 1, 0xced4da);
+      this._block(ox + 1, 3, oz + 1, 'glass', 1, 0x3fa7d6, 'mat_shop_window');
+    }
+    // Water Tower & Apartment (West)
+    {
+      const ox = -65, oz = -18;
+      this._box(ox, 0, oz, 4, 2, 4, 'brick', 1, 0xb56576, 'mat_brick_red');
+      this._box(ox, 2, oz, 4, 1, 4, 'concrete', 1, 0xe56b6f, 'mat_suburban_siding');
+      for (const [lx, lz] of [[0, 0], [2, 0], [0, 2], [2, 2]]) this._block(ox + lx, 3, oz + lz, 'wood', 1, 0x6d597a);
+      for (let x = 0; x < 3; x++) for (let z = 0; z < 3; z++) {
+        const edge = x === 0 || x === 2 || z === 0 || z === 2;
+        if (edge) this._block(ox + x, 4, oz + z, 'wood', 1, 0x355070, 'mat_suburban_siding');
+        this._block(ox + x, 5, oz + z, 'wood', 1, 0x355070, 'mat_clay_shingles');
+      }
+    }
+    {
+      const ox = -55, oz = -18;
+      for (let y = 0; y < 5; y++) for (let x = 0; x < 6; x++) for (let z = 0; z < 4; z++) {
+        const edge = x === 0 || x === 5 || z === 0 || z === 3;
+        const isSlab = y % 2 === 0;
+        if (!edge && !isSlab) continue;
+        const isWin = edge && !isSlab && (x + z + y) % 3 === 0;
+        this._block(ox + x, y, oz + z, isWin ? 'glass' : 'brick', 1, isWin ? 0x90e0ef : 0xc8553d, isWin ? 'mat_shop_window' : 'mat_brick_red');
+      }
+      this._box(ox, 5, oz, 6, 1, 4, 'wood', 1, 0x582f0e, 'mat_clay_shingles');
+    }
+
+    // 50s Diner & Gas Station (West)
+    {
+      const ox = -75, oz = -28;
+      for (let x = 0; x < 5; x++) for (let z = 0; z < 4; z++) {
+        const edge = x === 0 || x === 4 || z === 0 || z === 3;
+        const corner = (x === 0 || x === 4) && (z === 0 || z === 3);
+        if (!edge) continue;
+        this._block(ox + x, 0, oz + z, corner ? 'steel' : 'panel', 1, corner ? 0xadb5bd : 0xffafcc, 'mat_suburban_siding');
+        const isWin = !corner && (z === 0 || x === 0);
+        this._block(ox + x, 1, oz + z, isWin ? 'glass' : (corner ? 'steel' : 'panel'), 1, isWin ? 0xa2d2ff : (corner ? 0xadb5bd : 0xffafcc), isWin ? 'mat_shop_window' : 'mat_suburban_siding');
+      }
+      this._box(ox, 2, oz, 5, 1, 4, 'panel', 1, 0xffc8dd, 'mat_awning_stripe');
+    }
+    {
+      const ox = -60, oz = -28;
+      for (const [px, pz] of [[0, 0], [4, 0], [0, 3], [4, 3]]) {
+        this._block(ox + px, 0, oz + pz, 'steel', 1, 0x0077b6);
+        this._block(ox + px, 1, oz + pz, 'steel', 1, 0x0077b6);
+      }
+      this._box(ox, 2, oz, 5, 1, 4, 'panel', 1, 0xf77f00, 'mat_awning_stripe');
+      this._box(ox + 1, 0, oz + 1, 2, 1, 2, 'concrete', 1, 0xfcfbf4, 'mat_suburban_siding');
+      this._box(ox + 1, 1, oz + 1, 2, 1, 2, 'glass', 1, 0x90e0ef, 'mat_shop_window');
+      for (const px of [3.5, 4.0]) {
+        this._block(ox + px, 0, oz + 2, 'steel', 0.5, 0x212529);
+        this._block(ox + px, 0.5, oz + 2, 'panel', 0.5, 0xd62828, 'mat_warehouse_roll');
+      }
+    }
+
+    // West Vehicles
+    sedan(this, -75, -2, 0xe63946, 0xe63946, 'x', 'mat_awning_stripe', 'mat_shop_window');
+    sedan(this, -65, -2, 0x8338ec, 0x8338ec, 'x', undefined, 'mat_shop_window');
+    sedan(this, -55, -2, 0x06d6a0, 0x06d6a0, 'x', 'mat_suburban_siding', 'mat_shop_window');
+    bus(this, -70, 10, 0x4361ee, 'x', 'mat_awning_stripe', 'mat_shop_window');
+    bigTruck(this, -55, 10, 0xc22a1c, true, 'mat_warehouse_roll', 'mat_shop_window');
+
+    // =========================================================================
+    // ZONE 2 (CENTER: x: -25..+25) — KENNEY MODELS WITH DYNAMIC BREAK-APART
+    // =========================================================================
+
+    // Reference Tower & Central Plaza (Center)
+    {
+      const ox = -5, oz = -6, cols = 10, rows = 12, layers = 10;
+      for (let y = 0; y < layers; y++) {
+        for (let x = 0; x < cols; x++) {
+          for (let z = 0; z < rows; z++) {
+            const isCorner = (x === 0 || x === cols - 1) && (z === 0 || z === rows - 1);
+            const isOuterWall = x === 0 || x === cols - 1 || z === 0 || z === rows - 1;
+            const isSlab = y % 4 === 0;
+            const isColumn = (x === 3 || x === 6) && (z === 3 || z === 6 || z === 9);
+            if (!isOuterWall && !isSlab && !isColumn) continue;
+            let mat = 'concrete', surf = 'mat_suburban_siding', col = 0xf2ebd9;
+            if (isCorner || isColumn) { mat = 'steel'; surf = 'mat_warehouse_roll'; col = 0x606c38; }
+            else if (y === layers - 1) { mat = 'wood'; surf = 'mat_clay_shingles'; col = 0xbc6c25; }
+            else if (isOuterWall && !isSlab && ((z === 0 || z === rows - 1) ? x % 2 === 1 : z % 2 === 1)) {
+              mat = 'glass'; surf = 'mat_shop_window'; col = 0x8ecae6;
+            } else if (isOuterWall && !isSlab) {
+              mat = 'brick'; surf = 'mat_brick_red'; col = 0xcc5a47;
             }
+            this._block(ox + x, y, oz + z, mat, 1, col, surf);
           }
         }
-        this._box(bx, layers, bz, 6, 1, 8, trimMat, 1, col, surfTrim);
-        waterTower(this, bx + 2, bz + 3);
-      };
-
-      buildBlock(ox - 3, oz - 4, 12, colA);
-      buildBlock(ox - 3, oz + 8, 12, colC);
-
-      // Connecting Skybridges between towers
-      const bridge = (x0, y0, z0, len, col) => {
-        for (let i = 0; i < len; i++) {
-          this._block(x0 + i, y0, z0, 'steel', 1, col, 'mat_warehouse_roll');
-          this._block(x0 + i, y0 + 1, z0, 'glass', 1, 0x90e0ef, 'mat_shop_window');
-          this._block(x0 + i, y0 + 2, z0, 'steel', 1, col, 'mat_warehouse_roll');
-        }
-      };
-      bridge(ox - 8, 16, oz - 18, 6, colB);
-      bridge(ox - 8, 16, oz + 18, 6, colD);
-    };
-
-    // Build the 3 Skyscraper Quarters (Exact same architectural layout, differing physics / material mechanics)
-    buildSkyscraperQuarter(-75, 0, 1); // Q1: West (Brooklyn Style)
-    buildSkyscraperQuarter(-25, 0, 2); // Q2: Center-West (Modern Fine-Voxel Falling Style)
-    buildSkyscraperQuarter(25, 0, 3);  // Q3: Center-East (Industrial Chunk-Break Falling Style)
-
-    // =========================================================================
-    // QUARTER 4 (EAST: x: +55..+105) — MEGA STREET LIFE, VEHICLES, TREES & 40+ HYDRANTS
-    // =========================================================================
-    const q4x = 75;
-
-    // 1. Vehicle Fleet (35+ Diverse Vehicles across avenues & parking lots)
-    const vehCols = [0xf7c948, 0x3a86ff, 0xef233c, 0x1d3557, 0x2ec4b6, 0x9b5de5, 0xffb703, 0x38b000, 0x2b2d42, 0xe8ecf2];
-    for (let r = 0; r < 4; r++) {
-      const zRow = -28 + r * 18;
-      for (let c = 0; c < 6; c++) {
-        const vx = q4x - 18 + c * 7;
-        const col = vehCols[(r * 6 + c) % vehCols.length];
-        const typeIdx = (r * 6 + c) % 6;
-        if (typeIdx === 0) sedan(this, vx, zRow, col, 0x1d3557, 'x', undefined, 'mat_shop_window');
-        else if (typeIdx === 1) kenneySUV(this, vx, zRow, col, 'x', 'mat_suburban_siding', 'mat_shop_window');
-        else if (typeIdx === 2) boxVan(this, vx, zRow, 5, 0xf8f9fa, col, 'x', 'mat_warehouse_roll', 'mat_shop_window');
-        else if (typeIdx === 3) bus(this, vx, zRow, col, 'x', 'mat_awning_stripe', 'mat_shop_window');
-        else if (typeIdx === 4) bigTruck(this, vx, zRow, col, (c % 2 === 0), 'mat_corrugated_rust', 'mat_shop_window');
-        else motorcycle(this, vx, zRow, col, 'x');
       }
     }
 
-    // Additional Highway Rows & Emergency Response Units
-    for (let c = 0; c < 4; c++) {
-      const vx = q4x - 14 + c * 9;
-      sedan(this, vx, -38, 0xe8ecf2, 0x2a2f3a, 'x', undefined, 'mat_shop_window'); // Police Cruisers
-      bigTruck(this, vx, 38, 0xc22a1c, true, 'mat_warehouse_roll', 'mat_shop_window'); // Fire Engines
-      sedan(this, vx, 0, 0xf7c948, 0x1d3557, 'x', undefined, 'mat_shop_window'); // Taxis
-    }
-
-    // 2. Urban Arboretum & Tree Lines (30+ Trees across the entire sandbox)
-    for (let x = -95; x <= 95; x += 16) {
-      tree(this, x, -38);
-      tree(this, x, 38);
-      if (x >= 50) {
-        tree(this, x, -18);
-        tree(this, x, 18);
-      }
-    }
-
-    // 3. Municipal Grid: 40+ Fire Hydrants along curbs & intersections
-    for (let x = -95; x <= 95; x += 10) {
-      hydrant(this, x, -32);
-      hydrant(this, x, 32);
-      if (x >= 50) {
-        hydrant(this, x, -12);
-        hydrant(this, x, 12);
-      }
-    }
-
-    // 4. Street Lamps, Benches, Planters, Newsstands, Mailboxes & Waste Bins
-    for (let x = -90; x <= 90; x += 18) {
-      lampPost(this, x, -6);
-      lampPost(this, x, 6);
-      lampPost(this, x, -32);
-      lampPost(this, x, 32);
-    }
-    for (let x = 55; x <= 95; x += 10) {
-      bench(this, x, -8);
-      bench(this, x, 8);
-      trashBin(this, x + 3, -8);
-      trashBags(this, x + 4, -8);
-      mailbox(this, x + 2, 8);
-      newsBox(this, x + 4, 8);
-      planter(this, x, -30, 1.5, 1, 0x2e4d3a);
-      planter(this, x, 30, 1.5, 1, 0x2e4d3a);
-      bikeRack(this, x + 5, -30, 'x');
-      bollard(this, x + 6, -30);
-      bollard(this, x + 6, 30);
-    }
-
-    // 5. Commercial Street Stalls & Hot Dog Carts in Q4
-    for (let x = 60; x <= 90; x += 15) {
-      hotDogCart(this, x, -14);
-      marketStall(this, x + 5, -14, 0xe63946);
-      cafeTable(this, x, 14, 0x3a86ff);
-      cafeTable(this, x + 3, 14, 0xffb703);
-      newsstand(this, x + 7, 14, 0x2a5f9a);
-    }
-
-    // 6. Logistics Freight Yard in Q4 (Multi-tier Shipping Containers & Crate Pyramids)
-    const contCols = [0xd96c2c, 0x2a5f9a, 0x2e5d3a, 0xc22a1c, 0xf7c948, 0x6c757d];
-    for (let i = 0; i < 6; i++) {
-      const cx = q4x - 18 + i * 7;
-      shippingContainer(this, cx, 0, -28, 6, contCols[i % contCols.length]);
-      shippingContainer(this, cx, 1, -28, 6, contCols[(i + 1) % contCols.length]);
-      shippingContainer(this, cx, 0, 28, 6, contCols[(i + 2) % contCols.length]);
-      shippingContainer(this, cx, 1, 28, 6, contCols[(i + 3) % contCols.length]);
-      crateStack(this, cx + 3, -28, 3);
-      crateStack(this, cx + 3, 28, 3);
-    }
-
-    // 7. Elevated 3-Car Passenger Train on Viaduct Bridge across the South boundary
+    // 2m Warehouse A & Crate Pyramids (Center)
     {
-      const Z0 = 46;
-      for (let x = -120; x <= 120; x += 10) {
-        for (const cz of [45, 47]) for (let y = 0; y < 4; y++) this._block(x, y, cz, 'steel', 1, 0x2b2d42);
-        for (let w = 0; w < 4; w++) this._block(x, 4, Z0 - 1 + w, 'steel', 1, 0x8d99ae);
+      const ox = 8, oz = 8, S = 2;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
+        const edge = x === 0 || x === 3 || z === 0 || z === 2;
+        const corner = (x === 0 || x === 3) && (z === 0 || z === 2);
+        for (let y = 0; y < 3; y++) {
+          if (!edge) continue;
+          this._block(ox + x * S, y * S, oz + z * S, corner ? 'steel' : 'concrete', S, corner ? 0x588157 : 0xdde5b6, corner ? 'mat_warehouse_roll' : 'mat_suburban_siding');
+        }
+        this._block(ox + x * S, 3 * S, oz + z * S, 'wood', S, 0x4a5759, 'mat_clay_shingles');
       }
-      for (let x = -120; x <= 120; x += 2) {
-        for (let w = 0; w < 2; w++) this._block(x, 5, Z0 - 1 + w * 2, 'concrete', 2, 0xedf2f4, 'mat_suburban_siding');
-      }
-      // 3 Passenger Train Cars
-      this._box(-20, 5.5, Z0 - 1, 6, 2, 2, 'panel', 1, 0xef233c, 'mat_awning_stripe');
-      this._box(0, 5.5, Z0 - 1, 6, 2, 2, 'panel', 1, 0x3a86ff, 'mat_awning_stripe');
-      this._box(20, 5.5, Z0 - 1, 6, 2, 2, 'panel', 1, 0xffb703, 'mat_awning_stripe');
+    }
+    {
+      const ox = -11, oz = 8;
+      this._box(ox, 0, oz, 4, 1, 4, 'loose', 1, 0xd4a373, 'mat_suburban_siding');
+      this._box(ox, 1, oz, 3, 1, 3, 'loose', 1, 0xccd5ae, 'mat_suburban_siding');
+      this._box(ox, 2, oz, 2, 1, 2, 'loose', 1, 0xfaedcd, 'mat_suburban_siding');
+      this._block(ox, 3, oz, 'loose', 1, 0xd4a373, 'mat_suburban_siding');
     }
 
-    // Dynamic Player Movement Bounds for the 4-Quarter Showcase (270m × 110m total area)
-    this.bounds = 135;
-    this.boundsRect = { minX: -135, maxX: 135, minZ: -55, maxZ: 55 };
+    // Kenney Suburban Villa (Center-West) with detachable garage & chimney
+    {
+      const ox = -20, oz = -14;
+      this._box(ox, 0, oz, 6, 1, 5, 'concrete', 1, 0xf8f9fa, 'mat_suburban_siding');
+      this._box(ox, 1, oz, 6, 1, 5, 'concrete', 1, 0xf8f9fa, 'mat_suburban_siding');
+      this._box(ox, 2, oz, 6, 1, 5, 'wood', 1, 0x495057, 'mat_clay_shingles');
+      // Detachable Garage
+      this._box(ox + 6, 0, oz, 3, 1, 4, 'steel', 1, 0xced4da, 'mat_warehouse_roll');
+      this._box(ox + 6, 1, oz, 3, 1, 4, 'steel', 1, 0xced4da, 'mat_warehouse_roll');
+      this._box(ox + 6, 2, oz, 3, 1, 4, 'wood', 1, 0x343a40, 'mat_clay_shingles');
+      // Detachable Brick Chimney
+      for (let y = 0; y <= 4; y++) this._block(ox - 1, y, oz + 2, 'brick', 1, 0xcc5a47, 'mat_brick_red');
+    }
+
+    // Brownstone & Parking Garage (Center-West)
+    {
+      const ox = -15, oz = 6;
+      for (let y = 0; y < 3; y++) for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
+        const edge = x === 0 || x === 3 || z === 0 || z === 2;
+        if (!edge) continue;
+        const isWin = y === 1 && (x === 1 || x === 2) && z === 0;
+        this._block(ox + x, y, oz + z, isWin ? 'glass' : 'brick', 1, isWin ? 0xade8f4 : 0x9c6644, isWin ? 'mat_shop_window' : 'mat_brick_red');
+      }
+      this._box(ox, 3, oz, 4, 1, 3, 'wood', 1, 0x7f4f24, 'mat_clay_shingles');
+      this._block(ox + 1, 0, oz - 1, 'concrete', 1, 0xddb892, 'mat_suburban_siding');
+    }
+    {
+      const ox = -22, oz = 6;
+      const cols = [[0, 0], [2, 0], [4, 0], [0, 2], [4, 2], [0, 4], [2, 4], [4, 4]];
+      for (const level of [0, 2, 4]) {
+        for (const [cx, cz] of cols) this._block(ox + cx, level, oz + cz, 'steel', 1, 0x6c757d);
+        this._box(ox, level + 1, oz, 5, 1, 5, 'concrete', 1, 0xe9ecef, 'mat_suburban_siding');
+      }
+    }
+
+    // Gas Station (Center-East)
+    {
+      const ox = 19, oz = 10;
+      for (const [px, pz] of [[0, 0], [4, 0], [0, 3], [4, 3]]) {
+        this._block(ox + px, 0, oz + pz, 'steel', 1, 0x0077b6);
+        this._block(ox + px, 1, oz + pz, 'steel', 1, 0x0077b6);
+      }
+      this._box(ox, 2, oz, 5, 1, 4, 'panel', 1, 0xf77f00, 'mat_awning_stripe');
+      this._box(ox + 1, 0, oz + 1, 2, 1, 2, 'concrete', 1, 0xfcfbf4, 'mat_suburban_siding');
+      this._box(ox + 1, 1, oz + 1, 2, 1, 2, 'glass', 1, 0x90e0ef, 'mat_shop_window');
+      for (const px of [3.5, 4.0]) {
+        this._block(ox + px, 0, oz + 2, 'steel', 0.5, 0x212529);
+        this._block(ox + px, 0.5, oz + 2, 'panel', 0.5, 0xd62828, 'mat_warehouse_roll');
+      }
+    }
+
+    // Construction Crane & Shipping Containers (Center NE)
+    this._box(11, 0, -13, 2, 1, 2, 'concrete', 1, 0x8d99ae, 'mat_suburban_siding');
+    for (let y = 1; y <= 6; y++) this._block(11, y, -13, 'steel', 1, 0xffb703);
+    this._block(12, 6, -13, 'steel', 1, 0xffb703); this._block(13, 6, -13, 'steel', 1, 0xffb703); this._block(14, 6, -13, 'steel', 1, 0xffb703);
+    this._block(10, 6, -13, 'steel', 1, 0xffb703); this._block(9, 6, -13, 'concrete', 1, 0x495057);
+    const cont = (x, y, z, c) => {
+      this._block(x, y, z, 'steel', 1, c, 'mat_warehouse_roll');
+      this._block(x + 1, y, z, 'steel', 1, c, 'mat_warehouse_roll');
+    };
+    cont(22, 0, -11, 0xd96c2c); cont(24, 0, -11, 0x2a5f9a);
+    cont(22, 1, -11, 0x2a5f9a); cont(24, 1, -11, 0xd96c2c);
+
+    // Kenney Commercial Plaza (Center-East) with cantilevered marquee
+    {
+      const ox = 12, oz = -14;
+      this._box(ox, 0, oz, 8, 1, 5, 'concrete', 1, 0xfff1e6, 'mat_suburban_siding');
+      this._box(ox, 1, oz, 8, 1, 5, 'concrete', 1, 0xfff1e6, 'mat_suburban_siding');
+      this._box(ox, 2, oz, 8, 1, 5, 'wood', 1, 0x2b2d42, 'mat_clay_shingles');
+      for (let x = 0; x < 8; x++) this._block(ox + x, 1, oz - 1, 'panel', 1, 0x3a86ff, 'mat_awning_stripe');
+    }
+
+    // Kenney Break-Apart Vehicle Fleet (Center)
+    sedan(this, -18, -2, 0xe8ecf2, 0x2a2f3a, 'x', undefined, 'mat_shop_window'); // Police Cruiser with lightbar
+    kenneySUV(this, -10, -2, 0x1d3557, 'x', 'mat_suburban_siding', 'mat_shop_window'); // Luxury SUV
+    sedan(this, 2, -2, 0xf7c948, 0x1d3557, 'x', undefined, 'mat_shop_window'); // Yellow Taxi
+    kenneySUV(this, 10, -2, 0x9b5de5, 'x', 'mat_awning_stripe', 'mat_shop_window'); // Sport SUV
+    boxVan(this, 18, -2, 5, 0xf2f2f2, 0x028090, 'x', 'mat_warehouse_roll', 'mat_shop_window'); // Delivery Van
+    sedan(this, 8, 3.5, 0x3a86ff, 0x3a86ff, 'x', 'mat_awning_stripe', 'mat_shop_window'); // Blue Coupe
+    bus(this, 16, 3.5, 0x4361ee, 'x', 'mat_awning_stripe', 'mat_shop_window'); // City Bus
+    bigTruck(this, 8, -6, 0x2e5d3a, false, 'mat_corrugated_rust', 'mat_shop_window'); // Garbage Truck
+    bigTruck(this, 16, -6, 0xc22a1c, true, 'mat_warehouse_roll', 'mat_shop_window'); // Fire Engine
+
+    // Street Furniture & Props (Center)
+    const F = (x, y, z, m, c, surf) => this._block(x, y, z, m, 0.25, c, surf);
+    const B25 = (x0, y0, z0, nx, ny, nz, m, c, surf) => this._box(x0, y0, z0, nx, ny, nz, m, 0.25, c, surf);
+    B25(-11.25, 0, 12.75, 2, 3, 2, 'panel', 0xd90429);
+    F(-11.125, 0.75, 12.875, 'panel', 0xd90429);
+    F(-11.5, 0.375, 12.875, 'panel', 0xd90429); F(-10.75, 0.375, 12.875, 'panel', 0xd90429);
+    F(-5.25, 0, 12.875, 'steel'); F(-4.75, 0, 12.875, 'steel');
+    B25(-5.25, 0.25, 12.75, 2, 3, 2, 'panel', 0x2a4f9a);
+    B25(-5.25, 1, 12.75, 2, 1, 2, 'panel', 0x2a4f9a);
+    B25(-2.25, 0, 12.875, 1, 2, 1, 'steel'); B25(-1.25, 0, 12.875, 1, 2, 1, 'steel');
+    B25(-2.5, 0.5, 12.75, 4, 1, 2, 'wood', 0x8b5e34, 'mat_suburban_siding');
+    B25(-2.5, 0.75, 12.75, 4, 2, 1, 'wood', 0x8b5e34, 'mat_suburban_siding');
+    F(10.75, 0, 14.75, 'rubber'); F(11.75, 0, 14.75, 'rubber');
+    B25(10.75, 0.25, 14.75, 4, 2, 2, 'panel', 0xf7c948);
+    B25(11.5, 0.75, 14.875, 1, 4, 1, 'steel');
+    B25(11, 1.75, 14.5, 3, 1, 3, 'panel', 0xc23b2e, 'mat_awning_stripe');
+    B25(-8.5, 0, 12.25, 4, 3, 3, 'panel', 0x2e4d3a);
+    B25(-8.75, 0.75, 12, 5, 1, 4, 'panel', 0x2e4d3a, 'mat_awning_stripe');
+
+    // Elevated 3-Car Passenger Train on Viaduct Bridge (Center S)
+    {
+      const Z0 = 22;
+      for (let x = -24; x <= 24; x += 4) {
+        for (const cz of [24, 25]) for (let y = 0; y < 3; y++) this._block(x, y, cz, 'steel', 1, 0x2b2d42);
+        for (let w = 0; w < 6; w++) this._block(x, 3, Z0 + w, 'steel', 1, 0x8d99ae);
+      }
+      for (let x = -24; x <= 24; x += 0.5) {
+        for (let w = 0; w < 12; w++) this._block(x, 4, Z0 + w * 0.5, 'concrete', 0.5, 0xedf2f4, 'mat_suburban_siding');
+      }
+      for (let x = -24; x <= 24; x += 2) {
+        this._block(x, 4.5, Z0, 'steel', 0.5, 0x2b2d42);
+        this._block(x, 4.5, Z0 + 5.5, 'steel', 0.5, 0x2b2d42);
+      }
+      for (let x = -24; x < 24; x += 0.5) {
+        this._block(x, 5, Z0, 'steel', 0.5, 0xd90429);
+        this._block(x, 5, Z0 + 5.5, 'steel', 0.5, 0xd90429);
+      }
+      this._box(-8, 4.5, 23.5, 5, 2, 2, 'panel', 0.5, 0xef233c, 'mat_awning_stripe');
+      this._box(-2, 4.5, 23.5, 5, 2, 2, 'panel', 0.5, 0x3a86ff, 'mat_awning_stripe');
+      this._box(4, 4.5, 23.5, 5, 2, 2, 'panel', 0.5, 0xffb703, 'mat_awning_stripe');
+    }
+
+    // =========================================================================
+    // ZONE 3 (EAST: x: +35..+85) — MODIFIED KENNEY MEGA SKYSCRAPERS (18m–32m)
+    // =========================================================================
+
+    // Skyscraper Alpha: Kenney Commercial Tower (24m / 24 floors) with 4m Radio Spire
+    kenneySkyscraper(this, 36, -14, 8, 8, 24, 0x3d5a80, 0xee6c4d, 'helipad');
+
+    // Skyscraper Beta: Kenney Plaza Monolith (30m / 30 floors) with Rooftop Helipad
+    kenneySkyscraper(this, 54, -14, 8, 8, 30, 0x293241, 0xf4a261, 'helipad');
+
+    // Skyscraper Gamma: Kenney Twin Corporate Headquarters (22m / 22 floors) with Cooling Units
+    kenneySkyscraper(this, 72, -14, 8, 8, 22, 0x457b9d, 0xe76f51, 'cooling');
+
+    // Skyscraper Delta: Kenney Financial Center (26m / 26 floors)
+    kenneySkyscraper(this, 44, 8, 8, 8, 26, 0x1d3557, 0x06d6a0, 'cooling');
+
+    // Skyscraper Epsilon: Kenney Grand Plaza Suites (20m / 20 floors)
+    kenneySkyscraper(this, 66, 8, 8, 8, 20, 0x2b2d42, 0xffb703, 'helipad');
+
+    // East Skyscraper District Avenue Fleet
+    sedan(this, 40, -2, 0xf7c948, 0x1d3557, 'x', undefined, 'mat_shop_window'); // Taxi
+    sedan(this, 52, -2, 0x3a86ff, 0x3a86ff, 'x', 'mat_awning_stripe', 'mat_shop_window'); // Executive Coupe
+    kenneySUV(this, 64, -2, 0x111111, 'x', undefined, 'mat_shop_window'); // Black SUV
+    bus(this, 48, 20, 0xfb8500, 'x', 'mat_awning_stripe', 'mat_shop_window'); // City Double-Decker Transit
+    bigTruck(this, 68, 20, 0x457b9d, false, 'mat_corrugated_rust', 'mat_shop_window'); // Cargo Freight Hauler
+
+    // --- STREET TREES & LAMP POSTS ACROSS ALL 3 ZONES -----------------------
+    for (const [tx, tz] of [
+      [-80, -12], [-60, -12], [-40, -12], [-28, -6], [0, -10], [24, -6], [38, -6], [60, -6], [80, -6],
+      [-80, 12], [-60, 12], [-40, 12], [-28, 16], [0, 20], [24, 16], [40, 24], [60, 24], [80, 24]
+    ]) tree(this, tx, tz);
+
+    for (const [lx, lz] of [
+      [-80, 4], [-60, 4], [-40, 4], [-20, 4], [0, 4], [20, 4], [40, 4], [60, 4], [80, 4],
+      [-80, -4], [-60, -4], [-40, -4], [-20, -4], [0, -4], [20, -4], [40, -4], [60, -4], [80, -4],
+      [-70, 22], [-30, 22], [10, 22], [50, 22], [70, 22],
+      [-70, -22], [-30, -22], [10, -22], [50, -22], [70, -22]
+    ]) lampPost(this, lx, lz);
+
+    // Dynamic Player Movement Bounds for the 3-Tier Showcase (190m × 90m total area)
+    this.bounds = 95;
+    this.boundsRect = { minX: -95, maxX: 95, minZ: -45, maxZ: 45 };
 
     // --- FULL GROUND DECOR ROAD & SIDEWALK NETWORK ---------------------------
     const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [];
@@ -1669,51 +1866,49 @@ export class VoxelSandboxSim {
     const water = [], boardwalk = [];
 
     // Base ground surfaces
-    parks.push({ x: -135, z: -55, w: 270, d: 110, color: 0x386641 }); // Green ground
-    plaza.push({ x: -125, z: -45, w: 60, d: 90, color: 0x4a4e69 });   // Q1 Plaza
-    plaza.push({ x: -60,  z: -45, w: 60, d: 90, color: 0x3d5a80 });   // Q2 Plaza
-    plaza.push({ x: 0,    z: -45, w: 60, d: 90, color: 0x293241 });   // Q3 Plaza
-    plaza.push({ x: 60,   z: -45, w: 65, d: 90, color: 0x2b2d42 });   // Q4 Plaza
+    parks.push({ x: -95, z: -45, w: 190, d: 90, color: 0x386641 }); // Lush green base terrain
+    plaza.push({ x: -85, z: -35, w: 50, d: 70, color: 0x4a4e69 });  // Zone 1 West Plaza
+    plaza.push({ x: -25, z: -35, w: 50, d: 70, color: 0x3d5a80 });  // Zone 2 Center Plaza
+    plaza.push({ x: 30, z: -35, w: 60, d: 70, color: 0x293241 });   // Zone 3 East Metropolis Plaza
 
     // East-West Main Thoroughfares
-    roads.push({ x: -135, z: -8, w: 270, d: 10, color: 0x1c2030 });   // Central Avenue North
-    roads.push({ x: -135, z: 14, w: 270, d: 10, color: 0x1c2030 });   // Central Avenue South
-    roads.push({ x: -135, z: -38, w: 270, d: 6, color: 0x2b2d42 });   // North Expressway
-    roads.push({ x: -135, z: 38, w: 270, d: 6, color: 0x2b2d42 });    // South Expressway
+    roads.push({ x: -95, z: -6, w: 190, d: 8, color: 0x1c2030 });    // Boulevard North
+    roads.push({ x: -95, z: 12, w: 190, d: 8, color: 0x1c2030 });    // Boulevard South
+    roads.push({ x: -95, z: -24, w: 190, d: 6, color: 0x2b2d42 });   // Service Lane North
 
-    // North-South Cross-Town Avenues separating the 4 quarters
-    roads.push({ x: -120, z: -55, w: 6, d: 110, color: 0x1c2030 });
-    roads.push({ x: -60,  z: -55, w: 6, d: 110, color: 0x1c2030 });
-    roads.push({ x: 0,    z: -55, w: 6, d: 110, color: 0x1c2030 });
-    roads.push({ x: 60,   z: -55, w: 6, d: 110, color: 0x1c2030 });
-    roads.push({ x: 120,  z: -55, w: 6, d: 110, color: 0x1c2030 });
+    // North-South Cross-Town Avenues
+    roads.push({ x: -60, z: -45, w: 6, d: 90, color: 0x1c2030 });
+    roads.push({ x: -26, z: -45, w: 6, d: 90, color: 0x1c2030 });
+    roads.push({ x: 0, z: -45, w: 6, d: 90, color: 0x1c2030 });
+    roads.push({ x: 32, z: -45, w: 6, d: 90, color: 0x1c2030 });
+    roads.push({ x: 62, z: -45, w: 6, d: 90, color: 0x1c2030 });
 
     // Sidewalks flanking avenues
-    sidewalks.push({ x: -135, z: -10, w: 270, d: 2, color: 0x6c757d });
-    sidewalks.push({ x: -135, z: 2,   w: 270, d: 2, color: 0x6c757d });
-    sidewalks.push({ x: -135, z: 12,  w: 270, d: 2, color: 0x6c757d });
-    sidewalks.push({ x: -135, z: 24,  w: 270, d: 2, color: 0x6c757d });
+    sidewalks.push({ x: -95, z: -8, w: 190, d: 2, color: 0x6c757d });
+    sidewalks.push({ x: -95, z: 2, w: 190, d: 2, color: 0x6c757d });
+    sidewalks.push({ x: -95, z: 10, w: 190, d: 2, color: 0x6c757d });
+    sidewalks.push({ x: -95, z: 20, w: 190, d: 2, color: 0x6c757d });
 
     // Yellow Dashed Lane Dividers
-    for (let x = -130; x < 130; x += 6) {
-      laneMarkers.push({ x: x, z: -3.2, w: 3.5, d: 0.4, color: 0xf7c948 });
-      laneMarkers.push({ x: x, z: 18.8, w: 3.5, d: 0.4, color: 0xf7c948 });
+    for (let x = -90; x < 90; x += 6) {
+      laneMarkers.push({ x: x, z: -2.2, w: 3.5, d: 0.4, color: 0xf7c948 });
+      laneMarkers.push({ x: x, z: 15.8, w: 3.5, d: 0.4, color: 0xf7c948 });
     }
 
-    // Zebra Crosswalks at all intersections
+    // Zebra Crosswalks at all 5 intersections
     const zebra = (x0, z0, w, d, horiz = true) => {
       if (horiz) for (let z = z0; z < z0 + d; z += 1.2) crosswalks.push({ x: x0, z: z, w: w, d: 0.6, color: 0xffffff });
       else for (let x = x0; x < x0 + w; x += 1.2) crosswalks.push({ x: x, z: z0, w: 0.6, d: d, color: 0xffffff });
     };
-    for (const cx of [-120, -60, 0, 60, 120]) {
-      zebra(cx - 5, -8, 2, 10, true);
-      zebra(cx + 9, -8, 2, 10, true);
-      zebra(cx - 5, 14, 2, 10, true);
-      zebra(cx + 9, 14, 2, 10, true);
+    for (const cx of [-60, -26, 0, 32, 62]) {
+      zebra(cx - 5, -6, 2, 8, true);
+      zebra(cx + 9, -6, 2, 8, true);
+      zebra(cx - 5, 12, 2, 8, true);
+      zebra(cx + 9, 12, 2, 8, true);
     }
 
     // Rail Bed under Elevated Viaduct
-    rail.push({ x: -135, z: 46, w: 270, d: 6, color: 0x3a3128 });
+    rail.push({ x: -95, z: 22, w: 190, d: 6, color: 0x3a3128 });
 
     this.sceneDecor = {
       parks, sand, plaza, cobbles, sidewalks, roads, rail,

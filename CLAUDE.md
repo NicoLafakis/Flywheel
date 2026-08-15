@@ -1,4 +1,4 @@
-# AGENTS.md — Flywheel
+# CLAUDE.md — Flywheel
 
 Static browser game, no build step. Read `.wiki/INDEX.md` for the full wiki;
 `STATUS.md` for where things stand.
@@ -10,6 +10,7 @@ Static browser game, no build step. Read `.wiki/INDEX.md` for the full wiki;
   `js/tiers.js`, `js/levels.js`, `js/voxelsim.js`, `js/voxelscene-manhattan.js`,
   `js/voxelscene-upper-manhattan.js`, `js/voxelscene-brooklyn.js`,
   `js/voxelkit.js`): `node tools/validate.mjs` → must print `ALL PASS`
+- Fast single section check: `node tools/validate.mjs` with `FW_VALIDATE_SECTIONS=<name>` (e.g. `offlineBoot`, `saveSchema`, `fwMath`, etc.)
 - No package.json, no lint, no test runner — the validator IS the test suite.
 
 ## Development Methodology: Test-Driven Development (TDD)
