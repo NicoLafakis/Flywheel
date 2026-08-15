@@ -17,6 +17,15 @@ Last updated: 2026-08-15
 
 ## Shipped state
 
+- 2026-08-15 - Modern Mobile Game Shop & Multi-Rank Incremental Character Stat Upgrades:
+  - **Category Icon Tabs**: Replaced flat item shelf with 5 dedicated icon category tabs (`🕳️ Skins`, `👾 Creatures`, `🤝 Partners`, `🧭 Indicators`, `⚡ Upgrades`) with unlock progress badges and fluid category transitions.
+  - **Collection & Bank Header**: Sticky top navigation bar featuring unified collection progress (`14/31 Cosmetics · 12/80 Upgrade Ranks`), responsive Back navigation, and live animated coin capsule.
+  - **Multi-Rank Incremental Stat Upgrades**: Added 4 character stat upgrade tracks (`speed`, `vortex`, `growth`, `duration`) with 20 incremental ranks each (+5% per rank up to +100% maximum capability boost).
+  - **20-Tier Cost Curve**: Balanced 20-step exponential cost progression (`100` -> `3,400` coins per track, totaling 25,975 coins per category and 103,900 coins across all 4 tracks to achieve 100% max mastery).
+  - **20-Segment Pip Progress Visualizers**: Discrete interactive segment progress meters indicating current rank, active bonus, and next-rank unlock cost with distinct maxed crown badges.
+  - **Save Migration v19 -> v20**: Bumped `CURRENT_VERSION = 20` with backward-compatible migration converting legacy `growth5` owner into Rank 1 Mass Growth and initializing `upgrades` schema defaults.
+  - **Simulation & Sandbox Wiring**: Upgrades dynamically scale movement speed, vortex attraction pull, devoured block mass growth, and power-up active durations in both `Sim` (`sim.js`) and `VoxelSandboxSim` (`voxelsim.js`).
+
 - 2026-08-15 - Gameplay Enhancements & Mechanics Polish:
   - **Titan Surge Max Size**: Player reaches absolute max size (`MAX_RADIUS` = 13.1m in sandbox, `PLAYER_MAX_RADIUS` = 13.5m in campaign) for the full 15s duration of the power-up.
   - **6-Second Minimum Modal Duration**: Modals, cinematics, and HUD announcements (`showPowerUpShowcase`, `showDragonballCollectCinematic`, `showEarthquakeCinematic`, `showPokemonEncounterModal`, and `hud.announce`) display for at least 6.0 seconds unless cancelled/skipped by the player.

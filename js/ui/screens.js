@@ -25,6 +25,7 @@ import { buildBlockWord } from './blockword.js';
 import { buildSprocket } from './sprocket.js';
 import { POWERUP_SPECS } from '../powerups.js';
 
+
 // The shop shelf is the skin registry itself — js/skins.js owns the rows, this
 // file only draws them. Re-exported rather than re-imported at the call sites so
 // nothing that already did `import { SKINS } from './ui/screens.js'` has to
@@ -32,6 +33,7 @@ import { POWERUP_SPECS } from '../powerups.js';
 // (Imported AND re-exported: a bare `export ... from` would not create the
 // local binding this file's own shop renderer needs.)
 import { SKINS, INDICATOR_SKINS, bakeSkinThumbnails } from '../skins.js';
+import { SHOP_CATEGORIES, getShopItemsByCategory, UPGRADES, upgradeCost, upgradeMultiplier, MAX_UPGRADE_RANK } from '../upgrades.js';
 export { SKINS, INDICATOR_SKINS };
 
 export const ITEMS = [
@@ -268,8 +270,9 @@ export class Screens {
   constructor(root, save, actions) {
     this.root = root;
     this.save = save;
-    this.actions = actions; // { play(level), resume(), restart(), quitToMap(), buy(id), equip(id), toggleMute() }
+    this.actions = actions; // { play(level), resume(), restart(), quitToMap(), buy(id), buyUpgrade(id), equip(id), toggleMute() }
     this.current = null;
+    this.activeShopCategory = 'skins';
   }
 
   clear() {
@@ -982,77 +985,202 @@ export class Screens {
     } catch { this.showTitle(); }
   }
 
-  showShop() {
+  showShop(categoryId = this.activeShopCategory || 'skins') {
     this.clear();
+    this.activeShopCategory = categoryId;
     if (this.actions.menuScene) this.actions.menuScene(false);
     if (this.actions.music) this.actions.music('shop');
-    const s = el(`<div class="screen"><h2>SHOP</h2>
-      <div class="coins">&#128176; ${this.save.coins} coins</div>
-      <div class="shop-items"></div></div>`);
-    const wrap = s.querySelector('.shop-items');
-    // A flat colour swatch could describe a skin when a skin WAS a colour. It
-    // cannot show teeth, a sweep or an eyelid, so the shelf renders each row's
-    // actual geometry — baked once into data URLs, cached for the session. The
-    // fallback is the old swatch, so a machine that cannot make a GL context
-    // still gets a usable shop.
-    const shots = bakeSkinThumbnails();
-    for (const skin of SKINS) {
-      const owned = this.save.ownedItems.includes(skin.id) || skin.price === 0;
-      const equipped = this.save.equippedSkin === skin.id;
-      const shot = shots && shots.get(skin.id);
-      const art = shot
-        ? `<img class="preview" src="${shot}" alt="">`
-        : `<div class="swatch" style="background:${skin.css}"></div>`;
-      const item = el(`<div class="shop-item"><h4>${skin.name}</h4>
-        ${art}
-        <p class="blurb">${skin.blurb || ''}</p>
-        <div class="price">${owned ? (equipped ? 'EQUIPPED' : 'OWNED') : skin.price + ' coins'}</div></div>`);
-      const btn = el(`<button class="btn ${owned ? 'secondary' : ''}">${equipped ? 'EQUIPPED' : owned ? 'EQUIP' : 'BUY'}</button>`);
-      btn.disabled = equipped;
-      btn.onclick = () => {
-        if (owned) { this.actions.equip(skin.id); }
-        else if (this.actions.buy(skin.id, skin.price)) { /* bought then equip below */ this.actions.equip(skin.id); }
-        this.showShop();
+
+    const totalCosmetics = SKINS.length + INDICATOR_SKINS.length;
+    const ownedCosmetics = [...SKINS, ...INDICATOR_SKINS].filter(
+      (item) => item.price === 0 || (this.save.ownedItems || []).includes(item.id)
+    ).length;
+    const totalUpgradeRanks = Object.values(this.save.upgrades || {}).reduce((a, b) => a + (b || 0), 0);
+    const maxPossibleRanks = UPGRADES.length * MAX_UPGRADE_RANK;
+
+    const s = el(`<div class="screen shop-screen">
+      <div class="shop-header">
+        <button class="shop-back-btn" id="shop-back-btn">‹ BACK</button>
+        <div class="shop-title-block">
+          <h2>SHOP</h2>
+          <div class="shop-progress-summary">Cosmetics: ${ownedCosmetics}/${totalCosmetics} · Upgrades: ${totalUpgradeRanks}/${maxPossibleRanks}</div>
+        </div>
+        <div class="shop-coin-pill">🪙 <span class="coin-num">${(this.save.coins || 0).toLocaleString()}</span></div>
+      </div>
+      <div class="shop-tab-bar" role="tablist"></div>
+      <div class="shop-category-banner"></div>
+      <div class="shop-content-area" style="width:100%"></div>
+    </div>`);
+
+    const backBtn = s.querySelector('#shop-back-btn');
+    backBtn.onclick = () => this.showTitle();
+
+    // 1. Tab Bar with Category Icons
+    const tabBar = s.querySelector('.shop-tab-bar');
+    const categoryCounts = {
+      skins: `${SKINS.filter((s) => !s.family && (s.price === 0 || (this.save.ownedItems || []).includes(s.id))).length}/${SKINS.filter((s) => !s.family).length}`,
+      creatures: `${SKINS.filter((s) => s.family === 'creature' && (s.price === 0 || (this.save.ownedItems || []).includes(s.id))).length}/${SKINS.filter((s) => s.family === 'creature').length}`,
+      partners: `${SKINS.filter((s) => s.family === 'partner' && (s.price === 0 || (this.save.ownedItems || []).includes(s.id))).length}/${SKINS.filter((s) => s.family === 'partner').length}`,
+      indicators: `${INDICATOR_SKINS.filter((i) => i.price === 0 || (this.save.ownedItems || []).includes(i.id)).length}/${INDICATOR_SKINS.length}`,
+      upgrades: `${totalUpgradeRanks}/${maxPossibleRanks}`,
+    };
+
+    for (const cat of SHOP_CATEGORIES) {
+      const isActive = cat.id === categoryId;
+      const tab = el(`<button class="shop-tab ${isActive ? 'active' : ''}" role="tab" aria-selected="${isActive}">
+        <span class="tab-icon">${cat.icon}</span>
+        <span class="tab-badge">${categoryCounts[cat.id] || ''}</span>
+      </button>`);
+      tab.onclick = () => {
+        if (cat.id !== this.activeShopCategory) {
+          this.showShop(cat.id);
+        }
       };
-      item.appendChild(btn);
-      wrap.appendChild(item);
+      tabBar.appendChild(tab);
     }
-    const indHeader = el(`<div style="width:100%;margin:14px 0 6px 0;text-align:center"><h3 style="margin:0;color:#38bdf8;font-size:15px;letter-spacing:1px">NAV INDICATOR SKINS</h3></div>`);
-    wrap.appendChild(indHeader);
-    for (const ind of INDICATOR_SKINS) {
-      const owned = this.save.ownedItems.includes(ind.id) || ind.price === 0;
-      const equipped = (this.save.equippedIndicator || 'ind-default') === ind.id;
-      const art = `<div class="swatch" style="background:${ind.css};display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;box-shadow:0 0 12px ${ind.color ? '#' + ind.color.toString(16).padStart(6, '0') : '#38bdf8'}">➤</div>`;
-      const item = el(`<div class="shop-item"><h4>${ind.name}</h4>
-        ${art}
-        <p class="blurb">${ind.blurb || ''}</p>
-        <div class="price">${owned ? (equipped ? 'EQUIPPED' : 'OWNED') : ind.price + ' coins'}</div></div>`);
-      const btn = el(`<button class="btn ${owned ? 'secondary' : ''}">${equipped ? 'EQUIPPED' : owned ? 'EQUIP' : 'BUY'}</button>`);
-      btn.disabled = equipped;
-      btn.onclick = () => {
-        if (owned) { if (this.actions.equipIndicator) this.actions.equipIndicator(ind.id); }
-        else if (this.actions.buy(ind.id, ind.price)) { if (this.actions.equipIndicator) this.actions.equipIndicator(ind.id); }
-        this.showShop();
-      };
-      item.appendChild(btn);
-      wrap.appendChild(item);
+
+    // 2. Category Banner
+    const banner = s.querySelector('.shop-category-banner');
+    const currentCatObj = SHOP_CATEGORIES.find((c) => c.id === categoryId) || SHOP_CATEGORIES[0];
+    banner.innerHTML = `<div>
+      <h3>${currentCatObj.icon} ${currentCatObj.title}</h3>
+      <p>${currentCatObj.desc}</p>
+    </div>`;
+
+    // 3. Category Content
+    const contentArea = s.querySelector('.shop-content-area');
+    const items = getShopItemsByCategory(categoryId, {
+      save: this.save,
+      skins: SKINS,
+      indicatorSkins: INDICATOR_SKINS,
+    });
+
+    if (categoryId === 'upgrades') {
+      const grid = el(`<div class="shop-upgrades-grid"></div>`);
+      for (const it of items) {
+        const currentRank = it.currentRank;
+        const currentBoost = currentRank * it.stepPercent;
+        const nextBoost = Math.min(it.maxRank * it.stepPercent, (currentRank + 1) * it.stepPercent);
+        const cost = it.cost;
+        const canAfford = cost !== null && (this.save.coins || 0) >= cost;
+        const isMaxed = it.isMaxed;
+
+        // Build 20 discrete pips
+        let pipsHtml = '';
+        for (let r = 0; r < it.maxRank; r++) {
+          const filled = r < currentRank;
+          pipsHtml += `<div class="upgrade-pip ${filled ? 'filled' : ''}"></div>`;
+        }
+
+        const card = el(`<div class="upgrade-card ${isMaxed ? 'is-maxed' : ''}">
+          <div>
+            <div class="upgrade-top-row">
+              <div class="upgrade-icon-title">
+                <div class="upgrade-icon-wrap">${it.icon}</div>
+                <div class="upgrade-titles">
+                  <h4>${it.name}</h4>
+                  <div class="stat-name">${it.statName}</div>
+                </div>
+              </div>
+              <div class="upgrade-rank-pill">${isMaxed ? 'MAXED 👑' : `Rank ${currentRank}/${it.maxRank}`}</div>
+            </div>
+            <p class="upgrade-desc">${it.desc}</p>
+            <div class="upgrade-meter-wrap">
+              <div class="upgrade-meter-label">
+                <span>Power Boost</span>
+                <span class="boost-num">+${currentBoost}%</span>
+              </div>
+              <div class="upgrade-meter">${pipsHtml}</div>
+            </div>
+          </div>
+          <div class="upgrade-footer">
+            <div class="upgrade-next-hint">
+              ${isMaxed ? '<span style="color:#ffd23f">Maximum Capability</span>' : `Next: <b>+${nextBoost}%</b> (+${it.stepPercent}%)`}
+            </div>
+            ${isMaxed
+              ? `<button class="upgrade-action-btn maxed" disabled>MAXED 👑</button>`
+              : `<button class="upgrade-action-btn primary" ${!canAfford ? 'disabled' : ''}>UPGRADE 🪙 ${cost}</button>`
+            }
+          </div>
+        </div>`);
+
+        if (!isMaxed) {
+          const btn = card.querySelector('.upgrade-action-btn');
+          btn.onclick = () => {
+            if (this.actions.buyUpgrade) {
+              const res = this.actions.buyUpgrade(it.id);
+              if (res && res.success) {
+                this.showShop('upgrades');
+              }
+            }
+          };
+        }
+
+        grid.appendChild(card);
+      }
+      contentArea.appendChild(grid);
+    } else {
+      // Cosmetics (skins, creatures, partners, indicators)
+      const grid = el(`<div class="shop-items"></div>`);
+      const shots = bakeSkinThumbnails();
+
+      for (const it of items) {
+        const owned = it.isOwned;
+        const equipped = it.isEquipped;
+        const isIndicator = categoryId === 'indicators';
+
+        let art = '';
+        if (isIndicator) {
+          art = `<div class="swatch" style="background:${it.css};display:flex;align-items:center;justify-content:center;font-size:26px;color:#fff;box-shadow:0 0 16px ${it.color ? '#' + it.color.toString(16).padStart(6, '0') : '#38bdf8'}">➤</div>`;
+        } else {
+          const shot = shots && shots.get(it.id);
+          art = shot
+            ? `<img class="preview" src="${shot}" alt="">`
+            : `<div class="swatch" style="background:${it.css}"></div>`;
+        }
+
+        const canAfford = !owned && (this.save.coins || 0) >= it.price;
+        const card = el(`<div class="shop-item ${equipped ? 'is-equipped' : ''}">
+          <h4>${it.name}</h4>
+          ${art}
+          <p class="blurb">${it.blurb || ''}</p>
+          <div class="price">${owned ? (equipped ? 'EQUIPPED' : 'OWNED') : it.price + ' coins'}</div>
+          <div class="card-footer">
+            ${equipped
+              ? `<button class="btn equipped" disabled>EQUIPPED</button>`
+              : (owned
+                ? `<button class="btn equip">EQUIP</button>`
+                : `<button class="btn buy" ${!canAfford ? 'disabled' : ''}>BUY 🪙 ${it.price}</button>`
+              )
+            }
+          </div>
+        </div>`);
+
+        const btn = card.querySelector('.btn');
+        if (!equipped) {
+          btn.onclick = () => {
+            if (isIndicator) {
+              if (owned) {
+                if (this.actions.equipIndicator) this.actions.equipIndicator(it.id);
+              } else if (this.actions.buy(it.id, it.price)) {
+                if (this.actions.equipIndicator) this.actions.equipIndicator(it.id);
+              }
+            } else {
+              if (owned) {
+                if (this.actions.equip) this.actions.equip(it.id);
+              } else if (this.actions.buy(it.id, it.price)) {
+                if (this.actions.equip) this.actions.equip(it.id);
+              }
+            }
+            this.showShop(categoryId);
+          };
+        }
+
+        grid.appendChild(card);
+      }
+      contentArea.appendChild(grid);
     }
-    const itemHeader = el(`<div style="width:100%;margin:14px 0 6px 0;text-align:center"><h3 style="margin:0;color:#ffd23f;font-size:15px;letter-spacing:1px">UPGRADES</h3></div>`);
-    wrap.appendChild(itemHeader);
-    for (const it of ITEMS) {
-      const owned = this.save.ownedItems.includes(it.id);
-      const item = el(`<div class="shop-item"><h4>${it.name}</h4>
-        <p style="font-size:12px;line-height:1.35;min-height:46px;opacity:.72;margin:6px 0 2px">${it.desc}</p>
-        <div class="price">${owned ? 'OWNED' : it.price + ' coins'}</div></div>`);
-      const btn = el(`<button class="btn ${owned ? 'secondary' : ''}">${owned ? 'OWNED' : 'BUY'}</button>`);
-      btn.disabled = owned;
-      btn.onclick = () => { this.actions.buy(it.id, it.price); this.showShop(); };
-      item.appendChild(btn);
-      wrap.appendChild(item);
-    }
-    const back = el(`<button class="btn secondary">BACK</button>`);
-    back.onclick = () => this.showTitle();
-    s.appendChild(back);
+
     this.root.appendChild(s);
     this.current = 'shop';
   }

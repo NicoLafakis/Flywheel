@@ -312,12 +312,14 @@ export function stepGroundPowerUps(powerups, bounds, dt, rng) {
  */
 export function activatePowerUp(activeList, powerup, hole, sim) {
   const spec = powerup.spec;
+  const durMult = (hole && hole.durationMult) ? hole.durationMult : ((sim && sim.durationMult) ? sim.durationMult : 1.0);
+  const baseDuration = spec.duration * durMult;
   const existingIdx = activeList.findIndex((a) => a.type === spec.id);
   
   if (existingIdx >= 0) {
     // Refresh or extend duration
-    activeList[existingIdx].remaining = Math.max(activeList[existingIdx].remaining + 4.0, spec.duration);
-    activeList[existingIdx].duration = spec.duration;
+    activeList[existingIdx].remaining = Math.max(activeList[existingIdx].remaining + 4.0 * durMult, baseDuration);
+    activeList[existingIdx].duration = baseDuration;
   } else {
     // Cap at MAX_ACTIVE_BUFFS
     if (activeList.length >= MAX_ACTIVE_BUFFS) {
@@ -335,18 +337,18 @@ export function activatePowerUp(activeList, powerup, hole, sim) {
     activeList.push({
       type: spec.id,
       spec,
-      remaining: spec.duration,
-      duration: spec.duration,
+      remaining: baseDuration,
+      duration: baseDuration,
     });
   }
 
   // Instant one-shot effects
   if (spec.id === POWERUP_TYPES.CHRONO && sim && typeof sim.timeLeft === 'number') {
-    sim.timeLeft += spec.bonusTime;
+    sim.timeLeft += spec.bonusTime * durMult;
   }
 
   if (spec.id === POWERUP_TYPES.FRENZY && hole) {
-    hole.chainTimer = Math.max(hole.chainTimer || 0, 5.0);
+    hole.chainTimer = Math.max(hole.chainTimer || 0, 5.0 * durMult);
   }
 }
 

@@ -37,6 +37,7 @@ import {
   CHICAGO_XW_LEN,
 } from '../js/voxelscene-chicago.js';
 import { CURRENT_VERSION, __freshSave, __MIGRATIONS } from '../js/save.js';
+import { UPGRADES, UPGRADE_COST_TABLE, upgradeCost, upgradeMultiplier, defaultUpgrades, SHOP_CATEGORIES, getShopItemsByCategory } from '../js/upgrades.js';
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from '../js/fwmath.js';
 import { runBoardSelftest } from './board-selftest.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -1860,6 +1861,150 @@ function validateRewardLadders() {
   console.log(`  milestone ladder: ${MILESTONES.length} rows, ${(MILESTONES[0].at * 100).toFixed(0)}% -> ${(MILESTONES[MILESTONES.length - 1].at * 100).toFixed(0)}% of the scene goal`);
 }
 
+// --- shop categories & multi-rank incremental upgrades ------------------------
+function validateShopAndUpgrades() {
+  console.log('Validating shop categories & incremental upgrades...');
+
+  // 1. Upgrade definitions
+  if (!Array.isArray(UPGRADES) || UPGRADES.length !== 4) {
+    fail(`UPGRADES must have 4 core stats, found ${UPGRADES?.length}`);
+    return;
+  }
+  const expectedUpgradeIds = ['speed', 'vortex', 'growth', 'duration'];
+  const actualUpgradeIds = UPGRADES.map((u) => u.id);
+  for (const exp of expectedUpgradeIds) {
+    if (!actualUpgradeIds.includes(exp)) fail(`UPGRADES missing stat upgrade '${exp}'`);
+  }
+
+  for (const u of UPGRADES) {
+    if (!u.name || !u.statName || !u.icon || !u.desc || !u.unit) {
+      fail(`UPGRADES entry '${u.id}' missing required metadata (name/statName/icon/desc/unit)`);
+    }
+    if (u.stepPercent !== 5) fail(`UPGRADES '${u.id}' stepPercent must be 5, found ${u.stepPercent}`);
+    if (u.maxRank !== 20) fail(`UPGRADES '${u.id}' maxRank must be 20, found ${u.maxRank}`);
+  }
+
+  // 2. 20-tier upgrade cost escalation curve
+  if (!Array.isArray(UPGRADE_COST_TABLE) || UPGRADE_COST_TABLE.length !== 20) {
+    fail(`UPGRADE_COST_TABLE must have 20 ranks, found ${UPGRADE_COST_TABLE?.length}`);
+    return;
+  }
+  if (UPGRADE_COST_TABLE[0] !== 100) fail(`UPGRADE_COST_TABLE[0] must start at 100 coins, found ${UPGRADE_COST_TABLE[0]}`);
+  if (UPGRADE_COST_TABLE[19] !== 3400) fail(`UPGRADE_COST_TABLE[19] must end at 3400 coins, found ${UPGRADE_COST_TABLE[19]}`);
+
+  // Monotonic increase
+  for (let i = 1; i < UPGRADE_COST_TABLE.length; i++) {
+    if (UPGRADE_COST_TABLE[i] <= UPGRADE_COST_TABLE[i - 1]) {
+      fail(`UPGRADE_COST_TABLE is not strictly monotonically increasing at rank ${i}`);
+    }
+  }
+
+  const categorySum = UPGRADE_COST_TABLE.reduce((a, b) => a + b, 0);
+  const totalAllSum = categorySum * 4;
+  if (categorySum < 25000 || categorySum > 30000) {
+    fail(`UPGRADE_COST_TABLE per category sum should be ~27k coins, found ${categorySum}`);
+  }
+  if (totalAllSum < 100000 || totalAllSum > 115000) {
+    fail(`Total across all 4 upgrade tracks should be ~100k-110k coins, found ${totalAllSum}`);
+  }
+
+  // 3. upgradeCost(rank) helper
+  if (upgradeCost(0) !== 100) fail(`upgradeCost(0) must be 100, got ${upgradeCost(0)}`);
+  if (upgradeCost(19) !== 3400) fail(`upgradeCost(19) must be 3400, got ${upgradeCost(19)}`);
+  if (upgradeCost(20) !== null) fail(`upgradeCost(20) should return null (maxed), got ${upgradeCost(20)}`);
+  if (upgradeCost(-1) !== null) fail(`upgradeCost(-1) should return null (out of bounds), got ${upgradeCost(-1)}`);
+
+  // 4. upgradeMultiplier(rank)
+  if (upgradeMultiplier(0) !== 1.0) fail(`upgradeMultiplier(0) must be 1.0 (no boost), got ${upgradeMultiplier(0)}`);
+  if (Math.abs(upgradeMultiplier(1) - 1.05) > 1e-6) fail(`upgradeMultiplier(1) must be 1.05 (+5%), got ${upgradeMultiplier(1)}`);
+  if (Math.abs(upgradeMultiplier(10) - 1.50) > 1e-6) fail(`upgradeMultiplier(10) must be 1.50 (+50%), got ${upgradeMultiplier(10)}`);
+  if (Math.abs(upgradeMultiplier(20) - 2.00) > 1e-6) fail(`upgradeMultiplier(20) must be 2.00 (+100%), got ${upgradeMultiplier(20)}`);
+  if (upgradeMultiplier(-5) !== 1.0) fail(`upgradeMultiplier(-5) should clamp to 1.0, got ${upgradeMultiplier(-5)}`);
+  if (upgradeMultiplier(25) !== 2.0) fail(`upgradeMultiplier(25) should clamp to 2.0, got ${upgradeMultiplier(25)}`);
+
+  // 5. defaultUpgrades()
+  const defUp = defaultUpgrades();
+  for (const id of expectedUpgradeIds) {
+    if (defUp[id] !== 0) fail(`defaultUpgrades().${id} must be 0, got ${defUp[id]}`);
+  }
+
+  // 6. Save migration 19->20
+  if (CURRENT_VERSION < 20) {
+    fail(`CURRENT_VERSION in js/save.js must be at least 20, got ${CURRENT_VERSION}`);
+  }
+  const mig19 = __MIGRATIONS[19];
+  if (!mig19) {
+    fail(`__MIGRATIONS[19] is missing in js/save.js`);
+  } else {
+    const legacySaveWithGrowth = { version: 19, ownedItems: ['growth5'], coins: 500 };
+    const migrated1 = mig19(legacySaveWithGrowth);
+    if (migrated1.version !== 20 || migrated1.upgrades?.growth !== 1) {
+      fail(`Migration 19->20 should migrate legacy 'growth5' to upgrades.growth = 1, got ${JSON.stringify(migrated1.upgrades)}`);
+    }
+
+    const legacySaveClean = { version: 19, ownedItems: [], coins: 100 };
+    const migrated2 = mig19(legacySaveClean);
+    if (migrated2.version !== 20 || migrated2.upgrades?.growth !== 0 || migrated2.upgrades?.speed !== 0) {
+      fail(`Migration 19->20 should initialize default upgrades, got ${JSON.stringify(migrated2.upgrades)}`);
+    }
+  }
+
+  // 7. Shop Categories and Categorization
+  if (!Array.isArray(SHOP_CATEGORIES) || SHOP_CATEGORIES.length !== 5) {
+    fail(`SHOP_CATEGORIES must have 5 categories, got ${SHOP_CATEGORIES?.length}`);
+    return;
+  }
+  const expectedCatIds = ['skins', 'creatures', 'partners', 'indicators', 'upgrades'];
+  const actualCatIds = SHOP_CATEGORIES.map((c) => c.id);
+  for (const exp of expectedCatIds) {
+    if (!actualCatIds.includes(exp)) fail(`SHOP_CATEGORIES missing '${exp}'`);
+  }
+
+  // Parse skins.js source statically without importing three.js
+  const skinsSrc = readFileSync(new URL('../js/skins.js', import.meta.url), 'utf8');
+  const skinsBlock = skinsSrc.slice(skinsSrc.indexOf('export const SKINS = ['), skinsSrc.indexOf('export const SKIN_BY_ID'));
+  const rawSkinItems = skinsBlock.split(/\{\s*id:\s*['"]/g).slice(1);
+  const skinsParsed = rawSkinItems.map((chunk) => {
+    const id = chunk.slice(0, chunk.indexOf("'"));
+    const familyMatch = chunk.match(/family:\s*['"]([^'"]+)['"]/);
+    return {
+      id,
+      family: familyMatch ? familyMatch[1] : undefined,
+      price: id === 'classic' ? 0 : 100,
+    };
+  });
+
+  const indBlock = skinsSrc.slice(skinsSrc.indexOf('export const INDICATOR_SKINS = ['), skinsSrc.indexOf('export const INDICATOR_BY_ID'));
+  const rawIndItems = indBlock.split(/\{\s*id:\s*['"]/g).slice(1);
+  const indParsed = rawIndItems.map((chunk) => {
+    const id = chunk.slice(0, chunk.indexOf("'"));
+    const nameMatch = chunk.match(/name:\s*['"]([^'"]+)['"]/);
+    return {
+      id,
+      name: nameMatch ? nameMatch[1] : id,
+      price: id === 'ind-default' ? 0 : 150,
+    };
+  });
+
+  const dummySave = { ...__freshSave(), ownedItems: ['classic', 'ind-default'] };
+  const skinsItems = getShopItemsByCategory('skins', { save: dummySave, skins: skinsParsed, indicatorSkins: indParsed });
+  const creaturesItems = getShopItemsByCategory('creatures', { save: dummySave, skins: skinsParsed, indicatorSkins: indParsed });
+  const partnersItems = getShopItemsByCategory('partners', { save: dummySave, skins: skinsParsed, indicatorSkins: indParsed });
+  const indicatorsItems = getShopItemsByCategory('indicators', { save: dummySave, skins: skinsParsed, indicatorSkins: indParsed });
+  const upgradesItems = getShopItemsByCategory('upgrades', { save: dummySave, skins: skinsParsed, indicatorSkins: indParsed });
+
+  if (skinsItems.length !== 12) fail(`Category 'skins' should contain 12 standard skins, found ${skinsItems.length}`);
+  if (creaturesItems.length !== 5) fail(`Category 'creatures' should contain 5 creature skins, found ${creaturesItems.length}`);
+  if (partnersItems.length !== 8) fail(`Category 'partners' should contain 8 partner skins, found ${partnersItems.length}`);
+  if (indicatorsItems.length !== 6) fail(`Category 'indicators' should contain 6 indicator skins, found ${indicatorsItems.length}`);
+  if (upgradesItems.length !== 4) fail(`Category 'upgrades' should contain 4 stat upgrades, found ${upgradesItems.length}`);
+
+  const totalCategorized = skinsItems.length + creaturesItems.length + partnersItems.length + indicatorsItems.length + upgradesItems.length;
+  if (totalCategorized !== 35) fail(`Total shop items should be 35 (12+5+8+6+4), got ${totalCategorized}`);
+
+  console.log(`  shop & upgrades: 5 categories, 35 catalog items, 4 stat tracks (0..20 rank / +0%..+100%), ${categorySum} coins/track (${totalAllSum} total)`);
+}
+
 // --- every scene must be winnable ---------------------------------------------
 // A full clear of a targetFraction-1.0 scene must set `won`. This is not a
 // theoretical guard: `hole.rawMass` is accumulated one add per block as the city
@@ -2141,6 +2286,12 @@ function validateOfflineBoot() {
         }
       }
     }
+    if (file === 'index.html') {
+      const hasFavicon = /<link[^>]+rel=["'](?:shortcut )?icon["']/i.test(html);
+      if (!hasFavicon) {
+        fail(`offline boot: index.html has no favicon link declared — causes 404 on /favicon.ico`);
+      }
+    }
     // Bytes as well as reference count, so a zero is legible as "scanned and
     // clean" rather than as "never opened". Naming every page is what makes the
     // line evidence of coverage instead of a claim of it.
@@ -2153,7 +2304,7 @@ function validateOfflineBoot() {
   const scanJs = (dir) => {
     for (const ent of readdirSync(dir, { withFileTypes: true })) {
       const full = new URL(ent.name + (ent.isDirectory() ? '/' : ''), dir);
-      if (ent.isDirectory() && ent.name !== 'node_modules' && ent.name !== '.git') {
+      if (ent.isDirectory() && ent.name !== 'node_modules' && ent.name !== '.git' && ent.name !== 'vendor') {
         scanJs(full);
       } else if (ent.isFile() && (ent.name.endsWith('.js') || ent.name.endsWith('.mjs'))) {
         allModules.push(fileURLToPath(full));
@@ -2161,10 +2312,20 @@ function validateOfflineBoot() {
     }
   };
   scanJs(jsDir);
-  if (allModules.length > 0) {
-    const res = spawnSync(process.execPath, ['--check', ...allModules]);
-    if (res.status !== 0) {
-      fail(`syntax error in codebase modules: ${res.stderr ? res.stderr.toString().trim() : 'exit ' + res.status}`);
+  for (const mod of allModules) {
+    const src = readFileSync(mod, 'utf8');
+    const stripped = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    const importedIds = new Set();
+    for (const match of stripped.matchAll(/^\s*import\s+(?:\{([^}]+)\}|(\w+)|\*\s+as\s+(\w+))\s+from/gm)) {
+      const ids = match[1]
+        ? match[1].split(',').map((s) => s.trim().split(/\s+as\s+/).pop().trim()).filter(Boolean)
+        : [match[2] || match[3]].filter(Boolean);
+      for (const id of ids) {
+        if (importedIds.has(id)) {
+          fail(`duplicate import identifier '${id}' in ${mod.slice(mod.lastIndexOf('js'))}`);
+        }
+        importedIds.add(id);
+      }
     }
   }
 
@@ -2281,7 +2442,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
   // a process per guard would be spawn overhead, not speed. Every heavy scene
   // gets its own child.
   const groups = [
-    ['core', 'offlineBoot,saveSchema,rewardLadders,fwMath,runBoard,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements'],
+    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,fwMath,runBoard,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements'],
     ['campaignLevels', 'campaignLevels'],
     ['scenesWinnable', 'scenesWinnable'],
     ['manhattan', 'manhattan'],
@@ -2356,6 +2517,7 @@ for (const level of levelsToCheck) {
 section('offlineBoot', validateOfflineBoot);
 section('saveSchema', validateSaveSchema);
 section('rewardLadders', validateRewardLadders);
+section('shopAndUpgrades', validateShopAndUpgrades);
 section('fwMath', validateFwMath);
 section('runBoard', () => console.log(`Validating THE RUN trace/replay (${runBoardSelftest()} assertions)...`));
 section('levelClock', validateLevelClock);

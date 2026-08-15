@@ -5,7 +5,8 @@ import {
   RANKED_TICK_COUNT, VoxelSandboxSim, sandboxSizeProgress, loadScene,
 } from './voxelsim.js';
 import { getLevel, METROS } from './levels.js';
-import { loadSave, storeSave, recordLevelResult, recordSandboxResult, isLevelUnlocked } from './save.js';
+import { loadSave, storeSave, recordLevelResult, recordSandboxResult, isLevelUnlocked, buyUpgrade } from './save.js';
+import { upgradeMultiplier } from './upgrades.js';
 import { World3D } from './world3d.js';
 import { VoxelWorld3D } from './voxelworld.js';
 import { ChaseCamera } from './camera.js';
@@ -135,6 +136,7 @@ window.__quality = {
   }),
 };
 
+
 // The player's setting is the only authority ONCE THERE IS ONE. Until then the
 // device picks the default: a coarse-pointer phone starts on LOW, everything
 // else on HIGH (js/quality.js `defaultTierForDevice`). `qualityChosen` is what
@@ -186,6 +188,10 @@ function computeShopBonus() {
   shopBonus = {
     clock: save.ownedItems.includes('clock5') ? 5 : 0,
     growth: save.ownedItems.includes('growth5') ? 0.05 : 0,
+    speedMult: upgradeMultiplier(save.upgrades?.speed),
+    vortexMult: upgradeMultiplier(save.upgrades?.vortex),
+    growthBonus: (upgradeMultiplier(save.upgrades?.growth) - 1.0) + (save.ownedItems.includes('growth5') ? 0.05 : 0),
+    durationMult: upgradeMultiplier(save.upgrades?.duration),
   };
 }
 
@@ -244,6 +250,14 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     storeSave(save);
     computeShopBonus();
     return true;
+  },
+  buyUpgrade(id) {
+    const res = buyUpgrade(save, id);
+    if (res.success) {
+      computeShopBonus();
+      audio.playSfx('buy');
+    }
+    return res;
   },
   equip(id) {
     save.equippedSkin = id;
@@ -484,7 +498,12 @@ function startLevel() {
   document.body.classList.remove('mode-sandbox');
   computeShopBonus();
   const lvl = { ...level, clock: level.clock + shopBonus.clock };
-  sim = new Sim(lvl, { growthBonus: shopBonus.growth });
+  sim = new Sim(lvl, {
+    growthBonus: shopBonus.growthBonus,
+    speedMult: shopBonus.speedMult,
+    vortexMult: shopBonus.vortexMult,
+    durationMult: shopBonus.durationMult,
+  });
   sim.level = { ...lvl, target: level.target }; // keep original target
   world = new World3D(canvas, sim, equippedSkinId(), {
     shadows: save.settings.shadows,
@@ -659,7 +678,13 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
     // Scopes the sandbox HUD hierarchy rules in main.css (coin pill dimmed,
     // goal readout loud) without touching the campaign countdown styling.
     document.body.classList.add('mode-sandbox');
-    sim = new VoxelSandboxSim({ scene, mode, seed: mode === 'run90' ? (ticket ? ticket.seed : `local-run:${scene}`) : undefined });
+    computeShopBonus();
+    sim = new VoxelSandboxSim({
+      scene,
+      mode,
+      seed: mode === 'run90' ? (ticket ? ticket.seed : `local-run:${scene}`) : undefined,
+      upgrades: save.upgrades,
+    });
     window.__sim = sim; // debug/validator hook
     world = new VoxelWorld3D(canvas, sim, equippedSkinId(), { indicatorId: equippedIndicatorId() });
     // The renderer reads the persisted setting at construction, but a mid-session

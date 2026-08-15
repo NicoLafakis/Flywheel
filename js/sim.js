@@ -126,6 +126,9 @@ export class Sim {
     this.city = generateCity(level);
     this.rng = new RNG(level.seed + ':sim');
     this.growthBonus = options.growthBonus || 0;
+    this.speedMult = options.speedMult || 1.0;
+    this.vortexMult = options.vortexMult || 1.0;
+    this.durationMult = options.durationMult || 1.0;
 
     const s = this.city.spawn;
     this.player = makeHole(s.x, s.z, true);
@@ -328,7 +331,7 @@ export class Sim {
     // --- player movement ---
     const p = this.player;
     const speedMultiplier = hasActivePowerUp(this.activePowerUps, POWERUP_TYPES.SPEED) ? 1.7 : 1.0;
-    const pspeed = playerSpeedForRadius(p.radius) * (1 + this.growthBonus * 0) * speedMultiplier;
+    const pspeed = playerSpeedForRadius(p.radius) * (this.speedMult || 1.0) * speedMultiplier;
     p.vx = 0; p.vz = 0;
     if (move && (move.x || move.z)) {
       const len = Math.hypot(move.x, move.z) || 1;
@@ -339,13 +342,16 @@ export class Sim {
     }
 
     // --- vortex vacuum pull ---
-    if (hasActivePowerUp(this.activePowerUps, POWERUP_TYPES.VORTEX)) {
-      this.city.hash.query(p.x, p.z, 18, (o) => {
+    if (hasActivePowerUp(this.activePowerUps, POWERUP_TYPES.VORTEX) || (this.vortexMult && this.vortexMult > 1.0)) {
+      const isBuffActive = hasActivePowerUp(this.activePowerUps, POWERUP_TYPES.VORTEX);
+      const vRadius = isBuffActive ? (18 * (this.vortexMult || 1.0)) : 10;
+      this.city.hash.query(p.x, p.z, vRadius, (o) => {
         if (o.eaten || o.committed) return;
         const dx = p.x - o.x, dz = p.z - o.z;
         const d = Math.hypot(dx, dz);
-        if (d > 0.5 && d < 18) {
-          const force = (1 - d / 18) * 16 * dt;
+        if (d > 0.5 && d < vRadius) {
+          const baseForce = isBuffActive ? 16 : 6;
+          const force = (1 - d / vRadius) * baseForce * (this.vortexMult || 1.0) * dt;
           o.x += (dx / d) * force;
           o.z += (dz / d) * force;
           o.moving = true;

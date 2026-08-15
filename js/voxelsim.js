@@ -38,6 +38,7 @@ import {
 } from './levelclock.js';
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from './fwmath.js';
 import { playerSpeedForRadius } from './tiers.js';
+import { upgradeMultiplier } from './upgrades.js';
 import {
   bench, bigTruck, bikeRack, bollard, boxVan, brownstone, bus, cafeTable,
   crateStack, hotDogCart, hydrant, lampPost, laneDashes, mailbox, marketStall, motorcycle,
@@ -626,9 +627,14 @@ const DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1
 const REPOSE_DIRS = [1, 0, -1, 0, 0, 1, 0, -1];
 
 export class VoxelSandboxSim {
-  constructor({ seed = 'voxel-sandbox', scene = 'gallery', mode = 'freeplay' } = {}) {
+  constructor({ seed = 'voxel-sandbox', scene = 'gallery', mode = 'freeplay', upgrades = null } = {}) {
     this.rng = new RNG(seed);
     this.mode = mode;
+    this.upgrades = upgrades;
+    this.speedMult = upgradeMultiplier(upgrades?.speed);
+    this.vortexMult = upgradeMultiplier(upgrades?.vortex);
+    this.growthMult = upgradeMultiplier(upgrades?.growth);
+    this.durationMult = upgradeMultiplier(upgrades?.duration);
     this.rankedTicks = 0;
     this.runComplete = false;
     // --- the level clock (R-1) ------------------------------------------------
@@ -889,12 +895,17 @@ export class VoxelSandboxSim {
   //   isPlayer     true only for holes[0], the local human by convention
   //   _cov/_covSpare  the per-hole removal-zone coverage cache (_coverageChanged)
   _newHole(x, z, index) {
+    const isPlayer = index === 0;
     return {
       x, z, radius: START_RADIUS, mass: 0, rawMass: 0,
-      chain: 0, chainTimer: 0, bestCombo: 0, eatenCount: 0, isPlayer: index === 0,
+      chain: 0, chainTimer: 0, bestCombo: 0, eatenCount: 0, isPlayer,
       size: 1, sizeFrac: 0, // SIZE level (1..24) + progress to the next level
       index,
       activePowerUps: [],
+      speedMult: isPlayer ? (this.speedMult || 1.0) : 1.0,
+      vortexMult: isPlayer ? (this.vortexMult || 1.0) : 1.0,
+      growthMult: isPlayer ? (this.growthMult || 1.0) : 1.0,
+      durationMult: isPlayer ? (this.durationMult || 1.0) : 1.0,
       _cov: new Set(), _covSpare: new Set(),
     };
   }
@@ -4025,9 +4036,10 @@ export class VoxelSandboxSim {
     const isFrenzy = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.FRENZY);
     const frenzyMult = isFrenzy ? 2.0 : 1.0;
     const baseMult = isFrenzy ? Math.max(comboMult(h.chain), h.chain) : comboMult(h.chain);
-    const gained = raw * baseMult * frenzyMult;
+    const effectiveRaw = raw * (h.growthMult || 1.0);
+    const gained = effectiveRaw * baseMult * frenzyMult;
     h.mass += gained;      // the SCORE: combo-multiplied, and displayed as such
-    h.rawMass += raw;      // un-multiplied: the goal bar, the milestones and the SIZE ladder
+    h.rawMass += effectiveRaw;      // un-multiplied: the goal bar, the milestones and the SIZE ladder
     h.eatenCount += 1;
     // SIZE progression: escalating RAW-mass thresholds (scaled per scene — see
     // the constructor). Radius interpolates smoothly inside each level
@@ -4112,7 +4124,7 @@ export class VoxelSandboxSim {
       // sluggish at the end of the ladder.
       const sizeT = sandboxSizeProgress(h.size, h.sizeFrac);
       const speedBoost = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.SPEED) ? 1.7 : 1.0;
-      const speed = playerSpeedForRadius(h.radius) * this.tune.speed * (1 + SANDBOX_SPEED_RAMP * sizeT) * speedBoost;
+      const speed = playerSpeedForRadius(h.radius) * this.tune.speed * (1 + SANDBOX_SPEED_RAMP * sizeT) * speedBoost * (h.speedMult || 1.0);
       if (m && (m.x || m.z)) {
         const len = fwHypot2(m.x, m.z) || 1;
         h.x += (m.x / len) * speed * dt;
@@ -4218,15 +4230,19 @@ export class VoxelSandboxSim {
     // Vortex vacuum pull on active loose movers
     for (let hi = 0; hi < holes.length; hi++) {
       const h = holes[hi];
-      if (hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.VORTEX)) {
-        const vr = 22.0, vr2 = vr * vr;
+      const isVortexBuff = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.VORTEX);
+      const vMult = h.vortexMult || 1.0;
+      if (isVortexBuff || vMult > 1.0) {
+        const vr = isVortexBuff ? (22.0 * vMult) : 12.0;
+        const vr2 = vr * vr;
+        const basePull = isVortexBuff ? 35.0 : 10.0;
         for (const b of this._falling) {
           if (!b || b.consumed) continue;
           const dx = h.x - b.x, dz = h.z - b.z;
           const d2 = dx * dx + dz * dz;
           if (d2 > 0.25 && d2 < vr2) {
             const d = fwHypot2(dx, dz);
-            const pull = (1 - d / vr) * 35.0 * dt;
+            const pull = (1 - d / vr) * basePull * vMult * dt;
             b.vx += (dx / (d || 1)) * pull;
             b.vz += (dz / (d || 1)) * pull;
           }

@@ -8,10 +8,11 @@
 // shipped mix from drifting between the save, the engine and the settings
 // screen. Retune the mix there, not here.
 import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MASTER_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME } from './audio/mix.js';
+import { defaultUpgrades, upgradeCost, MAX_UPGRADE_RANK } from './upgrades.js';
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 19;
+export const CURRENT_VERSION = 20;
 
 // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
 export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2 };
@@ -118,6 +119,8 @@ function freshSave() {
     // layer bounds the queue; the fresh shape must still carry it for a brand
     // new save, which never executes a migration.
     outbox: [],
+    // Stat upgrades: { speed: 0, vortex: 0, growth: 0, duration: 0 }
+    upgrades: defaultUpgrades(),
   };
 }
 
@@ -349,6 +352,16 @@ const MIGRATIONS = {
       ambVol: s.settings?.ambVol ?? DEFAULT_AMBIENCE_VOLUME,
     },
   }),
+  // v20: Character stat upgrades system (+5% per rank, max rank 20 -> +100%)
+  19: (s) => ({
+    ...s,
+    version: 20,
+    upgrades: {
+      ...defaultUpgrades(),
+      ...(s.upgrades || {}),
+      growth: Math.max(s.upgrades?.growth || 0, (s.ownedItems || []).includes('growth5') ? 1 : 0),
+    },
+  }),
 };
 
 export function loadSave() {
@@ -469,3 +482,22 @@ export function isLevelUnlocked(save, levelIndex) {
   const prev = save.levels[levelIndex - 1];
   return !!(prev && prev.won);
 }
+
+export function getUpgradeRank(save, upgradeId) {
+  return save?.upgrades?.[upgradeId] || 0;
+}
+
+export function buyUpgrade(save, upgradeId) {
+  if (!save.upgrades) save.upgrades = defaultUpgrades();
+  const currentRank = save.upgrades[upgradeId] || 0;
+  if (currentRank >= MAX_UPGRADE_RANK) return { success: false, reason: 'maxed' };
+  const cost = upgradeCost(currentRank);
+  if (cost === null) return { success: false, reason: 'invalid_rank' };
+  if (save.coins < cost) return { success: false, reason: 'insufficient_coins', cost };
+
+  save.coins -= cost;
+  save.upgrades[upgradeId] = currentRank + 1;
+  storeSave(save);
+  return { success: true, newRank: save.upgrades[upgradeId], coins: save.coins, cost };
+}
+

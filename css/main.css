@@ -1222,22 +1222,270 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
 .level-card .mech { font-size: 15px; }
 .level-card:hover:not(.locked) { border-color: var(--accent); }
 
-.shop-items { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; max-width: min(1180px, 94vw); }
+/* --- Modern Mobile Game Shop UI with Category Tabs & Incremental Upgrades --- */
+.shop-screen {
+  display: flex; flex-direction: column; align-items: center; width: 100%;
+  max-width: min(1080px, 96vw); margin: 0 auto; padding-bottom: 24px;
+}
+.shop-header {
+  position: sticky; top: 0; z-index: 12; width: 100%;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 16px; margin-bottom: 12px;
+  background: rgba(18, 23, 34, 0.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0 0 16px 16px;
+}
+.shop-back-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px; font-size: 13px; font-weight: 700; letter-spacing: 0.8px;
+  color: #fff; background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 20px;
+  cursor: pointer; transition: all 0.2s ease;
+}
+.shop-back-btn:hover {
+  background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.3);
+  transform: translateX(-2px);
+}
+.shop-title-block {
+  text-align: center; flex: 1; min-width: 0;
+}
+.shop-title-block h2 {
+  margin: 0; font-size: clamp(18px, 3.5vw, 24px); letter-spacing: 1.5px;
+  color: #fff; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.shop-progress-summary {
+  font-size: 11px; font-weight: 600; color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.5px; margin-top: 2px;
+}
+.shop-coin-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; font-size: 14px; font-weight: 800;
+  color: #ffd23f; background: linear-gradient(135deg, rgba(255, 210, 63, 0.18), rgba(255, 140, 0, 0.12));
+  border: 1px solid rgba(255, 210, 63, 0.35); border-radius: 20px;
+  box-shadow: 0 0 14px rgba(255, 210, 63, 0.15); white-space: nowrap;
+}
+
+/* Category Tab Bar */
+.shop-tab-bar {
+  display: flex; gap: 8px; width: 100%; max-width: 100%;
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  padding: 4px 4px 10px 4px; margin-bottom: 12px;
+}
+.shop-tab-bar::-webkit-scrollbar { display: none; }
+.shop-tab {
+  flex: 1 0 auto; min-width: 80px; min-height: 46px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 6px 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.65); background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid rgba(255, 255, 255, 0.08); border-radius: 12px;
+  cursor: pointer; transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+.shop-tab:hover {
+  color: #fff; background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2);
+}
+.shop-tab.active {
+  color: #fff; background: linear-gradient(180deg, rgba(56, 189, 248, 0.22), rgba(56, 189, 248, 0.08));
+  border-color: #38bdf8; box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
+  transform: translateY(-2px);
+}
+.shop-tab .tab-icon {
+  font-size: 18px; line-height: 1; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5));
+}
+.shop-tab .tab-badge {
+  font-size: 9px; font-weight: 800; opacity: 0.8;
+  background: rgba(0, 0, 0, 0.35); padding: 1px 5px; border-radius: 8px; margin-top: 1px;
+}
+.shop-tab.active .tab-badge {
+  background: rgba(56, 189, 248, 0.3); color: #38bdf8;
+}
+
+/* Category Sub-Header Banner */
+.shop-category-banner {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; margin-bottom: 14px;
+  background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+}
+.shop-category-banner h3 {
+  margin: 0; font-size: 14px; font-weight: 700; color: #fff; letter-spacing: 0.5px;
+}
+.shop-category-banner p {
+  margin: 2px 0 0 0; font-size: 11px; color: rgba(255, 255, 255, 0.55);
+}
+
+/* Grid of Cosmetic Items */
+.shop-items {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px; width: 100%; margin-bottom: 20px;
+}
 .shop-item {
-  width: 200px; background: var(--panel); border-radius: 14px; padding: 14px;
-  border: 2px solid rgba(255,255,255,.3); text-align: center;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  background: rgba(24, 30, 44, 0.75); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-radius: 14px; padding: 14px; width: auto;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative; overflow: hidden;
 }
-.shop-item .swatch { width: 54px; height: 54px; border-radius: 50%; margin: 6px auto; border: 3px solid #fff; }
-/* Baked skin preview (js/skins.js). Square and unbordered, unlike the flat
-   colour swatch it replaces: a 54px circle with a white ring around it crops
-   the teeth off a jaw and fights the art it is meant to be showing. */
+.shop-item:hover {
+  border-color: rgba(255, 255, 255, 0.25); transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.shop-item.is-equipped {
+  border-color: #4be34b; box-shadow: 0 0 16px rgba(75, 227, 75, 0.22);
+}
 .shop-item .preview {
-  width: 148px; height: 148px; display: block; margin: 6px auto;
-  border-radius: 10px; background: #141926;
+  width: 140px; height: 140px; display: block; margin: 4px auto 10px;
+  border-radius: 10px; background: #121622; object-fit: contain;
 }
-.shop-item .blurb { font-size: 12px; line-height: 1.35; min-height: 46px; opacity: .72; margin: 6px 0 2px; }
-.shop-item h4 { margin-bottom: 4px; }
-.shop-item .price { color: #ffd23f; font-weight: 800; margin: 6px 0; }
+.shop-item .swatch {
+  width: 70px; height: 70px; border-radius: 50%; margin: 35px auto 35px;
+  border: 3px solid #fff; box-shadow: 0 0 14px rgba(255, 255, 255, 0.2);
+}
+.shop-item h4 {
+  margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: #fff; letter-spacing: 0.4px;
+}
+.shop-item .blurb {
+  font-size: 11px; line-height: 1.35; min-height: 38px; color: rgba(255, 255, 255, 0.65);
+  margin: 2px 0 10px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.shop-item .price {
+  color: #ffd23f; font-weight: 800; margin: 4px 0 8px; font-size: 13px;
+}
+.shop-item .card-footer {
+  width: 100%; margin-top: auto;
+}
+.shop-item .btn {
+  width: 100%; min-height: 38px; font-size: 12px; font-weight: 700; letter-spacing: 0.6px;
+  border-radius: 10px; cursor: pointer; transition: all 0.18s ease;
+}
+.shop-item .btn.equipped {
+  background: rgba(75, 227, 75, 0.15); color: #4be34b; border: 1px solid rgba(75, 227, 75, 0.4);
+  cursor: default; opacity: 1;
+}
+.shop-item .btn.equip {
+  background: rgba(56, 189, 248, 0.18); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);
+}
+.shop-item .btn.equip:hover {
+  background: #38bdf8; color: #000; box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+.shop-item .btn.buy {
+  background: linear-gradient(135deg, #ffd23f, #f59e0b); color: #000; border: none;
+  font-weight: 800; box-shadow: 0 2px 10px rgba(245, 158, 11, 0.3);
+}
+.shop-item .btn.buy:hover:not(:disabled) {
+  transform: translateY(-1px); box-shadow: 0 4px 16px rgba(245, 158, 11, 0.5);
+}
+.shop-item .btn.buy:disabled {
+  opacity: 0.4; cursor: not-allowed; filter: grayscale(0.6);
+}
+
+/* --- Upgrades Tab Grid & Cards --- */
+.shop-upgrades-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px; width: 100%; margin-bottom: 20px;
+}
+.upgrade-card {
+  display: flex; flex-direction: column; justify-content: space-between;
+  background: rgba(24, 30, 44, 0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-radius: 16px; padding: 18px 20px;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+.upgrade-card:hover {
+  border-color: rgba(255, 255, 255, 0.28); transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+.upgrade-card.is-maxed {
+  border-color: rgba(255, 210, 63, 0.45);
+  box-shadow: 0 0 20px rgba(255, 210, 63, 0.12);
+}
+.upgrade-top-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px;
+}
+.upgrade-icon-title {
+  display: flex; align-items: center; gap: 10px;
+}
+.upgrade-icon-wrap {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14);
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+}
+.upgrade-titles h4 {
+  margin: 0; font-size: 15px; font-weight: 700; color: #fff; letter-spacing: 0.3px;
+}
+.upgrade-titles .stat-name {
+  font-size: 11px; font-weight: 600; color: rgba(255, 255, 255, 0.55); margin-top: 1px;
+}
+.upgrade-rank-pill {
+  font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 12px;
+  background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35);
+  white-space: nowrap;
+}
+.upgrade-card.is-maxed .upgrade-rank-pill {
+  background: rgba(255, 210, 63, 0.18); color: #ffd23f; border-color: rgba(255, 210, 63, 0.45);
+}
+.upgrade-desc {
+  font-size: 12px; line-height: 1.4; color: rgba(255, 255, 255, 0.7);
+  margin: 0 0 14px 0; min-height: 34px;
+}
+
+/* 20-segment progress track */
+.upgrade-meter-wrap {
+  margin-bottom: 14px;
+}
+.upgrade-meter-label {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; font-weight: 700; color: rgba(255, 255, 255, 0.7); margin-bottom: 6px;
+}
+.upgrade-meter-label .boost-num {
+  color: #4be34b; font-weight: 800;
+}
+.upgrade-meter {
+  display: flex; gap: 3px; height: 10px; width: 100%;
+  background: rgba(0, 0, 0, 0.3); padding: 2px; border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.upgrade-pip {
+  flex: 1; height: 100%; border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1); transition: all 0.25s ease;
+}
+.upgrade-pip.filled {
+  background: linear-gradient(135deg, #38bdf8, #4be34b);
+  box-shadow: 0 0 4px rgba(56, 189, 248, 0.4);
+}
+.upgrade-card.is-maxed .upgrade-pip.filled {
+  background: linear-gradient(135deg, #ffd23f, #ff9800);
+  box-shadow: 0 0 4px rgba(255, 210, 63, 0.5);
+}
+
+.upgrade-footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px;
+}
+.upgrade-next-hint {
+  font-size: 11px; font-weight: 600; color: rgba(255, 255, 255, 0.5);
+}
+.upgrade-next-hint b {
+  color: #ffd23f;
+}
+.upgrade-action-btn {
+  min-height: 38px; padding: 0 18px; font-size: 12px; font-weight: 800; letter-spacing: 0.6px;
+  border-radius: 10px; cursor: pointer; transition: all 0.18s ease; white-space: nowrap;
+}
+.upgrade-action-btn.primary {
+  background: linear-gradient(135deg, #ffd23f, #f59e0b); color: #000; border: none;
+  font-weight: 800; box-shadow: 0 2px 10px rgba(245, 158, 11, 0.3);
+}
+.upgrade-action-btn.primary:hover:not(:disabled) {
+  transform: translateY(-1px); box-shadow: 0 4px 16px rgba(245, 158, 11, 0.5);
+}
+.upgrade-action-btn.primary:disabled {
+  opacity: 0.4; cursor: not-allowed; filter: grayscale(0.6);
+}
+.upgrade-action-btn.maxed {
+  background: rgba(255, 210, 63, 0.15); color: #ffd23f; border: 1px solid rgba(255, 210, 63, 0.35);
+  cursor: default; opacity: 0.9;
+}
 .coins { font-size: clamp(16px, 3vw, 22px); color: #ffd23f; font-weight: 800; margin-bottom: 10px; }
 
 .results-stars { font-size: clamp(34px, 8vw, 60px); color: #ffd23f; letter-spacing: 8px; margin: 10px 0; }
