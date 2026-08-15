@@ -142,6 +142,43 @@ export class GameAudio {
         if (this._sceneWanted) this._startBed(this._sceneWanted);
       });
     });
+
+    if (typeof document !== 'undefined') {
+      const handleVisibility = () => {
+        const isHidden = document.hidden || (document.visibilityState === 'hidden');
+        this.engine.setTabMuted(isHidden);
+        if (isHidden) {
+          if (this.engine.ctx && this.engine.ctx.state === 'running') {
+            try { this.engine.ctx.suspend(); } catch {}
+          }
+          this.music.pauseForPage();
+        } else {
+          if (this.engine.ctx && this.engine.ctx.state === 'suspended') {
+            try { this.engine.ctx.resume(); } catch {}
+          }
+          this.music.resumeForPage();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibility);
+      if (target && target.addEventListener) {
+        target.addEventListener('blur', () => {
+          this.engine.setTabMuted(true);
+          if (this.engine.ctx && this.engine.ctx.state === 'running') {
+            try { this.engine.ctx.suspend(); } catch {}
+          }
+          this.music.pauseForPage();
+        });
+        target.addEventListener('focus', () => {
+          if (!document.hidden) {
+            this.engine.setTabMuted(false);
+            if (this.engine.ctx && this.engine.ctx.state === 'suspended') {
+              try { this.engine.ctx.resume(); } catch {}
+            }
+            this.music.resumeForPage();
+          }
+        });
+      }
+    }
     return this;
   }
 
@@ -153,10 +190,13 @@ export class GameAudio {
     return m;
   }
   /** Driven by an external settings screen (the main game's save carries mute
-   * and all three levels); the engine and the director persist their own, so
+   * and all four levels); the engine and the director persist their own, so
    * the arena and the hot-seat demo inherit every one of them. */
   setMuted(m) { this.engine.setMuted(m); this.music.setMuted(m); }
+  get masterVolume() { return this.engine.masterVolume; }
+  setMasterVolume(v) { this.engine.setMasterVolume(v); this.music.setMasterVolume(v); }
   /** Effects only — crashes, gulps, UI. Independent of ambience and music. */
+  get volume() { return this.engine.volume; }
   setVolume(v) { this.engine.setVolume(v); }
   get ambienceVolume() { return this.engine.ambienceVolume; }
   setAmbienceVolume(v) { this.engine.setAmbienceVolume(v); }
@@ -205,6 +245,18 @@ export class GameAudio {
   playPowerUpSpawn(opts) {
     if (typeof this.engine.playPowerUpSpawn === 'function') this.engine.playPowerUpSpawn(opts);
     else this.engine.play('coin', opts);
+  }
+  playDragonballHit1(opts) {
+    if (typeof this.engine.playDragonballHit1 === 'function') this.engine.playDragonballHit1(opts);
+    else this.engine.play('ui-tap', opts);
+  }
+  playDragonballHit2(opts) {
+    if (typeof this.engine.playDragonballHit2 === 'function') this.engine.playDragonballHit2(opts);
+    else this.engine.play('ui-confirm', opts);
+  }
+  playDragonballHit3(opts) {
+    if (typeof this.engine.playDragonballHit3 === 'function') this.engine.playDragonballHit3(opts);
+    else this.engine.play('milestone-roar', opts);
   }
 
   // ---------------------------------------------------------------- finales

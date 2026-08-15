@@ -1000,15 +1000,173 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
   padding: calc(24px + var(--sai-top)) calc(24px + var(--sai-right))
            calc(24px + var(--sai-bottom)) calc(24px + var(--sai-left));
 }
-/* Boot splash (index.html): covers the app until main.js removes it, so a slow
-   module/CDN load shows intent instead of a black page. No JS required. */
+/* Boot splash: covers the app until main.js signals ready, with glowing animated progress bar */
 #boot-splash {
-  position: absolute; inset: 0; z-index: 100; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 10px;
-  background: #0a0e1a; color: var(--fw-gold, #ffd23f);
-  font-weight: 900; letter-spacing: 4px; font-size: clamp(22px, 6vw, 40px);
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  background: radial-gradient(circle at center, #141b2d 0%, #080c16 85%, #05070e 100%);
+  color: var(--fw-gold, #ffd23f);
+  font-family: var(--fw-font, system-ui, -apple-system, sans-serif);
+  padding: 24px;
+  user-select: none;
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  pointer-events: auto;
 }
-#boot-splash span { font-size: clamp(12px, 2.4vw, 16px); letter-spacing: 2px; opacity: .7; }
+
+#boot-splash.fade-out {
+  opacity: 0;
+  transform: scale(1.03);
+  pointer-events: none;
+}
+
+.boot-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.boot-logo {
+  font-size: clamp(38px, 8vw, 54px);
+  filter: drop-shadow(0 0 16px rgba(255, 210, 63, 0.45));
+  animation: bootGearSpin 12s linear infinite;
+}
+
+@keyframes bootGearSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.boot-title {
+  font-weight: 900;
+  letter-spacing: 6px;
+  font-size: clamp(28px, 7vw, 46px);
+  color: var(--fw-gold, #ffd23f);
+  text-shadow: 0 0 24px rgba(255, 210, 63, 0.4), 0 4px 0 rgba(0, 0, 0, 0.8);
+}
+
+.boot-tagline {
+  font-size: clamp(11px, 2.2vw, 13.5px);
+  font-weight: 800;
+  letter-spacing: 3.5px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.boot-loader-box {
+  width: min(90vw, 360px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.boot-track {
+  width: 100%;
+  height: 12px;
+  background: rgba(0, 0, 0, 0.65);
+  border: 2px solid rgba(255, 210, 63, 0.35);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.8), 0 0 12px rgba(255, 210, 63, 0.15);
+}
+
+.boot-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #ff9e00 0%, #ffd23f 50%, #fff3b0 100%);
+  border-radius: 999px;
+  position: relative;
+  transition: width 0.08s ease-out;
+  box-shadow: 0 0 14px rgba(255, 210, 63, 0.8);
+}
+
+.boot-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: bootShimmerAnim 1.4s infinite linear;
+}
+
+@keyframes bootShimmerAnim {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.boot-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 800;
+  font-size: clamp(11px, 2vw, 12.5px);
+  letter-spacing: 1.2px;
+}
+
+#boot-status-text {
+  color: #90e0ef;
+  font-family: monospace, monospace;
+}
+
+#boot-percentage-text,
+#city-percentage-text {
+  color: var(--fw-gold, #ffd23f);
+  font-family: monospace, monospace;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+#city-status-text {
+  color: #90e0ef;
+  font-family: monospace, monospace;
+}
+
+/* City Scene Transition Loader */
+.screen.loading-screen {
+  background: rgba(10, 14, 26, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+
+.loading-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-brand h2 {
+  margin: 0;
+  font-size: clamp(20px, 4.5vw, 32px);
+  letter-spacing: 2px;
+}
+
+.loading-label {
+  color: var(--fw-gold, #ffd23f);
+  font-size: clamp(13px, 2.6vw, 17px);
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  background: rgba(255, 210, 63, 0.12);
+  border: 1px solid rgba(255, 210, 63, 0.35);
+  border-radius: 999px;
+  padding: 4px 18px;
+}
 /* Headings wear the brand ring so every screen reads as one game rather than as
    a settings panel bolted to a title card. STATIC on purpose: the pop-in and bob
    belong to the landing screen and the READY gate, where the type IS the moment.
@@ -2660,6 +2818,21 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   100% { opacity: 0; transform: scale(1); }
 }
 
+.quake-dragonball-aura {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 234, 0, 0.5) 0%, rgba(255, 140, 0, 0.4) 40%, rgba(255, 50, 0, 0.18) 65%, transparent 85%);
+  mix-blend-mode: screen;
+  animation: quakeDragonballPulse 0.10s infinite alternate ease-in-out;
+}
+
+@keyframes quakeDragonballPulse {
+  0% { transform: scale(0.96); opacity: 0.75; filter: brightness(1.1); }
+  100% { transform: scale(1.06); opacity: 1.0; filter: brightness(1.45); }
+}
+
 .quake-speed-lines {
   position: absolute;
   inset: 0;
@@ -3122,21 +3295,55 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
     inset 0 0 25px rgba(255, 0, 85, 0.7);
   border: 3px solid rgba(217, 4, 41, 0.6);
 }
-.titan-kanji {
+.titan-impact-badge {
   position: absolute;
-  bottom: clamp(60px, 15vh, 120px);
-  right: clamp(16px, 4vw, 36px);
-  font-size: clamp(24px, 5.5vw, 42px);
-  font-weight: 950;
-  letter-spacing: 4px;
-  color: #ffd23f;
-  text-shadow: 0 0 16px rgba(255, 210, 63, 0.9), 0 3px 0 #900010;
-  opacity: 0.85;
-  animation: titanKanjiShimmer 1.2s infinite alternate ease-in-out;
+  bottom: clamp(60px, 14vh, 120px);
+  right: clamp(16px, 4vw, 40px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  transform: skewX(-8deg);
+  pointer-events: none;
+  user-select: none;
+  animation: titanImpactThrob 0.8s infinite alternate ease-in-out;
 }
-@keyframes titanKanjiShimmer {
-  0% { transform: scale(0.96) rotate(-2deg); opacity: 0.7; }
-  100% { transform: scale(1.04) rotate(1deg); opacity: 0.95; }
+
+.titan-impact-sub {
+  font-family: 'Impact', 'Arial Black', sans-serif;
+  font-size: clamp(14px, 2.2vw, 22px);
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: #ffd23f;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 8px rgba(255, 210, 63, 0.9),
+    0 0 16px rgba(255, 100, 0, 0.8),
+    1px 1px 0 #000, -1px -1px 0 #000;
+  margin-bottom: -2px;
+}
+
+.titan-impact-title {
+  font-family: 'Impact', 'Arial Black', sans-serif;
+  font-size: clamp(32px, 6.5vw, 64px);
+  font-weight: 950;
+  letter-spacing: 2px;
+  color: #fff;
+  text-transform: uppercase;
+  -webkit-text-stroke: 2px #000;
+  text-shadow:
+    0 0 10px #ff0055,
+    0 0 22px #ff0033,
+    0 0 38px #ff2a2a,
+    0 0 65px #ff7700,
+    0 0 95px #ff0055,
+    3px 3px 0 #900010,
+    -3px -3px 0 #900010;
+  line-height: 0.95;
+}
+
+@keyframes titanImpactThrob {
+  0% { transform: skewX(-8deg) scale(0.96); filter: drop-shadow(0 0 12px rgba(255, 0, 85, 0.7)); }
+  100% { transform: skewX(-8deg) scale(1.05); filter: drop-shadow(0 0 28px rgba(255, 50, 0, 0.95)); }
 }
 
 /* 4. Speed Frenzy (Anime Lightning Speedlines) */
@@ -3795,6 +4002,337 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   .city-icon-float { display: none; }
   .city-card-sub { display: none; }
   .city-dots-rail { padding: 2px 0; }
+}
+
+/* -------------------------------------------------------------------------
+   Dragon Ball Anime 3-Step Impact Zoom Power-Up Pickup Overlay
+   ------------------------------------------------------------------------- */
+#db-collect-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: auto;
+  user-select: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  transition: opacity 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.75) 100%);
+}
+
+#db-collect-overlay.fading-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.db-cinematic-bar {
+  width: 100%;
+  height: clamp(40px, 9.5vh, 90px);
+  background: #000000;
+  box-shadow: 0 0 35px rgba(0, 0, 0, 0.95);
+  position: relative;
+  z-index: 10;
+}
+
+.db-cinematic-bar.top {
+  transform: translateY(-100%);
+  animation: dbBarSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.db-cinematic-bar.bottom {
+  transform: translateY(100%);
+  animation: dbBarSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes dbBarSlideDown {
+  to { transform: translateY(0); }
+}
+
+@keyframes dbBarSlideUp {
+  to { transform: translateY(0); }
+}
+
+.db-impact-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.95) 0%, var(--db-color, #ffd700) 40%, transparent 80%);
+  animation: dbFlashFade 0.4s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+}
+
+@keyframes dbFlashFade {
+  0% { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+.db-ki-rays {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background: radial-gradient(circle at 50% 50%, var(--db-color, #ffd700) 0%, transparent 70%);
+  mix-blend-mode: screen;
+  opacity: 0.45;
+  animation: dbKiPulse 0.1s infinite alternate ease-in-out;
+}
+
+@keyframes dbKiPulse {
+  0% { transform: scale(0.95); opacity: 0.35; }
+  100% { transform: scale(1.08); opacity: 0.65; }
+}
+
+.db-speed-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0.85;
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(255, 255, 255, 0.22) 0deg 2.5deg,
+    transparent 2.5deg 8deg,
+    var(--db-color, #ffd700) 8deg 10deg,
+    transparent 10deg 16deg
+  );
+  mix-blend-mode: screen;
+  animation: dbSpeedZoom 0.07s infinite alternate ease-in-out;
+}
+
+@keyframes dbSpeedZoom {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(1.07); opacity: 0.95; }
+}
+
+.db-zoom-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.db-anime-sub {
+  position: absolute;
+  top: clamp(55px, 12vh, 105px);
+  font-size: clamp(11px, 2.2vw, 15px);
+  font-weight: 900;
+  letter-spacing: 5px;
+  color: #ffd700;
+  text-shadow: 0 0 12px rgba(255, 215, 0, 0.9), 0 2px 4px rgba(0, 0, 0, 0.9);
+  background: rgba(10, 12, 18, 0.8);
+  padding: 4px 18px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 215, 0, 0.5);
+  text-transform: uppercase;
+}
+
+.db-word-box {
+  position: absolute;
+  opacity: 0;
+  transform: scale(0.4) skew(-8deg);
+  transition: opacity 0.15s ease, transform 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.25);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.db-word-inner {
+  font-size: clamp(34px, 8.5vw, 82px);
+  font-weight: 950;
+  letter-spacing: 4px;
+  color: #ffffff;
+  text-transform: uppercase;
+  line-height: 1;
+  text-shadow:
+    0 0 20px var(--db-color, #ffd700),
+    0 0 45px var(--db-color, #ff9e00),
+    0 4px 0 #000000,
+    0 8px 0 #000000,
+    0 12px 28px rgba(0, 0, 0, 0.95);
+  background: rgba(0, 0, 0, 0.7);
+  padding: 8px 28px;
+  border-radius: 12px;
+  border: 3px solid var(--db-color, #ffd700);
+  box-shadow: 0 0 35px var(--db-color, #ffd700), inset 0 0 20px var(--db-color, #ffd700);
+}
+
+/* Stage 1: Word 1 Hypersonic Fly-In Slam */
+.db-zoom-stage.stage-1 .word-1 {
+  opacity: 1;
+  animation: dbWord1Slam 0.42s cubic-bezier(0.18, 0.89, 0.32, 1.25) forwards;
+}
+
+@keyframes dbWord1Slam {
+  0% { opacity: 0; transform: translate(-80%, -60%) scale(3.8) skew(-12deg); filter: blur(8px); }
+  60% { opacity: 1; transform: translate(-10%, -20%) scale(0.92) skew(-8deg); filter: blur(0px); }
+  100% { opacity: 1; transform: translate(-10%, -20%) scale(1.05) skew(-8deg); }
+}
+
+/* Stage 2: Word 2 Hypersonic Fly-In Slam */
+.db-zoom-stage.stage-2 .word-1 {
+  opacity: 0.75;
+  transform: translate(-25%, -35%) scale(0.8) skew(-8deg);
+}
+.db-zoom-stage.stage-2 .word-2 {
+  opacity: 1;
+  animation: dbWord2Slam 0.42s cubic-bezier(0.18, 0.89, 0.32, 1.25) forwards;
+}
+
+@keyframes dbWord2Slam {
+  0% { opacity: 0; transform: translate(80%, 40%) scale(3.8) skew(-12deg); filter: blur(8px); }
+  60% { opacity: 1; transform: translate(15%, 5%) scale(0.95) skew(-8deg); filter: blur(0px); }
+  100% { opacity: 1; transform: translate(15%, 5%) scale(1.15) skew(-8deg); }
+}
+
+/* Stage 3: Word 3 Meteor Dive Slam */
+.db-zoom-stage.stage-3 .word-1 {
+  opacity: 0.55;
+  transform: translate(-30%, -42%) scale(0.65) skew(-8deg);
+}
+.db-zoom-stage.stage-3 .word-2 {
+  opacity: 0.65;
+  transform: translate(25%, -20%) scale(0.75) skew(-8deg);
+}
+.db-zoom-stage.stage-3 .word-3 {
+  opacity: 1;
+  animation: dbWord3Slam 0.44s cubic-bezier(0.18, 0.89, 0.32, 1.3) forwards;
+}
+
+@keyframes dbWord3Slam {
+  0% { opacity: 0; transform: translate(0%, -80%) scale(4.2) skew(-12deg); filter: blur(10px); }
+  60% { opacity: 1; transform: translate(0%, 20%) scale(0.92) skew(-8deg); filter: blur(0px); }
+  100% { opacity: 1; transform: translate(0%, 20%) scale(1.25) skew(-8deg); }
+}
+
+/* Stage Reveal: Full Card Zoom Out */
+.db-reveal-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.7);
+  opacity: 0;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(16, 20, 28, 0.95), rgba(8, 10, 16, 0.98));
+  border: 2px solid var(--db-color, #ffd700);
+  box-shadow: 0 0 45px var(--db-color, #ffd700), 0 16px 40px rgba(0, 0, 0, 0.85);
+  border-radius: 16px;
+  padding: 24px 32px;
+  max-width: clamp(320px, 86vw, 540px);
+  width: 90%;
+  text-align: left;
+  transition: opacity 0.28s ease, transform 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.2);
+}
+
+.db-zoom-stage.stage-reveal .db-word-box {
+  opacity: 0;
+  transform: scale(0.3);
+}
+
+.db-zoom-stage.stage-reveal .db-reveal-card {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.db-card-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.db-card-icon {
+  font-size: clamp(38px, 6vw, 52px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid var(--db-color, #ffd700);
+  box-shadow: 0 0 20px var(--db-color, #ffd700);
+  flex-shrink: 0;
+}
+
+.db-card-headings {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.db-card-badge {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: var(--db-color, #ffd700);
+  text-transform: uppercase;
+}
+
+.db-card-title {
+  font-size: clamp(22px, 4.5vw, 32px);
+  font-weight: 950;
+  letter-spacing: 1.5px;
+  color: #ffffff;
+  text-transform: uppercase;
+  margin: 0;
+  line-height: 1.1;
+  text-shadow: 0 0 16px var(--db-color, #ffd700);
+}
+
+.db-card-tagline {
+  font-size: clamp(12px, 2.5vw, 15px);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.db-card-desc {
+  font-size: clamp(13px, 2.4vw, 15px);
+  line-height: 1.45;
+  color: rgba(240, 244, 248, 0.9);
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid var(--db-color, #ffd700);
+  padding: 10px 14px;
+  border-radius: 0 8px 8px 0;
+  margin: 0;
+}
+
+.db-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.db-meta-pill {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.db-card-hint {
+  align-self: center;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 4px 14px;
+  border-radius: 6px;
 }
 
 

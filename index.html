@@ -98,16 +98,33 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
 <link rel="modulepreload" href="./js/main.js">
 <link rel="modulepreload" href="./js/vendor/three.module.js">
 <link rel="modulepreload" href="./js/ui/screens.js">
+<link rel="preload" href="./assets/music/main-menu.mp3" as="fetch" type="audio/mpeg">
 <script type="importmap">
 { "imports": { "three": "./js/vendor/three.module.js" } }
 </script>
 </head>
 <body>
-<div id="app">
-  <!-- Boot splash: pure HTML/CSS, no JS dependency, so a slow module/CDN load
-       never reads as a crashed tab (playtest finding — 10-15 s of black on cold
-       load). main.js removes it right before the first screen mounts. -->
-  <div id="boot-splash">FLYWHEEL<span>LOADING…</span></div>
+  <!-- Boot splash: animated progress bar with counting percentage, active status, and brand wordmark.
+       Removed smoothly by main.js once the initial engine, shaders and background scene are ready. -->
+  <div id="boot-splash">
+    <div class="boot-brand">
+      <div class="boot-logo">⚙️</div>
+      <div class="boot-title">FLYWHEEL</div>
+      <div class="boot-tagline">A SPROCKET'S STORY</div>
+    </div>
+    <div class="boot-loader-box">
+      <div class="boot-track">
+        <div id="boot-progress-bar" class="boot-fill" style="width: 0%;">
+          <div class="boot-shimmer"></div>
+        </div>
+      </div>
+      <div class="boot-meta">
+        <span id="boot-status-text">INITIALIZING ENGINE…</span>
+        <span id="boot-percentage-text">0%</span>
+      </div>
+    </div>
+    <span class="boot-fallback-label" style="display:none">LOADING…</span>
+  </div>
   <canvas id="game-canvas"></canvas>
   <div id="hud" class="hidden">
     <div id="hud-left">
@@ -209,8 +226,10 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
     </div>
     <div id="titan-surge-overlay" class="titan-surge-overlay hidden">
       <div class="titan-shock-flash"></div>
-      <div class="titan-border-flame"></div>
-      <div class="titan-kanji">巨 大 化</div>
+      <div class="titan-impact-badge">
+        <span class="titan-impact-sub">MAXIMUM OVERDRIVE</span>
+        <span class="titan-impact-title">TITAN GIGA-SURGE</span>
+      </div>
     </div>
     <div id="speed-frenzy-overlay" class="speed-frenzy-overlay hidden">
       <div class="speed-lightning-left"></div>
@@ -278,19 +297,69 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
 (function () {
   var TIMEOUT_MS = 20000;
   var done = false;
+  var currentPct = 0;
+  var targetPct = 15;
+  var statusText = 'INITIALIZING SYSTEM…';
+
+  var fillEl = document.getElementById('boot-progress-bar');
+  var pctEl = document.getElementById('boot-percentage-text');
+  var statEl = document.getElementById('boot-status-text');
+
+  function updateDisplay() {
+    if (fillEl) fillEl.style.width = Math.min(100, Math.max(0, currentPct)) + '%';
+    if (pctEl) pctEl.textContent = Math.round(currentPct) + '%';
+    if (statEl && statusText) statEl.textContent = statusText;
+  }
+
+  function step() {
+    if (done) return;
+    if (currentPct < targetPct) {
+      currentPct += (targetPct - currentPct) * 0.15 + 0.4;
+      if (currentPct > targetPct) currentPct = targetPct;
+      updateDisplay();
+    }
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+
+  // Auto-progress stages while scripts fetch and evaluate
+  setTimeout(function() { if (!done && targetPct < 38) { targetPct = 38; statusText = 'LOADING ENGINE & ASSETS…'; } }, 100);
+  setTimeout(function() { if (!done && targetPct < 68) { targetPct = 68; statusText = 'COMPILING 3D SHADERS…'; } }, 300);
+  setTimeout(function() { if (!done && targetPct < 88) { targetPct = 88; statusText = 'PREPARING VOXEL CITY…'; } }, 600);
+
+  window.__setBootProgress = function(pct, status) {
+    targetPct = Math.max(targetPct, pct);
+    if (status) statusText = status;
+    if (pct >= 100) {
+      currentPct = 100;
+      targetPct = 100;
+      statusText = status || 'READY!';
+      updateDisplay();
+    }
+  };
+
+  // Pre-warm title music streaming immediately
+  try {
+    var bgMusicPreload = new Audio();
+    bgMusicPreload.src = 'assets/music/main-menu.mp3';
+    bgMusicPreload.preload = 'auto';
+  } catch (e) {}
+
   function bootFailed() {
     if (done) return;
     var splash = document.getElementById('boot-splash');
     if (!splash) { done = true; return; }   // main.js got there — boot is fine
     done = true;
-    var line = splash.querySelector('span');
+    var line = splash.querySelector('.boot-fallback-label') || splash.querySelector('span');
     if (!line) { line = document.createElement('span'); splash.appendChild(line); }
+    line.style.display = 'block';
     line.textContent = 'The game could not start. Please reload the page to try again.';
     line.style.opacity = '1';
     line.style.letterSpacing = '1px';
     line.style.maxWidth = '22em';
     line.style.textAlign = 'center';
     line.style.lineHeight = '1.5';
+    if (statEl) statEl.textContent = 'LOAD ERROR';
   }
   // Capture phase on purpose: a module script that cannot fetch itself (or its
   // "three" import) fires a NON-bubbling error on the <script> element, which a

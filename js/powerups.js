@@ -16,6 +16,8 @@ export const POWERUP_SPECS = {
   [POWERUP_TYPES.VORTEX]: {
     id: POWERUP_TYPES.VORTEX,
     name: 'VORTEX VACUUM',
+    zoomParts: ['VORTEX', 'VACUUM', 'UNLEASHED!'],
+    animeSubtitle: 'GRAVITATIONAL SUCTION ACTIVATED',
     icon: '🌀',
     tagline: 'Gravitational Suction',
     desc: 'Pulls nearby loose rubble and edible objects straight into your mouth!',
@@ -31,6 +33,8 @@ export const POWERUP_SPECS = {
   [POWERUP_TYPES.SPEED]: {
     id: POWERUP_TYPES.SPEED,
     name: 'TURBO OVERDRIVE',
+    zoomParts: ['TURBO', 'OVERDRIVE', 'MAX POWER!'],
+    animeSubtitle: 'HYPER VELOCITY BOOST ENGAGED',
     icon: '⚡',
     tagline: 'Hyper Speed Boost',
     desc: '+70% movement speed and instant steering agility!',
@@ -45,6 +49,8 @@ export const POWERUP_SPECS = {
   [POWERUP_TYPES.TITAN]: {
     id: POWERUP_TYPES.TITAN,
     name: 'TITAN SURGE',
+    zoomParts: ['TITAN', 'GIGA', 'SURGE!'],
+    animeSubtitle: 'COLOSSAL EXPANSION UNLEASHED',
     icon: '⭐',
     tagline: 'Super Size Expansion',
     desc: 'Temporarily enlarges your mouth and unlocks higher tier buildings!',
@@ -60,6 +66,8 @@ export const POWERUP_SPECS = {
   [POWERUP_TYPES.QUAKE]: {
     id: POWERUP_TYPES.QUAKE,
     name: 'FAULT LINE RUPTURE',
+    zoomParts: ['FAULT', 'LINE', 'RUPTURE!'],
+    animeSubtitle: 'TECTONIC CATACLYSM DETONATION',
     icon: '🌋',
     tagline: 'Seismic Ground Fissure',
     desc: 'Rips a massive fault fissure through the city, snapping building foundations and toppling skyscrapers!',
@@ -74,6 +82,8 @@ export const POWERUP_SPECS = {
   [POWERUP_TYPES.FRENZY]: {
     id: POWERUP_TYPES.FRENZY,
     name: 'CHAIN FRENZY',
+    zoomParts: ['CHAIN', 'COMBO', 'FRENZY!'],
+    animeSubtitle: 'INFINITE MULTIPLIER AURA IGNITED',
     icon: '✨',
     tagline: 'Infinite Combo Aura',
     desc: 'Combo timer frozen + 2x score points on all consumed objects!',
@@ -88,6 +98,8 @@ export const POWERUP_SPECS = {
   [POWERUP_TYPES.CHRONO]: {
     id: POWERUP_TYPES.CHRONO,
     name: 'CHRONO FREEZE',
+    zoomParts: ['CHRONO', 'TIME', 'FREEZE!'],
+    animeSubtitle: 'TEMPORAL STASIS MATRIX ACTIVE',
     icon: '⏳',
     tagline: 'Time Stands Still',
     desc: 'Freezes the game clock and locks your combo meter — rack up massive chains risk-free!',
@@ -112,10 +124,30 @@ export const ALL_POWERUP_TYPES = [
 
 /**
  * Pick a deterministic random powerup type.
+ * Enforces two core invariants:
+ * 1. No two identical power-ups on the board at the same time.
+ * 2. No identical power-up spawned back-to-back / one after another.
  */
-export function pickRandomPowerUpType(rng) {
-  const index = Math.floor((rng ? rng.next() : 0) * ALL_POWERUP_TYPES.length);
-  return ALL_POWERUP_TYPES[Math.min(index, ALL_POWERUP_TYPES.length - 1)];
+export function pickRandomPowerUpType(rng, activePowerups = [], lastSpawnedType = null) {
+  const activeTypes = new Set(
+    (activePowerups || [])
+      .filter((p) => !p.collected && !p.expired)
+      .map((p) => p.type)
+  );
+  // Candidates cannot already be active on the map, nor be equal to the last spawned type
+  let candidates = ALL_POWERUP_TYPES.filter(
+    (t) => !activeTypes.has(t) && t !== lastSpawnedType
+  );
+  // Fallback 1: if all types are filtered by lastSpawnedType, relax lastSpawnedType but keep uniqueness
+  if (candidates.length === 0) {
+    candidates = ALL_POWERUP_TYPES.filter((t) => !activeTypes.has(t));
+  }
+  // Fallback 2: if all types are active, fallback to all types
+  if (candidates.length === 0) {
+    candidates = ALL_POWERUP_TYPES;
+  }
+  const index = Math.floor((rng ? rng.next() : 0) * candidates.length);
+  return candidates[Math.min(index, candidates.length - 1)];
 }
 
 export const MAX_MAP_POWERUPS = 2;

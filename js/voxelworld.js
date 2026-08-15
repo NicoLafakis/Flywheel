@@ -2422,26 +2422,265 @@ export class VoxelWorld3D {
     });
   }
 
-  spawnFaultLineFissure(x0, z0, x1, z1, angle, length, duration = 0.8) {
-    const steps = Math.max(16, Math.min(50, Math.round(length / 2.5)));
-    const cosA = Math.cos(angle);
-    const sinA = Math.sin(angle);
-    const perpX = -sinA;
-    const perpZ = cosA;
+  // Blazing Super Saiyan Dragon Ball Ki Energy Aura with Levitating Earth & Radial Shockwaves
+  spawnDragonballAura(x, z, radius = 2.0) {
+    const geo = boxGeo();
+    
+    // 1. Triple expanding golden shockwave rings along the ground
+    this.spawnShockRing(x, z, radius * 3.5, 0xffea00);
+    setTimeout(() => this.spawnShockRing(x, z, radius * 6.0, 0xff9e00), 120);
+    setTimeout(() => this.spawnShockRing(x, z, radius * 9.0, 0xff5500), 240);
 
-    const group = new THREE.Group();
-    const crackSegments = [];
+    // 2. Rising Super Saiyan Ki Flame Jets (Golden-Yellow rising particles)
+    const particleCount = this.perfMode ? 18 : 45;
+    for (let i = 0; i < particleCount; i++) {
+      const isCore = Math.random() > 0.5;
+      const col = isCore ? 0xffffff : (Math.random() > 0.4 ? 0xffea00 : 0xffa200);
+      const mat = new THREE.MeshBasicMaterial({
+        color: col,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      });
+      const m = new THREE.Mesh(geo, mat);
+      const angle = Math.random() * Math.PI * 2;
+      const r = (radius * 0.4) + Math.random() * (radius * 0.9);
+      m.position.set(x + Math.cos(angle) * r, 0.1 + Math.random() * 0.5, z + Math.sin(angle) * r);
+      m.scale.set(0.18 + Math.random() * 0.22, 0.45 + Math.random() * 0.65, 0.18 + Math.random() * 0.22);
+      this.scene.add(m);
 
-    const magmaMat = new THREE.MeshBasicMaterial({
-      color: 0xff3b00,
+      const tanSpeed = 3.5 + Math.random() * 4.0;
+      this.particles.push({
+        mesh: m,
+        vx: -Math.sin(angle) * tanSpeed + (Math.random() - 0.5) * 2.0,
+        vy: 8.0 + Math.random() * 12.0,
+        vz: Math.cos(angle) * tanSpeed + (Math.random() - 0.5) * 2.0,
+        vr: (Math.random() - 0.5) * 15,
+        life: 0.45 + Math.random() * 0.35,
+        maxLife: 0.8,
+      });
+    }
+
+    // 3. Levitating Anti-Gravity Earth Chunks (Rocks rising and spinning in mid-air)
+    const rockCount = this.perfMode ? 6 : 14;
+    for (let i = 0; i < rockCount; i++) {
+      const rockMat = new THREE.MeshBasicMaterial({
+        color: Math.random() > 0.5 ? 0x2b2d42 : 0x8d99ae,
+        transparent: true,
+        opacity: 0.95,
+      });
+      const m = new THREE.Mesh(geo, rockMat);
+      const angle = (i / rockCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      const dist = radius * 1.2 + Math.random() * radius * 1.5;
+      m.position.set(x + Math.cos(angle) * dist, 0.2, z + Math.sin(angle) * dist);
+      const s = 0.25 + Math.random() * 0.45;
+      m.scale.set(s, s * 0.8, s);
+      this.scene.add(m);
+
+      this.particles.push({
+        mesh: m,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: 4.5 + Math.random() * 6.5,
+        vz: (Math.random() - 0.5) * 1.5,
+        vr: (Math.random() - 0.5) * 20,
+        life: 0.75 + Math.random() * 0.45,
+        maxLife: 1.2,
+      });
+    }
+  }
+
+  // Volcanic Magma Geyser Eruptions shooting high into the air along fault fissures
+  spawnMagmaGeyser(x, z, height = 5.0, col = 0xff5500) {
+    if (this.particles.length > (this.perfMode ? 50 : 180)) return;
+    const geo = boxGeo();
+    // 1. Central vertical glowing magma jet column
+    const jetMat = new THREE.MeshBasicMaterial({
+      color: 0xffea00,
       transparent: true,
       opacity: 0.95,
       depthWrite: false,
     });
-    const slabMat = new THREE.MeshStandardMaterial({
-      color: 0x221c1a,
-      roughness: 0.9,
-      metalness: 0.1,
+    const jet = new THREE.Mesh(geo, jetMat);
+    jet.position.set(x, 0.1, z);
+    jet.scale.set(0.32, height * 0.45, 0.32);
+    this.scene.add(jet);
+    this.particles.push({
+      mesh: jet,
+      isGeyserColumn: true,
+      vx: 0,
+      vy: height * 1.6,
+      vz: 0,
+      vr: 0,
+      life: 0.38,
+      maxLife: 0.38,
+    });
+
+    // 2. Ballistic flying magma sparks and molten globules
+    const sparkCount = this.perfMode ? 4 : 8;
+    for (let i = 0; i < sparkCount; i++) {
+      const sparkColor = Math.random() > 0.35 ? 0xff3b00 : 0xffaa00;
+      const sparkMat = new THREE.MeshBasicMaterial({
+        color: sparkColor,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      });
+      const spark = new THREE.Mesh(geo, sparkMat);
+      const s = 0.14 + Math.random() * 0.22;
+      spark.scale.setScalar(s);
+      spark.position.set(x + (Math.random() - 0.5) * 0.4, 0.2, z + (Math.random() - 0.5) * 0.4);
+      this.scene.add(spark);
+      const angle = Math.random() * Math.PI * 2;
+      const hSpeed = 1.2 + Math.random() * 3.2;
+      this.particles.push({
+        mesh: spark,
+        vx: Math.cos(angle) * hSpeed,
+        vy: 3.5 + Math.random() * (height * 1.1),
+        vz: Math.sin(angle) * hSpeed,
+        vr: (Math.random() - 0.5) * 12,
+        life: 0.55 + Math.random() * 0.45,
+        maxLife: 1.0,
+      });
+    }
+
+    // 3. Ground shock ring & ash puff
+    this.spawnShockRing(x, z, 3.2, 0xff3300);
+    this.spawnDustPuff(x, z, 1.1, 0, 0);
+  }
+
+  // Airborne swirling twister debris particles caught in the cyclone
+  spawnTornadoDebrisParticle(vx, vz) {
+    if (this.particles.length > (this.perfMode ? 45 : 120)) return;
+    const geo = boxGeo();
+    const isDust = Math.random() > 0.45;
+    const col = isDust ? 0x8d99ae : (Math.random() > 0.5 ? 0xd90429 : 0xffb703);
+    const mat = new THREE.MeshBasicMaterial({
+      color: col,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+    });
+    const m = new THREE.Mesh(geo, mat);
+    const y = 1.0 + Math.random() * 22.0;
+    const r = 2.5 + (y / 22.0) * 7.5;
+    const angle = Math.random() * Math.PI * 2;
+    m.position.set(vx + Math.cos(angle) * r, y, vz + Math.sin(angle) * r);
+    m.scale.setScalar(0.18 + Math.random() * 0.32);
+    this.scene.add(m);
+
+    const speed = 12.0 + Math.random() * 8.0;
+    this.particles.push({
+      mesh: m,
+      vx: -Math.sin(angle) * speed,
+      vy: 2.5 + Math.random() * 4.0,
+      vz: Math.cos(angle) * speed,
+      vr: (Math.random() - 0.5) * 20,
+      life: 0.8 + Math.random() * 0.5,
+      maxLife: 1.3,
+    });
+  }
+
+  // 3D Visual Funnel Mesh for Tornadoes & Hurricanes
+  _ensureTornadoMesh(stormType = 'tornado') {
+    if (this.tornadoGroup) return this.tornadoGroup;
+    const group = new THREE.Group();
+    const isHurricane = stormType === 'hurricane';
+
+    // 1. Inverted tapered cyclone funnel cone (30m tall)
+    const funnelGeo = new THREE.CylinderGeometry(10.5, 1.8, 30.0, 18, 8, true);
+    const funnelMat = new THREE.MeshBasicMaterial({
+      color: isHurricane ? 0x64dfdf : 0x8d99ae,
+      transparent: true,
+      opacity: 0.48,
+      wireframe: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const funnelMesh = new THREE.Mesh(funnelGeo, funnelMat);
+    funnelMesh.position.y = 15.0;
+    group.add(funnelMesh);
+
+    // 2. Inner dense swirling funnel core
+    const coreGeo = new THREE.CylinderGeometry(7.0, 1.0, 28.0, 14, 4, true);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: isHurricane ? 0x48cae4 : 0x4a4e69,
+      transparent: true,
+      opacity: 0.38,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    coreMesh.position.y = 14.0;
+    group.add(coreMesh);
+
+    // 3. Multi-tier swirling spiral wind rings
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: isHurricane ? 0x90e0ef : 0xc8d6e5,
+      transparent: true,
+      opacity: 0.65,
+      depthWrite: false,
+    });
+    const rings = [];
+    for (let y = 2.0; y <= 28.0; y += 4.5) {
+      const r = 2.0 + (y / 28.0) * 8.5;
+      const torusGeo = new THREE.TorusGeometry(r, 0.22, 6, 20);
+      const torus = new THREE.Mesh(torusGeo, ringMat);
+      torus.rotation.x = Math.PI / 2;
+      torus.position.y = y;
+      group.add(torus);
+      rings.push(torus);
+    }
+
+    // 4. Ground suction dust disc
+    const discGeo = new THREE.RingGeometry(1.0, 13.0, 24);
+    const discMat = new THREE.MeshBasicMaterial({
+      color: isHurricane ? 0x0077b6 : 0x5a5048,
+      transparent: true,
+      opacity: 0.55,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const groundDisc = new THREE.Mesh(discGeo, discMat);
+    groundDisc.rotation.x = -Math.PI / 2;
+    groundDisc.position.y = 0.1;
+    group.add(groundDisc);
+
+    group.userData = { funnelMesh, coreMesh, rings, groundDisc, scaleT: 0.01 };
+    group.position.set(0, 0, 0);
+    this.scene.add(group);
+    this.tornadoGroup = group;
+    return group;
+  }
+
+  // Realistic Solid Volcanic Fault Fissure with Molten Core & Overlapping Basalt Plates
+  spawnFaultLineFissure(x0, z0, x1, z1, angle, length, duration = 0.8) {
+    const steps = Math.max(24, Math.min(65, Math.round(length / 1.8)));
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    const perpX = -sinA;
+    const perpZ = cosA;
+    const segLen = (length / steps);
+
+    const group = new THREE.Group();
+    const crackSegments = [];
+
+    // Dual-layer molten magma materials: incandescent yellow-orange core + deep molten red trench
+    const magmaCoreMat = new THREE.MeshBasicMaterial({
+      color: 0xffea00,
+      transparent: true,
+      opacity: 0.98,
+      depthWrite: false,
+    });
+    const magmaTrenchMat = new THREE.MeshBasicMaterial({
+      color: 0xd90429,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+    });
+    const basaltCrustMat = new THREE.MeshStandardMaterial({
+      color: 0x1a120f,
+      roughness: 0.95,
+      metalness: 0.05,
     });
 
     const boxG = boxGeo();
@@ -2451,49 +2690,56 @@ export class VoxelWorld3D {
       const segX = x0 + (x1 - x0) * t;
       const segZ = z0 + (z1 - z0) * t;
 
-      const jag = (Math.random() - 0.5) * 1.5;
-      const jagWidth = 1.4 + Math.random() * 1.6;
-      const jagDepth = 0.16 + Math.random() * 0.2;
+      const jag = (Math.sin(s * 0.8) * 0.6) + ((s * 7919) % 100 / 100 - 0.5) * 0.9;
+      const chasmWidth = 1.8 + ((s * 3571) % 100 / 100) * 1.0;
 
-      // Magma glowing crevasse
-      const core = new THREE.Mesh(boxG, magmaMat);
-      core.scale.set(jagWidth * 0.85, jagDepth, (length / steps) * 1.1);
-      core.position.set(segX + perpX * jag, 0.02, segZ + perpZ * jag);
+      // 1. Continuous deep red molten magma trench base (overlapping length to ensure seamless solid chasm)
+      const trench = new THREE.Mesh(boxG, magmaTrenchMat);
+      trench.scale.set(chasmWidth * 1.1, 0.16, segLen * 1.35);
+      trench.position.set(segX + perpX * jag, 0.02, segZ + perpZ * jag);
+      trench.rotation.y = -angle;
+      trench.visible = false;
+      group.add(trench);
+
+      // 2. Burning incandescent yellow-orange magma vein in the center
+      const core = new THREE.Mesh(boxG, magmaCoreMat);
+      core.scale.set(chasmWidth * 0.55, 0.20, segLen * 1.35);
+      core.position.set(segX + perpX * jag, 0.04, segZ + perpZ * jag);
       core.rotation.y = -angle;
       core.visible = false;
       group.add(core);
 
-      // Left lifted crust slab
-      const slabL = new THREE.Mesh(boxG, slabMat);
-      slabL.scale.set(jagWidth * 0.55, 0.22, (length / steps) * 0.95);
-      slabL.position.set(segX + perpX * (jag - jagWidth * 0.52), 0.06, segZ + perpZ * (jag - jagWidth * 0.52));
+      // 3. Interlocking sheared basalt crust plates along left bank
+      const slabL = new THREE.Mesh(boxG, basaltCrustMat);
+      slabL.scale.set(chasmWidth * 0.65, 0.26, segLen * 1.25);
+      slabL.position.set(segX + perpX * (jag - chasmWidth * 0.62), 0.08, segZ + perpZ * (jag - chasmWidth * 0.62));
       slabL.rotation.y = -angle;
-      slabL.rotation.z = (Math.random() * 0.2 + 0.08);
+      slabL.rotation.z = 0.14 + ((s * 1013) % 100 / 100) * 0.12;
       slabL.visible = false;
       group.add(slabL);
 
-      // Right lifted crust slab
-      const slabR = new THREE.Mesh(boxG, slabMat);
-      slabR.scale.set(jagWidth * 0.55, 0.22, (length / steps) * 0.95);
-      slabR.position.set(segX + perpX * (jag + jagWidth * 0.52), 0.06, segZ + perpZ * (jag + jagWidth * 0.52));
+      // 4. Interlocking sheared basalt crust plates along right bank
+      const slabR = new THREE.Mesh(boxG, basaltCrustMat);
+      slabR.scale.set(chasmWidth * 0.65, 0.26, segLen * 1.25);
+      slabR.position.set(segX + perpX * (jag + chasmWidth * 0.62), 0.08, segZ + perpZ * (jag + chasmWidth * 0.62));
       slabR.rotation.y = -angle;
-      slabR.rotation.z = -(Math.random() * 0.2 + 0.08);
+      slabR.rotation.z = -(0.14 + ((s * 1013) % 100 / 100) * 0.12);
       slabR.visible = false;
       group.add(slabR);
 
-      // Branch crack
+      // 5. Branch fault cracks splitting off into sidewalks
       let branch = null;
-      if (s % 3 === 0 && s > 0 && s < steps - 1) {
-        const branchSign = Math.random() > 0.5 ? 1 : -1;
-        const branchLen = 2.0 + Math.random() * 3.5;
-        const branchMat = new THREE.MeshBasicMaterial({ color: 0xff5500, transparent: true, opacity: 0.85, depthWrite: false });
+      if (s % 4 === 0 && s > 0 && s < steps - 1) {
+        const branchSign = (s % 8 === 0) ? 1 : -1;
+        const branchLen = 2.5 + ((s * 409) % 100 / 100) * 3.0;
+        const branchMat = new THREE.MeshBasicMaterial({ color: 0xff5500, transparent: true, opacity: 0.9, depthWrite: false });
         branch = new THREE.Mesh(boxG, branchMat);
-        branch.scale.set(0.3, 0.06, branchLen);
-        const bAngle = angle + branchSign * (0.6 + Math.random() * 0.5);
+        branch.scale.set(0.35, 0.08, branchLen);
+        const bAngle = angle + branchSign * (0.65 + ((s * 607) % 100 / 100) * 0.4);
         branch.position.set(
-          segX + perpX * (jag + branchSign * 1.1),
-          0.03,
-          segZ + perpZ * (jag + branchSign * 1.1)
+          segX + perpX * (jag + branchSign * 1.2),
+          0.04,
+          segZ + perpZ * (jag + branchSign * 1.2)
         );
         branch.rotation.y = -bAngle;
         branch.visible = false;
@@ -2504,6 +2750,7 @@ export class VoxelWorld3D {
         t,
         x: segX + perpX * jag,
         z: segZ + perpZ * jag,
+        trench,
         core,
         slabL,
         slabR,
@@ -2517,12 +2764,14 @@ export class VoxelWorld3D {
     if (!this._activeFissures) this._activeFissures = [];
     this._activeFissures.push({
       group,
-      magmaMat,
-      slabMat,
+      magmaCoreMat,
+      magmaTrenchMat,
+      basaltCrustMat,
       crackSegments,
       duration,
       elapsed: 0,
-      life: 6.0,
+      geyserTimer: 0,
+      life: 8.5, // Visually persists for 8.5 seconds with active eruptions
     });
   }
 
@@ -2531,6 +2780,7 @@ export class VoxelWorld3D {
       for (const f of this._activeFissures) {
         for (const seg of f.crackSegments) {
           seg.activated = true;
+          seg.trench.visible = true;
           seg.core.visible = true;
           seg.slabL.visible = true;
           seg.slabR.visible = true;
@@ -2898,7 +3148,7 @@ export class VoxelWorld3D {
   update(dt, events) {
     this.time += dt;
 
-    // --- Active 3D Tectonic Fissures Animation ---
+    // --- Active 3D Tectonic Fissures Animation with Molten Magma Geysers ---
     if (this._activeFissures && this._activeFissures.length > 0) {
       const remainingFissures = [];
       for (const f of this._activeFissures) {
@@ -2906,20 +3156,44 @@ export class VoxelWorld3D {
         for (const seg of f.crackSegments) {
           if (!seg.activated && f.elapsed >= seg.delay) {
             seg.activated = true;
+            seg.trench.visible = true;
             seg.core.visible = true;
             seg.slabL.visible = true;
             seg.slabR.visible = true;
             if (seg.branch) seg.branch.visible = true;
-            this.spawnShockRing(seg.x, seg.z, 7.0, 0xff5500);
-            this.spawnBurst(seg.x, seg.z, 3.0, 0xff8800, 10);
-            this.spawnDustPuff(seg.x, seg.z, 1.4, 0, 0);
+            this.spawnShockRing(seg.x, seg.z, 7.5, 0xff5500);
+            this.spawnBurst(seg.x, seg.z, 3.5, 0xffaa00, 14);
+            this.spawnDustPuff(seg.x, seg.z, 1.6, 0, 0);
             this.spawnHeatEmber(seg.x, seg.z);
+            // Initial eruption burst
+            this.spawnMagmaGeyser(seg.x, seg.z, 4.0 + Math.random() * 3.5);
           }
         }
-        if (f.elapsed > f.duration + 2.0) {
-          const fadeProgress = (f.elapsed - (f.duration + 2.0)) / 2.5;
-          f.magmaMat.opacity = Math.max(0, 0.95 * (1 - fadeProgress));
+
+        // Active Magma Geysers erupting along the fissure over its full life
+        if (f.elapsed > 0.4 && f.elapsed < 6.8) {
+          f.geyserTimer = (f.geyserTimer || 0) + dt;
+          if (f.geyserTimer >= 0.16) {
+            f.geyserTimer = 0;
+            const actSegs = f.crackSegments.filter((s) => s.activated);
+            if (actSegs.length > 0) {
+              const randSeg = actSegs[Math.floor(Math.random() * actSegs.length)];
+              this.spawnMagmaGeyser(randSeg.x, randSeg.z, 3.5 + Math.random() * 4.5);
+            }
+          }
         }
+
+        // Molten core pulsing brightness
+        const pulse = 0.85 + Math.sin(this.time * 7.0) * 0.15;
+        if (f.magmaCoreMat) f.magmaCoreMat.opacity = Math.min(0.98, pulse);
+
+        // Basalt cooling and slow fade after 6.5s
+        if (f.elapsed > 6.5) {
+          const fadeProgress = (f.elapsed - 6.5) / 2.0;
+          if (f.magmaCoreMat) f.magmaCoreMat.opacity = Math.max(0, 0.98 * (1 - fadeProgress));
+          if (f.magmaTrenchMat) f.magmaTrenchMat.opacity = Math.max(0, 0.95 * (1 - fadeProgress));
+        }
+
         if (f.elapsed < f.life) {
           remainingFissures.push(f);
         } else {
@@ -2927,6 +3201,39 @@ export class VoxelWorld3D {
         }
       }
       this._activeFissures = remainingFissures.length > 0 ? remainingFissures : [];
+    }
+
+    // --- Dynamic 3D Tornado / Hurricane Twister Tick ---
+    const storm = this.sim.stormSystem;
+    if (storm && (storm.state === 'active' || storm.state === 'warning' || storm.state === 'clearing')) {
+      const tornado = this._ensureTornadoMesh(storm.stormType);
+      tornado.position.set(storm.vortexX || 0, 0, storm.vortexZ || 0);
+
+      // Smooth spin & scale animations
+      const targetScale = storm.state === 'clearing' ? 0.01 : (storm.state === 'warning' ? 0.4 : 1.0);
+      tornado.userData.scaleT = (tornado.userData.scaleT || 0.01) + (targetScale - (tornado.userData.scaleT || 0.01)) * dt * 3.5;
+      tornado.scale.set(tornado.userData.scaleT, tornado.userData.scaleT, tornado.userData.scaleT);
+
+      tornado.userData.funnelMesh.rotation.y += dt * 14.0;
+      tornado.userData.coreMesh.rotation.y -= dt * 18.0;
+      tornado.userData.groundDisc.rotation.z += dt * 12.0;
+
+      for (let i = 0; i < tornado.userData.rings.length; i++) {
+        const sign = i % 2 === 0 ? 1 : -1;
+        tornado.userData.rings[i].rotation.z += dt * (10.0 + i * 2.0) * sign;
+      }
+
+      // Spawn swirling airborne debris particles
+      if (storm.state === 'active' && !this.reducedMotion && this.particles.length < (this.perfMode ? 45 : 120)) {
+        this._stormDebrisTimer = (this._stormDebrisTimer || 0) + dt;
+        if (this._stormDebrisTimer >= 0.06) {
+          this._stormDebrisTimer = 0;
+          this.spawnTornadoDebrisParticle(storm.vortexX, storm.vortexZ);
+        }
+      }
+    } else if (this.tornadoGroup) {
+      this.scene.remove(this.tornadoGroup);
+      this.tornadoGroup = null;
     }
 
     // --- propagating fault-line VFX ---
@@ -3123,7 +3430,10 @@ export class VoxelWorld3D {
             this.spawnDustPuff(s.x, s.z, 1.8, 0, 0);
           }
         }
+      } else if (ev.type === 'dragonball_aura') {
+        this.spawnDragonballAura(ev.x != null ? ev.x : h.x, ev.z != null ? ev.z : h.z, ev.radius || h.radius || 2.5);
       } else if (ev.type === 'quake') {
+        this.spawnDragonballAura(ev.x0 != null ? ev.x0 : h.x, ev.z0 != null ? ev.z0 : h.z, h.radius || 2.5);
         if (ev.x0 != null && ev.x1 != null) {
           const len = Math.hypot(ev.x1 - ev.x0, ev.z1 - ev.z0);
           const propDuration = Math.min(1.0, Math.max(0.6, len * 0.008));

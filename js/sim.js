@@ -144,9 +144,13 @@ export class Sim {
     this.over = false;
     this.won = false;
     this.events = [];   // drained by the renderer each frame
+    this._lastSpawnedPowerUpType = null;
     this.powerups = this._placePowerups();
+    for (const pu of this.powerups) {
+      this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'initial' });
+    }
     this.activePowerUps = [];
-    this.powerupSpawnTimer = 35.0;
+    this.powerupRespawnTimers = [];
     this.nextScorePowerUpThreshold = 100000;
     this.nextMultPowerUpThreshold = 500;
     this._nextPowerUpId = this.powerups.length + 1;
@@ -158,7 +162,8 @@ export class Sim {
     const out = [];
     const count = 2;
     for (let i = 0; i < count; i++) {
-      const type = pickRandomPowerUpType(this.rng);
+      const type = pickRandomPowerUpType(this.rng, out, this._lastSpawnedPowerUpType);
+      this._lastSpawnedPowerUpType = type;
       const angle = this.rng.float(0, Math.PI * 2);
       const pos = findSpacedPowerUpLocation(out, bounds, this.rng, MIN_POWERUP_SEPARATION);
       out.push(createPowerUp(i + 1, type, pos.x, pos.z, 'map', {
@@ -254,6 +259,12 @@ export class Sim {
       }
     });
     this.events.push({
+      type: 'dragonball_aura',
+      x: hole.x,
+      z: hole.z,
+      radius: hole.radius,
+    });
+    this.events.push({
       type: 'quake',
       x: hole.x,
       z: hole.z,
@@ -273,7 +284,8 @@ export class Sim {
     const bounds = { minX: b.xmin, maxX: b.xmax, minZ: b.zmin, maxZ: b.zmax };
     const pos = findSpacedPowerUpLocation(this.powerups, bounds, this.rng, MIN_POWERUP_SEPARATION);
     const angle = this.rng.float(0, Math.PI * 2);
-    const type = pickRandomPowerUpType(this.rng);
+    const type = pickRandomPowerUpType(this.rng, this.powerups, this._lastSpawnedPowerUpType);
+    this._lastSpawnedPowerUpType = type;
     const pu = createPowerUp(this._nextPowerUpId++, type, pos.x, pos.z, reason, {
       lifespan: 28.0,
       speed: 2.6 + this.rng.float(0, 0.8),
@@ -343,22 +355,29 @@ export class Sim {
     }
     this.powerups = this.powerups.filter((p) => !p.collected && !p.expired);
 
-    this.powerupSpawnTimer = (this.powerupSpawnTimer || 35.0) - dt;
-    if (this.powerupSpawnTimer <= 0) {
-      this.powerupSpawnTimer = 35.0;
-      if (this.powerups.length < 2 && this.powerups.length < MAX_MAP_POWERUPS) {
-        const bounds = { minX: b.xmin, maxX: b.xmax, minZ: b.zmin, maxZ: b.zmax };
-        const pos = findSpacedPowerUpLocation(this.powerups, bounds, this.rng, MIN_POWERUP_SEPARATION);
-        const angle = this.rng.float(0, Math.PI * 2);
-        const type = pickRandomPowerUpType(this.rng);
-        const pu = createPowerUp(this._nextPowerUpId++, type, pos.x, pos.z, 'intermittent', {
-          lifespan: Infinity,
-          speed: 2.6 + this.rng.float(0, 0.8),
-          angle,
-        });
-        this.powerups.push(pu);
-        this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'intermittent' });
+    // Independent 30s cooldown per consumed power-up slot (always capped at MAX_MAP_POWERUPS = 2)
+    for (let i = this.powerupRespawnTimers.length - 1; i >= 0; i--) {
+      this.powerupRespawnTimers[i] -= dt;
+      if (this.powerupRespawnTimers[i] <= 0) {
+        this.powerupRespawnTimers.splice(i, 1);
+        if (this.powerups.length < MAX_MAP_POWERUPS) {
+          const bounds = { minX: b.xmin, maxX: b.xmax, minZ: b.zmin, maxZ: b.zmax };
+          const pos = findSpacedPowerUpLocation(this.powerups, bounds, this.rng, MIN_POWERUP_SEPARATION);
+          const angle = this.rng.float(0, Math.PI * 2);
+          const type = pickRandomPowerUpType(this.rng, this.powerups, this._lastSpawnedPowerUpType);
+          this._lastSpawnedPowerUpType = type;
+          const pu = createPowerUp(this._nextPowerUpId++, type, pos.x, pos.z, 'intermittent', {
+            lifespan: Infinity,
+            speed: 2.6 + this.rng.float(0, 0.8),
+            angle,
+          });
+          this.powerups.push(pu);
+          this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'intermittent' });
+        }
       }
+    }
+    if (this.powerups.length + this.powerupRespawnTimers.length < MAX_MAP_POWERUPS) {
+      this.powerupRespawnTimers.push(30.0);
     }
 
     // --- power-up collection ---
@@ -368,6 +387,7 @@ export class Sim {
       const dx = pu.x - p.x, dz = pu.z - p.z;
       if (dx * dx + dz * dz <= puReach * puReach) {
         pu.collected = true;
+        this.powerupRespawnTimers.push(30.0);
         activatePowerUp(this.activePowerUps, pu, p, this);
         if (pu.type === POWERUP_TYPES.QUAKE) {
           this._triggerQuake(p);

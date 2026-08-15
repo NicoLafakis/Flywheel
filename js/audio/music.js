@@ -12,6 +12,7 @@ export { DEFAULT_MUSIC_VOLUME, MUSIC_VOLUME_KEY };
 
 export const MUSIC_CUES = Object.freeze({
   menu: 'main-menu.mp3',
+  title: 'main-menu.mp3',
   shop: 'shop.mp3',
   pause: 'pause.mp3',
   results: 'post-game.mp3',

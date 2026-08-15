@@ -17,7 +17,7 @@ import { startMenuScene, stopMenuScene, tickMenuScene, resizeMenuScene } from '.
 import { TIERS, defaultTierForDevice } from './quality.js';
 
 import { GameAudio } from './audio/game-audio.js';
-import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_SFX_VOLUME, reseedAudioMix } from './audio/mix.js';
+import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MASTER_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME, reseedAudioMix } from './audio/mix.js';
 import { createInputBuffer, encodeTrace, inputAt, writeInput } from './replay.js';
 
 const canvas = document.getElementById('game-canvas');
@@ -61,6 +61,23 @@ window.__audio = audio; // debug hook, same idiom as scene-view.html
 audio.setMuted(save.muted);
 audio.setVolume(save.settings && typeof save.settings.sfxVol === 'number' ? save.settings.sfxVol : DEFAULT_SFX_VOLUME);
 audio.setAmbienceVolume(save.settings && typeof save.settings.ambVol === 'number' ? save.settings.ambVol : DEFAULT_AMBIENCE_VOLUME);
+
+// Start preloading and streaming title music immediately on initial boot
+audio.music.unlock();
+audio.setMusicCue('menu');
+
+const earlyUnlock = () => {
+  try {
+    audio.engine.unlock();
+    audio.music.unlock();
+  } catch {}
+  window.removeEventListener('pointerdown', earlyUnlock);
+  window.removeEventListener('touchstart', earlyUnlock);
+  window.removeEventListener('keydown', earlyUnlock);
+};
+window.addEventListener('pointerdown', earlyUnlock, { passive: true });
+window.addEventListener('touchstart', earlyUnlock, { passive: true });
+window.addEventListener('keydown', earlyUnlock, { passive: true });
 
 // ------------------------------------------------------------------ game state
 let state = 'menu'; // menu | intro | playing | paused | results
@@ -244,14 +261,18 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     else stopMenuScene();
   },
   music(cue, opts) { audio.setMusicCue(cue, opts); },
+  masterVolume() { return audio.masterVolume; },
+  setMasterVolume(v) { audio.setMasterVolume(v); },
   musicVolume() { return audio.musicVolume; },
   setMusicVolume(v) { audio.setMusicVolume(v); },
   ambienceVolume() { return audio.ambienceVolume; },
   setAmbienceVolume(v) { audio.setAmbienceVolume(v); },
   applySettings() {
     storeSave(save);
+    audio.setMasterVolume(typeof save.settings.masterVol === 'number' ? save.settings.masterVol : DEFAULT_MASTER_VOLUME);
     audio.setVolume(typeof save.settings.sfxVol === 'number' ? save.settings.sfxVol : DEFAULT_SFX_VOLUME);
     audio.setAmbienceVolume(typeof save.settings.ambVol === 'number' ? save.settings.ambVol : DEFAULT_AMBIENCE_VOLUME);
+    if (typeof save.settings.musicVol === 'number') audio.setMusicVolume(save.settings.musicVol);
     if (controls) controls.settings = save.settings;
     if (cam) {
       cam.distScale = save.settings.camDist;
@@ -291,6 +312,73 @@ function applyVoxTuning() {
   sim.tune.speed = st.voxSpeed;
   sim.tune.attract = st.voxAttract;
   sim.tune.perfMode = !!st.perfMode;
+}
+
+let pokeSpawnQueue = [];
+let isShowingPokeSpawn = false;
+
+function queuePokemonSpawnIntro(pu, simInstance, camInstance) {
+  if (!pu) return;
+  pokeSpawnQueue.push({ pu, sim: simInstance, cam: camInstance });
+  if (isShowingPokeSpawn) return;
+  playNextPokemonSpawn();
+}
+
+function playNextPokemonSpawn() {
+  if (pokeSpawnQueue.length === 0) {
+    isShowingPokeSpawn = false;
+    return;
+  }
+  isShowingPokeSpawn = true;
+  const item = pokeSpawnQueue[0];
+  const pu = item.pu;
+  const s = item.sim;
+  const c = item.cam;
+
+  audio.playPokemonEncounter();
+  audio.playPokemonDropLand();
+  triggerHaptic(65);
+
+  const hX = (s && s.hole ? s.hole.x : (s && s.player ? s.player.x : 0)) || 0;
+  const hZ = (s && s.hole ? s.hole.z : (s && s.player ? s.player.z : 0)) || 0;
+  const prevState = state;
+  state = 'powerup_encounter';
+
+  let finished = false;
+  const finishPokeIntro = () => {
+    if (finished) return;
+    finished = true;
+    screens.dismissPokemonEncounterModal();
+    if (c && c.skipPokemonSpawnCinematic) c.skipPokemonSpawnCinematic();
+    pokeSpawnQueue.shift();
+    if (pokeSpawnQueue.length > 0) {
+      playNextPokemonSpawn();
+    } else {
+      isShowingPokeSpawn = false;
+      state = prevState === 'powerup_encounter' ? 'playing' : prevState;
+      lastTs = performance.now();
+    }
+  };
+
+  screens.showPokemonEncounterModal({
+    powerup: pu,
+    onSkip: finishPokeIntro,
+    reducedMotion: save.settings.reducedMotion,
+  });
+
+  if (c && c.startPokemonSpawnCinematic) {
+    c.startPokemonSpawnCinematic({
+      dropX: pu.x,
+      dropZ: pu.z,
+      playerX: hX,
+      playerZ: hZ,
+      duration: 1.5,
+      reducedMotion: save.settings.reducedMotion,
+      onComplete: finishPokeIntro,
+    });
+  } else {
+    setTimeout(finishPokeIntro, 1500);
+  }
 }
 
 function startLevel() {
@@ -605,6 +693,10 @@ function teardownWorld() {
   // it goes first and it goes here — this is the one function both start paths
   // call before constructing anything.
   stopMenuScene();
+  screens.dismissPokemonEncounterModal();
+  screens.dismissEarthquakeCinematic();
+  pokeSpawnQueue = [];
+  isShowingPokeSpawn = false;
   if (readyGate) { readyGate.dismiss(); readyGate = null; }
   if (world) { world.dispose(); world = null; }
   sim = null;
@@ -799,89 +891,25 @@ function frame(ts) {
           audio.playPowerUpCollect();
           const isQuake = ev.powerup.type === 'quake' || (ev.powerup.spec && ev.powerup.spec.id === 'quake');
           if (isQuake) {
-            audio.playAnimeHitStop();
             audio.playFaultLineQuake();
-            triggerHaptic(90);
-            const quakeEv = events.find((e) => e.type === 'quake') || {
-              x0: sim.hole.x, z0: sim.hole.z,
-              x1: sim.hole.x + 25, z1: sim.hole.z + 25,
-              angle: 0, length: 35,
-            };
-            const prevState = state;
-            state = 'quake_cinematic';
-            const finishQuake = () => {
-              if (state !== 'quake_cinematic') return;
-              screens.dismissEarthquakeCinematic();
-              if (world && world.skipQuakeCinematic) world.skipQuakeCinematic();
-              if (cam && cam.skipEarthquakeCinematic) cam.skipEarthquakeCinematic();
-              state = prevState;
-              lastTs = performance.now();
-            };
-            screens.showEarthquakeCinematic({
-              onSkip: finishQuake,
-              reducedMotion: save.settings.reducedMotion,
-            });
-            cam.startEarthquakeCinematic({
-              x0: quakeEv.x0, z0: quakeEv.z0,
-              x1: quakeEv.x1, z1: quakeEv.z1,
-              angle: quakeEv.angle, length: quakeEv.length,
-              duration: 2.1,
-              reducedMotion: save.settings.reducedMotion,
-              onComplete: finishQuake,
-            });
+            cam.triggerShake(1.2);
           } else {
-            cam.triggerShake(0.45);
-            cam.fovKick(6);
-            triggerHaptic(45);
-            const spec = ev.powerup.spec || {};
-            hud.announce({
-              text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
-              sub: '✦ BUFF ACTIVATED ✦',
-              source: 'powerup',
-              tier: 'powerup',
-              priority: ANN.SIZE,
-              ms: 1800,
-              channel: 'band',
-            });
-            const prevState = state;
-            state = 'powerup_pause';
-            screens.showPowerUpShowcase(ev.powerup, () => {
-              state = prevState;
-              lastTs = performance.now();
-            });
+            cam.triggerShake(0.35);
           }
+          triggerHaptic(80);
+          const spec = ev.powerup.spec || {};
+          hud.announce({
+            text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
+            sub: spec.tagline ? `✦ ${spec.tagline.toUpperCase()} ✦` : '✦ BUFF ACTIVATED ✦',
+            source: 'powerup',
+            tier: 'powerup',
+            priority: ANN.SIZE,
+            ms: 2000,
+            channel: 'band',
+          });
+          screens.triggerActivePowerUpOverlay(ev.powerup.type);
         } else if (ev.type === 'powerup_spawn') {
-          audio.playPokemonEncounter();
-          audio.playPokemonDropLand();
-          triggerHaptic(65);
-          const hX = (sim.hole && sim.hole.x) || 0;
-          const hZ = (sim.hole && sim.hole.z) || 0;
-          const prevState = state;
-          state = 'powerup_encounter';
-
-          const finishPokeIntro = () => {
-            if (state !== 'powerup_encounter') return;
-            screens.dismissPokemonEncounterModal();
-            if (cam && cam.skipPokemonSpawnCinematic) cam.skipPokemonSpawnCinematic();
-            state = prevState;
-            lastTs = performance.now();
-          };
-
-          screens.showPokemonEncounterModal({
-            powerup: ev.powerup,
-            onSkip: finishPokeIntro,
-            reducedMotion: save.settings.reducedMotion,
-          });
-
-          cam.startPokemonSpawnCinematic({
-            dropX: ev.powerup.x,
-            dropZ: ev.powerup.z,
-            playerX: hX,
-            playerZ: hZ,
-            duration: 1.5,
-            reducedMotion: save.settings.reducedMotion,
-            onComplete: finishPokeIntro,
-          });
+          queuePokemonSpawnIntro(ev.powerup, sim, cam);
         } else if (ev.type === 'disaster') {
           cam.triggerShake(1.2);
           triggerHaptic(100);
@@ -975,91 +1003,26 @@ function frame(ts) {
         } else if (ev.type === 'powerup_collect') {
           audio.playPowerUpCollect();
           const isQuake = ev.powerup.type === 'quake' || (ev.powerup.spec && ev.powerup.spec.id === 'quake');
-          if (isQuake && ev.hole && ev.hole.isPlayer) {
-            audio.playAnimeHitStop();
+          if (isQuake) {
             audio.playFaultLineQuake();
-            triggerHaptic(90);
-            const quakeEv = events.find((e) => e.type === 'quake') || {
-              x0: sim.player.x, z0: sim.player.z,
-              x1: sim.player.x + 25, z1: sim.player.z + 25,
-              angle: 0, length: 35,
-            };
-            const prevState = state;
-            state = 'quake_cinematic';
-            const finishQuake = () => {
-              if (state !== 'quake_cinematic') return;
-              screens.dismissEarthquakeCinematic();
-              if (world && world.skipQuakeCinematic) world.skipQuakeCinematic();
-              if (cam && cam.skipEarthquakeCinematic) cam.skipEarthquakeCinematic();
-              state = prevState;
-              lastTs = performance.now();
-            };
-            screens.showEarthquakeCinematic({
-              onSkip: finishQuake,
-              reducedMotion: save.settings.reducedMotion,
-            });
-            cam.startEarthquakeCinematic({
-              x0: quakeEv.x0, z0: quakeEv.z0,
-              x1: quakeEv.x1, z1: quakeEv.z1,
-              angle: quakeEv.angle, length: quakeEv.length,
-              duration: 2.1,
-              reducedMotion: save.settings.reducedMotion,
-              onComplete: finishQuake,
-            });
+            cam.triggerShake(1.2);
           } else {
-            cam.triggerShake(0.45);
-            cam.fovKick(6);
-            triggerHaptic(45);
-            const spec = ev.powerup.spec || {};
-            hud.announce({
-              text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
-              sub: '✦ BUFF ACTIVATED ✦',
-              source: 'powerup',
-              tier: 'powerup',
-              priority: ANN.SIZE,
-              ms: 1800,
-              channel: 'band',
-            });
-            screens.triggerActivePowerUpOverlay(ev.powerup.type);
-            const prevState = state;
-            state = 'powerup_pause';
-            screens.showPowerUpShowcase(ev.powerup, () => {
-              state = prevState;
-              lastTs = performance.now();
-            });
+            cam.triggerShake(0.35);
           }
+          triggerHaptic(80);
+          const spec = ev.powerup.spec || {};
+          hud.announce({
+            text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
+            sub: spec.tagline ? `✦ ${spec.tagline.toUpperCase()} ✦` : '✦ BUFF ACTIVATED ✦',
+            source: 'powerup',
+            tier: 'powerup',
+            priority: ANN.SIZE,
+            ms: 2000,
+            channel: 'band',
+          });
+          screens.triggerActivePowerUpOverlay(ev.powerup.type);
         } else if (ev.type === 'powerup_spawn') {
-          audio.playPokemonEncounter();
-          audio.playPokemonDropLand();
-          triggerHaptic(65);
-          const pX = (sim.player && sim.player.x) || 0;
-          const pZ = (sim.player && sim.player.z) || 0;
-          const prevState = state;
-          state = 'powerup_encounter';
-
-          const finishPokeIntro = () => {
-            if (state !== 'powerup_encounter') return;
-            screens.dismissPokemonEncounterModal();
-            if (cam && cam.skipPokemonSpawnCinematic) cam.skipPokemonSpawnCinematic();
-            state = prevState;
-            lastTs = performance.now();
-          };
-
-          screens.showPokemonEncounterModal({
-            powerup: ev.powerup,
-            onSkip: finishPokeIntro,
-            reducedMotion: save.settings.reducedMotion,
-          });
-
-          cam.startPokemonSpawnCinematic({
-            dropX: ev.powerup.x,
-            dropZ: ev.powerup.z,
-            playerX: pX,
-            playerZ: pZ,
-            duration: 1.5,
-            reducedMotion: save.settings.reducedMotion,
-            onComplete: finishPokeIntro,
-          });
+          queuePokemonSpawnIntro(ev.powerup, sim, cam);
         } else if (ev.type === 'disaster') {
           cam.triggerShake(1.2);
           triggerHaptic(100);
@@ -1272,10 +1235,35 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// The boot splash (index.html) has done its job the moment the first screen
-// can mount — remove it before the title draws over it.
-const bootSplash = document.getElementById('boot-splash');
-if (bootSplash) bootSplash.remove();
+// The boot splash tracks actual loading progress until the 3D spinning city
+// is built and rendered, and title music has started.
+let bootFinished = false;
+function finishBootSplash() {
+  if (bootFinished) return;
+  bootFinished = true;
+  if (typeof window.__setBootProgress === 'function') {
+    window.__setBootProgress(100, 'READY!');
+  }
+  const bootSplash = document.getElementById('boot-splash');
+  if (bootSplash) {
+    bootSplash.classList.add('fade-out');
+    setTimeout(() => {
+      if (bootSplash.parentNode) bootSplash.remove();
+    }, 450);
+  }
+}
+
+// Start menu scene immediately on cold boot with onReady hook
+startMenuScene(canvas, {
+  settings: save.settings,
+  skinId: equippedSkinId(),
+  immediate: true,
+  onReady: finishBootSplash,
+});
+
+// Fallback safety timeout so boot splash never gets stuck
+setTimeout(finishBootSplash, 4000);
+
 screens.showTitle();
 resize();
 requestAnimationFrame((ts) => { lastTs = ts; loopHandle = requestAnimationFrame(frame); });

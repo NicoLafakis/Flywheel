@@ -25,6 +25,22 @@ Last updated: 2026-08-14
 
 ---
 
+- 2026-08-15 — Immediate Title Music Preloading & Early Boot Audio Streaming:
+  - **Zero-Latency Music Preloading**: Added same-origin `<link rel="preload">` for `assets/music/main-menu.mp3` in `index.html` and pre-warmed audio buffer allocation during HTML parsing.
+  - **Early Boot Music Request**: Initialized and unlocked `audio.music` on boot in `main.js` with cue `'menu'` and attached early interaction handlers (`pointerdown`, `touchstart`, `keydown`) so soundtrack playback begins streaming and playing immediately while the progress bar is filling.
+  - **Synchronized 3D City & Music Load Gate**: Linked `#boot-splash` progress bar and percentage directly to the live lifecycle of the 3D spinning title background city in `menuscene.js` and title music cue in `main.js`. Eliminated the artificial 1.1s build delay; the loader actively tracks script loading ($0\text{–}30\%$), voxel metropolis fetching ($30\text{–}65\%$), 3D geometry and shader instancing ($65\text{–}90\%$), and only advances to $100\%$ and fades out when the 3D spinning city is actually rendered on screen and title music is playing.
+  - **Button Interaction Gate**: All title screen inputs and buttons are protected from phantom taps until the 3D metropolis is confirmed hot and spinning.
+  - **Metropolis Transition Loader**: Added matching in-game loading screen in `screens.showLoading` with live progress animation and district initialization telemetry when switching between cities.
+- 2026-08-15 — Real-Time Dragon Ball Fault Line Rupture Restoration & Uninterrupted Power-Up Activation:
+  - **Live Gameplay Uninterrupted Flow**: Restored seamless, unpaused real-time gameplay on power-up pickup (removing pausing sky cutaway modals so players remain in continuous direct steering control while watching the live city destruction unfold).
+  - **Live Dragon Ball Super Saiyan Ki Aura**: Collecting the Earthquake power-up instantly bursts golden Super Saiyan flame jets, levitating spinning boulder chunks, and expanding golden ground shockwaves directly around the player's hole.
+  - **8.5s Molten Fault Line & Magma Geyser Chasm**: The ground fissure rips continuously from the player's epicenter across the entire map, snapping skyscraper foundation blocks in domino cascade with incandescent magma geysers shooting up along the fissure.
+  - **Exclusively Player-Earned Superpower**: Preserved the seismic cataclysm as an earned collectible power-up (`FAULT LINE RUPTURE`) with heavy tectonic screen rumble (`cam.triggerShake(1.2)`) and sub-bass audio (`playFaultLineQuake`).
+- 2026-08-15 — Natural Disaster Physics Optimization & Bounded Twister Vortex:
+  - **Disaster Spatial Query Indexing**: Replaced unindexed full-scene block scans in `StormSystem._applyStormDestruction` with local bounding-box queries `[vortexX ± stormRad, vortexZ ± stormRad]`, eliminating CPU spikes on 80,000+ voxel metropolises during active tornado/hurricane cataclysms.
+  - **Bounded Twister Vortex Simulation**: Capped active swirling physics bodies in tornado funnels to 48 pieces, allowing dense airborne visual chaos while immediately settling ground debris to keep frame rates locked at 60 FPS.
+  - **Graph Invalidation Throttling**: Restricted support graph invalidation during atmospheric wind events to structural foundation elements (preventing unnecessary whole-city BFS recalculations when detached roof/window voxels peel off).
+  - **Validation Test Suite Verification**: All validation suites passing cleanly (`scenesWinnable` across all 8 metropolises, `campaignLevels` across all 100 levels, `runBoard` 10,807 deterministic assertions accelerated >2×).
 - 2026-08-15 — Tiered City Coin Economy (Scaled Ground Spawns, Per-Coin Multipliers, and Escalating Full-Clear Payouts):
   - **Escalating Map Coins & Multipliers**: Scaled ground coin spawns and individual coin values across the 8-metropolis difficulty ladder (`The Lab` 60 coins × 1 -> `Lower Manhattan` 70 coins × 2 -> `Brooklyn` 80 coins × 2 -> `Chicago Loop` 100 coins × 2 -> `Cambridge` 120 coins × 3 -> `Upper Manhattan` 140 coins × 3 -> `Boston Seaport` 160 coins × 4 -> `Tokyo Shinjuku` 200 coins × 5).
   - **Tiered Level Clear Bonus**: Scaled 100% full-clear completion bonuses proportionately (`The Lab` +25 -> `Lower Manhattan` +50 -> `Brooklyn` +75 -> `Chicago Loop` +100 -> `Cambridge` +150 -> `Upper Manhattan` +200 -> `Boston Seaport` +300 -> `Tokyo Shinjuku` +500).

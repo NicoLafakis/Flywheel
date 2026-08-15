@@ -84,13 +84,19 @@ function tooWeak(settings) {
   return false;
 }
 
-// Schedules the backdrop. Safe to call on every return to the title — an
-// already-running scene is left exactly where it is rather than rebuilt, so
-// walking into SHOP and back does not pay the build twice.
+// Schedules or immediately builds the backdrop. Safe to call on every return to
+// the title — an already-running scene is left exactly where it is rather than
+// rebuilt, so walking into SHOP and back does not pay the build twice.
 export function startMenuScene(canvas, opts = {}) {
-  if (active || timer) return;
+  if (active) {
+    if (opts.onReady) opts.onReady();
+    return;
+  }
   const settings = opts.settings || {};
-  if (tooWeak(settings)) return;
+  if (tooWeak(settings)) {
+    if (opts.onReady) opts.onReady();
+    return;
+  }
   ctx = {
     canvas,
     skinId: opts.skinId || 'classic',
@@ -98,48 +104,41 @@ export function startMenuScene(canvas, opts = {}) {
     // "hold still", same as the landing screen's .fw-still.
     reducedMotion: !!settings.reducedMotion
       || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
+    onReady: opts.onReady,
   };
-  timer = setTimeout(build, BUILD_DELAY_MS);
+  if (opts.immediate) {
+    build();
+  } else if (!timer) {
+    timer = setTimeout(build, BUILD_DELAY_MS);
+  }
 }
 
 async function build() {
-  timer = 0;
+  if (timer) { clearTimeout(timer); timer = 0; }
   if (active || !ctx) return;
+  const currentCtx = ctx;
   try {
+    if (typeof window.__setBootProgress === 'function') {
+      window.__setBootProgress(65, 'FETCHING METROPOLIS…');
+    }
     // The city module is fetched on demand (js/voxelsim.js registry), so the
-    // backdrop's scene is downloaded here rather than at page load. Rule 1 above
-    // is what makes that safe AND what makes it a win: nothing on the title
-    // screen waits for this, and a player who never reaches Brooklyn never pays
-    // for it. `ctx` is re-checked after the await because `stop()` can run while
-    // the fetch is in flight — a fast click into SHOP is exactly that race, and
-    // building into a torn-down context would leak a world onto a canvas the
-    // menu no longer owns.
+    // backdrop's scene is downloaded here rather than at page load.
     await loadScene(MENU_SCENE);
     if (active || !ctx) return;
+
+    if (typeof window.__setBootProgress === 'function') {
+      window.__setBootProgress(82, 'BUILDING 3D GEOMETRY…');
+    }
+
     const sim = new VoxelSandboxSim({ scene: MENU_SCENE });
     const world = new VoxelWorld3D(ctx.canvas, sim, ctx.skinId, {
-      // The backdrop pays for none of the shadow pass. It is behind a scrim and
-      // behind the type; nobody is reading its contact shadows, and this is the
-      // single biggest lever on a scene this size.
       shadows: false,
       reducedMotion: ctx.reducedMotion,
     });
     const cam = new ChaseCamera(ctx.canvas.clientWidth / Math.max(1, ctx.canvas.clientHeight));
     cam.setReducedMotion(ctx.reducedMotion);
-    // Framing, and this is where the backdrop deliberately parts company with
-    // the READY gate. The gate frames the WHOLE city, because its job is to
-    // show the player the place they are about to eat; at that distance
-    // Brooklyn reads as a map, and a map behind a menu is a texture. So: no
-    // blocker list (which is what pulls the fit back to the full skyline) and a
-    // hand-set radius instead, which puts the camera down among the towers
-    // around the hole — close enough that a collapsing block is legible.
-    //
-    // Never released, so the camera holds this overview and orbits it forever.
-    // A zero arc is a static hold, which is exactly what reduced motion wants:
-    // the city stays, the drift stops.
+
     const arc = ctx.reducedMotion ? 0 : Math.PI / 5;
-    // Sun direction, read off the renderer's own light, so the establishing yaw
-    // lands on the lit side rather than on a silhouette.
     let sun = null;
     if (world._sun && world._sun.target) {
       sun = {
@@ -148,26 +147,35 @@ async function build() {
         z: world._sun.position.z - world._sun.target.position.z,
       };
     }
-    // A phone sees this scene through a narrow slot between the wordmark and the
-    // card shelf, and at radius 74 that slot is filled by two towers. Pulling
-    // back puts skyline rather than facade in the band the UI leaves open, which
-    // is the only part of the backdrop a phone player ever sees. Keyed off the
-    // viewport at build time and not re-derived on resize: the establishing hold
-    // is set once, and a mid-session orientation change is not worth restaging
-    // the camera the player is already looking at.
     const narrow = window.innerWidth <= 640 && window.innerHeight > window.innerWidth;
     cam.beginIntro({ minR: narrow ? 112 : 74, orbitArc: arc, sun });
     world.resize(window.innerWidth, window.innerHeight);
     cam.resize(window.innerWidth / Math.max(1, window.innerHeight));
+
+    // Paint the first frame immediately so the canvas is hot before removing the splash
+    const h = sim.hole;
+    cam.update(0, h.x, h.z, h.radius, 0, 0, false, 0);
+    world.update(0, []);
+    world.render(cam.camera);
+
     active = { sim, world, cam, t: 0, acc: 0 };
-    // The fade belongs to the canvas, not to a wrapper: one compositor-only
-    // opacity animation, declared in css/main.css and armed by this class.
     document.body.classList.add('fw-scene');
+
+    if (typeof window.__setBootProgress === 'function') {
+      window.__setBootProgress(100, 'READY!');
+    }
+    if (currentCtx && currentCtx.onReady) {
+      currentCtx.onReady();
+    }
   } catch (e) {
-    // Any failure at all is a fallback, never an error the player sees. The
-    // landing screen keeps its flat field because body.fw-scene never went on.
     active = null;
     try { document.body.classList.remove('fw-scene'); } catch (e2) { /* ignore */ }
+    if (typeof window.__setBootProgress === 'function') {
+      window.__setBootProgress(100, 'READY!');
+    }
+    if (currentCtx && currentCtx.onReady) {
+      currentCtx.onReady();
+    }
   }
 }
 

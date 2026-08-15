@@ -18,7 +18,9 @@ import { RNG } from '../rng.js';
 import {
   AMB_VOLUME_KEY,
   DEFAULT_AMBIENCE_VOLUME,
+  DEFAULT_MASTER_VOLUME,
   DEFAULT_SFX_VOLUME,
+  MASTER_VOLUME_KEY,
   SFX_VOLUME_KEY,
   reseedAudioMix,
 } from './mix.js';
@@ -28,12 +30,13 @@ import {
 // screen read the same constants). Re-exported here because this module is
 // where the two buses are owned, so a caller reasoning about the SFX bus does
 // not have to know the constants were hoisted.
-export { DEFAULT_SFX_VOLUME, DEFAULT_AMBIENCE_VOLUME, reseedAudioMix };
+export { DEFAULT_SFX_VOLUME, DEFAULT_AMBIENCE_VOLUME, DEFAULT_MASTER_VOLUME, reseedAudioMix };
 
 const MUTE_KEY = 'flywheel.audio.muted';
+const MASTER_VOL_KEY = MASTER_VOLUME_KEY;
 const VOL_KEY = SFX_VOLUME_KEY;
 const AMB_VOL_KEY = AMB_VOLUME_KEY;
-const MASTER_GAIN = 0.9;   // unmuted ceiling; mute is the only thing master carries
+const MASTER_GAIN = 0.9;   // unmuted ceiling
 const AMB_GAIN = 0.55;     // ambience headroom under the beds, before the slider
 
 export class AudioEngine {
@@ -48,6 +51,7 @@ export class AudioEngine {
     this._pendingLoads = new Map(); // name -> Promise (dedupe concurrent loads)
     this.master = null; this.sfx = null; this.amb = null;
     this._muted = false;
+    this._tabMuted = false;
     try { this._muted = localStorage.getItem(MUTE_KEY) === '1'; } catch { /* private mode */ }
     // Before the levels are read, not after: an install still carrying an older
     // shipped mix is moved onto the current one here, so the reads below see the
@@ -57,6 +61,11 @@ export class AudioEngine {
     // rather than in main.js. Stamped and idempotent: the main game calls it
     // first (so it can also reconcile the save) and this call is then a no-op.
     reseedAudioMix();
+    this._masterVol = DEFAULT_MASTER_VOLUME;
+    try {
+      const v = parseFloat(localStorage.getItem(MASTER_VOL_KEY));
+      if (Number.isFinite(v)) this._masterVol = Math.min(1, Math.max(0, v));
+    } catch { /* private mode */ }
     this._vol = DEFAULT_SFX_VOLUME;
     try {
       const v = parseFloat(localStorage.getItem(VOL_KEY));
@@ -86,6 +95,20 @@ export class AudioEngine {
   }
   toggleMuted() { this.setMuted(!this._muted); return this._muted; }
 
+  setTabMuted(m) {
+    this._tabMuted = !!m;
+    this._applyMaster();
+  }
+
+  /** Master volume level, 0..1, persisted. Scales all sound buses proportionally. */
+  get masterVolume() { return this._masterVol; }
+  setMasterVolume(v) {
+    if (!Number.isFinite(v)) return;
+    this._masterVol = Math.min(1, Math.max(0, v));
+    try { localStorage.setItem(MASTER_VOL_KEY, String(this._masterVol)); } catch { /* best effort */ }
+    this._applyMaster();
+  }
+
   /** Effects level, 0..1, persisted. Rides the SFX bus only: gulps, crashes,
    * UI taps and stingers. Named `volume`/`setVolume` because every existing
    * caller (arena, hot-seat demo, scene viewer) already speaks that name. */
@@ -113,7 +136,7 @@ export class AudioEngine {
   _ambLevel() { return AMB_GAIN * this._ambVol; }
 
   _applyMaster() {
-    if (this.master) this.master.gain.value = this._muted ? 0 : MASTER_GAIN;
+    if (this.master) this.master.gain.value = (this._muted || this._tabMuted) ? 0 : (MASTER_GAIN * this._masterVol);
   }
 
   _applySfx() {
@@ -395,6 +418,79 @@ export class AudioEngine {
         osc.start(startTime);
         osc.stop(startTime + 0.32);
       });
+    } catch { /* fallback */ }
+  }
+
+  /** Dragon Ball Cinematic Zoom Hit 1: Electric snap + punch impact */
+  playDragonballHit1({ vol = 1.0 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(660, now);
+      osc.frequency.exponentialRampToValueAtTime(140, now + 0.15);
+      gain.gain.setValueAtTime(0.45 * this._vol * vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      osc.connect(gain);
+      gain.connect(this.sfx);
+      osc.start(now);
+      osc.stop(now + 0.20);
+    } catch { /* fallback */ }
+  }
+
+  /** Dragon Ball Cinematic Zoom Hit 2: Heavy sub-bass ki detonation */
+  playDragonballHit2({ vol = 1.0 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(45, now + 0.25);
+      gain.gain.setValueAtTime(0.60 * this._vol * vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.30);
+      osc.connect(gain);
+      gain.connect(this.sfx);
+      osc.start(now);
+      osc.stop(now + 0.32);
+    } catch { /* fallback */ }
+  }
+
+  /** Dragon Ball Cinematic Zoom Hit 3: Climactic Super Saiyan ki flare explosion */
+  playDragonballHit3({ vol = 1.0 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      // Ascending major chord burst
+      const chord = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+      chord.forEach((f, i) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(f, now + i * 0.02);
+        gain.gain.setValueAtTime(0.001, now + i * 0.02);
+        gain.gain.linearRampToValueAtTime(0.28 * this._vol * vol, now + i * 0.02 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.02 + 0.55);
+        osc.connect(gain);
+        gain.connect(this.sfx);
+        osc.start(now + i * 0.02);
+        osc.stop(now + i * 0.02 + 0.60);
+      });
+      // Sub-bass rumble undertone
+      const bass = this.ctx.createOscillator();
+      const bassGain = this.ctx.createGain();
+      bass.type = 'sine';
+      bass.frequency.setValueAtTime(85, now);
+      bass.frequency.exponentialRampToValueAtTime(28, now + 0.8);
+      bassGain.gain.setValueAtTime(0.75 * this._vol * vol, now);
+      bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+      bass.connect(bassGain);
+      bassGain.connect(this.sfx);
+      bass.start(now);
+      bass.stop(now + 0.9);
     } catch { /* fallback */ }
   }
 

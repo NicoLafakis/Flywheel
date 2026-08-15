@@ -7,7 +7,7 @@ import { defaultTierForDevice } from '../quality.js';
 // The shipped mix, so the three slider rows cannot render a different resting
 // position from the one the game actually boots at. js/audio/mix.js owns the
 // numbers; this file only draws them.
-import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME } from '../audio/mix.js';
+import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MASTER_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME } from '../audio/mix.js';
 import { BOARDS_ENABLED } from '../board/config.js';
 // The sandbox payout constants, so the results screen cannot advertise a coin
 // value or a finish bonus the sim does not define. js/voxelsim.js owns both.
@@ -767,10 +767,44 @@ export class Screens {
   showLoading(label) {
     this.clear();
     if (this.actions.menuScene) this.actions.menuScene(false);
-    const s = el(`<div class="screen"><h2>BUILDING CITY…</h2>
-      <p style="opacity:0.7">${label}</p></div>`);
+    const s = el(`<div class="screen loading-screen">
+      <div class="loading-brand">
+        <div class="boot-logo">⚙️</div>
+        <h2>GENERATING METROPOLIS…</h2>
+        <div class="loading-label">${label || 'CITY'}</div>
+      </div>
+      <div class="boot-loader-box">
+        <div class="boot-track">
+          <div id="city-progress-bar" class="boot-fill" style="width: 15%;">
+            <div class="boot-shimmer"></div>
+          </div>
+        </div>
+        <div class="boot-meta">
+          <span id="city-status-text">BUILDING VOXEL GEOMETRY…</span>
+          <span id="city-percentage-text">15%</span>
+        </div>
+      </div>
+    </div>`);
     this.root.appendChild(s);
     this.current = 'loading';
+
+    // Animate city progress smoothly towards 100%
+    const bar = s.querySelector('#city-progress-bar');
+    const pct = s.querySelector('#city-percentage-text');
+    const stat = s.querySelector('#city-status-text');
+    const stages = [
+      { t: 70, p: 45, txt: 'PARSING DISTRICTS…' },
+      { t: 180, p: 75, txt: 'INSTANCING 3D MESHES…' },
+      { t: 320, p: 95, txt: 'INITIALIZING PHYSICS GRAPH…' },
+    ];
+    stages.forEach(({ t, p: nextP, txt }) => {
+      setTimeout(() => {
+        if (this.current !== 'loading') return;
+        if (bar) bar.style.width = nextP + '%';
+        if (pct) pct.textContent = nextP + '%';
+        if (stat) stat.textContent = txt;
+      }, t);
+    });
   }
 
   showWorldMap() {
@@ -1109,14 +1143,168 @@ export class Screens {
     this.current = 'pu_showcase';
   }
 
+  showDragonballCollectCinematic({ powerup, onSkip, onDone, audio, reducedMotion = false } = {}) {
+    this.dismissDragonballCollectCinematic();
+    const spec = (powerup && powerup.spec) || (powerup && POWERUP_SPECS[powerup.type]) || {
+      id: 'boost',
+      name: 'POWER BOOST',
+      zoomParts: ['POWER', 'SUPER', 'BOOST!'],
+      animeSubtitle: 'POWER MAXIMUM UNLEASHED',
+      icon: '⚡',
+      tagline: 'Super Charge',
+      desc: 'Enhanced velocity and maximum absorption power!',
+      color: 0x00d2ff,
+    };
+    const parts = spec.zoomParts || (spec.name ? spec.name.split(' ') : ['POWER', 'UP', 'UNLEASHED!']);
+    while (parts.length < 3) parts.push('ACTIVATED!');
+    const colorHex = '#' + (spec.color != null ? spec.color.toString(16).padStart(6, '0') : 'ffd700');
+
+    const overlay = el(`<div id="db-collect-overlay" style="--db-color:${colorHex}">
+      <div class="db-cinematic-bar top"></div>
+      ${reducedMotion ? '' : `
+        <div class="db-impact-flash"></div>
+        <div class="db-ki-rays"></div>
+        <div class="db-speed-lines"></div>
+      `}
+      <div class="db-zoom-stage stage-1">
+        <div class="db-anime-sub">⚡ ${spec.animeSubtitle || 'DRAGON BALL ANIME POWER-UP'} ⚡</div>
+        
+        <!-- Word 1: Zoom 1 -->
+        <div class="db-word-box word-1">
+          <div class="db-word-inner">${parts[0]}</div>
+        </div>
+
+        <!-- Word 2: Zoom 2 -->
+        <div class="db-word-box word-2">
+          <div class="db-word-inner">${parts[1]}</div>
+        </div>
+
+        <!-- Word 3: Zoom 3 -->
+        <div class="db-word-box word-3">
+          <div class="db-word-inner">${parts[2]}</div>
+        </div>
+
+        <!-- Final Reveal Card: Zoom Out -->
+        <div class="db-reveal-card">
+          <div class="db-card-header">
+            <div class="db-card-icon">${spec.icon || '⚡'}</div>
+            <div class="db-card-headings">
+              <div class="db-card-badge">POWER-UP ACTIVATED</div>
+              <h2 class="db-card-title">${spec.name}</h2>
+              <div class="db-card-tagline">${spec.tagline || ''}</div>
+            </div>
+          </div>
+          <p class="db-card-desc">${spec.desc || ''}</p>
+          <div class="db-card-meta">
+            <span class="db-meta-pill">⏱️ ${spec.duration ? spec.duration + 's Duration' : 'Instant Blast'}</span>
+            <span class="db-meta-pill">${spec.pokeType ? '🔮 ' + spec.pokeType : '⚡ SUPER BUFF'}</span>
+          </div>
+          <div class="db-card-hint">SPACE / TAP TO CONTINUE</div>
+        </div>
+      </div>
+      <div class="db-cinematic-bar bottom"></div>
+    </div>`);
+
+    let done = false;
+    const stage = overlay.querySelector('.db-zoom-stage');
+
+    // Stage progression timers
+    const timeouts = [];
+    
+    // Zoom 1: Fly-in from Edge 1
+    if (audio && audio.playDragonballHit1) {
+      timeouts.push(setTimeout(() => { if (!done) audio.playDragonballHit1(); }, 120));
+    }
+    
+    // Zoom 2: Fly-in from Opposite Edge 2
+    timeouts.push(setTimeout(() => {
+      if (done) return;
+      if (stage) {
+        stage.className = 'db-zoom-stage stage-2';
+        if (audio && audio.playDragonballHit2) audio.playDragonballHit2();
+      }
+    }, 560));
+
+    // Zoom 3: Meteor Dive from Stratosphere Sky
+    timeouts.push(setTimeout(() => {
+      if (done) return;
+      if (stage) {
+        stage.className = 'db-zoom-stage stage-3';
+        if (audio && audio.playDragonballHit3) audio.playDragonballHit3();
+      }
+    }, 1120));
+
+    // Zoom Out / Full Reveal Card with Effect Description
+    timeouts.push(setTimeout(() => {
+      if (done) return;
+      if (stage) {
+        stage.className = 'db-zoom-stage stage-reveal';
+      }
+    }, 1680));
+
+    // Auto complete at 2.4s
+    timeouts.push(setTimeout(() => {
+      if (!done) finish();
+    }, 2400));
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      timeouts.forEach(clearTimeout);
+      this.dismissDragonballCollectCinematic();
+      if (typeof onDone === 'function') onDone();
+      else if (typeof onSkip === 'function') onSkip();
+    };
+
+    const handleSkip = (e) => {
+      if (done) return;
+      if (e && e.type === 'keydown') {
+        if (e.code !== 'Space' && e.code !== 'Enter' && e.code !== 'Escape') return;
+        e.preventDefault();
+      }
+      finish();
+    };
+
+    window.addEventListener('keydown', handleSkip);
+    overlay.addEventListener('click', handleSkip);
+    overlay.addEventListener('touchstart', handleSkip, { passive: true });
+
+    this._dbCollectCleanup = () => {
+      timeouts.forEach(clearTimeout);
+      window.removeEventListener('keydown', handleSkip);
+      overlay.removeEventListener('click', handleSkip);
+      overlay.removeEventListener('touchstart', handleSkip);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    };
+
+    document.body.appendChild(overlay);
+    this._dbCollectOverlayEl = overlay;
+    return overlay;
+  }
+
+  dismissDragonballCollectCinematic() {
+    if (this._dbCollectOverlayEl) {
+      this._dbCollectOverlayEl.classList.add('fading-out');
+      const cleanup = this._dbCollectCleanup;
+      setTimeout(() => {
+        if (cleanup) cleanup();
+      }, 250);
+      this._dbCollectOverlayEl = null;
+      this._dbCollectCleanup = null;
+    }
+  }
+
   showEarthquakeCinematic({ onSkip, reducedMotion = false } = {}) {
     this.dismissEarthquakeCinematic();
     const overlay = el(`<div id="quake-cinematic-overlay">
       <div class="quake-cinematic-bar top"></div>
-      ${reducedMotion ? '' : '<div class="quake-impact-flash"></div>'}
-      ${reducedMotion ? '' : '<div class="quake-speed-lines"></div>'}
+      ${reducedMotion ? '' : `
+        <div class="quake-impact-flash"></div>
+        <div class="quake-dragonball-aura"></div>
+        <div class="quake-speed-lines"></div>
+      `}
       <div class="quake-anime-banner">
-        <div class="quake-banner-sub">⚡ TECTONIC CATACLYSM ⚡</div>
+        <div class="quake-banner-sub">⚡ DRAGON BALL SUPER SAIYAN QUAKE ⚡</div>
         <h1 class="quake-banner-title">FAULT LINE RUPTURE</h1>
         <div class="quake-banner-hint">SPACE / TAP TO SKIP</div>
       </div>
@@ -1422,11 +1610,21 @@ export class Screens {
     };
     panel.appendChild(muteRow);
 
-    // Three independent levels, no master among them: EFFECTS (crashes, gulps,
-    // UI), AMBIENCE (the city beds and the el-train rattle) and MUSIC. Game
-    // sounds above is the one global off switch. Ordered loudest-to-quietest by
-    // how often a player reaches for them.
-    const volRow = el(`<div class="set-row"><span class="set-label">🔊 Effects volume</span>
+    // 4 audio sliders: Master volume scales all output proportionally;
+    // SFX (30%), Music (25%), Ambience (15%) set individual bus levels.
+    const masterVol = typeof st.masterVol === 'number' ? st.masterVol : (this.actions.masterVolume ? this.actions.masterVolume() : DEFAULT_MASTER_VOLUME);
+    const masterRow = el(`<div class="set-row"><span class="set-label">🎛️ Master volume</span>
+      <span class="set-val"><input type="range" min="0" max="1" step="0.05"
+        aria-label="Master volume" value="${masterVol}"></span></div>`);
+    const masterSlider = masterRow.querySelector('input');
+    masterSlider.oninput = () => {
+      st.masterVol = parseFloat(masterSlider.value);
+      this.actions.applySettings();
+    };
+    panel.appendChild(masterRow);
+
+    // Effects volume (SFX: crashes, gulps, powerups, UI)
+    const volRow = el(`<div class="set-row"><span class="set-label">🔊 Effects volume (SFX)</span>
       <span class="set-val"><input type="range" min="0" max="1" step="0.05"
         aria-label="Effects volume" value="${st.sfxVol !== undefined ? st.sfxVol : DEFAULT_SFX_VOLUME}"></span></div>`);
     const volSlider = volRow.querySelector('input');
@@ -1436,8 +1634,19 @@ export class Screens {
     };
     panel.appendChild(volRow);
 
-    // The city under the demolition: keeping the beds up while pulling the
-    // crashes down (or the reverse) is the whole point of splitting these.
+    // Music volume (score / soundtracks)
+    const musicVol = typeof st.musicVol === 'number' ? st.musicVol : (this.actions.musicVolume ? this.actions.musicVolume() : DEFAULT_MUSIC_VOLUME);
+    const musicRow = el(`<div class="set-row"><span class="set-label">🎵 Music volume</span>
+      <span class="set-val"><input type="range" min="0" max="1" step="0.05"
+        aria-label="Music volume" value="${musicVol}"></span></div>`);
+    const musicSlider = musicRow.querySelector('input');
+    musicSlider.oninput = () => {
+      st.musicVol = parseFloat(musicSlider.value);
+      this.actions.applySettings();
+    };
+    panel.appendChild(musicRow);
+
+    // Ambience volume (city beds, harbor, wind)
     const ambRow = el(`<div class="set-row"><span class="set-label">🌆 Ambience volume</span>
       <span class="set-val"><input type="range" min="0" max="1" step="0.05"
         aria-label="Ambience volume" value="${st.ambVol !== undefined ? st.ambVol : DEFAULT_AMBIENCE_VOLUME}"></span></div>`);
@@ -1447,19 +1656,6 @@ export class Screens {
       this.actions.applySettings();
     };
     panel.appendChild(ambRow);
-
-    // Independent of both sliders above: players can keep gameplay cues while
-    // lowering the score. MusicDirector owns persistence, so standalone
-    // arena.html inherits the same choice without importing the main save.
-    const musicVol = this.actions.musicVolume ? this.actions.musicVolume() : DEFAULT_MUSIC_VOLUME;
-    const musicRow = el(`<div class="set-row"><span class="set-label">🎵 Music volume</span>
-      <span class="set-val"><input type="range" min="0" max="1" step="0.05"
-        aria-label="Music volume" value="${musicVol}"></span></div>`);
-    const musicSlider = musicRow.querySelector('input');
-    musicSlider.oninput = () => {
-      if (this.actions.setMusicVolume) this.actions.setMusicVolume(parseFloat(musicSlider.value));
-    };
-    panel.appendChild(musicRow);
 
     // Stacked: measured at 320px this label alone is 240px of a 276px row, so it
     // cannot share a line with a slider at any slider width worth dragging.

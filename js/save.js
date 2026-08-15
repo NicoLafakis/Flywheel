@@ -7,33 +7,23 @@
 // does not point persistence at render-side code, and it is what stops the
 // shipped mix from drifting between the save, the engine and the settings
 // screen. Retune the mix there, not here.
-import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_SFX_VOLUME } from './audio/mix.js';
+import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MASTER_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME } from './audio/mix.js';
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 18;
+export const CURRENT_VERSION = 19;
 
 // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
 export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2 };
 
 function defaultSettings() {
   return {
-    invertX: false, invertY: false, shadows: true, camDist: 1, reducedMotion: false, sfxVol: DEFAULT_SFX_VOLUME, turnSens: 1, perfMode: false,
-    // City ambience level, split out from sfxVol so the beds and the crashes
-    // can be set against each other. No schema bump, for the same reason
-    // `pointMove` below did not need one: an absent key reads as the default
-    // through every consumer's `typeof … === 'number'` guard, so an upgrading
-    // player lands on the shipped ambience level rather than on nothing.
-    //
-    // Retuning these two numbers is NOT what a migration is for, which is why
-    // neither this pass nor the split before it bumped the schema: the key is
-    // present and holds a value that is still legal, and an existing player's
-    // stored level is not wrong, it is just from an older mix. Moving them onto
-    // the new mix is `reseedAudioMix()`'s job (js/audio/mix.js) — one stamped,
-    // one-time write that main.js mirrors into these two keys — because that
-    // mechanism also reaches the arena and the scene viewer, which have no save
-    // at all and would otherwise be left on the old balance.
+    invertX: false, invertY: false, shadows: true, camDist: 1, reducedMotion: false,
+    masterVol: DEFAULT_MASTER_VOLUME,
+    sfxVol: DEFAULT_SFX_VOLUME,
+    musicVol: DEFAULT_MUSIC_VOLUME,
     ambVol: DEFAULT_AMBIENCE_VOLUME,
+    turnSens: 1, perfMode: false,
     // Tap/drag to move (world-space pointing) INSTEAD of the floating joystick,
     // which is the default touch control. Introducing this key deliberately did
     // not spend a schema bump: an existing v10 save simply has no key, an absent
@@ -345,6 +335,19 @@ const MIGRATIONS = {
         ? { ...rec, runs: rec.runs ?? rec.completions ?? 0, bestPercent: rec.bestPercent ?? 0 }
         : rec,
     ])),
+  }),
+  // v19: 4-channel audio controls with Master Volume and retuned 15-25-30 ratio
+  18: (s) => ({
+    ...s,
+    version: 19,
+    settings: {
+      ...defaultSettings(),
+      ...(s.settings || {}),
+      masterVol: s.settings?.masterVol ?? DEFAULT_MASTER_VOLUME,
+      musicVol: s.settings?.musicVol ?? DEFAULT_MUSIC_VOLUME,
+      sfxVol: s.settings?.sfxVol ?? DEFAULT_SFX_VOLUME,
+      ambVol: s.settings?.ambVol ?? DEFAULT_AMBIENCE_VOLUME,
+    },
   }),
 };
 

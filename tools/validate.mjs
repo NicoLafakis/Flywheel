@@ -2214,7 +2214,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     const start = performance.now();
     // The optional [levelIndex] argument only means anything to the campaign
     // section, so only that child inherits it.
-    const args = [self];
+    const args = [...process.execArgv, self];
     if (label === 'campaignLevels' && process.argv[2]) args.push(process.argv[2]);
     const child = spawn(process.execPath, args, {
       env: { ...process.env, FW_VALIDATE_SECTIONS: sections },
