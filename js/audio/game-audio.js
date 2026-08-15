@@ -331,6 +331,10 @@ export class GameAudio {
     this.engine.playRandom(['ground-impact-1', 'ground-impact-2'], { vol: 1.0 });
   }
 
+  playDisasterTeleport(opts = {}) {
+    this.engine.playDisasterTeleport(opts);
+  }
+
   playTornadoSiren(opts = {}) {
     this.stopTornadoSiren(0.2);
     this._tornadoSirenHandle = this.engine.loop('tornado-siren', { vol: opts.vol || 0.95, fadeIn: opts.fadeIn || 0.5 });
@@ -507,6 +511,9 @@ export class GameAudio {
         break;
       case 'meteor_impact':
         this.playMeteorImpact();
+        break;
+      case 'disaster_teleport':
+        this.playDisasterTeleport();
         break;
       case 'siren':
       case 'police_siren':

@@ -58,8 +58,8 @@ export class StormSystem {
     this.rng = new RNG((sim.seed || 'sandbox') + ':storm');
     // 3 scheduled cataclysms during 300s level
     const is90s = sim.mode === 'run90' || sim.clockLimit === 5400;
-    const isRankedReplay = sim.scene === 'gallery' && sim.mode === 'run90';
-    this.schedule = isRankedReplay ? [] : (is90s ? [
+    const isGallery = sim.scene === 'gallery';
+    this.schedule = isGallery ? [] : (is90s ? [
       { triggerT: 28.0, duration: 12.0, done: false },
     ] : [
       { triggerT: 60.0,  duration: 16.0, done: false },
@@ -801,6 +801,7 @@ export class VoxelSandboxSim {
     this.coinValue = coinTier.coinValue;
     this.goalBonus = coinTier.goalBonus;
     this.coins = this._placeCoins();
+    this.coinsCollected = 0;
     this.powerupRng = new RNG((seed || 'sandbox') + ':powerups');
     this.powerups = this._placePowerups();
     for (const pu of this.powerups) {
@@ -923,7 +924,7 @@ export class VoxelSandboxSim {
       const h = H[i], p = hp[i];
       p.h = h;
       const titan = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.TITAN);
-      const effectiveRadius = titan ? h.radius * 1.5 : h.radius;
+      const effectiveRadius = titan ? MAX_RADIUS : h.radius;
       p.remR = effectiveRadius * REMOVAL_FRAC;
       p.remR2 = p.remR * p.remR;
       p.attractR = effectiveRadius + ATTRACT_ZONE;
@@ -1150,6 +1151,43 @@ export class VoxelSandboxSim {
     });
   }
 
+  _teleportHoleFromDisaster(hole, disasterType = 'disaster') {
+    if (!hole) return;
+    const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
+    const pad = Math.max(6, hole.radius + 2);
+    const fromX = hole.x;
+    const fromZ = hole.z;
+
+    const midX = (r.minX + r.maxX) * 0.5;
+    const midZ = (r.minZ + r.maxZ) * 0.5;
+    const targetMinX = fromX > midX ? r.minX + pad : midX;
+    const targetMaxX = fromX > midX ? midX : r.maxX - pad;
+    const targetMinZ = fromZ > midZ ? r.minZ + pad : midZ;
+    const targetMaxZ = fromZ > midZ ? midZ : r.maxZ - pad;
+
+    const rx = this.disasterRng ? this.disasterRng.next() : 0.5;
+    const rz = this.disasterRng ? this.disasterRng.next() : 0.5;
+    const toX = targetMinX + (targetMaxX - targetMinX) * rx;
+    const toZ = targetMinZ + (targetMaxZ - targetMinZ) * rz;
+
+    hole.x = toX;
+    hole.z = toZ;
+    hole.vx = 0;
+    hole.vz = 0;
+
+    this.events.push({
+      type: 'disaster_teleport',
+      hole,
+      fromX,
+      fromZ,
+      toX,
+      toZ,
+      disaster: disasterType,
+      title: '⚡ DISASTER TELEPORT PENALTY! ⚡',
+      sub: 'WARPED ACROSS THE METROPOLIS!',
+    });
+  }
+
   _triggerNaturalSeismicDisaster() {
     const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
     const cx = (r.minX + r.maxX) * 0.5;
@@ -1197,6 +1235,21 @@ export class VoxelSandboxSim {
       }
     }
     if (count > 0) this._graphDirty = true;
+
+    // Check if any hole was struck by the seismic fault fissure
+    for (let hi = 0; hi < this.holes.length; hi++) {
+      const h = this.holes[hi];
+      const dx = h.x - cx;
+      const dz = h.z - cz;
+      const longDist = dx * cosA + dz * sinA;
+      if (Math.abs(longDist) <= faultLen * 0.5) {
+        const rawPerp = -dx * sinA + dz * cosA;
+        if (Math.abs(rawPerp) <= crackWidth + h.radius) {
+          this._teleportHoleFromDisaster(h, 'quake');
+        }
+      }
+    }
+
     this.events.push({
       type: 'disaster',
       subtype: 'quake',
@@ -1245,6 +1298,19 @@ export class VoxelSandboxSim {
       }
     }
     this._graphDirty = true;
+
+    // Check if any hole was hit by any meteor strike
+    for (const strike of strikes) {
+      for (let hi = 0; hi < this.holes.length; hi++) {
+        const h = this.holes[hi];
+        const dist = fwHypot2(h.x - strike.x, h.z - strike.z);
+        if (dist <= strike.radius + h.radius) {
+          this._teleportHoleFromDisaster(h, 'meteor');
+          break;
+        }
+      }
+    }
+
     this.events.push({
       type: 'disaster',
       subtype: 'meteor',
@@ -3956,8 +4022,10 @@ export class VoxelSandboxSim {
     h.chain += 1;
     h.chainTimer = COMBO_WINDOW;
     h.bestCombo = Math.max(h.bestCombo, h.chain);
-    const frenzyMult = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.FRENZY) ? 2.0 : 1.0;
-    const gained = raw * comboMult(h.chain) * frenzyMult;
+    const isFrenzy = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.FRENZY);
+    const frenzyMult = isFrenzy ? 2.0 : 1.0;
+    const baseMult = isFrenzy ? Math.max(comboMult(h.chain), h.chain) : comboMult(h.chain);
+    const gained = raw * baseMult * frenzyMult;
     h.mass += gained;      // the SCORE: combo-multiplied, and displayed as such
     h.rawMass += raw;      // un-multiplied: the goal bar, the milestones and the SIZE ladder
     h.eatenCount += 1;
@@ -3975,7 +4043,8 @@ export class VoxelSandboxSim {
     h.size = size;
     const lo = this._sizeLadder[size - 1], hi = size < MAX_SIZE ? this._sizeLadder[size] : Infinity;
     h.sizeFrac = size >= MAX_SIZE ? 1 : Math.min(1, (h.rawMass - lo) / (hi - lo));
-    h.radius = START_RADIUS + (h.size - 1 + Math.min(1, h.sizeFrac)) * 0.5;
+    const isTitan = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.TITAN);
+    h.radius = isTitan ? MAX_RADIUS : (START_RADIUS + (h.size - 1 + Math.min(1, h.sizeFrac)) * 0.5);
     this.events.push({ type: 'eat', obj, hole: h, gained, chain: h.chain });
     // milestone events (render-side juice: shakes, bursts, big pops, toasts)
     if (h.size > prevSize) {
@@ -3985,10 +4054,10 @@ export class VoxelSandboxSim {
     // from it, and it carries the level and the multiplier the sim is actually
     // applying so no consumer has to re-derive either.
     const level = comboLevel(h.chain);
-    if (level > prevLevel) {
+    if (level > prevLevel || isFrenzy) {
       this.events.push({
-        type: 'combo', level, mult: comboMult(h.chain), chain: h.chain,
-        name: COMBO_LEVEL_NAMES[level], top: level >= COMBO_MAX_LEVEL, hole: h,
+        type: 'combo', level, mult: baseMult, chain: h.chain,
+        name: isFrenzy ? `x${baseMult}` : COMBO_LEVEL_NAMES[level], top: isFrenzy || level >= COMBO_MAX_LEVEL, hole: h,
       });
     }
     // Consumption milestones, against the scene GOAL rather than the whole city
@@ -4026,6 +4095,9 @@ export class VoxelSandboxSim {
       const m = moves ? moves[hi] : (hi === 0 ? move : null);
 
       stepActivePowerUps(h.activePowerUps, dt);
+
+      const isTitan = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.TITAN);
+      h.radius = isTitan ? MAX_RADIUS : (START_RADIUS + (h.size - 1 + Math.min(1, h.sizeFrac)) * 0.5);
 
       if (hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.FRENZY) ||
           hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.CHRONO)) {
@@ -4101,6 +4173,17 @@ export class VoxelSandboxSim {
       const sRad = 20.0, sRad2 = sRad * sRad;
       const minX = sx - sRad, maxX = sx + sRad;
       const minZ = sz - sRad, maxZ = sz + sRad;
+
+      for (let hi = 0; hi < holes.length; hi++) {
+        const h = holes[hi];
+        const dist = fwHypot2(h.x - sx, h.z - sz);
+        if (dist <= (this.stormSystem.vortexRadius || 12.0) + h.radius) {
+          if (!h._disasterTeleportCd || this.time >= h._disasterTeleportCd) {
+            h._disasterTeleportCd = this.time + 4.0;
+            this._teleportHoleFromDisaster(h, 'storm');
+          }
+        }
+      }
       let swirled = 0;
       for (let i = 0; i < this._falling.length; i++) {
         const b = this._falling[i];

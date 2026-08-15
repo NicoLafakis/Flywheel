@@ -529,6 +529,40 @@ export class AudioEngine {
     } catch { /* fallback */ }
   }
 
+  /** Dramatic warp whoosh + electric zap for disaster penalty teleportation */
+  playDisasterTeleport({ vol = 1.0 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(220, now);
+      osc.frequency.exponentialRampToValueAtTime(1200, now + 0.18);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.55);
+
+      gain.gain.setValueAtTime(0.45 * this._vol * vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+      osc.connect(gain);
+      gain.connect(this.sfx);
+      osc.start(now);
+      osc.stop(now + 0.62);
+
+      const oscSub = this.ctx.createOscillator();
+      const gainSub = this.ctx.createGain();
+      oscSub.type = 'sine';
+      oscSub.frequency.setValueAtTime(150, now);
+      oscSub.frequency.exponentialRampToValueAtTime(40, now + 0.4);
+      gainSub.gain.setValueAtTime(0.6 * this._vol * vol, now);
+      gainSub.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      oscSub.connect(gainSub);
+      gainSub.connect(this.sfx);
+      oscSub.start(now);
+      oscSub.stop(now + 0.48);
+    } catch { /* fallback */ }
+  }
+
   /** Heavy concrete crumbling & building collapse impact crash. */
   playBuildingCollapse({ vol = 0.9 } = {}) {
     if (this._muted || !this.ctx || this.ctx.state !== 'running') return;

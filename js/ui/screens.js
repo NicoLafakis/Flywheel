@@ -775,36 +775,48 @@ export class Screens {
       </div>
       <div class="boot-loader-box">
         <div class="boot-track">
-          <div id="city-progress-bar" class="boot-fill" style="width: 15%;">
+          <div id="city-progress-bar" class="boot-fill" style="width: 0%;">
             <div class="boot-shimmer"></div>
           </div>
         </div>
         <div class="boot-meta">
-          <span id="city-status-text">BUILDING VOXEL GEOMETRY…</span>
-          <span id="city-percentage-text">15%</span>
+          <span id="city-status-text">INITIALIZING ENGINE…</span>
+          <span id="city-percentage-text">0%</span>
         </div>
       </div>
     </div>`);
     this.root.appendChild(s);
     this.current = 'loading';
 
-    // Animate city progress smoothly towards 100%
     const bar = s.querySelector('#city-progress-bar');
     const pct = s.querySelector('#city-percentage-text');
     const stat = s.querySelector('#city-status-text');
+
+    let curP = 0;
+    let targetP = 25;
     const stages = [
-      { t: 70, p: 45, txt: 'PARSING DISTRICTS…' },
-      { t: 180, p: 75, txt: 'INSTANCING 3D MESHES…' },
-      { t: 320, p: 95, txt: 'INITIALIZING PHYSICS GRAPH…' },
+      { t: 60, p: 52, txt: 'PARSING DISTRICTS…' },
+      { t: 180, p: 82, txt: 'INSTANCING 3D MESHES…' },
+      { t: 340, p: 98, txt: 'INITIALIZING PHYSICS GRAPH…' },
     ];
     stages.forEach(({ t, p: nextP, txt }) => {
       setTimeout(() => {
         if (this.current !== 'loading') return;
-        if (bar) bar.style.width = nextP + '%';
-        if (pct) pct.textContent = nextP + '%';
+        targetP = Math.max(targetP, nextP);
         if (stat) stat.textContent = txt;
       }, t);
     });
+
+    const animate = () => {
+      if (this.current !== 'loading') return;
+      curP += (targetP - curP) * 0.14;
+      if (targetP >= 100 && curP > 99.4) curP = 100;
+      const displayP = Math.min(100, Math.round(curP));
+      if (bar) bar.style.width = curP.toFixed(1) + '%';
+      if (pct) pct.textContent = displayP + '%';
+      if (curP < 100) requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
   }
 
   showWorldMap() {
@@ -818,36 +830,20 @@ export class Screens {
   showSandboxResults(sim, onContinue) {
     this.clear();
     if (this.actions.music) this.actions.music('results', { restart: true });
-    // The two payout constants come from the sim rather than being typed here.
-    // They were literals — `coinsCollected * 2 + 35` beside a "+35" in the copy
-    // — which is three independent statements of two numbers that must agree.
-    // The finish bonus is a payout for FINISHING (T-503). It used to be added
-    // unconditionally, so a run that ran out of clock at 3% of the city was
-    // paid +35 for reaching a goal it never reached — on a screen whose own
-    // heading two lines below reads "TIME'S UP" and whose own body prints
-    // "City cleared 3%". Harmless while a sandbox run could only end by
-    // reaching the goal; a live payout bug from the moment the 180 s clock made
-    // timing out the ordinary ending. `sim.won` is the same latch the heading
-    // and the percentage read, so all three now state one outcome.
     const coinVal = sim.coinValue || SANDBOX_COIN_VALUE;
     const goalBonusVal = sim.goalBonus || SANDBOX_GOAL_BONUS;
     const bonus = sim.won ? goalBonusVal : 0;
-    const coins = sim.coinsCollected * coinVal + bonus;
-    // Bank line projects the post-award total: recordSandboxResult runs in the
-    // continue callback, so at render time save.coins is still pre-award.
-    // The run's peak has to survive the run, or every celebration during it was
-    // retroactively meaningless. Read BEFORE recordSandboxResult runs (it fires
-    // in the continue callback), so "beaten" compares against the stored best
-    // rather than against the run that just overwrote it.
+    const coinsCollected = (typeof sim.coinsCollected === 'number' && !isNaN(sim.coinsCollected)) ? sim.coinsCollected : 0;
+    const totalCoins = (sim.coins && Array.isArray(sim.coins)) ? sim.coins.length : 0;
+    const coins = coinsCollected * coinVal + bonus;
+    const currentSaveCoins = (typeof this.save.coins === 'number' && !isNaN(this.save.coins)) ? this.save.coins : 0;
+    const bankTotal = currentSaveCoins + coins;
+
     const prev = (this.save.sandbox || {})[sim.scene] || {};
     const score = Math.floor(sim.hole.mass);
     const best = sim.hole.bestCombo;
     const newScore = score > (prev.bestScore || 0);
     const newCombo = best > (prev.bestCombo || 0);
-    // Against the WHOLE city, which is now also the goal (R-2.1/R-2.2). `won`
-    // rather than a second fraction comparison, for the same float reason the
-    // HUD reads the latch: at targetFraction 1.0 a real full clear lands a few
-    // parts in 1e12 short and would print 99%.
     const cleared = sim.totalMass ? sim.hole.rawMass / sim.totalMass : 0;
     const clearedPct = sim.won ? 100 : Math.floor(cleared * 100);
     const newPercent = !sim.won && cleared > (prev.bestPercent || 0);
@@ -855,10 +851,10 @@ export class Screens {
       <div>${sim.goal.name}</div><div>City cleared <b>${clearedPct}%</b>${newPercent ? ' <span class="rec-new">BEST!</span>' : ''}</div>
       <div>Score <b>${score.toLocaleString('en-US')}</b>${newScore ? ' <span class="rec-new">BEST!</span>' : ''}</div>
       <div>Best chain <b>${best} eats at x${comboMult(best)}</b>${newCombo ? ' <span class="rec-new">BEST!</span>' : ''}</div>
-      <div>Coins found <b>${sim.coinsCollected}/${sim.coins.length} (+${sim.coinsCollected * coinVal})</b></div>
+      <div>Coins found <b>${coinsCollected}/${totalCoins} (+${coinsCollected * coinVal})</b></div>
       ${sim.won ? `<div>Finish bonus <b>+${goalBonusVal}</b></div>` : ''}
       ${coins > 0 ? `<div>Coins earned <b>+${coins}</b></div>` : ''}
-      <div>Bank <b>🪙 ${this.save.coins + coins}</b></div></div></div>`);
+      <div>Bank <b>🪙 ${bankTotal}</b></div></div></div>`);
     const again = el(`<button class="btn">PLAY AGAIN</button>`); again.onclick = () => onContinue(false, coins);
     const cities = el(`<button class="btn secondary">CITIES</button>`); cities.onclick = () => onContinue(true, coins);
     s.append(again, cities); this.root.appendChild(s); this.current = 'results';
@@ -1097,12 +1093,12 @@ export class Screens {
         <div class="pu-showcase-timer-bar">
           <div class="pu-timer-fill"></div>
         </div>
-        <div class="pu-showcase-countdown">Resuming in <b id="pu-count-sec">5</b>s...</div>
+        <div class="pu-showcase-countdown">Resuming in <b id="pu-count-sec">6</b>s...</div>
         <button class="btn pu-resume-btn" type="button">RESUME (SPACE)</button>
       </div>
     </div>`);
 
-    let remainingMs = 5000;
+    let remainingMs = 6000;
     let finished = false;
     const countSec = s.querySelector('#pu-count-sec');
     const fill = s.querySelector('.pu-timer-fill');
@@ -1135,7 +1131,7 @@ export class Screens {
         cleanupAndDone();
       } else {
         if (countSec) countSec.textContent = Math.ceil(remainingMs / 1000);
-        if (fill) fill.style.width = `${((5000 - remainingMs) / 5000) * 100}%`;
+        if (fill) fill.style.width = `${((6000 - remainingMs) / 6000) * 100}%`;
       }
     }, tickInterval);
 
@@ -1143,7 +1139,7 @@ export class Screens {
     this.current = 'pu_showcase';
   }
 
-  showDragonballCollectCinematic({ powerup, onSkip, onDone, audio, reducedMotion = false, duration = 3.4 } = {}) {
+  showDragonballCollectCinematic({ powerup, onSkip, onDone, audio, reducedMotion = false, duration = 6.0 } = {}) {
     this.dismissDragonballCollectCinematic();
     const spec = (powerup && powerup.spec) || (powerup && POWERUP_SPECS[powerup.type]) || {
       id: 'boost',
@@ -1169,22 +1165,18 @@ export class Screens {
       <div class="db-zoom-stage stage-1">
         <div class="db-anime-sub">⚡ ${spec.animeSubtitle || 'DRAGON BALL ANIME POWER-UP'} ⚡</div>
         
-        <!-- Word 1: Zoom 1 -->
         <div class="db-word-box word-1">
           <div class="db-word-inner">${parts[0]}</div>
         </div>
 
-        <!-- Word 2: Zoom 2 -->
         <div class="db-word-box word-2">
           <div class="db-word-inner">${parts[1]}</div>
         </div>
 
-        <!-- Word 3: Zoom 3 -->
         <div class="db-word-box word-3">
           <div class="db-word-inner">${parts[2]}</div>
         </div>
 
-        <!-- Final Reveal Card: Zoom Out -->
         <div class="db-reveal-card">
           <div class="db-card-header">
             <div class="db-card-icon">${spec.icon || '⚡'}</div>
@@ -1207,16 +1199,11 @@ export class Screens {
 
     let done = false;
     const stage = overlay.querySelector('.db-zoom-stage');
-
-    // Stage progression timers
     const timeouts = [];
     
-    // Zoom 1: Fly-in from Edge 1
     if (audio && audio.playDragonballHit1) {
       timeouts.push(setTimeout(() => { if (!done) audio.playDragonballHit1(); }, 120));
     }
-    
-    // Zoom 2: Fly-in from Opposite Edge 2
     timeouts.push(setTimeout(() => {
       if (done) return;
       if (stage) {
@@ -1224,8 +1211,6 @@ export class Screens {
         if (audio && audio.playDragonballHit2) audio.playDragonballHit2();
       }
     }, 560));
-
-    // Zoom 3: Meteor Dive from Stratosphere Sky
     timeouts.push(setTimeout(() => {
       if (done) return;
       if (stage) {
@@ -1233,20 +1218,12 @@ export class Screens {
         if (audio && audio.playDragonballHit3) audio.playDragonballHit3();
       }
     }, 1120));
-
-    // Zoom Out / Full Reveal Card with Effect Description
     timeouts.push(setTimeout(() => {
       if (done) return;
       if (stage) {
         stage.className = 'db-zoom-stage stage-reveal';
       }
     }, 1680));
-
-    // The reveal card is the explanatory half of the pickup. Keep it up long
-    // enough to read, while the caller keeps the fixed-step simulation paused.
-    timeouts.push(setTimeout(() => {
-      if (!done) finish();
-    }, Math.max(2400, duration * 1000)));
 
     const finish = () => {
       if (done) return;
@@ -1257,6 +1234,7 @@ export class Screens {
       else if (typeof onSkip === 'function') onSkip();
     };
 
+    const autoDismissTimeout = setTimeout(() => { if (!done) finish(); }, Math.max(6000, duration * 1000));
     const handleSkip = (e) => {
       if (done) return;
       if (e && e.type === 'keydown') {
@@ -1271,6 +1249,7 @@ export class Screens {
     overlay.addEventListener('touchstart', handleSkip, { passive: true });
 
     this._dbCollectCleanup = () => {
+      clearTimeout(autoDismissTimeout);
       timeouts.forEach(clearTimeout);
       window.removeEventListener('keydown', handleSkip);
       overlay.removeEventListener('click', handleSkip);
@@ -1287,15 +1266,13 @@ export class Screens {
     if (this._dbCollectOverlayEl) {
       this._dbCollectOverlayEl.classList.add('fading-out');
       const cleanup = this._dbCollectCleanup;
-      setTimeout(() => {
-        if (cleanup) cleanup();
-      }, 250);
+      setTimeout(() => { if (cleanup) cleanup(); }, 250);
       this._dbCollectOverlayEl = null;
       this._dbCollectCleanup = null;
     }
   }
 
-  showEarthquakeCinematic({ onSkip, reducedMotion = false, duration = 5.8 } = {}) {
+  showEarthquakeCinematic({ onSkip, reducedMotion = false, duration = 6.0 } = {}) {
     this.dismissEarthquakeCinematic();
     const overlay = el(`<div id="quake-cinematic-overlay" class="${reducedMotion ? 'reduced-motion' : ''}">
       <div class="quake-cinematic-bar top"></div>
@@ -1321,12 +1298,9 @@ export class Screens {
     const timeouts = [];
     const stage = overlay.querySelector('.quake-zoom-stage');
     if (stage) {
-      // Keep the text slams in lockstep with the camera's three player shots.
       const cueScale = duration / 5.8;
       for (const [delay, className] of [[650, 'stage-earth'], [1460, 'stage-quake'], [2270, 'stage-time'], [3100, 'stage-rift']]) {
-        timeouts.push(setTimeout(() => {
-          if (!done) stage.className = `quake-zoom-stage ${className}`;
-        }, delay * cueScale));
+        timeouts.push(setTimeout(() => { if (!done) stage.className = `quake-zoom-stage ${className}`; }, delay * cueScale));
       }
     }
     const handleSkip = (e) => {
@@ -1340,11 +1314,13 @@ export class Screens {
       if (typeof onSkip === 'function') onSkip();
     };
 
+    const autoDismissTimeout = setTimeout(() => { if (!done) handleSkip(); }, Math.max(6000, duration * 1000));
     window.addEventListener('keydown', handleSkip);
     overlay.addEventListener('click', handleSkip);
     overlay.addEventListener('touchstart', handleSkip, { passive: true });
 
     this._quakeOverlayCleanup = () => {
+      clearTimeout(autoDismissTimeout);
       timeouts.forEach(clearTimeout);
       window.removeEventListener('keydown', handleSkip);
       overlay.removeEventListener('click', handleSkip);
@@ -1421,11 +1397,20 @@ export class Screens {
       if (typeof onSkip === 'function') onSkip();
     };
 
+    const autoDismissTimeout = setTimeout(() => {
+      if (!done) {
+        done = true;
+        this.dismissPokemonEncounterModal();
+        if (typeof onSkip === 'function') onSkip();
+      }
+    }, 6000);
+
     window.addEventListener('keydown', handleSkip);
     overlay.addEventListener('click', handleSkip);
     overlay.addEventListener('touchstart', handleSkip, { passive: true });
 
     this._pokeOverlayCleanup = () => {
+      clearTimeout(autoDismissTimeout);
       window.removeEventListener('keydown', handleSkip);
       overlay.removeEventListener('click', handleSkip);
       overlay.removeEventListener('touchstart', handleSkip);

@@ -17,6 +17,14 @@ Last updated: 2026-08-15
 
 ## Shipped state
 
+- 2026-08-15 - Gameplay Enhancements & Mechanics Polish:
+  - **Titan Surge Max Size**: Player reaches absolute max size (`MAX_RADIUS` = 13.1m in sandbox, `PLAYER_MAX_RADIUS` = 13.5m in campaign) for the full 15s duration of the power-up.
+  - **6-Second Minimum Modal Duration**: Modals, cinematics, and HUD announcements (`showPowerUpShowcase`, `showDragonballCollectCinematic`, `showEarthquakeCinematic`, `showPokemonEncounterModal`, and `hud.announce`) display for at least 6.0 seconds unless cancelled/skipped by the player.
+  - **Defensive Coin & Bank Accounting**: Initialized `coinsCollected = 0` in both simulation engines and added guarded fallbacks across results and HUD readouts to eliminate `NaN` / `NaN/80` bank accounting anomalies.
+  - **Smooth Eased Loading Bar**: Continuous requestAnimationFrame tween with cubic easing and shimmer gradient eliminates jumpy loading snaps.
+  - **Uncapped Chain Frenzy Combo Scaling**: Multiplier scales continuously without ceiling during Frenzy (`x30`, `x55`, etc. computed as `Math.max(comboMult(chain), chain) * 2.0`) and reflects live on the HUD ring.
+  - **Disaster Teleport Penalty**: Collisions with natural disasters (seismic fault fissures, meteor strikes, storm vortices) trigger penalty teleportation to an alternate quadrant with electric zap audio, shockwaves, camera shake, and HUD announcement.
+
 - 2026-08-15 - Dragon Ball Pickup Camera Recovery:
   - **Live Render Continuity**: Fixed the undefined return-distance reference
     in the final non-quake pickup camera phase. The camera now eases back to

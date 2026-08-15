@@ -19,9 +19,9 @@ Provides collectible in-game power-up entities and active status effects across 
 |----------|-----|----------|-------|--------|
 | **Vortex Vacuum** | `VORTEX` | 15s | Cyan (`#00d2ff`) | Generates a gravitational vortex pulling edible objects and loose debris straight into the hole. |
 | **Turbo Overdrive** | `SPEED` | 15s | Gold (`#ffb703`) | Grants +70% speed boost, lightning speed streaks, and instant steering agility. |
-| **Titan Surge** | `TITAN` | 15s | Crimson (`#d90429`) | Increases effective hole radius (+50%), unlocks eating buildings 2 tiers higher, and displays colossal Kanji banner. |
+| **Titan Surge** | `TITAN` | 15s | Crimson (`#d90429`) | Expands player to **MAXIMUM MAP SIZE** for the full 15s duration, allowing immediate consumption of skyscrapers. |
 | **Fault Line Rupture** | `QUAKE` | Instant | Orange (`#f77f00`) | Rips a massive fault fissure through the city, snapping foundations and toppling skyscrapers into rubble. |
-| **Chain Frenzy** | `FRENZY` | 15s | Magenta (`#7209b7`) | Freezes combo timer decay, wraps screen in dragon fire combustion, and doubles (2×) all scored points. |
+| **Chain Frenzy** | `FRENZY` | 15s | Magenta (`#7209b7`) | Multiplier scales infinitely with chain count (`x30`, `x55`, etc.), combo timer freeze, and 2× point scoring. |
 | **Chrono Freeze** | `CHRONO` | 15s | Frost Cyan (`#4cc9f0`) | Freezes the game clock for 15s with crystalline frost vignette and locks the combo meter risk-free. |
 
 ## Spawning, Cooldown & Lifespan Rules
@@ -37,7 +37,6 @@ Provides collectible in-game power-up entities and active status effects across 
 ## Visual Feedback, Screen FX & Endgame Systems
 
 - **Anime Active Screen Overlays**:
-  - `Chrono Freeze`: Crystalline frost vignette, ambient frost shimmer, and `❄️ TIME FROZEN ❄️` header.
   - `Vortex Vacuum`: Inward swirling gravitational warp distortion and radial accretion rays.
   - `Titan Surge`: Golden-crimson border flare and Kanji expansion header (`巨 大 化`).
   - `Turbo Overdrive`: High-velocity anime lightning streaks along screen borders.

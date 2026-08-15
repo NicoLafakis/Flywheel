@@ -1,7 +1,7 @@
 // Pure simulation — no three.js imports. Runs identically in the browser and in
 // the Node validator (tools/validate.mjs). Fixed timestep: step(1/60).
 
-import { TIERS, isEdible, playerRadiusForMass, playerSpeedForRadius, GOLDEN_MULTIPLIER } from './tiers.js';
+import { TIERS, isEdible, playerRadiusForMass, playerSpeedForRadius, GOLDEN_MULTIPLIER, PLAYER_MAX_RADIUS } from './tiers.js';
 import { generateCity } from './citygen.js';
 import { RNG } from './rng.js';
 import {
@@ -39,7 +39,7 @@ function swallowDuration(obj, hole, fastSwallow = false) {
 
 function inMouth(hole, obj, titanActive = false) {
   const dx = obj.x - hole.x, dz = obj.z - hole.z;
-  const rad = titanActive ? hole.radius * 1.5 : hole.radius;
+  const rad = titanActive ? PLAYER_MAX_RADIUS : hole.radius;
   const reach = rad + obj.radius * 0.5;
   return dx * dx + dz * dz <= reach * reach;
 }
@@ -48,7 +48,7 @@ function contactAndProcess(hole, obj, sim) {
   if (obj.eaten || obj.shielded || obj.committed) return;
   const titan = hole.isPlayer && hasActivePowerUp(sim.activePowerUps, POWERUP_TYPES.TITAN);
   if (!inMouth(hole, obj, titan)) return;
-  const edible = isEdible(titan ? hole.radius * 1.5 : hole.radius, titan ? Math.max(1, obj.tier - 2) : obj.tier);
+  const edible = isEdible(titan ? PLAYER_MAX_RADIUS : hole.radius, titan ? 1 : obj.tier);
   if (!edible) {
     // Doesn't fit the opening: movable props bounce off the rim.
     if (obj.tier <= 4 && sim.time >= (obj.bounceCd || 0)) {
@@ -66,7 +66,7 @@ function contactAndProcess(hole, obj, sim) {
   const dx = obj.x - hole.x, dz = obj.z - hole.z;
   const dist = Math.hypot(dx, dz);
   const holeSpeed = Math.hypot(hole.vx || 0, hole.vz || 0);
-  const currentRad = titan ? hole.radius * 1.5 : hole.radius;
+  const currentRad = titan ? PLAYER_MAX_RADIUS : hole.radius;
   if (hole.isPlayer && dist > currentRad * 0.85 && holeSpeed > 10.0 && obj.tier <= 4 && sim.time >= (obj.bounceCd || 0)) {
     const len = dist || 1;
     obj.vx = (dx / len) * (BOUNCE_SPEED * 1.5) + (hole.vx || 0) * 0.4;
@@ -93,24 +93,26 @@ function completeEat(hole, obj, sim) {
   hole.chainTimer = COMBO_WINDOW;
   hole.chain += 1;
   hole.bestCombo = Math.max(hole.bestCombo, hole.chain);
-  const frenzyMult = (hole.isPlayer && hasActivePowerUp(sim.activePowerUps, POWERUP_TYPES.FRENZY)) ? 2.0 : 1.0;
-  const mult = comboMultiplier(hole.chain);
-  const gained = obj.mass * (obj.golden ? GOLDEN_MULTIPLIER : 1) * mult * frenzyMult;
+  const isFrenzy = (hole.isPlayer && hasActivePowerUp(sim.activePowerUps, POWERUP_TYPES.FRENZY));
+  const frenzyMult = isFrenzy ? 2.0 : 1.0;
+  const baseMult = isFrenzy ? Math.max(comboMultiplier(hole.chain), hole.chain) : comboMultiplier(hole.chain);
+  const gained = obj.mass * (obj.golden ? GOLDEN_MULTIPLIER : 1) * baseMult * frenzyMult;
   hole.mass += gained;
-  hole.radius = holeRadius(hole);
+  const isTitan = hole.isPlayer && hasActivePowerUp(sim.activePowerUps, POWERUP_TYPES.TITAN);
+  hole.radius = isTitan ? PLAYER_MAX_RADIUS : holeRadius(hole);
   hole.eatenCount += 1;
   sim.events.push({ type: 'eat', obj, hole, gained });
   if (hole.isPlayer) {
     const prevLvl = Math.floor(prevChain / 5);
     const curLvl = Math.floor(hole.chain / 5);
-    if (curLvl > prevLvl && curLvl >= 1) {
+    if (curLvl > prevLvl && curLvl >= 1 || isFrenzy) {
       sim.events.push({
         type: 'combo',
         level: curLvl + 1,
-        mult,
+        mult: baseMult,
         chain: hole.chain,
-        name: `x${mult.toFixed(1)}`,
-        top: mult >= COMBO_MAX_MULT,
+        name: isFrenzy ? `x${baseMult}` : `x${baseMult.toFixed(1)}`,
+        top: isFrenzy,
         hole,
       });
     }
@@ -144,6 +146,8 @@ export class Sim {
     this.over = false;
     this.won = false;
     this.events = [];   // drained by the renderer each frame
+    this.coins = [];
+    this.coinsCollected = 0;
     this._lastSpawnedPowerUpType = null;
     this.powerups = this._placePowerups();
     for (const pu of this.powerups) {
@@ -304,6 +308,8 @@ export class Sim {
 
     // --- active powerups tick ---
     stepActivePowerUps(this.activePowerUps, dt);
+    const titan = hasActivePowerUp(this.activePowerUps, POWERUP_TYPES.TITAN);
+    this.player.radius = titan ? PLAYER_MAX_RADIUS : holeRadius(this.player);
 
     // --- tides ---
     const tides = this.city.tides;
@@ -467,7 +473,7 @@ export class Sim {
     // --- eating: fit checks, bounces, swallow queues ---
     const eatAround = (hole) => {
       const titan = hole.isPlayer && hasActivePowerUp(this.activePowerUps, POWERUP_TYPES.TITAN);
-      const searchR = (titan ? hole.radius * 1.5 : hole.radius) + 3;
+      const searchR = (titan ? PLAYER_MAX_RADIUS : hole.radius) + 3;
       this.city.hash.query(hole.x, hole.z, searchR, (o) => {
         contactAndProcess(hole, o, this);
       });

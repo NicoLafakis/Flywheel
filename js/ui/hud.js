@@ -113,7 +113,7 @@ export class HUD {
   //   - a lower one never truncates a higher one already showing;
   //   - repeats from the same source coalesce in place rather than stacking,
   //     so the player never watches a backlog drain.
-  announce({ text, sub = '', source, priority = 0, ms = 2000, channel = 'band', tier = 'hype' }) {
+  announce({ text, sub = '', source, priority = 0, ms = 6000, channel = 'band', tier = 'hype' }) {
     const now = performance.now();
     const live = this._ann && this._ann.until > now ? this._ann : null;
     if (live && live.priority > priority) return false;
@@ -193,7 +193,7 @@ export class HUD {
     this.banner.textContent = level.index === 'SANDBOX' ? `✦ ${metroName} · SANDBOX ✦` : `LEVEL ${level.index} · ${metroName}`;
   }
 
-  showToast(text, ms = 2200) {
+  showToast(text, ms = 6000) {
     this.toast.textContent = text;
     this.toast.classList.remove('hidden');
     clearTimeout(this.toastTimer);
@@ -310,9 +310,9 @@ export class HUD {
       ? `${sim.goal.name} · GOAL REACHED · SIZE ${h.size}`
       : `CLEARED ${Math.floor(cleared * 100)}%${targetSuffix} OF THE CITY · SIZE ${h.size}`;
     this.massBar.style.width = `${(cleared * 100).toFixed(1)}%`;
-    // No "+2" suffix: the per-coin value read as an unexplained orphan on the
-    // HUD; the payout is explained on the results screen where the math lives.
-    this.timer.textContent = `🪙 ${sim.coinsCollected}/${sim.coins.length}`;
+    const coinsCol = (typeof sim.coinsCollected === 'number' && !isNaN(sim.coinsCollected)) ? sim.coinsCollected : 0;
+    const totalCoins = (sim.coins && Array.isArray(sim.coins)) ? sim.coins.length : 0;
+    this.timer.textContent = `🪙 ${coinsCol}/${totalCoins}`;
     this.timer.classList.remove('low');
     // THE RUN's countdown belongs in the countdown pill, not in this one (T-504).
     // It used to overwrite #timer, which index.html's own comment says cannot be
@@ -525,31 +525,25 @@ export class HUD {
   // disagree with the sim (§2 of the PRD, ADR-0015).
   _updateCombo(h) {
     const live = h.chain > 0;
+    const isFrenzy = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.FRENZY);
     const level = comboLevel(h.chain);
-    const frac = live ? Math.max(0, Math.min(1, h.chainTimer / COMBO_WINDOW)) : 0;
+    const frac = live ? (isFrenzy ? 1.0 : Math.max(0, Math.min(1, h.chainTimer / COMBO_WINDOW))) : 0;
     this.comboArc.style.strokeDashoffset = (CM_CIRCUM * (1 - frac)).toFixed(2);
     if (h.chain !== this._chainShown) {
       this._chainShown = h.chain;
       this.comboChain.textContent = h.chain;
     }
-    if (level !== this._comboLevelShown) {
+    const currentMult = isFrenzy ? Math.max(comboMult(h.chain), h.chain) : comboMult(h.chain);
+    const targetMultText = isFrenzy ? `x${currentMult}` : COMBO_LEVEL_NAMES[level];
+    if (level !== this._comboLevelShown || isFrenzy) {
       this._comboLevelShown = level;
-      this.comboMeter.style.setProperty('--cm-heat', `var(--fw-heat-${Math.min(8, level)})`);
-      // One expression for every rung including the top. The old code branched
-      // at COMBO_MAX_LEVEL to print the word `MAX` instead of the number, so x8
-      // — the actual ceiling — was never shown to anyone (T-311). The summit
-      // now reads as the summit through a STATE on the ring rather than through
-      // a label, because the chain count beside it keeps climbing forever and a
-      // label saying "stopped" over a climbing number is what made the ceiling
-      // unreadable in the first place.
-      this.comboMultEl.textContent = COMBO_LEVEL_NAMES[level];
-      this.comboMeter.classList.toggle('topped', level >= COMBO_MAX_LEVEL);
+      this.comboMeter.style.setProperty('--cm-heat', isFrenzy ? 'var(--fw-heat-8)' : `var(--fw-heat-${Math.min(8, level)})`);
+      this.comboMultEl.textContent = targetMultText;
+      this.comboMeter.classList.toggle('topped', isFrenzy || level >= COMBO_MAX_LEVEL);
     }
     if (live !== this._comboLive) {
       this._comboLive = live;
       this.comboMeter.classList.toggle('live', live);
-      // A break is visibly not the same thing as never having started
-      // (FR-010): the ring collapses rather than simply resting.
       if (!live) this.pulseComboBreak();
     }
   }

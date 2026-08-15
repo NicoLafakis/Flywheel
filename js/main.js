@@ -1012,12 +1012,9 @@ function frame(ts) {
             source: 'powerup',
             tier: 'powerup',
             priority: ANN.SIZE,
-            ms: 2000,
+            ms: 6000,
             channel: 'band',
           });
-          // The active-effect overlays are rendered by HUD state. Older builds
-          // referenced a removed Screens method here, which would abort event
-          // processing immediately after any pickup (including a quake).
           if (typeof screens.triggerActivePowerUpOverlay === 'function') {
             screens.triggerActivePowerUpOverlay(ev.powerup.type);
           }
@@ -1033,18 +1030,30 @@ function frame(ts) {
             tier: 'roar',
             source: 'disaster',
             priority: ANN.SIZE + 1,
-            ms: 2800,
+            ms: 6000,
+            channel: 'band',
+          });
+        } else if (ev.type === 'disaster_teleport') {
+          cam.triggerShake(1.5);
+          triggerHaptic(120);
+          world.spawnBurst(ev.fromX, ev.fromZ, ev.hole.radius * 1.5, 0xff0055, 8);
+          world.spawnShockRing(ev.fromX, ev.fromZ, ev.hole.radius * 2.0, 0xff0055);
+          world.spawnBurst(ev.toX, ev.toZ, ev.hole.radius * 1.5, 0x00f5d4, 8);
+          world.spawnShockRing(ev.toX, ev.toZ, ev.hole.radius * 2.0, 0x00f5d4);
+          hud.announce({
+            text: ev.title || '⚡ DISASTER TELEPORT PENALTY! ⚡',
+            sub: ev.sub || 'WARPED ACROSS THE METROPOLIS!',
+            tier: 'roar',
+            source: 'disaster_teleport',
+            priority: ANN.SIZE + 2,
+            ms: 6000,
             channel: 'band',
           });
         } else if (ev.type === 'quake') {
           triggerHaptic(75);
           playEarthquakeCinematic(ev);
         }
-        // 'goal' needs no branch: GameAudio plays the sting, and the milestone
-        // ladder's last row (fired one event earlier) is the screen's beat.
       }
-      // The sandbox used to drop the event stream on the floor here — nothing
-      // downstream of the renderer wanted it. The equipped skin does: it reacts
       // to eats, SIZE-ups and consumption milestones.
       world.update(realDt, events);
       const hole = sim.hole;

@@ -11,6 +11,8 @@ import {
   MILESTONES, MILESTONE_TIERS, RANKED_TICK_COUNT, SCENE_GOALS, comboLevel, comboMult,
   loadScene,
 } from '../js/voxelsim.js';
+import { POWERUP_TYPES, POWERUP_SPECS, activatePowerUp, createPowerUp } from '../js/powerups.js';
+import { PLAYER_MAX_RADIUS } from '../js/tiers.js';
 import { LEVEL_CLOCK_SECONDS, LEVEL_CLOCK_TICKS } from '../js/levelclock.js';
 import {
   BROOKLYN_CROSSINGS, BROOKLYN_OPEN_GROUND, BROOKLYN_ROAD_SPANS, BROOKLYN_STREETS,
@@ -38,7 +40,7 @@ import { CURRENT_VERSION, __freshSave, __MIGRATIONS } from '../js/save.js';
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from '../js/fwmath.js';
 import { runBoardSelftest } from './board-selftest.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 // Authored city modules load on demand in the game (js/voxelsim.js registry), so
@@ -2145,7 +2147,88 @@ function validateOfflineBoot() {
     scanned.push(`${file} ${refs} ref/${(html.length / 1024).toFixed(1)}kB`);
   }
 
+  // Static module syntax check across all JS and MJS modules in the project
+  const jsDir = new URL('../js/', import.meta.url);
+  const allModules = [];
+  const scanJs = (dir) => {
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      const full = new URL(ent.name + (ent.isDirectory() ? '/' : ''), dir);
+      if (ent.isDirectory() && ent.name !== 'node_modules' && ent.name !== '.git') {
+        scanJs(full);
+      } else if (ent.isFile() && (ent.name.endsWith('.js') || ent.name.endsWith('.mjs'))) {
+        allModules.push(fileURLToPath(full));
+      }
+    }
+  };
+  scanJs(jsDir);
+  if (allModules.length > 0) {
+    const res = spawnSync(process.execPath, ['--check', ...allModules]);
+    if (res.status !== 0) {
+      fail(`syntax error in codebase modules: ${res.stderr ? res.stderr.toString().trim() : 'exit ' + res.status}`);
+    }
+  }
+
   console.log(`  offline boot: ${OFFLINE_PAGES.length} page(s) scanned [${scanned.join(', ')}], ${offsite === 0 ? 'all same-origin' : `${offsite} OFF-ORIGIN`}`);
+}
+
+function validateGameplayEnhancements() {
+  console.log('Validating gameplay enhancements (max titan, uncapped frenzy, coin accounting, disaster teleport)...');
+
+  // 1. Coin Accounting & Initialization (No NaN)
+  const vsim = new VoxelSandboxSim({ seed: 'coin-test' });
+  if (vsim.coinsCollected !== 0 || typeof vsim.coinsCollected !== 'number') {
+    fail(`VoxelSandboxSim coinsCollected should initialize to 0, got: ${vsim.coinsCollected}`);
+  }
+  if (!Array.isArray(vsim.coins)) {
+    fail(`VoxelSandboxSim coins should initialize to Array, got: ${typeof vsim.coins}`);
+  }
+
+  // 2. Titan Surge (Enlarged Hole) Max Size
+  const hole = vsim.hole;
+  const initialRadius = hole.radius;
+  const titanPu = createPowerUp(999, POWERUP_TYPES.TITAN, 0, 0);
+  activatePowerUp(hole.activePowerUps, titanPu, hole, vsim);
+  
+  vsim.step(1/60);
+  if (hole.radius < 12.0) {
+    fail(`Titan Surge did not enlarge hole to MAX_RADIUS, radius=${hole.radius} (expected >= 12.0)`);
+  }
+
+  // 3. Chain Frenzy Uncapped Multiplier
+  const frenzyPu = createPowerUp(998, POWERUP_TYPES.FRENZY, 0, 0);
+  activatePowerUp(hole.activePowerUps, frenzyPu, hole, vsim);
+  hole.chain = 30;
+  hole.chainTimer = 1.0;
+  vsim.step(1/60);
+  if (hole.chainTimer < 1.0) {
+    fail(`Chain Frenzy should freeze/preserve chain timer, got: ${hole.chainTimer}`);
+  }
+  // Check score calculation during Frenzy with chain 31
+  const dummyBlock = { id: 1, x: 0, y: 0, z: 0, w: 1, h: 1, d: 1, rawMass: 10 };
+  const prevMass = hole.mass;
+  vsim._award(hole, 10, dummyBlock);
+  const gained = hole.mass - prevMass;
+  // With chain 31 during Frenzy, multiplier should be >= 31 * 2.0 = 62 -> gained >= 620
+  if (gained < 10 * 30) {
+    fail(`Chain Frenzy did not apply uncapped multiplier, gained=${gained} for rawMass=10 at chain=31 (expected >= 300)`);
+  }
+
+  // 4. Natural Disaster Teleportation Penalty
+  hole.x = 10;
+  hole.z = 10;
+  const fromX = hole.x, fromZ = hole.z;
+  if (typeof vsim._teleportHoleFromDisaster !== 'function') {
+    fail('VoxelSandboxSim._teleportHoleFromDisaster is not defined');
+  } else {
+    vsim._teleportHoleFromDisaster(hole, 'meteor');
+    if (hole.x === fromX && hole.z === fromZ) {
+      fail(`Disaster penalty should teleport player away from disaster location`);
+    }
+    const teleportEv = vsim.events.find((e) => e.type === 'disaster_teleport');
+    if (!teleportEv) {
+      fail(`Disaster penalty should emit 'disaster_teleport' event`);
+    }
+  }
 }
 
 // --- execution modes -----------------------------------------------------------
@@ -2198,7 +2281,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
   // a process per guard would be spawn overhead, not speed. Every heavy scene
   // gets its own child.
   const groups = [
-    ['core', 'offlineBoot,saveSchema,rewardLadders,fwMath,runBoard,voxelSandbox,voxelCollisions,levelClock'],
+    ['core', 'offlineBoot,saveSchema,rewardLadders,fwMath,runBoard,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements'],
     ['campaignLevels', 'campaignLevels'],
     ['scenesWinnable', 'scenesWinnable'],
     ['manhattan', 'manhattan'],
@@ -2279,6 +2362,7 @@ section('levelClock', validateLevelClock);
 section('scenesWinnable', validateScenesWinnable);
 section('voxelSandbox', validateVoxelSandbox);
 section('voxelCollisions', validateVoxelCollisions);
+section('gameplayEnhancements', validateGameplayEnhancements);
 section('manhattan', validateManhattan);
 section('upperManhattan', validateUpperManhattan);
 section('brooklyn', validateBrooklyn);
