@@ -101,8 +101,8 @@ export class StormSystem {
         this.vortexZ = (r.minZ + r.maxZ) * 0.5 + (this.rng.next() - 0.5) * (r.maxZ - r.minZ) * 0.5;
         const angle = this.rng.next() * 6.283185;
         const speed = 7.5;
-        this.vortexVx = Math.cos(angle) * speed;
-        this.vortexVz = Math.sin(angle) * speed;
+        this.vortexVx = fwCos(angle) * speed;
+        this.vortexVz = fwSin(angle) * speed;
 
         this.sim.events.push({
           type: 'storm_active',
@@ -413,15 +413,16 @@ export function comboMult(chain) {
 // the renderer dresses it; the three names are the whole vocabulary.
 export const MILESTONE_TIERS = ['nudge', 'hype', 'roar'];
 export const MILESTONES = [
-  { at: 0.05, text: "Warmin' up…",           tier: 'nudge' },
-  { at: 0.15, text: "Gettin' there!",        tier: 'nudge' },
-  { at: 0.25, text: 'BAM! 25% COMPLETE!',    tier: 'hype'  },
-  { at: 0.40, text: "Chewin' clean through!", tier: 'hype' },
-  { at: 0.50, text: 'HALFWAY GONE!',         tier: 'roar'  },
-  { at: 0.65, text: 'NOTHING LEFT STANDING!', tier: 'hype' },
-  { at: 0.75, text: 'THREE QUARTERS DOWN!',  tier: 'roar'  },
-  { at: 0.90, text: 'HOME STRETCH — EAT IT ALL!', tier: 'roar' },
-  { at: 1.00, text: 'TOTAL CONSUMPTION!',    tier: 'roar'  },
+  { at: 0.05, text: '5% CLEARED — WARMING UP!',            tier: 'nudge' },
+  { at: 0.15, text: '15% CLEARED — DEVOURING THE STREETS!', tier: 'nudge' },
+  { at: 0.25, text: '25% CLEARED — ONE QUARTER DOWN!',     tier: 'hype'  },
+  { at: 0.40, text: '40% CLEARED — CITYWIDE RAMPAGE!',     tier: 'hype'  },
+  { at: 0.50, text: '50% CLEARED — HALFWAY GONE!',         tier: 'roar'  },
+  { at: 0.65, text: '65% CLEARED — CRITICAL MASS!',        tier: 'hype'  },
+  { at: 0.75, text: '75% CLEARED — THREE QUARTERS DOWN!',  tier: 'roar'  },
+  { at: 0.90, text: '90% CLEARED — FINAL STAND!',          tier: 'roar'  },
+  { at: 0.98, text: '98% CLEARED — LAST REMNANTS!',        tier: 'roar'  },
+  { at: 1.00, text: '100% CLEARED — TOTAL MAP CONSUMPTION!', tier: 'roar'  },
 ];
 
 // The goal table. `targetFraction` is 1.0 on EVERY scene (R-2.1): the goal is
@@ -450,6 +451,28 @@ export const SCENE_GOALS = {
 export const SANDBOX_COIN_COUNT = 60;
 export const SANDBOX_COIN_VALUE = 2;
 export const SANDBOX_GOAL_BONUS = 35;
+
+// Tiered Metropolis Coin Economy:
+// Higher-tier cities spawn more ground coins with higher individual value,
+// and reward exponentially higher coin bonuses for 100% full clears.
+export const CITY_COIN_TIERS = {
+  gallery: { coinCount: 60, coinValue: 1, goalBonus: 25 },
+  manhattan: { coinCount: 70, coinValue: 2, goalBonus: 50 },
+  brooklyn: { coinCount: 80, coinValue: 2, goalBonus: 75 },
+  chicago: { coinCount: 100, coinValue: 2, goalBonus: 100 },
+  cambridge: { coinCount: 120, coinValue: 3, goalBonus: 150 },
+  'upper-manhattan': { coinCount: 140, coinValue: 3, goalBonus: 200 },
+  boston: { coinCount: 160, coinValue: 4, goalBonus: 300 },
+  tokyo: { coinCount: 200, coinValue: 5, goalBonus: 500 },
+};
+
+export function getCityCoinTier(scene) {
+  return CITY_COIN_TIERS[scene] || {
+    coinCount: SANDBOX_COIN_COUNT,
+    coinValue: SANDBOX_COIN_VALUE,
+    goalBonus: SANDBOX_GOAL_BONUS,
+  };
+}
 
 // THE RUN's complete physics contract. This is separate from display quality:
 // every ranked client and the server verifier use these values, so a phone can
@@ -761,14 +784,19 @@ export class VoxelSandboxSim {
     else this._buildScene();
     this.scene = scene;
     this.goal = SCENE_GOALS[scene] || SCENE_GOALS.gallery;
+    const coinTier = getCityCoinTier(scene);
+    this.coinCount = coinTier.coinCount;
+    this.coinValue = coinTier.coinValue;
+    this.goalBonus = coinTier.goalBonus;
     this.coins = this._placeCoins();
-    this.coinsCollected = 0;
     this.powerupRng = new RNG((seed || 'sandbox') + ':powerups');
     this.powerups = this._placePowerups();
-    this.powerupSpawnTimer = 16.0 + this.powerupRng.next() * 8.0;
+    this.powerupSpawnTimer = 35.0;
+    this.disastersTriggered = new Set();
+    this.disasterRng = new RNG((seed || 'sandbox') + ':disasters');
+    this._nextPowerUpId = this.powerups.length + 1;
     this.nextScorePowerUpThreshold = 100000;
     this.nextMultPowerUpThreshold = 500;
-    this._nextPowerUpId = this.powerups.length + 1;
     this._assertCellKeyRange(scene);
     this._buildNeighbors();
     this._buildZones();
@@ -928,7 +956,8 @@ export class VoxelSandboxSim {
     const out = [];
     // A seeded scatter makes every run fair and replayable while keeping coins
     // out of the very edge where the clamp can make a pickup frustrating.
-    for (let i = 0; i < SANDBOX_COIN_COUNT; i++) {
+    const count = this.coinCount || SANDBOX_COIN_COUNT;
+    for (let i = 0; i < count; i++) {
       out.push({
         id: i,
         x: r.minX + (r.maxX - r.minX) * (0.08 + this.rng.next() * 0.84),
@@ -950,6 +979,7 @@ export class VoxelSandboxSim {
 
   _collectCoinsFor(h) {
     const reach = h.radius + 0.7;
+    const coinVal = this.coinValue || SANDBOX_COIN_VALUE;
     for (const coin of this.coins) {
       if (coin.collected || fwHypot2(coin.x - h.x, coin.z - h.z) > reach) continue;
       coin.collected = true;
@@ -969,7 +999,7 @@ export class VoxelSandboxSim {
       // down from nothing would still fire the sub-0.5 s "combo about to lapse"
       // flash in the renderer with no combo on screen.
       if (h.chain > 0) h.chainTimer = COMBO_WINDOW;
-      this.events.push({ type: 'coin', coin, value: SANDBOX_COIN_VALUE, hole: h });
+      this.events.push({ type: 'coin', coin, value: coinVal, hole: h });
     }
   }
 
@@ -987,7 +1017,7 @@ export class VoxelSandboxSim {
         pos.x,
         pos.z,
         'map',
-        { lifespan: 28.0, speed: 2.5 + this.powerupRng.next() * 0.8, angle }
+        { lifespan: Infinity, speed: 2.4, angle }
       ));
     }
     return out;
@@ -1038,8 +1068,8 @@ export class VoxelSandboxSim {
     const tdx = target.x - hole.x;
     const tdz = target.z - hole.z;
     const angle = Math.atan2(tdz, tdx);
-    const cosA = Math.cos(angle);
-    const sinA = Math.sin(angle);
+    const cosA = fwCos(angle);
+    const sinA = fwSin(angle);
     const faultLen = Math.sqrt(maxDistSq);
 
     const x0 = hole.x;
@@ -1049,6 +1079,7 @@ export class VoxelSandboxSim {
 
     const crackWidth = 4.0;
     let count = 0;
+    const affectedBlocks = [];
     for (let i = 0; i < this.blocks.length; i++) {
       const b = this.blocks[i];
       if (b.state !== 'static' && b.state !== 'unstable') continue;
@@ -1058,9 +1089,10 @@ export class VoxelSandboxSim {
       const longDist = dx * cosA + dz * sinA;
       if (longDist < 0 || longDist > faultLen) continue;
       
-      const perpDist = Math.abs(-dx * sinA + dz * cosA);
+      const rawPerp = -dx * sinA + dz * cosA;
+      const perpDist = Math.abs(rawPerp);
       if (perpDist <= crackWidth) {
-        const sign = (-dx * sinA + dz * cosA) >= 0 ? 1 : -1;
+        const sign = rawPerp >= 0 ? 1 : -1;
         const perpX = -sinA * sign;
         const perpZ = cosA * sign;
         
@@ -1076,6 +1108,9 @@ export class VoxelSandboxSim {
           this._dirtyComps.add(this._compOf[b.bi]);
         }
         count++;
+        if (affectedBlocks.length < 120) {
+          affectedBlocks.push({ x: b.x, y: b.y, z: b.z, longDist, perpDist: rawPerp });
+        }
         if (count >= 160) break;
       }
     }
@@ -1090,23 +1125,113 @@ export class VoxelSandboxSim {
       length: faultLen,
       radius: faultLen,
       hole,
+      affectedBlocks,
     });
   }
 
-  _spawnBonusPowerUp(reason, h) {
-    const activeGround = this.powerups.filter((p) => !p.collected);
-    if (activeGround.length >= MAX_MAP_POWERUPS) return null;
+  _triggerNaturalSeismicDisaster() {
     const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
-    const pos = findSpacedPowerUpLocation(this.powerups, r, this.powerupRng, MIN_POWERUP_SEPARATION);
-    const angle = this.powerupRng.next() * 6.283185307179586;
-    const type = pickRandomPowerUpType(this.powerupRng);
-    const pu = createPowerUp(this._nextPowerUpId++, type, pos.x, pos.z, reason, {
-      lifespan: 28.0,
-      speed: 2.6 + this.powerupRng.next() * 0.8,
+    const cx = (r.minX + r.maxX) * 0.5;
+    const cz = (r.minZ + r.maxZ) * 0.5;
+    const faultLen = Math.max(r.maxX - r.minX, r.maxZ - r.minZ) * 1.1;
+    const angle = this.disasterRng ? (this.disasterRng.next() * 3.14159) : 0.785;
+    const cosA = fwCos(angle);
+    const sinA = fwSin(angle);
+    const x0 = cx - cosA * faultLen * 0.5;
+    const z0 = cz - sinA * faultLen * 0.5;
+    const x1 = cx + cosA * faultLen * 0.5;
+    const z1 = cz + sinA * faultLen * 0.5;
+
+    const crackWidth = 5.0;
+    let count = 0;
+    const affectedBlocks = [];
+    for (let i = 0; i < this.blocks.length; i++) {
+      const b = this.blocks[i];
+      if (b.state !== 'static' && b.state !== 'unstable') continue;
+      const dx = b.x - cx;
+      const dz = b.z - cz;
+      const longDist = dx * cosA + dz * sinA;
+      if (Math.abs(longDist) > faultLen * 0.5) continue;
+      const rawPerp = -dx * sinA + dz * cosA;
+      if (Math.abs(rawPerp) <= crackWidth) {
+        const sign = rawPerp >= 0 ? 1 : -1;
+        const perpX = -sinA * sign;
+        const perpZ = cosA * sign;
+        if (b.y <= 3.0) {
+          const vx = perpX * 3.2 + (this.disasterRng ? (this.disasterRng.next() - 0.5) * 2 : 0);
+          const vz = perpZ * 3.2 + (this.disasterRng ? (this.disasterRng.next() - 0.5) * 2 : 0);
+          this._detachBlock(b, vx, 1.4, vz);
+        } else {
+          b.state = 'unstable';
+          b.damage = 1.0;
+          b.failRate = 0;
+          this._watchDamage(b);
+          this._dirtyComps.add(this._compOf[b.bi]);
+        }
+        count++;
+        if (affectedBlocks.length < 120) {
+          affectedBlocks.push({ x: b.x, y: b.y, z: b.z, longDist, perpDist: rawPerp });
+        }
+        if (count >= 180) break;
+      }
+    }
+    if (count > 0) this._graphDirty = true;
+    this.events.push({
+      type: 'disaster',
+      subtype: 'quake',
+      name: 'SEISMIC CATACLYSM',
+      title: '⚠️ NATURAL DISASTER: SEISMIC QUAKE! ⚠️',
+      sub: 'FAULT LINE RUPTURE · BUILDINGS COLLAPSING ACROSS THE CITY!',
+      x0, z0, x1, z1,
       angle,
+      length: faultLen,
+      affectedBlocks,
     });
-    this.powerups.push(pu);
-    return pu;
+  }
+
+  _triggerNaturalMeteorDisaster() {
+    const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
+    const strikes = [];
+    const strikeCount = 8;
+    for (let s = 0; s < strikeCount; s++) {
+      const rx = this.disasterRng ? this.disasterRng.next() : (s / strikeCount);
+      const rz = this.disasterRng ? this.disasterRng.next() : (s / strikeCount);
+      const sx = (r.minX + 10) + (r.maxX - r.minX - 20) * rx;
+      const sz = (r.minZ + 10) + (r.maxZ - r.minZ - 20) * rz;
+      const radius = 6.5;
+      strikes.push({ x: sx, z: sz, radius, delay: s * 0.35 });
+
+      for (let i = 0; i < this.blocks.length; i++) {
+        const b = this.blocks[i];
+        if (b.state !== 'static' && b.state !== 'unstable') continue;
+        const dx = b.x - sx;
+        const dz = b.z - sz;
+        const dist2 = dx * dx + dz * dz;
+        if (dist2 <= radius * radius) {
+          const dist = Math.sqrt(dist2) || 1;
+          const nx = dx / dist;
+          const nz = dz / dist;
+          const power = (1 - dist / radius);
+          if (b.y >= 3.0 || power > 0.6) {
+            this._detachBlock(b, nx * power * 5.0, 2.5 + power * 3.0, nz * power * 5.0);
+          } else {
+            b.state = 'unstable';
+            b.damage = 1.0;
+            this._watchDamage(b);
+            this._dirtyComps.add(this._compOf[b.bi]);
+          }
+        }
+      }
+    }
+    this._graphDirty = true;
+    this.events.push({
+      type: 'disaster',
+      subtype: 'meteor',
+      name: 'METEOR SHOWER',
+      title: '⚠️ NATURAL DISASTER: METEOR SHOWER! ⚠️',
+      sub: 'STRATOSPHERIC IMPACTS BOMBARDING THE CITY!',
+      strikes,
+    });
   }
 
   _spawnIntermittentPowerUp() {
@@ -1117,8 +1242,8 @@ export class VoxelSandboxSim {
     const angle = this.powerupRng.next() * 6.283185307179586;
     const type = pickRandomPowerUpType(this.powerupRng);
     const pu = createPowerUp(this._nextPowerUpId++, type, pos.x, pos.z, 'intermittent', {
-      lifespan: 26.0,
-      speed: 2.6 + this.powerupRng.next() * 0.8,
+      lifespan: Infinity,
+      speed: 2.4,
       angle,
     });
     this.powerups.push(pu);
@@ -1130,6 +1255,8 @@ export class VoxelSandboxSim {
     for (const pu of this.powerups) {
       if (pu.collected || fwHypot2(pu.x - h.x, pu.z - h.z) > reach) continue;
       pu.collected = true;
+      // Reset the 35s spawn timer so another cannot spawn for 35s after one is eaten
+      this.powerupSpawnTimer = 35.0;
       activatePowerUp(h.activePowerUps, pu, h, this);
       if (pu.type === POWERUP_TYPES.QUAKE) {
         this._triggerVoxelQuake(h);
@@ -3904,17 +4031,6 @@ export class VoxelSandboxSim {
         h.z = Math.min(r ? r.maxZ : this.bounds, Math.max(r ? r.minZ : -this.bounds, h.z));
       }
 
-      // Dynamic reward milestones: 100k points & 500 mult (subject to MAX_MAP_POWERUPS)
-      if (h.mass >= this.nextScorePowerUpThreshold) {
-        this.nextScorePowerUpThreshold += 100000;
-        const pu = this._spawnBonusPowerUp('score_100k', h);
-        if (pu) this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'score_100k', hole: h });
-      }
-      if (h.chain >= this.nextMultPowerUpThreshold) {
-        this.nextMultPowerUpThreshold += 500;
-        const pu = this._spawnBonusPowerUp('mult_500', h);
-        if (pu) this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'mult_500', hole: h });
-      }
     }
     this._collectCoins();
 
@@ -3925,17 +4041,35 @@ export class VoxelSandboxSim {
     }
     this.powerups = this.powerups.filter((p) => !p.collected && !p.expired);
 
-    // Periodic intermittent power-up spawns on the board (capped at MAX_MAP_POWERUPS)
-    this.powerupSpawnTimer = (this.powerupSpawnTimer || 18.0) - dt;
+    // Intermittent power-up spawns on the board (capped at MAX_MAP_POWERUPS = 2, 35s cadence)
+    this.powerupSpawnTimer = (this.powerupSpawnTimer || 35.0) - dt;
     if (this.powerupSpawnTimer <= 0) {
-      this.powerupSpawnTimer = 18.0 + this.powerupRng.next() * 10.0;
-      if (this.powerups.length < 2 && this.powerups.length < MAX_MAP_POWERUPS) {
+      this.powerupSpawnTimer = 35.0;
+      const activeGround = this.powerups.filter((p) => !p.collected);
+      if (activeGround.length < MAX_MAP_POWERUPS) {
         const pu = this._spawnIntermittentPowerUp();
         if (pu) this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'intermittent' });
       }
     }
 
     this._collectPowerups();
+
+    // Scheduled Natural Disasters:
+    // Disaster 1: at 1min 30s elapsed (90s / 45s in run90) -> Seismic Quake
+    // Disaster 2: at 1min before the end (120s / 70s in run90) -> Meteor Shower
+    const elapsed = this.time;
+    const is90s = this.mode === 'run90' || this.clockLimit === 5400;
+    const disaster1Time = is90s ? 45.0 : 90.0;
+    const disaster2Time = is90s ? 70.0 : (this.clockLimit ? Math.max(120.0, (this.clockLimit / 60) - 60.0) : 120.0);
+
+    if (this.scene !== 'gallery' && !this.disastersTriggered.has('disaster1') && elapsed >= disaster1Time) {
+      this.disastersTriggered.add('disaster1');
+      this._triggerNaturalSeismicDisaster();
+    }
+    if (this.scene !== 'gallery' && !this.disastersTriggered.has('disaster2') && elapsed >= disaster2Time) {
+      this.disastersTriggered.add('disaster2');
+      this._triggerNaturalMeteorDisaster();
+    }
 
     // Dynamic cataclysm storm system (Tornado & Hurricane)
     if (this.stormSystem) this.stormSystem.step(dt);

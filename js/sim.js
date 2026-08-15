@@ -89,15 +89,32 @@ function contactAndProcess(hole, obj, sim) {
 
 function completeEat(hole, obj, sim) {
   obj.eaten = true;
+  const prevChain = hole.chain;
   hole.chainTimer = COMBO_WINDOW;
   hole.chain += 1;
   hole.bestCombo = Math.max(hole.bestCombo, hole.chain);
   const frenzyMult = (hole.isPlayer && hasActivePowerUp(sim.activePowerUps, POWERUP_TYPES.FRENZY)) ? 2.0 : 1.0;
-  const gained = obj.mass * (obj.golden ? GOLDEN_MULTIPLIER : 1) * comboMultiplier(hole.chain) * frenzyMult;
+  const mult = comboMultiplier(hole.chain);
+  const gained = obj.mass * (obj.golden ? GOLDEN_MULTIPLIER : 1) * mult * frenzyMult;
   hole.mass += gained;
   hole.radius = holeRadius(hole);
   hole.eatenCount += 1;
   sim.events.push({ type: 'eat', obj, hole, gained });
+  if (hole.isPlayer) {
+    const prevLvl = Math.floor(prevChain / 5);
+    const curLvl = Math.floor(hole.chain / 5);
+    if (curLvl > prevLvl && curLvl >= 1) {
+      sim.events.push({
+        type: 'combo',
+        level: curLvl + 1,
+        mult,
+        chain: hole.chain,
+        name: `x${mult.toFixed(1)}`,
+        top: mult >= COMBO_MAX_MULT,
+        hole,
+      });
+    }
+  }
 }
 
 export class Sim {
@@ -210,6 +227,7 @@ export class Sim {
 
     const crackWidth = 4.0;
     let count = 0;
+    const affected = [];
     this.city.hash.query(hole.x, hole.z, faultLen, (o) => {
       if (o.eaten || o.shielded) return;
       const dx = o.x - hole.x;
@@ -217,11 +235,22 @@ export class Sim {
       const longDist = dx * cosA + dz * sinA;
       if (longDist < 0 || longDist > faultLen) return;
       
-      const perpDist = Math.abs(-dx * sinA + dz * cosA);
+      const rawPerp = -dx * sinA + dz * cosA;
+      const perpDist = Math.abs(rawPerp);
       if (perpDist <= crackWidth) {
         o.eaten = true;
         hole.mass += o.tier * 0.5;
         count++;
+        affected.push({
+          id: o.id,
+          x: o.x,
+          z: o.z,
+          tier: o.tier,
+          kind: o.kind,
+          radius: o.radius,
+          longDist,
+          perpDist: rawPerp,
+        });
       }
     });
     this.events.push({
@@ -232,7 +261,8 @@ export class Sim {
       angle,
       length: faultLen,
       radius: faultLen,
-      hole
+      hole,
+      affected,
     });
   }
 

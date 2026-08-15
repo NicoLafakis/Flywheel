@@ -95,6 +95,9 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
      still being a plain same-origin path this no-build static site can serve.
      Pinned at 0.160.0; tools/validate.mjs fails the build if this ever points
      off-origin again. -->
+<link rel="modulepreload" href="./js/main.js">
+<link rel="modulepreload" href="./js/vendor/three.module.js">
+<link rel="modulepreload" href="./js/ui/screens.js">
 <script type="importmap">
 { "imports": { "three": "./js/vendor/three.module.js" } }
 </script>
@@ -108,7 +111,7 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
   <canvas id="game-canvas"></canvas>
   <div id="hud" class="hidden">
     <div id="hud-left">
-      <div id="level-banner">LEVEL 1 - SUBURBS</div>
+      <div id="level-banner">LEVEL 1 · SUBURBS</div>
       <div id="mass-bar-wrap"><div id="mass-bar"></div></div>
       <div id="mass-label">0 collected</div>
       <div id="combo-label" class="hidden"></div>
@@ -121,28 +124,27 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
         <span id="score-value">0</span>
       </div>
     </div>
+    <!-- The level clock (R-1.2). Positioned top-center as the primary focal constraint.
+         aria-live="off": it changes every frame and a polite live region
+         would queue a screen reader announcement per second. -->
+    <div id="level-clock" class="hidden" role="timer" aria-live="off">3:00</div>
+    <!-- Endgame remaining blocks counter (displays when <= 100 blocks remain or <= 30s left) -->
+    <div id="blocks-left-pill" class="hidden" aria-live="polite">
+      <span class="blocks-left-icon">🎯</span>
+      <span id="blocks-left-text">98 BLOCKS LEFT</span>
+    </div>
     <div id="hud-right">
-      <button id="btn-mute" class="round-btn" title="Sound">&#128266;</button>
-      <!-- CSS-drawn bars, not a text glyph: ❙❙ fell back to a missing-glyph
-           box on systems without that codepoint (playtest finding). -->
-      <button id="btn-pause" class="round-btn" title="Pause"><span class="pause-glyph"><span></span><span></span></span></button>
-      <!-- The level clock (R-1.2). Its own pill rather than a second job for
-           #timer, which the sandbox already uses as the coin readout — one
-           element cannot be both without one of them disappearing. Above the
-           coin pill because the clock is the thing that ends the run.
-           aria-live="off": it changes every frame and a polite live region
-           would queue a screen reader announcement per second.
-
-           THE RUN paints this pill too (T-504). It used to write its countdown
-           into #timer below, which left this one hidden and the coin readout
-           destroyed for the length of the run — one element doing two jobs,
-           exactly as this comment warned. -->
-      <div id="level-clock" class="hidden" role="timer" aria-live="off">3:00</div>
-      <!-- Empty, not "75". That was the start value of the campaign clock ramp
-           R-1.1 retired, so the HUD shipped holding a number no mode counts
-           down from any more; the sandbox overwrites it with the coin readout
-           on its first frame and the campaign with its own countdown. -->
-      <div id="timer"></div>
+      <div id="hud-controls-row">
+        <!-- Empty, not "75". That was the start value of the campaign clock ramp
+             R-1.1 retired, so the HUD shipped holding a number no mode counts
+             down from any more; the sandbox overwrites it with the coin readout
+             on its first frame and the campaign with its own countdown. -->
+        <div id="timer"></div>
+        <button id="btn-mute" class="round-btn" title="Sound">&#128266;</button>
+        <!-- CSS-drawn bars, not a text glyph: ❙❙ fell back to a missing-glyph
+             box on systems without that codepoint (playtest finding). -->
+        <button id="btn-pause" class="round-btn" title="Pause"><span class="pause-glyph"><span></span><span></span></span></button>
+      </div>
       <!-- Combo meter: radial, on the right, away from the goal stack on the
            left — the separation is what makes the two tellable apart in
            peripheral vision, and it is what gives the meter room to be a ring
@@ -164,6 +166,15 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
           <span class="cm-unit">CHAIN</span>
           <span id="cm-mult">x1</span>
         </div>
+        <!-- Combo burst overlay covering the combo meter +20% with anime style -->
+        <div id="cm-burst" class="cm-burst hidden">
+          <div class="cm-burst-halo"></div>
+          <div class="cm-burst-ring"></div>
+          <div class="cm-burst-body">
+            <span id="cm-burst-mult" class="cm-burst-mult">2X</span>
+            <span id="cm-burst-sub" class="cm-burst-sub">COMBO!</span>
+          </div>
+        </div>
       </div>
       <div id="active-powerups"></div>
     </div>
@@ -179,12 +190,50 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
       <div class="th-label">Drag to steer</div>
     </div>
     <div id="toast" class="hidden"></div>
-    <div id="big-pop" class="hidden"></div>
+    <div id="big-pop" class="hidden">
+      <div class="big-pop-content">
+        <div id="big-pop-sub" class="big-pop-sub">✦ EXPANDING VORTEX ✦</div>
+        <div id="big-pop-text" class="big-pop-text">SIZE 2!</div>
+      </div>
+    </div>
+    <!-- Anime Power-Up Active Screen Overlays -->
+    <div id="chrono-freeze-overlay" class="chrono-freeze-overlay hidden">
+      <div class="freeze-vignette"></div>
+      <div class="freeze-crystals"></div>
+      <div class="freeze-shimmer"></div>
+      <div class="freeze-badge">❄️ TIME FROZEN ❄️</div>
+    </div>
+    <div id="vortex-suction-overlay" class="vortex-suction-overlay hidden">
+      <div class="vortex-lens-warp"></div>
+      <div class="vortex-inward-rays"></div>
+    </div>
+    <div id="titan-surge-overlay" class="titan-surge-overlay hidden">
+      <div class="titan-shock-flash"></div>
+      <div class="titan-border-flame"></div>
+      <div class="titan-kanji">巨 大 化</div>
+    </div>
+    <div id="speed-frenzy-overlay" class="speed-frenzy-overlay hidden">
+      <div class="speed-lightning-left"></div>
+      <div class="speed-lightning-right"></div>
+      <div class="speed-tunnel-lines"></div>
+    </div>
+    <div id="chain-frenzy-overlay" class="chain-frenzy-overlay hidden">
+      <div class="chain-dragon-fire"></div>
+      <div class="chain-spark-burst"></div>
+    </div>
     <!-- Consumption band: the loudest of the three vocabularies, and the only
          thing this package ever puts across the middle of the screen. Full
          width, transient, and pointer-transparent so it can never take a touch
          meant for the world underneath it. -->
-    <div id="hype-band" class="hidden"><span id="hype-text"></span></div>
+    <div id="hype-band" class="hidden">
+      <div class="hype-anime-container">
+        <div class="hype-speed-streak"></div>
+        <div class="hype-content-wrap">
+          <div id="hype-sub" class="hype-sub hidden"></div>
+          <div id="hype-text" class="hype-text"></div>
+        </div>
+      </div>
+    </div>
   </div>
   <div id="screen-root"></div>
   <!-- Multiplayer front door — styling and visibility rules in the <style>

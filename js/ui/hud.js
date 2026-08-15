@@ -46,11 +46,31 @@ export class HUD {
     this.scorePlate = document.getElementById('score-plate');
     this.scoreValue = document.getElementById('score-value');
     this.comboMeter = document.getElementById('combo-meter');
-    this.comboArc = this.comboMeter.querySelector('.cm-arc');
+    this.comboArc = this.comboMeter ? this.comboMeter.querySelector('.cm-arc') : null;
     this.comboChain = document.getElementById('cm-chain');
     this.comboMultEl = document.getElementById('cm-mult');
+    this.comboBurst = document.getElementById('cm-burst');
+    this.comboBurstMult = document.getElementById('cm-burst-mult');
+    this.comboBurstSub = document.getElementById('cm-burst-sub');
+    this._comboBurstTimer = null;
+
+    this.bigPop = document.getElementById('big-pop');
+    this.bigPopText = document.getElementById('big-pop-text');
+    this.bigPopSub = document.getElementById('big-pop-sub');
+    this._bigPopTimer = null;
+
     this.band = document.getElementById('hype-band');
     this.bandText = document.getElementById('hype-text');
+    this.bandSub = document.getElementById('hype-sub');
+
+    this.blocksLeftPill = document.getElementById('blocks-left-pill');
+    this.blocksLeftText = document.getElementById('blocks-left-text');
+
+    this.chronoOverlay = document.getElementById('chrono-freeze-overlay');
+    this.vortexOverlay = document.getElementById('vortex-suction-overlay');
+    this.titanOverlay = document.getElementById('titan-surge-overlay');
+    this.speedOverlay = document.getElementById('speed-frenzy-overlay');
+    this.chainOverlay = document.getElementById('chain-frenzy-overlay');
     // Display state for the count-up, held here rather than in the sim: it is
     // presentation, and the sim must stay the only writer of the real number.
     this._scoreShown = 0;
@@ -88,23 +108,23 @@ export class HUD {
   }
 
   // --- announcement queue ---------------------------------------------------
-  // Takes text, a tier, a priority and a source (FR-019). Three rules:
+  // Takes text, sub, a tier, a priority and a source (FR-019). Three rules:
   //   - a higher priority takes the channel immediately;
   //   - a lower one never truncates a higher one already showing;
   //   - repeats from the same source coalesce in place rather than stacking,
   //     so the player never watches a backlog drain.
-  announce({ text, source, priority = 0, ms = 2000, channel = 'toast', tier = 'hype' }) {
+  announce({ text, sub = '', source, priority = 0, ms = 2000, channel = 'band', tier = 'hype' }) {
     const now = performance.now();
     const live = this._ann && this._ann.until > now ? this._ann : null;
     if (live && live.priority > priority) return false;
     if (live && live.source === source && live.channel === channel) {
       // Coalesce: same speaker, same channel — rewrite in place, extend once.
-      this._present(channel, text, tier, /* restart */ false);
+      this._present(channel, text, tier, /* restart */ false, sub);
       this._arm(priority, source, channel, ms, now);
       return true;
     }
     if (live) this._clearChannel(live.channel);
-    this._present(channel, text, tier, true);
+    this._present(channel, text, tier, true, sub);
     this._arm(priority, source, channel, ms, now);
     return true;
   }
@@ -117,23 +137,32 @@ export class HUD {
 
   _clearChannel(channel) {
     if (channel === 'toast') { clearTimeout(this.toastTimer); this.toast.classList.add('hidden'); }
-    else if (channel === 'pop') { clearTimeout(this._bigPopTimer); this.bigPop.classList.add('hidden'); }
+    else if (channel === 'pop') { clearTimeout(this._bigPopTimer); if (this.bigPop) this.bigPop.classList.add('hidden'); }
+    else if (channel === 'cm_burst') { clearTimeout(this._comboBurstTimer); if (this.comboBurst) this.comboBurst.classList.add('hidden'); }
     else if (channel === 'band') { this.band.classList.add('hidden'); this.band.classList.remove('show'); }
   }
 
-  _present(channel, text, tier, restart) {
+  _present(channel, text, tier, restart, sub = '') {
     if (channel === 'toast') this.showToast(text, 1e9);       // the queue owns the timing
-    else if (channel === 'pop') this.showBigPop(text);
-    else if (channel === 'band') this.showBand(text, tier, restart);
+    else if (channel === 'pop') this.showBigPop(text, sub);
+    else if (channel === 'cm_burst') this.showComboBurst(text, sub, tier);
+    else if (channel === 'band') this.showBand(text, tier, restart, sub);
   }
 
-  // Full-width consumption band. One persistent element, restarted rather than
-  // recreated, so a run of celebrations never grows the DOM (SYS-904/GWT-903).
-  // Text, never markup: the phrase table can therefore never be an injection
-  // surface if a phrase ever comes from anywhere but the repo (NFR-07).
-  showBand(text, tier = 'hype', restart = true) {
+  // Full-width anime consumption & combo battle band.
+  // One persistent element, restarted rather than recreated.
+  showBand(text, tier = 'hype', restart = true, sub = '') {
     const el = this.band;
     this.bandText.textContent = text;
+    if (this.bandSub) {
+      if (sub) {
+        this.bandSub.textContent = sub;
+        this.bandSub.classList.remove('hidden');
+      } else {
+        this.bandSub.textContent = '';
+        this.bandSub.classList.add('hidden');
+      }
+    }
     el.className = `tier-${tier}`;
     if (restart) { void el.offsetWidth; }
     el.classList.add('show');
@@ -161,7 +190,7 @@ export class HUD {
   hide() { this.root.classList.add('hidden'); this._showMinimap(false); }
 
   setLevel(level, metroName) {
-    this.banner.textContent = level.index === 'SANDBOX' ? `✦ ${metroName}` : `LEVEL ${level.index} - ${metroName}`;
+    this.banner.textContent = level.index === 'SANDBOX' ? `✦ ${metroName} · SANDBOX ✦` : `LEVEL ${level.index} · ${metroName}`;
   }
 
   showToast(text, ms = 2200) {
@@ -172,15 +201,52 @@ export class HUD {
   }
 
   // Center-screen celebration pop ("SIZE 2!") — CSS animation does the show.
-  showBigPop(text) {
+  showBigPop(text, sub = '✦ EXPANDING VORTEX ✦') {
     const el = this.bigPop;
-    el.textContent = text;
+    if (!el) return;
+    if (this.bigPopText) {
+      this.bigPopText.textContent = text;
+      if (this.bigPopSub) this.bigPopSub.textContent = sub;
+    } else {
+      el.textContent = text;
+    }
     el.classList.remove('hidden');
     el.style.animation = 'none';
     void el.offsetWidth; // restart the animation on repeat triggers
     el.style.animation = '';
     clearTimeout(this._bigPopTimer);
-    this._bigPopTimer = setTimeout(() => el.classList.add('hidden'), 1200);
+    this._bigPopTimer = setTimeout(() => el.classList.add('hidden'), 1250);
+  }
+
+  // Anime Combo Burst over the combo meter widget (+20% diameter)
+  showComboBurst(multText, subText = 'COMBO!', level = 1) {
+    const el = this.comboBurst;
+    if (!el) return;
+    const numLevel = typeof level === 'number' ? level : 1;
+    let color = '#ffd23f';
+    let glow = 'rgba(255, 210, 63, 0.85)';
+    if (numLevel >= 8) {
+      color = '#00e5ff';
+      glow = 'rgba(0, 229, 255, 0.95)';
+    } else if (numLevel >= 6) {
+      color = '#ff2a2a';
+      glow = 'rgba(255, 42, 42, 0.9)';
+    } else if (numLevel >= 4) {
+      color = '#ff9f1c';
+      glow = 'rgba(255, 159, 28, 0.85)';
+    }
+
+    el.style.setProperty('--cm-burst-color', color);
+    el.style.setProperty('--cm-burst-glow', glow);
+    if (this.comboBurstMult) this.comboBurstMult.textContent = multText;
+    if (this.comboBurstSub) this.comboBurstSub.textContent = subText;
+
+    el.classList.remove('hidden');
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+    clearTimeout(this._comboBurstTimer);
+    this._comboBurstTimer = setTimeout(() => el.classList.add('hidden'), 1100);
   }
 
   update(sim) {
@@ -188,24 +254,10 @@ export class HUD {
     const frac = Math.min(1, p.mass / sim.level.target);
     this.massBar.style.width = `${(frac * 100).toFixed(1)}%`;
     this.massLabel.textContent = `${Math.floor(p.mass)} / ${sim.level.target} collected`;
-    const t = Math.max(0, Math.ceil(sim.timeLeft));
-    const mins = Math.floor(t / 60);
-    const secs = t % 60;
-    this.timer.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
-    this.timer.classList.toggle('low', t <= 10);
-    // The campaign keeps its countdown in #timer, which it has always owned
-    // (the sandbox is the mode that repurposed #timer as a coin readout and
-    // therefore needed a pill of its own). Turned off EXPLICITLY rather than
-    // left alone: the HUD instance outlives a mode switch, so a sandbox run
-    // followed by a campaign level would otherwise strand a frozen countdown.
-    this._updateClock(null);
+    this._updateClock(sim.timeLeft);
+    this.timer.classList.add('hidden');
     if (p.chain >= 2) {
       this.comboLabel.classList.remove('hidden');
-      // CHAIN, then the multiplier that chain actually buys — read from the
-      // campaign sim's own ladder, which caps at 3.0. This used to print
-      // `COMBO x{chain}`, so a 47-eat chain claimed x47 for a run scoring at
-      // x3.0 (T-309). Same defect ADR-0015 closed for the sandbox pill, still
-      // live here because the campaign HUD was never part of that pass.
       this.comboLabel.textContent = `CHAIN ${p.chain} · x${campaignComboMult(p.chain).toFixed(1)}`;
     } else {
       this.comboLabel.classList.add('hidden');
@@ -274,24 +326,44 @@ export class HUD {
     this._updateCombo(h);
     this._updatePowerUps(h.activePowerUps);
     this._updateScreenHeat(h.chain, h.activePowerUps || sim.activePowerUps);
+
+    // Endgame remaining blocks counter (displays when <= 100 blocks remain or <= 30s left)
+    const standingBlocks = sim.remainingBlocksCount != null
+      ? sim.remainingBlocksCount
+      : (sim.blocks ? sim.blocks.filter((b) => b.state !== 'eaten' && b.state !== 'consumed').length : 0);
+    
+    if (this.blocksLeftPill) {
+      if (!sim.won && standingBlocks > 0 && (standingBlocks <= 100 || (clockSeconds != null && clockSeconds <= 30))) {
+        this.blocksLeftPill.classList.remove('hidden');
+        if (this.blocksLeftText) {
+          this.blocksLeftText.textContent = `${standingBlocks} BLOCKS LEFT`;
+        }
+      } else {
+        this.blocksLeftPill.classList.add('hidden');
+      }
+    }
   }
 
   _updateScreenHeat(chain, activeList) {
     if (!this._appEl) this._appEl = document.getElementById('app');
     if (!this._appEl) return;
-    const lvl = comboLevel(chain || 0);
-    this._appEl.classList.toggle('combo-lvl-4', lvl >= 4 && lvl < 6);
-    this._appEl.classList.toggle('combo-lvl-6', lvl >= 6 && lvl < 8);
-    this._appEl.classList.toggle('combo-lvl-8', lvl >= 8);
 
     const isVortex = hasActivePowerUp(activeList, POWERUP_TYPES.VORTEX);
     const isTitan = hasActivePowerUp(activeList, POWERUP_TYPES.TITAN);
     const isFrenzy = hasActivePowerUp(activeList, POWERUP_TYPES.FRENZY);
     const isSpeed = hasActivePowerUp(activeList, POWERUP_TYPES.SPEED);
+    const isChrono = hasActivePowerUp(activeList, POWERUP_TYPES.CHRONO);
+
     this._appEl.classList.toggle('pu-vortex-active', isVortex);
     this._appEl.classList.toggle('pu-titan-active', isTitan);
     this._appEl.classList.toggle('pu-frenzy-active', isFrenzy);
     this._appEl.classList.toggle('pu-speed-active', isSpeed);
+
+    if (this.chronoOverlay) this.chronoOverlay.classList.toggle('hidden', !isChrono);
+    if (this.vortexOverlay) this.vortexOverlay.classList.toggle('hidden', !isVortex);
+    if (this.titanOverlay) this.titanOverlay.classList.toggle('hidden', !isTitan);
+    if (this.speedOverlay) this.speedOverlay.classList.toggle('hidden', !isSpeed);
+    if (this.chainOverlay) this.chainOverlay.classList.toggle('hidden', !isFrenzy);
   }
 
   _updatePowerUps(activeList) {
@@ -333,7 +405,6 @@ export class HUD {
         `;
 
         this.powerupBadges.appendChild(el);
-        // Remove initial flyout-in class on next frame so CSS transition animates the flyout
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             if (el) el.classList.remove('flyout-in');

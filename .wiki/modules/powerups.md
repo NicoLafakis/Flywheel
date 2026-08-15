@@ -17,23 +17,41 @@ Provides collectible in-game power-up entities and active status effects across 
 
 | Power-Up | Key | Duration | Color | Effect |
 |----------|-----|----------|-------|--------|
-| **Vortex Vacuum** | `VORTEX` | 10s | Cyan (`#00f0ff`) | Generates a gravitational vortex pulling edible objects and loose debris into the hole. |
-| **Turbo Overdrive** | `SPEED` | 12s | Gold (`#ffb700`) | Grants +70% speed boost and heightened handling. |
-| **Titan Surge** | `TITAN` | 12s | Red (`#ff3366`) | Increases effective hole radius (+50%) and unlocks eating items 2 tiers higher. |
-| **Seismic Quake** | `QUAKE` | Instant | Orange (`#ff7700`) | Sends a seismic shockwave shattering nearby static structures into bite-sized loose debris. |
-| **Chain Frenzy** | `FRENZY` | 15s | Purple (`#a855f7`) | Freezes the combo timer decay and doubles (2×) all score point multipliers. |
-| **Chrono Burst** | `CHRONO` | +15s (bonus clock) | Ice Blue (`#38bdf8`) | Adds +15 seconds to remaining level time and doubles swallow speed throughput. |
+| **Vortex Vacuum** | `VORTEX` | 15s | Cyan (`#00d2ff`) | Generates a gravitational vortex pulling edible objects and loose debris straight into the hole. |
+| **Turbo Overdrive** | `SPEED` | 15s | Gold (`#ffb703`) | Grants +70% speed boost, lightning speed streaks, and instant steering agility. |
+| **Titan Surge** | `TITAN` | 15s | Crimson (`#d90429`) | Increases effective hole radius (+50%), unlocks eating buildings 2 tiers higher, and displays colossal Kanji banner. |
+| **Fault Line Rupture** | `QUAKE` | Instant | Orange (`#f77f00`) | Rips a massive fault fissure through the city, snapping foundations and toppling skyscrapers into rubble. |
+| **Chain Frenzy** | `FRENZY` | 15s | Magenta (`#7209b7`) | Freezes combo timer decay, wraps screen in dragon fire combustion, and doubles (2×) all scored points. |
+| **Chrono Freeze** | `CHRONO` | 15s | Frost Cyan (`#4cc9f0`) | Freezes the game clock for 15s with crystalline frost vignette and locks the combo meter risk-free. |
 
-## Spawning & Roaming Rules
+## Spawning, Cooldown & Lifespan Rules
 
-1. **Dynamic Roaming**: Ground power-ups cruise along streets and open spaces with deterministic wandering velocities (~2.8 m/s) and boundary reflections.
-2. **Intermittent Lifespan**: Ground power-ups persist with a temporary lifespan (~26–28s) and pulse/flicker during their final 4 seconds before dissolving.
-3. **Intermittent Dynamic Spawning**: Every 18–28 seconds, an intermittent power-up spawns dynamically at an open map location (capped at 2 active roaming ground power-ups at any time).
-4. **Score Milestones**: Bonus roaming power-up dropped for every **100,000 points** earned.
-5. **Multiplier Milestones**: Bonus roaming power-up dropped for every **500 points** of multiplier / combo chain achieved.
+1. **Strict Board Maximum**: Exactly 2 power-ups on the board at any given time (`MAX_MAP_POWERUPS = 2`).
+2. **Permanent Ground Lifespan**: Ground power-ups persist indefinitely until collected (`lifespan = Infinity`) and will not despawn over time.
+3. **35-Second Spawning Cadence & Post-Collection Cooldown**:
+   - Initial spawn places up to 2 power-ups at the start of a map.
+   - When a power-up is consumed by the player, a **35-second cooldown timer** starts before another power-up can spawn (as long as active on board < 2).
+   - If neither power-up is eaten, they remain unchanged and in place.
+4. **Duration Standardization**: All timed buffs last for **15.0 seconds** (`duration: 15.0`).
+
+## Visual Feedback, Screen FX & Endgame Systems
+
+- **Anime Active Screen Overlays**:
+  - `Chrono Freeze`: Crystalline frost vignette, ambient frost shimmer, and `❄️ TIME FROZEN ❄️` header.
+  - `Vortex Vacuum`: Inward swirling gravitational warp distortion and radial accretion rays.
+  - `Titan Surge`: Golden-crimson border flare and Kanji expansion header (`巨 大 化`).
+  - `Turbo Overdrive`: High-velocity anime lightning streaks along screen borders.
+  - `Chain Frenzy`: Dragon fire flame borders and glowing chain particles.
+- **Louder Combo Multiplier**: `#cm-burst` overlays the combo meter with 3D comic typography, spinning dashed halos, and radial shock rings.
+- **Endgame Remaining Blocks Pill & 3D Beacons**:
+  - Displays `#blocks-left-pill` (`🎯 42 BLOCKS LEFT`) when uneaten blocks drop below 100 or when time remaining is `≤ 30s`.
+  - Generates 3D downward-pointing glowing beacon arrows and pulsating ground locator rings above remaining standing blocks to help players pinpoint every last building for 100% full clears.
+- **Scheduled Natural Disasters**:
+  - **1m30s Elapsed**: Triggers **Seismic Super Quake** (`⚠️ NATURAL DISASTER: SEISMIC QUAKE! ⚠️`) with full-map fault fissures and building foundation collapses.
+  - **1m Before End**: Triggers **Meteor Shower** (`⚠️ NATURAL DISASTER: METEOR SHOWER! ⚠️`) bombarding building clusters with stratospheric fireballs and loose debris.
 
 ## Architecture & Invariants
 
 - **Pure Sim Determinism**: `js/powerups.js` contains no DOM or three.js dependencies. Randomness is strictly driven through `RNG` (`js/rng.js`). Roaming drift and distance calculations use `fwmath.js` helpers (`fwHypot2`, `fwCos`, `fwSin`).
-- **3D Render Representation**: Represented as floating, rotating luminous crystals with hover bobbing animation, dynamic position tracking, expiring flicker animation, and particle flare bursts on collect/despawn.
+- **3D Render Representation**: Floating luminous crystals with hover bobbing, dynamic position tracking, and particle flares on collection.
 - **HUD & Visual Feedback**: Active power-up pills fly out smoothly into view, maintain steady solid countdown timer progress, pulse during expiry (last 3s), and slide back out upon expiration. Collection triggers screen ambient edge color pulses and WebAudio fanfares.

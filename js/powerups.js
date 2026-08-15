@@ -21,9 +21,12 @@ export const POWERUP_SPECS = {
     desc: 'Pulls nearby loose rubble and edible objects straight into your mouth!',
     color: 0x00d2ff,
     glowColor: 0x0055ff,
-    duration: 10.0,
-    radius: 18.0,
-    pullForce: 32.0,
+    duration: 15.0,
+    radius: 20.0,
+    pullForce: 34.0,
+    pokeType: 'PSYCHIC / GRAVITY',
+    pokeLevel: 65,
+    pokeRarity: 'LEGENDARY',
   },
   [POWERUP_TYPES.SPEED]: {
     id: POWERUP_TYPES.SPEED,
@@ -33,8 +36,11 @@ export const POWERUP_SPECS = {
     desc: '+70% movement speed and instant steering agility!',
     color: 0xffb703,
     glowColor: 0xff7700,
-    duration: 10.0,
+    duration: 15.0,
     speedMultiplier: 1.7,
+    pokeType: 'ELECTRIC / SPEED',
+    pokeLevel: 55,
+    pokeRarity: 'RARE',
   },
   [POWERUP_TYPES.TITAN]: {
     id: POWERUP_TYPES.TITAN,
@@ -44,9 +50,12 @@ export const POWERUP_SPECS = {
     desc: 'Temporarily enlarges your mouth and unlocks higher tier buildings!',
     color: 0xd90429,
     glowColor: 0xff0055,
-    duration: 8.0,
+    duration: 15.0,
     radiusMultiplier: 1.5,
     tierBonus: 2,
+    pokeType: 'FIGHTING / TITAN',
+    pokeLevel: 70,
+    pokeRarity: 'LEGENDARY',
   },
   [POWERUP_TYPES.QUAKE]: {
     id: POWERUP_TYPES.QUAKE,
@@ -58,6 +67,9 @@ export const POWERUP_SPECS = {
     glowColor: 0xff3300,
     duration: 1.0,
     blastRadius: 35.0,
+    pokeType: 'GROUND / SEISMIC',
+    pokeLevel: 75,
+    pokeRarity: 'MYTHICAL',
   },
   [POWERUP_TYPES.FRENZY]: {
     id: POWERUP_TYPES.FRENZY,
@@ -67,8 +79,11 @@ export const POWERUP_SPECS = {
     desc: 'Combo timer frozen + 2x score points on all consumed objects!',
     color: 0x7209b7,
     glowColor: 0xb5179e,
-    duration: 12.0,
+    duration: 15.0,
     scoreMultiplier: 2.0,
+    pokeType: 'DRAGON / RAGE',
+    pokeLevel: 60,
+    pokeRarity: 'RARE',
   },
   [POWERUP_TYPES.CHRONO]: {
     id: POWERUP_TYPES.CHRONO,
@@ -78,8 +93,11 @@ export const POWERUP_SPECS = {
     desc: 'Freezes the game clock and locks your combo meter — rack up massive chains risk-free!',
     color: 0x4cc9f0,
     glowColor: 0x4361ee,
-    duration: 8.0,
+    duration: 15.0,
     bonusTime: 15.0,
+    pokeType: 'STEEL / TEMPORAL',
+    pokeLevel: 80,
+    pokeRarity: 'MYTHICAL',
   },
 };
 
@@ -100,8 +118,8 @@ export function pickRandomPowerUpType(rng) {
   return ALL_POWERUP_TYPES[Math.min(index, ALL_POWERUP_TYPES.length - 1)];
 }
 
-export const MAX_MAP_POWERUPS = 4;
-export const MIN_POWERUP_SEPARATION = 24.0;
+export const MAX_MAP_POWERUPS = 2;
+export const MIN_POWERUP_SEPARATION = 26.0;
 export const MAX_ACTIVE_BUFFS = 3;
 
 /**
@@ -133,7 +151,7 @@ export function findSpacedPowerUpLocation(existingPowerups, bounds, rng, minSep 
     let nearestDist = Infinity;
     for (let i = 0; i < active.length; i++) {
       const p = active[i];
-      const d = Math.hypot(cx - p.x, cz - p.z);
+      const d = fwHypot2(cx - p.x, cz - p.z);
       if (d < nearestDist) nearestDist = d;
     }
 
@@ -152,9 +170,9 @@ export function findSpacedPowerUpLocation(existingPowerups, bounds, rng, minSep 
 }
 
 /**
- * Create a power-up entity with dynamic wandering velocity and temporary lifespan.
+ * Create a power-up entity with dynamic wandering velocity and permanent lifespan until collected.
  */
-export function createPowerUp(id, type, x, z, spawnedBy = 'map', { lifespan = 28.0, speed = 2.8, angle = 0 } = {}) {
+export function createPowerUp(id, type, x, z, spawnedBy = 'map', { lifespan = Infinity, speed = 2.4, angle = 0 } = {}) {
   const spec = POWERUP_SPECS[type] || POWERUP_SPECS[POWERUP_TYPES.VORTEX];
   return {
     id,
@@ -167,7 +185,7 @@ export function createPowerUp(id, type, x, z, spawnedBy = 'map', { lifespan = 28
     lifespan,
     maxLifespan: lifespan,
     wanderTimer: 0,
-    spawnedBy, // 'map' | 'score_100k' | 'mult_500' | 'intermittent'
+    spawnedBy, // 'map' | 'intermittent'
     collected: false,
     expired: false,
     radius: 1.2,
@@ -176,9 +194,9 @@ export function createPowerUp(id, type, x, z, spawnedBy = 'map', { lifespan = 28
 }
 
 /**
- * Step wandering ground power-ups, update lifespan and handle boundary reflections.
+ * Step wandering ground power-ups and handle boundary reflections.
  * Applies dynamic mutual repulsion so active power-ups do not bunch together.
- * Returns an array of power-ups that expired this frame.
+ * Ground power-ups stay on the map indefinitely until collected.
  */
 export function stepGroundPowerUps(powerups, bounds, dt, rng) {
   const expiredList = [];
@@ -191,13 +209,15 @@ export function stepGroundPowerUps(powerups, bounds, dt, rng) {
     const pu = powerups[i];
     if (pu.collected) continue;
 
-    // Lifespan countdown
-    pu.lifespan -= dt;
-    if (pu.lifespan <= 0) {
-      pu.expired = true;
-      pu.collected = true;
-      expiredList.push(pu);
-      continue;
+    // Lifespan countdown (only if finite)
+    if (isFinite(pu.lifespan)) {
+      pu.lifespan -= dt;
+      if (pu.lifespan <= 0) {
+        pu.expired = true;
+        pu.collected = true;
+        expiredList.push(pu);
+        continue;
+      }
     }
 
     // Dynamic roaming / gentle steer
@@ -206,7 +226,7 @@ export function stepGroundPowerUps(powerups, bounds, dt, rng) {
       pu.wanderTimer = 0;
       const steer = (rng ? (rng.next() - 0.5) : 0) * 1.6;
       const curAngle = Math.atan2(pu.vz || 0.1, pu.vx || 0.1) + steer;
-      const spd = Math.hypot(pu.vx || 0, pu.vz || 0) || 2.8;
+      const spd = fwHypot2(pu.vx || 0, pu.vz || 0) || 2.8;
       pu.vx = fwCos(curAngle) * spd;
       pu.vz = fwSin(curAngle) * spd;
     }

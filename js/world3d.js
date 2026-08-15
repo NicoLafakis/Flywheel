@@ -665,9 +665,18 @@ function makeHoleMesh(color, skin) {
     frenzyAura.rotation.x = -Math.PI / 2;
     frenzyAura.position.y = 0.058;
 
+    const xrayGeo = new THREE.RingGeometry(0.95, 1.10, 48);
+    const xrayRim = new THREE.Mesh(xrayGeo, new THREE.MeshBasicMaterial({
+      color: 0x00e5ff, transparent: true, opacity: 0.65, depthTest: false, depthWrite: false, side: THREE.DoubleSide,
+    }));
+    xrayRim.rotation.x = -Math.PI / 2;
+    xrayRim.position.y = 0.06;
+    xrayRim.renderOrder = 995;
+    group.add(xrayRim);
+
     auraGroup.add(vortexAura, titanAura, frenzyAura);
     group.add(auraGroup);
-    group.userData.powerupAuras = { group: auraGroup, vortex: vortexAura, titan: titanAura, frenzy: frenzyAura };
+    group.userData.powerupAuras = { group: auraGroup, vortex: vortexAura, titan: titanAura, frenzy: frenzyAura, xray: xrayRim };
   } else {
     const ring = new THREE.Mesh(ringGeo(), new THREE.MeshBasicMaterial({
       color,
@@ -830,6 +839,9 @@ export class World3D {
     for (const pu of sim.powerups || []) {
       this._addPowerUpMesh(pu);
     }
+
+    this._activeFissures = [];
+    this._collapsingBuildings = null;
   }
 
   _addPowerUpMesh(pu) {
@@ -865,8 +877,9 @@ export class World3D {
   }
 
   spawnPowerUpSpawnBeams(x, z, color = 0x00d2ff) {
-    this.spawnBurst(x, z, 1.8, color, 2);
-    this.spawnShockRing(x, z, 1.6, color);
+    this.spawnBurst(x, z, 2.4, color, 6);
+    this.spawnShockRing(x, z, 2.5, color);
+    this.spawnShockRing(x, z, 4.2, 0xffffff);
   }
 
   syncHole(mesh, h) {
@@ -1252,10 +1265,205 @@ export class World3D {
 
   setReducedMotion(on) { this.reducedMotion = !!on; }
 
+  spawnFaultLineFissure(x0, z0, x1, z1, angle, length, duration = 0.8) {
+    const steps = Math.max(16, Math.min(50, Math.round(length / 2.5)));
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    const perpX = -sinA;
+    const perpZ = cosA;
+
+    const group = new THREE.Group();
+    const crackSegments = [];
+
+    const magmaMat = new THREE.MeshBasicMaterial({
+      color: 0xff3b00,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+    });
+    const slabMat = new THREE.MeshStandardMaterial({
+      color: 0x1f1917,
+      roughness: 0.9,
+      metalness: 0.1,
+    });
+
+    const boxG = boxGeo();
+
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
+      const segX = x0 + (x1 - x0) * t;
+      const segZ = z0 + (z1 - z0) * t;
+
+      const jag = (pseudoRand() - 0.5) * 1.5;
+      const jagWidth = 1.4 + pseudoRand() * 1.6;
+      const jagDepth = 0.16 + pseudoRand() * 0.2;
+
+      // Magma glowing crevasse
+      const core = new THREE.Mesh(boxG, magmaMat);
+      core.scale.set(jagWidth * 0.85, jagDepth, (length / steps) * 1.1);
+      core.position.set(segX + perpX * jag, 0.02, segZ + perpZ * jag);
+      core.rotation.y = -angle;
+      core.visible = false;
+      group.add(core);
+
+      // Left lifted crust slab
+      const slabL = new THREE.Mesh(boxG, slabMat);
+      slabL.scale.set(jagWidth * 0.55, 0.22, (length / steps) * 0.95);
+      slabL.position.set(segX + perpX * (jag - jagWidth * 0.52), 0.06, segZ + perpZ * (jag - jagWidth * 0.52));
+      slabL.rotation.y = -angle;
+      slabL.rotation.z = (pseudoRand() * 0.2 + 0.08);
+      slabL.visible = false;
+      group.add(slabL);
+
+      // Right lifted crust slab
+      const slabR = new THREE.Mesh(boxG, slabMat);
+      slabR.scale.set(jagWidth * 0.55, 0.22, (length / steps) * 0.95);
+      slabR.position.set(segX + perpX * (jag + jagWidth * 0.52), 0.06, segZ + perpZ * (jag + jagWidth * 0.52));
+      slabR.rotation.y = -angle;
+      slabR.rotation.z = -(pseudoRand() * 0.2 + 0.08);
+      slabR.visible = false;
+      group.add(slabR);
+
+      // Branch crack
+      let branch = null;
+      if (s % 3 === 0 && s > 0 && s < steps - 1) {
+        const branchSign = pseudoRand() > 0.5 ? 1 : -1;
+        const branchLen = 2.0 + pseudoRand() * 3.5;
+        const branchMat = new THREE.MeshBasicMaterial({ color: 0xff5500, transparent: true, opacity: 0.85, depthWrite: false });
+        branch = new THREE.Mesh(boxG, branchMat);
+        branch.scale.set(0.3, 0.06, branchLen);
+        const bAngle = angle + branchSign * (0.6 + pseudoRand() * 0.5);
+        branch.position.set(
+          segX + perpX * (jag + branchSign * 1.1),
+          0.03,
+          segZ + perpZ * (jag + branchSign * 1.1)
+        );
+        branch.rotation.y = -bAngle;
+        branch.visible = false;
+        group.add(branch);
+      }
+
+      crackSegments.push({
+        t,
+        x: segX + perpX * jag,
+        z: segZ + perpZ * jag,
+        core,
+        slabL,
+        slabR,
+        branch,
+        delay: t * duration,
+        activated: false,
+      });
+    }
+
+    this.scene.add(group);
+    if (!this._activeFissures) this._activeFissures = [];
+    this._activeFissures.push({
+      group,
+      magmaMat,
+      slabMat,
+      crackSegments,
+      duration,
+      elapsed: 0,
+      life: 6.0,
+    });
+  }
+
+  skipQuakeCinematic() {
+    if (this._collapsingBuildings && this._collapsingBuildings.length > 0) {
+      for (const cb of this._collapsingBuildings) {
+        if (!cb.fractured) {
+          cb.fractured = true;
+          this.fractureMeshToVoxels(cb.group, null, 0.4);
+          this.scene.remove(cb.group);
+        }
+      }
+      this._collapsingBuildings = null;
+    }
+    if (this._activeFissures && this._activeFissures.length > 0) {
+      for (const f of this._activeFissures) {
+        for (const seg of f.crackSegments) {
+          seg.activated = true;
+          seg.core.visible = true;
+          seg.slabL.visible = true;
+          seg.slabR.visible = true;
+          if (seg.branch) seg.branch.visible = true;
+        }
+      }
+    }
+    this._quakeFxQueue = null;
+  }
+
   // Apply sim events (eats, tides, unlock) then per-frame animation.
   update(dt, events) {
     const sim = this.sim;
-    // --- propagating fault-line VFX ------------------------------------
+
+    // --- Active 3D Tectonic Fissures Animation ---
+    if (this._activeFissures && this._activeFissures.length > 0) {
+      const remainingFissures = [];
+      for (const f of this._activeFissures) {
+        f.elapsed += dt;
+        for (const seg of f.crackSegments) {
+          if (!seg.activated && f.elapsed >= seg.delay) {
+            seg.activated = true;
+            seg.core.visible = true;
+            seg.slabL.visible = true;
+            seg.slabR.visible = true;
+            if (seg.branch) seg.branch.visible = true;
+            this.spawnShockRing(seg.x, seg.z, 6.0, 0xff5500);
+            this.spawnBurst(seg.x, seg.z, 2.5, 0xff8800, 8);
+            this.spawnDustPuff(seg.x, seg.z, 1.3, 0, 0);
+            this.spawnHeatEmber(seg.x, seg.z);
+          }
+        }
+        if (f.elapsed > f.duration + 2.0) {
+          const fadeProgress = (f.elapsed - (f.duration + 2.0)) / 2.5;
+          f.magmaMat.opacity = Math.max(0, 0.95 * (1 - fadeProgress));
+        }
+        if (f.elapsed < f.life) {
+          remainingFissures.push(f);
+        } else {
+          this.scene.remove(f.group);
+        }
+      }
+      this._activeFissures = remainingFissures.length > 0 ? remainingFissures : [];
+    }
+
+    // --- Collapsing Buildings along Fault Line ---
+    if (this._collapsingBuildings && this._collapsingBuildings.length > 0) {
+      const remainingBuildings = [];
+      for (const cb of this._collapsingBuildings) {
+        cb.delay -= dt;
+        if (cb.delay <= 0 && cb.state === 'waiting') {
+          cb.state = 'collapsing';
+          this.spawnDustPuff(cb.obj.x, cb.obj.z, Math.max(1.5, (cb.obj.radius || 1.5) * 1.4), 0, 0);
+          this.spawnBurst(cb.obj.x, cb.obj.z, Math.max(2.5, (cb.obj.radius || 1.5) * 1.6), 0xff6600, 10);
+        }
+        if (cb.state === 'collapsing') {
+          cb.elapsed += dt;
+          const u = Math.min(1, cb.elapsed / 0.45);
+          const tiltRad = u * 0.95 * cb.tiltDir;
+          cb.group.position.y = -u * 1.6;
+          cb.group.rotation.x = cb.origRotX + Math.sin(cb.angle) * tiltRad;
+          cb.group.rotation.z = cb.origRotZ + Math.cos(cb.angle) * tiltRad;
+          cb.group.scale.setScalar(Math.max(0.01, 1 - u * 0.6));
+          if (u >= 0.38 && !cb.fractured) {
+            cb.fractured = true;
+            this.spawnEatParticles(cb.obj.x, cb.obj.z, 0xd0d5dd, 14, cb.obj.radius || 1.5);
+            this.fractureMeshToVoxels(cb.group, null, 0.5);
+            this.scene.remove(cb.group);
+          }
+          if (u < 1) {
+            remainingBuildings.push(cb);
+          }
+        } else {
+          remainingBuildings.push(cb);
+        }
+      }
+      this._collapsingBuildings = remainingBuildings.length > 0 ? remainingBuildings : null;
+    }
+
+    // --- propagating fault-line VFX legacy queue ---
     if (this._quakeFxQueue && this._quakeFxQueue.length > 0) {
       const remaining = [];
       for (const q of this._quakeFxQueue) {
@@ -1314,17 +1522,32 @@ export class World3D {
       } else if (ev.type === 'quake') {
         if (ev.x0 != null && ev.x1 != null) {
           const len = Math.hypot(ev.x1 - ev.x0, ev.z1 - ev.z0);
-          const steps = Math.max(6, Math.min(14, Math.round(len / 8)));
-          const propagationTime = Math.min(0.7, len * 0.006);
-          if (!this._quakeFxQueue) this._quakeFxQueue = [];
-          this.spawnShockRing(ev.x0, ev.z0, 6.0, 0xff5500);
-          this.spawnBurst(ev.x0, ev.z0, 2.5, 0xff8800, 10);
-          for (let s = 1; s <= steps; s++) {
-            const t = s / steps;
-            const fx = ev.x0 + (ev.x1 - ev.x0) * t;
-            const fz = ev.z0 + (ev.z1 - ev.z0) * t;
-            const size = 4.0 + t * 3.0;
-            this._quakeFxQueue.push({ x: fx, z: fz, delay: t * propagationTime, size });
+          const propDuration = Math.min(1.0, Math.max(0.6, len * 0.008));
+          this.spawnFaultLineFissure(ev.x0, ev.z0, ev.x1, ev.z1, ev.angle, len, propDuration);
+          
+          if (ev.affected && ev.affected.length > 0) {
+            if (!this._collapsingBuildings) this._collapsingBuildings = [];
+            for (const obj of ev.affected) {
+              const g = this.meshById.get(obj.id);
+              if (g) {
+                this.meshById.delete(obj.id);
+                const bi = this.blockers.findIndex((b) => b.id === obj.id);
+                if (bi >= 0) this.blockers.splice(bi, 1);
+                const delay = (obj.longDist / Math.max(1, len)) * propDuration;
+                this._collapsingBuildings.push({
+                  group: g,
+                  obj,
+                  angle: ev.angle,
+                  delay,
+                  state: 'waiting',
+                  elapsed: 0,
+                  tiltDir: obj.perpDist >= 0 ? 1 : -1,
+                  origRotX: g.rotation.x,
+                  origRotZ: g.rotation.z,
+                  fractured: false,
+                });
+              }
+            }
           }
         } else {
           this.spawnShockRing(ev.x, ev.z, ev.radius || 24, 0xff7700);

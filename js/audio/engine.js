@@ -398,6 +398,98 @@ export class AudioEngine {
     } catch { /* fallback */ }
   }
 
+  /** Dramatic anime hit-stop freeze impact sound with instant sub-bass drop. */
+  playAnimeHitStop({ vol = 1.0 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      // High-frequency strike snap
+      const oscHigh = this.ctx.createOscillator();
+      const gainHigh = this.ctx.createGain();
+      oscHigh.type = 'triangle';
+      oscHigh.frequency.setValueAtTime(880, now);
+      oscHigh.frequency.exponentialRampToValueAtTime(110, now + 0.12);
+      gainHigh.gain.setValueAtTime(0.4 * this._vol * vol, now);
+      gainHigh.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+      oscHigh.connect(gainHigh);
+      gainHigh.connect(this.sfx);
+      oscHigh.start(now);
+      oscHigh.stop(now + 0.15);
+
+      // Deep subterranean bass drop
+      const oscBass = this.ctx.createOscillator();
+      const gainBass = this.ctx.createGain();
+      oscBass.type = 'sine';
+      oscBass.frequency.setValueAtTime(110, now);
+      oscBass.frequency.exponentialRampToValueAtTime(32, now + 0.7);
+      gainBass.gain.setValueAtTime(0.65 * this._vol * vol, now);
+      gainBass.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+      oscBass.connect(gainBass);
+      gainBass.connect(this.sfx);
+      oscBass.start(now);
+      oscBass.stop(now + 0.8);
+    } catch { /* fallback */ }
+  }
+
+  /** Heavy concrete crumbling & building collapse impact crash. */
+  playBuildingCollapse({ vol = 0.9 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(95 + Math.random() * 25, now);
+      osc.frequency.exponentialRampToValueAtTime(28, now + 0.45);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(320, now);
+      filter.frequency.linearRampToValueAtTime(80, now + 0.45);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.5 * this._vol * vol, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.sfx);
+      osc.start(now);
+      osc.stop(now + 0.52);
+    } catch { /* fallback */ }
+  }
+
+  /** Fast rushing supersonic seismic tear whoosh. */
+  playSeismicRupture({ vol = 1.0 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(45, now + 0.8);
+
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(400, now);
+      filter.frequency.linearRampToValueAtTime(180, now + 0.8);
+      filter.Q.setValueAtTime(2.0, now);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.45 * this._vol * vol, now + 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.sfx);
+      osc.start(now);
+      osc.stop(now + 0.9);
+    } catch { /* fallback */ }
+  }
+
   /** Deep subterranean tectonic fault line earthquake rumble and concrete snapping. */
   playFaultLineQuake({ vol = 1.0 } = {}) {
     if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
@@ -448,6 +540,121 @@ export class AudioEngine {
       gain.connect(this.sfx);
       osc.start(now);
       osc.stop(now + 0.75);
+    } catch { /* fallback */ }
+  }
+
+  /** Iconic Pokémon battle encounter transition stinger and fanfare. */
+  playPokemonEncounter({ vol = 1.0 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+
+      // 1. Rapid rising 6-note battle encounter arpeggio (C5 -> E5 -> G5 -> C6 -> E6 -> G6)
+      const freqs = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
+      const noteDur = 0.048;
+      freqs.forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        const t0 = now + idx * noteDur;
+        osc.frequency.setValueAtTime(freq, t0);
+
+        gain.gain.setValueAtTime(0.001, t0);
+        gain.gain.linearRampToValueAtTime(0.24 * this._vol * vol, t0 + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.001, t0 + noteDur * 1.5);
+
+        osc.connect(gain);
+        gain.connect(this.sfx);
+        osc.start(t0);
+        osc.stop(t0 + noteDur * 1.6);
+      });
+
+      // 2. High-energy retro battle brass blast on the resolve note (C6 octave + G5 harmony)
+      const resolveT = now + freqs.length * noteDur;
+      [1046.50, 783.99, 523.25].forEach((freq) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, resolveT);
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2800, resolveT);
+        filter.frequency.exponentialRampToValueAtTime(600, resolveT + 0.65);
+
+        gain.gain.setValueAtTime(0.001, resolveT);
+        gain.gain.linearRampToValueAtTime(0.28 * this._vol * vol, resolveT + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, resolveT + 0.7);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.sfx);
+        osc.start(resolveT);
+        osc.stop(resolveT + 0.75);
+      });
+
+      // 3. Sub-bass battle drop punch
+      const oscBass = this.ctx.createOscillator();
+      const gainBass = this.ctx.createGain();
+      oscBass.type = 'sine';
+      oscBass.frequency.setValueAtTime(140, resolveT);
+      oscBass.frequency.exponentialRampToValueAtTime(42, resolveT + 0.45);
+      gainBass.gain.setValueAtTime(0.45 * this._vol * vol, resolveT);
+      gainBass.gain.exponentialRampToValueAtTime(0.001, resolveT + 0.5);
+      oscBass.connect(gainBass);
+      gainBass.connect(this.sfx);
+      oscBass.start(resolveT);
+      oscBass.stop(resolveT + 0.52);
+
+      // 4. Shimmering star sparkle
+      [2093.00, 2637.02, 3135.96].forEach((freq, i) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        const st = resolveT + 0.05 + i * 0.06;
+        osc.frequency.setValueAtTime(freq, st);
+        gain.gain.setValueAtTime(0.001, st);
+        gain.gain.linearRampToValueAtTime(0.18 * this._vol * vol, st + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, st + 0.35);
+        osc.connect(gain);
+        gain.connect(this.sfx);
+        osc.start(st);
+        osc.stop(st + 0.38);
+      });
+    } catch { /* fallback */ }
+  }
+
+  /** Heavy skyfall beacon impact and capsule touchdown. */
+  playPokemonDropLand({ vol = 1.0 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      // Skyfall whistle descent
+      const oscWhistle = this.ctx.createOscillator();
+      const gainWhistle = this.ctx.createGain();
+      oscWhistle.type = 'sine';
+      oscWhistle.frequency.setValueAtTime(1200, now);
+      oscWhistle.frequency.exponentialRampToValueAtTime(240, now + 0.25);
+      gainWhistle.gain.setValueAtTime(0.2 * this._vol * vol, now);
+      gainWhistle.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+      oscWhistle.connect(gainWhistle);
+      gainWhistle.connect(this.sfx);
+      oscWhistle.start(now);
+      oscWhistle.stop(now + 0.27);
+
+      // Ground impact slam
+      const impactT = now + 0.22;
+      const oscImpact = this.ctx.createOscillator();
+      const gainImpact = this.ctx.createGain();
+      oscImpact.type = 'triangle';
+      oscImpact.frequency.setValueAtTime(160, impactT);
+      oscImpact.frequency.exponentialRampToValueAtTime(38, impactT + 0.4);
+      gainImpact.gain.setValueAtTime(0.5 * this._vol * vol, impactT);
+      gainImpact.gain.exponentialRampToValueAtTime(0.001, impactT + 0.45);
+      oscImpact.connect(gainImpact);
+      gainImpact.connect(this.sfx);
+      oscImpact.start(impactT);
+      oscImpact.stop(impactT + 0.48);
     } catch { /* fallback */ }
   }
 

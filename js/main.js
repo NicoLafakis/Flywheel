@@ -715,28 +715,46 @@ function frame(ts) {
       for (const ev of events) {
         audio.handleEvent(ev);   // gulps, combo ladder, tiered collapses, stingers
         if (ev.type === 'combo') {
-          // The combo track's OWN vocabulary: a bright tick rising with the
-          // level (GameAudio), and a fast concentric pulse from the meter itself.
-          // Never a screen phrase — those belong to consumption, which fires a
-          // handful of times a level where this fires every few seconds.
           hud.pulseCombo();
-          // Chatter damping (js/skins.js calls it that, for the same reason):
-          // levels 1-4 cross every 7-10 s on a measured route, so they get a
-          // tick and a meter change and nothing that costs a particle. Only the
-          // rare steps are allowed to spend the screen.
-          if (ev.level >= 5) {
-            world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius, ev.top ? 0xff2d1f : 0xffd23f);
-            world.spawnGoldenSparkles(ev.hole.x, ev.hole.z, ev.hole.radius, 10);
-            if (!save.settings.reducedMotion) cam.triggerShake(ev.top ? 0.35 : 0.2);
+          if (ev.level >= 2) {
+            const multNum = typeof ev.mult === 'number' ? ev.mult : ev.level;
+            const comboText = ev.top ? `MAX ${multNum}X` : `${multNum}X`;
+            let subText = 'COMBO!';
+            if (ev.level >= 8 || ev.top) subText = 'GODLIKE!';
+            else if (ev.level >= 6) subText = 'MEGA!';
+            else if (ev.level >= 4) subText = 'HYPER!';
+
+            hud.announce({
+              text: comboText,
+              sub: subText,
+              tier: ev.level,
+              source: 'combo',
+              priority: ANN.COMBO + ev.level,
+              ms: 1100,
+              channel: 'cm_burst',
+            });
+            if (ev.level >= 4) {
+              world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * 1.3, ev.top ? 0xff2d1f : 0x00e5ff);
+              world.spawnGoldenSparkles(ev.hole.x, ev.hole.z, ev.hole.radius, 12);
+              if (!save.settings.reducedMotion) cam.triggerShake(ev.top ? 0.35 : 0.2);
+            }
           }
         } else if (ev.type === 'crash') {
           cam.triggerShake(Math.min(0.6, 0.1 + ev.size * 0.02));
         } else if (ev.type === 'growth') {
-          // SIZE level-up: sting (GameAudio), shake, FOV punch, confetti, big pop
+          // SIZE level-up: sting (GameAudio), shake, FOV punch, confetti, center-screen big pop
           cam.triggerShake(0.4);
           cam.fovKick(7);
           world.spawnBurst(ev.hole.x, ev.hole.z, ev.hole.radius, 0xffd23f, ev.size);
-          hud.announce({ text: `SIZE ${ev.size}!`, source: 'size', priority: ANN.SIZE, ms: 1200, channel: 'pop' });
+          hud.announce({
+            text: `SIZE ${ev.size}!`,
+            sub: '✦ EXPANDING VORTEX ✦',
+            source: 'size',
+            tier: 'size',
+            priority: ANN.SIZE,
+            ms: 1300,
+            channel: 'pop',
+          });
         } else if (ev.type === 'milestone') {
           // Consumption: the widest thing in the mix. GameAudio scales the
           // fanfare by tier; the screen answers with the full-width band.
@@ -746,9 +764,15 @@ function frame(ts) {
             world.spawnBurst(ev.hole.x, ev.hole.z, ev.hole.radius * 1.3, 0xff7700, 8);
           }
           world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * (loud ? 1.6 : 1.2), loud ? 0xffffff : 0xffd23f);
+          const pct = Math.round((ev.frac || (ev.row && ev.row.at) || 0) * 100);
           hud.announce({
-            text: ev.text, tier: ev.tier, source: 'milestone',
-            priority: ANN.MILESTONE, ms: 2000, channel: 'band',
+            text: ev.text,
+            sub: pct >= 100 ? '⚡ FULL MAP EXTINCTION ⚡' : `✦ ${pct}% CITY HARVEST ✦`,
+            tier: ev.tier,
+            source: 'milestone',
+            priority: ANN.MILESTONE + (loud ? 5 : 0),
+            ms: 2200,
+            channel: 'band',
           });
         } else if (ev.type === 'coin') {
           world.spawnGoldenSparkles(ev.hole.x, ev.hole.z, ev.hole.radius, 16);
@@ -764,40 +788,111 @@ function frame(ts) {
           audio.countdownTick();
           hud.announce({
             text: ev.at <= 10 ? `${ev.at} SECONDS!` : `${ev.at} SECONDS LEFT`,
-            source: 'clock', priority: ANN.CLOCK, ms: 1400,
+            sub: '⏰ TIME RUNNING OUT ⏰',
+            source: 'clock',
+            tier: ev.at <= 10 ? 'roar' : 'hype',
+            priority: ANN.CLOCK,
+            ms: 1400,
+            channel: 'band',
           });
         } else if (ev.type === 'powerup_collect') {
           audio.playPowerUpCollect();
-          cam.triggerShake(0.45);
-          cam.fovKick(6);
-          triggerHaptic(45);
-          const spec = ev.powerup.spec || {};
-          hud.announce({
-            text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
-            source: 'powerup',
-            priority: ANN.SIZE,
-            ms: 1800,
-            channel: 'toast',
-          });
+          const isQuake = ev.powerup.type === 'quake' || (ev.powerup.spec && ev.powerup.spec.id === 'quake');
+          if (isQuake) {
+            audio.playAnimeHitStop();
+            audio.playFaultLineQuake();
+            triggerHaptic(90);
+            const quakeEv = events.find((e) => e.type === 'quake') || {
+              x0: sim.hole.x, z0: sim.hole.z,
+              x1: sim.hole.x + 25, z1: sim.hole.z + 25,
+              angle: 0, length: 35,
+            };
+            const prevState = state;
+            state = 'quake_cinematic';
+            const finishQuake = () => {
+              if (state !== 'quake_cinematic') return;
+              screens.dismissEarthquakeCinematic();
+              if (world && world.skipQuakeCinematic) world.skipQuakeCinematic();
+              if (cam && cam.skipEarthquakeCinematic) cam.skipEarthquakeCinematic();
+              state = prevState;
+              lastTs = performance.now();
+            };
+            screens.showEarthquakeCinematic({
+              onSkip: finishQuake,
+              reducedMotion: save.settings.reducedMotion,
+            });
+            cam.startEarthquakeCinematic({
+              x0: quakeEv.x0, z0: quakeEv.z0,
+              x1: quakeEv.x1, z1: quakeEv.z1,
+              angle: quakeEv.angle, length: quakeEv.length,
+              duration: 2.1,
+              reducedMotion: save.settings.reducedMotion,
+              onComplete: finishQuake,
+            });
+          } else {
+            cam.triggerShake(0.45);
+            cam.fovKick(6);
+            triggerHaptic(45);
+            const spec = ev.powerup.spec || {};
+            hud.announce({
+              text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
+              sub: '✦ BUFF ACTIVATED ✦',
+              source: 'powerup',
+              tier: 'powerup',
+              priority: ANN.SIZE,
+              ms: 1800,
+              channel: 'band',
+            });
+            const prevState = state;
+            state = 'powerup_pause';
+            screens.showPowerUpShowcase(ev.powerup, () => {
+              state = prevState;
+              lastTs = performance.now();
+            });
+          }
+        } else if (ev.type === 'powerup_spawn') {
+          audio.playPokemonEncounter();
+          audio.playPokemonDropLand();
+          triggerHaptic(65);
+          const hX = (sim.hole && sim.hole.x) || 0;
+          const hZ = (sim.hole && sim.hole.z) || 0;
           const prevState = state;
-          state = 'powerup_pause';
-          screens.showPowerUpShowcase(ev.powerup, () => {
+          state = 'powerup_encounter';
+
+          const finishPokeIntro = () => {
+            if (state !== 'powerup_encounter') return;
+            screens.dismissPokemonEncounterModal();
+            if (cam && cam.skipPokemonSpawnCinematic) cam.skipPokemonSpawnCinematic();
             state = prevState;
             lastTs = performance.now();
+          };
+
+          screens.showPokemonEncounterModal({
+            powerup: ev.powerup,
+            onSkip: finishPokeIntro,
+            reducedMotion: save.settings.reducedMotion,
           });
-        } else if (ev.type === 'powerup_spawn') {
-          audio.playPowerUpSpawn();
-          const spec = ev.powerup.spec || {};
-          let reasonText = 'POWER-UP SPOTTED!';
-          if (ev.reason === 'score_100k') reasonText = '100K PTS BONUS! POWER-UP DROPPED!';
-          else if (ev.reason === 'mult_500') reasonText = '500 MULT BONUS! POWER-UP DROPPED!';
-          else if (ev.reason === 'intermittent') reasonText = `${spec.icon || '🎁'} ${spec.name || 'POWER-UP'} IS ROAMING!`;
+
+          cam.startPokemonSpawnCinematic({
+            dropX: ev.powerup.x,
+            dropZ: ev.powerup.z,
+            playerX: hX,
+            playerZ: hZ,
+            duration: 1.5,
+            reducedMotion: save.settings.reducedMotion,
+            onComplete: finishPokeIntro,
+          });
+        } else if (ev.type === 'disaster') {
+          cam.triggerShake(1.2);
+          triggerHaptic(100);
           hud.announce({
-            text: reasonText,
-            source: 'powerup_drop',
-            priority: ANN.COMBO,
-            ms: 1800,
-            channel: 'toast',
+            text: ev.title || '⚠️ NATURAL DISASTER! ⚠️',
+            sub: ev.sub || 'CATACLYSM INCOMING!',
+            tier: 'roar',
+            source: 'disaster',
+            priority: ANN.SIZE + 1,
+            ms: 2800,
+            channel: 'band',
           });
         } else if (ev.type === 'quake') {
           cam.triggerShake(0.85);
@@ -830,11 +925,27 @@ function frame(ts) {
               cam.triggerShake(ev.obj.tier >= 6 ? 0.8 : 0.4);
             }
             if (ev.obj.golden) {
-              hud.showToast('GOLDEN! 8x mass', 1200);
+              hud.announce({
+                text: 'GOLDEN! 8X MASS',
+                sub: '✨ RARE TREASURE ✨',
+                tier: 'roar',
+                source: 'golden',
+                priority: ANN.SIZE,
+                ms: 1600,
+                channel: 'band',
+              });
               if (world && world.spawnGoldenSparkles) world.spawnGoldenSparkles(ev.hole.x, ev.hole.z, ev.hole.radius, 16);
             }
             if (ev.obj.kind === 'landmark') {
-              hud.showToast('LANDMARK SWALLOWED!', 2000);
+              hud.announce({
+                text: 'LANDMARK SWALLOWED!',
+                sub: '⚡ COLOSSAL CONSUMPTION ⚡',
+                tier: 'roar',
+                source: 'landmark',
+                priority: ANN.MILESTONE + 10,
+                ms: 2200,
+                channel: 'band',
+              });
               cam.triggerShake(1.4);
               triggerHaptic(60);
               if (world) {
@@ -843,49 +954,146 @@ function frame(ts) {
               }
             }
           }
+        } else if (ev.type === 'combo') {
+          if (ev.hole && ev.hole.isPlayer) {
+            const multStr = typeof ev.mult === 'number' ? ev.mult.toFixed(1) + 'X' : (ev.name || `${ev.mult}X`);
+            const comboText = ev.top ? `MAX ${multStr}` : `${multStr}`;
+            hud.announce({
+              text: comboText,
+              sub: 'COMBO!',
+              tier: ev.level || 1,
+              source: 'combo',
+              priority: ANN.COMBO + (ev.level || 1),
+              ms: 1100,
+              channel: 'cm_burst',
+            });
+          }
         } else if (ev.type === 'bounce') {
           if (ev.hole && ev.hole.isPlayer && !save.settings.reducedMotion) {
             cam.triggerShake(0.2);
           }
         } else if (ev.type === 'powerup_collect') {
           audio.playPowerUpCollect();
-          cam.triggerShake(0.45);
-          cam.fovKick(6);
-          triggerHaptic(45);
-          const spec = ev.powerup.spec || {};
-          hud.announce({
-            text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
-            source: 'powerup',
-            priority: ANN.SIZE,
-            ms: 1800,
-            channel: 'toast',
-          });
+          const isQuake = ev.powerup.type === 'quake' || (ev.powerup.spec && ev.powerup.spec.id === 'quake');
+          if (isQuake && ev.hole && ev.hole.isPlayer) {
+            audio.playAnimeHitStop();
+            audio.playFaultLineQuake();
+            triggerHaptic(90);
+            const quakeEv = events.find((e) => e.type === 'quake') || {
+              x0: sim.player.x, z0: sim.player.z,
+              x1: sim.player.x + 25, z1: sim.player.z + 25,
+              angle: 0, length: 35,
+            };
+            const prevState = state;
+            state = 'quake_cinematic';
+            const finishQuake = () => {
+              if (state !== 'quake_cinematic') return;
+              screens.dismissEarthquakeCinematic();
+              if (world && world.skipQuakeCinematic) world.skipQuakeCinematic();
+              if (cam && cam.skipEarthquakeCinematic) cam.skipEarthquakeCinematic();
+              state = prevState;
+              lastTs = performance.now();
+            };
+            screens.showEarthquakeCinematic({
+              onSkip: finishQuake,
+              reducedMotion: save.settings.reducedMotion,
+            });
+            cam.startEarthquakeCinematic({
+              x0: quakeEv.x0, z0: quakeEv.z0,
+              x1: quakeEv.x1, z1: quakeEv.z1,
+              angle: quakeEv.angle, length: quakeEv.length,
+              duration: 2.1,
+              reducedMotion: save.settings.reducedMotion,
+              onComplete: finishQuake,
+            });
+          } else {
+            cam.triggerShake(0.45);
+            cam.fovKick(6);
+            triggerHaptic(45);
+            const spec = ev.powerup.spec || {};
+            hud.announce({
+              text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
+              sub: '✦ BUFF ACTIVATED ✦',
+              source: 'powerup',
+              tier: 'powerup',
+              priority: ANN.SIZE,
+              ms: 1800,
+              channel: 'band',
+            });
+            const prevState = state;
+            state = 'powerup_pause';
+            screens.showPowerUpShowcase(ev.powerup, () => {
+              state = prevState;
+              lastTs = performance.now();
+            });
+          }
+        } else if (ev.type === 'powerup_spawn') {
+          audio.playPokemonEncounter();
+          audio.playPokemonDropLand();
+          triggerHaptic(65);
+          const pX = (sim.player && sim.player.x) || 0;
+          const pZ = (sim.player && sim.player.z) || 0;
           const prevState = state;
-          state = 'powerup_pause';
-          screens.showPowerUpShowcase(ev.powerup, () => {
+          state = 'powerup_encounter';
+
+          const finishPokeIntro = () => {
+            if (state !== 'powerup_encounter') return;
+            screens.dismissPokemonEncounterModal();
+            if (cam && cam.skipPokemonSpawnCinematic) cam.skipPokemonSpawnCinematic();
             state = prevState;
             lastTs = performance.now();
+          };
+
+          screens.showPokemonEncounterModal({
+            powerup: ev.powerup,
+            onSkip: finishPokeIntro,
+            reducedMotion: save.settings.reducedMotion,
           });
-        } else if (ev.type === 'powerup_spawn') {
-          audio.playPowerUpSpawn();
-          const spec = ev.powerup.spec || {};
-          let reasonText = 'POWER-UP SPOTTED!';
-          if (ev.reason === 'score_100k') reasonText = '100K PTS BONUS! POWER-UP DROPPED!';
-          else if (ev.reason === 'mult_500') reasonText = '500 MULT BONUS! POWER-UP DROPPED!';
-          else if (ev.reason === 'intermittent') reasonText = `${spec.icon || '🎁'} ${spec.name || 'POWER-UP'} IS ROAMING!`;
+
+          cam.startPokemonSpawnCinematic({
+            dropX: ev.powerup.x,
+            dropZ: ev.powerup.z,
+            playerX: pX,
+            playerZ: pZ,
+            duration: 1.5,
+            reducedMotion: save.settings.reducedMotion,
+            onComplete: finishPokeIntro,
+          });
+        } else if (ev.type === 'disaster') {
+          cam.triggerShake(1.2);
+          triggerHaptic(100);
           hud.announce({
-            text: reasonText,
-            source: 'powerup_drop',
-            priority: ANN.COMBO,
-            ms: 1800,
-            channel: 'toast',
+            text: ev.title || '⚠️ NATURAL DISASTER! ⚠️',
+            sub: ev.sub || 'CATACLYSM INCOMING!',
+            tier: 'roar',
+            source: 'disaster',
+            priority: ANN.SIZE + 1,
+            ms: 2800,
+            channel: 'band',
           });
         } else if (ev.type === 'quake') {
           cam.triggerShake(0.85);
           triggerHaptic(75);
-        } else if (ev.type === 'tide') hud.showToast('THE TIDE IS RISING!', 2500);
-        else if (ev.type === 'unlocked') {
-          hud.showToast('LANDMARK SHIELD DOWN!', 2500);
+        } else if (ev.type === 'tide') {
+          hud.announce({
+            text: 'THE TIDE IS RISING!',
+            sub: '🌊 WATER SURGE 🌊',
+            tier: 'hype',
+            source: 'tide',
+            priority: ANN.SIZE,
+            ms: 2000,
+            channel: 'band',
+          });
+        } else if (ev.type === 'unlocked') {
+          hud.announce({
+            text: 'LANDMARK SHIELD DOWN!',
+            sub: '✦ READY TO DEVOUR ✦',
+            tier: 'hype',
+            source: 'unlocked',
+            priority: ANN.SIZE,
+            ms: 2000,
+            channel: 'band',
+          });
           triggerHaptic(50);
         }
       }
@@ -899,6 +1107,16 @@ function frame(ts) {
       hud.update(sim);
       hud.drawMinimap(sim);
       if (sim.over) endLevel();
+    }
+  } else if ((state === 'quake_cinematic' || state === 'powerup_encounter') && world && cam) {
+    world.update(realDt, []);
+    const h = (sim && sim.hole) || (sim && sim.player) || { x: 0, z: 0, radius: 2 };
+    cam.update(realDt, h.x, h.z, h.radius, 0, 0, false, null);
+    world.render(cam.camera);
+    if (sim && sim.hole) hud.updateSandbox(sim);
+    else if (sim && sim.player) {
+      hud.update(sim);
+      hud.drawMinimap(sim);
     }
   } else if ((state === 'paused' || state === 'results') && world && cam) {
     world.update(0, []);
@@ -946,7 +1164,7 @@ function endSandbox() {
       won: finished.won,
       percent: finished.totalMass ? finished.hole.rawMass / finished.totalMass : 0,
     });
-    if (toCities) { teardownWorld(); state = 'menu'; screens.showTitle(); }
+    if (toCities) { teardownWorld(); state = 'menu'; screens.showCitySelect(); }
     else startVoxelSandbox(finished.scene);
   });
 }

@@ -39,25 +39,166 @@ export const ITEMS = [
   { id: 'growth5', name: '+5% Growth', desc: 'Mass gained is 5% higher.', price: 500 },
 ];
 
-// The free-play shelf on the landing screen. Brooklyn leads because it was the
-// first showcase scene; Boston is the second and carries the same establishing
-// shot and READY gate, so only Brooklyn keeps the pill — two tags side by side
-// read as a bug rather than an endorsement. The pill says START HERE because
-// 'Showcase' answered no question a player was asking (playtest finding). The
-// generic sandbox trails because it is a physics test bed, not a place.
-// `scene` is passed straight to actions.startVoxelSandbox(); the sandbox entry
-// omits it so the undefined lands on that function's own 'gallery' default,
-// which keeps the scene id written down in exactly one place (js/main.js).
-const FREE_PLAY = [
-  { scene: 'brooklyn', name: 'BROOKLYN', sub: 'Bridges to Coney Island', tag: 'START HERE' },
-  { scene: 'boston', name: 'BOSTON', sub: 'Seaport and the Convention Center' },
-  { scene: 'cambridge', name: 'CAMBRIDGE', sub: 'Canal Park to the Portuguese seam' },
-  { scene: 'chicago', name: 'CHICAGO', sub: 'The Loop & Willis Tower' },
-  { scene: 'tokyo', name: 'TOKYO', sub: 'Neo-Shinjuku & Shibuya Crossing' },
-  { scene: 'manhattan', name: 'LOWER MANHATTAN', sub: 'Downtown towers' },
-  { scene: 'upper-manhattan', name: 'UPPER MANHATTAN', sub: 'Central Park' },
-  { name: 'SANDBOX', sub: 'Physics playground' },
+// The master catalog of all single-player metropolis sandboxes.
+// Progression order is dynamically sorted by block count ascending (smallest -> largest).
+// Any future city added automatically threads into its appropriate ladder position.
+export const CITY_CATALOG = [
+  {
+    scene: 'gallery',
+    name: 'THE LAB',
+    location: 'PROVING GROUND',
+    sub: 'Physics playground & training yard',
+    desc: 'Compact starter grid with ramps, street props, and training structures.',
+    tagline: 'WARMUP & CALIBRATION',
+    blocks: 12213,
+    difficulty: 'TIER 1 · CASUAL',
+    badge: 'STARTER',
+    accentColor: '#00f0ff',
+    icon: '🧪',
+    coinCount: 60,
+    coinValue: 1,
+    goalBonus: 25,
+  },
+  {
+    scene: 'manhattan',
+    name: 'LOWER MANHATTAN',
+    location: 'NEW YORK CITY',
+    sub: 'Financial District, Wall Street & Downtown Skyscrapers',
+    desc: 'Dense skyscraper canyon grid with granite plazas and office monoliths.',
+    tagline: 'FINANCIAL GRID',
+    blocks: 25875,
+    difficulty: 'TIER 2 · NORMAL',
+    badge: 'STAGE 1',
+    accentColor: '#ffd23f',
+    icon: '🏦',
+    coinCount: 70,
+    coinValue: 2,
+    goalBonus: 50,
+  },
+  {
+    scene: 'brooklyn',
+    name: 'BROOKLYN',
+    location: 'NEW YORK CITY',
+    sub: 'Bridges to Coney Island, DUMBO & East River Piers',
+    desc: 'Sprawling waterfront with suspension bridges, ferry docks, and warehouses.',
+    tagline: 'WATERFRONT METROPOLIS',
+    blocks: 39984,
+    difficulty: 'TIER 3 · SKILLED',
+    badge: 'STAGE 2',
+    accentColor: '#ff9f1c',
+    icon: '🌉',
+    coinCount: 80,
+    coinValue: 2,
+    goalBonus: 75,
+  },
+  {
+    scene: 'chicago',
+    name: 'CHICAGO LOOP',
+    location: 'CHICAGO, IL',
+    sub: 'The Loop, Willis Tower & Iconic River Crossings',
+    desc: 'Colossal skyscraper grid, elevated rail loops, and deep river ravines.',
+    tagline: 'SKYSCRAPER CANYONS',
+    blocks: 44578,
+    difficulty: 'TIER 4 · EXPERT',
+    badge: 'STAGE 3',
+    accentColor: '#ff2a2a',
+    icon: '🏙️',
+    coinCount: 100,
+    coinValue: 2,
+    goalBonus: 100,
+  },
+  {
+    scene: 'cambridge',
+    name: 'CAMBRIDGE',
+    location: 'MASSACHUSETTS',
+    sub: 'Kendall Square, Canal Park & Lechmere Seam',
+    desc: 'Tech district featuring winding waterways, brick labs, and modern campuses.',
+    tagline: 'INNOVATION HUB',
+    blocks: 72943,
+    difficulty: 'TIER 5 · MASTER',
+    badge: 'STAGE 4',
+    accentColor: '#9d4edd',
+    icon: '🧬',
+    coinCount: 120,
+    coinValue: 3,
+    goalBonus: 150,
+  },
+  {
+    scene: 'upper-manhattan',
+    name: 'UPPER MANHATTAN',
+    location: 'NEW YORK CITY',
+    sub: 'Central Park perimeter & Historic Brownstones',
+    desc: 'Vast parkland surrounded by classic avenues, grand museums, and brownstone rows.',
+    tagline: 'PARKLAND & UPTOWN',
+    blocks: 73393,
+    difficulty: 'TIER 6 · GRANDMASTER',
+    badge: 'STAGE 5',
+    accentColor: '#06d6a0',
+    icon: '🌳',
+    coinCount: 140,
+    coinValue: 3,
+    goalBonus: 200,
+  },
+  {
+    scene: 'boston',
+    name: 'BOSTON SEAPORT',
+    location: 'MASSACHUSETTS',
+    sub: 'Seaport Boulevard, BCEC & Historic Harbor',
+    desc: 'Massive convention halls, seaport piers, and high-density coastal blocks.',
+    tagline: 'COASTAL EXPEDITION',
+    blocks: 82894,
+    difficulty: 'TIER 7 · TITAN',
+    badge: 'STAGE 6',
+    accentColor: '#3a86ff',
+    icon: '⚓',
+    coinCount: 160,
+    coinValue: 4,
+    goalBonus: 300,
+  },
+  {
+    scene: 'tokyo',
+    name: 'TOKYO SHINJUKU',
+    location: 'TOKYO, JAPAN',
+    sub: 'Neo-Shinjuku Skyscraper Grid & Shibuya Scramble',
+    desc: 'Mega metropolis with dazzling neon, endless towers, and famous crossings.',
+    tagline: 'MEGA METROPOLIS',
+    blocks: 84122,
+    difficulty: 'TIER 8 · APEX',
+    badge: 'FINAL APEX',
+    accentColor: '#ff0054',
+    icon: '🗼',
+    coinCount: 200,
+    coinValue: 5,
+    goalBonus: 500,
+  },
 ];
+
+// Returns all cities ordered from smallest to largest size (block count ascending)
+export function getSortedCityCatalog() {
+  return [...CITY_CATALOG].sort((a, b) => a.blocks - b.blocks);
+}
+
+// Progression Gate: A city is unlocked if it is the first in the ladder (The Lab),
+// or if the player has already played it and recorded a score/run on it.
+// If not yet played, it remains unavailable until the previous city has been
+// cleared at 100% in under the 5-minute (300s) duration limit.
+export function isCityUnlocked(save, cityScene, sortedCatalog) {
+  const catalog = sortedCatalog || getSortedCityCatalog();
+  const idx = catalog.findIndex((c) => c.scene === cityScene);
+  if (idx <= 0) return true; // First city (The Lab) is always unlocked
+  const currentRec = (save?.sandbox || {})[cityScene];
+  if (currentRec && ((currentRec.runs || 0) > 0 || (currentRec.bestScore || 0) > 0 || (currentRec.completions || 0) > 0)) {
+    return true;
+  }
+  const prevCity = catalog[idx - 1];
+  const prevRec = (save?.sandbox || {})[prevCity.scene];
+  if (!prevRec) return false;
+  
+  // Previous city must have a 100% clear (completions > 0 or bestPercent >= 1.0) achieved within the 5-minute (300s) limit
+  const hasFullClear = Boolean((prevRec.completions || 0) > 0 || (prevRec.bestPercent || 0) >= 1.0);
+  const under5Minutes = prevRec.bestTime !== null && prevRec.bestTime !== undefined && prevRec.bestTime <= 300;
+  return Boolean(hasFullClear && under5Minutes);
+}
 
 function el(html) {
   const d = document.createElement('div');
@@ -136,55 +277,41 @@ export class Screens {
     this.current = null;
   }
 
-  // The landing screen. Three tiers, in this order: the mark and the name, the
-  // one campaign entry, then the free-play shelf, then the utilities. The old
-  // version stacked seven buttons of identical weight, which said nothing about
-  // which of them was the game.
+  // The landing screen (Stage 1).
+  // Clean, focused title screen with exact hierarchy:
+  // Play button -> Login | Highest Score -> Skin Progress -> Chicago Challenge -> Records | Shop -> Settings
   showTitle() {
     this.clear();
     if (this.actions.music) this.actions.music('menu');
-    // The live city behind this screen (js/ui/menuscene.js). Mounting the
-    // landing screen is what turns it on and every takeover below turns it off,
-    // so its lifetime is exactly this screen's lifetime and no caller has to
-    // remember either half.
     if (this.actions.menuScene) this.actions.menuScene(true);
-    // Two independent sources of "hold still": the in-game setting, read here,
-    // and the OS preference, handled by the prefers-reduced-motion block in
-    // main.css. Either one alone is enough to park the sprocket and the letters.
     const still = !!(this.save.settings && this.save.settings.reducedMotion);
     const s = el(`<div class="screen fw-landing${still ? ' fw-still' : ''}"></div>`);
 
-    // The wordmark is decorative type (aria-hidden), so the accessible name for
-    // the screen is stated once here and never read twice.
     s.appendChild(el(`<h1 class="fw-a11y">Flywheel. A sprocket's story.</h1>`));
 
+    // Wordmark / Hero
     const hero = el(`<div class="fw-hero"></div>`);
     hero.appendChild(buildSprocket());
     const heroText = el(`<div class="fw-hero-text"></div>`);
-    // 8 = the letter count of FLYWHEEL, so it renders at full size and only a
-    // longer name would ever be scaled down.
     heroText.appendChild(buildBlockWord('FLYWHEEL', { fitChars: 8 }));
     heroText.appendChild(el(`<div class="fw-plate">A SPROCKET'S STORY</div>`));
     hero.appendChild(heroText);
     s.appendChild(hero);
 
-    // Sandboxes are the game now: Brooklyn is the first city, not a campaign map.
-    // The CTA names the city because it hard-launches Brooklyn — 'PLAY A CITY'
-    // promised a choice it never offered (playtest finding).
-    const ctaWrap = el(`<div class="fw-cta-wrap"></div>`);
-    const play = el(`<button type="button" class="fw-cta">PLAY BROOKLYN</button>`);
-    play.onclick = () => this.actions.startVoxelSandbox('brooklyn');
-    ctaWrap.appendChild(play);
+    // 1. Play button (clean, no subtitle)
+    const ctaWrap = el(`<div class="fw-cta-wrap">
+      <button type="button" class="fw-cta" id="btn-main-play">PLAY</button>
+    </div>`);
+    ctaWrap.querySelector('#btn-main-play').onclick = () => this.showCitySelect();
     s.appendChild(ctaWrap);
 
-    // Player status bar: Player login, highest score (overall), and next skin meter.
-    // Displayed above city choices so players immediately see their login identity,
-    // all-time record, and coin progress toward the next skin tier.
+    // 2. Login | Highest Score
     const pb = personalBest(this.save);
     const unlock = nextUnlock(this.save);
-    const strip = el(`<div class="fw-status"></div>`);
 
-    // 1. Player Login / Profile
+    const statsRow = el(`<div class="fw-status-row fw-status-row--split"></div>`);
+
+    // Player Login / Profile
     const claimed = Boolean(this.save.player && this.save.player.name);
     const id = el(`<button type="button" class="fw-stat fw-id${claimed ? '' : ' fw-id--none'}">
       <span class="fw-stat-k">👤 ${claimed ? 'PLAYER' : 'PLAYER LOGIN'}</span>
@@ -196,18 +323,20 @@ export class Screens {
       ? `Profile for ${this.save.player.name}`
       : 'Player Login. Open profile screen to sign in or register.');
     id.onclick = () => this.showProfile();
-    strip.appendChild(id);
+    statsRow.appendChild(id);
 
-    // 2. Highest Score (Overall)
+    // Highest Score
     const scoreVal = (pb.score !== null && pb.score !== undefined && pb.score > 0) ? pb.score : 0;
     const scoreCard = el(`<div class="fw-stat">
       <span class="fw-stat-k">HIGHEST SCORE</span>
       <span class="fw-stat-v">${scoreVal.toLocaleString('en-US')}</span>
       <span class="fw-stat-note">${scoreVal > 0 ? 'OVERALL BEST' : 'NO RUNS YET'}</span>
     </div>`);
-    strip.appendChild(scoreCard);
+    statsRow.appendChild(scoreCard);
+    s.appendChild(statsRow);
 
-    // 3. Graphic coin progress meter till next skin level
+    // 3. Skin Progress (standalone card directly under Login | Highest Score)
+    const meterRow = el(`<div class="fw-status-row fw-status-row--meter"></div>`);
     const currentCoins = this.save.coins || 0;
     if (unlock) {
       const need = Math.max(0, unlock.price - currentCoins);
@@ -271,7 +400,7 @@ export class Screens {
             <span class="fw-stat-note">${unlock.price} coins · UNLOCK IN SHOP</span>
           </button>`);
       goalCard.onclick = () => this.showShop();
-      strip.appendChild(goalCard);
+      meterRow.appendChild(goalCard);
     } else {
       const goalCard = el(`<button type="button" class="fw-stat fw-stat--goal fw-stat--graphic-meter fw-stat--interactive" aria-label="All skins unlocked">
         <div class="fw-meter-header">
@@ -290,112 +419,44 @@ export class Screens {
         <span class="fw-stat-note">VISIT SHOP</span>
       </button>`);
       goalCard.onclick = () => this.showShop();
-      strip.appendChild(goalCard);
+      meterRow.appendChild(goalCard);
     }
-    s.appendChild(strip);
+    s.appendChild(meterRow);
 
-    const group = el(`<section class="fw-group" aria-labelledby="fw-free-play"></section>`);
-    group.appendChild(el(`<div class="fw-group-label" id="fw-free-play">Choose a city · collect coins · grow big</div>`));
-    const chips = el(`<div class="fw-chips"></div>`);
-    let stagger = 0;
-    for (const sc of FREE_PLAY) {
-      // The SANDBOX entry carries no scene id; 'gallery' is startVoxelSandbox's
-      // own default and the key recordSandboxResult writes under.
-      const rec = (this.save.sandbox || {})[sc.scene || 'gallery'];
-      // Two different sentences, because the 180 s clock made them two different
-      // facts (R-2.6). CLEARED ×N is reserved for genuine full clears of the
-      // whole city and would read as a lie on a run that ended at 4%; every
-      // other player who has finished a run gets the record they actually set,
-      // which is how far they got. A record from before the migration has no
-      // `runs`, so it falls back to `completions` and keeps its old line.
-      const runs = rec ? (rec.runs ?? rec.completions ?? 0) : 0;
-      const progress = rec && rec.completions > 0
-        ? `<span class="fw-chip-progress">CLEARED ×${rec.completions} · BEST SIZE ${rec.bestSize}</span>`
-        : (runs > 0
-          ? `<span class="fw-chip-progress">BEST ${Math.floor((rec.bestPercent || 0) * 100)}% · SIZE ${rec.bestSize}</span>`
-          : '');
-      // --i drives the entrance stagger in css/main.css: 40 ms per item, and the
-      // index keeps counting across the locked card below so the whole shelf
-      // deals out in one pass rather than in two overlapping ones.
-      const chip = el(`<button type="button" class="fw-chip${sc.tag ? ' fw-chip--lead' : ''}" style="--i:${stagger++}">
-        <span class="fw-chip-name">${sc.name}</span>
-        <span class="fw-chip-sub">${sc.sub}</span>
-        ${progress}
-        ${sc.tag ? `<span class="fw-chip-tag">${sc.tag}</span>` : ''}
-      </button>`);
-      chip.onclick = () => this.actions.startVoxelSandbox(sc.scene);
-      chips.appendChild(chip);
-    }
-    // One locked thing, named, with its condition in words. Every city is open
-    // — nothing in the save gates a scene — so the only genuinely locked
-    // content in this game is what coins buy, and this is the goal row from
-    // nextUnlock: the cheapest row the bank has not reached yet (or, once every
-    // remaining row is affordable, the cheapest unbought one), drawn as a
-    // silhouette: the shape is there, the colour is not. It reads as a card in
-    // the same shelf because it is the same shelf: this is where "what's next"
-    // lives. Clicking it goes to the shop, which is where the condition is met.
-    if (unlock) {
-      // Locked and affordable are two states of one card, not one state. The
-      // card used to print its price unconditionally, so a player holding 240
-      // coins was told a 100-coin skin "UNLOCKS AT 100 COINS" — a condition
-      // already met, drawn as a silhouette. Same flag as the strip above.
-      const affordable = this.save.coins >= unlock.price;
-      const card = el(`<button type="button" class="fw-chip ${affordable ? 'fw-chip--ready' : 'fw-chip--locked'}" style="--i:${stagger++}">
-        <span class="fw-lock-art" aria-hidden="true"></span>
-        <span class="fw-chip-name">${unlock.name}</span>
-        <span class="fw-chip-sub">${unlock.kind}</span>
-        <span class="fw-chip-progress">${affordable ? `BUY NOW · ${unlock.price} COINS` : `UNLOCKS AT ${unlock.price} COINS`}</span>
-      </button>`);
-      card.onclick = () => this.showShop();
-      chips.appendChild(card);
-    }
-    group.appendChild(chips);
-    s.appendChild(group);
-
-    const util = el(`<div class="fw-utility"></div>`);
+    // 4. Chicago challenge
     if (BOARDS_ENABLED) {
-      // THE RUN is deliberately a separate, bounded score attack rather than a
-      // disguised city clear. Chicago is the first ranked city because it is the
-      // measured low-cost verifier route; more cities join only after their own
-      // replay-budget gate passes.
-      const run = el(`<div class="fw-utility"><button type="button" class="btn secondary">RUN CHICAGO · 90 SECONDS</button></div>`);
-      run.querySelector('button').onclick = () => this.actions.startRankedRun('chicago');
-      s.appendChild(run);
+      const chicagoRow = el(`<div class="fw-menu-row fw-menu-row--full">
+        <button type="button" class="btn secondary btn--chicago">RUN CHICAGO · 90 SECONDS</button>
+      </div>`);
+      chicagoRow.querySelector('button').onclick = () => this.actions.startRankedRun('chicago');
+      s.appendChild(chicagoRow);
+    }
+
+    // 5. Records | Shop
+    const recordsShopRow = el(`<div class="fw-menu-row fw-menu-row--split"></div>`);
+    if (BOARDS_ENABLED) {
       const records = el(`<button type="button" class="btn secondary">RECORDS</button>`);
       records.onclick = () => this.showBoards();
-      util.appendChild(records);
-      // No PROFILE button here. The identity chip at the head of the status
-      // strip is the one route to that screen; a second door in the utility row
-      // would be the same room reached two ways, and this row is for the places
-      // that are not about the player (RECORDS is everyone's, SHOP and SETTINGS
-      // are the game's).
+      recordsShopRow.appendChild(records);
     }
     const shop = el(`<button type="button" class="btn secondary">SHOP</button>`);
     shop.onclick = () => this.showShop();
-    const settings = el(`<button type="button" class="btn secondary">SETTINGS</button>`);
-    settings.onclick = () => this.showSettings(() => this.showTitle());
-    util.append(shop, settings);
-    s.appendChild(util);
+    recordsShopRow.appendChild(shop);
+    s.appendChild(recordsShopRow);
 
-    // The screen's footer: the CC0 sound manifest and the legal line. ONE child
-    // of the landing stack rather than two, because they are one block — and
-    // because .fw-landing's gap is a section gap (up to 24px), which is the
-    // wrong distance between two lines of the same fine print and is pure
-    // vertical cost on a screen that already scrolls at typical desktop heights.
+    // 6. Settings
+    const settingsRow = el(`<div class="fw-menu-row fw-menu-row--full">
+      <button type="button" class="btn secondary btn--settings">SETTINGS</button>
+    </div>`);
+    settingsRow.querySelector('button').onclick = () => this.showSettings(() => this.showTitle());
+    s.appendChild(settingsRow);
+
+    // Footer: sound credits + legal
     const foot = el(`<div class="fw-foot"></div>`);
-    // The same CC0 sound manifest the arena landing carries (arena.html
-    // #sound-credits): not legally required, given anyway.
     foot.appendChild(el(`<div class="fw-credits">SOUND EFFECTS · CC0 · KENNEY.NL · OPENGAMEART (THIMRAS, RANGO MANGO) ·
       FREESOUND (THAIGHAUDIO, COGNITO PERCEPTU, BRAINCLAIM, CRAIGSMITH,
       METROSTOCK99, QUBODUP, PUSHKIN, MRRAP4FOOD, DRBODKIN, TAKAREADS)</div>`));
 
-    // Fine print, and drawn as fine print — quieter than the sound manifest
-    // above it, because the manifest is a thank-you and this is a footer. Plain
-    // <a> to two plain documents rather than buttons into the state machine:
-    // privacy.html and terms.html are standalone pages that have to render for
-    // someone who arrives on a shared link with the game never booting, so the
-    // route to them is the same route a search engine or a store review would
-    // take. Same-origin, no target, so the back button returns to the title.
     foot.appendChild(el(`<div class="fw-legal">
       <a href="privacy.html">PRIVACY</a>
       <a href="terms.html">TERMS</a>
@@ -404,6 +465,303 @@ export class Screens {
 
     this.root.appendChild(s);
     this.current = 'title';
+  }
+
+  // Stage 2: City Selection & Map Progression Screen.
+  // Displays the featured city at center, navigation arrows (and touch swipe) to advance,
+  // ordered strictly from smallest to largest size, with gated progression.
+  showCitySelect(initialIndex = null) {
+    this.clear();
+    if (this.actions.music) this.actions.music('menu');
+    if (this.actions.menuScene) this.actions.menuScene(false);
+
+    const catalog = getSortedCityCatalog();
+    const totalCities = catalog.length;
+
+    // Find default active city: highest unlocked or first uncompleted
+    let defaultIndex = 0;
+    for (let i = 0; i < catalog.length; i++) {
+      if (isCityUnlocked(this.save, catalog[i].scene, catalog)) {
+        defaultIndex = i;
+        const rec = (this.save?.sandbox || {})[catalog[i].scene];
+        if (!rec || (rec.completions || 0) === 0) {
+          break;
+        }
+      }
+    }
+
+    let currentIndex = initialIndex !== null
+      ? Math.max(0, Math.min(totalCities - 1, initialIndex))
+      : defaultIndex;
+
+    const s = el(`<div class="screen fw-city-select" role="region" aria-label="City Metropolis Campaign"></div>`);
+
+    // Top Header: Back Button + Title + Campaign Unlock Count
+    const header = el(`<div class="city-select-header">
+      <button type="button" class="btn secondary city-back-btn" aria-label="Back to Title">← BACK</button>
+      <div class="city-header-center">
+        <h1 class="city-select-title">SELECT CITY</h1>
+        <div class="city-select-sub">ASCENDING METROPOLIS CAMPAIGN</div>
+      </div>
+      <div class="city-progress-badge" id="city-progress-badge">
+        <span class="progress-icon">🏆</span>
+        <span class="progress-text"></span>
+      </div>
+    </div>`);
+    header.querySelector('.city-back-btn').onclick = () => this.showTitle();
+    s.appendChild(header);
+
+    // Carousel Area
+    const carouselWrapper = el(`<div class="city-carousel-wrapper"></div>`);
+
+    const btnPrev = el(`<button type="button" class="city-nav-arrow city-nav-prev" aria-label="Previous City">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>`);
+
+    const cardHost = el(`<div class="city-card-host"></div>`);
+
+    const btnNext = el(`<button type="button" class="city-nav-arrow city-nav-next" aria-label="Next City">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </button>`);
+
+    carouselWrapper.append(btnPrev, cardHost, btnNext);
+    s.appendChild(carouselWrapper);
+
+    // Dots pagination rail
+    const dotsRail = el(`<div class="city-dots-rail" role="tablist" aria-label="City Selection Indicators"></div>`);
+    s.appendChild(dotsRail);
+
+    const renderCard = (direction = 0) => {
+      cardHost.innerHTML = '';
+      dotsRail.innerHTML = '';
+
+      const city = catalog[currentIndex];
+      const unlocked = isCityUnlocked(this.save, city.scene, catalog);
+      const rec = (this.save?.sandbox || {})[city.scene];
+      const prevCity = currentIndex > 0 ? catalog[currentIndex - 1] : null;
+
+      const unlockedCount = catalog.filter((c) => isCityUnlocked(this.save, c.scene, catalog)).length;
+      const progressText = header.querySelector('.progress-text');
+      if (progressText) progressText.textContent = `${unlockedCount} / ${catalog.length} UNLOCKED`;
+
+      btnPrev.disabled = (currentIndex === 0);
+      btnNext.disabled = (currentIndex === totalCities - 1);
+
+      // Render dots
+      catalog.forEach((c, idx) => {
+        const isCur = (idx === currentIndex);
+        const isUnl = isCityUnlocked(this.save, c.scene, catalog);
+        const cRec = (this.save?.sandbox || {})[c.scene];
+        const isClr = (cRec && (cRec.completions || 0) > 0);
+
+        const dot = el(`<button type="button" class="city-dot${isCur ? ' active' : ''}${isClr ? ' cleared' : (isUnl ? ' unlocked' : ' locked')}"
+          role="tab" aria-selected="${isCur ? 'true' : 'false'}"
+          aria-label="City ${idx + 1}: ${c.name} (${isClr ? 'Cleared' : (isUnl ? 'Unlocked' : 'Locked')})">
+          <span class="dot-inner"></span>
+          <span class="dot-num">${idx + 1}</span>
+        </button>`);
+        dot.onclick = () => {
+          if (idx !== currentIndex) {
+            const dir = idx > currentIndex ? 1 : -1;
+            currentIndex = idx;
+            renderCard(dir);
+          }
+        };
+        dotsRail.appendChild(dot);
+      });
+
+      // Format records
+      const bestScoreStr = (rec && typeof rec.bestScore === 'number' && rec.bestScore > 0)
+        ? rec.bestScore.toLocaleString('en-US')
+        : '—';
+      const bestSizeStr = (rec && rec.bestSize) ? `SIZE ${rec.bestSize}` : '—';
+      const bestPercentStr = (rec && rec.bestPercent)
+        ? `${Math.round(rec.bestPercent * 100)}%`
+        : (rec && rec.completions > 0 ? '100%' : '—');
+      const bestTimeStr = (rec && rec.bestTime) ? `${rec.bestTime.toFixed(1)}s` : '—';
+
+      const animClass = direction > 0 ? 'slide-left' : (direction < 0 ? 'slide-right' : '');
+
+      const card = el(`<div class="city-card ${unlocked ? 'city-card--unlocked' : 'city-card--locked'} ${animClass}" style="--city-accent: ${city.accentColor};">
+        <div class="city-card-glow"></div>
+        <div class="city-card-header">
+          <div class="city-badge-group">
+            <span class="city-tag city-tag--loc">📍 ${city.location}</span>
+            <span class="city-tag city-tag--stage">${city.badge}</span>
+          </div>
+          <div class="city-status-wrap">
+            ${rec && rec.completions > 0
+              ? `<span class="city-status-pill city-status--cleared">🏆 CLEARED ×${rec.completions}</span>`
+              : (unlocked && rec && rec.runs > 0
+                ? `<span class="city-status-pill city-status--progress">⚡ BEST ${Math.round((rec.bestPercent || 0) * 100)}%</span>`
+                : (unlocked
+                  ? `<span class="city-status-pill city-status--open">✦ OPEN ✦</span>`
+                  : `<span class="city-status-pill city-status--locked">🔒 LOCKED</span>`))}
+          </div>
+        </div>
+
+        <div class="city-hero-block">
+          <div class="city-icon-float" aria-hidden="true">${city.icon}</div>
+          <h2 class="city-card-title">${city.name}</h2>
+          <div class="city-card-tagline">${city.tagline}</div>
+          <div class="city-card-sub">${city.sub}</div>
+        </div>
+
+        <div class="city-metrics-row">
+          <div class="city-metric-box">
+            <span class="metric-k">📐 CITY SCALE</span>
+            <span class="metric-v">${city.blocks.toLocaleString('en-US')}</span>
+            <span class="metric-sub">VOXEL BLOCKS</span>
+          </div>
+          <div class="city-metric-box">
+            <span class="metric-k">⚡ DIFFICULTY</span>
+            <span class="metric-v">${city.difficulty.split('·')[0].trim()}</span>
+            <span class="metric-sub">${city.difficulty.split('·')[1]?.trim() || 'METROPOLIS'}</span>
+          </div>
+          <div class="city-metric-box">
+            <span class="metric-k">🪙 MAP COINS</span>
+            <span class="metric-v">${city.coinCount} COINS</span>
+            <span class="metric-sub">${city.coinValue > 1 ? `×${city.coinValue} (+${city.goalBonus} CLEAR)` : `(+${city.goalBonus} CLEAR)`}</span>
+          </div>
+        </div>
+
+        <div class="city-records-strip">
+          <div class="record-item">
+            <span class="rec-k">BEST SCORE</span>
+            <span class="rec-v">${bestScoreStr}</span>
+          </div>
+          <div class="record-item">
+            <span class="rec-k">MAX SIZE</span>
+            <span class="rec-v">${bestSizeStr}</span>
+          </div>
+          <div class="record-item">
+            <span class="rec-k">BEST CLEAR</span>
+            <span class="rec-v">${bestPercentStr}</span>
+          </div>
+          <div class="record-item">
+            <span class="rec-k">BEST TIME</span>
+            <span class="rec-v">${bestTimeStr}</span>
+          </div>
+        </div>
+
+        <div class="city-action-row">
+          ${unlocked ? `
+            <button type="button" class="btn fw-cta city-launch-btn">PLAY ${city.name}</button>
+            ${(city.scene === 'chicago' || city.scene === 'brooklyn') && BOARDS_ENABLED ? `
+              <button type="button" class="btn secondary city-ranked-btn">RUN 90s RANKED</button>
+            ` : ''}
+          ` : `
+            <div class="city-locked-notice">
+              <span class="locked-icon">🔒</span>
+              <div class="locked-info">
+                <strong>METROPOLIS LOCKED</strong>
+                <span>Clear <strong>${prevCity ? prevCity.name : 'previous city'}</strong> 100% in under 5 minutes to unlock!</span>
+              </div>
+            </div>
+            <button type="button" class="btn fw-cta city-launch-btn disabled" disabled>🔒 LOCKED</button>
+          `}
+        </div>
+      </div>`);
+
+      const launchBtn = card.querySelector('.city-launch-btn:not(.disabled)');
+      if (launchBtn) {
+        launchBtn.onclick = () => this.actions.startVoxelSandbox(city.scene);
+      }
+      const rankedBtn = card.querySelector('.city-ranked-btn');
+      if (rankedBtn) {
+        rankedBtn.onclick = () => this.actions.startRankedRun(city.scene);
+      }
+
+      cardHost.appendChild(card);
+    };
+
+    btnPrev.onclick = () => {
+      if (currentIndex > 0) {
+        currentIndex--;
+        renderCard(-1);
+      }
+    };
+
+    btnNext.onclick = () => {
+      if (currentIndex < totalCities - 1) {
+        currentIndex++;
+        renderCard(1);
+      }
+    };
+
+    // Swipe gestures on carouselWrapper (Touch + Pointer Drag support)
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+    let isSwiping = false;
+
+    const onPointerDown = (e) => {
+      if (e.target.closest('button')) return;
+      touchStartX = e.clientX ?? (e.touches && e.touches[0]?.clientX) ?? 0;
+      touchStartY = e.clientY ?? (e.touches && e.touches[0]?.clientY) ?? 0;
+      touchStartTime = performance.now();
+      isSwiping = true;
+    };
+
+    const onPointerUp = (e) => {
+      if (!isSwiping) return;
+      isSwiping = false;
+      const endX = e.clientX ?? (e.changedTouches && e.changedTouches[0]?.clientX) ?? 0;
+      const endY = e.clientY ?? (e.changedTouches && e.changedTouches[0]?.clientY) ?? 0;
+      const dx = endX - touchStartX;
+      const dy = endY - touchStartY;
+      const dt = performance.now() - touchStartTime;
+
+      const isFlick = dt < 350 && Math.abs(dx) > 25;
+      const isDrag = Math.abs(dx) > 38;
+
+      if ((isFlick || isDrag) && Math.abs(dx) > Math.abs(dy) * 1.1) {
+        if (dx < 0 && currentIndex < totalCities - 1) {
+          currentIndex++;
+          renderCard(1);
+        } else if (dx > 0 && currentIndex > 0) {
+          currentIndex--;
+          renderCard(-1);
+        }
+      }
+    };
+
+    carouselWrapper.addEventListener('touchstart', onPointerDown, { passive: true });
+    carouselWrapper.addEventListener('touchend', onPointerUp, { passive: true });
+    carouselWrapper.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('mouseup', onPointerUp);
+
+    // Keyboard navigation
+    const keyNav = (e) => {
+      if (!document.body.contains(s)) {
+        window.removeEventListener('keydown', keyNav);
+        window.removeEventListener('mouseup', onPointerUp);
+        return;
+      }
+      if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && currentIndex > 0) {
+        currentIndex--;
+        renderCard(-1);
+      } else if ((e.code === 'ArrowRight' || e.code === 'KeyD') && currentIndex < totalCities - 1) {
+        currentIndex++;
+        renderCard(1);
+      } else if (e.code === 'Escape') {
+        window.removeEventListener('keydown', keyNav);
+        this.showTitle();
+      } else if (e.code === 'Enter' || e.code === 'Space') {
+        const city = catalog[currentIndex];
+        if (isCityUnlocked(this.save, city.scene, catalog)) {
+          window.removeEventListener('keydown', keyNav);
+          this.actions.startVoxelSandbox(city.scene);
+        }
+      }
+    };
+    window.addEventListener('keydown', keyNav);
+
+    // Initial render
+    renderCard(0);
+
+    this.root.appendChild(s);
+    this.current = 'city_select';
   }
 
   showLoading(label) {
@@ -416,7 +774,7 @@ export class Screens {
   }
 
   showWorldMap() {
-    this.showTitle();
+    this.showCitySelect();
   }
 
   // A sandbox run now ends TWO ways and both are normal endings (R-1.3): the
@@ -437,8 +795,10 @@ export class Screens {
     // reaching the goal; a live payout bug from the moment the 180 s clock made
     // timing out the ordinary ending. `sim.won` is the same latch the heading
     // and the percentage read, so all three now state one outcome.
-    const bonus = sim.won ? SANDBOX_GOAL_BONUS : 0;
-    const coins = sim.coinsCollected * SANDBOX_COIN_VALUE + bonus;
+    const coinVal = sim.coinValue || SANDBOX_COIN_VALUE;
+    const goalBonusVal = sim.goalBonus || SANDBOX_GOAL_BONUS;
+    const bonus = sim.won ? goalBonusVal : 0;
+    const coins = sim.coinsCollected * coinVal + bonus;
     // Bank line projects the post-award total: recordSandboxResult runs in the
     // continue callback, so at render time save.coins is still pre-award.
     // The run's peak has to survive the run, or every celebration during it was
@@ -461,8 +821,8 @@ export class Screens {
       <div>${sim.goal.name}</div><div>City cleared <b>${clearedPct}%</b>${newPercent ? ' <span class="rec-new">BEST!</span>' : ''}</div>
       <div>Score <b>${score.toLocaleString('en-US')}</b>${newScore ? ' <span class="rec-new">BEST!</span>' : ''}</div>
       <div>Best chain <b>${best} eats at x${comboMult(best)}</b>${newCombo ? ' <span class="rec-new">BEST!</span>' : ''}</div>
-      <div>Coins found <b>${sim.coinsCollected}/${sim.coins.length}</b></div>
-      ${sim.won ? `<div>Finish bonus <b>+${SANDBOX_GOAL_BONUS}</b></div>` : ''}
+      <div>Coins found <b>${sim.coinsCollected}/${sim.coins.length} (+${sim.coinsCollected * coinVal})</b></div>
+      ${sim.won ? `<div>Finish bonus <b>+${goalBonusVal}</b></div>` : ''}
       ${coins > 0 ? `<div>Coins earned <b>+${coins}</b></div>` : ''}
       <div>Bank <b>🪙 ${this.save.coins + coins}</b></div></div></div>`);
     const again = el(`<button class="btn">PLAY AGAIN</button>`); again.onclick = () => onContinue(false, coins);
@@ -747,6 +1107,140 @@ export class Screens {
 
     this.root.appendChild(s);
     this.current = 'pu_showcase';
+  }
+
+  showEarthquakeCinematic({ onSkip, reducedMotion = false } = {}) {
+    this.dismissEarthquakeCinematic();
+    const overlay = el(`<div id="quake-cinematic-overlay">
+      <div class="quake-cinematic-bar top"></div>
+      ${reducedMotion ? '' : '<div class="quake-impact-flash"></div>'}
+      ${reducedMotion ? '' : '<div class="quake-speed-lines"></div>'}
+      <div class="quake-anime-banner">
+        <div class="quake-banner-sub">⚡ TECTONIC CATACLYSM ⚡</div>
+        <h1 class="quake-banner-title">FAULT LINE RUPTURE</h1>
+        <div class="quake-banner-hint">SPACE / TAP TO SKIP</div>
+      </div>
+      <div class="quake-cinematic-bar bottom"></div>
+    </div>`);
+
+    let done = false;
+    const handleSkip = (e) => {
+      if (done) return;
+      if (e && e.type === 'keydown') {
+        if (e.code !== 'Space' && e.code !== 'Enter' && e.code !== 'Escape') return;
+        e.preventDefault();
+      }
+      done = true;
+      this.dismissEarthquakeCinematic();
+      if (typeof onSkip === 'function') onSkip();
+    };
+
+    window.addEventListener('keydown', handleSkip);
+    overlay.addEventListener('click', handleSkip);
+    overlay.addEventListener('touchstart', handleSkip, { passive: true });
+
+    this._quakeOverlayCleanup = () => {
+      window.removeEventListener('keydown', handleSkip);
+      overlay.removeEventListener('click', handleSkip);
+      overlay.removeEventListener('touchstart', handleSkip);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    };
+
+    document.body.appendChild(overlay);
+    this._quakeOverlayEl = overlay;
+    return overlay;
+  }
+
+  dismissEarthquakeCinematic() {
+    if (this._quakeOverlayEl) {
+      this._quakeOverlayEl.classList.add('fading-out');
+      const cleanup = this._quakeOverlayCleanup;
+      setTimeout(() => {
+        if (cleanup) cleanup();
+      }, 300);
+      this._quakeOverlayEl = null;
+      this._quakeOverlayCleanup = null;
+    }
+  }
+
+  showPokemonEncounterModal({ powerup, onSkip, reducedMotion = false } = {}) {
+    this.dismissPokemonEncounterModal();
+    const spec = (powerup && powerup.spec) || powerup || {};
+    const colorHex = '#' + (spec.color || 0xffb703).toString(16).padStart(6, '0');
+    const glowHex = '#' + (spec.glowColor || 0xff7700).toString(16).padStart(6, '0');
+    const pokeType = spec.pokeType || 'MYTHICAL / POWER';
+    const pokeLevel = spec.pokeLevel || 50;
+    const pokeRarity = spec.pokeRarity || 'LEGENDARY';
+
+    const overlay = el(`<div id="poke-encounter-overlay" style="--poke-color: ${colorHex}; --poke-glow: ${glowHex};">
+      ${reducedMotion ? '' : `
+        <div class="poke-battle-wipe left"></div>
+        <div class="poke-battle-wipe right"></div>
+        <div class="poke-radial-burst"></div>
+      `}
+      <div class="poke-encounter-card">
+        <div class="poke-card-header">
+          <span class="poke-wild-tag">⚡ A WILD POWER-UP HAS APPEARED! ⚡</span>
+          <span class="poke-rarity-badge">${pokeRarity}</span>
+        </div>
+        <div class="poke-card-body">
+          <div class="poke-icon-circle">
+            <span class="poke-icon">${spec.icon || '⚡'}</span>
+            <div class="poke-icon-aura"></div>
+          </div>
+          <div class="poke-info">
+            <div class="poke-name-row">
+              <h1 class="poke-powerup-name">${spec.name || 'POWER-UP'}</h1>
+              <span class="poke-level">Lv.${pokeLevel}</span>
+            </div>
+            <div class="poke-type-pill">TYPE / ${pokeType}</div>
+            <p class="poke-flavor-text">${spec.desc || spec.tagline || 'A powerful booster has landed in the city!'}</p>
+          </div>
+        </div>
+        <div class="poke-card-footer">
+          <span class="poke-prompt-pill">SPACE / TAP TO ENGAGE</span>
+        </div>
+      </div>
+    </div>`);
+
+    let done = false;
+    const handleSkip = (e) => {
+      if (done) return;
+      if (e && e.type === 'keydown') {
+        if (e.code !== 'Space' && e.code !== 'Enter' && e.code !== 'Escape') return;
+        e.preventDefault();
+      }
+      done = true;
+      this.dismissPokemonEncounterModal();
+      if (typeof onSkip === 'function') onSkip();
+    };
+
+    window.addEventListener('keydown', handleSkip);
+    overlay.addEventListener('click', handleSkip);
+    overlay.addEventListener('touchstart', handleSkip, { passive: true });
+
+    this._pokeOverlayCleanup = () => {
+      window.removeEventListener('keydown', handleSkip);
+      overlay.removeEventListener('click', handleSkip);
+      overlay.removeEventListener('touchstart', handleSkip);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    };
+
+    document.body.appendChild(overlay);
+    this._pokeOverlayEl = overlay;
+    return overlay;
+  }
+
+  dismissPokemonEncounterModal() {
+    if (this._pokeOverlayEl) {
+      this._pokeOverlayEl.classList.add('fading-out');
+      const cleanup = this._pokeOverlayCleanup;
+      setTimeout(() => {
+        if (cleanup) cleanup();
+      }, 250);
+      this._pokeOverlayEl = null;
+      this._pokeOverlayCleanup = null;
+    }
   }
 
   showResults(level, sim, onContinue) {

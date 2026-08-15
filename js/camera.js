@@ -224,7 +224,7 @@ export class ChaseCamera {
   constructor(aspect) {
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, CAM_FAR);
     this.yaw = 0;
-    this.pitch = 0.98;           // base elevation angle (rad, ~56.1 deg near-isometric tilt-shift)
+    this.pitch = 0.54;           // base action elevation angle (rad, ~31 deg dynamic 3D third-person chase)
     this.dist = 16;
     this.distScale = 1;         // settings slider multiplier
     this.sandboxSizeProgress = 0;
@@ -284,6 +284,8 @@ export class ChaseCamera {
     this._introDistAspect = 0;
     this._blockerBox = null;  // raw XZ bounds of the blocker list, or null
     this._sceneBox = null;    // pivot the establishing shot looks at, or null
+    this.quakeCinematic = null; // active Dragon Ball earthquake cinematic cutscene state
+    this.pokeSpawnCinematic = null; // active Pokemon powerup spawn cinematic state
   }
 
   setBlockers(list) {
@@ -423,7 +425,63 @@ export class ChaseCamera {
   // Brief FOV widen that eases back — used for growth/milestone moments.
   fovKick(v = 5) {
     if (this.reducedMotion) return;
-    this._fovKick = Math.min(10, this._fovKick + v);
+    this._fovKick = Math.min(24, this._fovKick + v);
+  }
+
+  // ---------------------------------------------------------- earthquake cinematic
+  startEarthquakeCinematic({ x0, z0, x1, z1, angle, length, duration = 2.0, onComplete, reducedMotion = false }) {
+    this.quakeCinematic = {
+      x0, z0, x1, z1, angle, length,
+      duration: Math.max(1.4, duration),
+      time: 0,
+      onComplete,
+      reducedMotion: this.reducedMotion || reducedMotion,
+      savedPitch: this.pitch,
+      savedDist: this.dist,
+    };
+    if (!this.reducedMotion) {
+      this.triggerShake(1.2);
+      this.fovKick(12);
+    }
+  }
+
+  skipEarthquakeCinematic() {
+    if (!this.quakeCinematic) return;
+    const cb = this.quakeCinematic.onComplete;
+    this.quakeCinematic = null;
+    if (typeof cb === 'function') cb();
+  }
+
+  isQuakeCinematicActive() {
+    return this.quakeCinematic !== null;
+  }
+
+  // ---------------------------------------------------------- pokemon spawn cinematic
+  startPokemonSpawnCinematic({ dropX, dropZ, playerX, playerZ, duration = 1.5, onComplete, reducedMotion = false }) {
+    this.pokeSpawnCinematic = {
+      dropX, dropZ, playerX, playerZ,
+      duration: Math.max(1.1, duration),
+      time: 0,
+      onComplete,
+      reducedMotion: this.reducedMotion || reducedMotion,
+      savedPitch: this.pitch,
+      savedDist: this.dist,
+    };
+    if (!this.reducedMotion) {
+      this.triggerShake(0.6);
+      this.fovKick(8);
+    }
+  }
+
+  skipPokemonSpawnCinematic() {
+    if (!this.pokeSpawnCinematic) return;
+    const cb = this.pokeSpawnCinematic.onComplete;
+    this.pokeSpawnCinematic = null;
+    if (typeof cb === 'function') cb();
+  }
+
+  isPokeSpawnCinematicActive() {
+    return this.pokeSpawnCinematic !== null;
   }
 
   // ---------------------------------------------------------- level intro
@@ -764,17 +822,22 @@ export class ChaseCamera {
   // "below the roof" rule the sweep uses, so the two can never disagree about
   // what counts as an obstruction: a camera above b.h is looking over the roof,
   // not stuck in it. b.h === 0 is a blocker the player has demolished.
-  _roofOver(x, z) {
+  _roofOver(x, z, margin = 0.75) {
     let h = 0;
     for (const b of this.blockers) {
-      if (b.h > h && x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) h = b.h;
+      if (b.h > h && x >= (b.minX - margin) && x <= (b.maxX + margin) && z >= (b.minZ - margin) && z <= (b.maxZ + margin)) {
+        h = b.h;
+      }
     }
     return h;
   }
 
-  _insideBlocker(x, y, z) {
+  _insideBlocker(x, y, z, margin = 0.75) {
     for (const b of this.blockers) {
-      if (y < b.h && x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) return true;
+      if (b.h <= 0) continue;
+      if (y < (b.h + 0.4) && x >= (b.minX - margin) && x <= (b.maxX + margin) && z >= (b.minZ - margin) && z <= (b.maxZ + margin)) {
+        return true;
+      }
     }
     return false;
   }
@@ -1030,6 +1093,156 @@ export class ChaseCamera {
       const ov = Math.max(this._overviewDist(), dist * 1.02);
       dist *= Math.pow(ov / dist, this._introK);
     }
+
+    // Earthquake Cinematic Cutscene Camera Override
+    if (this.quakeCinematic) {
+      const qc = this.quakeCinematic;
+      qc.time += dt;
+      const progress = Math.min(1, qc.time / qc.duration);
+
+      if (qc.reducedMotion) {
+        const midX = (qc.x0 + qc.x1) * 0.5;
+        const midZ = (qc.z0 + qc.z1) * 0.5;
+        const blend = progress < 0.85 ? 1 : Math.max(0, (1 - progress) / 0.15);
+        tx = tx + (midX - tx) * blend;
+        tz = tz + (midZ - tz) * blend;
+        const overviewDist = Math.max(34, qc.length * 0.7);
+        dist = dist + (overviewDist - dist) * blend;
+      } else {
+        let cineLookX, cineLookZ, cineDist, cinePitch, cineYaw;
+        if (progress < 0.20) {
+          // Phase 0: Freeze & tight dramatic angle on hole
+          const u = progress / 0.20;
+          cineLookX = qc.x0;
+          cineLookZ = qc.z0;
+          cineDist = 10.0;
+          cinePitch = 0.35;
+          cineYaw = qc.angle + Math.PI;
+          this.triggerShake(0.35 * (1 - u));
+        } else if (progress < 0.45) {
+          // Phase 1: Hypersonic whip-pan to the far end of the fault line
+          const u = (progress - 0.20) / 0.25;
+          const easeU = u * u * (3 - 2 * u);
+          cineLookX = qc.x0 + (qc.x1 - qc.x0) * easeU;
+          cineLookZ = qc.z0 + (qc.z1 - qc.z0) * easeU;
+          cineDist = 12.0 + easeU * Math.min(36, qc.length * 0.38);
+          cinePitch = 0.35 + easeU * 0.25;
+          // Swivel to face back along the fault line corridor
+          const startYaw = qc.angle + Math.PI;
+          const targetYaw = qc.angle + 0.25;
+          cineYaw = startYaw + (targetYaw - startYaw) * easeU;
+        } else if (progress < 0.85) {
+          // Phase 2: Dynamic tracking camera following the propagating rupture
+          const u = (progress - 0.45) / 0.40;
+          const leadU = Math.min(1, u + 0.12);
+          cineLookX = qc.x0 + (qc.x1 - qc.x0) * leadU;
+          cineLookZ = qc.z0 + (qc.z1 - qc.z0) * leadU;
+          cineDist = Math.max(18, Math.min(38, qc.length * 0.42));
+          cinePitch = 0.54;
+          cineYaw = qc.angle + 0.3 + Math.sin(u * Math.PI * 4) * 0.06;
+          this.triggerShake(0.5);
+        } else {
+          // Phase 3: Smooth return to player
+          const u = (progress - 0.85) / 0.15;
+          const easeU = u * u * (3 - 2 * u);
+          const blendOut = 1 - easeU;
+          cineLookX = qc.x0 * blendOut + tx * easeU;
+          cineLookZ = qc.z0 * blendOut + tz * easeU;
+          cineDist = dist;
+          cinePitch = this.pitch;
+          cineYaw = this.yaw;
+          tx = cineLookX;
+          tz = cineLookZ;
+        }
+
+        if (progress < 0.85) {
+          tx = cineLookX;
+          tz = cineLookZ;
+          dist = cineDist;
+          this.pitch = cinePitch;
+          this.yaw = cineYaw;
+        }
+      }
+
+      if (progress >= 1.0) {
+        const cb = qc.onComplete;
+        this.quakeCinematic = null;
+        if (typeof cb === 'function') cb();
+      }
+    }
+
+    // Pokémon Power-Up Spawn Encounter Camera Override
+    if (this.pokeSpawnCinematic) {
+      const pc = this.pokeSpawnCinematic;
+      pc.time += dt;
+      const progress = Math.min(1, pc.time / pc.duration);
+
+      if (pc.reducedMotion) {
+        const midX = (pc.playerX + pc.dropX) * 0.5;
+        const midZ = (pc.playerZ + pc.dropZ) * 0.5;
+        const blend = progress < 0.8 ? 1 : Math.max(0, (1 - progress) / 0.2);
+        tx = tx + (midX - tx) * blend;
+        tz = tz + (midZ - tz) * blend;
+        dist = dist + (28 - dist) * blend;
+      } else {
+        let cineLookX, cineLookZ, cineDist, cinePitch, cineYaw;
+        if (progress < 0.25) {
+          // Phase 0: Dramatic hero freeze frame on player
+          cineLookX = pc.playerX;
+          cineLookZ = pc.playerZ;
+          cineDist = 9.0;
+          cinePitch = 0.38;
+          cineYaw = this.yaw;
+          this.triggerShake(0.3 * (1 - progress / 0.25));
+        } else if (progress < 0.70) {
+          // Phase 1: High-speed whip-pan zoom to power-up drop site
+          const u = (progress - 0.25) / 0.45;
+          const easeU = u * u * (3 - 2 * u);
+          cineLookX = pc.playerX + (pc.dropX - pc.playerX) * easeU;
+          cineLookZ = pc.playerZ + (pc.dropZ - pc.playerZ) * easeU;
+          cineDist = 9.0 + (16.0 - 9.0) * easeU;
+          cinePitch = 0.38 + (0.52 - 0.38) * easeU;
+          const angleToDrop = Math.atan2(pc.dropX - pc.playerX, pc.dropZ - pc.playerZ);
+          cineYaw = this.yaw + (angleToDrop - this.yaw) * easeU;
+        } else if (progress < 0.88) {
+          // Phase 2: Dynamic touchdown framing on the skyfall beacon
+          cineLookX = pc.dropX;
+          cineLookZ = pc.dropZ;
+          cineDist = 16.0;
+          cinePitch = 0.52;
+          const angleToDrop = Math.atan2(pc.dropX - pc.playerX, pc.dropZ - pc.playerZ);
+          cineYaw = angleToDrop;
+          this.triggerShake(0.35);
+        } else {
+          // Phase 3: Smooth return to player chase camera
+          const u = (progress - 0.88) / 0.12;
+          const easeU = u * u * (3 - 2 * u);
+          const blendOut = 1 - easeU;
+          cineLookX = pc.dropX * blendOut + tx * easeU;
+          cineLookZ = pc.dropZ * blendOut + tz * easeU;
+          cineDist = dist;
+          cinePitch = this.pitch;
+          cineYaw = this.yaw;
+          tx = cineLookX;
+          tz = cineLookZ;
+        }
+
+        if (progress < 0.88) {
+          tx = cineLookX;
+          tz = cineLookZ;
+          dist = cineDist;
+          this.pitch = cinePitch;
+          this.yaw = cineYaw;
+        }
+      }
+
+      if (progress >= 1.0) {
+        const cb = pc.onComplete;
+        this.pokeSpawnCinematic = null;
+        if (typeof cb === 'function') cb();
+      }
+    }
+
     const pitch = this.pitch;
     const dirX = Math.sin(this.yaw) * Math.cos(pitch);
     const dirZ = Math.cos(this.yaw) * Math.cos(pitch);
@@ -1173,7 +1386,7 @@ export class ChaseCamera {
     // frame the entire city from outside it, so there is provably no roof above
     // the camera and the lift would be a no-op — excluding it costs nothing and
     // keeps the held pose bit-identical by construction rather than by measurement.
-    if (this.followDir && this.introPhase !== 'hold') {
+    if (this.introPhase !== 'hold') {
       const roof = this._roofOver(cx, cz);
       const need = roof > 0 ? roof + ROOF_CLEAR : 0;
       if (need > this._lift) this._lift = need;

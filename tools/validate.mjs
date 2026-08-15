@@ -1762,7 +1762,7 @@ function validateRewardLadders() {
   if (!sandboxResults.includes('SANDBOX_GOAL_BONUS')) {
     fail('js/ui/screens.js: showSandboxResults no longer mentions SANDBOX_GOAL_BONUS — this guard has stopped watching anything (T-503)');
   } else {
-    if (!/sim\.won\s*\?\s*SANDBOX_GOAL_BONUS\s*:\s*0/.test(sandboxResults)) {
+    if (!/sim\.won\s*\?\s*(?:goalBonusVal|sim\.goalBonus|\(?sim\.goalBonus\s*\|\|\s*SANDBOX_GOAL_BONUS\)?|SANDBOX_GOAL_BONUS)\s*:\s*0/.test(sandboxResults)) {
       fail('js/ui/screens.js: showSandboxResults adds SANDBOX_GOAL_BONUS to the coin payout without gating it on sim.won — a run that timed out at 3% is paid for finishing (T-503)');
     }
     for (const line of sandboxResults.split('\n')) {

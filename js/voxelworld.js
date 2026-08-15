@@ -729,6 +729,21 @@ export class VoxelWorld3D {
     this.frenzyAura.rotation.x = -Math.PI / 2;
     this.frenzyAura.position.y = 0.026;
 
+    // Occlusion Vision Beacon: An always-visible see-through silhouette rim (depthTest: false, renderOrder: 995)
+    // so that when driving behind tall buildings, towers, or trees, the hole and its immediate perimeter
+    // remain perfectly clear and visible through the obstructing geometry.
+    const xrayGeo = new THREE.RingGeometry(0.95, 1.10, 48);
+    const xrayRim = new THREE.Mesh(xrayGeo, new THREE.MeshBasicMaterial({
+      color: 0x00e5ff, transparent: true, opacity: 0.65, depthTest: false, depthWrite: false, side: THREE.DoubleSide,
+    }));
+    xrayRim.rotation.x = -Math.PI / 2;
+    xrayRim.position.y = 0.028;
+    xrayRim.renderOrder = 995;
+    this.xrayRim = xrayRim;
+    this.holeMesh.add(xrayRim);
+    this._ownedGeos.push(xrayGeo);
+    this._ownedMats.push(xrayRim.material);
+
     this.powerupAuraGroup.add(this.vortexAura, this.titanAura, this.frenzyAura);
     this.holeMesh.add(this.powerupAuraGroup);
     this._ownedMats.push(this.vortexAura.material, this.titanAura.material, this.frenzyAura.material);
@@ -794,6 +809,44 @@ export class VoxelWorld3D {
     this._ownedGeos.push(this._powerupGeos.core, this._powerupGeos.ring, this._powerupGeos.base);
     for (const pu of sim.powerups || []) {
       this._addPowerUpMesh(pu);
+    }
+
+    // 3D Endgame Target Locator Beacons for finding straggler blocks
+    this._targetBeacons = [];
+    const beaconArrowGeo = new THREE.ConeGeometry(0.75, 1.8, 4);
+    beaconArrowGeo.rotateX(Math.PI); // Point downwards
+    const beaconRingGeo = new THREE.RingGeometry(0.5, 0.9, 14);
+    beaconRingGeo.rotateX(-Math.PI / 2);
+    const beaconMat = new THREE.MeshBasicMaterial({
+      color: 0xff3300,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.92,
+      side: THREE.DoubleSide,
+    });
+    const beaconRingMat = new THREE.MeshBasicMaterial({
+      color: 0xffd23f,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+    });
+    this._ownedGeos.push(beaconArrowGeo, beaconRingGeo);
+    this._ownedMats.push(beaconMat, beaconRingMat);
+
+    for (let i = 0; i < 24; i++) {
+      const g = new THREE.Group();
+      const arrow = new THREE.Mesh(beaconArrowGeo, beaconMat);
+      arrow.renderOrder = 997;
+      const ring = new THREE.Mesh(beaconRingGeo, beaconRingMat);
+      ring.position.y = -1.0;
+      ring.renderOrder = 996;
+      g.add(arrow, ring);
+      g.visible = false;
+      this.scene.add(g);
+      this._targetBeacons.push(g);
     }
 
     // Marks a skin lays on the GROUND (Attribution's touchpoints, Compounding's
@@ -2189,12 +2242,36 @@ export class VoxelWorld3D {
     this.spawnShockRing(x, z, 2.8, color);
   }
 
-  // Vertical radiant column/burst when a bonus powerup is spawned
-  spawnPowerUpSpawnBeams(x, z, color = 0x00d2ff, count = 16) {
-    if (this.perfMode) count = Math.min(count, 8);
+  // Vertical radiant Pokémon skyfall beacon column and shock burst
+  spawnPowerUpSpawnBeams(x, z, color = 0x00d2ff, count = 20) {
+    if (this.perfMode) count = Math.min(count, 10);
     const geo = boxGeo();
+
+    // 1. High-altitude vertical light pillar
+    const beamGeo = boxGeo();
+    const beamMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.75,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.set(x, 25, z);
+    beam.scale.set(0.7, 50, 0.7);
+    this.scene.add(beam);
+    this.particles.push({
+      mesh: beam,
+      isBeam: true,
+      life: 1.8,
+      maxLife: 1.8,
+      initialScale: 0.7,
+      mat: beamMat,
+    });
+
+    // 2. Touchdown spark burst
     for (let i = 0; i < count; i++) {
-      if (this.particles.length > (this.perfMode ? 60 : 200)) break;
+      if (this.particles.length > (this.perfMode ? 60 : 220)) break;
       const mat = new THREE.MeshBasicMaterial({
         color: i % 2 === 0 ? color : 0xffffff,
         transparent: true,
@@ -2202,21 +2279,22 @@ export class VoxelWorld3D {
         depthWrite: false,
       });
       const m = new THREE.Mesh(geo, mat);
-      m.position.set(x + (Math.random() - 0.5) * 0.6, 0.2 + Math.random() * 0.4, z + (Math.random() - 0.5) * 0.6);
-      m.scale.set(0.1, 0.4 + Math.random() * 0.6, 0.1);
+      m.position.set(x + (Math.random() - 0.5) * 0.8, 0.2 + Math.random() * 0.5, z + (Math.random() - 0.5) * 0.8);
+      m.scale.set(0.12, 0.5 + Math.random() * 0.8, 0.12);
       this.scene.add(m);
       this.particles.push({
         mesh: m,
         isSparks: true,
-        vx: (Math.random() - 0.5) * 1.5,
-        vy: 6.0 + Math.random() * 4.0,
-        vz: (Math.random() - 0.5) * 1.5,
+        vx: (Math.random() - 0.5) * 2.5,
+        vy: 7.0 + Math.random() * 5.0,
+        vz: (Math.random() - 0.5) * 2.5,
         vr: 0,
-        life: 0.5 + Math.random() * 0.3,
-        maxLife: 0.8,
+        life: 0.6 + Math.random() * 0.4,
+        maxLife: 1.0,
       });
     }
-    this.spawnShockRing(x, z, 1.8, color);
+    this.spawnShockRing(x, z, 2.5, color);
+    this.spawnShockRing(x, z, 4.0, 0xffffff);
   }
 
   spawnVortexDustParticle(hx, hz, radius = 2.4, color = 0x00f0ff) {
@@ -2342,6 +2420,125 @@ export class VoxelWorld3D {
       life: 0.35,
       maxLife: 0.35,
     });
+  }
+
+  spawnFaultLineFissure(x0, z0, x1, z1, angle, length, duration = 0.8) {
+    const steps = Math.max(16, Math.min(50, Math.round(length / 2.5)));
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    const perpX = -sinA;
+    const perpZ = cosA;
+
+    const group = new THREE.Group();
+    const crackSegments = [];
+
+    const magmaMat = new THREE.MeshBasicMaterial({
+      color: 0xff3b00,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+    });
+    const slabMat = new THREE.MeshStandardMaterial({
+      color: 0x221c1a,
+      roughness: 0.9,
+      metalness: 0.1,
+    });
+
+    const boxG = boxGeo();
+
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
+      const segX = x0 + (x1 - x0) * t;
+      const segZ = z0 + (z1 - z0) * t;
+
+      const jag = (Math.random() - 0.5) * 1.5;
+      const jagWidth = 1.4 + Math.random() * 1.6;
+      const jagDepth = 0.16 + Math.random() * 0.2;
+
+      // Magma glowing crevasse
+      const core = new THREE.Mesh(boxG, magmaMat);
+      core.scale.set(jagWidth * 0.85, jagDepth, (length / steps) * 1.1);
+      core.position.set(segX + perpX * jag, 0.02, segZ + perpZ * jag);
+      core.rotation.y = -angle;
+      core.visible = false;
+      group.add(core);
+
+      // Left lifted crust slab
+      const slabL = new THREE.Mesh(boxG, slabMat);
+      slabL.scale.set(jagWidth * 0.55, 0.22, (length / steps) * 0.95);
+      slabL.position.set(segX + perpX * (jag - jagWidth * 0.52), 0.06, segZ + perpZ * (jag - jagWidth * 0.52));
+      slabL.rotation.y = -angle;
+      slabL.rotation.z = (Math.random() * 0.2 + 0.08);
+      slabL.visible = false;
+      group.add(slabL);
+
+      // Right lifted crust slab
+      const slabR = new THREE.Mesh(boxG, slabMat);
+      slabR.scale.set(jagWidth * 0.55, 0.22, (length / steps) * 0.95);
+      slabR.position.set(segX + perpX * (jag + jagWidth * 0.52), 0.06, segZ + perpZ * (jag + jagWidth * 0.52));
+      slabR.rotation.y = -angle;
+      slabR.rotation.z = -(Math.random() * 0.2 + 0.08);
+      slabR.visible = false;
+      group.add(slabR);
+
+      // Branch crack
+      let branch = null;
+      if (s % 3 === 0 && s > 0 && s < steps - 1) {
+        const branchSign = Math.random() > 0.5 ? 1 : -1;
+        const branchLen = 2.0 + Math.random() * 3.5;
+        const branchMat = new THREE.MeshBasicMaterial({ color: 0xff5500, transparent: true, opacity: 0.85, depthWrite: false });
+        branch = new THREE.Mesh(boxG, branchMat);
+        branch.scale.set(0.3, 0.06, branchLen);
+        const bAngle = angle + branchSign * (0.6 + Math.random() * 0.5);
+        branch.position.set(
+          segX + perpX * (jag + branchSign * 1.1),
+          0.03,
+          segZ + perpZ * (jag + branchSign * 1.1)
+        );
+        branch.rotation.y = -bAngle;
+        branch.visible = false;
+        group.add(branch);
+      }
+
+      crackSegments.push({
+        t,
+        x: segX + perpX * jag,
+        z: segZ + perpZ * jag,
+        core,
+        slabL,
+        slabR,
+        branch,
+        delay: t * duration,
+        activated: false,
+      });
+    }
+
+    this.scene.add(group);
+    if (!this._activeFissures) this._activeFissures = [];
+    this._activeFissures.push({
+      group,
+      magmaMat,
+      slabMat,
+      crackSegments,
+      duration,
+      elapsed: 0,
+      life: 6.0,
+    });
+  }
+
+  skipQuakeCinematic() {
+    if (this._activeFissures && this._activeFissures.length > 0) {
+      for (const f of this._activeFissures) {
+        for (const seg of f.crackSegments) {
+          seg.activated = true;
+          seg.core.visible = true;
+          seg.slabL.visible = true;
+          seg.slabR.visible = true;
+          if (seg.branch) seg.branch.visible = true;
+        }
+      }
+    }
+    this._quakeFxQueue = null;
   }
 
   // ------------------------------------------------------------ ambient tick
@@ -2700,7 +2897,39 @@ export class VoxelWorld3D {
   // ------------------------------------------------------------------ frame
   update(dt, events) {
     this.time += dt;
-    // --- propagating fault-line VFX ------------------------------------
+
+    // --- Active 3D Tectonic Fissures Animation ---
+    if (this._activeFissures && this._activeFissures.length > 0) {
+      const remainingFissures = [];
+      for (const f of this._activeFissures) {
+        f.elapsed += dt;
+        for (const seg of f.crackSegments) {
+          if (!seg.activated && f.elapsed >= seg.delay) {
+            seg.activated = true;
+            seg.core.visible = true;
+            seg.slabL.visible = true;
+            seg.slabR.visible = true;
+            if (seg.branch) seg.branch.visible = true;
+            this.spawnShockRing(seg.x, seg.z, 7.0, 0xff5500);
+            this.spawnBurst(seg.x, seg.z, 3.0, 0xff8800, 10);
+            this.spawnDustPuff(seg.x, seg.z, 1.4, 0, 0);
+            this.spawnHeatEmber(seg.x, seg.z);
+          }
+        }
+        if (f.elapsed > f.duration + 2.0) {
+          const fadeProgress = (f.elapsed - (f.duration + 2.0)) / 2.5;
+          f.magmaMat.opacity = Math.max(0, 0.95 * (1 - fadeProgress));
+        }
+        if (f.elapsed < f.life) {
+          remainingFissures.push(f);
+        } else {
+          this.scene.remove(f.group);
+        }
+      }
+      this._activeFissures = remainingFissures.length > 0 ? remainingFissures : [];
+    }
+
+    // --- propagating fault-line VFX ---
     // Queued effects fire sequentially along the crack each frame,
     // selling the "crack racing across the map" feel.
     if (this._quakeFxQueue && this._quakeFxQueue.length > 0) {
@@ -2816,6 +3045,38 @@ export class VoxelWorld3D {
       }
     }
 
+    // Update Endgame 3D Target Locator Beacons (when <= 30s remain or <= 100 blocks remain)
+    const standingCount = this.sim.remainingBlocksCount != null
+      ? this.sim.remainingBlocksCount
+      : (this.sim.blocks ? this.sim.blocks.filter((b) => b.state !== 'consumed' && b.state !== 'eaten').length : 0);
+    const showBeacons = !this.sim.won && standingCount > 0 && ((this.sim.timeLeft != null && this.sim.timeLeft <= 30) || standingCount <= 100);
+
+    if (showBeacons && this._targetBeacons && this._targetBeacons.length > 0) {
+      const uneaten = [];
+      for (let i = 0; i < this.sim.blocks.length; i++) {
+        const b = this.sim.blocks[i];
+        if (b.state !== 'consumed' && b.state !== 'eaten') uneaten.push(b);
+      }
+      // Pick up to 24 evenly spaced stragglers across the remaining set
+      const step = Math.max(1, Math.floor(uneaten.length / this._targetBeacons.length));
+      let beaconIdx = 0;
+      for (let i = 0; i < uneaten.length && beaconIdx < this._targetBeacons.length; i += step) {
+        const b = uneaten[i];
+        const beacon = this._targetBeacons[beaconIdx++];
+        const bob = Math.sin(this.time * 6.0 + beaconIdx) * 0.55;
+        beacon.position.set(b.x, b.y + (b.sy || 1) + 2.8 + bob, b.z);
+        beacon.rotation.y += dt * 2.8;
+        beacon.visible = true;
+      }
+      for (let j = beaconIdx; j < this._targetBeacons.length; j++) {
+        this._targetBeacons[j].visible = false;
+      }
+    } else if (this._targetBeacons) {
+      for (let j = 0; j < this._targetBeacons.length; j++) {
+        this._targetBeacons[j].visible = false;
+      }
+    }
+
     for (const ev of events || []) {
       if (ev.type === 'coin') {
         const mesh = this.coinMeshes.get(ev.coin.id);
@@ -2840,15 +3101,37 @@ export class VoxelWorld3D {
         this._addPowerUpMesh(ev.powerup);
         const puColor = ev.powerup.spec ? ev.powerup.spec.color : 0x00d2ff;
         this.spawnPowerUpSpawnBeams(ev.powerup.x, ev.powerup.z, puColor);
+      } else if (ev.type === 'disaster') {
+        if (ev.subtype === 'quake') {
+          if (ev.x0 != null && ev.x1 != null) {
+            const len = Math.hypot(ev.x1 - ev.x0, ev.z1 - ev.z0);
+            this.spawnFaultLineFissure(ev.x0, ev.z0, ev.x1, ev.z1, ev.angle, len, 1.0);
+          }
+          this.spawnShockRing(h.x, h.z, 36.0, 0xff3300);
+          this.spawnBurst(h.x, h.z, 5.0, 0xff7700, 24);
+          this.spawnDustPuff(h.x, h.z, 2.5, 0, 0);
+        } else if (ev.subtype === 'meteor') {
+          for (const s of ev.strikes || []) {
+            if (!this._quakeFxQueue) this._quakeFxQueue = [];
+            this._quakeFxQueue.push({
+              x: s.x,
+              z: s.z,
+              delay: s.delay || 0,
+              size: (s.radius || 6.0) * 1.8,
+            });
+            this.spawnBurst(s.x, s.z, 4.0, 0xff5500, 16);
+            this.spawnDustPuff(s.x, s.z, 1.8, 0, 0);
+          }
+        }
       } else if (ev.type === 'quake') {
         if (ev.x0 != null && ev.x1 != null) {
-          // Propagating fault-line crack: effects fire sequentially from
-          // the impact point (x0,z0) toward the far end (x1,z1).
           const len = Math.hypot(ev.x1 - ev.x0, ev.z1 - ev.z0);
+          const propDuration = Math.min(1.0, Math.max(0.6, len * 0.008));
+          this.spawnFaultLineFissure(ev.x0, ev.z0, ev.x1, ev.z1, ev.angle, len, propDuration);
+
           const steps = Math.max(8, Math.min(20, Math.round(len / 6)));
           const propagationTime = Math.min(0.8, len * 0.006);
           if (!this._quakeFxQueue) this._quakeFxQueue = [];
-          // First effect fires immediately at the impact point
           this.spawnShockRing(ev.x0, ev.z0, 8.0, 0xff5500);
           this.spawnBurst(ev.x0, ev.z0, 3.0, 0xff8800, 12);
           this.spawnDustPuff(ev.x0, ev.z0, 1.4, 0, 0);
@@ -2856,7 +3139,7 @@ export class VoxelWorld3D {
             const t = s / steps;
             const fx = ev.x0 + (ev.x1 - ev.x0) * t;
             const fz = ev.z0 + (ev.z1 - ev.z0) * t;
-            const size = 5.0 + t * 4.0;  // crack widens toward the far end
+            const size = 5.0 + t * 4.0;
             this._quakeFxQueue.push({ x: fx, z: fz, delay: t * propagationTime, size });
           }
         } else {
@@ -3006,6 +3289,12 @@ export class VoxelWorld3D {
         p.mesh.scale.set(scale, scale, scale);
         p.mesh.rotation.y += p.vr * dt;
         p.mesh.material.opacity = Math.min(1, k * 1.4);
+      } else if (p.isBeam) {
+        const kBeam = Math.max(0, p.life / p.maxLife);
+        p.mat.opacity = kBeam * 0.75;
+        const s = (p.initialScale || 0.7) * (0.3 + 0.7 * kBeam);
+        p.mesh.scale.x = s;
+        p.mesh.scale.z = s;
       } else if (p.isDust) {
         p.mesh.position.x += p.vx * dt;
         p.mesh.position.y += p.vy * dt;

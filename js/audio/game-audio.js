@@ -220,6 +220,33 @@ export class GameAudio {
     this.engine.whenUnlocked(() => this._startBed(sceneId));
   }
 
+  playAnimeHitStop() {
+    if (typeof this.engine.playAnimeHitStop === 'function') this.engine.playAnimeHitStop({ vol: 1.0 });
+  }
+
+  playBuildingCollapse() {
+    if (typeof this.engine.playBuildingCollapse === 'function') this.engine.playBuildingCollapse({ vol: 0.9 });
+  }
+
+  playSeismicRupture() {
+    if (typeof this.engine.playSeismicRupture === 'function') this.engine.playSeismicRupture({ vol: 1.0 });
+  }
+
+  playFaultLineQuake() {
+    if (typeof this.engine.playFaultLineQuake === 'function') this.engine.playFaultLineQuake({ vol: 1.0 });
+    this.engine.duckAmbience(3.0, 0.25);
+    this.music.duck(3.0, 0.35);
+  }
+
+  playPokemonEncounter() {
+    if (typeof this.engine.playPokemonEncounter === 'function') this.engine.playPokemonEncounter({ vol: 1.0 });
+    this.music.duck(2.2, 0.4);
+  }
+
+  playPokemonDropLand() {
+    if (typeof this.engine.playPokemonDropLand === 'function') this.engine.playPokemonDropLand({ vol: 1.0 });
+  }
+
   _startBed(sceneId) {
     if (this._sceneWanted !== sceneId) return;   // superseded meanwhile
     this._stopScene(0.4);
