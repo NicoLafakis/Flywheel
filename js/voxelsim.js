@@ -298,9 +298,12 @@ const START_RADIUS = 1.1;
 // tools/validate.mjs pin this), and levels 9-12 — where only the gallery
 // reaches — are eased geometrically off SIZE 8 rather than jumping 2.4× in one
 // step. Re-measure whenever scene mass or the combo ladder changes.
-const SIZE_MASS = [0, 24, 67, 138, 251, 381, 579, 898, 1374, 2102, 3216, 4919];
+const SIZE_MASS = [
+  0, 24, 67, 138, 251, 381, 579, 898, 1374, 2102, 3216, 4919,
+  7524, 11508, 17601, 26921, 41176, 62979, 96326, 147331, 225343, 344662, 527161, 806293
+];
 const MAX_SIZE = SIZE_MASS.length;
-const MAX_RADIUS = START_RADIUS + (MAX_SIZE - 1) * 0.5; // 6.6 m at SIZE 12
+const MAX_RADIUS = START_RADIUS + (MAX_SIZE - 1) * 0.5; // 12.6 m at SIZE 24 (13.1 m at sizeFrac 1)
 const SPEED_MULT = 1.4;      // sandbox hole runs at 1.4× the campaign speed curve
 // Size ramp on sandbox movement. Was 0.75, and 0.75 was not enough to notice:
 // `playerSpeedForRadius` DECREASES with radius (7.12 m/s at r=1.1 down to
@@ -845,7 +848,7 @@ export class VoxelSandboxSim {
     return {
       x, z, radius: START_RADIUS, mass: 0, rawMass: 0,
       chain: 0, chainTimer: 0, bestCombo: 0, eatenCount: 0, isPlayer: index === 0,
-      size: 1, sizeFrac: 0, // SIZE level (1..12) + progress to the next level
+      size: 1, sizeFrac: 0, // SIZE level (1..24) + progress to the next level
       index,
       activePowerUps: [],
       _cov: new Set(), _covSpare: new Set(),

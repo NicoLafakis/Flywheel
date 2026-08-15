@@ -143,7 +143,7 @@ export const Q = Object.freeze({
   // instead of relocating it: the cap is now 1,073,741,823.75, which is 1082x
   // the absolute most any player can score in any city on any route.
   MASS: 4,
-  RADIUS: 20,         // u8  radius_q = radius * 20, 0..12.75 m
+  RADIUS: 10,         // u8  radius_q = radius * 10, 0..25.5 m
   HEADING: 256 / (Math.PI * 2), // u8 heading_q
 });
 
@@ -152,7 +152,7 @@ export const LIMITS = Object.freeze({
   MAX_EVENTS: 255,       // u8 event_count
   MAX_POS_M: 327.67,     // i16 cm
   MAX_MASS: 0xffffffff / 4,  // u32 / 4 — see Q.MASS for the measured headroom
-  MAX_RADIUS_M: 12.75,   // u8 / 20
+  MAX_RADIUS_M: 25.5,    // u8 / 10
   MAX_TICK: 0xffff,      // low 16 bits, wraps every ~18 min at 60 Hz
   MAX_TIME_LEFT_CS: 0xffff,
   MAX_SEQ: 0xffff,

@@ -20,7 +20,7 @@ export const TIERS = [
 ];
 
 export const PLAYER_START_RADIUS = 0.45;
-export const PLAYER_MAX_RADIUS = 6.0;
+export const PLAYER_MAX_RADIUS = 13.5;
 export const GROWTH_K = 0.115;
 export const GROWTH_EXP = 0.42;
 

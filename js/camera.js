@@ -999,20 +999,21 @@ export class ChaseCamera {
       this.shakeIntensity *= Math.max(0, 1 - dt * 6);
     }
 
-    // desired offset (framing scales with radius: tight at SIZE 1, wide at SIZE 12)
+    // desired offset (framing scales with radius: tight at SIZE 1, wide at SIZE 24)
     let scale;
     if (this.followDir) {
       // sandbox: ~11 m at r=1.1 (SIZE 1). From SIZE 4 (r=2.6) the distance
       // ramps up so that by SIZE 10 (r=5.6) the camera clears the scene's
-      // tallest blocker — the see-over-any-building rule — then clamps just
-      // above that clearance instead of pulling out without bound.
+      // tallest blocker — the see-over-any-building rule — then smoothly
+      // tracks holeRadius up across SIZE 1..24 so giant holes stay well-framed.
       const base = 7 + holeRadius * 3.6;
       let d = base;
       if (this.maxBlockerH > 0) {
         const clearDist = (this.maxBlockerH + 8) / Math.sin(this.pitch);
         const t = Math.max(0, Math.min(1, (holeRadius - 2.6) / 3));
         const s = t * t * (3 - 2 * t);
-        d = Math.min(base + (clearDist - base) * s, clearDist * 1.15);
+        const blendedClear = base + (clearDist - base) * s;
+        d = Math.max(base, blendedClear);
       }
       const sandboxZoom = SANDBOX_ZOOM_IN +
         (SANDBOX_ZOOM_OUT - SANDBOX_ZOOM_IN) * this.sandboxSizeProgress;
