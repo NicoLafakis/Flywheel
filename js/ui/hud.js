@@ -262,8 +262,23 @@ export class HUD {
     } else {
       this.comboLabel.classList.add('hidden');
     }
+    this._updateScore(p.mass);
+    this._updateCombo(p);
     this._updatePowerUps(sim.activePowerUps);
     this._updateScreenHeat(p.chain, sim.activePowerUps);
+
+    // Endgame remaining objects counter for campaign
+    const uneaten = sim.city && sim.city.objects ? sim.city.objects.filter((o) => !o.eaten && !o.committed).length : 0;
+    if (this.blocksLeftPill) {
+      if (!sim.won && uneaten > 0 && (uneaten <= 100 || (sim.timeLeft != null && sim.timeLeft <= 30))) {
+        this.blocksLeftPill.classList.remove('hidden');
+        if (this.blocksLeftText) {
+          this.blocksLeftText.textContent = `${uneaten} OBJECTS LEFT`;
+        }
+      } else {
+        this.blocksLeftPill.classList.add('hidden');
+      }
+    }
   }
 
   // Voxel sandbox variant: SIZE level + progress to the next size on the

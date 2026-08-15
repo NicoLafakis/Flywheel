@@ -1020,6 +1020,7 @@ function frame(ts) {
               ms: 1800,
               channel: 'band',
             });
+            screens.triggerActivePowerUpOverlay(ev.powerup.type);
             const prevState = state;
             state = 'powerup_pause';
             screens.showPowerUpShowcase(ev.powerup, () => {

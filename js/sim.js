@@ -146,7 +146,7 @@ export class Sim {
     this.events = [];   // drained by the renderer each frame
     this.powerups = this._placePowerups();
     this.activePowerUps = [];
-    this.powerupSpawnTimer = 16.0 + this.rng.float(0, 8);
+    this.powerupSpawnTimer = 35.0;
     this.nextScorePowerUpThreshold = 100000;
     this.nextMultPowerUpThreshold = 500;
     this._nextPowerUpId = this.powerups.length + 1;
@@ -162,7 +162,7 @@ export class Sim {
       const angle = this.rng.float(0, Math.PI * 2);
       const pos = findSpacedPowerUpLocation(out, bounds, this.rng, MIN_POWERUP_SEPARATION);
       out.push(createPowerUp(i + 1, type, pos.x, pos.z, 'map', {
-        lifespan: 28.0,
+        lifespan: Infinity,
         speed: 2.5 + this.rng.float(0, 0.8),
         angle,
       }));
@@ -343,16 +343,16 @@ export class Sim {
     }
     this.powerups = this.powerups.filter((p) => !p.collected && !p.expired);
 
-    this.powerupSpawnTimer = (this.powerupSpawnTimer || 18.0) - dt;
+    this.powerupSpawnTimer = (this.powerupSpawnTimer || 35.0) - dt;
     if (this.powerupSpawnTimer <= 0) {
-      this.powerupSpawnTimer = 18.0 + this.rng.float(0, 10);
+      this.powerupSpawnTimer = 35.0;
       if (this.powerups.length < 2 && this.powerups.length < MAX_MAP_POWERUPS) {
         const bounds = { minX: b.xmin, maxX: b.xmax, minZ: b.zmin, maxZ: b.zmax };
         const pos = findSpacedPowerUpLocation(this.powerups, bounds, this.rng, MIN_POWERUP_SEPARATION);
         const angle = this.rng.float(0, Math.PI * 2);
         const type = pickRandomPowerUpType(this.rng);
         const pu = createPowerUp(this._nextPowerUpId++, type, pos.x, pos.z, 'intermittent', {
-          lifespan: 26.0,
+          lifespan: Infinity,
           speed: 2.6 + this.rng.float(0, 0.8),
           angle,
         });

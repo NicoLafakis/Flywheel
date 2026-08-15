@@ -840,6 +840,42 @@ export class World3D {
       this._addPowerUpMesh(pu);
     }
 
+    // 3D Endgame Target Locator Beacons for finding straggler objects
+    this._targetBeacons = [];
+    const beaconArrowGeo = new THREE.ConeGeometry(0.75, 1.8, 4);
+    beaconArrowGeo.rotateX(Math.PI); // Point downwards
+    const beaconRingGeo = new THREE.RingGeometry(0.5, 0.9, 14);
+    beaconRingGeo.rotateX(-Math.PI / 2);
+    const beaconMat = new THREE.MeshBasicMaterial({
+      color: 0xff3300,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.92,
+      side: THREE.DoubleSide,
+    });
+    const beaconRingMat = new THREE.MeshBasicMaterial({
+      color: 0xffd23f,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+    });
+
+    for (let i = 0; i < 24; i++) {
+      const g = new THREE.Group();
+      const arrow = new THREE.Mesh(beaconArrowGeo, beaconMat);
+      arrow.renderOrder = 997;
+      const ring = new THREE.Mesh(beaconRingGeo, beaconRingMat);
+      ring.position.y = -1.0;
+      ring.renderOrder = 996;
+      g.add(arrow, ring);
+      g.visible = false;
+      this.scene.add(g);
+      this._targetBeacons.push(g);
+    }
+
     this._activeFissures = [];
     this._collapsingBuildings = null;
   }
@@ -1498,6 +1534,36 @@ export class World3D {
       }
     }
 
+    // 3D Endgame Target Locator Beacons for campaign/classic maps
+    const uneaten = [];
+    if (this.sim && this.sim.city && this.sim.city.objects) {
+      for (let i = 0; i < this.sim.city.objects.length; i++) {
+        const o = this.sim.city.objects[i];
+        if (!o.eaten && !o.committed) uneaten.push(o);
+      }
+    }
+    const showBeacons = !this.sim.won && uneaten.length > 0 && ((this.sim.timeLeft != null && this.sim.timeLeft <= 30) || uneaten.length <= 100);
+
+    if (showBeacons && this._targetBeacons && this._targetBeacons.length > 0) {
+      const step = Math.max(1, Math.floor(uneaten.length / this._targetBeacons.length));
+      let beaconIdx = 0;
+      for (let i = 0; i < uneaten.length && beaconIdx < this._targetBeacons.length; i += step) {
+        const obj = uneaten[i];
+        const beacon = this._targetBeacons[beaconIdx++];
+        const bob = Math.sin(this.time * 6.0 + beaconIdx) * 0.55;
+        beacon.position.set(obj.x, (obj.h || 1) + 2.8 + bob, obj.z);
+        beacon.rotation.y += dt * 2.8;
+        beacon.visible = true;
+      }
+      for (let j = beaconIdx; j < this._targetBeacons.length; j++) {
+        this._targetBeacons[j].visible = false;
+      }
+    } else if (this._targetBeacons) {
+      for (let j = 0; j < this._targetBeacons.length; j++) {
+        this._targetBeacons[j].visible = false;
+      }
+    }
+
     const st = this._skinFrame(dt, sim.player);
     for (const ev of events) {
       if (ev.type === 'powerup_collect') {
@@ -1874,6 +1940,10 @@ export class World3D {
     if (this.powerupMeshes) {
       for (const item of this.powerupMeshes.values()) this.scene.remove(item.group);
       this.powerupMeshes.clear();
+    }
+    if (this._targetBeacons) {
+      for (const g of this._targetBeacons) this.scene.remove(g);
+      this._targetBeacons.length = 0;
     }
     if (this.skin) {
       this.playerMesh.remove(this.skin.local);
