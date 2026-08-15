@@ -49,18 +49,21 @@ window.setInterval(drainSavedBoardOutbox, 60000);
 // onto the new mix. Without that, the lines below would write the save's old
 // levels straight back over the freshly seeded ones and nothing would change.
 const mix = reseedAudioMix();
-if (mix.reseeded && save.settings
-  && (save.settings.sfxVol !== mix.sfxVol || save.settings.ambVol !== mix.ambVol)) {
+if (mix.reseeded && save.settings) {
+  save.settings.masterVol = mix.masterVol;
   save.settings.sfxVol = mix.sfxVol;
   save.settings.ambVol = mix.ambVol;
+  save.settings.musicVol = mix.musicVol;
   storeSave(save);
 }
 
 const audio = new GameAudio().init();
 window.__audio = audio; // debug hook, same idiom as scene-view.html
 audio.setMuted(save.muted);
+audio.setMasterVolume(save.settings && typeof save.settings.masterVol === 'number' ? save.settings.masterVol : DEFAULT_MASTER_VOLUME);
 audio.setVolume(save.settings && typeof save.settings.sfxVol === 'number' ? save.settings.sfxVol : DEFAULT_SFX_VOLUME);
 audio.setAmbienceVolume(save.settings && typeof save.settings.ambVol === 'number' ? save.settings.ambVol : DEFAULT_AMBIENCE_VOLUME);
+audio.setMusicVolume(save.settings && typeof save.settings.musicVol === 'number' ? save.settings.musicVol : DEFAULT_MUSIC_VOLUME);
 
 // Start preloading and streaming title music immediately on initial boot
 audio.music.unlock();
@@ -418,7 +421,15 @@ function startLevel() {
   hud.show();
   screens.clear();
   state = 'playing';
-  activePlayMusicCue = 'gallery';
+  const metroKey = (METROS[level.metroIndex] && METROS[level.metroIndex].id) || 'brooklyn';
+  const metroCueMap = {
+    suburbs: 'brooklyn',
+    downtown: 'manhattan',
+    coastal: 'boston',
+    neon: 'chicago',
+    industrial: 'cambridge',
+  };
+  activePlayMusicCue = metroCueMap[metroKey] || metroKey || 'brooklyn';
   audio.setMusicCue(activePlayMusicCue, { restart: true });
   accumulator = 0;
   lastTs = performance.now();
@@ -1242,15 +1253,17 @@ function finishBootSplash() {
   if (bootFinished) return;
   bootFinished = true;
   if (typeof window.__setBootProgress === 'function') {
-    window.__setBootProgress(100, 'READY!');
+    window.__setBootProgress(100, 'READY TO ROLL!');
   }
-  const bootSplash = document.getElementById('boot-splash');
-  if (bootSplash) {
-    bootSplash.classList.add('fade-out');
-    setTimeout(() => {
-      if (bootSplash.parentNode) bootSplash.remove();
-    }, 450);
-  }
+  setTimeout(() => {
+    const bootSplash = document.getElementById('boot-splash');
+    if (bootSplash) {
+      bootSplash.classList.add('fade-out');
+      setTimeout(() => {
+        if (bootSplash.parentNode) bootSplash.remove();
+      }, 450);
+    }
+  }, 1600);
 }
 
 // Start menu scene immediately on cold boot with onReady hook
@@ -1262,7 +1275,7 @@ startMenuScene(canvas, {
 });
 
 // Fallback safety timeout so boot splash never gets stuck
-setTimeout(finishBootSplash, 4000);
+setTimeout(finishBootSplash, 5000);
 
 screens.showTitle();
 resize();

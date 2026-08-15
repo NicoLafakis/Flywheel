@@ -58,8 +58,8 @@ const { AudioEngine } = await import('./engine.js');
 const { GameAudio } = await import('./game-audio.js');
 const { MusicDirector } = await import('./music.js');
 const {
-  AMB_VOLUME_KEY, MIX_VERSION, MIX_VERSION_KEY, MUSIC_VOLUME_KEY, SFX_VOLUME_KEY,
-  DEFAULT_AMBIENCE_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME,
+  AMB_VOLUME_KEY, MASTER_VOLUME_KEY, MIX_VERSION, MIX_VERSION_KEY, MUSIC_VOLUME_KEY, SFX_VOLUME_KEY,
+  DEFAULT_AMBIENCE_VOLUME, DEFAULT_MASTER_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME,
   reseedAudioMix,
 } = await import('./mix.js');
 
@@ -74,8 +74,8 @@ assert.equal(engine.sfx.dest, engine.master);
 assert.equal(engine.amb.dest, engine.master);
 assert.equal(engine.master.dest, ctx.destination);
 
-// Defaults: master is mute-only, the two levels start on the shipped mix.
-assert.equal(engine.master.gain.value, MASTER_GAIN);
+// Defaults: master carries default master volume, the two levels start on the shipped mix.
+assert.equal(engine.master.gain.value, MASTER_GAIN * DEFAULT_MASTER_VOLUME);
 assert.equal(engine.sfx.gain.value, DEFAULT_SFX_VOLUME);
 assert.equal(engine.amb.gain.value, AMB_GAIN * DEFAULT_AMBIENCE_VOLUME);
 
@@ -84,7 +84,7 @@ engine.setVolume(0);
 assert.equal(engine.sfx.gain.value, 0, 'effects slider at 0 silences the SFX bus');
 assert.equal(engine.amb.gain.value, AMB_GAIN * DEFAULT_AMBIENCE_VOLUME,
   'ambience is untouched by the effects slider');
-assert.equal(engine.master.gain.value, MASTER_GAIN, 'master never carries a level');
+assert.equal(engine.master.gain.value, MASTER_GAIN * DEFAULT_MASTER_VOLUME, 'master level independent of effects');
 
 // (b) Ambience at 0, effects at 1: beds silent, crashes audible.
 engine.setVolume(1);
@@ -130,7 +130,7 @@ assert.equal(engine.master.gain.value, 0);
 assert.equal(engine.sfx.gain.value, 1);
 assert.equal(engine.amb.gain.value, AMB_GAIN);
 engine.setMuted(false);
-assert.equal(engine.master.gain.value, MASTER_GAIN);
+assert.equal(engine.master.gain.value, MASTER_GAIN * DEFAULT_MASTER_VOLUME);
 
 // (d) Music is on a different device entirely and answers only to its own
 // slider: the facade must not route the effects level into it.
@@ -177,23 +177,25 @@ const realLS = globalThis.localStorage;
 const freshStore = fakeStore();
 const freshRes = reseedAudioMix(freshStore);
 assert.equal(freshRes.reseeded, true, 'a fresh install is seeded once');
-assert.equal(freshStore.map.get(SFX_VOLUME_KEY), '0.7');
-assert.equal(freshStore.map.get(AMB_VOLUME_KEY), '0.4');
-assert.equal(freshStore.map.get(MUSIC_VOLUME_KEY), '0.3');
+assert.equal(freshStore.map.get(MASTER_VOLUME_KEY), '0.5');
+assert.equal(freshStore.map.get(SFX_VOLUME_KEY), '0.3');
+assert.equal(freshStore.map.get(AMB_VOLUME_KEY), '0.15');
+assert.equal(freshStore.map.get(MUSIC_VOLUME_KEY), '0.25');
 assert.equal(freshStore.map.get(MIX_VERSION_KEY), String(MIX_VERSION), 'and stamped');
 // What it writes IS the plain default, so the seeded and unseeded paths cannot
 // hand a brand-new player two different mixes.
-assert.deepEqual([freshRes.sfxVol, freshRes.ambVol, freshRes.musicVol],
-  [DEFAULT_SFX_VOLUME, DEFAULT_AMBIENCE_VOLUME, DEFAULT_MUSIC_VOLUME],
+assert.deepEqual([freshRes.masterVol, freshRes.sfxVol, freshRes.ambVol, freshRes.musicVol],
+  [DEFAULT_MASTER_VOLUME, DEFAULT_SFX_VOLUME, DEFAULT_AMBIENCE_VOLUME, DEFAULT_MUSIC_VOLUME],
   'a fresh seed equals the plain defaults');
 
 // (b) THE case this exists for: someone who has already played, carrying the
 // old 1 / 1 / 0.65 mix and no stamp.
 const oldStore = fakeStore({ [SFX_VOLUME_KEY]: '1', [AMB_VOLUME_KEY]: '1', [MUSIC_VOLUME_KEY]: '0.65' });
 assert.equal(reseedAudioMix(oldStore).reseeded, true, 'an unstamped install is re-seeded');
-assert.equal(oldStore.map.get(SFX_VOLUME_KEY), '0.7');
-assert.equal(oldStore.map.get(AMB_VOLUME_KEY), '0.4');
-assert.equal(oldStore.map.get(MUSIC_VOLUME_KEY), '0.3');
+assert.equal(oldStore.map.get(MASTER_VOLUME_KEY), '0.5');
+assert.equal(oldStore.map.get(SFX_VOLUME_KEY), '0.3');
+assert.equal(oldStore.map.get(AMB_VOLUME_KEY), '0.15');
+assert.equal(oldStore.map.get(MUSIC_VOLUME_KEY), '0.25');
 // An engine built on that store hears the new mix with no save involved, which
 // is what keeps the arena and the scene viewer off the old balance.
 globalThis.localStorage = oldStore;

@@ -25,14 +25,13 @@ export const MASTER_VOLUME_KEY = 'flywheel.audio.masterVolume';
 export const MIX_VERSION_KEY = 'flywheel.audio.mixVersion';
 
 // ---------------------------------------------------------------- levels
-// Retuned audio mix: Ambience lowest (15%), Music next (25%), SFX highest (30%).
-// Master volume defaults to 1.0 (100%) and scales all audio buses proportionally.
-export const DEFAULT_MASTER_VOLUME = 1.0;
+// Retuned audio mix: Master volume defaults to 50% (0.50), SFX 30% (0.30), Music 25% (0.25), Ambience 15% (0.15).
+export const DEFAULT_MASTER_VOLUME = 0.50;
 export const DEFAULT_SFX_VOLUME = 0.30;
 export const DEFAULT_MUSIC_VOLUME = 0.25;
 export const DEFAULT_AMBIENCE_VOLUME = 0.15;
 
-export const MIX_VERSION = 2;
+export const MIX_VERSION = 3;
 
 function defaultStorage() {
   try { return globalThis.localStorage || null; } catch { return null; }

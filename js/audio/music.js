@@ -22,7 +22,8 @@ export const MUSIC_CUES = Object.freeze({
   chicago: 'chicago.mp3',
   manhattan: 'lower-manhattan.mp3',
   'upper-manhattan': 'upper-manhattan.mp3',
-  gallery: null,   // Owner decision: the physics gallery stays music-free.
+  tokyo: 'lower-manhattan.mp3',
+  gallery: null,   // Owner decision: the dev physics gallery stays music-free.
 });
 
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -102,13 +103,21 @@ export class MusicDirector {
     const unlock = () => this.unlock();
     if (target && target.addEventListener) {
       target.addEventListener('pointerdown', unlock, { passive: true });
+      target.addEventListener('touchstart', unlock, { passive: true });
+      target.addEventListener('click', unlock, { passive: true });
       target.addEventListener('keydown', unlock);
       const pageHide = () => this.pauseForPage();
       const pageShow = () => this.resumeForPage();
       target.addEventListener('pagehide', pageHide);
       target.addEventListener('pageshow', pageShow);
-      this._bindings.push([target, 'pointerdown', unlock], [target, 'keydown', unlock],
-        [target, 'pagehide', pageHide], [target, 'pageshow', pageShow]);
+      this._bindings.push(
+        [target, 'pointerdown', unlock],
+        [target, 'touchstart', unlock],
+        [target, 'click', unlock],
+        [target, 'keydown', unlock],
+        [target, 'pagehide', pageHide],
+        [target, 'pageshow', pageShow],
+      );
     }
     if (doc && doc.addEventListener) {
       const visibility = () => {
@@ -134,9 +143,12 @@ export class MusicDirector {
   get volume() { return this._music; }
 
   unlock() {
-    if (this._unlocked) return;
     this._unlocked = true;
-    this._switchTo(this._wanted, false);
+    if (this._wanted && this._current !== this._wanted) {
+      this._switchTo(this._wanted, false);
+    } else {
+      this._safePlay();
+    }
   }
 
   request(cue, { restart = false } = {}) {
@@ -145,7 +157,10 @@ export class MusicDirector {
       return false;
     }
     if (restart) this._offsets.delete(cue);
-    if (this._wanted === cue && !restart) return true;
+    if (this._wanted === cue && !restart) {
+      if (this._unlocked && this.audio.paused) this._safePlay();
+      return true;
+    }
     this._wanted = cue;
     if (this._unlocked) this._switchTo(cue, restart);
     return true;

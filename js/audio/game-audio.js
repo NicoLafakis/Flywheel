@@ -41,23 +41,48 @@ export const SCENE_AMBIENCE = {
 const ALL_SOUNDS = [
   'ui-tap', 'ui-tap-2', 'ui-back', 'ui-confirm', 'coin',
   'eat-1', 'eat-2', 'eat-3',
-  'combo-tick', 'combo-big', 'milestone', 'milestone-roar', 'goal', 'win', 'lose',
-  'debris-1', 'debris-2', 'debris-3', 'debris-metal', 'glass-1', 'glass-2',
-  'crash-small', 'crash-big', 'rumble',
+  'combo-tick', 'combo-big', 'combo-alt', 'milestone', 'milestone-roar', 'goal', 'win', 'lose',
+  'debris-1', 'debris-2', 'debris-3', 'debris-metal', 'glass-1', 'glass-2', 'glass-shatter',
+  'crash-small', 'crash-big', 'ground-impact-1', 'ground-impact-2', 'rumble',
+  'earthquake', 'powerup-collect', 'powerup-spawn', 'powerup-chrono',
+  'shooting-comet', 'tornado-loop', 'tornado-siren', 'police-siren',
   'derail-screech', 'derail-crash', 'train-loop',
   'amb-brooklyn', 'amb-manhattan', 'amb-boston', 'amb-cambridge', 'amb-chicago',
 ];
 
 const EATS = ['eat-1', 'eat-2', 'eat-3'];
-const DEBRIS = ['debris-1', 'debris-2', 'debris-3'];
+const DEBRIS = ['debris-1', 'debris-2', 'debris-3', 'debris-metal'];
 const GLASS = ['glass-1', 'glass-2'];
 
-// Sounds that ship as something other than OGG. The eat gulps are original
-// Flywheel masters (Suno, like the music — see assets/audio/CREDITS.json) and
-// arrived as MP3; every target browser decodes MP3, and re-encoding them to
-// OGG would be a second lossy pass for zero gain. Names stay 'eat-N' so no
-// call site or test knows the difference.
-const FILE_EXT = { 'eat-1': '.mp3', 'eat-2': '.mp3', 'eat-3': '.mp3' };
+// Map sound keys to their custom or MP3 assets in assets/audio/
+const FILE_EXT = {
+  'eat-1': '.mp3',
+  'eat-2': '.mp3',
+  'eat-3': '.mp3',
+  'coin': 'Flywheel-coin.mp3',
+  'ui-tap': 'Flywheel-ui-tap.mp3',
+  'ui-tap-2': 'Flywheel-ui-tap.mp3',
+  'ui-confirm': 'Flywheel-ui-confirm.mp3',
+  'combo-tick': 'Flywheel-combo-small.mp3',
+  'combo-big': 'Flywheel-combo-big.mp3',
+  'combo-alt': 'Flywheel-combo-alternate.mp3',
+  'crash-small': 'Flywheel-crash-small.mp3',
+  'crash-big': 'Flywheel-gound-impact-02.mp3',
+  'ground-impact-1': 'Flywheel-gound-impact-01.mp3',
+  'ground-impact-2': 'Flywheel-gound-impact-02.mp3',
+  'debris-metal': 'Flywheel-debris-metal.mp3',
+  'glass-1': 'Flywheel-glass-shatter.mp3',
+  'glass-2': 'Flywheel-glass-shatter.mp3',
+  'glass-shatter': 'Flywheel-glass-shatter.mp3',
+  'powerup-collect': 'Flywheel-power-up-collect.mp3',
+  'powerup-spawn': 'Flywheel-power-up-spawn.mp3',
+  'powerup-chrono': 'Flywheel-frozen-time-powerup.mp3',
+  'earthquake': 'Flywheel-earthquake.mp3',
+  'shooting-comet': 'Flywheel-shooting-comet.mp3',
+  'tornado-loop': 'Flywheel-tornado-loop.mp3',
+  'tornado-siren': 'Flywheel-tornado-siren.mp3',
+  'police-siren': 'Flywheel-police-siren.mp3',
+};
 
 // Distance model for positional sounds: full level inside ATT_FULL metres of
 // the listener, gone at ATT_ZERO. City scenes span ~250 m, so a collapse two
@@ -115,6 +140,8 @@ export class GameAudio {
     // what used to make turning effects down turn the score down with it.
     this._ambHandle = null;
     this._trainHandle = null;
+    this._tornadoSirenHandle = null;
+    this._tornadoLoopHandle = null;
     this._sceneWanted = null;
     this._loaded = false;
     // Listener: the local hole's position, fed per frame by updateListener().
@@ -235,28 +262,25 @@ export class GameAudio {
   countdownTick() { this.engine.play('combo-tick', { vol: 0.8, rate: 0.9 }); }
   countdownGo() { this.engine.play('ui-confirm', { vol: 1.0, rate: 1.2 }); }
   playCoin(opts) {
-    if (typeof this.engine.playCoin === 'function') this.engine.playCoin(opts);
-    else this.engine.play('coin', opts);
+    this.engine.play('coin', opts || { vol: 0.75 });
   }
   playPowerUpCollect(opts) {
-    if (typeof this.engine.playPowerUpCollect === 'function') this.engine.playPowerUpCollect(opts);
-    else this.engine.play('milestone', opts);
+    this.engine.play('powerup-collect', opts || { vol: 0.9 });
   }
   playPowerUpSpawn(opts) {
-    if (typeof this.engine.playPowerUpSpawn === 'function') this.engine.playPowerUpSpawn(opts);
-    else this.engine.play('coin', opts);
+    this.engine.play('powerup-spawn', opts || { vol: 0.85 });
+  }
+  playChronoFreeze(opts) {
+    this.engine.play('powerup-chrono', opts || { vol: 0.95 });
   }
   playDragonballHit1(opts) {
-    if (typeof this.engine.playDragonballHit1 === 'function') this.engine.playDragonballHit1(opts);
-    else this.engine.play('ui-tap', opts);
+    this.engine.play('ui-tap', opts || { vol: 0.8 });
   }
   playDragonballHit2(opts) {
-    if (typeof this.engine.playDragonballHit2 === 'function') this.engine.playDragonballHit2(opts);
-    else this.engine.play('ui-confirm', opts);
+    this.engine.play('ui-confirm', opts || { vol: 0.85 });
   }
   playDragonballHit3(opts) {
-    if (typeof this.engine.playDragonballHit3 === 'function') this.engine.playDragonballHit3(opts);
-    else this.engine.play('milestone-roar', opts);
+    this.engine.play('ground-impact-2', opts || { vol: 1.0 });
   }
 
   // ---------------------------------------------------------------- finales
@@ -273,30 +297,66 @@ export class GameAudio {
   }
 
   playAnimeHitStop() {
-    if (typeof this.engine.playAnimeHitStop === 'function') this.engine.playAnimeHitStop({ vol: 1.0 });
+    this.engine.play('ground-impact-1', { vol: 0.9 });
   }
 
   playBuildingCollapse() {
-    if (typeof this.engine.playBuildingCollapse === 'function') this.engine.playBuildingCollapse({ vol: 0.9 });
+    this.engine.playRandom(['crash-small', 'crash-big', 'ground-impact-1'], { vol: 0.9 });
   }
 
   playSeismicRupture() {
-    if (typeof this.engine.playSeismicRupture === 'function') this.engine.playSeismicRupture({ vol: 1.0 });
+    this.engine.play('earthquake', { vol: 1.0 });
   }
 
   playFaultLineQuake() {
-    if (typeof this.engine.playFaultLineQuake === 'function') this.engine.playFaultLineQuake({ vol: 1.0 });
-    this.engine.duckAmbience(3.0, 0.25);
-    this.music.duck(3.0, 0.35);
+    this.engine.play('earthquake', { vol: 1.0 });
+    this.engine.duckAmbience(3.5, 0.2);
+    this.music.duck(3.5, 0.3);
   }
 
   playPokemonEncounter() {
-    if (typeof this.engine.playPokemonEncounter === 'function') this.engine.playPokemonEncounter({ vol: 1.0 });
+    this.engine.play('powerup-spawn', { vol: 0.95 });
     this.music.duck(2.2, 0.4);
   }
 
   playPokemonDropLand() {
-    if (typeof this.engine.playPokemonDropLand === 'function') this.engine.playPokemonDropLand({ vol: 1.0 });
+    this.engine.playRandom(['ground-impact-1', 'ground-impact-2'], { vol: 0.85 });
+  }
+
+  playMeteorIncoming() {
+    this.engine.play('shooting-comet', { vol: 0.9 });
+  }
+
+  playMeteorImpact() {
+    this.engine.playRandom(['ground-impact-1', 'ground-impact-2'], { vol: 1.0 });
+  }
+
+  playTornadoSiren(opts = {}) {
+    this.stopTornadoSiren(0.2);
+    this._tornadoSirenHandle = this.engine.loop('tornado-siren', { vol: opts.vol || 0.95, fadeIn: opts.fadeIn || 0.5 });
+  }
+
+  stopTornadoSiren(fade = 0.8) {
+    if (this._tornadoSirenHandle) {
+      this._tornadoSirenHandle.stop(fade);
+      this._tornadoSirenHandle = null;
+    }
+  }
+
+  playTornadoLoop(opts = {}) {
+    if (this._tornadoLoopHandle) return;
+    this._tornadoLoopHandle = this.engine.loop('tornado-loop', { vol: opts.vol || 0.95, fadeIn: opts.fadeIn || 1.2 });
+  }
+
+  stopTornadoLoop(fade = 0.8) {
+    if (this._tornadoLoopHandle) {
+      this._tornadoLoopHandle.stop(fade);
+      this._tornadoLoopHandle = null;
+    }
+  }
+
+  playPoliceSiren(opts) {
+    this.engine.play('police-siren', opts || { vol: 0.85 });
   }
 
   _startBed(sceneId) {
@@ -313,6 +373,8 @@ export class GameAudio {
   _stopScene(fade = 0.8) {
     if (this._ambHandle) { this._ambHandle.stop(fade); this._ambHandle = null; }
     if (this._trainHandle) { this._trainHandle.stop(fade); this._trainHandle = null; }
+    this.stopTornadoSiren(fade);
+    this.stopTornadoLoop(fade);
     // Anything still pooling is DROPPED, not flushed: the surface that was
     // feeding impacts has gone away (level teardown, results reveal, a scene
     // swap), and a collapse banging over the results screen a beat after the
@@ -416,30 +478,48 @@ export class GameAudio {
         this.playPowerUpSpawn();
         break;
       case 'quake':
-        if (typeof e.playFaultLineQuake === 'function') e.playFaultLineQuake({ vol: 1.0 });
-        e.duckAmbience(3.0, 0.25);
-        this.music.duck(3.0, 0.35);
+        this.playFaultLineQuake();
         break;
       case 'time_freeze_start':
-        if (typeof e.playTimeFreezeStart === 'function') e.playTimeFreezeStart({ vol: 0.95 });
+        this.playChronoFreeze();
         e.duckAmbience(8.0, 0.2);
         this.music.duck(8.0, 0.25);
         break;
       case 'time_freeze_end':
-        if (typeof e.playTimeFreezeEnd === 'function') e.playTimeFreezeEnd({ vol: 0.95 });
+        this.playChronoFreeze({ rate: 1.3, vol: 0.7 });
         break;
       case 'storm_warning':
-        if (typeof e.playStormWarning === 'function') e.playStormWarning({ stormType: ev.stormType, vol: 0.95 });
+        this.playTornadoSiren();
+        this.playTornadoLoop({ vol: 0.6, fadeIn: 1.5 });
         e.duckAmbience(6.0, 0.3);
         this.music.duck(6.0, 0.4);
         break;
       case 'storm_active':
-        if (typeof e.playStormActive === 'function') e.playStormActive({ stormType: ev.stormType, vol: 0.9 });
+        this.playTornadoLoop({ vol: 0.95 });
+        break;
+      case 'storm_cleared':
+      case 'storm_end':
+        this.stopTornadoSiren(0.8);
+        this.stopTornadoLoop(1.2);
+        break;
+      case 'meteor_incoming':
+        this.playMeteorIncoming();
+        break;
+      case 'meteor_impact':
+        this.playMeteorImpact();
+        break;
+      case 'siren':
+      case 'police_siren':
+        this.playPoliceSiren();
         break;
       case 'combo': {
         const lvl = ev.level || 1;
-        e.play('combo-tick', { vol: 0.75, rate: 1 + lvl * 0.08 });
-        if (lvl >= 5) e.play('combo-big', { vol: 0.8, rate: 1 + (lvl - 5) * 0.04 });
+        if (lvl % 3 === 0) {
+          e.play('combo-alt', { vol: 0.75, rate: 1 + lvl * 0.05 });
+        } else {
+          e.play('combo-tick', { vol: 0.75, rate: 1 + lvl * 0.08 });
+        }
+        if (lvl >= 5) e.play('combo-big', { vol: 0.85, rate: 1 + (lvl - 5) * 0.04 });
         break;
       }
       case 'crash': {

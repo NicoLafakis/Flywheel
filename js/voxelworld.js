@@ -2164,7 +2164,20 @@ export class VoxelWorld3D {
     }
   }
 
+  _removePowerUpMesh(id) {
+    const item = this.powerupMeshes.get(id);
+    if (item) {
+      if (item.group) {
+        item.group.visible = false;
+        if (item.group.parent) item.group.parent.remove(item.group);
+        this.scene.remove(item.group);
+      }
+      this.powerupMeshes.delete(id);
+    }
+  }
+
   _addPowerUpMesh(pu) {
+    if (!pu || pu.collected || pu.expired) return;
     if (this.powerupMeshes.has(pu.id)) return;
     const group = new THREE.Group();
     const color = pu.spec ? pu.spec.color : 0x00d2ff;
@@ -3332,8 +3345,12 @@ export class VoxelWorld3D {
     }
 
     // Animate hovering, spinning and dynamic position tracking on wandering power-up items
-    for (const item of this.powerupMeshes.values()) {
+    for (const [id, item] of Array.from(this.powerupMeshes.entries())) {
       const pu = item.pu;
+      if (!pu || pu.collected || pu.expired) {
+        this._removePowerUpMesh(id);
+        continue;
+      }
       item.group.position.x = pu.x;
       item.group.position.z = pu.z;
 
@@ -3390,24 +3407,26 @@ export class VoxelWorld3D {
         if (mesh) { this.scene.remove(mesh); this.coinMeshes.delete(ev.coin.id); }
         this.spawnGoldenSparkles(h.x, h.z, h.radius);
       } else if (ev.type === 'powerup_collect') {
-        const item = this.powerupMeshes.get(ev.powerup.id);
-        if (item) {
-          this.scene.remove(item.group);
-          this.powerupMeshes.delete(ev.powerup.id);
+        this._removePowerUpMesh(ev.powerup ? ev.powerup.id : null);
+        for (const [id, item] of Array.from(this.powerupMeshes.entries())) {
+          if (!item.pu || item.pu === ev.powerup || item.pu.collected || (ev.powerup && item.pu.id === ev.powerup.id)) {
+            this._removePowerUpMesh(id);
+          }
         }
-        const puColor = ev.powerup.spec ? ev.powerup.spec.color : 0x00d2ff;
-        this.spawnPowerUpCollectBurst(ev.powerup.x, ev.powerup.z, puColor);
+        const puColor = ev.powerup && ev.powerup.spec ? ev.powerup.spec.color : 0x00d2ff;
+        this.spawnPowerUpCollectBurst(ev.powerup ? ev.powerup.x : h.x, ev.powerup ? ev.powerup.z : h.z, puColor);
       } else if (ev.type === 'powerup_despawn') {
-        const item = this.powerupMeshes.get(ev.powerup.id);
-        if (item) {
-          this.scene.remove(item.group);
-          this.powerupMeshes.delete(ev.powerup.id);
+        this._removePowerUpMesh(ev.powerup ? ev.powerup.id : null);
+        for (const [id, item] of Array.from(this.powerupMeshes.entries())) {
+          if (!item.pu || item.pu === ev.powerup || item.pu.expired || (ev.powerup && item.pu.id === ev.powerup.id)) {
+            this._removePowerUpMesh(id);
+          }
         }
-        this.spawnDustPuff(ev.powerup.x, ev.powerup.z, 0.9, 0, 0);
+        this.spawnDustPuff(ev.powerup ? ev.powerup.x : 0, ev.powerup ? ev.powerup.z : 0, 0.9, 0, 0);
       } else if (ev.type === 'powerup_spawn') {
         this._addPowerUpMesh(ev.powerup);
-        const puColor = ev.powerup.spec ? ev.powerup.spec.color : 0x00d2ff;
-        this.spawnPowerUpSpawnBeams(ev.powerup.x, ev.powerup.z, puColor);
+        const puColor = ev.powerup && ev.powerup.spec ? ev.powerup.spec.color : 0x00d2ff;
+        this.spawnPowerUpSpawnBeams(ev.powerup ? ev.powerup.x : 0, ev.powerup ? ev.powerup.z : 0, puColor);
       } else if (ev.type === 'disaster') {
         if (ev.subtype === 'quake') {
           if (ev.x0 != null && ev.x1 != null) {

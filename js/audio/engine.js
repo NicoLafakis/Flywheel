@@ -186,7 +186,7 @@ export class AudioEngine {
     try {
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = this._muted ? 0 : MASTER_GAIN;
+      this.master.gain.value = this._muted ? 0 : (MASTER_GAIN * this._masterVol);
       this.master.connect(this.ctx.destination);
       this.sfx = this.ctx.createGain();
       this.sfx.gain.value = this._vol;
@@ -209,11 +209,13 @@ export class AudioEngine {
   _loadOne(name) {
     if (this.buffers.has(name)) return Promise.resolve();
     if (this._pendingLoads.has(name)) return this._pendingLoads.get(name);
-    const p = fetch(this.base + name + (this._ext[name] || '.ogg'))
+    let target = this._ext[name] || (name + '.ogg');
+    if (target.startsWith('.')) target = name + target;
+    const p = fetch(this.base + target)
       .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.arrayBuffer(); })
       .then((ab) => this.ctx.decodeAudioData(ab))
       .then((buf) => { this.buffers.set(name, buf); })
-      .catch((e) => { console.warn(`audio: ${name} unavailable`, e); })
+      .catch((e) => { console.warn(`audio: ${name} unavailable (${target})`, e); })
       .finally(() => { this._pendingLoads.delete(name); });
     this._pendingLoads.set(name, p);
     return p;

@@ -119,7 +119,7 @@ async function build() {
   const currentCtx = ctx;
   try {
     if (typeof window.__setBootProgress === 'function') {
-      window.__setBootProgress(65, 'FETCHING METROPOLIS…');
+      window.__setBootProgress(45, 'FETCHING METROPOLIS VOXELS…');
     }
     // The city module is fetched on demand (js/voxelsim.js registry), so the
     // backdrop's scene is downloaded here rather than at page load.
@@ -127,7 +127,7 @@ async function build() {
     if (active || !ctx) return;
 
     if (typeof window.__setBootProgress === 'function') {
-      window.__setBootProgress(82, 'BUILDING 3D GEOMETRY…');
+      window.__setBootProgress(75, 'BUILDING 3D GEOMETRY…');
     }
 
     const sim = new VoxelSandboxSim({ scene: MENU_SCENE });
@@ -137,6 +137,10 @@ async function build() {
     });
     const cam = new ChaseCamera(ctx.canvas.clientWidth / Math.max(1, ctx.canvas.clientHeight));
     cam.setReducedMotion(ctx.reducedMotion);
+
+    if (typeof window.__setBootProgress === 'function') {
+      window.__setBootProgress(90, 'COMPILING 3D SHADERS…');
+    }
 
     const arc = ctx.reducedMotion ? 0 : Math.PI / 5;
     let sun = null;
@@ -162,7 +166,7 @@ async function build() {
     document.body.classList.add('fw-scene');
 
     if (typeof window.__setBootProgress === 'function') {
-      window.__setBootProgress(100, 'READY!');
+      window.__setBootProgress(100, 'READY TO ROLL!');
     }
     if (currentCtx && currentCtx.onReady) {
       currentCtx.onReady();

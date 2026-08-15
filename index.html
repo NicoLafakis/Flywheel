@@ -295,50 +295,73 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
      error hits the same guard and is correctly ignored. -->
 <script>
 (function () {
-  var TIMEOUT_MS = 20000;
+  var TIMEOUT_MS = 25000;
   var done = false;
-  var currentPct = 0;
+  var visualPct = 0;
   var targetPct = 15;
-  var statusText = 'INITIALIZING SYSTEM…';
+  var statusText = 'INITIALIZING ENGINE…';
+  var isSceneReady = false;
+  var startTime = performance.now();
+  var MIN_BOOT_DURATION_MS = 1400; // Guarantees a rhythmic, polished 1.4s progression
 
   var fillEl = document.getElementById('boot-progress-bar');
   var pctEl = document.getElementById('boot-percentage-text');
   var statEl = document.getElementById('boot-status-text');
+  var splashEl = document.getElementById('boot-splash');
 
   function updateDisplay() {
-    if (fillEl) fillEl.style.width = Math.min(100, Math.max(0, currentPct)) + '%';
-    if (pctEl) pctEl.textContent = Math.round(currentPct) + '%';
+    var rounded = Math.min(100, Math.max(0, Math.round(visualPct)));
+    if (fillEl) fillEl.style.width = rounded + '%';
+    if (pctEl) pctEl.textContent = rounded + '%';
     if (statEl && statusText) statEl.textContent = statusText;
   }
 
-  function step() {
+  function step(now) {
     if (done) return;
-    if (currentPct < targetPct) {
-      currentPct += (targetPct - currentPct) * 0.15 + 0.4;
-      if (currentPct > targetPct) currentPct = targetPct;
+    var elapsed = now - startTime;
+    var timeRatio = Math.min(1, elapsed / MIN_BOOT_DURATION_MS);
+
+    // Progression combines minimum time-pacing with actual subsystem milestones
+    var targetCeil = isSceneReady ? 100 : 92;
+    var baselinePct = Math.min(targetCeil, Math.round(timeRatio * targetCeil));
+    var effectiveTarget = Math.max(targetPct, baselinePct);
+
+    if (visualPct < effectiveTarget) {
+      var delta = effectiveTarget - visualPct;
+      var speed = Math.max(0.35, delta * 0.1);
+      visualPct = Math.min(effectiveTarget, visualPct + speed);
       updateDisplay();
     }
+
+    if (isSceneReady && visualPct >= 99.5) {
+      visualPct = 100;
+      updateDisplay();
+      done = true;
+      if (statEl) statEl.textContent = 'READY TO ROLL!';
+      setTimeout(function () {
+        if (splashEl) {
+          splashEl.classList.add('fade-out');
+          setTimeout(function () {
+            if (splashEl && splashEl.parentNode) splashEl.remove();
+          }, 450);
+        }
+      }, 220);
+      return;
+    }
+
     requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
-
-  // Auto-progress stages while scripts fetch and evaluate
-  setTimeout(function() { if (!done && targetPct < 38) { targetPct = 38; statusText = 'LOADING ENGINE & ASSETS…'; } }, 100);
-  setTimeout(function() { if (!done && targetPct < 68) { targetPct = 68; statusText = 'COMPILING 3D SHADERS…'; } }, 300);
-  setTimeout(function() { if (!done && targetPct < 88) { targetPct = 88; statusText = 'PREPARING VOXEL CITY…'; } }, 600);
 
   window.__setBootProgress = function(pct, status) {
     targetPct = Math.max(targetPct, pct);
     if (status) statusText = status;
     if (pct >= 100) {
-      currentPct = 100;
-      targetPct = 100;
-      statusText = status || 'READY!';
-      updateDisplay();
+      isSceneReady = true;
     }
   };
 
-  // Pre-warm title music streaming immediately
+  // Pre-warm title music streaming immediately on boot
   try {
     var bgMusicPreload = new Audio();
     bgMusicPreload.src = 'assets/music/main-menu.mp3';
@@ -361,14 +384,7 @@ body:has(#screen-root .fw-landing) #mp-link { display: flex; }
     line.style.lineHeight = '1.5';
     if (statEl) statEl.textContent = 'LOAD ERROR';
   }
-  // Capture phase on purpose: a module script that cannot fetch itself (or its
-  // "three" import) fires a NON-bubbling error on the <script> element, which a
-  // plain bubble-phase window listener never sees — and that is precisely the
-  // failure being watched for. Capture also surfaces every other resource error,
-  // so the target is filtered: element targets count only when they are the
-  // script tag, while a genuine uncaught exception (target === window) always
-  // does. Without that filter a single missing texture would claim the whole
-  // game had failed to start.
+
   window.addEventListener('error', function (e) {
     var t = e.target;
     if (t && t !== window && t.tagName !== 'SCRIPT') return;
