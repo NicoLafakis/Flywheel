@@ -19,7 +19,7 @@ Last updated: 2026-08-14
 
 - **Brand**: *Flywheel — A sprocket's story*. Branded landing screen over live city backdrop, block wordmark, legal footer.
 - **Progression**: Free-play voxel sandboxes on 180s clock, 100% full-clear goal, 60 deterministic collectible coins per city, skin & indicator shop.
-- **Cities (7)**: Gallery, Manhattan, Upper Manhattan (73k blocks), Brooklyn (40k blocks), Boston (83k blocks), Cambridge (73k blocks), Chicago Loop (44k blocks).
+- **Cities (7 + Tokyo)**: Gallery, Manhattan, Upper Manhattan (73k blocks), Brooklyn (40k blocks), Boston (83k blocks), Cambridge (73k blocks), Chicago Loop (44k blocks), Tokyo (83k blocks).
 - **Multiplayer & Boards**: Supabase Realtime 1v1 arena (`arena.html`); THE RUN Chicago 90s verified replay; public boards; local/cloud profiles; signed outbox.
 - **Audio & Quality**: 10 streamed cues, independent audio mix controls, HIGH/LOW binary quality.
 
@@ -27,8 +27,10 @@ Last updated: 2026-08-14
 
 ## Recent history
 
+- 2026-08-14 — Tokyo Daytime Palette Overhaul: Replaced neon/rainbow building accents (magenta, cyan, hot pink, purple, bright yellow) with realistic daytime architectural tones — muted bronze, sandstone, grey-green patina for skyscrapers; traditional cinnabar, indigo, ochre, pine green for izakaya signs; warm cream and cool grey for Harajuku boutiques; rich crimson for Kabukicho gate and 109 signage.
+- 2026-08-14 — Earthquake Fault-Line Direction Fix: Rewired quake power-up so the crack starts at the player's position and extends toward the furthest map corner (was centered on player with velocity-based direction). Added propagating staggered VFX — shock rings fire sequentially along the crack over ~0.7s instead of all at once.
 - 2026-08-14 — Environmental Cataclysms & Power-Up Overhaul:
-  - **Fault Line Rupture (Seismic Quake Overhaul)**: Spawns a 70m gaping directional ground fault rupture snapping building foundations, toppling skyscrapers in real-time domino physics with subterranean tectonic rumble audio and magma crack particle bursts.
+  - **Fault Line Rupture (Seismic Quake Overhaul)**: Spawns a directional ground fault rupture from the impact point to the furthest map boundary, snapping building foundations and toppling skyscrapers with domino physics, subterranean tectonic rumble audio, and propagating magma crack particle bursts.
   - **Chrono Time Freeze (True World Time Stop)**: Completely pauses moving traffic and falling physics blocks in mid-air for 8s while the player zooms at hyperspeed vacuuming up frozen prey with frost screen vignette, reverse whoosh, and crystal shatter sound effects.
   - **Dynamic Tornado / Hurricane Storm System**: Schedules 3 dramatic atmospheric cataclysms per match (t=60s, 150s, 240s) with dark thunderstorm sky transitions, rolling thunder audio, and high-velocity wind vortices (Tornado rips upper floors & spires off skyscrapers inland; Hurricane unleashes coastal storm surges in harbor cities) breaking structures down into a chaotic scavenger hunt.
 - 2026-08-14 — Tokyo Mega-Metropolis Expansion (83,573 blocks / 154,879 mass): Expanded `js/voxelscene-tokyo.js` into the largest, most hyper-dense city sandbox on the roster, featuring wall-to-wall infill across 5 iconic districts (Nishi-Shinjuku Skyscraper Canyon, Kabukicho & Golden Gai Izakayas, Ginza & Roppongi Hills Luxury Wards, Shibuya Scramble Crossing & 109, and Meiji Jingu Sacred Forest & 5-Tier Pagoda) with 100% static structural equilibrium (0 falling blocks at t=3s)

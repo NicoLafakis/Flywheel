@@ -113,12 +113,12 @@ const C = {
   // Concrete & Modern Facades
   whitePanel: 0xf8f9fa, concretePrecast: 0xdcdcdc, darkGranite: 0x2b2d42, obsidianSteel: 0x1a1a24,
   // Glass curtain walls
-  glassCyan: sp(0x90e0ef), glassNavy: sp(0x1d3557), glassTeal: sp(0x06d6a0), glassAmber: sp(0xf4a261),
+  glassCyan: sp(0x90e0ef), glassNavy: sp(0x1d3557), glassTeal: sp(0x5b7a7a), glassAmber: sp(0xb0a090),
   // Traditional Japanese Timber & Shingle Architecture
   cypressWood: 0x7f4f24, darkTimber: 0x582f0e, cedarBeam: 0xddb892,
   clayShingle: 0x293241, copperPatina: 0x2a9d8f, vermilionTorii: 0xd90429, goldFinial: 0xf7c948,
-  // Neon Accents (Tokyo Night Signs)
-  neonMagenta: 0xf72585, neonCyan: 0x4cc9f0, neonYellow: 0xfee440, neonOrange: 0xf77f00, neonGreen: 0x00f5d4,
+  // District Accents (daytime architectural tones)
+  neonMagenta: 0xc03050, neonCyan: 0x6090a8, neonYellow: 0xc4a860, neonOrange: 0xa07040, neonGreen: 0x508878,
   // Street & Rail Infrastructure
   asphalt: 0x1f2421, sidewalkGrey: 0x6c757d, curbStone: 0x8d99ae,
   shinkansenWhite: 0xffffff, shinkansenBlue: 0x0077b6,
@@ -271,7 +271,7 @@ export function buildTokyo(sim) {
       }
     }
     BOX(ox + 2, layers, oz + 2, 6, 1, 6, 'concrete', 1, 0x111111, 'mat_suburban_siding');
-    BOX(ox + 3, layers + 1, oz + 3, 4, 1, 4, 'panel', 1, 0xf7c948, 'mat_awning_stripe');
+    BOX(ox + 3, layers + 1, oz + 3, 4, 1, 4, 'panel', 1, 0x8a8a8e, 'mat_awning_stripe');
     sim.cameraBlockers.push({ minX: ox, maxX: ox + 10, minZ: oz, maxZ: oz + 10, h: 30 });
   }
 
@@ -279,7 +279,7 @@ export function buildTokyo(sim) {
   // Block NW5 (x: -105..-76, z: -25..-5)
   {
     const ox = -96, oz = -25;
-    kenneySkyscraper(sim, ox, oz, 8, 8, 26, 0x3d5a80, 0xee6c4d, 'flat');
+    kenneySkyscraper(sim, ox, oz, 8, 8, 26, 0x3d5a80, 0x9a7868, 'flat');
     for (let y = 27; y < 30; y++) {
       for (let x = 2; x <= 5; x++) for (let z = 2; z <= 5; z++) {
         const isClock = y === 28 && (x === 3 || x === 4 || z === 3 || z === 4);
@@ -298,13 +298,13 @@ export function buildTokyo(sim) {
   // Block NW1 (x: -105..-76, z: -94..-72)
   commercialPodium(-104, -94, 26, 20, 5, 0x2b2d42, 0x1d3557); // Shinjuku Central Station Concourse
   // Block NW2 (x: -64..-37, z: -94..-72)
-  kenneySkyscraper(sim, -62, -92, 10, 10, 24, 0x1d3557, 0xf7c948, 'helipad'); // Shinjuku Sumitomo Hex-Tower
-  kenneySkyscraper(sim, -49, -92, 10, 10, 22, 0x264653, 0x2a9d8f, 'cooling'); // Shinjuku Mitsui Tower
+  kenneySkyscraper(sim, -62, -92, 10, 10, 24, 0x1d3557, 0xb0a090, 'helipad'); // Shinjuku Sumitomo Hex-Tower
+  kenneySkyscraper(sim, -49, -92, 10, 10, 22, 0x264653, 0x728a8a, 'cooling'); // Shinjuku Mitsui Tower
   // Block NW4 (x: -64..-37, z: -65..-37)
-  kenneySkyscraper(sim, -62, -62, 10, 10, 24, 0x457b9d, 0xe76f51, 'helipad'); // Sompo Japan Tower
-  kenneySkyscraper(sim, -49, -62, 10, 10, 20, 0x3d5a80, 0xffb703, 'cooling'); // Century Hyatt Regency
+  kenneySkyscraper(sim, -62, -62, 10, 10, 24, 0x457b9d, 0x9a8578, 'helipad'); // Sompo Japan Tower
+  kenneySkyscraper(sim, -49, -62, 10, 10, 20, 0x3d5a80, 0xa89878, 'cooling'); // Century Hyatt Regency
   // Block NW6 (x: -64..-37, z: -25..-5)
-  kenneySkyscraper(sim, -45, -25, 8, 8, 20, 0x2b2d42, 0x06d6a0, 'helipad'); // Shinjuku I-Land Tower
+  kenneySkyscraper(sim, -45, -25, 8, 8, 20, 0x2b2d42, 0x607a7a, 'helipad'); // Shinjuku I-Land Tower
 
   // Iconic Red LOVE Sculpture at Shinjuku I-Land Plaza
   {
@@ -326,7 +326,7 @@ export function buildTokyo(sim) {
     }
     for (let x = -1; x <= 7; x++) {
       B(gx + x, 6, gz, 'steel', 1, 0xd90429);
-      B(gx + x, 7, gz, 'panel', 1, 0xff006e, 'mat_awning_stripe');
+      B(gx + x, 7, gz, 'panel', 1, 0xc03040, 'mat_awning_stripe');
     }
   }
 
@@ -373,8 +373,8 @@ export function buildTokyo(sim) {
   const alleyX = [-33, -27, -21, -15, -9, -3, 3];
   const alleyZ = [-60, -52, -44, -25];
   const colors = [
-    [0xd90429, 0x2b2d42], [0xf77f00, 0x4a5759], [0x3a86ff, 0x1b4965], [0x2b9348, 0x2d6a4f],
-    [0x9b5de5, 0x355070], [0xf72585, 0x2b2d42], [0xffb703, 0x3d5a80]
+    [0x8a3030, 0x2b2d42], [0x8a6a3a, 0x4a5759], [0x3a5068, 0x1b4965], [0x3a6a3a, 0x2d6a4f],
+    [0x5a4a68, 0x355070], [0x7a3a4a, 0x2b2d42], [0x8a7a3a, 0x3d5a80]
   ];
   for (let r = 0; r < alleyZ.length; r++) {
     for (let c = 0; c < alleyX.length; c++) {
@@ -406,7 +406,7 @@ export function buildTokyo(sim) {
   // =========================================================================
 
   // Roppongi Hills Mori Tower (28m tall)
-  kenneySkyscraper(sim, 22, -90, 10, 10, 28, 0x1a1a24, 0x06d6a0, 'helipad');
+  kenneySkyscraper(sim, 22, -90, 10, 10, 28, 0x1a1a24, 0x607a7a, 'helipad');
   sim.cameraBlockers.push({ minX: 22, maxX: 32, minZ: -90, maxZ: -80, h: 32 });
 
   // Ginza Wako Clock Tower (18m tall)
@@ -423,9 +423,9 @@ export function buildTokyo(sim) {
   }
 
   // Ginza Department Stores & Danchi Blocks
-  commercialPodium(45, -90, 12, 10, 6, 0x111111, 0xd90429); // Ginza Six Flagship
-  commercialPodium(70, -90, 14, 10, 6, 0x2b2d42, 0x3a86ff); // Matsuya Ginza
-  commercialPodium(86, -90, 16, 10, 6, 0x1d3557, 0xf77f00); // Mitsukoshi Ginza
+  commercialPodium(45, -90, 12, 10, 6, 0x111111, 0x5a4a3e); // Ginza Six Flagship
+  commercialPodium(70, -90, 14, 10, 6, 0x2b2d42, 0x4a5a6a); // Matsuya Ginza
+  commercialPodium(86, -90, 16, 10, 6, 0x1d3557, 0x6a5a4a); // Mitsukoshi Ginza
 
   // Mid-Rise Danchi Blocks across NE
   commercialPodium(22, -60, 14, 10, 5, 0x3d5a80, 0x2b2d42);
@@ -530,7 +530,7 @@ export function buildTokyo(sim) {
       }
     }
     BOX(ox + 1, layers, oz + 1, 6, 1, 6, 'concrete', 1, 0x2b2d42, 'mat_suburban_siding');
-    BOX(ox + 2, layers + 1, oz + 2, 4, 3, 1, 'panel', 1, 0xff006e, 'mat_awning_stripe');
+    BOX(ox + 2, layers + 1, oz + 2, 4, 3, 1, 'panel', 1, 0xc03040, 'mat_awning_stripe');
     sim.cameraBlockers.push({ minX: ox, maxX: ox + 8, minZ: oz, maxZ: oz + 8, h: layers + 4 });
   }
 
@@ -568,20 +568,20 @@ export function buildTokyo(sim) {
 
   // Shibuya Commercial Blocks (Center-Gai & Dogenzaka)
   // Block SW1 (x: -105..-76, z: 12..33)
-  commercialPodium(-104, 13, 26, 18, 5, 0x06d6a0, 0x111111);
+  commercialPodium(-104, 13, 26, 18, 5, 0x5a6a6a, 0x111111);
   // Block SW2 (x: -64..-37, z: 12..33) — Harajuku Boutiques
   {
     const hx = -62, hz = 20;
     for (let i = 0; i < 4; i++) {
-      commercialPodium(hx + i * 6, hz, 5, 10, 3, i % 2 === 0 ? 0xffafcc : 0xa2d2ff, 0x111111);
+      commercialPodium(hx + i * 6, hz, 5, 10, 3, i % 2 === 0 ? 0xc8bfb0 : 0xb0b8c0, 0x111111);
     }
   }
   // Block SW3 (x: -105..-76, z: 45..68)
   commercialPodium(-104, 46, 26, 20, 5, 0xd90429, 0x2b2d42);
   // Block SW5 (x: -105..-76, z: 80..95)
-  commercialPodium(-104, 80, 26, 14, 4, 0x7209b7, 0x111111);
+  commercialPodium(-104, 80, 26, 14, 4, 0x5a5060, 0x111111);
   // Block SW6 (x: -64..-37, z: 80..95)
-  commercialPodium(-64, 80, 24, 14, 4, 0x3a86ff, 0x1d3557);
+  commercialPodium(-64, 80, 24, 14, 4, 0x4a5a6a, 0x1d3557);
 
   // =========================================================================
   // 7. DISTRICT 5: MEIJI JINGU SHRINE, SACRED FOREST & MINATO RESIDENCES
