@@ -1927,6 +1927,28 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   }
 }
 
+/* Short phones flatten the shelf. The pinned-shelf design above needs roughly
+   860px of viewport height to keep the utility row on screen (content above
+   the shelf is ~510px, the shelf floor is 150px, and RUN/RECORDS/SHOP/
+   SETTINGS/footer need ~190px below it). Below ~780px there is no shelf size
+   at which that fits, and the fallback the block above promises — "the screen
+   scrolls" — was broken in practice: the shelf's bottom edge lands at the
+   viewport's bottom edge, so the entire lower screen is a nested scroller
+   whose overscroll-behavior:contain swallows the one gesture that could
+   scroll the page, leaving RECORDS/SHOP/SETTINGS painted off-screen and
+   unreachable while masked (near-invisible) chips take the taps — the
+   "tapped RECORDS, got Cambridge" report. So under 780px the shelf rejoins
+   the document flow: no inner scroller, no mask, one page scroll, and every
+   button is where it looks like it is. */
+@media (max-width: 640px) and (orientation: portrait) and (max-height: 780px) {
+  .fw-group { flex: none; min-height: 0; }
+  .fw-chips {
+    flex: none; min-height: 0; max-height: none;
+    overflow: visible;
+    -webkit-mask-image: none; mask-image: none;
+  }
+}
+
 /* ---------- Records and profile ----------
    The board is deliberately ordinary HTML table/form markup. It stays usable
    without the optional board module, and the narrow viewport has one horizontal

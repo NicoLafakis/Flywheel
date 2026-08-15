@@ -113,6 +113,11 @@ tying everything together.
   scrolling and leaves a strip of live city legible between the strip and the
   shelf. `menuscene.js` pulls its establishing radius back (112 vs 74) on a
   narrow portrait viewport so that strip carries skyline rather than one facade.
+  Below ~780px viewport height (iPhone SE class) the pinned shelf cannot fit at
+  any size, and the nested scroller trapped the page's one scroll gesture —
+  the utility row painted off-screen while masked chips took its taps — so a
+  second query (`max-height: 780px`) flattens the shelf back into document
+  flow: no inner scroller, no mask, one page scroll.
 - Landing-screen feel is token-driven (`--fw-press`/`--fw-release`/`--fw-back`/
   `--fw-lift`/`--fw-stagger` on `.fw-landing`). Reduced motion swaps those
   tokens rather than removing the animations, so a press still answers; every
