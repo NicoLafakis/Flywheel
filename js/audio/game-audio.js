@@ -104,10 +104,12 @@ function gulpRate(radius) {
 }
 
 export class GameAudio {
-  constructor({ base = 'assets/audio/', musicBase = 'assets/music/', musicDirector = null } = {}) {
+  constructor({ base = 'assets/audio/', musicBase = 'assets/music/', musicDirector = null, enableCrashSounds = false } = {}) {
     this.engine = new AudioEngine({ base, ext: FILE_EXT });
     this.music = musicDirector || new MusicDirector({ base: musicBase });
     this.music.setMuted(this.engine.muted);
+    // Building crash sound toggle: stripped out by default per user direction
+    this.enableCrashSounds = enableCrashSounds;
     // Deliberately NO setMasterVolume() here: music is governed by its own
     // slider and by mute, nothing else. Wiring the effects level in at boot is
     // what used to make turning effects down turn the score down with it.
@@ -192,6 +194,18 @@ export class GameAudio {
   uiConfirm() { this.engine.play('ui-confirm', { vol: 0.8 }); }
   countdownTick() { this.engine.play('combo-tick', { vol: 0.8, rate: 0.9 }); }
   countdownGo() { this.engine.play('ui-confirm', { vol: 1.0, rate: 1.2 }); }
+  playCoin(opts) {
+    if (typeof this.engine.playCoin === 'function') this.engine.playCoin(opts);
+    else this.engine.play('coin', opts);
+  }
+  playPowerUpCollect(opts) {
+    if (typeof this.engine.playPowerUpCollect === 'function') this.engine.playPowerUpCollect(opts);
+    else this.engine.play('milestone', opts);
+  }
+  playPowerUpSpawn(opts) {
+    if (typeof this.engine.playPowerUpSpawn === 'function') this.engine.playPowerUpSpawn(opts);
+    else this.engine.play('coin', opts);
+  }
 
   // ---------------------------------------------------------------- finales
   win() { this._stopScene(); this.music.duck(3.0, 0.3); this.engine.play('win', { vol: 1.0 }); }
@@ -275,20 +289,17 @@ export class GameAudio {
   }
 
   /** The one sound a building gets. Weight class comes from the POOLED block
-   * count, position from the impacts' mass-weighted centroid. */
+   * count, position from the impacts' mass-weighted centroid.
+   * Stripped out / disabled by default per user direction. */
   _voiceCollapse(c, now) {
     c.voiced = true;
     c.until = now + CRASH_SUPPRESS;
     const n = c.total;
     if (n < CRASH_SMALL) return;   // pieces falling off something, not a collapse
+    if (!this.enableCrashSounds) return; // Muted by default per user request
     const a = c.positioned ? this._att(c.x, c.z) : 1;
     if (a < 0.05) return;          // too far to hear — skip the nodes
     const e = this.engine;
-    // The layer delays are NOT compensated for the hold. They are the shape of
-    // the sound — bang, then glass, then settling grit — and the hold only
-    // moves where that shape starts, which is the one thing compressing them
-    // would not fix. At CRASH_MAX_HOLD the onset sits 0.6 s behind the first
-    // slab, well inside the seconds a tower spends coming apart on screen.
     if (n >= CRASH_BIG) {                // a tower came down
       e.play('crash-big', { vol: 1.0 * a });
       e.play('rumble', { vol: 0.8 * a });
@@ -317,7 +328,34 @@ export class GameAudio {
         break;
       }
       case 'coin':
-        e.play('coin', { vol: 0.8 });
+        this.playCoin();
+        break;
+      case 'powerup_collect':
+        this.playPowerUpCollect();
+        break;
+      case 'powerup_spawn':
+        this.playPowerUpSpawn();
+        break;
+      case 'quake':
+        if (typeof e.playFaultLineQuake === 'function') e.playFaultLineQuake({ vol: 1.0 });
+        e.duckAmbience(3.0, 0.25);
+        this.music.duck(3.0, 0.35);
+        break;
+      case 'time_freeze_start':
+        if (typeof e.playTimeFreezeStart === 'function') e.playTimeFreezeStart({ vol: 0.95 });
+        e.duckAmbience(8.0, 0.2);
+        this.music.duck(8.0, 0.25);
+        break;
+      case 'time_freeze_end':
+        if (typeof e.playTimeFreezeEnd === 'function') e.playTimeFreezeEnd({ vol: 0.95 });
+        break;
+      case 'storm_warning':
+        if (typeof e.playStormWarning === 'function') e.playStormWarning({ stormType: ev.stormType, vol: 0.95 });
+        e.duckAmbience(6.0, 0.3);
+        this.music.duck(6.0, 0.4);
+        break;
+      case 'storm_active':
+        if (typeof e.playStormActive === 'function') e.playStormActive({ stormType: ev.stormType, vol: 0.9 });
         break;
       case 'combo': {
         const lvl = ev.level || 1;
@@ -326,9 +364,6 @@ export class GameAudio {
         break;
       }
       case 'crash': {
-        // ONE chunk of a building hitting something — never a sound on its own.
-        // It joins (or opens) the collapse pooling at that spot; _voiceCollapse
-        // decides, once, what the whole building sounded like.
         if (!e.ctx) break;                 // no clock to pool against, no sound
         const n = Math.max(1, ev.size || 1);
         const positioned = ev.x != null;
@@ -361,13 +396,14 @@ export class GameAudio {
         this.music.duck(2.5, 0.35);
         break;
       case 'derail': {
-        // THE derailment. Screech leads, the crash lands a beat later, and
+        // THE derailment. Screech leads with people screaming, the crash lands a beat later, and
         // the running rattle dies with the train. Per-car events inside the
-        // same pile-up fold into one screech + one crash.
+        // same pile-up fold into one screech + scream + crash.
         const a = ev.x != null ? this._att(ev.x, ev.z) : 1;
         if (a >= 0.05 && now - this._lastScreech > 2.0) {
           this._lastScreech = now;
           e.play('derail-screech', { vol: 1.0 * a });
+          e.playTrainScream({ vol: 0.95 * a, delay: 0.15 });
           e.duckAmbience(4.0, 0.2);
           this.music.duck(4.0, 0.3);
         }

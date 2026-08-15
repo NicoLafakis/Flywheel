@@ -232,6 +232,305 @@ export class AudioEngine {
     this.play(this._rng.pick(names), opts);
   }
 
+  /** Authentic bright metallic coin double-chime (B5 -> E6). Always audible and distinct. */
+  playCoin({ vol = 0.85 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc1 = this.ctx.createOscillator();
+      const osc2 = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc1.type = 'sine';
+      osc2.type = 'triangle';
+
+      // Pitch sequence: B5 (987.77Hz) -> E6 (1318.51Hz)
+      osc1.frequency.setValueAtTime(987.77, now);
+      osc1.frequency.setValueAtTime(1318.51, now + 0.07);
+
+      osc2.frequency.setValueAtTime(1975.53, now);
+      osc2.frequency.setValueAtTime(2637.02, now + 0.07);
+
+      const targetGain = 0.42 * this._vol * vol;
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(targetGain, now + 0.012);
+      gain.gain.setValueAtTime(targetGain, now + 0.07);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(this.sfx);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.45);
+      osc2.stop(now + 0.45);
+    } catch { /* fallback */ }
+  }
+
+  /** Shimmering ascending arpeggio fanfare for power-up collections. */
+  playPowerUpCollect({ vol = 0.95 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const notes = [349.23, 440.00, 523.25, 659.25, 880.00, 1046.50]; // F4, A4, C5, E5, A5, C6
+      const step = 0.055;
+      
+      notes.forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+        osc.frequency.setValueAtTime(freq, now + idx * step);
+
+        const startTime = now + idx * step;
+        const noteGain = 0.28 * this._vol * vol;
+        gain.gain.setValueAtTime(0.001, startTime);
+        gain.gain.linearRampToValueAtTime(noteGain, startTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.35);
+
+        osc.connect(gain);
+        gain.connect(this.sfx);
+
+        osc.start(startTime);
+        osc.stop(startTime + 0.38);
+      });
+
+      // Sub-harmonic warm body
+      const body = this.ctx.createOscillator();
+      const bodyGain = this.ctx.createGain();
+      body.type = 'sine';
+      body.frequency.setValueAtTime(523.25, now); // C5
+      body.frequency.exponentialRampToValueAtTime(261.63, now + 0.35); // C4
+
+      const bodyVol = 0.28 * this._vol * vol;
+      bodyGain.gain.setValueAtTime(0.001, now);
+      bodyGain.gain.linearRampToValueAtTime(bodyVol, now + 0.015);
+      bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+
+      body.connect(bodyGain);
+      bodyGain.connect(this.sfx);
+      body.start(now);
+      body.stop(now + 0.5);
+    } catch { /* fallback */ }
+  }
+
+  /** Panicked crowd scream effect triggered when an elevated train derails and falls. */
+  playTrainScream({ vol = 1.0, delay = 0 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime + delay;
+      const voices = [
+        { startF: 920, peakF: 1180, endF: 380, vibratoRate: 7.2, vibratoDepth: 35, formant: 1800, q: 3.5, gainMult: 0.32 },
+        { startF: 740, peakF: 890,  endF: 290, vibratoRate: 6.8, vibratoDepth: 28, formant: 1450, q: 3.0, gainMult: 0.36 },
+        { startF: 520, peakF: 640,  endF: 220, vibratoRate: 6.1, vibratoDepth: 20, formant: 1100, q: 2.8, gainMult: 0.28 },
+      ];
+
+      voices.forEach((v, idx) => {
+        const osc = this.ctx.createOscillator();
+        const filter = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
+
+        // Sawtooth / triangle voice with vocal formant resonance
+        osc.type = idx % 2 === 0 ? 'sawtooth' : 'triangle';
+
+        // Panicked pitch envelope: starts high, shrieks upward, then drops with falling gravity
+        osc.frequency.setValueAtTime(v.startF, now);
+        osc.frequency.linearRampToValueAtTime(v.peakF, now + 0.18);
+        osc.frequency.exponentialRampToValueAtTime(v.endF, now + 1.25);
+
+        // Vocal tract formant filter ("AAAHHH!" vowel resonance)
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(v.formant, now);
+        filter.Q.setValueAtTime(v.q, now);
+
+        // Panicked vibrato / tremolo LFO
+        const lfo = this.ctx.createOscillator();
+        const lfoGain = this.ctx.createGain();
+        lfo.frequency.setValueAtTime(v.vibratoRate, now);
+        lfoGain.gain.setValueAtTime(v.vibratoDepth, now);
+        lfo.connect(osc.frequency);
+        lfo.start(now);
+        lfo.stop(now + 1.35);
+
+        // Gain envelope: fast scream attack, sustained panic, trailing fade
+        const targetVol = v.gainMult * this._vol * vol;
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(targetVol, now + 0.08);
+        gain.gain.setValueAtTime(targetVol * 0.85, now + 0.45);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.3);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.sfx);
+
+        osc.start(now);
+        osc.stop(now + 1.35);
+      });
+    } catch { /* fallback */ }
+  }
+
+  /** Shimmering descending drop chime for milestone power-up spawns. */
+  playPowerUpSpawn({ vol = 0.85 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const notes = [1567.98, 1318.51, 1046.50, 783.99]; // G6, E6, C6, G5
+      const step = 0.06;
+      
+      notes.forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * step);
+
+        const startTime = now + idx * step;
+        const noteGain = 0.22 * this._vol * vol;
+        gain.gain.setValueAtTime(0.001, startTime);
+        gain.gain.linearRampToValueAtTime(noteGain, startTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.3);
+
+        osc.connect(gain);
+        gain.connect(this.sfx);
+
+        osc.start(startTime);
+        osc.stop(startTime + 0.32);
+      });
+    } catch { /* fallback */ }
+  }
+
+  /** Deep subterranean tectonic fault line earthquake rumble and concrete snapping. */
+  playFaultLineQuake({ vol = 1.0 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      // Sub-bass tectonic rumble
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(65, now);
+      osc.frequency.exponentialRampToValueAtTime(32, now + 1.6);
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(140, now);
+      filter.frequency.linearRampToValueAtTime(60, now + 1.8);
+
+      const targetVol = 0.55 * this._vol * vol;
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(targetVol, now + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.0);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.sfx);
+      osc.start(now);
+      osc.stop(now + 2.1);
+    } catch { /* fallback */ }
+  }
+
+  /** Ethereal reverse whoosh & time-freeze warp sound. */
+  playTimeFreezeStart({ vol = 0.9 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(180, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.45);
+
+      const targetVol = 0.4 * this._vol * vol;
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(targetVol, now + 0.35);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+
+      osc.connect(gain);
+      gain.connect(this.sfx);
+      osc.start(now);
+      osc.stop(now + 0.75);
+    } catch { /* fallback */ }
+  }
+
+  /** Crystal / glass shatter sound when time freeze expires and world resumes. */
+  playTimeFreezeEnd({ vol = 0.9 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const freqs = [1760, 2217, 2637, 3520];
+      freqs.forEach((f, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(f, now + idx * 0.02);
+        osc.frequency.exponentialRampToValueAtTime(f * 0.4, now + idx * 0.02 + 0.25);
+
+        const v = 0.22 * this._vol * vol;
+        gain.gain.setValueAtTime(0.001, now + idx * 0.02);
+        gain.gain.linearRampToValueAtTime(v, now + idx * 0.02 + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.02 + 0.3);
+
+        osc.connect(gain);
+        gain.connect(this.sfx);
+        osc.start(now + idx * 0.02);
+        osc.stop(now + idx * 0.02 + 0.35);
+      });
+    } catch { /* fallback */ }
+  }
+
+  /** Distant rolling thunder and ominous storm wind cue. */
+  playStormWarning({ stormType = 'tornado', vol = 0.95 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(55, now);
+      osc.frequency.linearRampToValueAtTime(75, now + 0.8);
+      osc.frequency.exponentialRampToValueAtTime(30, now + 2.8);
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(220, now);
+      filter.frequency.exponentialRampToValueAtTime(80, now + 3.0);
+
+      const targetVol = 0.5 * this._vol * vol;
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(targetVol, now + 0.4);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.2);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.sfx);
+      osc.start(now);
+      osc.stop(now + 3.3);
+    } catch { /* fallback */ }
+  }
+
+  /** Howling wind vortex / gale surge during cataclysm. */
+  playStormActive({ stormType = 'tornado', vol = 0.85 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.linearRampToValueAtTime(260, now + 1.2);
+      osc.frequency.linearRampToValueAtTime(120, now + 2.5);
+
+      const targetVol = 0.35 * this._vol * vol;
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(targetVol, now + 0.5);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.0);
+
+      osc.connect(gain);
+      gain.connect(this.sfx);
+      osc.start(now);
+      osc.stop(now + 3.1);
+    } catch { /* fallback */ }
+  }
+
   /** Looping bed through the ambience bus. Returns a handle: stop(fadeSec). */
   loop(name, { vol = 1, fadeIn = 1.5 } = {}) {
     const buf = this.buffers.get(name);

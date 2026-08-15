@@ -6,7 +6,8 @@ import { generateCity } from './citygen.js';
 import { RNG } from './rng.js';
 import {
   POWERUP_TYPES, createPowerUp, pickRandomPowerUpType, activatePowerUp,
-  stepActivePowerUps, hasActivePowerUp,
+  stepActivePowerUps, hasActivePowerUp, stepGroundPowerUps,
+  MAX_MAP_POWERUPS, MIN_POWERUP_SEPARATION, findSpacedPowerUpLocation,
 } from './powerups.js';
 
 export const COMBO_WINDOW = 1.5;
@@ -126,10 +127,9 @@ export class Sim {
     this.over = false;
     this.won = false;
     this.events = [];   // drained by the renderer each frame
-
-    // Power-ups
     this.powerups = this._placePowerups();
     this.activePowerUps = [];
+    this.powerupSpawnTimer = 16.0 + this.rng.float(0, 8);
     this.nextScorePowerUpThreshold = 100000;
     this.nextMultPowerUpThreshold = 500;
     this._nextPowerUpId = this.powerups.length + 1;
@@ -137,22 +137,18 @@ export class Sim {
 
   _placePowerups() {
     const b = this.city.bounds;
+    const bounds = { minX: b.xmin, maxX: b.xmax, minZ: b.zmin, maxZ: b.zmax };
     const out = [];
-    const count = 5;
-    const padding = 8;
-    const types = [
-      POWERUP_TYPES.VORTEX,
-      POWERUP_TYPES.SPEED,
-      POWERUP_TYPES.TITAN,
-      POWERUP_TYPES.QUAKE,
-      POWERUP_TYPES.FRENZY,
-      POWERUP_TYPES.CHRONO,
-    ];
+    const count = 2;
     for (let i = 0; i < count; i++) {
-      const type = types[i % types.length];
-      const x = this.rng.float(b.xmin + padding, b.xmax - padding);
-      const z = this.rng.float(b.zmin + padding, b.zmax - padding);
-      out.push(createPowerUp(i + 1, type, x, z, 'map'));
+      const type = pickRandomPowerUpType(this.rng);
+      const angle = this.rng.float(0, Math.PI * 2);
+      const pos = findSpacedPowerUpLocation(out, bounds, this.rng, MIN_POWERUP_SEPARATION);
+      out.push(createPowerUp(i + 1, type, pos.x, pos.z, 'map', {
+        lifespan: 28.0,
+        speed: 2.5 + this.rng.float(0, 0.8),
+        angle,
+      }));
     }
     return out;
   }
@@ -168,43 +164,91 @@ export class Sim {
     b.zmin = cz - nh / 2; b.zmax = cz + nh / 2;
     // Remove objects now outside; push holes inward.
     for (const o of this.city.objects) {
-      if (!o.eaten && (o.x < b.xmin || o.x > b.xmax || o.z < b.zmin || o.z > b.zmax)) {
-        o.eaten = true; // swallowed by the sea; no mass
-        this.events.push({ type: 'flooded', obj: o });
+      if (o.eaten) continue;
+      if (o.x < b.xmin || o.x > b.xmax || o.z < b.zmin || o.z > b.zmax) {
+        o.eaten = true;
       }
     }
     for (const h of [this.player, ...this.rivals]) {
-      h.x = Math.min(b.xmax - h.radius, Math.max(b.xmin + h.radius, h.x));
-      h.z = Math.min(b.zmax - h.radius, Math.max(b.zmin + h.radius, h.z));
+      h.x = Math.max(b.xmin + h.radius, Math.min(b.xmax - h.radius, h.x));
+      h.z = Math.max(b.zmin + h.radius, Math.min(b.zmax - h.radius, h.z));
     }
-    this.events.push({ type: 'tide', bounds: { ...b } });
+    this.events.push({ type: 'tide', bounds: b });
   }
 
   _triggerQuake(hole) {
-    const range = 24.0;
-    this.city.hash.query(hole.x, hole.z, range, (o) => {
-      if (o.eaten || o.committed) return;
-      const dx = o.x - hole.x, dz = o.z - hole.z;
-      const d = Math.hypot(dx, dz) || 1;
-      if (d <= range) {
-        if (o.shielded && o.tier <= 5) o.shielded = false;
-        o.vx = (dx / d) * (BOUNCE_SPEED * 2.0);
-        o.vz = (dz / d) * (BOUNCE_SPEED * 2.0);
-        o.moving = true;
-        o.bounceCd = this.time + 0.4;
+    const b = this.city.bounds;
+    const corners = [
+      { x: b.xmin, z: b.zmin },
+      { x: b.xmin, z: b.zmax },
+      { x: b.xmax, z: b.zmin },
+      { x: b.xmax, z: b.zmax }
+    ];
+    let maxDistSq = -1;
+    let target = null;
+    for (const c of corners) {
+      const cdx = c.x - hole.x;
+      const cdz = c.z - hole.z;
+      const distSq = cdx * cdx + cdz * cdz;
+      if (distSq > maxDistSq) {
+        maxDistSq = distSq;
+        target = c;
+      }
+    }
+
+    const tdx = target.x - hole.x;
+    const tdz = target.z - hole.z;
+    const angle = Math.atan2(tdz, tdx);
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    const faultLen = Math.sqrt(maxDistSq);
+
+    const x0 = hole.x;
+    const z0 = hole.z;
+    const x1 = hole.x + cosA * faultLen;
+    const z1 = hole.z + sinA * faultLen;
+
+    const crackWidth = 4.0;
+    let count = 0;
+    this.city.hash.query(hole.x, hole.z, faultLen, (o) => {
+      if (o.eaten || o.shielded) return;
+      const dx = o.x - hole.x;
+      const dz = o.z - hole.z;
+      const longDist = dx * cosA + dz * sinA;
+      if (longDist < 0 || longDist > faultLen) return;
+      
+      const perpDist = Math.abs(-dx * sinA + dz * cosA);
+      if (perpDist <= crackWidth) {
+        o.eaten = true;
+        hole.mass += o.tier * 0.5;
+        count++;
       }
     });
-    this.events.push({ type: 'quake', x: hole.x, z: hole.z, radius: range });
+    this.events.push({
+      type: 'quake',
+      x: hole.x,
+      z: hole.z,
+      x0, z0, x1, z1,
+      angle,
+      length: faultLen,
+      radius: faultLen,
+      hole
+    });
   }
 
   _spawnBonusPowerUp(reason, p) {
-    const angle = this.rng.float(0, Math.PI * 2);
-    const dist = this.rng.float(6, 14);
+    const activeGround = this.powerups.filter((pu) => !pu.collected);
+    if (activeGround.length >= MAX_MAP_POWERUPS) return null;
     const b = this.city.bounds;
-    const x = Math.min(b.xmax - 4, Math.max(b.xmin + 4, p.x + Math.cos(angle) * dist));
-    const z = Math.min(b.zmax - 4, Math.max(b.zmin + 4, p.z + Math.sin(angle) * dist));
+    const bounds = { minX: b.xmin, maxX: b.xmax, minZ: b.zmin, maxZ: b.zmax };
+    const pos = findSpacedPowerUpLocation(this.powerups, bounds, this.rng, MIN_POWERUP_SEPARATION);
+    const angle = this.rng.float(0, Math.PI * 2);
     const type = pickRandomPowerUpType(this.rng);
-    const pu = createPowerUp(this._nextPowerUpId++, type, x, z, reason);
+    const pu = createPowerUp(this._nextPowerUpId++, type, pos.x, pos.z, reason, {
+      lifespan: 28.0,
+      speed: 2.6 + this.rng.float(0, 0.8),
+      angle,
+    });
     this.powerups.push(pu);
     return pu;
   }
@@ -214,6 +258,7 @@ export class Sim {
     if (this.over) return;
     this.time += dt;
     this.timeLeft = Math.max(0, this.level.clock - this.time);
+    const b = this.city.bounds;
 
     // --- active powerups tick ---
     stepActivePowerUps(this.activePowerUps, dt);
@@ -259,6 +304,31 @@ export class Sim {
           this.city.hash.update(o);
         }
       });
+    }
+
+    // --- ground wandering powerups and intermittent spawns ---
+    const expiredList = stepGroundPowerUps(this.powerups, { minX: b.xmin, maxX: b.xmax, minZ: b.zmin, maxZ: b.zmax }, dt, this.rng);
+    for (const exp of expiredList) {
+      this.events.push({ type: 'powerup_despawn', powerup: exp });
+    }
+    this.powerups = this.powerups.filter((p) => !p.collected && !p.expired);
+
+    this.powerupSpawnTimer = (this.powerupSpawnTimer || 18.0) - dt;
+    if (this.powerupSpawnTimer <= 0) {
+      this.powerupSpawnTimer = 18.0 + this.rng.float(0, 10);
+      if (this.powerups.length < 2 && this.powerups.length < MAX_MAP_POWERUPS) {
+        const bounds = { minX: b.xmin, maxX: b.xmax, minZ: b.zmin, maxZ: b.zmax };
+        const pos = findSpacedPowerUpLocation(this.powerups, bounds, this.rng, MIN_POWERUP_SEPARATION);
+        const angle = this.rng.float(0, Math.PI * 2);
+        const type = pickRandomPowerUpType(this.rng);
+        const pu = createPowerUp(this._nextPowerUpId++, type, pos.x, pos.z, 'intermittent', {
+          lifespan: 26.0,
+          speed: 2.6 + this.rng.float(0, 0.8),
+          angle,
+        });
+        this.powerups.push(pu);
+        this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'intermittent' });
+      }
     }
 
     // --- power-up collection ---
@@ -315,7 +385,6 @@ export class Sim {
     }
 
     // --- clamp all holes to bounds ---
-    const b = this.city.bounds;
     for (const h of [p, ...this.rivals]) {
       h.x = Math.min(b.xmax - h.radius * 0.4, Math.max(b.xmin + h.radius * 0.4, h.x));
       h.z = Math.min(b.zmax - h.radius * 0.4, Math.max(b.zmin + h.radius * 0.4, h.z));

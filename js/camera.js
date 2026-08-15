@@ -222,9 +222,9 @@ try {
 
 export class ChaseCamera {
   constructor(aspect) {
-    this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, CAM_FAR);
+    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, CAM_FAR);
     this.yaw = 0;
-    this.pitch = 0.9;           // base elevation angle (rad)
+    this.pitch = 0.98;           // base elevation angle (rad, ~56.1 deg near-isometric tilt-shift)
     this.dist = 16;
     this.distScale = 1;         // settings slider multiplier
     this.sandboxSizeProgress = 0;
@@ -258,7 +258,7 @@ export class ChaseCamera {
     this._effT = null;        // smoothed blocker standoff; null = adopt the raw one
     this._lift = 0;           // roof-clearance floor on cy (m), eases down only
     this._span = { enter: 0, exit: 0 };  // raySpan2D scratch; ~540 calls/frame
-    this.fovBase = 50;
+    this.fovBase = 45;
     this._fovKick = 0;        // temporary FOV punch (growth/milestone juice)
 
     // Level intro. Inert until beginIntro() is called: introK stays 0, which

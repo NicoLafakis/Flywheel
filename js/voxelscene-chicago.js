@@ -1217,11 +1217,11 @@ export function buildChicago(sim) {
   // documented judgement.
   sim.sceneSurfaces = {
     brick: 'mat_brick_red',
-    glass: 'mat_glass_curtain',
-    concrete: 'mat_concrete_precast',
-    steel: 'mat_metal_seam',
-    panel: 'mat_metal_seam',
-    wood: 'mat_timber_dock',
+    glass: 'mat_shop_window',
+    concrete: 'mat_suburban_siding',
+    steel: 'mat_warehouse_roll',
+    panel: 'mat_awning_stripe',
+    wood: 'mat_clay_shingles',
   };
   sim.sceneAmbient = CHICAGO_AMBIENT;
   sim.sceneMovers = CHICAGO_MOVERS;

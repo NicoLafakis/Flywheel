@@ -38,11 +38,150 @@ import {
 } from './levelclock.js';
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from './fwmath.js';
 import { playerSpeedForRadius } from './tiers.js';
-import { sedan, bus, boxVan, bigTruck, motorcycle, tree, lampPost } from './voxelkit.js';
+import { sedan, bus, boxVan, bigTruck, motorcycle, tree, lampPost, kenneySUV, kenneySkyscraper } from './voxelkit.js';
 import {
   POWERUP_TYPES, createPowerUp, pickRandomPowerUpType, activatePowerUp,
-  stepActivePowerUps, hasActivePowerUp,
+  stepActivePowerUps, hasActivePowerUp, stepGroundPowerUps,
+  MAX_MAP_POWERUPS, MIN_POWERUP_SEPARATION, findSpacedPowerUpLocation,
 } from './powerups.js';
+
+// --- dynamic cataclysm storm system (tornado & hurricane events) -------------
+export class StormSystem {
+  constructor(sim) {
+    this.sim = sim;
+    this.rng = new RNG((sim.seed || 'sandbox') + ':storm');
+    // 3 scheduled cataclysms during 300s level
+    this.schedule = [
+      { triggerT: 60.0,  duration: 14.0, done: false },
+      { triggerT: 150.0, duration: 14.0, done: false },
+      { triggerT: 240.0, duration: 14.0, done: false },
+    ];
+    this.state = 'idle'; // 'idle' | 'warning' | 'active' | 'clearing'
+    this.stateTimer = 0;
+    this.currentStorm = null;
+    this.stormType = 'tornado';
+    this.vortexX = 0;
+    this.vortexZ = 0;
+    this.vortexVx = 0;
+    this.vortexVz = 0;
+    this.ripTimer = 0;
+  }
+
+  _detectStormType() {
+    const hasWater = this.sim.sceneDecor && Array.isArray(this.sim.sceneDecor.water) && this.sim.sceneDecor.water.length > 0;
+    return hasWater ? 'hurricane' : 'tornado';
+  }
+
+  step(dt) {
+    const time = this.sim.time;
+    if (this.state === 'idle') {
+      for (const ev of this.schedule) {
+        if (!ev.done && time >= ev.triggerT) {
+          ev.done = true;
+          this.currentStorm = ev;
+          this.stormType = this._detectStormType();
+          this.state = 'warning';
+          this.stateTimer = 5.0; // 5 seconds warning (sky dims, distant thunder)
+          this.sim.events.push({
+            type: 'storm_warning',
+            stormType: this.stormType,
+            duration: 5.0,
+          });
+          break;
+        }
+      }
+    } else if (this.state === 'warning') {
+      this.stateTimer -= dt;
+      if (this.stateTimer <= 0) {
+        this.state = 'active';
+        this.stateTimer = this.currentStorm ? this.currentStorm.duration : 14.0;
+        
+        const r = this.sim.boundsRect || { minX: -this.sim.bounds * 0.7, maxX: this.sim.bounds * 0.7, minZ: -this.sim.bounds * 0.7, maxZ: this.sim.bounds * 0.7 };
+        this.vortexX = (r.minX + r.maxX) * 0.5 + (this.rng.next() - 0.5) * (r.maxX - r.minX) * 0.5;
+        this.vortexZ = (r.minZ + r.maxZ) * 0.5 + (this.rng.next() - 0.5) * (r.maxZ - r.minZ) * 0.5;
+        const angle = this.rng.next() * 6.283185;
+        const speed = 7.5;
+        this.vortexVx = Math.cos(angle) * speed;
+        this.vortexVz = Math.sin(angle) * speed;
+
+        this.sim.events.push({
+          type: 'storm_active',
+          stormType: this.stormType,
+          vortexX: this.vortexX,
+          vortexZ: this.vortexZ,
+          duration: this.stateTimer,
+        });
+      }
+    } else if (this.state === 'active') {
+      this.stateTimer -= dt;
+      this.vortexX += this.vortexVx * dt;
+      this.vortexZ += this.vortexVz * dt;
+
+      const r = this.sim.boundsRect || { minX: -this.sim.bounds, maxX: this.sim.bounds, minZ: -this.sim.bounds, maxZ: this.sim.bounds };
+      if (this.vortexX < r.minX + 10) { this.vortexX = r.minX + 10; this.vortexVx = Math.abs(this.vortexVx); }
+      else if (this.vortexX > r.maxX - 10) { this.vortexX = r.maxX - 10; this.vortexVx = -Math.abs(this.vortexVx); }
+      if (this.vortexZ < r.minZ + 10) { this.vortexZ = r.minZ + 10; this.vortexVz = Math.abs(this.vortexVz); }
+      else if (this.vortexZ > r.maxZ - 10) { this.vortexZ = r.maxZ - 10; this.vortexVz = -Math.abs(this.vortexVz); }
+
+      this.ripTimer += dt;
+      if (this.ripTimer >= 0.15) {
+        this.ripTimer = 0;
+        this._applyStormDestruction();
+      }
+
+      if (this.stateTimer <= 0) {
+        this.state = 'clearing';
+        this.stateTimer = 4.0;
+        this.sim.events.push({ type: 'storm_cleared', stormType: this.stormType });
+      }
+    } else if (this.state === 'clearing') {
+      this.stateTimer -= dt;
+      if (this.stateTimer <= 0) {
+        this.state = 'idle';
+        this.currentStorm = null;
+      }
+    }
+  }
+
+  _applyStormDestruction() {
+    const stormRad = this.stormType === 'tornado' ? 14.0 : 20.0;
+    const stormRad2 = stormRad * stormRad;
+    let count = 0;
+    const maxRips = 12;
+
+    for (let i = 0; i < this.sim.blocks.length; i++) {
+      const b = this.sim.blocks[i];
+      if (b.state !== 'static' && b.state !== 'unstable') continue;
+      
+      const dx = b.x - this.vortexX;
+      const dz = b.z - this.vortexZ;
+      const dist2 = dx * dx + dz * dz;
+      if (dist2 > stormRad2) continue;
+
+      const isVulnerable = this.stormType === 'tornado' ? (b.y >= 6.0) : (b.matType === 'glass' || b.matType === 'panel' || b.y >= 4.0);
+      if (!isVulnerable) continue;
+
+      const dist = Math.sqrt(dist2) || 1;
+      const nx = dx / dist;
+      const nz = dz / dist;
+
+      if (this.stormType === 'tornado') {
+        const vx = -nz * 7.0 + (this.rng.next() - 0.5) * 3;
+        const vz = nx * 7.0 + (this.rng.next() - 0.5) * 3;
+        const vy = 3.5 + this.rng.next() * 2.0;
+        this.sim._detachBlock(b, vx, vy, vz);
+      } else {
+        const vx = this.vortexVx * 1.5 + (this.rng.next() - 0.5) * 4;
+        const vz = this.vortexVz * 1.5 + (this.rng.next() - 0.5) * 4;
+        const vy = 1.5 + this.rng.next() * 1.5;
+        this.sim._detachBlock(b, vx, vy, vz);
+      }
+      count++;
+      if (count >= maxRips) break;
+    }
+    if (count > 0) this.sim._graphDirty = true;
+  }
+}
 
 // --- authored scenes, loaded on demand ---------------------------------------
 // The six cities are 1.19 MB of raw source between them (Cambridge alone is
@@ -70,6 +209,7 @@ const SCENE_IMPORTERS = {
   'boston': () => import('./voxelscene-boston.js').then((m) => m.buildBoston),
   'cambridge': () => import('./voxelscene-cambridge.js').then((m) => m.buildCambridge),
   'chicago': () => import('./voxelscene-chicago.js').then((m) => m.buildChicago),
+  'tokyo': () => import('./voxelscene-tokyo.js').then((m) => m.buildTokyo),
 };
 const SCENE_BUILDERS = new Map();
 // In-flight promises, so two overlapping starts (a fast double-tap on a city
@@ -302,6 +442,7 @@ export const SCENE_GOALS = {
   boston: { name: 'SWALLOW THE SEAPORT', targetFraction: 1.0 },
   cambridge: { name: 'SWALLOW THE SPROCKET', targetFraction: 1.0 },
   chicago: { name: 'LOOP THE LOOP', targetFraction: 1.0 },
+  tokyo: { name: 'CROSS THE SCRAMBLE', targetFraction: 1.0 },
 };
 export const SANDBOX_COIN_COUNT = 60;
 export const SANDBOX_COIN_VALUE = 2;
@@ -621,12 +762,16 @@ export class VoxelSandboxSim {
     this.coinsCollected = 0;
     this.powerupRng = new RNG((seed || 'sandbox') + ':powerups');
     this.powerups = this._placePowerups();
+    this.powerupSpawnTimer = 16.0 + this.powerupRng.next() * 8.0;
     this.nextScorePowerUpThreshold = 100000;
     this.nextMultPowerUpThreshold = 500;
     this._nextPowerUpId = this.powerups.length + 1;
     this._assertCellKeyRange(scene);
     this._buildNeighbors();
     this._buildZones();
+    this.stormSystem = new StormSystem(this);
+    this.isTimeFrozen = false;
+    this._wasTimeFrozen = false;
     this.totalBlocks = this.blocks.length;
     // Static collision broad phase. The fine occupancy grid is ideal for
     // support/consumption, but scanning its full y-range for every falling
@@ -828,23 +973,18 @@ export class VoxelSandboxSim {
   _placePowerups() {
     const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
     const out = [];
-    const count = 6;
-    const types = [
-      POWERUP_TYPES.VORTEX,
-      POWERUP_TYPES.SPEED,
-      POWERUP_TYPES.TITAN,
-      POWERUP_TYPES.QUAKE,
-      POWERUP_TYPES.FRENZY,
-      POWERUP_TYPES.CHRONO,
-    ];
+    const count = 2;
     for (let i = 0; i < count; i++) {
-      const type = types[i % types.length];
+      const type = pickRandomPowerUpType(this.powerupRng);
+      const angle = this.powerupRng.next() * 6.283185307179586;
+      const pos = findSpacedPowerUpLocation(out, r, this.powerupRng, MIN_POWERUP_SEPARATION);
       out.push(createPowerUp(
         i + 1,
         type,
-        r.minX + (r.maxX - r.minX) * (0.12 + this.powerupRng.next() * 0.76),
-        r.minZ + (r.maxZ - r.minZ) * (0.12 + this.powerupRng.next() * 0.76),
-        'map'
+        pos.x,
+        pos.z,
+        'map',
+        { lifespan: 28.0, speed: 2.5 + this.powerupRng.next() * 0.8, angle }
       ));
     }
     return out;
@@ -857,36 +997,127 @@ export class VoxelSandboxSim {
     }
   }
 
+  _detachBlock(b, vx = 0, vy = 0, vz = 0) {
+    b.state = 'falling';
+    b.fallT = this.time;
+    b.asleep = false;
+    b.vx = vx;
+    b.vy = vy;
+    b.vz = vz;
+    this._newFalling.push(b);
+    this._leanSet.delete(b);
+    this._dirtyComps.add(this._compOf[b.bi]);
+    this._topRemove(b);
+    this._damageBlocks.delete(b);
+    this._graphDirty = true;
+  }
+
   _triggerVoxelQuake(hole) {
-    const range = 10.0;
-    const range2 = range * range;
+    const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
+    const corners = [
+      { x: r.minX, z: r.minZ },
+      { x: r.minX, z: r.maxZ },
+      { x: r.maxX, z: r.minZ },
+      { x: r.maxX, z: r.maxZ }
+    ];
+    let maxDistSq = -1;
+    let target = null;
+    for (const c of corners) {
+      const cdx = c.x - hole.x;
+      const cdz = c.z - hole.z;
+      const distSq = cdx * cdx + cdz * cdz;
+      if (distSq > maxDistSq) {
+        maxDistSq = distSq;
+        target = c;
+      }
+    }
+
+    const tdx = target.x - hole.x;
+    const tdz = target.z - hole.z;
+    const angle = Math.atan2(tdz, tdx);
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    const faultLen = Math.sqrt(maxDistSq);
+
+    const x0 = hole.x;
+    const z0 = hole.z;
+    const x1 = hole.x + cosA * faultLen;
+    const z1 = hole.z + sinA * faultLen;
+
+    const crackWidth = 4.0;
     let count = 0;
     for (let i = 0; i < this.blocks.length; i++) {
       const b = this.blocks[i];
       if (b.state !== 'static' && b.state !== 'unstable') continue;
-      const dx = b.x - hole.x, dz = b.z - hole.z;
-      if (dx * dx + dz * dz <= range2) {
-        b.state = 'unstable';
-        b.damage = 1.0;
-        b.failRate = 0;
-        this._watchDamage(b);
-        this._dirtyComps.add(this._compOf[b.bi]);
+      
+      const dx = b.x - hole.x;
+      const dz = b.z - hole.z;
+      const longDist = dx * cosA + dz * sinA;
+      if (longDist < 0 || longDist > faultLen) continue;
+      
+      const perpDist = Math.abs(-dx * sinA + dz * cosA);
+      if (perpDist <= crackWidth) {
+        const sign = (-dx * sinA + dz * cosA) >= 0 ? 1 : -1;
+        const perpX = -sinA * sign;
+        const perpZ = cosA * sign;
+        
+        if (b.y <= 3.0) {
+          const vx = perpX * 3.5 + (this.powerupRng ? (this.powerupRng.next() - 0.5) * 2 : 0);
+          const vz = perpZ * 3.5 + (this.powerupRng ? (this.powerupRng.next() - 0.5) * 2 : 0);
+          this._detachBlock(b, vx, 1.2, vz);
+        } else {
+          b.state = 'unstable';
+          b.damage = 1.0;
+          b.failRate = 0;
+          this._watchDamage(b);
+          this._dirtyComps.add(this._compOf[b.bi]);
+        }
         count++;
-        if (count >= 40) break;
+        if (count >= 160) break;
       }
     }
     if (count > 0) this._graphDirty = true;
-    this.events.push({ type: 'quake', x: hole.x, z: hole.z, radius: range, hole });
+    this.events.push({
+      type: 'quake',
+      subtype: 'fault_line',
+      x: hole.x,
+      z: hole.z,
+      x0, z0, x1, z1,
+      angle,
+      length: faultLen,
+      radius: faultLen,
+      hole,
+    });
   }
 
   _spawnBonusPowerUp(reason, h) {
-    const angle = this.powerupRng.next() * 6.283185307179586;
-    const dist = 8 + this.powerupRng.next() * 10;
+    const activeGround = this.powerups.filter((p) => !p.collected);
+    if (activeGround.length >= MAX_MAP_POWERUPS) return null;
     const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
-    const x = Math.min(r.maxX - 4, Math.max(r.minX + 4, h.x + fwCos(angle) * dist));
-    const z = Math.min(r.maxZ - 4, Math.max(r.minZ + 4, h.z + fwSin(angle) * dist));
+    const pos = findSpacedPowerUpLocation(this.powerups, r, this.powerupRng, MIN_POWERUP_SEPARATION);
+    const angle = this.powerupRng.next() * 6.283185307179586;
     const type = pickRandomPowerUpType(this.powerupRng);
-    const pu = createPowerUp(this._nextPowerUpId++, type, x, z, reason);
+    const pu = createPowerUp(this._nextPowerUpId++, type, pos.x, pos.z, reason, {
+      lifespan: 28.0,
+      speed: 2.6 + this.powerupRng.next() * 0.8,
+      angle,
+    });
+    this.powerups.push(pu);
+    return pu;
+  }
+
+  _spawnIntermittentPowerUp() {
+    const activeGround = this.powerups.filter((p) => !p.collected);
+    if (activeGround.length >= MAX_MAP_POWERUPS) return null;
+    const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
+    const pos = findSpacedPowerUpLocation(this.powerups, r, this.powerupRng, MIN_POWERUP_SEPARATION);
+    const angle = this.powerupRng.next() * 6.283185307179586;
+    const type = pickRandomPowerUpType(this.powerupRng);
+    const pu = createPowerUp(this._nextPowerUpId++, type, pos.x, pos.z, 'intermittent', {
+      lifespan: 26.0,
+      speed: 2.6 + this.powerupRng.next() * 0.8,
+      angle,
+    });
     this.powerups.push(pu);
     return pu;
   }
@@ -1021,32 +1252,32 @@ export class VoxelSandboxSim {
   // ADR-0013) or `[sx, sy, sz]` (a box). Read positionally rather than
   // destructured so the scalar path allocates nothing — this runs once per
   // block, 82,894 times on Boston alone.
-  _block(x, y, z, matType, s = 1, color) {
+  _block(x, y, z, matType, s = 1, color, surface = undefined) {
     const f = 1 / FINE;
     const a = Array.isArray(s);
     const ex = a ? s[0] : s, ey = a ? s[1] : s, ez = a ? s[2] : s;
     return this._addBlock(
       Math.round(x * f), Math.round(y * f), Math.round(z * f), matType,
-      Math.round(ex * f), Math.round(ey * f), Math.round(ez * f), color);
+      Math.round(ex * f), Math.round(ey * f), Math.round(ez * f), color, surface);
   }
 
   // nx × ny × nz counts of s-sized blocks starting at (x0, y0, z0) meters.
   // The placement step is the piece extent on each axis, which is the rule
   // `.wiki/modules/voxel.md` states for cubes and which anisotropic pieces make
   // far easier to violate by hand.
-  _box(x0, y0, z0, nx, ny, nz, matType, s = 1, color) {
+  _box(x0, y0, z0, nx, ny, nz, matType, s = 1, color, surface = undefined) {
     const a = Array.isArray(s);
     const ex = a ? s[0] : s, ey = a ? s[1] : s, ez = a ? s[2] : s;
     for (let i = 0; i < nx; i++) {
       for (let j = 0; j < ny; j++) {
         for (let k = 0; k < nz; k++) {
-          this._block(x0 + i * ex, y0 + j * ey, z0 + k * ez, matType, s, color);
+          this._block(x0 + i * ex, y0 + j * ey, z0 + k * ez, matType, s, color, surface);
         }
       }
     }
   }
 
-  _addBlock(fx, fy, fz, matType, fsx, fsy, fsz, color) {
+  _addBlock(fx, fy, fz, matType, fsx, fsy, fsz, color, surface = undefined) {
     const sx = fsx * FINE, sy = fsy * FINE, sz = fsz * FINE;
     const b = {
       id: this._blockId++,
@@ -1066,6 +1297,7 @@ export class VoxelSandboxSim {
       rotX: 0, rotZ: 0, vRotX: 0, vRotZ: 0,
       matType, mat: MATERIALS[matType],
       color: color ?? MATERIALS[matType].color,
+      surface: surface || undefined,
       state: 'static', // static | unstable | falling | consumed
       damage: 0,   // 0..1 accumulated structural damage; >= 1 while unstable = detach.
                    // Persists when support returns (slow heal) — wiggling the
@@ -1091,9 +1323,178 @@ export class VoxelSandboxSim {
   }
 
   _buildScene() {
-    // STANDARD bricks (1 m): the reference tower — 10×12 footprint, 10
-    // layers. Steel corner + interior columns, concrete slabs/walls, glass
-    // pane strips, wood roof ring.
+    // =========================================================================
+    // ZONE 1 (WEST: x: -85..-35) — OUR VOXEL MODELS WITH KENNEY TEXTURES
+    // =========================================================================
+
+    // Suburban Row (West): 3 Pastel Cottages with wood siding & scalloped clay tiles
+    {
+      const ox = -75, oz = -8;
+      for (let x = 0; x < 5; x++) for (let z = 0; z < 4; z++) {
+        const edge = x === 0 || x === 4 || z === 0 || z === 3;
+        const isWin = edge && (x + z) % 2 === 1;
+        this._block(ox + x, 0, oz + z, 'concrete', 1, 0xfcf6bd, 'mat_suburban_siding');
+        this._block(ox + x, 1, oz + z, isWin ? 'glass' : 'concrete', 1, isWin ? 0x83c5be : 0xfcf6bd, isWin ? 'mat_shop_window' : 'mat_suburban_siding');
+        this._block(ox + x, 2, oz + z, 'wood', 1, 0xe07a5f, 'mat_clay_shingles');
+      }
+      this._box(ox + 1, 3, oz + 1, 3, 1, 2, 'wood', 1, 0xd95d39, 'mat_clay_shingles');
+    }
+    {
+      const ox = -65, oz = -8;
+      for (let x = 0; x < 5; x++) for (let z = 0; z < 4; z++) {
+        const edge = x === 0 || x === 4 || z === 0 || z === 3;
+        const isWin = edge && (x + z) % 2 === 1;
+        this._block(ox + x, 0, oz + z, 'concrete', 1, 0xd8f3dc, 'mat_suburban_siding');
+        this._block(ox + x, 1, oz + z, isWin ? 'glass' : 'concrete', 1, isWin ? 0x74c69d : 0xd8f3dc, isWin ? 'mat_shop_window' : 'mat_suburban_siding');
+        this._block(ox + x, 2, oz + z, 'wood', 1, 0x40916c, 'mat_clay_shingles');
+      }
+      this._box(ox + 1, 3, oz + 1, 3, 1, 2, 'wood', 1, 0x2d6a4f, 'mat_clay_shingles');
+    }
+    {
+      const ox = -55, oz = -8;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 4; z++) {
+        const edge = x === 0 || x === 3 || z === 0 || z === 3;
+        const isWin = edge && (x + z) % 2 === 1;
+        this._block(ox + x, 0, oz + z, 'concrete', 1, 0xcae9ff, 'mat_suburban_siding');
+        this._block(ox + x, 1, oz + z, isWin ? 'glass' : 'concrete', 1, isWin ? 0x5fa8d3 : 0xcae9ff, isWin ? 'mat_shop_window' : 'mat_suburban_siding');
+        this._block(ox + x, 2, oz + z, 'wood', 1, 0x1b4965, 'mat_clay_shingles');
+      }
+      this._box(ox + 1, 3, oz + 1, 2, 1, 2, 'wood', 1, 0x1b4965, 'mat_clay_shingles');
+    }
+
+    // Commercial Shopping Boulevard (West): Bakery, Pizzeria, Bookstore with candy striped awnings
+    {
+      const ox = -75, oz = 4;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
+        this._block(ox + x, 0, oz + z, 'concrete', 1, 0xffddd2, 'mat_suburban_siding');
+        this._block(ox + x, 1, oz + z, 'concrete', 1, 0xffddd2, 'mat_suburban_siding');
+        this._block(ox + x, 2, oz + z, 'wood', 1, 0x0077b6, 'mat_clay_shingles');
+      }
+      this._box(ox + 1, 3, oz + 1, 2, 1, 1, 'wood', 1, 0x023e8a, 'mat_clay_shingles');
+      for (let x = 0; x < 4; x++) this._block(ox + x, 1, oz - 1, 'panel', 1, 0xe63946, 'mat_awning_stripe');
+    }
+    {
+      const ox = -65, oz = 4;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
+        this._block(ox + x, 0, oz + z, 'concrete', 1, 0xfefae0, 'mat_suburban_siding');
+        this._block(ox + x, 1, oz + z, 'concrete', 1, 0xfefae0, 'mat_suburban_siding');
+        this._block(ox + x, 2, oz + z, 'wood', 1, 0x2b9348, 'mat_clay_shingles');
+      }
+      this._box(ox + 1, 3, oz + 1, 2, 1, 1, 'wood', 1, 0x007f5f, 'mat_clay_shingles');
+      for (let x = 0; x < 4; x++) this._block(ox + x, 1, oz - 1, 'panel', 1, 0x55a630, 'mat_awning_stripe');
+    }
+    {
+      const ox = -55, oz = 4;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
+        this._block(ox + x, 0, oz + z, 'concrete', 1, 0xffe5d9, 'mat_suburban_siding');
+        this._block(ox + x, 1, oz + z, 'concrete', 1, 0xffe5d9, 'mat_suburban_siding');
+        this._block(ox + x, 2, oz + z, 'wood', 1, 0xe76f51, 'mat_clay_shingles');
+      }
+      this._box(ox + 1, 3, oz + 1, 2, 1, 1, 'wood', 1, 0xf4a261, 'mat_clay_shingles');
+      for (let x = 0; x < 4; x++) this._block(ox + x, 1, oz - 1, 'panel', 1, 0xf3722c, 'mat_awning_stripe');
+    }
+
+    // Twin 2m Warehouses (West)
+    {
+      const ox = -80, oz = 16, S = 2;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
+        const edge = x === 0 || x === 3 || z === 0 || z === 2;
+        const corner = (x === 0 || x === 3) && (z === 0 || z === 2);
+        for (let y = 0; y < 3; y++) {
+          if (!edge) continue;
+          this._block(ox + x * S, y * S, oz + z * S, corner ? 'steel' : 'concrete', S, corner ? 0x588157 : 0xdde5b6, corner ? 'mat_warehouse_roll' : 'mat_suburban_siding');
+        }
+        this._block(ox + x * S, 3 * S, oz + z * S, 'wood', S, 0x4a5759, 'mat_clay_shingles');
+      }
+    }
+    {
+      const ox = -60, oz = 16, S = 2;
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 4; z++) {
+        const edge = x === 0 || x === 3 || z === 0 || z === 3;
+        const corner = (x === 0 || x === 3) && (z === 0 || z === 3);
+        for (let y = 0; y < 3; y++) {
+          if (!edge) continue;
+          this._block(ox + x * S, y * S, oz + z * S, corner ? 'steel' : 'concrete', S, corner ? 0x3d5a80 : 0xe0fbfc, corner ? 'mat_corrugated_rust' : 'mat_suburban_siding');
+        }
+        this._block(ox + x * S, 3 * S, oz + z * S, 'wood', S, 0x293241, 'mat_clay_shingles');
+      }
+    }
+
+    // Civic Plaza & Fountain (West)
+    {
+      const ox = -75, oz = -18;
+      this._box(ox, 0, oz, 4, 1, 4, 'concrete', 1, 0xe9ecef, 'mat_suburban_siding');
+      this._block(ox + 1, 1, oz + 1, 'steel', 1, 0xced4da);
+      this._block(ox + 2, 1, oz + 1, 'steel', 1, 0xced4da);
+      this._block(ox + 1, 1, oz + 2, 'steel', 1, 0xced4da);
+      this._block(ox + 2, 1, oz + 2, 'steel', 1, 0xced4da);
+      this._block(ox + 1, 2, oz + 1, 'steel', 1, 0xced4da);
+      this._block(ox + 1, 3, oz + 1, 'glass', 1, 0x3fa7d6, 'mat_shop_window');
+    }
+    // Water Tower & Apartment (West)
+    {
+      const ox = -65, oz = -18;
+      this._box(ox, 0, oz, 4, 2, 4, 'brick', 1, 0xb56576, 'mat_brick_red');
+      this._box(ox, 2, oz, 4, 1, 4, 'concrete', 1, 0xe56b6f, 'mat_suburban_siding');
+      for (const [lx, lz] of [[0, 0], [2, 0], [0, 2], [2, 2]]) this._block(ox + lx, 3, oz + lz, 'wood', 1, 0x6d597a);
+      for (let x = 0; x < 3; x++) for (let z = 0; z < 3; z++) {
+        const edge = x === 0 || x === 2 || z === 0 || z === 2;
+        if (edge) this._block(ox + x, 4, oz + z, 'wood', 1, 0x355070, 'mat_suburban_siding');
+        this._block(ox + x, 5, oz + z, 'wood', 1, 0x355070, 'mat_clay_shingles');
+      }
+    }
+    {
+      const ox = -55, oz = -18;
+      for (let y = 0; y < 5; y++) for (let x = 0; x < 6; x++) for (let z = 0; z < 4; z++) {
+        const edge = x === 0 || x === 5 || z === 0 || z === 3;
+        const isSlab = y % 2 === 0;
+        if (!edge && !isSlab) continue;
+        const isWin = edge && !isSlab && (x + z + y) % 3 === 0;
+        this._block(ox + x, y, oz + z, isWin ? 'glass' : 'brick', 1, isWin ? 0x90e0ef : 0xc8553d, isWin ? 'mat_shop_window' : 'mat_brick_red');
+      }
+      this._box(ox, 5, oz, 6, 1, 4, 'wood', 1, 0x582f0e, 'mat_clay_shingles');
+    }
+
+    // 50s Diner & Gas Station (West)
+    {
+      const ox = -75, oz = -28;
+      for (let x = 0; x < 5; x++) for (let z = 0; z < 4; z++) {
+        const edge = x === 0 || x === 4 || z === 0 || z === 3;
+        const corner = (x === 0 || x === 4) && (z === 0 || z === 3);
+        if (!edge) continue;
+        this._block(ox + x, 0, oz + z, corner ? 'steel' : 'panel', 1, corner ? 0xadb5bd : 0xffafcc, 'mat_suburban_siding');
+        const isWin = !corner && (z === 0 || x === 0);
+        this._block(ox + x, 1, oz + z, isWin ? 'glass' : (corner ? 'steel' : 'panel'), 1, isWin ? 0xa2d2ff : (corner ? 0xadb5bd : 0xffafcc), isWin ? 'mat_shop_window' : 'mat_suburban_siding');
+      }
+      this._box(ox, 2, oz, 5, 1, 4, 'panel', 1, 0xffc8dd, 'mat_awning_stripe');
+    }
+    {
+      const ox = -60, oz = -28;
+      for (const [px, pz] of [[0, 0], [4, 0], [0, 3], [4, 3]]) {
+        this._block(ox + px, 0, oz + pz, 'steel', 1, 0x0077b6);
+        this._block(ox + px, 1, oz + pz, 'steel', 1, 0x0077b6);
+      }
+      this._box(ox, 2, oz, 5, 1, 4, 'panel', 1, 0xf77f00, 'mat_awning_stripe');
+      this._box(ox + 1, 0, oz + 1, 2, 1, 2, 'concrete', 1, 0xfcfbf4, 'mat_suburban_siding');
+      this._box(ox + 1, 1, oz + 1, 2, 1, 2, 'glass', 1, 0x90e0ef, 'mat_shop_window');
+      for (const px of [3.5, 4.0]) {
+        this._block(ox + px, 0, oz + 2, 'steel', 0.5, 0x212529);
+        this._block(ox + px, 0.5, oz + 2, 'panel', 0.5, 0xd62828, 'mat_warehouse_roll');
+      }
+    }
+
+    // West Vehicles
+    sedan(this, -75, -2, 0xe63946, 0xe63946, 'x', 'mat_awning_stripe', 'mat_shop_window');
+    sedan(this, -65, -2, 0x8338ec, 0x8338ec, 'x', undefined, 'mat_shop_window');
+    sedan(this, -55, -2, 0x06d6a0, 0x06d6a0, 'x', 'mat_suburban_siding', 'mat_shop_window');
+    bus(this, -70, 10, 0x4361ee, 'x', 'mat_awning_stripe', 'mat_shop_window');
+    bigTruck(this, -55, 10, 0xc22a1c, true, 'mat_warehouse_roll', 'mat_shop_window');
+
+    // =========================================================================
+    // ZONE 2 (CENTER: x: -25..+25) — KENNEY MODELS WITH DYNAMIC BREAK-APART
+    // =========================================================================
+
+    // Reference Tower & Central Plaza (Center)
     {
       const ox = -5, oz = -6, cols = 10, rows = 12, layers = 10;
       for (let y = 0; y < layers; y++) {
@@ -1104,293 +1505,271 @@ export class VoxelSandboxSim {
             const isSlab = y % 4 === 0;
             const isColumn = (x === 3 || x === 6) && (z === 3 || z === 6 || z === 9);
             if (!isOuterWall && !isSlab && !isColumn) continue;
-            let mat = 'concrete';
-            if (isCorner || isColumn) mat = 'steel';
-            else if (y === layers - 1) mat = 'wood';
-            // glass panes in vertical strips between full-height concrete
-            // columns: glass never carries load, so every pane must hang off
-            // a load-bearing neighbor at its own level (span 1)
-            else if (isOuterWall && !isSlab && ((z === 0 || z === rows - 1) ? x % 2 === 1 : z % 2 === 1)) mat = 'glass';
-            this._block(ox + x, y, oz + z, mat, 1);
+            let mat = 'concrete', surf = 'mat_suburban_siding', col = 0xf2ebd9;
+            if (isCorner || isColumn) { mat = 'steel'; surf = 'mat_warehouse_roll'; col = 0x606c38; }
+            else if (y === layers - 1) { mat = 'wood'; surf = 'mat_clay_shingles'; col = 0xbc6c25; }
+            else if (isOuterWall && !isSlab && ((z === 0 || z === rows - 1) ? x % 2 === 1 : z % 2 === 1)) {
+              mat = 'glass'; surf = 'mat_shop_window'; col = 0x8ecae6;
+            } else if (isOuterWall && !isSlab) {
+              mat = 'brick'; surf = 'mat_brick_red'; col = 0xcc5a47;
+            }
+            this._block(ox + x, y, oz + z, mat, 1, col, surf);
           }
         }
       }
     }
-    // LARGE bricks (2 m): warehouse — chunky slabs for big structures.
-    // 8×6 m footprint (4×3 blocks), 6 m walls, wood roof.
+
+    // 2m Warehouse A & Crate Pyramids (Center)
     {
       const ox = 8, oz = 8, S = 2;
-      for (let x = 0; x < 4; x++) {
-        for (let z = 0; z < 3; z++) {
-          const edge = x === 0 || x === 3 || z === 0 || z === 2;
-          const corner = (x === 0 || x === 3) && (z === 0 || z === 2);
-          for (let y = 0; y < 3; y++) {
-            if (!edge) continue;
-            this._block(ox + x * S, y * S, oz + z * S, corner ? 'steel' : 'concrete', S);
-          }
-          this._block(ox + x * S, 3 * S, oz + z * S, 'wood', S); // roof
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
+        const edge = x === 0 || x === 3 || z === 0 || z === 2;
+        const corner = (x === 0 || x === 3) && (z === 0 || z === 2);
+        for (let y = 0; y < 3; y++) {
+          if (!edge) continue;
+          this._block(ox + x * S, y * S, oz + z * S, corner ? 'steel' : 'concrete', S, corner ? 0x588157 : 0xdde5b6, corner ? 'mat_warehouse_roll' : 'mat_suburban_siding');
         }
+        this._block(ox + x * S, 3 * S, oz + z * S, 'wood', S, 0x4a5759, 'mat_clay_shingles');
       }
     }
-    // SMALL bricks (0.5 m): the car — reads as a car through its bonds.
-    sedan(this, 8, -1);
-    // Loose crate pile: no lateral bonds — collapses as individual debris.
     {
       const ox = -11, oz = 8;
-      this._box(ox, 0, oz, 4, 1, 4, 'loose', 1);
-      this._box(ox, 1, oz, 3, 1, 3, 'loose', 1);
-      this._box(ox, 2, oz, 2, 1, 2, 'loose', 1);
-      this._block(ox, 3, oz, 'loose', 1);
+      this._box(ox, 0, oz, 4, 1, 4, 'loose', 1, 0xd4a373, 'mat_suburban_siding');
+      this._box(ox, 1, oz, 3, 1, 3, 'loose', 1, 0xccd5ae, 'mat_suburban_siding');
+      this._box(ox, 2, oz, 2, 1, 2, 'loose', 1, 0xfaedcd, 'mat_suburban_siding');
+      this._block(ox, 3, oz, 'loose', 1, 0xd4a373, 'mat_suburban_siding');
     }
-    // --- city gallery: one of each campaign object kind -----------------------
-    // HOUSE (1 m): two-storey concrete home, glass upstairs, stepped wood roof.
+
+    // Kenney Suburban Villa (Center-West) with detachable garage & chimney
     {
-      const ox = -13, oz = -6;
-      for (let x = 0; x < 5; x++) {
-        for (let z = 0; z < 4; z++) {
-          const edge = x === 0 || x === 4 || z === 0 || z === 3;
-          const corner = (x === 0 || x === 4) && (z === 0 || z === 3);
-          if (edge) {
-            this._block(ox + x, 0, oz + z, 'concrete', 1);
-            this._block(ox + x, 1, oz + z, !corner && (x + z) % 2 === 1 ? 'glass' : 'concrete', 1);
-          }
-          this._block(ox + x, 2, oz + z, 'wood', 1); // full roof slab
-        }
-      }
-      this._box(ox + 1, 3, oz + 1, 3, 1, 2, 'wood', 1); // roof cap
+      const ox = -20, oz = -14;
+      this._box(ox, 0, oz, 6, 1, 5, 'concrete', 1, 0xf8f9fa, 'mat_suburban_siding');
+      this._box(ox, 1, oz, 6, 1, 5, 'concrete', 1, 0xf8f9fa, 'mat_suburban_siding');
+      this._box(ox, 2, oz, 6, 1, 5, 'wood', 1, 0x495057, 'mat_clay_shingles');
+      // Detachable Garage
+      this._box(ox + 6, 0, oz, 3, 1, 4, 'steel', 1, 0xced4da, 'mat_warehouse_roll');
+      this._box(ox + 6, 1, oz, 3, 1, 4, 'steel', 1, 0xced4da, 'mat_warehouse_roll');
+      this._box(ox + 6, 2, oz, 3, 1, 4, 'wood', 1, 0x343a40, 'mat_clay_shingles');
+      // Detachable Brick Chimney
+      for (let y = 0; y <= 4; y++) this._block(ox - 1, y, oz + 2, 'brick', 1, 0xcc5a47, 'mat_brick_red');
     }
-    // SHOP (1 m): glass storefront with a cantilevered panel awning.
+
+    // Brownstone & Parking Garage (Center-West)
     {
-      const ox = -13, oz = 1;
-      for (let x = 0; x < 4; x++) {
-        for (let z = 0; z < 3; z++) {
-          const edge = x === 0 || x === 3 || z === 0 || z === 2;
-          if (!edge) continue;
-          const front = z === 0 && (x === 1 || x === 2);
-          this._block(ox + x, 0, oz + z, front ? 'glass' : 'concrete', 1);
-          this._block(ox + x, 1, oz + z, front ? 'glass' : 'concrete', 1);
-          this._block(ox + x, 2, oz + z, 'wood', 1);
-        }
+      const ox = -15, oz = 6;
+      for (let y = 0; y < 3; y++) for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
+        const edge = x === 0 || x === 3 || z === 0 || z === 2;
+        if (!edge) continue;
+        const isWin = y === 1 && (x === 1 || x === 2) && z === 0;
+        this._block(ox + x, y, oz + z, isWin ? 'glass' : 'brick', 1, isWin ? 0xade8f4 : 0x9c6644, isWin ? 'mat_shop_window' : 'mat_brick_red');
       }
-      this._box(ox + 1, 2, oz + 1, 2, 1, 1, 'wood', 1); // roof interior fill
-      for (let x = 0; x < 3; x++) this._block(ox + x, 1, oz - 1, 'panel', 1); // awning
+      this._box(ox, 3, oz, 4, 1, 3, 'wood', 1, 0x7f4f24, 'mat_clay_shingles');
+      this._block(ox + 1, 0, oz - 1, 'concrete', 1, 0xddb892, 'mat_suburban_siding');
     }
-    // BUS (0.5 m): long steel frame on 6 rubber wheels, glass band.
-    bus(this, 8, 3.5);
-    // TREES (0.5 m): wood trunk, leaf canopy — foliage clumps shear off light.
-    for (const [tx, tz] of [[-4, 11], [3, 11], [-1, 8]]) tree(this, tx, tz);
-    // LAMP POSTS (0.25 m): pole, steel plate, glass head (glass rests on steel,
-    // never on glass).
-    for (const [lx, lz] of [[5, 8], [-6, 8]]) lampPost(this, lx, lz);
-    // --- VEHICLE FLEET ------------------------------------------------------------
-    sedan(this, 15.5, -1, 0xf7c948);                 // yellow taxi
-    sedan(this, 15.5, 3.5, 0xe8ecf2, 0x2a2f3a);      // police cruiser
-    bigTruck(this, 8, -4.5, 0x2e5d3a);               // garbage truck
-    bigTruck(this, 14, -4.5, 0xc22a1c, true);        // fire engine
-    boxVan(this, -21.5, 5.5, 5, 0xf2f2f2, 0xf2f2f2); // ambulance
-    motorcycle(this, 11, -2.2);
-    // --- STREET FURNITURE (0.25 m detail bricks — same footprints, real silhouettes)
-    const F = (x, y, z, m, c) => this._block(x, y, z, m, 0.25, c);
-    const B25 = (x0, y0, z0, nx, ny, nz, m, c) => this._box(x0, y0, z0, nx, ny, nz, m, 0.25, c);
-    // fire hydrant: body, dome, side caps
-    B25(-11.25, 0, 12.75, 2, 3, 2, 'panel');
-    F(-11.125, 0.75, 12.875, 'panel');
-    F(-11.5, 0.375, 12.875, 'panel'); F(-10.75, 0.375, 12.875, 'panel');
-    // mailbox (USPS blue): legs, box body, cap
-    F(-8.25, 0, 12.875, 'steel'); F(-7.75, 0, 12.875, 'steel');
-    B25(-8.25, 0.25, 12.75, 2, 3, 2, 'panel', 0x2a4f9a);
-    B25(-8.25, 1, 12.75, 2, 1, 2, 'panel', 0x2a4f9a);
-    // parking meter: pole + head
-    B25(-5.125, 0, 12.875, 1, 4, 1, 'steel');
-    B25(-5.25, 1, 12.75, 2, 1, 2, 'steel');
-    // bench: steel legs, wood seat + back slats
+    {
+      const ox = -22, oz = 6;
+      const cols = [[0, 0], [2, 0], [4, 0], [0, 2], [4, 2], [0, 4], [2, 4], [4, 4]];
+      for (const level of [0, 2, 4]) {
+        for (const [cx, cz] of cols) this._block(ox + cx, level, oz + cz, 'steel', 1, 0x6c757d);
+        this._box(ox, level + 1, oz, 5, 1, 5, 'concrete', 1, 0xe9ecef, 'mat_suburban_siding');
+      }
+    }
+
+    // Gas Station (Center-East)
+    {
+      const ox = 19, oz = 10;
+      for (const [px, pz] of [[0, 0], [4, 0], [0, 3], [4, 3]]) {
+        this._block(ox + px, 0, oz + pz, 'steel', 1, 0x0077b6);
+        this._block(ox + px, 1, oz + pz, 'steel', 1, 0x0077b6);
+      }
+      this._box(ox, 2, oz, 5, 1, 4, 'panel', 1, 0xf77f00, 'mat_awning_stripe');
+      this._box(ox + 1, 0, oz + 1, 2, 1, 2, 'concrete', 1, 0xfcfbf4, 'mat_suburban_siding');
+      this._box(ox + 1, 1, oz + 1, 2, 1, 2, 'glass', 1, 0x90e0ef, 'mat_shop_window');
+      for (const px of [3.5, 4.0]) {
+        this._block(ox + px, 0, oz + 2, 'steel', 0.5, 0x212529);
+        this._block(ox + px, 0.5, oz + 2, 'panel', 0.5, 0xd62828, 'mat_warehouse_roll');
+      }
+    }
+
+    // Construction Crane & Shipping Containers (Center NE)
+    this._box(11, 0, -13, 2, 1, 2, 'concrete', 1, 0x8d99ae, 'mat_suburban_siding');
+    for (let y = 1; y <= 6; y++) this._block(11, y, -13, 'steel', 1, 0xffb703);
+    this._block(12, 6, -13, 'steel', 1, 0xffb703); this._block(13, 6, -13, 'steel', 1, 0xffb703); this._block(14, 6, -13, 'steel', 1, 0xffb703);
+    this._block(10, 6, -13, 'steel', 1, 0xffb703); this._block(9, 6, -13, 'concrete', 1, 0x495057);
+    const cont = (x, y, z, c) => {
+      this._block(x, y, z, 'steel', 1, c, 'mat_warehouse_roll');
+      this._block(x + 1, y, z, 'steel', 1, c, 'mat_warehouse_roll');
+    };
+    cont(22, 0, -11, 0xd96c2c); cont(24, 0, -11, 0x2a5f9a);
+    cont(22, 1, -11, 0x2a5f9a); cont(24, 1, -11, 0xd96c2c);
+
+    // Kenney Commercial Plaza (Center-East) with cantilevered marquee
+    {
+      const ox = 12, oz = -14;
+      this._box(ox, 0, oz, 8, 1, 5, 'concrete', 1, 0xfff1e6, 'mat_suburban_siding');
+      this._box(ox, 1, oz, 8, 1, 5, 'concrete', 1, 0xfff1e6, 'mat_suburban_siding');
+      this._box(ox, 2, oz, 8, 1, 5, 'wood', 1, 0x2b2d42, 'mat_clay_shingles');
+      for (let x = 0; x < 8; x++) this._block(ox + x, 1, oz - 1, 'panel', 1, 0x3a86ff, 'mat_awning_stripe');
+    }
+
+    // Kenney Break-Apart Vehicle Fleet (Center)
+    sedan(this, -18, -2, 0xe8ecf2, 0x2a2f3a, 'x', undefined, 'mat_shop_window'); // Police Cruiser with lightbar
+    kenneySUV(this, -10, -2, 0x1d3557, 'x', 'mat_suburban_siding', 'mat_shop_window'); // Luxury SUV
+    sedan(this, 2, -2, 0xf7c948, 0x1d3557, 'x', undefined, 'mat_shop_window'); // Yellow Taxi
+    kenneySUV(this, 10, -2, 0x9b5de5, 'x', 'mat_awning_stripe', 'mat_shop_window'); // Sport SUV
+    boxVan(this, 18, -2, 5, 0xf2f2f2, 0x028090, 'x', 'mat_warehouse_roll', 'mat_shop_window'); // Delivery Van
+    sedan(this, 8, 3.5, 0x3a86ff, 0x3a86ff, 'x', 'mat_awning_stripe', 'mat_shop_window'); // Blue Coupe
+    bus(this, 16, 3.5, 0x4361ee, 'x', 'mat_awning_stripe', 'mat_shop_window'); // City Bus
+    bigTruck(this, 8, -6, 0x2e5d3a, false, 'mat_corrugated_rust', 'mat_shop_window'); // Garbage Truck
+    bigTruck(this, 16, -6, 0xc22a1c, true, 'mat_warehouse_roll', 'mat_shop_window'); // Fire Engine
+
+    // Street Furniture & Props (Center)
+    const F = (x, y, z, m, c, surf) => this._block(x, y, z, m, 0.25, c, surf);
+    const B25 = (x0, y0, z0, nx, ny, nz, m, c, surf) => this._box(x0, y0, z0, nx, ny, nz, m, 0.25, c, surf);
+    B25(-11.25, 0, 12.75, 2, 3, 2, 'panel', 0xd90429);
+    F(-11.125, 0.75, 12.875, 'panel', 0xd90429);
+    F(-11.5, 0.375, 12.875, 'panel', 0xd90429); F(-10.75, 0.375, 12.875, 'panel', 0xd90429);
+    F(-5.25, 0, 12.875, 'steel'); F(-4.75, 0, 12.875, 'steel');
+    B25(-5.25, 0.25, 12.75, 2, 3, 2, 'panel', 0x2a4f9a);
+    B25(-5.25, 1, 12.75, 2, 1, 2, 'panel', 0x2a4f9a);
     B25(-2.25, 0, 12.875, 1, 2, 1, 'steel'); B25(-1.25, 0, 12.875, 1, 2, 1, 'steel');
-    B25(-2.5, 0.5, 12.75, 4, 1, 2, 'wood');
-    B25(-2.5, 0.75, 12.75, 4, 2, 1, 'wood');
-    // bike rack (inverted U)
-    B25(1, 0, 12.875, 1, 3, 1, 'steel'); B25(1.5, 0, 12.875, 1, 3, 1, 'steel');
-    B25(1, 0.75, 12.875, 3, 1, 1, 'steel');
-    // bollards
-    for (const bx of [3.5, 4.5, 5.5]) B25(bx, 0, 12.875, 1, 3, 1, 'steel');
-    // NYPD barrier (blue sawhorse)
-    B25(6.5, 0, 12.875, 1, 2, 1, 'wood', 0x2a4f9a); B25(7.5, 0, 12.875, 1, 2, 1, 'wood', 0x2a4f9a);
-    B25(6.25, 0.5, 12.875, 6, 1, 1, 'wood', 0x2a4f9a);
-    // phone booth: corner posts, glass back + sides, roof
-    for (const [px, pz] of [[8, 14.75], [8.75, 14.75], [8, 15.25], [8.75, 15.25]]) B25(px, 0, pz, 1, 4, 1, 'steel');
-    B25(8.25, 0.25, 15.25, 2, 3, 1, 'glass');
-    B25(8, 0.25, 15, 1, 3, 1, 'glass'); B25(8.75, 0.25, 15, 1, 3, 1, 'glass');
-    B25(8, 1, 14.75, 4, 1, 3, 'panel');
-    // hot dog cart: yellow body on wheels, red umbrella
+    B25(-2.5, 0.5, 12.75, 4, 1, 2, 'wood', 0x8b5e34, 'mat_suburban_siding');
+    B25(-2.5, 0.75, 12.75, 4, 2, 1, 'wood', 0x8b5e34, 'mat_suburban_siding');
     F(10.75, 0, 14.75, 'rubber'); F(11.75, 0, 14.75, 'rubber');
     B25(10.75, 0.25, 14.75, 4, 2, 2, 'panel', 0xf7c948);
     B25(11.5, 0.75, 14.875, 1, 4, 1, 'steel');
-    B25(11, 1.75, 14.5, 3, 1, 3, 'panel', 0xc23b2e);
-    // traffic light: pole, head, R/Y/G lenses
-    B25(13.375, 0, 14.875, 1, 6, 1, 'steel');
-    B25(13.375, 1.5, 14.875, 1, 3, 1, 'panel', 0x1a1a1e);
-    F(13.375, 2, 15.125, 'glass', 0xd93025); F(13.375, 1.75, 15.125, 'glass', 0xf7c948); F(13.375, 1.5, 15.125, 'glass', 0x3ddc84);
-    // newsstand: green body, overhanging roof
-    B25(-14.5, 0, 12.25, 4, 3, 3, 'panel', 0x2e4d3a);
-    B25(-14.75, 0.75, 12, 5, 1, 4, 'panel', 0x2e4d3a);
-    // dumpster: body + lid
-    B25(-14.5, 0, 10.25, 4, 2, 2, 'panel', 0x2e5d3a);
-    B25(-14.5, 0.5, 10.25, 4, 1, 2, 'panel', 0x2e5d3a);
-    // bus shelter: 3 posts, glass panes BETWEEN the posts (glass can't carry
-    // glass — every pane touches a post at its own level), roof, bench
-    B25(-10, 0, 15.25, 1, 4, 1, 'steel'); B25(-9.5, 0, 15.25, 1, 4, 1, 'steel'); B25(-8.75, 0, 15.25, 1, 4, 1, 'steel');
-    B25(-9.75, 0.25, 15.25, 1, 3, 1, 'glass'); B25(-9.25, 0.25, 15.25, 2, 3, 1, 'glass');
-    B25(-10.25, 1, 15.25, 6, 1, 2, 'panel', 0x3a4f66);
-    F(-9.75, 0, 15.5, 'steel'); F(-9, 0, 15.5, 'steel');
-    B25(-9.75, 0.25, 15.5, 3, 1, 1, 'wood');
-    // traffic cones: base + tip
-    for (const [cx, cz] of [[2.5, 15], [3.5, 15.5]]) {
-      B25(cx - 0.25, 0, cz - 0.25, 2, 1, 2, 'loose', 0xff7a1a);
-      B25(cx - 0.125, 0.25, cz - 0.125, 1, 2, 1, 'loose', 0xff7a1a);
-    }
-    // flag pole + flag
-    B25(15.875, 0, 14.875, 1, 8, 1, 'steel');
-    B25(16.125, 1.5, 14.875, 2, 2, 1, 'panel', 0xc23b2e);
-    // subway entrance: railing posts + rails, green globe lamp (steel plate
-    // under the globe — glass can't rest on glass)
-    for (const [sx, sz] of [[-5, 14], [-3.25, 14], [-5, 15], [-3.25, 15]]) B25(sx, 0, sz, 1, 3, 1, 'steel');
-    B25(-5, 0.75, 14, 1, 1, 5, 'steel'); B25(-3.25, 0.75, 14, 1, 1, 5, 'steel');
-    B25(-5, 0, 13.5, 1, 3, 1, 'steel');
-    B25(-5.25, 0.75, 13.25, 2, 1, 2, 'steel');
-    B25(-5.25, 1, 13.25, 2, 1, 2, 'glass', 0x3ddc84);
-    // --- CONSTRUCTION SITE (NE) ------------------------------------------------------
-    this._box(11, 0, -13, 2, 1, 2, 'concrete', 1);                          // crane base
-    for (let y = 1; y <= 6; y++) this._block(11, y, -13, 'steel', 1);       // mast
-    this._block(12, 6, -13, 'steel', 1); this._block(13, 6, -13, 'steel', 1); this._block(14, 6, -13, 'steel', 1); // jib
-    this._block(10, 6, -13, 'steel', 1); this._block(9, 6, -13, 'concrete', 1); // counter-jib + weight
-    const cont = (x, y, z, c) => { this._block(x, y, z, 'panel', 1, c); this._block(x + 1, y, z, 'panel', 1, c); };
-    cont(16, 0, -11, 0xd96c2c); cont(18, 0, -11, 0x2a5f9a); cont(16, 0, -9.5, 0x2e5d3a);
-    cont(16, 1, -11, 0x2a5f9a); cont(18, 1, -11, 0xd96c2c);                 // shipping containers
-    for (const px of [9, 10, 11, 12]) this._block(px, 0, -10, 'loose', 1, 0x6a7078);
-    this._block(10, 1, -10, 'loose', 1, 0x6a7078); this._block(11, 1, -10, 'loose', 1, 0x6a7078); // pipe pile
-    this._block(13.5, 0, -9.5, 'panel', 1, 0x2a4f9a); this._block(13.5, 1, -9.5, 'panel', 1, 0x2a4f9a); // porta-potty
-    for (const bx of [8.5, 10, 11.5, 13]) this._block(bx, 0, -8, 'concrete', 1); // jersey barriers
-    // --- LANDMARK PLAZA (NW) ---------------------------------------------------------
+    B25(11, 1.75, 14.5, 3, 1, 3, 'panel', 0xc23b2e, 'mat_awning_stripe');
+    B25(-8.5, 0, 12.25, 4, 3, 3, 'panel', 0x2e4d3a);
+    B25(-8.75, 0.75, 12, 5, 1, 4, 'panel', 0x2e4d3a, 'mat_awning_stripe');
+
+    // Elevated 3-Car Passenger Train on Viaduct Bridge (Center S)
     {
-      const ox = -15, oz = -13; // fountain: ring, water, center jet
-      for (let x = 0; x < 4; x++) for (let z = 0; z < 4; z++) {
-        const edge = x === 0 || x === 3 || z === 0 || z === 3;
-        const center = x === 1 && z === 1;
-        this._block(ox + x, 0, oz + z, center || edge ? 'concrete' : 'glass', 1, center || edge ? undefined : 0x3fa7d6);
+      const Z0 = 22;
+      for (let x = -24; x <= 24; x += 4) {
+        for (const cz of [24, 25]) for (let y = 0; y < 3; y++) this._block(x, y, cz, 'steel', 1, 0x2b2d42);
+        for (let w = 0; w < 6; w++) this._block(x, 3, Z0 + w, 'steel', 1, 0x8d99ae);
       }
-      this._block(ox + 1, 1, oz + 1, 'steel', 1);
-      this._block(ox + 1, 2, oz + 1, 'glass', 1, 0x3fa7d6);
+      for (let x = -24; x <= 24; x += 0.5) {
+        for (let w = 0; w < 12; w++) this._block(x, 4, Z0 + w * 0.5, 'concrete', 0.5, 0xedf2f4, 'mat_suburban_siding');
+      }
+      for (let x = -24; x <= 24; x += 2) {
+        this._block(x, 4.5, Z0, 'steel', 0.5, 0x2b2d42);
+        this._block(x, 4.5, Z0 + 5.5, 'steel', 0.5, 0x2b2d42);
+      }
+      for (let x = -24; x < 24; x += 0.5) {
+        this._block(x, 5, Z0, 'steel', 0.5, 0xd90429);
+        this._block(x, 5, Z0 + 5.5, 'steel', 0.5, 0xd90429);
+      }
+      this._box(-8, 4.5, 23.5, 5, 2, 2, 'panel', 0.5, 0xef233c, 'mat_awning_stripe');
+      this._box(-2, 4.5, 23.5, 5, 2, 2, 'panel', 0.5, 0x3a86ff, 'mat_awning_stripe');
+      this._box(4, 4.5, 23.5, 5, 2, 2, 'panel', 0.5, 0xffb703, 'mat_awning_stripe');
     }
-    this._block(-10, 0, -12, 'concrete', 1); this._block(-10, 1, -12, 'steel', 1);
-    this._block(-10, 2, -12, 'steel', 0.5, 0x8a8f98);                        // statue
-    {
-      const ox = -20, oz = -14; // water tower on a brick pump house
-      for (let x = 0; x < 4; x++) for (let z = 0; z < 4; z++) {
-        const edge = x === 0 || x === 3 || z === 0 || z === 3;
-        if (edge) { this._block(ox + x, 0, oz + z, 'brick', 1); this._block(ox + x, 1, oz + z, 'brick', 1); }
-        this._block(ox + x, 2, oz + z, 'concrete', 1);
-      }
-      for (const [lx, lz] of [[0, 0], [2, 0], [0, 2], [2, 2]]) this._block(ox + lx, 3, oz + lz, 'wood', 1);
-      for (let x = 0; x < 3; x++) for (let z = 0; z < 3; z++) {
-        const edge = x === 0 || x === 2 || z === 0 || z === 2;
-        if (edge) this._block(ox + x, 4, oz + z, 'wood', 1);
-        this._block(ox + x, 5, oz + z, 'wood', 1);
-      }
+
+    // =========================================================================
+    // ZONE 3 (EAST: x: +35..+85) — MODIFIED KENNEY MEGA SKYSCRAPERS (18m–32m)
+    // =========================================================================
+
+    // Skyscraper Alpha: Kenney Commercial Tower (24m / 24 floors) with 4m Radio Spire
+    kenneySkyscraper(this, 36, -14, 8, 8, 24, 0x3d5a80, 0xee6c4d, 'helipad');
+
+    // Skyscraper Beta: Kenney Plaza Monolith (30m / 30 floors) with Rooftop Helipad
+    kenneySkyscraper(this, 54, -14, 8, 8, 30, 0x293241, 0xf4a261, 'helipad');
+
+    // Skyscraper Gamma: Kenney Twin Corporate Headquarters (22m / 22 floors) with Cooling Units
+    kenneySkyscraper(this, 72, -14, 8, 8, 22, 0x457b9d, 0xe76f51, 'cooling');
+
+    // Skyscraper Delta: Kenney Financial Center (26m / 26 floors)
+    kenneySkyscraper(this, 44, 8, 8, 8, 26, 0x1d3557, 0x06d6a0, 'cooling');
+
+    // Skyscraper Epsilon: Kenney Grand Plaza Suites (20m / 20 floors)
+    kenneySkyscraper(this, 66, 8, 8, 8, 20, 0x2b2d42, 0xffb703, 'helipad');
+
+    // East Skyscraper District Avenue Fleet
+    sedan(this, 40, -2, 0xf7c948, 0x1d3557, 'x', undefined, 'mat_shop_window'); // Taxi
+    sedan(this, 52, -2, 0x3a86ff, 0x3a86ff, 'x', 'mat_awning_stripe', 'mat_shop_window'); // Executive Coupe
+    kenneySUV(this, 64, -2, 0x111111, 'x', undefined, 'mat_shop_window'); // Black SUV
+    bus(this, 48, 20, 0xfb8500, 'x', 'mat_awning_stripe', 'mat_shop_window'); // City Double-Decker Transit
+    bigTruck(this, 68, 20, 0x457b9d, false, 'mat_corrugated_rust', 'mat_shop_window'); // Cargo Freight Hauler
+
+    // --- STREET TREES & LAMP POSTS ACROSS ALL 3 ZONES -----------------------
+    for (const [tx, tz] of [
+      [-80, -12], [-60, -12], [-40, -12], [-28, -6], [0, -10], [24, -6], [38, -6], [60, -6], [80, -6],
+      [-80, 12], [-60, 12], [-40, 12], [-28, 16], [0, 20], [24, 16], [40, 24], [60, 24], [80, 24]
+    ]) tree(this, tx, tz);
+
+    for (const [lx, lz] of [
+      [-80, 4], [-60, 4], [-40, 4], [-20, 4], [0, 4], [20, 4], [40, 4], [60, 4], [80, 4],
+      [-80, -4], [-60, -4], [-40, -4], [-20, -4], [0, -4], [20, -4], [40, -4], [60, -4], [80, -4],
+      [-70, 22], [-30, 22], [10, 22], [50, 22], [70, 22],
+      [-70, -22], [-30, -22], [10, -22], [50, -22], [70, -22]
+    ]) lampPost(this, lx, lz);
+
+    // Dynamic Player Movement Bounds for the 3-Tier Showcase (190m × 90m total area)
+    this.bounds = 95;
+    this.boundsRect = { minX: -95, maxX: 95, minZ: -45, maxZ: 45 };
+
+    // --- FULL GROUND DECOR ROAD & SIDEWALK NETWORK ---------------------------
+    const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [];
+    const roads = [], rail = [], bikePaths = [], laneMarkers = [], crosswalks = [];
+    const water = [], boardwalk = [];
+
+    // Base ground surfaces
+    parks.push({ x: -95, z: -45, w: 190, d: 90, color: 0x386641 }); // Lush green base terrain
+    plaza.push({ x: -85, z: -35, w: 50, d: 70, color: 0x4a4e69 });  // Zone 1 West Plaza
+    plaza.push({ x: -25, z: -35, w: 50, d: 70, color: 0x3d5a80 });  // Zone 2 Center Plaza
+    plaza.push({ x: 30, z: -35, w: 60, d: 70, color: 0x293241 });   // Zone 3 East Metropolis Plaza
+
+    // East-West Main Thoroughfares
+    roads.push({ x: -95, z: -6, w: 190, d: 8, color: 0x1c2030 });    // Boulevard North
+    roads.push({ x: -95, z: 12, w: 190, d: 8, color: 0x1c2030 });    // Boulevard South
+    roads.push({ x: -95, z: -24, w: 190, d: 6, color: 0x2b2d42 });   // Service Lane North
+
+    // North-South Cross-Town Avenues
+    roads.push({ x: -60, z: -45, w: 6, d: 90, color: 0x1c2030 });
+    roads.push({ x: -26, z: -45, w: 6, d: 90, color: 0x1c2030 });
+    roads.push({ x: 0, z: -45, w: 6, d: 90, color: 0x1c2030 });
+    roads.push({ x: 32, z: -45, w: 6, d: 90, color: 0x1c2030 });
+    roads.push({ x: 62, z: -45, w: 6, d: 90, color: 0x1c2030 });
+
+    // Sidewalks flanking avenues
+    sidewalks.push({ x: -95, z: -8, w: 190, d: 2, color: 0x6c757d });
+    sidewalks.push({ x: -95, z: 2, w: 190, d: 2, color: 0x6c757d });
+    sidewalks.push({ x: -95, z: 10, w: 190, d: 2, color: 0x6c757d });
+    sidewalks.push({ x: -95, z: 20, w: 190, d: 2, color: 0x6c757d });
+
+    // Yellow Dashed Lane Dividers
+    for (let x = -90; x < 90; x += 6) {
+      laneMarkers.push({ x: x, z: -2.2, w: 3.5, d: 0.4, color: 0xf7c948 });
+      laneMarkers.push({ x: x, z: 15.8, w: 3.5, d: 0.4, color: 0xf7c948 });
     }
-    {
-      const ox = -20, oz = -8; // apartment block: brick, slabs every 2 floors
-      for (let y = 0; y < 5; y++) {
-        for (let x = 0; x < 6; x++) {
-          for (let z = 0; z < 4; z++) {
-            const edge = x === 0 || x === 5 || z === 0 || z === 3;
-            const isSlab = y % 2 === 0;
-            if (!edge && !isSlab) continue;
-            const mat = edge && !isSlab && (x + z + y) % 3 === 0 ? 'glass' : 'brick';
-            this._block(ox + x, y, oz + z, mat, 1);
-          }
-        }
-      }
-      this._box(ox, 5, oz, 6, 1, 4, 'wood', 1); // roof
+
+    // Zebra Crosswalks at all 5 intersections
+    const zebra = (x0, z0, w, d, horiz = true) => {
+      if (horiz) for (let z = z0; z < z0 + d; z += 1.2) crosswalks.push({ x: x0, z: z, w: w, d: 0.6, color: 0xffffff });
+      else for (let x = x0; x < x0 + w; x += 1.2) crosswalks.push({ x: x, z: z0, w: 0.6, d: d, color: 0xffffff });
+    };
+    for (const cx of [-60, -26, 0, 32, 62]) {
+      zebra(cx - 5, -6, 2, 8, true);
+      zebra(cx + 9, -6, 2, 8, true);
+      zebra(cx - 5, 12, 2, 8, true);
+      zebra(cx + 9, 12, 2, 8, true);
     }
-    // --- CIVIC ROW (W) -----------------------------------------------------------------
-    {
-      const ox = -21, oz = -2; // church: brick nave, wood gable, tower + spire
-      for (let x = 0; x < 3; x++) for (let z = 0; z < 5; z++) {
-        const edge = x === 0 || x === 2 || z === 0 || z === 4;
-        if (!edge) continue;
-        this._block(ox + x, 0, oz + z, 'brick', 1);
-        this._block(ox + x, 1, oz + z, (x + z) % 2 === 1 ? 'glass' : 'brick', 1);
-        this._block(ox + x, 2, oz + z, 'wood', 1);
-      }
-      for (let z = 0; z < 5; z++) this._block(ox + 1, 3, oz + z, 'wood', 1); // ridge
-      for (let y = 0; y < 4; y++) for (const [tx, tz] of [[0, 5], [1, 5], [0, 6], [1, 6]]) this._block(ox + tx, y, oz + tz, 'brick', 1);
-      this._box(ox, 4, oz + 5, 2, 1, 2, 'wood', 1);
-      this._block(ox, 5, oz + 5, 'wood', 1); // spire tip
-    }
-    {
-      const ox = -16, oz = 4; // brownstone: brick row house + stoop
-      for (let y = 0; y < 3; y++) {
-        for (let x = 0; x < 4; x++) {
-          for (let z = 0; z < 3; z++) {
-            const edge = x === 0 || x === 3 || z === 0 || z === 2;
-            if (!edge) continue;
-            const mat = y > 0 && (x + z) % 2 === 1 && !((x === 0 || x === 3) && (z === 0 || z === 2)) ? 'glass' : 'brick';
-            this._block(ox + x, y, oz + z, mat, 1);
-          }
-        }
-      }
-      this._box(ox, 3, oz, 4, 1, 3, 'wood', 1); // roof
-      this._block(ox + 1, 0, oz - 1, 'concrete', 1); // stoop
-    }
-    {
-      const ox = -21, oz = 8; // parking garage: columns + open decks (pancakes!)
-      const cols = [[0, 0], [2, 0], [4, 0], [0, 2], [4, 2], [0, 4], [2, 4], [4, 4]];
-      for (const level of [0, 2, 4]) {
-        for (const [cx, cz] of cols) this._block(ox + cx, level, oz + cz, 'steel', 1);
-        this._box(ox, level + 1, oz, 5, 1, 5, 'concrete', 1);
-      }
-    }
-    // --- GAS STATION (E) -----------------------------------------------------------------
-    {
-      const ox = 19, oz = 10;
-      for (const [px, pz] of [[0, 0], [4, 0], [0, 3], [4, 3]]) { this._block(ox + px, 0, oz + pz, 'steel', 1); this._block(ox + px, 1, oz + pz, 'steel', 1); }
-      this._box(ox, 2, oz, 5, 1, 4, 'panel', 1, 0xe8ecf2); // canopy
-      this._box(ox + 1, 0, oz + 1, 2, 1, 2, 'concrete', 1);
-      this._box(ox + 1, 1, oz + 1, 2, 1, 2, 'glass', 1);    // kiosk
-      for (const px of [3.5, 4.0]) { this._block(ox + px, 0, oz + 2, 'steel', 0.5); this._block(ox + px, 0.5, oz + 2, 'panel', 0.5, 0xc23b2e); } // pumps
-    }
-    // --- ELEVATED BRIDGE (S edge): 6 m span at 0.5 m density — paired steel
-    // bents every 4 m, full-width crossheads, 12-block deck, side rails, train.
-    {
-      const Z0 = 22; // deck rows: 12 × 0.5 m (z 22..27.5)
-      for (let x = -20; x <= 20; x += 4) {
-        for (const cz of [24, 25]) for (let y = 0; y < 3; y++) this._block(x, y, cz, 'steel', 1);
-        for (let w = 0; w < 6; w++) this._block(x, 3, Z0 + w, 'steel', 1); // crosshead (1 m)
-      }
-      for (let x = -20; x <= 20; x += 0.5) {
-        for (let w = 0; w < 12; w++) this._block(x, 4, Z0 + w * 0.5, 'concrete', 0.5); // deck (0.5 m)
-      }
-      for (let x = -20; x <= 20; x += 2) {
-        this._block(x, 4.5, Z0, 'steel', 0.5);
-        this._block(x, 4.5, Z0 + 5.5, 'steel', 0.5);
-      }
-      for (let x = -20; x < 20; x += 0.5) {
-        this._block(x, 5, Z0, 'steel', 0.5);
-        this._block(x, 5, Z0 + 5.5, 'steel', 0.5);
-      }
-      this._box(-4, 4.5, 23.5, 6, 2, 2, 'panel', 0.5, 0xf7c948);
-      this._box(-1, 4.5, 23.5, 6, 2, 2, 'panel', 0.5, 0xf7c948); // parked train cars
-    }
-    // Surface registry rollout — render-side only (the sim never reads this;
-    // VoxelWorld3D does, and on WebGL2 draws it all in one array-backed call).
-    // The same full-coverage map every scene carries; rubber/leaf stay unmapped
-    // on Boston's documented judgement (tyres and canopies read worse tiled).
+
+    // Rail Bed under Elevated Viaduct
+    rail.push({ x: -95, z: 22, w: 190, d: 6, color: 0x3a3128 });
+
+    this.sceneDecor = {
+      parks, sand, plaza, cobbles, sidewalks, roads, rail,
+      bikePaths, laneMarkers, crosswalks, water, boardwalk,
+    };
+
     this.sceneSurfaces = {
       brick: 'mat_brick_red',
-      glass: 'mat_glass_curtain',
-      concrete: 'mat_concrete_precast',
-      steel: 'mat_metal_seam',
-      panel: 'mat_metal_seam',
-      wood: 'mat_timber_dock',
+      glass: 'mat_shop_window',
+      concrete: 'mat_suburban_siding',
+      steel: 'mat_warehouse_roll',
+      panel: 'mat_awning_stripe',
+      wood: 'mat_clay_shingles',
     };
   }
 
@@ -2287,6 +2666,13 @@ export class VoxelSandboxSim {
       c.vy -= this._fallG(c.density) * dt;
       c.cx += c.vx * dt; c.cy += c.vy * dt; c.cz += c.vz * dt;
 
+      // perimeter containment: keep chunks inside playable bounds
+      const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
+      if (c.cx < r.minX + 1.0) { c.cx = r.minX + 1.0; if (c.vx < 0) c.vx = 0; }
+      else if (c.cx > r.maxX - 1.0) { c.cx = r.maxX - 1.0; if (c.vx > 0) c.vx = 0; }
+      if (c.cz < r.minZ + 1.0) { c.cz = r.minZ + 1.0; if (c.vz < 0) c.vz = 0; }
+      else if (c.cz > r.maxZ - 1.0) { c.cz = r.maxZ - 1.0; if (c.vz > 0) c.vz = 0; }
+
       // rim torque: a chunk straddling a rim tips toward that opening —
       // big slabs tip slowly, small bricks snap over
       for (let hi = 0; hi < nh; hi++) {
@@ -2478,6 +2864,24 @@ export class VoxelSandboxSim {
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
       b.rotX += b.vRotX * dt; b.rotZ += b.vRotZ * dt;
 
+      // perimeter containment: keep voxels/debris inside the playable world bounds
+      const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
+      const boundMargin = Math.max(b.sx, b.sz) * 0.5;
+      if (b.x < r.minX + boundMargin) {
+        b.x = r.minX + boundMargin;
+        if (b.vx < 0) b.vx = 0;
+      } else if (b.x > r.maxX - boundMargin) {
+        b.x = r.maxX - boundMargin;
+        if (b.vx > 0) b.vx = 0;
+      }
+      if (b.z < r.minZ + boundMargin) {
+        b.z = r.minZ + boundMargin;
+        if (b.vz < 0) b.vz = 0;
+      } else if (b.z > r.maxZ - boundMargin) {
+        b.z = r.maxZ - boundMargin;
+        if (b.vz > 0) b.vz = 0;
+      }
+
       if (vh) {
         if (b.y + b.sy / 2 <= SINK_Y) this._consume(b, vh.h);
         continue;
@@ -2539,8 +2943,8 @@ export class VoxelSandboxSim {
         b._groundT = this.time;
         b.y = rest;
         if (b.vy < 0) b.vy = b.vy < -2 ? -b.vy * 0.25 : 0;
-        b.vx *= 1 - 3 * dt; b.vz *= 1 - 3 * dt;
-        b.vRotX *= 1 - 3 * dt; b.vRotZ *= 1 - 3 * dt;
+        b.vx *= Math.max(0, 1 - 5 * dt); b.vz *= Math.max(0, 1 - 5 * dt);
+        b.vRotX *= Math.max(0, 1 - 5 * dt); b.vRotZ *= Math.max(0, 1 - 5 * dt);
         // tip over a rim instead of balancing on the edge — only when the
         // hole-facing edge really overhangs that hole's opening. A block on
         // solid ground NEXT to a hole has no business moving, and contact with
@@ -2576,7 +2980,7 @@ export class VoxelSandboxSim {
           // a SLOPE test: drop over a run of one block width along whichever
           // axis the low neighbour sits on (`b.s` both ways, for a cube)
           if (support - lowTop > (lowX !== 0 ? b.sx : b.sz) * 1.25) {
-            b.vx += lowX * 6 * dt; b.vz += lowZ * 6 * dt;
+            b.vx += lowX * 4.5 * dt; b.vz += lowZ * 4.5 * dt;
           } else if (b.vx * b.vx + b.vz * b.vz < 0.06) {
             // sleep CANDIDATE — committed only after this step's contact
             // pass proves the block is contact-free, so nothing ever dozes
@@ -3472,7 +3876,8 @@ export class VoxelSandboxSim {
 
       stepActivePowerUps(h.activePowerUps, dt);
 
-      if (hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.FRENZY)) {
+      if (hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.FRENZY) ||
+          hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.CHRONO)) {
         if (h.chain > 0) h.chainTimer = COMBO_WINDOW;
       } else if (h.chainTimer > 0) {
         h.chainTimer -= dt;
@@ -3496,20 +3901,41 @@ export class VoxelSandboxSim {
         h.z = Math.min(r ? r.maxZ : this.bounds, Math.max(r ? r.minZ : -this.bounds, h.z));
       }
 
-      // Dynamic reward milestones: 100k points & 500 mult
+      // Dynamic reward milestones: 100k points & 500 mult (subject to MAX_MAP_POWERUPS)
       if (h.mass >= this.nextScorePowerUpThreshold) {
-        const pu = this._spawnBonusPowerUp('score_100k', h);
         this.nextScorePowerUpThreshold += 100000;
-        this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'score_100k', hole: h });
+        const pu = this._spawnBonusPowerUp('score_100k', h);
+        if (pu) this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'score_100k', hole: h });
       }
       if (h.chain >= this.nextMultPowerUpThreshold) {
-        const pu = this._spawnBonusPowerUp('mult_500', h);
         this.nextMultPowerUpThreshold += 500;
-        this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'mult_500', hole: h });
+        const pu = this._spawnBonusPowerUp('mult_500', h);
+        if (pu) this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'mult_500', hole: h });
       }
     }
     this._collectCoins();
+
+    // Step wandering ground power-ups, lifespan expiration, and boundary reflections
+    const expiredList = stepGroundPowerUps(this.powerups, this.boundsRect, dt, this.powerupRng);
+    for (const exp of expiredList) {
+      this.events.push({ type: 'powerup_despawn', powerup: exp });
+    }
+    this.powerups = this.powerups.filter((p) => !p.collected && !p.expired);
+
+    // Periodic intermittent power-up spawns on the board (capped at MAX_MAP_POWERUPS)
+    this.powerupSpawnTimer = (this.powerupSpawnTimer || 18.0) - dt;
+    if (this.powerupSpawnTimer <= 0) {
+      this.powerupSpawnTimer = 18.0 + this.powerupRng.next() * 10.0;
+      if (this.powerups.length < 2 && this.powerups.length < MAX_MAP_POWERUPS) {
+        const pu = this._spawnIntermittentPowerUp();
+        if (pu) this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'intermittent' });
+      }
+    }
+
     this._collectPowerups();
+
+    // Dynamic cataclysm storm system (Tornado & Hurricane)
+    if (this.stormSystem) this.stormSystem.step(dt);
 
     // Vortex vacuum pull on active loose movers
     for (let hi = 0; hi < holes.length; hi++) {
@@ -3657,7 +4083,8 @@ export class VoxelSandboxSim {
     // Expiry is a NORMAL ending. It sets the same `over` latch the goal does and
     // lands on the same results screen carrying the percentage reached; `won`
     // stays false and `timedOut` says which of the two happened.
-    if (this.clockLimit !== null) {
+    const chronoActive = holes.some((h) => hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.CHRONO));
+    if (this.clockLimit !== null && !chronoActive) {
       this.clockTicks++;
       this.timeLeft = Math.max(0, (this.clockLimit - this.clockTicks) / 60);
       // The 30 s and 10 s endgame states, monotonic by index so a mark can only

@@ -7,10 +7,9 @@
 // deliberately duplicates COMBO_WINDOW to stay clear of the sim.js -> citygen.js
 // chain, and importing the campaign's level table for one number would undo it.
 //
-// 180 s is the owner's call (2026-08-13) and sits inside the genre convention:
-// Hole.io runs two-minute matches. The clock is what turns an open-ended
-// demolition into a run with a score.
-export const LEVEL_CLOCK_SECONDS = 180;
+// 300 s (5 minutes) is the level duration for all sandbox cities and campaign levels.
+// The clock is what turns an open-ended demolition into a run with a score.
+export const LEVEL_CLOCK_SECONDS = 300;
 
 // The SAME limit expressed in fixed ticks, which is what the sandbox actually
 // counts. Ticks, not accumulated seconds: `time += 1/60` ten thousand times

@@ -36,42 +36,42 @@ export const VOXEL_CLASSES = {
 
 // 0.5 m sedan family: car, taxi, police. Rubber wheels, steel frame/pillars,
 // panel body, glass cabin band.
-export function sedan(sim, ox, oz, bodyColor, roofColor = bodyColor, axis = 'x') {
+export function sedan(sim, ox, oz, bodyColor, roofColor = bodyColor, axis = 'x', bodySurf = undefined, glassSurf = 'mat_shop_window') {
   // Keep the canonical mesh local to +x, then rotate its footprint in the
   // voxel grid for avenue traffic. This makes parked cars follow Manhattan's
   // street direction without introducing render-only transform state.
-  const B = (x, y, z, m, c) => axis === 'z'
-    ? sim._block(ox + z, y, oz + x, m, 0.5, c)
-    : sim._block(ox + x, y, oz + z, m, 0.5, c);
+  const B = (x, y, z, m, c, surf) => axis === 'z'
+    ? sim._block(ox + z, y, oz + x, m, 0.5, c, surf)
+    : sim._block(ox + x, y, oz + z, m, 0.5, c, surf);
   for (const [wx, wz] of [[0, 0], [0, 1.5], [4.5, 0], [4.5, 1.5]]) B(wx, 0, wz, 'rubber');
   for (let x = 0; x < 5; x += 0.5) {
     for (let z = 0; z < 2; z += 0.5) {
       const edge = x === 0 || x >= 4.5 || z === 0 || z >= 1.5;
-      B(x, 0.5, z, edge ? 'steel' : 'panel', edge ? undefined : bodyColor);
+      B(x, 0.5, z, edge ? 'steel' : 'panel', edge ? undefined : bodyColor, edge ? undefined : bodySurf);
     }
   }
-  for (let x = 0; x < 1; x += 0.5) for (let z = 0; z < 2; z += 0.5) B(x, 1, z, 'panel', bodyColor); // hood
-  for (let x = 4; x < 5; x += 0.5) for (let z = 0; z < 2; z += 0.5) B(x, 1, z, 'panel', bodyColor); // trunk
+  for (let x = 0; x < 1; x += 0.5) for (let z = 0; z < 2; z += 0.5) B(x, 1, z, 'panel', bodyColor, bodySurf); // hood
+  for (let x = 4; x < 5; x += 0.5) for (let z = 0; z < 2; z += 0.5) B(x, 1, z, 'panel', bodyColor, bodySurf); // trunk
   for (const [px, pz] of [[2, 0], [2, 1.5], [3.5, 0], [3.5, 1.5]]) { B(px, 1, pz, 'steel'); B(px, 1.5, pz, 'steel'); }
   for (const gx of [2.5, 3]) {
-    B(gx, 1, 0, 'glass'); B(gx, 1, 1.5, 'glass');
-    B(gx, 1.5, 0, 'glass'); B(gx, 1.5, 1.5, 'glass');
+    B(gx, 1, 0, 'glass', undefined, glassSurf); B(gx, 1, 1.5, 'glass', undefined, glassSurf);
+    B(gx, 1.5, 0, 'glass', undefined, glassSurf); B(gx, 1.5, 1.5, 'glass', undefined, glassSurf);
   }
-  for (let x = 2; x < 4; x += 0.5) for (let z = 0; z < 2; z += 0.5) B(x, 2, z, 'panel', roofColor); // roof
+  for (let x = 2; x < 4; x += 0.5) for (let z = 0; z < 2; z += 0.5) B(x, 2, z, 'panel', roofColor, bodySurf); // roof
 }
 
 // 0.5 m city bus: 6 wheels, pillar-framed glass band.
-export function bus(sim, ox, oz, bodyColor, axis = 'x') {
+export function bus(sim, ox, oz, bodyColor, axis = 'x', bodySurf = undefined, glassSurf = 'mat_shop_window') {
   const S = 0.5;
-  const B = (x, y, z, m, c) => axis === 'z'
-    ? sim._block(ox + z, y, oz + x, m, S, c)
-    : sim._block(ox + x, y, oz + z, m, S, c);
+  const B = (x, y, z, m, c, surf) => axis === 'z'
+    ? sim._block(ox + z, y, oz + x, m, S, c, surf)
+    : sim._block(ox + x, y, oz + z, m, S, c, surf);
   const pillars = new Set(['0,0', '0,1.5', '2.5,0', '2.5,1.5', '5,0', '5,1.5']);
   for (const [wx, wz] of [[0.5, 0], [0.5, 1.5], [2.5, 0], [2.5, 1.5], [4.5, 0], [4.5, 1.5]]) B(wx, 0, wz, 'rubber');
   for (let x = 0; x < 6; x += S) {
     for (let z = 0; z < 2; z += S) {
       const edge = x === 0 || x >= 5.5 || z === 0 || z >= 1.5;
-      B(x, 0.5, z, edge ? 'steel' : 'panel');
+      B(x, 0.5, z, edge ? 'steel' : 'panel', edge ? undefined : bodyColor, edge ? undefined : bodySurf);
     }
   }
   for (let x = 0; x < 6; x += S) {
@@ -79,18 +79,18 @@ export function bus(sim, ox, oz, bodyColor, axis = 'x') {
       const edge = x === 0 || x >= 5.5 || z === 0 || z >= 1.5;
       if (!edge) continue;
       if (pillars.has(x + ',' + z)) { B(x, 1, z, 'steel'); B(x, 1.5, z, 'steel'); }
-      else { B(x, 1, z, 'panel', bodyColor); B(x, 1.5, z, 'glass'); }
+      else { B(x, 1, z, 'panel', bodyColor, bodySurf); B(x, 1.5, z, 'glass', undefined, glassSurf); }
     }
   }
-  for (let x = 0; x < 6; x += S) for (let z = 0; z < 2; z += S) B(x, 2, z, 'panel', bodyColor);
+  for (let x = 0; x < 6; x += S) for (let z = 0; z < 2; z += S) B(x, 2, z, 'panel', bodyColor, bodySurf);
 }
 
 // 0.5 m box van / ambulance: cab with windshield + box body.
-export function boxVan(sim, ox, oz, len, cabColor, boxColor, axis = 'x') {
+export function boxVan(sim, ox, oz, len, cabColor, boxColor, axis = 'x', boxSurf = 'mat_warehouse_roll', glassSurf = 'mat_shop_window') {
   const S = 0.5;
-  const B = (x, y, z, m, c) => axis === 'z'
-    ? sim._block(ox + z, y, oz + x, m, S, c)
-    : sim._block(ox + x, y, oz + z, m, S, c);
+  const B = (x, y, z, m, c, surf) => axis === 'z'
+    ? sim._block(ox + z, y, oz + x, m, S, c, surf)
+    : sim._block(ox + x, y, oz + z, m, S, c, surf);
   for (const [wx, wz] of [[0.5, 0], [0.5, 1.5], [len - 1, 0], [len - 1, 1.5]]) B(wx, 0, wz, 'rubber');
   for (let x = 0; x < len; x += S) {
     for (let z = 0; z < 2; z += S) {
@@ -104,24 +104,151 @@ export function boxVan(sim, ox, oz, len, cabColor, boxColor, axis = 'x') {
         const edge = x === 0 || x >= len - S || z === 0 || z >= 1.5;
         if (!edge) continue;
         const cab = x < 2;
-        if (cab && y === 1.5) B(x, y, z, x === 0 ? 'glass' : 'panel', cabColor);
-        else B(x, y, z, 'panel', cab ? cabColor : boxColor);
+        if (cab && y === 1.5) B(x, y, z, x === 0 ? 'glass' : 'panel', cabColor, x === 0 ? glassSurf : undefined);
+        else B(x, y, z, 'panel', cab ? cabColor : boxColor, cab ? undefined : boxSurf);
       }
     }
   }
-  for (let x = 0; x < len; x += S) for (let z = 0; z < 2; z += S) B(x, 2, z, 'panel', x < 2 ? cabColor : boxColor);
+  for (let x = 0; x < len; x += S) for (let z = 0; z < 2; z += S) B(x, 2, z, 'panel', x < 2 ? cabColor : boxColor, x < 2 ? undefined : boxSurf);
 }
 
 // 1 m heavy truck: fire engine (ladder) / garbage truck (high box).
-export function bigTruck(sim, ox, oz, boxColor, ladder = false) {
-  const B = (x, y, z, m, c) => sim._block(ox + x, y, oz + z, m, 1, c);
+export function bigTruck(sim, ox, oz, boxColor, ladder = false, boxSurf = 'mat_warehouse_roll', glassSurf = 'mat_shop_window') {
+  const B = (x, y, z, m, c, surf) => sim._block(ox + x, y, oz + z, m, 1, c, surf);
   for (const [wx, wz] of [[0, 0], [0, 1], [2, 0], [2, 1], [4, 0], [4, 1]]) B(wx, 0, wz, 'rubber');
   for (let x = 0; x < 6; x++) for (let z = 0; z < 2; z++) B(x, 1, z, 'steel');
-  B(0, 2, 0, 'glass'); B(0, 2, 1, 'glass'); // windshield
+  B(0, 2, 0, 'glass', undefined, glassSurf); B(0, 2, 1, 'glass', undefined, glassSurf); // windshield
   B(1, 2, 0, 'panel', boxColor); B(1, 2, 1, 'panel', boxColor); // cab
-  for (let x = 2; x < 6; x++) for (let z = 0; z < 2; z++) { B(x, 2, z, 'panel', boxColor); B(x, 3, z, 'panel', boxColor); }
+  for (let x = 2; x < 6; x++) for (let z = 0; z < 2; z++) { B(x, 2, z, 'panel', boxColor, boxSurf); B(x, 3, z, 'panel', boxColor, boxSurf); }
   for (let x = 0; x < 2; x++) for (let z = 0; z < 2; z++) B(x, 3, z, 'panel', boxColor); // cab roof
-  for (let x = 2; x < 6; x++) for (let z = 0; z < 2; z++) B(x, 4, z, ladder ? 'steel' : 'panel', ladder ? undefined : boxColor);
+  for (let x = 2; x < 6; x++) for (let z = 0; z < 2; z++) B(x, 4, z, ladder ? 'steel' : 'panel', ladder ? undefined : boxColor, ladder ? undefined : boxSurf);
+}
+
+// 0.5 m Kenney Luxury SUV: high stance, roof rack, wrap-around tinted glass, detachable bumper.
+export function kenneySUV(sim, ox, oz, bodyColor = 0x2b2d42, axis = 'x', bodySurf = undefined, glassSurf = 'mat_shop_window') {
+  const S = 0.5;
+  const B = (x, y, z, m, c, surf) => axis === 'z'
+    ? sim._block(ox + z, y, oz + x, m, S, c, surf)
+    : sim._block(ox + x, y, oz + z, m, S, c, surf);
+  // 4 high-clearance wheels
+  for (const [wx, wz] of [[0.5, 0], [0.5, 1.5], [4, 0], [4, 1.5]]) B(wx, 0, wz, 'rubber');
+  // Chassis and front bumper
+  for (let x = 0; x < 5; x += S) {
+    for (let z = 0; z < 2; z += S) {
+      const isBumper = x === 0 || x === 4.5;
+      B(x, 0.5, z, isBumper ? 'steel' : 'panel', isBumper ? 0x8d99ae : bodyColor, isBumper ? 'mat_warehouse_roll' : bodySurf);
+    }
+  }
+  // Hood & Rear Deck
+  for (let x = 0; x < 1.5; x += S) for (let z = 0; z < 2; z += S) B(x, 1, z, 'panel', bodyColor, bodySurf);
+  // Steel Pillars
+  for (const [px, pz] of [[1.5, 0], [1.5, 1.5], [4, 0], [4, 1.5]]) { B(px, 1, pz, 'steel'); B(px, 1.5, pz, 'steel'); }
+  // Cabin glass
+  for (let x = 2; x <= 3.5; x += S) {
+    B(x, 1, 0, 'glass', 0x8ecae6, glassSurf); B(x, 1, 1.5, 'glass', 0x8ecae6, glassSurf);
+    B(x, 1.5, 0, 'steel', bodyColor, bodySurf); B(x, 1.5, 1.5, 'steel', bodyColor, bodySurf);
+  }
+  B(1.5, 1.5, 0.5, 'glass', 0x8ecae6, glassSurf); B(1.5, 1.5, 1, 'glass', 0x8ecae6, glassSurf); // windshield
+  // Roof & Roof Rack Rails
+  for (let x = 1.5; x <= 4; x += S) for (let z = 0; z < 2; z += S) B(x, 2, z, 'panel', bodyColor, bodySurf);
+  for (let x = 2; x <= 3.5; x += S) { B(x, 2.5, 0, 'steel', 0x111111); B(x, 2.5, 1.5, 'steel', 0x111111); }
+}
+
+// Mega Kenney Skyscraper Tower (1 m blocks, 15m–35m tall, modular detachable floors)
+export function kenneySkyscraper(sim, ox, oz, cols = 8, rows = 8, layers = 24, col = 0x3d5a80, accentCol = 0xee6c4d, roofType = 'helipad') {
+  const setbackStart = Math.floor((layers - 6) / 3) * 3; // Align setback to a solid concrete slab floor
+
+  for (let y = 0; y < layers; y++) {
+    const isLobby = y < 3;
+    const isSetback = y >= setbackStart;
+    const minX = isSetback ? 1 : 0, maxX = isSetback ? cols - 2 : cols - 1;
+    const minZ = isSetback ? 1 : 0, maxZ = isSetback ? rows - 2 : rows - 1;
+    const isSlab = y % 3 === 0;
+
+    // Setback terrace slab capping the outer perimeter of the lower section
+    if (isSetback && y === setbackStart) {
+      for (let x = 0; x < cols; x++) {
+        for (let z = 0; z < rows; z++) {
+          const isOuterLower = x === 0 || x === cols - 1 || z === 0 || z === rows - 1;
+          if (isOuterLower) {
+            sim._block(ox + x, y, oz + z, 'concrete', 1, 0xe0fbfc, 'mat_suburban_siding');
+          }
+        }
+      }
+    }
+
+    for (let x = minX; x <= maxX; x++) {
+      for (let z = minZ; z <= maxZ; z++) {
+        const isOuter = x === minX || x === maxX || z === minZ || z === maxZ;
+        const isCorner = (x === minX || x === maxX) && (z === minZ || z === maxZ);
+        const isCol = isCorner || (x - minX) % 2 === 0 || (z - minZ) % 2 === 0 || x === maxX || z === maxZ;
+        const isCore = (x >= minX + 2 && x <= maxX - 2) && (z >= minZ + 2 && z <= maxZ - 2);
+
+        if (!isOuter && !isSlab && !isCore) continue;
+
+        if (isSlab) {
+          // Concrete floor diaphragm plate
+          sim._block(ox + x, y, oz + z, 'concrete', 1, 0xe0fbfc, 'mat_suburban_siding');
+        } else if (isCore) {
+          // Central structural core (elevator & stairwell)
+          sim._block(ox + x, y, oz + z, 'concrete', 1, 0x293241, 'mat_suburban_siding');
+        } else if (isCorner || (isOuter && isCol) || (isOuter && y === 2) || y >= layers - 2) {
+          // Steel columns, lobby lintels, and solid penthouse roof framing
+          sim._block(ox + x, y, oz + z, 'steel', 1, accentCol, 'mat_warehouse_roll');
+        } else if (isOuter) {
+          // Framed glass window bays or accent spandrels
+          const isWindow = (y % 3 === 1) || isLobby;
+          if (isWindow) {
+            sim._block(ox + x, y, oz + z, 'glass', 1, 0x90e0ef, 'mat_shop_window');
+          } else {
+            sim._block(ox + x, y, oz + z, 'panel', 1, col, 'mat_awning_stripe');
+          }
+        }
+      }
+    }
+  }
+
+  // Grand Entrance Canopy Marquee with steel portal posts
+  for (let x = 1; x < cols - 1; x++) {
+    sim._block(ox + x, 2, oz - 1, 'steel', 1, accentCol, 'mat_awning_stripe');
+    if (x === 1 || x === cols - 2) {
+      sim._block(ox + x, 0, oz - 1, 'steel', 1, accentCol, 'mat_warehouse_roll');
+      sim._block(ox + x, 1, oz - 1, 'steel', 1, accentCol, 'mat_warehouse_roll');
+    }
+  }
+
+  // Solid Concrete Roof Slab capping the setback crown
+  const isSetback = layers >= setbackStart;
+  const topMinX = isSetback ? 1 : 0, topMaxX = isSetback ? cols - 2 : cols - 1;
+  const topMinZ = isSetback ? 1 : 0, topMaxZ = isSetback ? rows - 2 : rows - 1;
+  for (let x = topMinX; x <= topMaxX; x++) {
+    for (let z = topMinZ; z <= topMaxZ; z++) {
+      sim._block(ox + x, layers, oz + z, 'concrete', 1, 0xe0fbfc, 'mat_suburban_siding');
+    }
+  }
+
+  // Rooftop Crown & Mechanicals
+  const topY = layers + 1;
+  if (roofType === 'helipad') {
+    // Helipad plate with 'H' markings
+    for (let x = topMinX + 1; x <= topMaxX - 1; x++) {
+      for (let z = topMinZ + 1; z <= topMaxZ - 1; z++) {
+        const isH = (x === topMinX + 1 || x === topMaxX - 1) || (z === Math.floor((topMinZ + topMaxZ) / 2));
+        sim._block(ox + x, topY, oz + z, 'panel', 1, isH ? 0xf7c948 : 0x2b2d42, 'mat_warehouse_roll');
+      }
+    }
+    // Radio Beacon Spire standing on top of helipad
+    for (let h = 1; h <= 4; h++) {
+      sim._block(ox + Math.floor(cols / 2), topY + h, oz + Math.floor(rows / 2), 'steel', 1, 0xef233c);
+    }
+  } else if (roofType === 'cooling') {
+    // Twin Industrial Cooling Units + Communications Mast
+    sim._box(ox + topMinX + 1, topY, oz + topMinZ + 1, 2, 2, 2, 'steel', 1, 0x6c757d, 'mat_warehouse_roll');
+    sim._box(ox + topMaxX - 2, topY, oz + topMinZ + 1, 2, 2, 2, 'steel', 1, 0x6c757d, 'mat_warehouse_roll');
+    for (let h = 0; h < 6; h++) {
+      sim._block(ox + Math.floor(cols / 2), topY + h, oz + topMaxZ - 1, 'steel', 1, 0xf7c948);
+    }
+  }
 }
 
 export function motorcycle(sim, ox, oz) {

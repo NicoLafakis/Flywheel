@@ -877,11 +877,11 @@ export function buildBrooklyn(sim) {
   // rubber/leaf stay unmapped on Boston's documented judgement.
   sim.sceneSurfaces = {
     brick: 'mat_brick_red',
-    glass: 'mat_glass_curtain',
-    concrete: 'mat_concrete_precast',
-    steel: 'mat_metal_seam',
-    panel: 'mat_metal_seam',
-    wood: 'mat_timber_dock',
+    glass: 'mat_shop_window',
+    concrete: 'mat_suburban_siding',
+    steel: 'mat_warehouse_roll',
+    panel: 'mat_awning_stripe',
+    wood: 'mat_clay_shingles',
   };
 
   // Render-only ambient life. Never physical, never eatable — VoxelWorld3D owns

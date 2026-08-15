@@ -181,6 +181,14 @@ function equippedIndicatorId() {
   return i ? i.id : 'ind-default';
 }
 
+function triggerHaptic(ms = 12) {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function' && !save?.settings?.reducedMotion) {
+      navigator.vibrate(ms);
+    }
+  } catch { /* ignored */ }
+}
+
 const screens = new Screens(document.getElementById('screen-root'), save, {
   play(lvl) {
     if (!isLevelUnlocked(save, lvl.index)) return;
@@ -407,6 +415,11 @@ const AUTHORED_SCENES = {
     label: 'CHICAGO: THE LOOP AND THE CHICAGO RIVER',
     hud: 'CHICAGO · THE LOOP & WILLIS TOWER',
     intro: { subtitle: 'CHICAGO' },
+  },
+  'tokyo': {
+    label: 'TOKYO: NEO-SHINJUKU AND SHIBUYA CROSSING',
+    hud: 'TOKYO · SHIBUYA & SHINJUKU WARD',
+    intro: { subtitle: 'TOKYO' },
   },
 };
 
@@ -740,6 +753,8 @@ function frame(ts) {
         } else if (ev.type === 'coin') {
           world.spawnGoldenSparkles(ev.hole.x, ev.hole.z, ev.hole.radius, 16);
           hud.announce({ text: `COIN! +${ev.value}`, source: 'coin', priority: ANN.COIN, ms: 700 });
+          triggerHaptic(15);
+          audio.playCoin();
         } else if (ev.type === 'clock') {
           // The endgame states (R-1.5). Fired by the sim at exact ticks, so both
           // arrive once and at the same moment on every device. The visual state
@@ -752,9 +767,10 @@ function frame(ts) {
             source: 'clock', priority: ANN.CLOCK, ms: 1400,
           });
         } else if (ev.type === 'powerup_collect') {
-          audio.play('milestone', { vol: 0.9 });
-          cam.triggerShake(0.35);
-          cam.fovKick(4);
+          audio.playPowerUpCollect();
+          cam.triggerShake(0.45);
+          cam.fovKick(6);
+          triggerHaptic(45);
           const spec = ev.powerup.spec || {};
           hud.announce({
             text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
@@ -763,19 +779,29 @@ function frame(ts) {
             ms: 1800,
             channel: 'toast',
           });
+          const prevState = state;
+          state = 'powerup_pause';
+          screens.showPowerUpShowcase(ev.powerup, () => {
+            state = prevState;
+            lastTs = performance.now();
+          });
         } else if (ev.type === 'powerup_spawn') {
-          audio.play('coin', { vol: 0.7 });
-          const reasonText = ev.reason === 'score_100k' ? '100K PTS BONUS' : '500 MULT BONUS';
+          audio.playPowerUpSpawn();
+          const spec = ev.powerup.spec || {};
+          let reasonText = 'POWER-UP SPOTTED!';
+          if (ev.reason === 'score_100k') reasonText = '100K PTS BONUS! POWER-UP DROPPED!';
+          else if (ev.reason === 'mult_500') reasonText = '500 MULT BONUS! POWER-UP DROPPED!';
+          else if (ev.reason === 'intermittent') reasonText = `${spec.icon || '🎁'} ${spec.name || 'POWER-UP'} IS ROAMING!`;
           hud.announce({
-            text: `🎁 ${reasonText}! POWER-UP DROPPED!`,
+            text: reasonText,
             source: 'powerup_drop',
             priority: ANN.COMBO,
-            ms: 1600,
+            ms: 1800,
             channel: 'toast',
           });
         } else if (ev.type === 'quake') {
-          cam.triggerShake(0.7);
-          audio.play('rumble', { vol: 1.0 });
+          cam.triggerShake(0.85);
+          triggerHaptic(75);
         }
         // 'goal' needs no branch: GameAudio plays the sting, and the milestone
         // ladder's last row (fired one event earlier) is the screen's beat.
@@ -799,6 +825,7 @@ function frame(ts) {
           // Only the player's own mouth is mic'd; rival holes chew in silence.
           if (ev.hole.isPlayer) {
             audio.handleEvent(ev);
+            triggerHaptic(ev.obj.tier >= 4 ? 22 : 12);
             if (ev.obj.tier >= 4) {
               cam.triggerShake(ev.obj.tier >= 6 ? 0.8 : 0.4);
             }
@@ -809,6 +836,7 @@ function frame(ts) {
             if (ev.obj.kind === 'landmark') {
               hud.showToast('LANDMARK SWALLOWED!', 2000);
               cam.triggerShake(1.4);
+              triggerHaptic(60);
               if (world) {
                 if (world.spawnShockRing) world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * 1.8, 0xffffff);
                 if (world.spawnBurst) world.spawnBurst(ev.hole.x, ev.hole.z, ev.hole.radius * 1.4, 0xffd23f, 10);
@@ -820,9 +848,10 @@ function frame(ts) {
             cam.triggerShake(0.2);
           }
         } else if (ev.type === 'powerup_collect') {
-          audio.play('milestone', { vol: 0.9 });
-          cam.triggerShake(0.35);
-          cam.fovKick(4);
+          audio.playPowerUpCollect();
+          cam.triggerShake(0.45);
+          cam.fovKick(6);
+          triggerHaptic(45);
           const spec = ev.powerup.spec || {};
           hud.announce({
             text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
@@ -831,21 +860,34 @@ function frame(ts) {
             ms: 1800,
             channel: 'toast',
           });
+          const prevState = state;
+          state = 'powerup_pause';
+          screens.showPowerUpShowcase(ev.powerup, () => {
+            state = prevState;
+            lastTs = performance.now();
+          });
         } else if (ev.type === 'powerup_spawn') {
-          audio.play('coin', { vol: 0.7 });
-          const reasonText = ev.reason === 'score_100k' ? '100K PTS BONUS' : '500 MULT BONUS';
+          audio.playPowerUpSpawn();
+          const spec = ev.powerup.spec || {};
+          let reasonText = 'POWER-UP SPOTTED!';
+          if (ev.reason === 'score_100k') reasonText = '100K PTS BONUS! POWER-UP DROPPED!';
+          else if (ev.reason === 'mult_500') reasonText = '500 MULT BONUS! POWER-UP DROPPED!';
+          else if (ev.reason === 'intermittent') reasonText = `${spec.icon || '🎁'} ${spec.name || 'POWER-UP'} IS ROAMING!`;
           hud.announce({
-            text: `🎁 ${reasonText}! POWER-UP DROPPED!`,
+            text: reasonText,
             source: 'powerup_drop',
             priority: ANN.COMBO,
-            ms: 1600,
+            ms: 1800,
             channel: 'toast',
           });
         } else if (ev.type === 'quake') {
-          cam.triggerShake(0.7);
-          audio.play('rumble', { vol: 1.0 });
+          cam.triggerShake(0.85);
+          triggerHaptic(75);
         } else if (ev.type === 'tide') hud.showToast('THE TIDE IS RISING!', 2500);
-        else if (ev.type === 'unlocked') hud.showToast('LANDMARK SHIELD DOWN!', 2500);
+        else if (ev.type === 'unlocked') {
+          hud.showToast('LANDMARK SHIELD DOWN!', 2500);
+          triggerHaptic(50);
+        }
       }
       world.update(realDt, events);
       // Passed here too so both call sites hand the camera the same per-frame

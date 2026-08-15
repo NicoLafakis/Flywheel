@@ -23,6 +23,7 @@ import { SANDBOX_COIN_VALUE, SANDBOX_GOAL_BONUS, RANKED_TICK_COUNT, comboMult } 
 import { comboMultiplier as campaignComboMult } from '../sim.js';
 import { buildBlockWord } from './blockword.js';
 import { buildSprocket } from './sprocket.js';
+import { POWERUP_SPECS } from '../powerups.js';
 
 // The shop shelf is the skin registry itself — js/skins.js owns the rows, this
 // file only draws them. Re-exported rather than re-imported at the call sites so
@@ -52,6 +53,7 @@ const FREE_PLAY = [
   { scene: 'boston', name: 'BOSTON', sub: 'Seaport and the Convention Center' },
   { scene: 'cambridge', name: 'CAMBRIDGE', sub: 'Canal Park to the Portuguese seam' },
   { scene: 'chicago', name: 'CHICAGO', sub: 'The Loop & Willis Tower' },
+  { scene: 'tokyo', name: 'TOKYO', sub: 'Neo-Shinjuku & Shibuya Crossing' },
   { scene: 'manhattan', name: 'LOWER MANHATTAN', sub: 'Downtown towers' },
   { scene: 'upper-manhattan', name: 'UPPER MANHATTAN', sub: 'Central Park' },
   { name: 'SANDBOX', sub: 'Physics playground' },
@@ -175,83 +177,122 @@ export class Screens {
     ctaWrap.appendChild(play);
     s.appendChild(ctaWrap);
 
-    // Returning-player recognition (playtest finding: a seeded save rendered
-    // byte-identical to a first visit). The bank belongs on the front door, not
-    // three screens deep in SHOP — and next to it, what the bank is FOR: the
-    // next rung it has not reached yet, named, with the gap to it.
-    //
-    // Every value here is read from the save. A first-run player has no record
-    // and no bank, so the whole strip is absent rather than rendered full of
-    // zeroes — the strip is recognition, and there is nothing yet to recognise.
-    //
-    // The strip can never render as an empty bordered box: BEST SCORE is
-    // optional, but the coin row below it is an if/else and both arms append, so
-    // any save that opens this block contributes at least one cell. Anything
-    // added here that is conditional on BOTH sides has to bring its own guard.
-    // The identity chip below is the same shape of promise in the other
-    // direction — it is an if/else with no third arm, so when boards are on it
-    // ADDS a cell and can never be the reason the row is empty.
+    // Player status bar: Player login, highest score (overall), and next skin meter.
+    // Displayed above city choices so players immediately see their login identity,
+    // all-time record, and coin progress toward the next skin tier.
     const pb = personalBest(this.save);
     const unlock = nextUnlock(this.save);
-    if (this.save.coins > 0 || pb.runs > 0) {
-      const strip = el(`<div class="fw-status"></div>`);
-      // Who the player IS heads the row that holds their records — this strip is
-      // the player's own line, and identity belongs at the front of it. It used
-      // to be a PROFILE button in the utility row beside SHOP, gated on
-      // `save.player.name`, which hid the one screen that explains how to get a
-      // name from precisely the players who do not have one. Both states are
-      // the same control now: named, it says who you are; unnamed, it says the
-      // name is available and what it costs to get. One door to one room.
-      if (BOARDS_ENABLED) {
-        const claimed = this.save.player && this.save.player.name;
-        const id = el(`<button type="button" class="fw-stat fw-id${claimed ? '' : ' fw-id--none'}">
-          <span class="fw-stat-k">PLAYER</span>
-          <span class="fw-stat-v"></span>
-          <span class="fw-stat-note">${claimed ? 'VIEW PROFILE' : 'HOW TO CLAIM ONE'}</span>
-        </button>`);
-        // textContent, not interpolation: every other value on this screen comes
-        // from a registry or is a number, but a board name is text a player
-        // typed. It is server-validated on claim and it is still not markup.
-        id.querySelector('.fw-stat-v').textContent = claimed ? this.save.player.name : 'NO NAME YET';
-        id.setAttribute('aria-label', claimed
-          ? `Profile for ${this.save.player.name}`
-          : 'No board name yet. Open the profile screen to see how to claim one.');
-        id.onclick = () => this.showProfile();
-        strip.appendChild(id);
+    const strip = el(`<div class="fw-status"></div>`);
+
+    // 1. Player Login / Profile
+    const claimed = Boolean(this.save.player && this.save.player.name);
+    const id = el(`<button type="button" class="fw-stat fw-id${claimed ? '' : ' fw-id--none'}">
+      <span class="fw-stat-k">👤 ${claimed ? 'PLAYER' : 'PLAYER LOGIN'}</span>
+      <span class="fw-stat-v"></span>
+      <span class="fw-stat-note">${claimed ? 'VIEW PROFILE' : 'SIGN IN / REGISTER'}</span>
+    </button>`);
+    id.querySelector('.fw-stat-v').textContent = claimed ? this.save.player.name : 'LOG IN';
+    id.setAttribute('aria-label', claimed
+      ? `Profile for ${this.save.player.name}`
+      : 'Player Login. Open profile screen to sign in or register.');
+    id.onclick = () => this.showProfile();
+    strip.appendChild(id);
+
+    // 2. Highest Score (Overall)
+    const scoreVal = (pb.score !== null && pb.score !== undefined && pb.score > 0) ? pb.score : 0;
+    const scoreCard = el(`<div class="fw-stat">
+      <span class="fw-stat-k">HIGHEST SCORE</span>
+      <span class="fw-stat-v">${scoreVal.toLocaleString('en-US')}</span>
+      <span class="fw-stat-note">${scoreVal > 0 ? 'OVERALL BEST' : 'NO RUNS YET'}</span>
+    </div>`);
+    strip.appendChild(scoreCard);
+
+    // 3. Graphic coin progress meter till next skin level
+    const currentCoins = this.save.coins || 0;
+    if (unlock) {
+      const need = Math.max(0, unlock.price - currentCoins);
+      const pct = Math.max(0, Math.min(1, currentCoins / unlock.price));
+      const pctDisplay = Math.round(pct * 100);
+      const totalSegments = 10;
+      const filledSegments = Math.min(totalSegments, Math.floor(pct * totalSegments + 0.001));
+
+      let segmentsHtml = '';
+      for (let i = 0; i < totalSegments; i++) {
+        const lit = i < filledSegments;
+        segmentsHtml += `<span class="fw-meter-seg${lit ? ' fw-seg--lit' : ''}"></span>`;
       }
-      if (pb.score !== null) {
-        strip.appendChild(el(`<div class="fw-stat"><span class="fw-stat-k">BEST SCORE</span><span class="fw-stat-v">${pb.score.toLocaleString('en-US')}</span></div>`));
-      }
-      if (unlock) {
-        // Width is set once, at render, on a transform-scaled fill — the bar
-        // never animates a layout property.
-        //
-        // Two states, and they are genuinely different sentences. While the bank
-        // is short, this is a GOAL: a bar, the gap in coins, and the price to
-        // beat. Once the bank covers the price it is an OFFER, so the bar goes
-        // entirely — a full bar plus a countdown label is a progress meter for a
-        // journey already finished, and it read as pending next to a card that
-        // said UNLOCKS AT. The locked card below switches on the same flag, so
-        // the strip and the card can never disagree about whether the player can
-        // buy the thing.
-        const need = Math.max(0, unlock.price - this.save.coins);
-        const pct = Math.max(0, Math.min(1, this.save.coins / unlock.price));
-        strip.appendChild(need > 0
-          ? el(`<div class="fw-stat fw-stat--goal">
-              <span class="fw-stat-k">🪙 ${this.save.coins} · NEXT UNLOCK ${unlock.price}</span>
-              <span class="fw-bar"><span class="fw-bar-fill" style="transform:scaleX(${pct.toFixed(3)})"></span></span>
-              <span class="fw-stat-note">${need} to go</span>
-            </div>`)
-          : el(`<div class="fw-stat fw-stat--goal fw-stat--ready">
-              <span class="fw-stat-k">🪙 ${this.save.coins} · READY TO BUY</span>
-              <span class="fw-stat-v">${unlock.name}</span>
-              <span class="fw-stat-note">${unlock.price} coins · get it in the shop</span>
-            </div>`));
-      } else {
-        strip.appendChild(el(`<div class="fw-stat fw-stat--goal"><span class="fw-stat-k">🪙 ${this.save.coins}</span><span class="fw-stat-note">everything unlocked</span></div>`));
-      }
-      s.appendChild(strip);
+
+      const goalCard = need > 0
+        ? el(`<button type="button" class="fw-stat fw-stat--goal fw-stat--graphic-meter fw-stat--interactive" aria-label="Next skin: ${unlock.name}, ${pctDisplay}% complete. Need ${need} more coins.">
+            <div class="fw-meter-header">
+              <span class="fw-stat-k">🪙 SKIN PROGRESS</span>
+              <span class="fw-meter-pct">${pctDisplay}%</span>
+            </div>
+            <div class="fw-graphic-meter" role="progressbar" aria-valuenow="${pctDisplay}" aria-valuemin="0" aria-valuemax="100">
+              <div class="fw-meter-track">
+                <div class="fw-meter-fill" style="width:${pctDisplay}%">
+                  <div class="fw-meter-glare"></div>
+                </div>
+                <div class="fw-meter-ticks">
+                  <span class="fw-tick" style="left:25%"></span>
+                  <span class="fw-tick" style="left:50%"></span>
+                  <span class="fw-tick" style="left:75%"></span>
+                </div>
+              </div>
+              <div class="fw-meter-segments">
+                ${segmentsHtml}
+              </div>
+            </div>
+            <div class="fw-meter-footer">
+              <span class="fw-meter-target">NEXT: <strong>${unlock.name}</strong></span>
+              <span class="fw-meter-coins"><strong>${currentCoins.toLocaleString('en-US')}</strong> / ${unlock.price.toLocaleString('en-US')} 🪙</span>
+            </div>
+            <span class="fw-stat-note">${need.toLocaleString('en-US')} coins needed · SHOP</span>
+          </button>`)
+        : el(`<button type="button" class="fw-stat fw-stat--goal fw-stat--ready fw-stat--graphic-meter fw-stat--interactive" aria-label="Skin ready to unlock: ${unlock.name} for ${unlock.price} coins.">
+            <div class="fw-meter-header">
+              <span class="fw-stat-k">🪙 READY TO UNLOCK</span>
+              <span class="fw-meter-pct fw-meter-pct--ready">100%</span>
+            </div>
+            <div class="fw-graphic-meter fw-graphic-meter--ready">
+              <div class="fw-meter-track">
+                <div class="fw-meter-fill fw-meter-fill--full" style="width:100%">
+                  <div class="fw-meter-glare"></div>
+                </div>
+              </div>
+              <div class="fw-meter-segments">
+                ${segmentsHtml}
+              </div>
+            </div>
+            <div class="fw-meter-footer">
+              <span class="fw-meter-target">UNLOCK: <strong>${unlock.name}</strong></span>
+              <span class="fw-meter-coins fw-meter-coins--gold"><strong>${unlock.price.toLocaleString('en-US')} 🪙</strong></span>
+            </div>
+            <span class="fw-stat-note">${unlock.price} coins · UNLOCK IN SHOP</span>
+          </button>`);
+      goalCard.onclick = () => this.showShop();
+      strip.appendChild(goalCard);
+    } else {
+      const goalCard = el(`<button type="button" class="fw-stat fw-stat--goal fw-stat--graphic-meter fw-stat--interactive" aria-label="All skins unlocked">
+        <div class="fw-meter-header">
+          <span class="fw-stat-k">🪙 SKIN PROGRESS</span>
+          <span class="fw-meter-pct fw-meter-pct--ready">MAX</span>
+        </div>
+        <div class="fw-graphic-meter fw-graphic-meter--ready">
+          <div class="fw-meter-track">
+            <div class="fw-meter-fill fw-meter-fill--full" style="width:100%"></div>
+          </div>
+        </div>
+        <div class="fw-meter-footer">
+          <span class="fw-meter-target"><strong>ALL SKINS UNLOCKED</strong></span>
+          <span class="fw-meter-coins"><strong>${currentCoins.toLocaleString('en-US')} 🪙</strong></span>
+        </div>
+        <span class="fw-stat-note">VISIT SHOP</span>
+      </button>`);
+      goalCard.onclick = () => this.showShop();
+      strip.appendChild(goalCard);
     }
+    s.appendChild(strip);
 
     const group = el(`<section class="fw-group" aria-labelledby="fw-free-play"></section>`);
     group.appendChild(el(`<div class="fw-group-label" id="fw-free-play">Choose a city · collect coins · grow big</div>`));
@@ -496,7 +537,6 @@ export class Screens {
         onBack: () => this.showTitle(),
         onProfile: () => this.showProfile(),
         onStartCity: (scene) => this.actions.startVoxelSandbox(scene),
-        onStartCampaign: () => this.showLevelSelect(),
         onStartRankedRun: (scene) => this.actions.startRankedRun(scene),
       });
       this.current = 'records';
@@ -519,7 +559,6 @@ export class Screens {
         onBack: () => this.showTitle(),
         onRecords: () => this.showBoards(),
         onStartCity: (scene) => this.actions.startVoxelSandbox(scene),
-        onStartCampaign: () => this.showLevelSelect(),
         onStartRankedRun: (scene) => this.actions.startRankedRun(scene),
       });
       // The identity chip brings players here who have no name at all, which
@@ -638,6 +677,76 @@ export class Screens {
     s.appendChild(go);
     this.root.appendChild(s);
     this.current = 'intro';
+  }
+
+  showPowerUpShowcase(powerup, onDone) {
+    this.clear();
+    const spec = powerup.spec || POWERUP_SPECS[powerup.type] || {
+      name: 'POWER-UP',
+      icon: '⚡',
+      tagline: 'Supercharge',
+      desc: 'Active effect boost enabled!',
+      duration: 10,
+      color: 0x00d2ff,
+    };
+    const colorHex = '#' + (spec.color != null ? spec.color.toString(16).padStart(6, '0') : '00d2ff');
+    const s = el(`<div class="screen pu-showcase-screen">
+      <div class="pu-showcase-card" style="--pu-accent:${colorHex}">
+        <div class="pu-showcase-badge">POWER-UP ACQUIRED</div>
+        <div class="pu-showcase-icon">${spec.icon || '⚡'}</div>
+        <h2 class="pu-showcase-title">${spec.name || 'POWER-UP'}</h2>
+        <div class="pu-showcase-tagline">${spec.tagline || ''}</div>
+        <p class="pu-showcase-desc">${spec.desc || ''}</p>
+        <div class="pu-showcase-meta">
+          <span class="pu-meta-pill">⏱️ ${spec.duration ? spec.duration + 's Duration' : 'Instant Boost'}</span>
+        </div>
+        <div class="pu-showcase-timer-bar">
+          <div class="pu-timer-fill"></div>
+        </div>
+        <div class="pu-showcase-countdown">Resuming in <b id="pu-count-sec">5</b>s...</div>
+        <button class="btn pu-resume-btn" type="button">RESUME (SPACE)</button>
+      </div>
+    </div>`);
+
+    let remainingMs = 5000;
+    let finished = false;
+    const countSec = s.querySelector('#pu-count-sec');
+    const fill = s.querySelector('.pu-timer-fill');
+    const btn = s.querySelector('.pu-resume-btn');
+    let timerInterval = null;
+
+    const cleanupAndDone = () => {
+      if (finished) return;
+      finished = true;
+      if (timerInterval) clearInterval(timerInterval);
+      window.removeEventListener('keydown', handleKey);
+      this.clear();
+      onDone();
+    };
+
+    const handleKey = (e) => {
+      if (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') {
+        e.preventDefault();
+        cleanupAndDone();
+      }
+    };
+
+    window.addEventListener('keydown', handleKey);
+    btn.onclick = cleanupAndDone;
+
+    const tickInterval = 50;
+    timerInterval = setInterval(() => {
+      remainingMs -= tickInterval;
+      if (remainingMs <= 0) {
+        cleanupAndDone();
+      } else {
+        if (countSec) countSec.textContent = Math.ceil(remainingMs / 1000);
+        if (fill) fill.style.width = `${((5000 - remainingMs) / 5000) * 100}%`;
+      }
+    }, tickInterval);
+
+    this.root.appendChild(s);
+    this.current = 'pu_showcase';
   }
 
   showResults(level, sim, onContinue) {

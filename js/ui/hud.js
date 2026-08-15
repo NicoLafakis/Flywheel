@@ -4,11 +4,8 @@ import {
   COMBO_WINDOW, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES, comboLevel, RANKED_TICK_COUNT,
 } from '../voxelsim.js';
 import { LEVEL_CLOCK_URGENT_SECONDS, LEVEL_CLOCK_WARN_SECONDS, formatClock } from '../levelclock.js';
-// The CAMPAIGN ladder is a different one — it caps at 3.0 where the voxel
-// ladder above caps at 8x. Imported so the campaign pill reads the multiplier
-// the campaign sim awards rather than restating an expression here, which is
-// exactly how the old sandbox pill came to disagree with its sim (ADR-0015).
 import { comboMultiplier as campaignComboMult } from '../sim.js';
+import { POWERUP_TYPES, hasActivePowerUp } from '../powerups.js';
 
 // The arc's circumference at r=42, matching css/main.css's stroke-dasharray.
 const CM_CIRCUM = 2 * Math.PI * 42;
@@ -43,7 +40,7 @@ export class HUD {
 
     // --- active powerups UI layer ---
     this.powerupBadges = document.getElementById('active-powerups');
-    this._activePowerUpsCount = 0;
+    this._powerupPills = new Map();
 
     // --- sandbox reward layer -------------------------------------------------
     this.scorePlate = document.getElementById('score-plate');
@@ -214,6 +211,7 @@ export class HUD {
       this.comboLabel.classList.add('hidden');
     }
     this._updatePowerUps(sim.activePowerUps);
+    this._updateScreenHeat(p.chain, sim.activePowerUps);
   }
 
   // Voxel sandbox variant: SIZE level + progress to the next size on the
@@ -275,41 +273,101 @@ export class HUD {
     this._updateScore(h.mass);
     this._updateCombo(h);
     this._updatePowerUps(h.activePowerUps);
+    this._updateScreenHeat(h.chain, h.activePowerUps || sim.activePowerUps);
+  }
+
+  _updateScreenHeat(chain, activeList) {
+    if (!this._appEl) this._appEl = document.getElementById('app');
+    if (!this._appEl) return;
+    const lvl = comboLevel(chain || 0);
+    this._appEl.classList.toggle('combo-lvl-4', lvl >= 4 && lvl < 6);
+    this._appEl.classList.toggle('combo-lvl-6', lvl >= 6 && lvl < 8);
+    this._appEl.classList.toggle('combo-lvl-8', lvl >= 8);
+
+    const isVortex = hasActivePowerUp(activeList, POWERUP_TYPES.VORTEX);
+    const isTitan = hasActivePowerUp(activeList, POWERUP_TYPES.TITAN);
+    const isFrenzy = hasActivePowerUp(activeList, POWERUP_TYPES.FRENZY);
+    const isSpeed = hasActivePowerUp(activeList, POWERUP_TYPES.SPEED);
+    this._appEl.classList.toggle('pu-vortex-active', isVortex);
+    this._appEl.classList.toggle('pu-titan-active', isTitan);
+    this._appEl.classList.toggle('pu-frenzy-active', isFrenzy);
+    this._appEl.classList.toggle('pu-speed-active', isSpeed);
   }
 
   _updatePowerUps(activeList) {
     if (!this.powerupBadges) return;
-    if (!activeList || activeList.length === 0) {
-      if (this._activePowerUpsCount !== 0) {
-        this.powerupBadges.innerHTML = '';
-        this._activePowerUpsCount = 0;
-      }
-      return;
+    const activeMap = new Map();
+    for (const act of activeList || []) {
+      if (act && act.type) activeMap.set(act.type, act);
     }
-    this._activePowerUpsCount = activeList.length;
 
-    const html = activeList.map((act) => {
+    // 1. Update or create persistent pills for active power-ups
+    for (const [type, act] of activeMap.entries()) {
       const spec = act.spec || {};
       const pct = Math.max(0, Math.min(100, (act.remaining / (act.duration || 1)) * 100));
       const secs = Math.ceil(act.remaining);
-      const colorHex = '#' + (spec.color || 0x00d2ff).toString(16).padStart(6, '0');
-      const glowHex = '#' + (spec.glowColor || 0x0055ff).toString(16).padStart(6, '0');
-      return `
-        <div class="powerup-pill" style="--pu-color: ${colorHex}; --pu-border: ${colorHex}; --pu-glow: ${glowHex};">
+      const isExpiring = act.remaining <= 3.0;
+
+      let pillEntry = this._powerupPills.get(type);
+      if (!pillEntry) {
+        const colorHex = '#' + (spec.color || 0x00d2ff).toString(16).padStart(6, '0');
+        const glowHex = '#' + (spec.glowColor || 0x0055ff).toString(16).padStart(6, '0');
+
+        const el = document.createElement('div');
+        el.className = 'powerup-pill flyout-in';
+        el.style.setProperty('--pu-color', colorHex);
+        el.style.setProperty('--pu-border', colorHex);
+        el.style.setProperty('--pu-glow', glowHex);
+
+        el.innerHTML = `
           <span class="pu-icon">${spec.icon || '⚡'}</span>
           <div class="pu-details">
             <div class="pu-name-row">
-              <span>${spec.name || 'POWER-UP'}</span>
+              <span class="pu-name-text">${spec.name || 'POWER-UP'}</span>
               <span class="pu-timer">${secs}s</span>
             </div>
             <div class="pu-bar-bg">
               <div class="pu-bar-fill" style="width: ${pct.toFixed(1)}%;"></div>
             </div>
           </div>
-        </div>
-      `;
-    }).join('');
-    this.powerupBadges.innerHTML = html;
+        `;
+
+        this.powerupBadges.appendChild(el);
+        // Remove initial flyout-in class on next frame so CSS transition animates the flyout
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (el) el.classList.remove('flyout-in');
+          });
+        });
+
+        pillEntry = {
+          el,
+          timerEl: el.querySelector('.pu-timer'),
+          barFillEl: el.querySelector('.pu-bar-fill'),
+          isExiting: false,
+        };
+        this._powerupPills.set(type, pillEntry);
+      } else if (!pillEntry.isExiting) {
+        if (pillEntry.timerEl) pillEntry.timerEl.textContent = `${secs}s`;
+        if (pillEntry.barFillEl) pillEntry.barFillEl.style.width = `${pct.toFixed(1)}%`;
+        pillEntry.el.classList.toggle('is-expiring', isExpiring);
+      }
+    }
+
+    // 2. Slide out and remove pills for power-ups that have ended
+    for (const [type, pillEntry] of this._powerupPills.entries()) {
+      if (!activeMap.has(type) && !pillEntry.isExiting) {
+        pillEntry.isExiting = true;
+        pillEntry.el.classList.remove('is-expiring');
+        pillEntry.el.classList.add('flyout-out');
+        setTimeout(() => {
+          if (pillEntry.el && pillEntry.el.parentNode) {
+            pillEntry.el.parentNode.removeChild(pillEntry.el);
+          }
+          this._powerupPills.delete(type);
+        }, 320);
+      }
+    }
   }
 
   // The countdown pill, and the ONLY countdown in the sandbox HUD (T-504).

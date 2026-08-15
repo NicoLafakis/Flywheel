@@ -17,9 +17,9 @@ mutates sim state.
 
 | File | Purpose |
 |------|---------|
-| `js/world3d.js` | Scene build from city data, mesh caches, eat/flood anims, event sync, and FX particle systems (vortex debris, golden sparkles, celebration bursts, skid dust, blocker sparks) |
+| `js/world3d.js` | Scene build from city data, 4 architectural facade styles (punched grid, ribbon glass, residential sash, mixed-use storefront), aggregate roads with curbs/sidewalks, detailed vehicle/tree/street props, eat squash-and-stretch anims, mesh caches, event sync, and FX particle systems |
 | `js/voxelworld.js` | Voxel sandbox rendering, block instance synchronization, ambient layers (`atmosphere`, `gulls`, `pigeons`, `steam`, `neon`, `surf`, `ferries`), and particle systems |
-| `js/camera.js` | `ChaseCamera`: follow, orbit, zoom, building-occlusion pull-in, opt-in follow-direction yaw |
+| `js/camera.js` | `ChaseCamera`: near-isometric perspective (56° pitch, 45° FOV), follow, orbit, zoom, building-occlusion pull-in, opt-in follow-direction yaw, and juice FOV kicks |
 | `js/controls.js` | Keyboard + touch joystick/orbit + optional world-space point-to-move → camera-relative move intents |
 | `js/skins.js` | Hole skin registry (25 skins) + heading-indicator registry (`INDICATOR_SKINS`, 6 rows) + geometry primitives + per-frame runtime; consumed by `world3d.js`/`voxelworld.js` for the mesh and re-exported by `js/ui/screens.js` for the shop |
 | `js/rival/territory-layer.js` | Rival-visibility crater tint (2026-08-11): one InstancedMesh of ground tiles colored per eater slot — written once on the eat, zero per-frame work; the pure bookkeeping half lives in `js/rival/territory.js` (see `.wiki/features/rival-visibility/`) |

@@ -33,6 +33,9 @@ class SpyEngine {
   // Deterministic pick: the variant chosen is irrelevant to every assertion
   // here, the fact that a debris/glass layer fired at all is not.
   playRandom(names, opts) { this.play(names[0], opts); }
+  playCoin(opts) { this.play('coin', opts); }
+  playPowerUpCollect(opts) { this.play('milestone', opts); }
+  playPowerUpSpawn(opts) { this.play('coin', opts); }
   duckAmbience(sec, depth) { this.ducks.push({ sec, depth }); }
   loop() { return null; }
   count(name) { return this.plays.filter((p) => p.name === name).length; }
@@ -48,7 +51,7 @@ function makeGame() {
     get volume() { return 1; },
     duck(sec, depth) { this.ducks.push({ sec, depth }); },
   };
-  const g = new GameAudio({ musicDirector: music });
+  const g = new GameAudio({ musicDirector: music, enableCrashSounds: true });
   const eng = new SpyEngine();
   g.engine = eng;   // swap AFTER construction: nothing has been played yet
   return { g, eng, music };

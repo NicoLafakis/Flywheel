@@ -14,6 +14,7 @@ import { moverArc, moverPose } from './voxelsim.js';
 import { loadSave } from './save.js';
 import { surfaceMaterial, isSurface, disposeSurfaces, surfaceArrayMaterial, surfaceArrayLayer, surfacePerMetre } from './voxelsurfaces.js';
 import { makeSkin, INDICATOR_BY_ID } from './skins.js';
+import { POWERUP_TYPES, hasActivePowerUp } from './powerups.js';
 
 // Read-only peek at the persisted SETTINGS block, so player preferences apply
 // from the first frame with no wiring in main.js. save.js owns the schema and
@@ -38,6 +39,53 @@ function releaseSharedGeometry() {
   geoCache.clear();
 }
 function boxGeo() { if (!geoCache.has('box')) geoCache.set('box', new THREE.BoxGeometry(1, 1, 1)); return geoCache.get('box'); }
+
+function voidSwirlTexture() {
+  if (voidSwirlTexture._cache) return voidSwirlTexture._cache;
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext('2d');
+  
+  // Base deep void
+  ctx.fillStyle = '#05060b';
+  ctx.fillRect(0, 0, 128, 128);
+  
+  // Swirling logarithmic accretion arms
+  const cx = 64, cy = 64;
+  for (let arm = 0; arm < 3; arm++) {
+    const baseAngle = (arm * Math.PI * 2) / 3;
+    ctx.beginPath();
+    for (let r = 5; r < 60; r += 2) {
+      const a = baseAngle + r * 0.09;
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r;
+      if (r === 5) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = 'rgba(25, 45, 80, 0.45)';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+    
+    ctx.strokeStyle = 'rgba(38, 70, 125, 0.22)';
+    ctx.lineWidth = 10;
+    ctx.stroke();
+  }
+  
+  // Radial gradient for deep event horizon center & darkened outer edge
+  const grad = ctx.createRadialGradient(cx, cy, 3, cx, cy, 62);
+  grad.addColorStop(0, 'rgba(8, 14, 28, 0.95)');
+  grad.addColorStop(0.5, 'rgba(4, 6, 12, 0.25)');
+  grad.addColorStop(0.9, 'rgba(4, 5, 9, 0.85)');
+  grad.addColorStop(1.0, '#05060b');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 128, 128);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  voidSwirlTexture._cache = tex;
+  return tex;
+}
 function circleGeo() { if (!geoCache.has('circ')) geoCache.set('circ', new THREE.CircleGeometry(1, 32)); return geoCache.get('circ'); }
 function ringGeo() { if (!geoCache.has('ring')) geoCache.set('ring', new THREE.RingGeometry(0.92, 1, 32)); return geoCache.get('ring'); }
 const smooth = (v) => { const d = Math.max(0, Math.min(1, v)); return d * d * (3 - 2 * d); };
@@ -644,10 +692,47 @@ export class VoxelWorld3D {
     const disc = new THREE.Mesh(circleGeo(), new THREE.MeshBasicMaterial({ color: 0x06060c }));
     disc.rotation.x = -Math.PI / 2;
     disc.position.y = 0.01;
+
+    // Animated inner void swirl
+    const voidSwirl = new THREE.Mesh(circleGeo(), new THREE.MeshBasicMaterial({
+      map: voidSwirlTexture(), transparent: true, opacity: 0.85, depthWrite: false,
+    }));
+    voidSwirl.rotation.x = -Math.PI / 2;
+    voidSwirl.position.y = 0.012;
+    this.voidSwirl = voidSwirl;
+
     this.skin = makeSkin(skinId);
-    this.holeMesh.add(disc, this.skin.local);
-    this.holeMesh.userData = { disc };
-    this._ownedMats.push(disc.material);
+    this.holeMesh.add(disc, voidSwirl, this.skin.local);
+    this.holeMesh.userData = { disc, voidSwirl };
+    this._ownedMats.push(disc.material, voidSwirl.material);
+
+    // Power-up Active In-World Auras
+    this.powerupAuraGroup = new THREE.Group();
+    const auraGeo = new THREE.RingGeometry(0.96, 1.40, 32);
+    this._ownedGeos.push(auraGeo);
+
+    this.vortexAura = new THREE.Mesh(auraGeo, new THREE.MeshBasicMaterial({
+      color: 0x00f0ff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
+    }));
+    this.vortexAura.rotation.x = -Math.PI / 2;
+    this.vortexAura.position.y = 0.022;
+
+    this.titanAura = new THREE.Mesh(auraGeo, new THREE.MeshBasicMaterial({
+      color: 0xff3366, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
+    }));
+    this.titanAura.rotation.x = -Math.PI / 2;
+    this.titanAura.position.y = 0.024;
+
+    this.frenzyAura = new THREE.Mesh(auraGeo, new THREE.MeshBasicMaterial({
+      color: 0xa855f7, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
+    }));
+    this.frenzyAura.rotation.x = -Math.PI / 2;
+    this.frenzyAura.position.y = 0.026;
+
+    this.powerupAuraGroup.add(this.vortexAura, this.titanAura, this.frenzyAura);
+    this.holeMesh.add(this.powerupAuraGroup);
+    this._ownedMats.push(this.vortexAura.material, this.titanAura.material, this.frenzyAura.material);
+
     this.scene.add(this.holeMesh);
     // The heading pointer: a paper-plane arrow welded to controls.heading,
     // dark outline plate under a brand-orange face, floating just above the
@@ -745,6 +830,7 @@ export class VoxelWorld3D {
     // that wants a different surface can already declare a different matType.
     const surfaceMap = sim.sceneSurfaces || null;
     const surfOf = (b) => {
+      if (b.surface && isSurface(b.surface)) return b.surface;
       if (!surfaceMap) return null;
       const id = surfaceMap[b.matType];
       return isSurface(id) ? id : null;
@@ -2133,6 +2219,72 @@ export class VoxelWorld3D {
     this.spawnShockRing(x, z, 1.8, color);
   }
 
+  spawnVortexDustParticle(hx, hz, radius = 2.4, color = 0x00f0ff) {
+    if (this.particles.length >= (this.perfMode ? 35 : 100)) return;
+    const a = Math.random() * Math.PI * 2;
+    const startDist = radius * (0.8 + Math.random() * 0.4);
+    const px = hx + Math.cos(a) * startDist;
+    const pz = hz + Math.sin(a) * startDist;
+    const geo = boxGeo();
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 }));
+    m.position.set(px, 0.12 + Math.random() * 0.15, pz);
+    m.scale.setScalar(0.08 + Math.random() * 0.08);
+    this.scene.add(m);
+    this.particles.push({
+      mesh: m,
+      isVortex: true,
+      angle: a,
+      dist: startDist,
+      startDist,
+      angularSpeed: 3.5 + Math.random() * 2.0,
+      radialSpeed: (startDist / 0.45),
+      vy: -0.15,
+      size: 0.1,
+      vr: (Math.random() - 0.5) * 8,
+      life: 0.45,
+      maxLife: 0.45,
+    });
+  }
+
+  spawnHeatEmber(x, z) {
+    if (this.particles.length >= (this.perfMode ? 35 : 100)) return;
+    const geo = boxGeo();
+    const c = Math.random() > 0.4 ? 0xff3300 : 0xffaa00;
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.95 }));
+    m.position.set(x, 0.1 + Math.random() * 0.15, z);
+    m.scale.setScalar(0.07 + Math.random() * 0.07);
+    this.scene.add(m);
+    this.particles.push({
+      mesh: m,
+      isSparks: true,
+      vx: (Math.random() - 0.5) * 0.8,
+      vy: 1.8 + Math.random() * 2.2,
+      vz: (Math.random() - 0.5) * 0.8,
+      vr: (Math.random() - 0.5) * 10,
+      life: 0.35 + Math.random() * 0.2,
+      maxLife: 0.55,
+    });
+  }
+
+  spawnSpeedDriftSpark(x, z, vx, vz) {
+    if (this.particles.length >= (this.perfMode ? 40 : 110)) return;
+    const geo = boxGeo();
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffb703, transparent: true, opacity: 0.9 }));
+    m.position.set(x + (Math.random() - 0.5) * 0.3, 0.08, z + (Math.random() - 0.5) * 0.3);
+    m.scale.setScalar(0.09 + Math.random() * 0.07);
+    this.scene.add(m);
+    this.particles.push({
+      mesh: m,
+      isSparks: true,
+      vx: vx * 2.5 + (Math.random() - 0.5) * 1.5,
+      vy: 0.9 + Math.random() * 1.6,
+      vz: vz * 2.5 + (Math.random() - 0.5) * 1.5,
+      vr: (Math.random() - 0.5) * 12,
+      life: 0.22 + Math.random() * 0.15,
+      maxLife: 0.37,
+    });
+  }
+
   // Impact chip sparks when bouncing off a solid blocker / wall
   spawnBlockerImpact(x, z, radius, dirX = 0, dirZ = 0) {
     const geo = boxGeo();
@@ -2548,6 +2700,23 @@ export class VoxelWorld3D {
   // ------------------------------------------------------------------ frame
   update(dt, events) {
     this.time += dt;
+    // --- propagating fault-line VFX ------------------------------------
+    // Queued effects fire sequentially along the crack each frame,
+    // selling the "crack racing across the map" feel.
+    if (this._quakeFxQueue && this._quakeFxQueue.length > 0) {
+      const remaining = [];
+      for (const q of this._quakeFxQueue) {
+        q.delay -= dt;
+        if (q.delay <= 0) {
+          this.spawnShockRing(q.x, q.z, q.size, 0xff5500);
+          this.spawnBurst(q.x, q.z, q.size * 0.4, 0xff8800, 10);
+          this.spawnDustPuff(q.x, q.z, 1.2, 0, 0);
+        } else {
+          remaining.push(q);
+        }
+      }
+      this._quakeFxQueue = remaining.length > 0 ? remaining : null;
+    }
     const h = this.sim.hole;
     this.holeMesh.position.set(h.x, 0, h.z);
     // The void grows with the hole. Full h.radius, matching the skin's own
@@ -2555,6 +2724,10 @@ export class VoxelWorld3D {
     // rim; the ground clips 4% tighter (0.96) so the disc overlaps the cut edge
     // rather than leaving a sliver of ground showing inside the rim.
     this.holeMesh.userData.disc.scale.setScalar(h.radius);
+    if (this.voidSwirl) {
+      this.voidSwirl.scale.setScalar(h.radius);
+      this.voidSwirl.rotation.z += dt * 1.8;
+    }
     uHolePos.value.set(h.x, h.z);
     uHoleRadius.value = h.radius * 0.96;
     // The tank scheme's heading made visible: the pointer turns with the
@@ -2566,14 +2739,81 @@ export class VoxelWorld3D {
     this.headingArrow.rotation.y = h.heading || 0;
     this.headingArrow.scale.setScalar(Math.max(0.001, h.radius * INDICATOR_SCALE));
 
-    // Animate hovering and spinning on power-up items
+    // Power-up In-World Auras & Aura Effects
+    if (this.powerupAuraGroup) {
+      this.powerupAuraGroup.scale.setScalar(h.radius);
+      const activeList = h.activePowerUps || this.sim.activePowerUps || [];
+      const isVortex = hasActivePowerUp(activeList, POWERUP_TYPES.VORTEX);
+      const isTitan = hasActivePowerUp(activeList, POWERUP_TYPES.TITAN);
+      const isSpeed = hasActivePowerUp(activeList, POWERUP_TYPES.SPEED);
+      const isFrenzy = hasActivePowerUp(activeList, POWERUP_TYPES.FRENZY);
+
+      if (this.vortexAura) {
+        if (isVortex) {
+          this.vortexAura.material.opacity = Math.min(0.75, this.vortexAura.material.opacity + dt * 4.0);
+          this.vortexAura.rotation.z += dt * 3.8;
+          if (!this.reducedMotion && this.particles.length < (this.perfMode ? 35 : 90)) {
+            this._vortexParticleTimer = (this._vortexParticleTimer || 0) + dt;
+            if (this._vortexParticleTimer > 0.07) {
+              this._vortexParticleTimer = 0;
+              this.spawnVortexDustParticle(h.x, h.z, h.radius * 2.2, 0x00f0ff);
+            }
+          }
+        } else {
+          this.vortexAura.material.opacity = Math.max(0, this.vortexAura.material.opacity - dt * 4.0);
+        }
+      }
+
+      if (this.titanAura) {
+        if (isTitan) {
+          this.titanAura.material.opacity = Math.min(0.8, this.titanAura.material.opacity + dt * 4.0);
+          const pulse = 1.0 + Math.sin(this.time * 9.0) * 0.08;
+          this.titanAura.scale.set(pulse, pulse, 1);
+          if (!this.reducedMotion && this.particles.length < (this.perfMode ? 35 : 90)) {
+            this._titanParticleTimer = (this._titanParticleTimer || 0) + dt;
+            if (this._titanParticleTimer > 0.08) {
+              this._titanParticleTimer = 0;
+              const a = Math.random() * Math.PI * 2;
+              const dist = h.radius * (0.8 + Math.random() * 0.35);
+              this.spawnHeatEmber(h.x + Math.cos(a) * dist, h.z + Math.sin(a) * dist);
+            }
+          }
+        } else {
+          this.titanAura.material.opacity = Math.max(0, this.titanAura.material.opacity - dt * 4.0);
+        }
+      }
+
+      if (this.frenzyAura) {
+        if (isFrenzy) {
+          this.frenzyAura.material.opacity = Math.min(0.85, this.frenzyAura.material.opacity + dt * 4.0);
+          this.frenzyAura.rotation.z -= dt * 4.5;
+          const arcPulse = 1.0 + Math.sin(this.time * 16.0) * 0.06;
+          this.frenzyAura.scale.set(arcPulse, arcPulse, 1);
+        } else {
+          this.frenzyAura.material.opacity = Math.max(0, this.frenzyAura.material.opacity - dt * 4.0);
+        }
+      }
+    }
+
+    // Animate hovering, spinning and dynamic position tracking on wandering power-up items
     for (const item of this.powerupMeshes.values()) {
-      const bob = Math.sin(this.time * 3.5 + item.pu.id * 1.5) * 0.16;
+      const pu = item.pu;
+      item.group.position.x = pu.x;
+      item.group.position.z = pu.z;
+
+      const bob = Math.sin(this.time * 3.5 + pu.id * 1.5) * 0.16;
       item.core.position.y = 0.65 + bob;
       item.ring.position.y = 0.65 + bob;
       item.core.rotation.y = this.time * 2.2;
       item.core.rotation.x = this.time * 1.4;
       item.ring.rotation.z = this.time * 1.8;
+
+      // Expiry flicker when time is running out (< 4 seconds remaining)
+      if (pu.lifespan <= 4.0) {
+        const flash = Math.sin(this.time * 18.0) > 0 ? 0.9 : 0.25;
+        if (item.core.material) item.core.material.opacity = flash;
+        if (item.ring.material) item.ring.material.opacity = flash;
+      }
     }
 
     for (const ev of events || []) {
@@ -2589,15 +2829,55 @@ export class VoxelWorld3D {
         }
         const puColor = ev.powerup.spec ? ev.powerup.spec.color : 0x00d2ff;
         this.spawnPowerUpCollectBurst(ev.powerup.x, ev.powerup.z, puColor);
+      } else if (ev.type === 'powerup_despawn') {
+        const item = this.powerupMeshes.get(ev.powerup.id);
+        if (item) {
+          this.scene.remove(item.group);
+          this.powerupMeshes.delete(ev.powerup.id);
+        }
+        this.spawnDustPuff(ev.powerup.x, ev.powerup.z, 0.9, 0, 0);
       } else if (ev.type === 'powerup_spawn') {
         this._addPowerUpMesh(ev.powerup);
         const puColor = ev.powerup.spec ? ev.powerup.spec.color : 0x00d2ff;
         this.spawnPowerUpSpawnBeams(ev.powerup.x, ev.powerup.z, puColor);
       } else if (ev.type === 'quake') {
-        this.spawnShockRing(ev.x, ev.z, ev.radius || 24, 0xff7700);
-        this.spawnBurst(ev.x, ev.z, 3.5, 0xffaa00, 16);
+        if (ev.x0 != null && ev.x1 != null) {
+          // Propagating fault-line crack: effects fire sequentially from
+          // the impact point (x0,z0) toward the far end (x1,z1).
+          const len = Math.hypot(ev.x1 - ev.x0, ev.z1 - ev.z0);
+          const steps = Math.max(8, Math.min(20, Math.round(len / 6)));
+          const propagationTime = Math.min(0.8, len * 0.006);
+          if (!this._quakeFxQueue) this._quakeFxQueue = [];
+          // First effect fires immediately at the impact point
+          this.spawnShockRing(ev.x0, ev.z0, 8.0, 0xff5500);
+          this.spawnBurst(ev.x0, ev.z0, 3.0, 0xff8800, 12);
+          this.spawnDustPuff(ev.x0, ev.z0, 1.4, 0, 0);
+          for (let s = 1; s <= steps; s++) {
+            const t = s / steps;
+            const fx = ev.x0 + (ev.x1 - ev.x0) * t;
+            const fz = ev.z0 + (ev.z1 - ev.z0) * t;
+            const size = 5.0 + t * 4.0;  // crack widens toward the far end
+            this._quakeFxQueue.push({ x: fx, z: fz, delay: t * propagationTime, size });
+          }
+        } else {
+          this.spawnShockRing(ev.x, ev.z, ev.radius || 24, 0xff7700);
+          this.spawnBurst(ev.x, ev.z, 3.5, 0xffaa00, 16);
+          this.spawnDustPuff(ev.x, ev.z, 1.4, 0, 0);
+        }
+      } else if (ev.type === 'time_freeze_start') {
+        this.spawnPowerUpSpawnBeams(h.x, h.z, 0x4cc9f0);
+        this.spawnShockRing(h.x, h.z, 28.0, 0x90e0ef);
+      } else if (ev.type === 'time_freeze_end') {
+        this.spawnBurst(h.x, h.z, 4.0, 0xffffff, 24);
+        this.spawnShockRing(h.x, h.z, 20.0, 0x4361ee);
+      } else if (ev.type === 'storm_warning' || ev.type === 'storm_active') {
+        this.spawnShockRing(ev.vortexX || h.x, ev.vortexZ || h.z, 22.0, 0x4cc9f0);
+        this.spawnDustPuff(ev.vortexX || h.x, ev.vortexZ || h.z, 2.8, 0, 0);
       } else if (ev.type === 'eat') {
         this._spawnEatParticles(h.x, h.z, h.radius);
+        if (ev.obj && ev.obj.tier >= 4) {
+          this.spawnDustPuff(h.x, h.z, 0.5 + h.radius * 0.1, 0, 0);
+        }
       } else if (ev.type === 'crash') {
         this.spawnBlockerImpact(ev.x || h.x, ev.z || h.z, 1.4, 0, 0);
       }
@@ -2633,6 +2913,23 @@ export class VoxelWorld3D {
           -dirX * 1.5, -dirZ * 1.5
         );
       }
+
+      // Speed Boost Trail Sparks when SPEED powerup is active and moving
+      const isSpeed = hasActivePowerUp(h.activePowerUps || this.sim.activePowerUps || [], POWERUP_TYPES.SPEED);
+      if (isSpeed && speed > 2.0 && this.particles.length < (this.perfMode ? 40 : 110)) {
+        this._speedSparkTimer = (this._speedSparkTimer || 0) + dt;
+        if (this._speedSparkTimer > 0.045) {
+          this._speedSparkTimer = 0;
+          const dirX = (h.x - lastX) / (moveDist || 1);
+          const dirZ = (h.z - lastZ) / (moveDist || 1);
+          this.spawnSpeedDriftSpark(
+            h.x - dirX * h.radius * 0.9,
+            h.z - dirZ * h.radius * 0.9,
+            -dirX, -dirZ
+          );
+        }
+      }
+
       // Combo electric rim sparks when chain >= 10
       if (h.chain >= 10) {
         this._comboSparkTimer = (this._comboSparkTimer || 0) + dt;
@@ -2937,27 +3234,6 @@ export class VoxelWorld3D {
       wrote = true;
     }
 
-    // damage heat: blocks glow hotter as structural damage accumulates, so
-    // players can read WHERE the structure is about to fail — and see the
-    // damage linger after the hole moves on
-    if (b.damage > 0.03) {
-      const t = Math.min(1, b.damage);
-      if (b._renderDamage !== b.damage || !b._imTinted) {
-        this._c.setRGB(1, 1 - 0.75 * t, 1 - 0.85 * t);
-        b._im.setColorAt(b._imIndex, this._c);
-        b._imTinted = true;
-        b._renderDamage = b.damage;
-        this._dirtyColor(b._im, b._imIndex, colorMeshes);
-        wrote = true;
-      }
-    } else if (b._imTinted) {
-      b._imTinted = false;
-      this._c.setHex(b._renderBaseColor);
-      b._im.setColorAt(b._imIndex, this._c);
-      b._renderDamage = b.damage;
-      this._dirtyColor(b._im, b._imIndex, colorMeshes);
-      wrote = true;
-    }
     if (wrote) next.push(b);
   }
 

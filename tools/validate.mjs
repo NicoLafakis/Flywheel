@@ -59,7 +59,7 @@ import { fileURLToPath } from 'node:url';
 // the parent would be pure overhead. Every CHILD sets FW_VALIDATE_SECTIONS and
 // therefore lands here with the guard true.
 if (process.env.FW_VALIDATE_SECTIONS || process.env.FW_VALIDATE_SEQ) {
-  await Promise.all(['manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago'].map(loadScene));
+  await Promise.all(['manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo'].map(loadScene));
 }
 
 const DT = 1 / 60;
@@ -1929,8 +1929,8 @@ function validateScenesWinnable() {
 //      `timedOut`, and it carries no level clock at all.
 function validateLevelClock() {
   console.log('Validating the level clock...');
-  if (LEVEL_CLOCK_SECONDS !== 180) {
-    fail(`level clock: LEVEL_CLOCK_SECONDS is ${LEVEL_CLOCK_SECONDS}, expected 180 (R-1.1)`);
+  if (LEVEL_CLOCK_SECONDS !== 300) {
+    fail(`level clock: LEVEL_CLOCK_SECONDS is ${LEVEL_CLOCK_SECONDS}, expected 300 (R-1.1)`);
   }
   if (LEVEL_CLOCK_TICKS !== LEVEL_CLOCK_SECONDS * 60) {
     fail(`level clock: LEVEL_CLOCK_TICKS (${LEVEL_CLOCK_TICKS}) is not LEVEL_CLOCK_SECONDS * 60 — the two would expire on different ticks`);
@@ -1943,20 +1943,19 @@ function validateLevelClock() {
   //   (b) a differently-named constant holding the same number.
   //
   // (b) is deliberately name-gated to clock-ish identifiers rather than looking
-  // for a bare 180. 180 is degrees, metres and milliseconds as often as it is
-  // seconds — js/voxelworld.js legitimately carries `SHADOW_EXTENT_MAX = 180`,
-  // a shadow-map extent in metres — and a guard that fires on that is a guard
+  // for a bare 300. 300 is degrees, metres and milliseconds as often as it is
+  // seconds — and a guard that fires on that is a guard
   // people turn off. What is actually being caught is a SECOND CLOCK.
   const jsFiles = readdirSync(new URL('../js/', import.meta.url)).filter((f) => f.endsWith('.js') && f !== 'levelclock.js');
   const NAME_RE = /LEVEL_CLOCK_(?:SECONDS|TICKS)\s*=/;
-  const CLOCKISH_RE = /(?:const|let|var)\s+[A-Za-z_$][\w$]*(?:CLOCK|TIMER|COUNTDOWN|DURATION|TIME_?LIMIT|SECONDS|TICKS)[\w$]*\s*=\s*(?:180|10800)\s*[;,)\n]/i;
+  const CLOCKISH_RE = /(?:const|let|var)\s+[A-Za-z_$][\w$]*(?:CLOCK|TIMER|COUNTDOWN|DURATION|TIME_?LIMIT|SECONDS|TICKS)[\w$]*\s*=\s*(?:300|18000)\s*[;,)\n]/i;
   // The greps are checked against known inputs before they are trusted. A text
   // guard that has only ever returned "clean" has not been shown to detect
   // anything; these four lines are the difference between a guard and a comment.
-  for (const bad of ['const SANDBOX_CLOCK = 180;\n', 'const matchDurationTicks = 10800;\n', 'export const LEVEL_CLOCK_SECONDS = 180;\n']) {
+  for (const bad of ['const SANDBOX_CLOCK = 300;\n', 'const matchDurationTicks = 18000;\n', 'export const LEVEL_CLOCK_SECONDS = 300;\n']) {
     if (!(CLOCKISH_RE.test(bad) || NAME_RE.test(bad))) fail(`level clock: the second-copy grep does not detect \`${bad.trim()}\` — the guard is inert`);
   }
-  for (const ok of ['const SHADOW_EXTENT_MAX = 180;\n', 'const HUE_SPAN = 180;\n']) {
+  for (const ok of ['const SHADOW_EXTENT_MAX = 300;\n', 'const HUE_SPAN = 300;\n']) {
     if (CLOCKISH_RE.test(ok)) fail(`level clock: the second-copy grep fires on \`${ok.trim()}\`, which is not a clock — it will be turned off`);
   }
   for (const f of jsFiles) {
@@ -1966,7 +1965,7 @@ function validateLevelClock() {
       fail(`level clock: js/${f} re-declares LEVEL_CLOCK_SECONDS/LEVEL_CLOCK_TICKS — R-1.1 allows exactly one declaration, in js/levelclock.js; import it instead`);
     }
     if (CLOCKISH_RE.test(src)) {
-      fail(`level clock: js/${f} declares a clock/duration constant equal to 180 or 10800 — that is a second copy of the level clock; import LEVEL_CLOCK_SECONDS from js/levelclock.js instead`);
+      fail(`level clock: js/${f} declares a clock/duration constant equal to 300 or 18000 — that is a second copy of the level clock; import LEVEL_CLOCK_SECONDS from js/levelclock.js instead`);
     }
   }
   // The campaign reads the same constant rather than ramping its own (T-101).

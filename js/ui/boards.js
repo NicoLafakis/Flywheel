@@ -160,13 +160,6 @@ function renderPersonalBests(container, save, { onStartCity, onStartCampaign, on
     element('span', 'sub', 'Completed sandbox goals')
   );
 
-  const cardCampaign = element('div', 'fw-stat-card');
-  cardCampaign.append(
-    element('span', 'k', '📜 CAMPAIGN PROGRESS'),
-    element('span', 'v', `${campaignLevelsWon} / 100`),
-    element('span', 'sub', `★ ${campaignStars} Stars earned`)
-  );
-
   const cardVault = element('div', 'fw-stat-card');
   cardVault.append(
     element('span', 'k', '🪙 COIN VAULT'),
@@ -181,7 +174,7 @@ function renderPersonalBests(container, save, { onStartCity, onStartCampaign, on
     element('span', 'sub', 'Hole skins & indicators')
   );
 
-  statGrid.append(cardScore, cardCombo, cardClears, cardCampaign, cardVault, cardGear);
+  statGrid.append(cardScore, cardCombo, cardClears, cardVault, cardGear);
   container.appendChild(statGrid);
 
   // 3. City Breakdown Matrix
@@ -269,22 +262,6 @@ function renderPersonalBests(container, save, { onStartCity, onStartCampaign, on
     cityCards.appendChild(card);
   }
   container.appendChild(cityCards);
-
-  // 4. Campaign Progress Banner
-  const campaignBanner = element('div', 'fw-campaign-banner');
-  const campInfo = element('div', 'fw-campaign-info');
-  campInfo.append(
-    element('h4', '', 'CAMPAIGN JOURNEY'),
-    element('p', '', `${campaignLevelsWon} of 100 levels conquered across 10 progressive metropolitan districts · ${campaignStars} total stars collected.`)
-  );
-  campaignBanner.appendChild(campInfo);
-
-  if (onStartCampaign) {
-    const campBtn = button('OPEN LEVEL MAP', false);
-    campBtn.onclick = onStartCampaign;
-    campaignBanner.appendChild(campBtn);
-  }
-  container.appendChild(campaignBanner);
 }
 
 export async function renderBoards(root, { onBack, onProfile, onStartCity, onStartCampaign, onStartRankedRun, save, initialTab = 'bests' }) {

@@ -10568,10 +10568,10 @@ export function cambridgeShell(sim, buildings, opts = {}) {
   // mill's identity is in its massing and its seven brick tones, not in a tile.
   sim.sceneSurfaces = {
     brick: 'mat_brick_red',
-    glass: 'mat_glass_curtain',
-    concrete: 'mat_concrete_precast',
-    steel: 'mat_metal_seam',
-    wood: 'mat_timber_dock',
+    glass: 'mat_shop_window',
+    concrete: 'mat_suburban_siding',
+    steel: 'mat_warehouse_roll',
+    wood: 'mat_clay_shingles',
   };
 
   // AMBIENT, AND THE FOURTH KEY DISTRICT 6 LEFT TO P6.8. `03` §9.2 lists seven

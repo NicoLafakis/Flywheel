@@ -21,7 +21,7 @@ every screen, not just the gate. See `conventions.md` and
 below — it closes the *screen-chrome* gap, not the *world-rendering* gap this
 page is about.
 
-## Stage 1 — Shape language (biggest win)
+## Stage 1 — Shape language (completed 2026-07-31)
 
 Reference buildings are *recognizable*: houses with gabled roofs, shops with
 awnings, towers with window grids and parapet roofs.
@@ -31,49 +31,50 @@ awnings, towers with window grids and parapet roofs.
   sign band + parapet), tower (parapet + AC units + water-tank variants),
   landmark (columns + gold pediment). Archetype picked by tier + metro,
   variants derived from `o.id` (deterministic, no RNG stream changes).
-- [ ] **Level 2: props pass** — cars with cabins + wheel discs, buses with
-  window bands, better trees, benches, hydrants, streetlights, fences.
+- [x] **Level 2 (done 2026-08-14): props pass** — cars with chassis, cabins, tinted
+  glass, wheels, headlights/taillights; buses with tinted window strips and roof caps;
+  tiered evergreen conifer and lush deciduous trees; hydrants, street lamps, park benches,
+  and kiosks/bollards.
 
-## Stage 2 — Surface detail (window grids, roads)
+## Stage 2 — Surface detail (completed 2026-08-14)
 
-- **Canvas-generated textures** (no asset pipeline): draw a window grid onto an
-  offscreen canvas per building archetype → `CanvasTexture`. 3–4 variants
-  suffice; cache them. Seeded from the level RNG for variety.
-- Roads: lane dashes, crosswalks at intersections, sidewalk borders — all
-  canvas texture on the existing road planes. This alone sells "city" at the
-  reference camera distance.
-- Ground: subtle checker/noise variation per block type (asphalt, sidewalk,
-  grass) via canvas texture.
+- [x] **Canvas-generated textures**: 4 architectural facade styles (punched office grid,
+  modern ribbon glass, residential double-hung 4-pane sash windows with stone sills,
+  mixed-use storefronts) drawn onto offscreen canvases and cached per `(color, floors, variant)`.
+- [x] **Roads**: 256x256 high-contrast canvas texture with aggregate noise, sidewalk flagstones,
+  stone curbs with depth shadows, and dashed centerline lane markers.
+- [x] **Ground & Pads**: Subtle procedural textures per block type (`yardTexture` with lawn mower
+  striping, `lotTexture` with painted parking stalls, `padTexture` with paver expansion joints).
 
-## Stage 3 — Lighting & color grade
+## Stage 3 — Lighting & color grade (completed 2026-08-14)
 
-- Hemisphere light (sky/ground bounce) + softer key light; raise ambient.
-- Slight saturation lift; per-metro palettes are already in `levels.js` —
-  extend to roofs, roads, foliage hues.
-- Optional cheap polish: fog matched to sky color, gentle vignette via CSS
-  overlay. Skip SSAO/bloom post-processing until Stages 1–2 land.
+- [x] **Hemisphere & Ambient**: Elevated sky/ground bounce light (0.65 day, 0.4 night) and ambient fill (0.52 day, 0.35 night).
+- [x] **Key Light**: Warm soft directional sun (0xfffaed, 0.98 intensity) with soft PCF shadow maps.
+- [x] **Atmospheric Depth Fog**: Distance fog calibrated to sky palette across day and night themes.
+- [x] **Peripheral Vignette**: Smooth CSS radial vignette on `#app::after` adding cinematic focus.
 
-## Stage 4 — Density & layout richness
+## Stage 4 — Density & layout richness (completed 2026-08-14)
 
-- Reference has ~2–3× our visible prop count: street trees along roads, parked
-  cars on curb lanes, corner plazas with fountains/gazebos, buses in traffic.
-- All placement must stay inside `citygen.js`'s no-overlap guarantee — add
-  *decor layers* (non-edible, purely visual, no tier) so density doesn't break
-  the beatability math. Decor still goes through the spatial hash.
-- Suburbs metro should bias houses; Downtown towers — archetype weights per
-  metro (data is already in `METROS`).
+- [x] **Detailed Vehicles**: Multi-part sedans (chassis, cabin, tinted glass, 4 wheels with silver hubs, headlights, taillights) and transit buses with wrap-around tinted window bands and roof caps.
+- [x] **Street Props**: Varied street furniture (fire hydrants with side nozzles, cast-iron street lamps with emissive luminaire heads, wooden park benches with metal legs, postal drop boxes / kiosks).
+- [x] **Botanical Diversity**: Tiered conical conifers and dual-cluster deciduous trees with lush foliage tones.
 
-## Stage 5 — Camera & motion feel
+## Stage 5 — Camera & motion feel (completed 2026-08-14)
 
-- Reference reads as near-isometric: raise base pitch (~55–60°), longer
-  distance, narrower FOV (~35–40°) for the tilt-shift look.
-- Squash-and-stretch on eats, tiny camera kick on tier-up, golden sparkle
-  burst — all render-side only.
+- [x] **Near-Isometric Perspective**: Elevated base pitch to 0.98 rad (~56.1°) and tightened FOV to 45° for optical tilt-shift compression and enhanced street-grid readability.
+- [x] **Squash-and-Stretch on Eats**: Elastic procedural scale deformation (compression along horizontal towards hole center, vertical elongation into the void) on falling objects in `world3d.js`.
+- [x] **Tactile Bite Pulse**: Hole mesh pulses/recoils on object ingestion.
+## Stage 6 — Power-Up Auras & Atmospheric Screen Juiciness (completed 2026-08-14)
 
-## Hard constraints (do not break while beautifying)
+- [x] **In-World Active Power-Up Auras**: Dynamic glowing ground projection rings on the hole (`vortexAura`, `titanAura`, `frenzyAura`), speed drift motion sparks (`spawnSpeedDriftSpark`), rising heat embers (`spawnHeatEmber`), and vortex suction particles (`spawnVortexDustParticle`).
+- [x] **Inner Void Accretion Depth**: Hypnotic rotating 3-arm logarithmic spiral depth texture (`voidSwirlTexture()`) inside the void disc providing gravitational visual depth.
+- [x] **Demolition & Structural Dust Poofs**: Soft low-poly voxel dust clouds expanding and dissipating on large building topples, capstone eats, and seismic quakes.
+- [x] **Dynamic Peripheral Screen FX**: Smooth CSS viewport edge heat glows reflecting combo ladders (`combo-lvl-4`, `combo-lvl-6`, `combo-lvl-8`) and active power-up states (`pu-vortex-active`, `pu-titan-active`, `pu-frenzy-active`).
+- [x] **Tactile Haptics**: Native `navigator.vibrate` integration delivering crisp micro-haptic feedback on bites, power-up collections, landmark swallows, and quake detonations.
 
-- Edibility/growth math unchanged — visuals must not alter `tier` footprints.
-- `node tools/validate.mjs` ALL PASS after every stage.
-- Deterministic: any new variety flows from the level RNG, never `Math.random()`.
-- Perf: convert props to `InstancedMesh` per archetype if draw calls exceed
-  ~800; eat animations then use per-instance matrix scale-to-zero.
+## Hard constraints (verified)
+
+- Edibility/growth math unchanged — visuals do not alter `tier` footprints.
+- `node tools/validate.mjs` ALL PASS across all 9 parallel test suites.
+- Deterministic: all procedural variety flows from seeded object IDs and levels, never `Math.random()`.
+

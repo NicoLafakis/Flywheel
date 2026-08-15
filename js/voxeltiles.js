@@ -165,6 +165,13 @@ export const SURFACES = [
   { id: 'mat_asphalt', tile: tAsphalt, rough: 0.95, roughVar: 0.04, metal: 0.0, uv: 'metre', edge: 0.25, grime: 0.20, res: 256 },
   { id: 'mat_stone_ashlar', tile: tAshlar, rough: 0.82, roughVar: 0.11, metal: 0.0, uv: 'brick', edge: 0.55, grime: 0.40, res: 256 },
   { id: 'mat_corrugated_rust', tile: tCorrugated, rough: 0.62, roughVar: 0.18, metal: 1.0, uv: 'brick', edge: 0.30, grime: 0.65, res: 256, envInt: 0.50 },
+
+  // --- Cute Kenney-inspired surfaces ---
+  { id: 'mat_awning_stripe', tile: tAwning, rough: 0.85, roughVar: 0.05, metal: 0.0, uv: 'brick', edge: 0.20, grime: 0.08, res: 256 },
+  { id: 'mat_shop_window', tile: tShopWindow, rough: 0.20, roughVar: 0.15, metal: 0.0, uv: 'brick', edge: 0.30, grime: 0.08, res: 256 },
+  { id: 'mat_suburban_siding', tile: tSuburbanSiding, rough: 0.82, roughVar: 0.08, metal: 0.0, uv: 'brick', edge: 0.35, grime: 0.10, res: 256 },
+  { id: 'mat_clay_shingles', tile: tClayShingles, rough: 0.86, roughVar: 0.08, metal: 0.0, uv: 'brick', edge: 0.40, grime: 0.15, res: 256 },
+  { id: 'mat_warehouse_roll', tile: tRollDoor, rough: 0.50, roughVar: 0.12, metal: 1.0, uv: 'brick', edge: 0.30, grime: 0.15, res: 256, envInt: 0.40 },
 ];
 
 export const SURFACE_BY_ID = new Map(SURFACES.map((s) => [s.id, s]));
@@ -369,6 +376,110 @@ function tCorrugated(n) {
       const c = 0.86 + 0.14 * Math.cos((x / n) * ribs * Math.PI * 2);
       const r = rust[y * n + x];
       out[y * n + x] = c * lerp(1, 0.62 + r * 0.30, hem * (0.4 + 0.6 * r));
+    }
+  }
+  return out;
+}
+
+// Cute commercial striped canopy awning (3 bold stripes, rich contrast)
+function tAwning(n) {
+  const stripes = 3;
+  const out = new Float32Array(n * n);
+  for (let y = 0; y < n; y++) {
+    const valanceT = smooth((y - n * 0.80) / (n * 0.12));
+    const valance = lerp(1.0, 0.82, valanceT);
+    for (let x = 0; x < n; x++) {
+      const u = (x / n) * stripes;
+      const stripePos = u - Math.floor(u);
+      const band = 0.68 + 0.32 * Math.cos(stripePos * Math.PI * 2);
+      out[y * n + x] = band * valance;
+    }
+  }
+  return out;
+}
+
+// Cute shopfront display window (large glass display + base kickplate + header sign band)
+function tShopWindow(n) {
+  const J = Math.max(5, Math.round(n / 24));
+  const out = new Float32Array(n * n);
+  for (let y = 0; y < n; y++) {
+    const isHeader = y < n * 0.22;
+    const isKick = y > n * 0.82;
+    const dy = isHeader ? Math.min(y, n * 0.22 - y) : isKick ? Math.min(y - n * 0.82, n - 1 - y) : Math.min(y - n * 0.22, n * 0.82 - y);
+    for (let x = 0; x < n; x++) {
+      const dx = Math.min(x, n - 1 - x);
+      const frame = Math.min(jointRamp(dy, J), jointRamp(dx, J));
+      let pane;
+      if (isHeader) {
+        pane = 0.72 + 0.22 * smooth(1 - y / (n * 0.22));
+      } else if (isKick) {
+        pane = 0.55;
+      } else {
+        const gy = 1 - (y - n * 0.22) / (n * 0.60);
+        pane = 0.82 + 0.18 * smooth(gy);
+      }
+      out[y * n + x] = lerp(0.42, pane, frame);
+    }
+  }
+  return out;
+}
+
+// Cute suburban wood clapboard siding (4 horizontal planks, soft overlap bevels)
+function tSuburbanSiding(n) {
+  const planks = 4;
+  const ph = n / planks;
+  const J = Math.max(5, Math.round(ph * 0.18));
+  const out = new Float32Array(n * n);
+  for (let y = 0; y < n; y++) {
+    const p = Math.floor(y / ph);
+    const dy = Math.min(y - p * ph, (p + 1) * ph - 1 - y);
+    const joint = jointRamp(dy, J);
+    const py = (y - p * ph) / ph;
+    const plankGrad = 0.78 + 0.22 * Math.cos(py * Math.PI);
+    const bevel = lerp(0.58, plankGrad, joint);
+    for (let x = 0; x < n; x++) {
+      out[y * n + x] = bevel;
+    }
+  }
+  return out;
+}
+
+// Cute scalloped clay shingles / roof tiles (3 courses of rounded scallops)
+function tClayShingles(n) {
+  const rows = 3, cols = 3;
+  const rh = n / rows, cw = n / cols;
+  const J = Math.max(5, Math.round(rh * 0.16));
+  const out = new Float32Array(n * n);
+  for (let y = 0; y < n; y++) {
+    const r = Math.floor(y / rh);
+    const dy = Math.min(y - r * rh, (r + 1) * rh - 1 - y);
+    const jointY = jointRamp(dy, J);
+    const off = (r % 2) * cw * 0.5;
+    for (let x = 0; x < n; x++) {
+      const xs = (x + off) % n;
+      const c = Math.floor(xs / cw);
+      const dx = Math.min(xs - c * cw, (c + 1) * cw - 1 - xs);
+      const jointX = jointRamp(dx, J);
+      const scallop = 0.74 + 0.26 * Math.cos(((xs % cw) / cw - 0.5) * Math.PI) * Math.sin(((y % rh) / rh) * Math.PI);
+      out[y * n + x] = lerp(0.55, scallop, Math.min(jointX, jointY));
+    }
+  }
+  return out;
+}
+
+// Cute warehouse roll-up door (6 horizontal corrugated slats + side tracks)
+function tRollDoor(n) {
+  const slats = 6;
+  const sh = n / slats;
+  const trackW = Math.max(8, Math.round(n * 0.10));
+  const out = new Float32Array(n * n);
+  for (let y = 0; y < n; y++) {
+    const sy = (y % sh) / sh;
+    const rib = 0.75 + 0.25 * Math.sin(sy * Math.PI * 2);
+    for (let x = 0; x < n; x++) {
+      const dSide = Math.min(x, n - 1 - x);
+      const track = lerp(0.58, 1.0, jointRamp(dSide, trackW));
+      out[y * n + x] = rib * track;
     }
   }
   return out;

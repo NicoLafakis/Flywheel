@@ -24,14 +24,16 @@ Provides collectible in-game power-up entities and active status effects across 
 | **Chain Frenzy** | `FRENZY` | 15s | Purple (`#a855f7`) | Freezes the combo timer decay and doubles (2×) all score point multipliers. |
 | **Chrono Burst** | `CHRONO` | +15s (bonus clock) | Ice Blue (`#38bdf8`) | Adds +15 seconds to remaining level time and doubles swallow speed throughput. |
 
-## Spawning Rules
+## Spawning & Roaming Rules
 
-1. **Map Placements**: Tossed into the level upon generation (random distribution using seeded RNG).
-2. **Score Milestones**: Bonus power-up tossed in for every **100,000 points** earned on the map.
-3. **Multiplier Milestones**: Bonus power-up tossed in for every **500 points** of multiplier / combo chain achieved.
+1. **Dynamic Roaming**: Ground power-ups cruise along streets and open spaces with deterministic wandering velocities (~2.8 m/s) and boundary reflections.
+2. **Intermittent Lifespan**: Ground power-ups persist with a temporary lifespan (~26–28s) and pulse/flicker during their final 4 seconds before dissolving.
+3. **Intermittent Dynamic Spawning**: Every 18–28 seconds, an intermittent power-up spawns dynamically at an open map location (capped at 2 active roaming ground power-ups at any time).
+4. **Score Milestones**: Bonus roaming power-up dropped for every **100,000 points** earned.
+5. **Multiplier Milestones**: Bonus roaming power-up dropped for every **500 points** of multiplier / combo chain achieved.
 
 ## Architecture & Invariants
 
-- **Pure Sim Determinism**: `js/powerups.js` contains no DOM or three.js dependencies. Randomness is strictly driven through `RNG` (`js/rng.js`). Distance calculations in `voxelsim.js` use `fwmath.js` helpers (`fwHypot2`, `fwCos`, `fwSin`).
-- **3D Render Representation**: Represented as floating, rotating luminous crystals atop a beacon with hover bobbing animation, dynamic particle flares, and shockwave bursts on pickup.
-- **HUD & Visual Feedback**: Active power-up pills display in `#active-powerups` with duration countdown progress rings, theme-colored glow effects, and audio stingers upon collection.
+- **Pure Sim Determinism**: `js/powerups.js` contains no DOM or three.js dependencies. Randomness is strictly driven through `RNG` (`js/rng.js`). Roaming drift and distance calculations use `fwmath.js` helpers (`fwHypot2`, `fwCos`, `fwSin`).
+- **3D Render Representation**: Represented as floating, rotating luminous crystals with hover bobbing animation, dynamic position tracking, expiring flicker animation, and particle flare bursts on collect/despawn.
+- **HUD & Visual Feedback**: Active power-up pills fly out smoothly into view, maintain steady solid countdown timer progress, pulse during expiry (last 3s), and slide back out upon expiration. Collection triggers screen ambient edge color pulses and WebAudio fanfares.
