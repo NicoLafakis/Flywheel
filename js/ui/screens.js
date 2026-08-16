@@ -331,12 +331,14 @@ export class Screens {
     recordsShopRow.appendChild(shop);
     s.appendChild(recordsShopRow);
 
-    // 6. Settings
-    const settingsRow = el(`<div class="fw-menu-row fw-menu-row--full">
+    // 6. Settings & Help
+    const settingsHelpRow = el(`<div class="fw-menu-row fw-menu-row--split">
       <button type="button" class="btn secondary btn--settings">SETTINGS</button>
+      <button type="button" class="btn secondary btn--help">HELP & FAQ</button>
     </div>`);
-    settingsRow.querySelector('button').onclick = () => this.showSettings(() => this.showTitle());
-    s.appendChild(settingsRow);
+    settingsHelpRow.querySelector('.btn--settings').onclick = () => this.showSettings(() => this.showTitle());
+    settingsHelpRow.querySelector('.btn--help').onclick = () => this.showHelp(() => this.showTitle());
+    s.appendChild(settingsHelpRow);
 
     // Footer: sound credits + legal
     const foot = el(`<div class="fw-foot"></div>`);
@@ -1500,6 +1502,8 @@ export class Screens {
     resume.onclick = () => this.actions.resume();
     const settings = el(`<button class="btn secondary">SETTINGS</button>`);
     settings.onclick = () => this.showSettings(() => this.showPause());
+    const help = el(`<button class="btn secondary">HELP & FAQ</button>`);
+    help.onclick = () => this.showHelp(() => this.showPause());
     // RESTART and CITIES both discard the run, and pause is only reachable
     // mid-run — so both ask once before throwing the run away (playtest
     // finding: silent mid-run progress loss). Two-step inline confirm, not a
@@ -1528,7 +1532,7 @@ export class Screens {
     // shelf and no map exists (showWorldMap is an alias for showTitle). The
     // old label promised a reorientation hub and delivered the front door.
     const quit = armable('CITIES', () => this.actions.quitToMap());
-    s.append(resume, settings, restart, quit);
+    s.append(resume, settings, help, restart, quit);
     this.root.appendChild(s);
     this.current = 'pause';
   }
@@ -1780,6 +1784,11 @@ export class Screens {
     };
     fold.appendChild(reset);
 
+    const helpRow = el(`<div class="set-row"><span class="set-label">📖 Academy & Walkthrough</span>
+      <span class="set-val"><button class="btn secondary">OPEN HELP & FAQ</button></span></div>`);
+    helpRow.querySelector('button').onclick = () => this.showHelp(() => this.showSettings(onBack));
+    panel.appendChild(helpRow);
+
     s.appendChild(panel);
     const back = el(`<button class="btn set-back">BACK</button>`);
     back.onclick = onBack;
@@ -1787,4 +1796,21 @@ export class Screens {
     this.root.appendChild(s);
     this.current = 'settings';
   }
+
+  async showHelp(onBack = () => this.showTitle()) {
+    this.clear();
+    try {
+      const { renderHelp } = await import('./help.js');
+      await renderHelp(this.root, {
+        save: this.save,
+        onBack: onBack || (() => this.showTitle()),
+      });
+      this.current = 'help';
+    } catch (err) {
+      console.error('Failed to load help screen:', err);
+      if (onBack) onBack();
+      else this.showTitle();
+    }
+  }
 }
+
