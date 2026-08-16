@@ -746,11 +746,12 @@ export class Screens {
     const is90s = sim.mode === 'challenge90s';
     const challengeMult = isChallenge ? (sim.coinMultiplier || 2) : 1;
 
-    const bonus = sim.won ? (goalBonusVal * challengeMult) : 0;
+    const bonus = sim.won ? goalBonusVal : 0;
     const coinsCollected = (typeof sim.coinsCollected === 'number' && !isNaN(sim.coinsCollected)) ? sim.coinsCollected : 0;
     const totalCoins = (sim.coins && Array.isArray(sim.coins)) ? sim.coins.length : 0;
     const coinsEarnedFromMap = coinsCollected * coinVal * challengeMult;
-    const coins = coinsEarnedFromMap + bonus;
+    const effectiveBonus = bonus * challengeMult;
+    const coins = coinsEarnedFromMap + effectiveBonus;
     const currentSaveCoins = (typeof this.save.coins === 'number' && !isNaN(this.save.coins)) ? this.save.coins : 0;
     const bankTotal = currentSaveCoins + coins;
 
@@ -794,7 +795,7 @@ export class Screens {
           <div>Time elapsed <b>${elapsed.toFixed(1)}s</b></div>
           ${fastestDisplay !== null ? `<div>Fastest Clear <b>${fastestDisplay.toFixed(1)}s</b>${newFastest ? ' <span class="rec-new">BEST!</span>' : ''}</div>` : ''}
           <div>Coins found <b>${coinsCollected}/${totalCoins} (+${coinsEarnedFromMap})${challengeMult > 1 ? ` [${challengeMult}× MULTIPLIER]` : ''}</b></div>
-          ${sim.won ? `<div>Finish bonus <b>+${bonus}${challengeMult > 1 ? ` [${challengeMult}× BONUS]` : ''}</b></div>` : ''}
+          ${sim.won ? `<div>Finish bonus <b>+${effectiveBonus}${challengeMult > 1 ? ` [${challengeMult}× BONUS]` : ''}</b></div>` : ''}
           ${coins > 0 ? `<div>Coins earned <b>+${coins}${challengeMult > 1 ? ` (${challengeMult}× CHALLENGE REWARD)` : ''}</b></div>` : ''}
           <div>Bank <b>${bankTotal} COINS</b></div>
         </div>
