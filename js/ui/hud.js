@@ -525,7 +525,9 @@ export class HUD {
   // disagree with the sim (§2 of the PRD, ADR-0015).
   _updateCombo(h) {
     const live = h.chain > 0;
-    const isFrenzy = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.FRENZY);
+    const frenzyAct = h.activePowerUps ? h.activePowerUps.find(a => (a.type === POWERUP_TYPES.FRENZY || a.id === POWERUP_TYPES.FRENZY) && a.remaining > 0) : null;
+    const isFrenzy = !!frenzyAct;
+    const extraFrenzyMult = isFrenzy && frenzyAct ? Math.floor((frenzyAct.blocksEaten || 0) / 500) : 0;
     const level = comboLevel(h.chain);
     const frac = live ? (isFrenzy ? 1.0 : Math.max(0, Math.min(1, h.chainTimer / COMBO_WINDOW))) : 0;
     this.comboArc.style.strokeDashoffset = (CM_CIRCUM * (1 - frac)).toFixed(2);
@@ -533,13 +535,14 @@ export class HUD {
       this._chainShown = h.chain;
       this.comboChain.textContent = h.chain;
     }
-    const currentMult = isFrenzy ? Math.max(comboMult(h.chain), h.chain) : comboMult(h.chain);
-    const targetMultText = isFrenzy ? `x${currentMult}` : COMBO_LEVEL_NAMES[level];
-    if (level !== this._comboLevelShown || isFrenzy) {
+    const currentMult = isFrenzy ? (comboMult(h.chain) + extraFrenzyMult) : comboMult(h.chain);
+    const targetMultText = `x${currentMult}`;
+    if (level !== this._comboLevelShown || isFrenzy || this.comboMultEl.textContent !== targetMultText) {
       this._comboLevelShown = level;
-      this.comboMeter.style.setProperty('--cm-heat', isFrenzy ? 'var(--fw-heat-8)' : `var(--fw-heat-${Math.min(8, level)})`);
+      const heatIdx = isFrenzy ? Math.min(8, Math.max(1, currentMult >= 8 ? 8 : currentMult)) : Math.min(8, level);
+      this.comboMeter.style.setProperty('--cm-heat', `var(--fw-heat-${heatIdx})`);
       this.comboMultEl.textContent = targetMultText;
-      this.comboMeter.classList.toggle('topped', isFrenzy || level >= COMBO_MAX_LEVEL);
+      this.comboMeter.classList.toggle('topped', isFrenzy || level >= COMBO_MAX_LEVEL || currentMult >= 8);
     }
     if (live !== this._comboLive) {
       this._comboLive = live;

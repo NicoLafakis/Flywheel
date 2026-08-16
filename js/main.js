@@ -374,6 +374,9 @@ function playNextPokemonSpawn() {
       isShowingPokeSpawn = false;
       state = prevState === 'powerup_encounter' ? 'playing' : prevState;
       lastTs = performance.now();
+      if (sim && (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0))) {
+        if (isVoxelSandbox) endSandbox(); else endLevel();
+      }
     }
   };
 
@@ -424,6 +427,9 @@ function playEarthquakeCinematic(ev) {
       accumulator = 0;
       lastTs = performance.now();
     }
+    if (sim && (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0))) {
+      if (isVoxelSandbox) endSandbox(); else endLevel();
+    }
   };
 
   controls?.cancelPointer();
@@ -469,6 +475,9 @@ function playPowerUpCollectCinematic(powerup) {
       state = previousState;
       accumulator = 0;
       lastTs = performance.now();
+    }
+    if (sim && (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0))) {
+      if (isVoxelSandbox) endSandbox(); else endLevel();
     }
   };
 
@@ -1098,7 +1107,11 @@ function frame(ts) {
       // A fault line can clear the final blocks in the same fixed step. Keep
       // its presentation readable; the next playing frame opens results once
       // the cinematic releases the state hold.
-      if (sim.over && state !== 'quake_cinematic' && state !== 'powerup_collect_cinematic') endSandbox();
+      if (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0)) {
+        if (state !== 'quake_cinematic' && state !== 'powerup_collect_cinematic' && state !== 'powerup_encounter') {
+          endSandbox();
+        }
+      }
     } else {
       audio.updateListener(sim.player.x, sim.player.z, null);
       for (const ev of events) {
@@ -1233,7 +1246,11 @@ function frame(ts) {
       world.render(cam.camera);
       hud.update(sim);
       hud.drawMinimap(sim);
-      if (sim.over && state !== 'quake_cinematic' && state !== 'powerup_collect_cinematic') endLevel();
+      if (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0)) {
+        if (state !== 'quake_cinematic' && state !== 'powerup_collect_cinematic' && state !== 'powerup_encounter') {
+          endLevel();
+        }
+      }
     }
   } else if ((state === 'quake_cinematic' || state === 'powerup_collect_cinematic' || state === 'powerup_encounter') && world && cam) {
     world.update(realDt, []);

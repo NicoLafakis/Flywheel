@@ -93,10 +93,17 @@ function completeEat(hole, obj, sim) {
   hole.chainTimer = COMBO_WINDOW;
   hole.chain += 1;
   hole.bestCombo = Math.max(hole.bestCombo, hole.chain);
-  const isFrenzy = (hole.isPlayer && hasActivePowerUp(sim.activePowerUps, POWERUP_TYPES.FRENZY));
+  const frenzyAct = (hole.isPlayer && sim.activePowerUps) ? sim.activePowerUps.find(a => (a.type === POWERUP_TYPES.FRENZY || a.id === POWERUP_TYPES.FRENZY) && a.remaining > 0) : null;
+  const isFrenzy = !!frenzyAct;
+  let extraFrenzyMult = 0;
+  if (isFrenzy && frenzyAct) {
+    frenzyAct.blocksEaten = (frenzyAct.blocksEaten || 0) + 1;
+    extraFrenzyMult = Math.floor(frenzyAct.blocksEaten / 500);
+  }
+  const baseMult = comboMultiplier(hole.chain);
+  const currentMult = isFrenzy ? (baseMult + extraFrenzyMult) : baseMult;
   const frenzyMult = isFrenzy ? 2.0 : 1.0;
-  const baseMult = isFrenzy ? Math.max(comboMultiplier(hole.chain), hole.chain) : comboMultiplier(hole.chain);
-  const gained = obj.mass * (obj.golden ? GOLDEN_MULTIPLIER : 1) * baseMult * frenzyMult;
+  const gained = obj.mass * (obj.golden ? GOLDEN_MULTIPLIER : 1) * currentMult * frenzyMult;
   hole.mass += gained;
   const isTitan = hole.isPlayer && hasActivePowerUp(sim.activePowerUps, POWERUP_TYPES.TITAN);
   hole.radius = isTitan ? PLAYER_MAX_RADIUS : holeRadius(hole);
@@ -109,9 +116,9 @@ function completeEat(hole, obj, sim) {
       sim.events.push({
         type: 'combo',
         level: curLvl + 1,
-        mult: baseMult,
+        mult: currentMult,
         chain: hole.chain,
-        name: isFrenzy ? `x${baseMult}` : `x${baseMult.toFixed(1)}`,
+        name: isFrenzy ? `x${currentMult}` : `x${currentMult.toFixed(1)}`,
         top: isFrenzy,
         hole,
       });

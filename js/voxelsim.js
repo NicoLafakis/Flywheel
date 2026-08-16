@@ -372,7 +372,7 @@ export const COMBO_WINDOW = 1.5;
 //
 // Whether the first real step belongs at 10 is a separate tuning question this
 // deliberately does not answer; it now has a clean seam to be answered on.
-export const COMBO_THRESHOLDS = [10, 15, 25, 50, 100, 350, 600];
+export const COMBO_THRESHOLDS = [50, 150, 500, 1200, 3000, 6000, 10000];
 // FR-013's two named constants. STEP is what one level is worth — a WHOLE extra
 // helping, the owner's ruling — and MAX_LEVEL is the tail rule: the ladder tops
 // out here and hands out nothing past it, so the summit has a name instead of
@@ -4033,11 +4033,18 @@ export class VoxelSandboxSim {
     h.chain += 1;
     h.chainTimer = COMBO_WINDOW;
     h.bestCombo = Math.max(h.bestCombo, h.chain);
-    const isFrenzy = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.FRENZY);
+    const frenzyAct = h.activePowerUps ? h.activePowerUps.find(a => (a.type === POWERUP_TYPES.FRENZY || a.id === POWERUP_TYPES.FRENZY) && a.remaining > 0) : null;
+    const isFrenzy = !!frenzyAct;
+    let extraFrenzyMult = 0;
+    if (isFrenzy && frenzyAct) {
+      frenzyAct.blocksEaten = (frenzyAct.blocksEaten || 0) + 1;
+      extraFrenzyMult = Math.floor(frenzyAct.blocksEaten / 500);
+    }
+    const baseMult = comboMult(h.chain);
+    const currentMult = isFrenzy ? (baseMult + extraFrenzyMult) : baseMult;
     const frenzyMult = isFrenzy ? 2.0 : 1.0;
-    const baseMult = isFrenzy ? Math.max(comboMult(h.chain), h.chain) : comboMult(h.chain);
     const effectiveRaw = raw * (h.growthMult || 1.0);
-    const gained = effectiveRaw * baseMult * frenzyMult;
+    const gained = effectiveRaw * currentMult * frenzyMult;
     h.mass += gained;      // the SCORE: combo-multiplied, and displayed as such
     h.rawMass += effectiveRaw;      // un-multiplied: the goal bar, the milestones and the SIZE ladder
     h.eatenCount += 1;
@@ -4068,8 +4075,8 @@ export class VoxelSandboxSim {
     const level = comboLevel(h.chain);
     if (level > prevLevel || isFrenzy) {
       this.events.push({
-        type: 'combo', level, mult: baseMult, chain: h.chain,
-        name: isFrenzy ? `x${baseMult}` : COMBO_LEVEL_NAMES[level], top: isFrenzy || level >= COMBO_MAX_LEVEL, hole: h,
+        type: 'combo', level, mult: currentMult, chain: h.chain,
+        name: `x${currentMult}`, top: isFrenzy || level >= COMBO_MAX_LEVEL, hole: h,
       });
     }
     // Consumption milestones, against the scene GOAL rather than the whole city
@@ -4388,7 +4395,7 @@ export class VoxelSandboxSim {
         const mark = this._clockMarks[this._clockMarkIdx++];
         this.events.push({ type: 'clock', at: mark.at, timeLeft: this.timeLeft, hole: this.hole });
       }
-      if (!this.over && this.clockTicks >= this.clockLimit) {
+      if (!this.over && (this.clockTicks >= this.clockLimit || this.timeLeft <= 0)) {
         this.timedOut = true;
         this.over = true;
         this.events.push({ type: 'timeup', ticks: this.clockTicks, hole: this.hole });

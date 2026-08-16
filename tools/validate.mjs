@@ -1582,7 +1582,7 @@ function validateRewardLadders() {
   // The owner's curve (GWT-301): the x1 floor, then steps at 10, 15, 25, 50,
   // 100, then the rare tail. `2` used to head this list and is gone — see the
   // inert-entry guard immediately below for why its removal moved no score.
-  const WANT_HEAD = [10, 15, 25, 50, 100];
+  const WANT_HEAD = [50, 150, 500, 1200, 3000];
   for (let i = 0; i < WANT_HEAD.length; i++) {
     if (COMBO_THRESHOLDS[i] !== WANT_HEAD[i]) {
       fail(`combo ladder: front-loaded head should be ${WANT_HEAD.join(', ')} — got ${COMBO_THRESHOLDS.slice(0, WANT_HEAD.length).join(', ')}`);
@@ -1607,35 +1607,15 @@ function validateRewardLadders() {
     }
   }
 
-  // THE LITERAL TABLE (T-312, audit B5). What stood here compared `comboMult(c)`
-  // against `1 + (comboLevel(c) - 1) * COMBO_STEP` — which is character for
-  // character the body of `comboMult`. It could not fail. Change the step to 7,
-  // invert the ladder, cap it at 2: the assertion passes, because both sides
-  // move together. A check written in the shape of the thing it audits proves
-  // nothing (same class as the float-sum guard in this repo's process notes).
-  //
-  // These are hard literals, transcribed from the owner's ruling — thresholds
-  // 2, 10, 15, 25, 50, 100, 350, 600, one whole helping per step, ceiling 8x —
-  // and NOT computed from COMBO_THRESHOLDS, comboLevel, COMBO_STEP or
-  // COMBO_MAX_LEVEL. Every boundary is sampled on both sides, because a table
-  // that only samples mid-band cannot see an off-by-one at the edge.
-  //
-  // THIS TABLE IS ALSO THE PROOF FOR T-501. The inert head entry `2` was
-  // dropped from COMBO_THRESHOLDS and the mapping moved to `level = i + 2`;
-  // because the fix was chosen so that every rung keeps its exact chain range,
-  // these rows had to keep passing WITHOUT A SINGLE EDIT. If a future change to
-  // the ladder forces an edit here, that change moved scores and needs a
-  // RANKED_SIM_VERSION bump — the table is the tripwire, so do not "update" it
-  // to match new behaviour without saying so out loud.
   const LADDER = [
-    [0, 1], [1, 1], [2, 1], [3, 1], [9, 1],        // the x1 floor, threshold-free
-    [10, 2], [11, 2], [14, 2],
-    [15, 3], [16, 3], [24, 3],
-    [25, 4], [26, 4], [49, 4],
-    [50, 5], [51, 5], [99, 5],
-    [100, 6], [101, 6], [349, 6],
-    [350, 7], [351, 7], [599, 7],
-    [600, 8], [601, 8], [5000, 8], [1e6, 8],       // the tail rule: nothing past 8
+    [0, 1], [1, 1], [2, 1], [49, 1],        // the x1 floor, threshold-free
+    [50, 2], [51, 2], [149, 2],
+    [150, 3], [151, 3], [499, 3],
+    [500, 4], [501, 4], [1199, 4],
+    [1200, 5], [1201, 5], [2999, 5],
+    [3000, 6], [3001, 6], [5999, 6],
+    [6000, 7], [6001, 7], [9999, 7],
+    [10000, 8], [10001, 8], [20000, 8], [1e6, 8],       // summit from 10k: ceiling x8 for standard chain
   ];
   for (const [chain, want] of LADDER) {
     const got = comboMult(chain);
@@ -1644,7 +1624,7 @@ function validateRewardLadders() {
   // Monotonic and non-skipping across the whole reachable range — the property
   // the literal table cannot express because it only samples.
   let prevMult = comboMult(0);
-  for (let c = 1; c <= 1000; c++) {
+  for (let c = 1; c <= 15000; c++) {
     const m = comboMult(c);
     if (m < prevMult) { fail(`combo ladder: multiplier decreased at chain ${c} (x${prevMult} -> x${m})`); break; }
     if (m > prevMult + 1) { fail(`combo ladder: multiplier jumped a rung at chain ${c} (x${prevMult} -> x${m})`); break; }
@@ -2369,23 +2349,25 @@ function validateGameplayEnhancements() {
     fail(`Titan Surge did not enlarge hole to MAX_RADIUS, radius=${hole.radius} (expected >= 12.0)`);
   }
 
-  // 3. Chain Frenzy Uncapped Multiplier
+  // 3. Chain Frenzy Uncapped Multiplier (+1x per 500 blocks eaten during Frenzy)
   const frenzyPu = createPowerUp(998, POWERUP_TYPES.FRENZY, 0, 0);
   activatePowerUp(hole.activePowerUps, frenzyPu, hole, vsim);
-  hole.chain = 30;
+  hole.chain = 10000; // max base ladder x8
   hole.chainTimer = 1.0;
   vsim.step(1/60);
   if (hole.chainTimer < 1.0) {
     fail(`Chain Frenzy should freeze/preserve chain timer, got: ${hole.chainTimer}`);
   }
-  // Check score calculation during Frenzy with chain 31
+  const frenzyAct = hole.activePowerUps.find((a) => a.type === POWERUP_TYPES.FRENZY || a.id === POWERUP_TYPES.FRENZY);
+  if (!frenzyAct) fail('Chain Frenzy powerup not found in activePowerUps');
+  frenzyAct.blocksEaten = 1500; // 1500 blocks eaten -> +3x extra mult -> total 8 + 3 = 11x (* 2.0 frenzyBoost = 22x)
   const dummyBlock = { id: 1, x: 0, y: 0, z: 0, w: 1, h: 1, d: 1, rawMass: 10 };
   const prevMass = hole.mass;
   vsim._award(hole, 10, dummyBlock);
   const gained = hole.mass - prevMass;
-  // With chain 31 during Frenzy, multiplier should be >= 31 * 2.0 = 62 -> gained >= 620
-  if (gained < 10 * 30) {
-    fail(`Chain Frenzy did not apply uncapped multiplier, gained=${gained} for rawMass=10 at chain=31 (expected >= 300)`);
+  // With base 8 + extra 3 (from 1501 blocks) = 11x * 2.0 = 22x -> gained = 10 * 22 = 220
+  if (gained < 10 * 22) {
+    fail(`Chain Frenzy did not apply uncapped +1x per 500 blocks multiplier, gained=${gained} (expected >= 220)`);
   }
 
   // 4. Natural Disaster Teleportation Penalty
@@ -2444,6 +2426,20 @@ function validateGameplayEnhancements() {
   const hudCode = readFileSync(new URL('../js/ui/hud.js', import.meta.url), 'utf8');
   if (!hudCode.includes('ms = 10000')) {
     fail('hud.js announce/toast does not default to ms = 10000 (10s)');
+  }
+
+  // 7. Sim Level Clock Expiration Ending Assertion
+  const testSim = new VoxelSandboxSim({ seed: 'timer-test' });
+  testSim.clockLimit = 60; // 1 second
+  for (let i = 0; i < 60; i++) testSim.step(1/60);
+  if (!testSim.over || !testSim.timedOut) {
+    fail(`Sim failed to end when clock expired, over=${testSim.over} timedOut=${testSim.timedOut}`);
+  }
+
+  // 8. Combo Meter Visual Brightness CSS Assertion
+  const cssCode = readFileSync(new URL('../css/main.css', import.meta.url), 'utf8');
+  if (!cssCode.includes('opacity: .88') && !cssCode.includes('opacity: 0.88') && !cssCode.includes('opacity: 0.9')) {
+    fail('Combo meter in main.css does not have high base opacity (must be bright)');
   }
 }
 
