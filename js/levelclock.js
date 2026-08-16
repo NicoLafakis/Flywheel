@@ -10,15 +10,15 @@
 // 300 s (5 minutes) is the level duration for all sandbox cities and campaign levels.
 // The clock is what turns an open-ended demolition into a run with a score.
 export const LEVEL_CLOCK_SECONDS = 300;
-
-// The SAME limit expressed in fixed ticks, which is what the sandbox actually
-// counts. Ticks, not accumulated seconds: `time += 1/60` ten thousand times
-// lands a few parts in 1e12 off 180.000, and a clock that expires on a float
-// comparison is a clock whose expiry tick depends on rounding. Counting ticks
-// makes expiry exact and identical on every device, which is the same choice
-// ADR-0016 made for THE RUN — and the reason a slow phone gets the same game
-// rather than a shorter one.
 export const LEVEL_CLOCK_TICKS = LEVEL_CLOCK_SECONDS * 60;
+
+// 180 s (3 minutes) is the duration for City Challenges (2x coin reward).
+export const CHALLENGE_CLOCK_SECONDS = 180;
+export const CHALLENGE_CLOCK_TICKS = CHALLENGE_CLOCK_SECONDS * 60; // 10,800 ticks
+
+// 90 s is the secret challenge unlocked when all 3-minute city challenges are completed.
+export const SECRET_CHALLENGE_CLOCK_SECONDS = 90;
+export const SECRET_CHALLENGE_CLOCK_TICKS = SECRET_CHALLENGE_CLOCK_SECONDS * 60; // 5,400 ticks
 
 // The two endgame states (R-1.5). Declared here, not in the HUD, because the
 // sim fires the transition events at these exact ticks and the HUD styles the

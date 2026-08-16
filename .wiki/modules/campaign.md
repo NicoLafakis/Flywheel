@@ -16,7 +16,8 @@ beatable headlessly.
 | File | Purpose |
 |------|---------|
 | `js/levels.js` | `METROS`, `MECHANICS`, `levelDef(i)` formulas, stars/coins |
-| `js/save.js` | localStorage schema v16 (+settings), migrations v1→v16, quarantine |
+| `js/citycatalog.js` | Pure catalog metadata & progression rules for metropolis sandboxes, 3-minute challenges, and secret 90s unlock logic |
+| `js/save.js` | localStorage schema v21 (+settings, +upgrades, +challenges), migrations v1→v21, quarantine |
 | `tools/validate.mjs` | Overlap + snack-ring + greedy-bot margin proof for every campaign level, plus `validateCambridge()` (drives the voxel-sandbox Cambridge scene through the same kind of greedy bot) and `validateOfflineBoot()` (parses `index.html` and fails on any external-origin runtime dependency — see `architecture.md`'s Boot section) |
 
 ## Talks To

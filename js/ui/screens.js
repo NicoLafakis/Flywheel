@@ -41,166 +41,16 @@ export const ITEMS = [
   { id: 'growth5', name: '+5% Growth', desc: 'Mass gained is 5% higher.', price: 500 },
 ];
 
-// The master catalog of all single-player metropolis sandboxes.
-// Progression order is dynamically sorted by block count ascending (smallest -> largest).
-// Any future city added automatically threads into its appropriate ladder position.
-export const CITY_CATALOG = [
-  {
-    scene: 'gallery',
-    name: 'THE LAB',
-    location: 'PROVING GROUND',
-    sub: 'Physics playground & training yard',
-    desc: 'Compact starter grid with ramps, street props, and training structures.',
-    tagline: 'WARMUP & CALIBRATION',
-    blocks: 12213,
-    difficulty: 'TIER 1 · CASUAL',
-    badge: 'STARTER',
-    accentColor: '#00f0ff',
-    icon: '🧪',
-    coinCount: 60,
-    coinValue: 1,
-    goalBonus: 25,
-  },
-  {
-    scene: 'manhattan',
-    name: 'LOWER MANHATTAN',
-    location: 'NEW YORK CITY',
-    sub: 'Financial District, Wall Street & Downtown Skyscrapers',
-    desc: 'Dense skyscraper canyon grid with granite plazas and office monoliths.',
-    tagline: 'FINANCIAL GRID',
-    blocks: 25875,
-    difficulty: 'TIER 2 · NORMAL',
-    badge: 'STAGE 1',
-    accentColor: '#ffd23f',
-    icon: '🏙️',
-    coinCount: 70,
-    coinValue: 2,
-    goalBonus: 50,
-  },
-  {
-    scene: 'brooklyn',
-    name: 'BROOKLYN',
-    location: 'NEW YORK CITY',
-    sub: 'Bridges to Coney Island, DUMBO & East River Piers',
-    desc: 'Sprawling waterfront with suspension bridges, ferry docks, and warehouses.',
-    tagline: 'WATERFRONT METROPOLIS',
-    blocks: 39984,
-    difficulty: 'TIER 3 · SKILLED',
-    badge: 'STAGE 2',
-    accentColor: '#ff9f1c',
-    icon: '🌉',
-    coinCount: 80,
-    coinValue: 2,
-    goalBonus: 75,
-  },
-  {
-    scene: 'chicago',
-    name: 'CHICAGO LOOP',
-    location: 'CHICAGO, IL',
-    sub: 'The Loop, Willis Tower & Iconic River Crossings',
-    desc: 'Colossal skyscraper grid, elevated rail loops, and deep river ravines.',
-    tagline: 'SKYSCRAPER CANYONS',
-    blocks: 44578,
-    difficulty: 'TIER 4 · EXPERT',
-    badge: 'STAGE 3',
-    accentColor: '#ff2a2a',
-    icon: '🌆',
-    coinCount: 100,
-    coinValue: 2,
-    goalBonus: 100,
-  },
-  {
-    scene: 'cambridge',
-    name: 'CAMBRIDGE',
-    location: 'MASSACHUSETTS',
-    sub: 'Kendall Square, Canal Park & Lechmere Seam',
-    desc: 'Tech district featuring winding waterways, brick labs, and modern campuses.',
-    tagline: 'INNOVATION HUB',
-    blocks: 72943,
-    difficulty: 'TIER 5 · MASTER',
-    badge: 'STAGE 4',
-    accentColor: '#9d4edd',
-    icon: '🔬',
-    coinCount: 120,
-    coinValue: 3,
-    goalBonus: 150,
-  },
-  {
-    scene: 'upper-manhattan',
-    name: 'UPPER MANHATTAN',
-    location: 'NEW YORK CITY',
-    sub: 'Central Park perimeter & Historic Brownstones',
-    desc: 'Vast parkland surrounded by classic avenues, grand museums, and brownstone rows.',
-    tagline: 'PARKLAND & UPTOWN',
-    blocks: 73393,
-    difficulty: 'TIER 6 · GRANDMASTER',
-    badge: 'STAGE 5',
-    accentColor: '#06d6a0',
-    icon: '🌳',
-    coinCount: 140,
-    coinValue: 3,
-    goalBonus: 200,
-  },
-  {
-    scene: 'boston',
-    name: 'BOSTON SEAPORT',
-    location: 'MASSACHUSETTS',
-    sub: 'Seaport Boulevard, BCEC & Historic Harbor',
-    desc: 'Massive convention halls, seaport piers, and high-density coastal blocks.',
-    tagline: 'COASTAL EXPEDITION',
-    blocks: 82894,
-    difficulty: 'TIER 7 · TITAN',
-    badge: 'STAGE 6',
-    accentColor: '#3a86ff',
-    icon: '⚓',
-    coinCount: 160,
-    coinValue: 4,
-    goalBonus: 300,
-  },
-  {
-    scene: 'tokyo',
-    name: 'TOKYO SHINJUKU',
-    location: 'TOKYO, JAPAN',
-    sub: 'Neo-Shinjuku Skyscraper Grid & Shibuya Scramble',
-    desc: 'Mega metropolis with dazzling neon, endless towers, and famous crossings.',
-    tagline: 'MEGA METROPOLIS',
-    blocks: 84122,
-    difficulty: 'TIER 8 · APEX',
-    badge: 'FINAL APEX',
-    accentColor: '#ff0054',
-    icon: '🗼',
-    coinCount: 200,
-    coinValue: 5,
-    goalBonus: 500,
-  },
-];
-
-// Returns all cities ordered from smallest to largest size (block count ascending)
-export function getSortedCityCatalog() {
-  return [...CITY_CATALOG].sort((a, b) => a.blocks - b.blocks);
-}
-
-// Progression Gate: A city is unlocked if it is the first in the ladder (The Lab),
-// or if the player has already played it and recorded a score/run on it.
-// If not yet played, it remains unavailable until the previous city has been
-// cleared at 100% in under the 5-minute (300s) duration limit.
-export function isCityUnlocked(save, cityScene, sortedCatalog) {
-  const catalog = sortedCatalog || getSortedCityCatalog();
-  const idx = catalog.findIndex((c) => c.scene === cityScene);
-  if (idx <= 0) return true; // First city (The Lab) is always unlocked
-  const currentRec = (save?.sandbox || {})[cityScene];
-  if (currentRec && ((currentRec.runs || 0) > 0 || (currentRec.bestScore || 0) > 0 || (currentRec.completions || 0) > 0)) {
-    return true;
-  }
-  const prevCity = catalog[idx - 1];
-  const prevRec = (save?.sandbox || {})[prevCity.scene];
-  if (!prevRec) return false;
-  
-  // Previous city must have a 100% clear (completions > 0 or bestPercent >= 1.0) achieved within the 5-minute (300s) limit
-  const hasFullClear = Boolean((prevRec.completions || 0) > 0 || (prevRec.bestPercent || 0) >= 1.0);
-  const under5Minutes = prevRec.bestTime !== null && prevRec.bestTime !== undefined && prevRec.bestTime <= 300;
-  return Boolean(hasFullClear && under5Minutes);
-}
+// The master catalog of all single-player metropolis sandboxes and challenge progression helpers.
+// Pure data lives in citycatalog.js, imported and re-exported here for backwards compatibility.
+import {
+  CITY_CATALOG, getSortedCityCatalog, isCityUnlocked,
+  isCityChallengeCompleted, getCompletedChallengeCount, isSecret90sChallengeUnlocked,
+} from '../citycatalog.js';
+export {
+  CITY_CATALOG, getSortedCityCatalog, isCityUnlocked,
+  isCityChallengeCompleted, getCompletedChallengeCount, isSecret90sChallengeUnlocked,
+};
 
 function el(html) {
   const d = document.createElement('div');
@@ -435,13 +285,38 @@ export class Screens {
     }
     s.appendChild(meterRow);
 
-    // 4. Chicago challenge
-    if (BOARDS_ENABLED) {
-      const chicagoRow = el(`<div class="fw-menu-row fw-menu-row--full">
-        <button type="button" class="btn secondary btn--chicago">RUN CHICAGO · 90 SECONDS</button>
+    // 4. City Challenge & Secret 90s Challenge
+    const catalog = getSortedCityCatalog();
+    const completedChallenges = getCompletedChallengeCount(this.save, catalog);
+    const secret90sUnlocked = isSecret90sChallengeUnlocked(this.save, catalog);
+
+    if (secret90sUnlocked) {
+      // Secret 90s Challenge Unlocked!
+      const challengeRow = el(`<div class="fw-menu-row fw-menu-row--split">
+        <button type="button" class="btn secondary btn--challenge-3m" style="border-color:#ffd23f;">RUN 3-MIN CHALLENGE · 2× COINS</button>
+        <button type="button" class="btn primary btn--secret-90s" style="background: linear-gradient(135deg, #ff0054, #9d4edd); color: #fff; font-weight: bold;">⚡ SECRET 90s RUN</button>
       </div>`);
-      chicagoRow.querySelector('button').onclick = () => this.actions.startRankedRun('chicago');
-      s.appendChild(chicagoRow);
+      challengeRow.querySelector('.btn--challenge-3m').onclick = () => {
+        if (this.actions.startChallenge) this.actions.startChallenge('chicago', 'challenge3m');
+        else this.showCitySelect();
+      };
+      challengeRow.querySelector('.btn--secret-90s').onclick = () => {
+        if (this.actions.startChallenge) this.actions.startChallenge('chicago', 'challenge90s');
+        else if (this.actions.startRankedRun) this.actions.startRankedRun('chicago');
+      };
+      s.appendChild(challengeRow);
+    } else {
+      const challengeRow = el(`<div class="fw-menu-row fw-menu-row--full" style="display:flex; flex-direction:column; gap:4px;">
+        <button type="button" class="btn secondary btn--chicago">RUN CHICAGO · 3 MIN CHALLENGE (2× COINS)</button>
+        <div class="fw-stat-note" style="text-align:center; font-size:11px; color:#8fb8d8;">
+          🔒 SECRET 90s CHALLENGE: ${completedChallenges}/${catalog.length} CITIES COMPLETED
+        </div>
+      </div>`);
+      challengeRow.querySelector('button').onclick = () => {
+        if (this.actions.startChallenge) this.actions.startChallenge('chicago', 'challenge3m');
+        else this.showCitySelect();
+      };
+      s.appendChild(challengeRow);
     }
 
     // 5. Records | Shop
@@ -601,13 +476,15 @@ export class Screens {
             <span class="city-tag city-tag--stage">${city.badge}</span>
           </div>
           <div class="city-status-wrap">
-            ${rec && rec.completions > 0
-              ? `<span class="city-status-pill city-status--cleared">🏆 CLEARED ×${rec.completions}</span>`
-              : (unlocked && rec && rec.runs > 0
-                ? `<span class="city-status-pill city-status--progress">⚡ BEST ${Math.round((rec.bestPercent || 0) * 100)}%</span>`
-                : (unlocked
-                  ? `<span class="city-status-pill city-status--open">✦ OPEN ✦</span>`
-                  : `<span class="city-status-pill city-status--locked">🔒 LOCKED</span>`))}
+            ${isCityChallengeCompleted(this.save, city.scene)
+              ? `<span class="city-status-pill city-status--cleared">⭐ 3-MIN CLEARED</span>`
+              : (rec && rec.completions > 0
+                ? `<span class="city-status-pill city-status--cleared">🏆 CLEARED ×${rec.completions}</span>`
+                : (unlocked && rec && rec.runs > 0
+                  ? `<span class="city-status-pill city-status--progress">⚡ BEST ${Math.round((rec.bestPercent || 0) * 100)}%</span>`
+                  : (unlocked
+                    ? `<span class="city-status-pill city-status--open">✦ OPEN ✦</span>`
+                    : `<span class="city-status-pill city-status--locked">🔒 LOCKED</span>`)))}
           </div>
         </div>
 
@@ -655,11 +532,23 @@ export class Screens {
           </div>
         </div>
 
-        <div class="city-action-row">
+        <div class="city-action-row" style="display:flex; flex-direction:column; gap:8px;">
           ${unlocked ? `
-            <button type="button" class="btn fw-cta city-launch-btn">PLAY ${city.name}</button>
-            ${(city.scene === 'chicago' || city.scene === 'brooklyn') && BOARDS_ENABLED ? `
-              <button type="button" class="btn secondary city-ranked-btn">RUN 90s RANKED</button>
+            <button type="button" class="btn fw-cta city-launch-btn">PLAY ${city.name} (5 MIN)</button>
+            <div style="display:flex; gap:8px; width:100%;">
+              <button type="button" class="btn secondary city-challenge-btn" style="flex:1; border-color:#ffd23f; font-size:12px;">
+                ${isCityChallengeCompleted(this.save, city.scene) ? '⭐ 3-MIN CLEARED' : '⚡ 3-MIN CHALLENGE (2× COINS)'}
+              </button>
+              ${isSecret90sChallengeUnlocked(this.save, catalog) ? `
+                <button type="button" class="btn primary city-secret90s-btn" style="flex:1; background:linear-gradient(135deg,#ff0054,#7209b7); color:#fff; font-size:12px;">
+                  🔥 90s RUN
+                </button>
+              ` : ''}
+            </div>
+            ${!isSecret90sChallengeUnlocked(this.save, catalog) ? `
+              <div class="fw-stat-note" style="text-align:center; font-size:11px; opacity:0.8;">
+                🔒 Secret 90s Challenge: ${getCompletedChallengeCount(this.save, catalog)}/${catalog.length} 3m Challenges Complete
+              </div>
             ` : ''}
           ` : `
             <div class="city-locked-notice">
@@ -678,9 +567,19 @@ export class Screens {
       if (launchBtn) {
         launchBtn.onclick = () => this.actions.startVoxelSandbox(city.scene);
       }
-      const rankedBtn = card.querySelector('.city-ranked-btn');
-      if (rankedBtn) {
-        rankedBtn.onclick = () => this.actions.startRankedRun(city.scene);
+      const challengeBtn = card.querySelector('.city-challenge-btn');
+      if (challengeBtn) {
+        challengeBtn.onclick = () => {
+          if (this.actions.startChallenge) this.actions.startChallenge(city.scene, 'challenge3m');
+          else this.actions.startVoxelSandbox(city.scene, 'challenge3m');
+        };
+      }
+      const secret90sBtn = card.querySelector('.city-secret90s-btn');
+      if (secret90sBtn) {
+        secret90sBtn.onclick = () => {
+          if (this.actions.startChallenge) this.actions.startChallenge(city.scene, 'challenge90s');
+          else if (this.actions.startRankedRun) this.actions.startRankedRun(city.scene);
+        };
       }
 
       cardHost.appendChild(card);
@@ -843,10 +742,15 @@ export class Screens {
     if (this.actions.music) this.actions.music('results', { restart: true });
     const coinVal = sim.coinValue || SANDBOX_COIN_VALUE;
     const goalBonusVal = sim.goalBonus || SANDBOX_GOAL_BONUS;
-    const bonus = sim.won ? goalBonusVal : 0;
+    const isChallenge = Boolean(sim.isChallenge || sim.mode === 'challenge3m' || sim.mode === 'challenge90s');
+    const is90s = sim.mode === 'challenge90s';
+    const challengeMult = isChallenge ? (sim.coinMultiplier || 2) : 1;
+
+    const bonus = sim.won ? (goalBonusVal * challengeMult) : 0;
     const coinsCollected = (typeof sim.coinsCollected === 'number' && !isNaN(sim.coinsCollected)) ? sim.coinsCollected : 0;
     const totalCoins = (sim.coins && Array.isArray(sim.coins)) ? sim.coins.length : 0;
-    const coins = coinsCollected * coinVal + bonus;
+    const coinsEarnedFromMap = coinsCollected * coinVal * challengeMult;
+    const coins = coinsEarnedFromMap + bonus;
     const currentSaveCoins = (typeof this.save.coins === 'number' && !isNaN(this.save.coins)) ? this.save.coins : 0;
     const bankTotal = currentSaveCoins + coins;
 
@@ -864,9 +768,24 @@ export class Screens {
       ? (newFastest ? elapsed : Math.min(prev.bestTime || elapsed, elapsed))
       : (prev.bestTime ?? null);
 
+    const catalog = getSortedCityCatalog();
+    const wasUnlockedBefore = isSecret90sChallengeUnlocked(this.save, catalog);
+    const completedChallengesCount = getCompletedChallengeCount(this.save, catalog);
+    const willUnlockSecret = isChallenge && sim.won && !isCityChallengeCompleted(this.save, sim.scene) && (completedChallengesCount + 1 >= catalog.length) && !wasUnlockedBefore;
+
+    let resultTitle = sim.won ? '🎉 GOAL COMPLETE! 🎉' : "TIME'S UP!";
+    if (isChallenge && sim.won) {
+      resultTitle = is90s ? '⚡ SECRET 90s RUN COMPLETE! ⚡' : '🏆 3-MIN CHALLENGE CLEARED! 🏆';
+    }
+
     const s = el(`<div class="screen results-screen">
       <div class="results-card">
-        <h2>${sim.won ? '🎉 GOAL COMPLETE! 🎉' : "TIME'S UP!"}</h2>
+        <h2>${resultTitle}</h2>
+        ${isChallenge ? `<div class="challenge-reward-badge" style="background:#ffd23f; color:#000; font-weight:bold; font-size:12px; padding:4px 8px; border-radius:4px; margin-bottom:8px; display:inline-block;">⭐ 2× COIN MULTIPLIER ACTIVE</div>` : ''}
+        ${willUnlockSecret ? `<div class="secret-unlock-card" style="background:linear-gradient(135deg,rgba(255,0,84,0.35),rgba(157,78,221,0.35)); border:2px solid #ff0054; border-radius:8px; padding:10px 14px; margin:10px 0; text-align:center;">
+          <div style="font-weight:bold; font-size:14px; color:#ffd23f;">🔥 SECRET 90s HYPER RUN UNLOCKED! 🔥</div>
+          <div style="font-size:12px; color:#fff; margin-top:2px;">All 3-minute city challenges conquered! The Secret 90s speed challenge is now available across every metropolis!</div>
+        </div>` : ''}
         <div class="results-stats">
           <div>${sim.goal.name}</div>
           <div>City cleared <b>${clearedPct}%</b>${newPercent ? ' <span class="rec-new">BEST!</span>' : ''}</div>
@@ -874,9 +793,9 @@ export class Screens {
           <div>Best chain <b>${best} eats at x${comboMult(best)}</b>${newCombo ? ' <span class="rec-new">BEST!</span>' : ''}</div>
           <div>Time elapsed <b>${elapsed.toFixed(1)}s</b></div>
           ${fastestDisplay !== null ? `<div>Fastest Clear <b>${fastestDisplay.toFixed(1)}s</b>${newFastest ? ' <span class="rec-new">BEST!</span>' : ''}</div>` : ''}
-          <div>Coins found <b>${coinsCollected}/${totalCoins} (+${coinsCollected * coinVal})</b></div>
-          ${sim.won ? `<div>Finish bonus <b>+${goalBonusVal}</b></div>` : ''}
-          ${coins > 0 ? `<div>Coins earned <b>+${coins}</b></div>` : ''}
+          <div>Coins found <b>${coinsCollected}/${totalCoins} (+${coinsEarnedFromMap})${challengeMult > 1 ? ` [${challengeMult}× MULTIPLIER]` : ''}</b></div>
+          ${sim.won ? `<div>Finish bonus <b>+${bonus}${challengeMult > 1 ? ` [${challengeMult}× BONUS]` : ''}</b></div>` : ''}
+          ${coins > 0 ? `<div>Coins earned <b>+${coins}${challengeMult > 1 ? ` (${challengeMult}× CHALLENGE REWARD)` : ''}</b></div>` : ''}
           <div>Bank <b>${bankTotal} COINS</b></div>
         </div>
         <div class="results-actions">

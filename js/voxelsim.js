@@ -35,6 +35,7 @@
 import { RNG } from './rng.js';
 import {
   LEVEL_CLOCK_TICKS, LEVEL_CLOCK_URGENT_SECONDS, LEVEL_CLOCK_WARN_SECONDS,
+  CHALLENGE_CLOCK_TICKS, SECRET_CHALLENGE_CLOCK_TICKS,
 } from './levelclock.js';
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from './fwmath.js';
 import { playerSpeedForRadius } from './tiers.js';
@@ -496,6 +497,7 @@ export const RANKED_TUNE_ID = 'ranked-v1';
 // cross-version replay as a cheat merely because a physics bug was fixed.
 export const RANKED_SIM_VERSION = 1;
 export const RANKED_TICK_COUNT = 90 * 60;
+export const CHALLENGE_COIN_MULTIPLIER = 2;
 // This table must name EVERY key `step()` reads off `this.tune`, not merely the
 // ones something happens to write today. `perfMode` was missing until 2026-08-13
 // and that single omission was a release blocker (audit A5.1): the ranked tune
@@ -642,14 +644,23 @@ export class VoxelSandboxSim {
     this.durationMult = upgradeMultiplier(upgrades?.duration);
     this.rankedTicks = 0;
     this.runComplete = false;
+    this.isChallenge = mode === 'challenge3m' || mode === 'challenge' || mode === 'challenge90s';
+    this.coinMultiplier = this.isChallenge ? CHALLENGE_COIN_MULTIPLIER : 1;
     // --- the level clock (R-1) ------------------------------------------------
-    // Every non-ranked run is bounded by LEVEL_CLOCK_TICKS. THE RUN is the one
-    // exception and it is expressed as `clockLimit === null` rather than as a
-    // mode test at the expiry site: run90 keeps its own server-seeded 5,400-tick
-    // bound (ADR-0016) and must never consult the 180 s constant (T-107). The
-    // early return in step() means the block below is unreachable in run90
-    // anyway; the null is the second lock on the same door.
-    this.clockLimit = mode === 'run90' ? null : LEVEL_CLOCK_TICKS;
+    // Every non-ranked run is bounded by its mode's tick limit. THE RUN (run90)
+    // keeps its own server-seeded 5,400-tick bound (ADR-0016) with clockLimit === null.
+    // 3-minute challenges use CHALLENGE_CLOCK_TICKS (10,800 ticks / 180s).
+    // Secret 90s challenges use SECRET_CHALLENGE_CLOCK_TICKS (5,400 ticks / 90s).
+    // Standard sandbox freeplay uses LEVEL_CLOCK_TICKS (18,000 ticks / 300s).
+    if (mode === 'run90') {
+      this.clockLimit = null;
+    } else if (mode === 'challenge3m' || mode === 'challenge') {
+      this.clockLimit = CHALLENGE_CLOCK_TICKS;
+    } else if (mode === 'challenge90s') {
+      this.clockLimit = SECRET_CHALLENGE_CLOCK_TICKS;
+    } else {
+      this.clockLimit = LEVEL_CLOCK_TICKS;
+    }
     this.clockTicks = 0;
     // Seconds remaining, derived from the tick count so it is exact rather than
     // accumulated. `null` in run90 — never 0, which a HUD would render as an

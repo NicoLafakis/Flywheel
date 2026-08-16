@@ -7,16 +7,7 @@ import { claimName, deviceKey, removePlayer, startTransfer, redeemTransfer, rena
 import { post } from '../board/request.js';
 import { comboMult, comboLevel, COMBO_LEVEL_NAMES } from '../voxelsim.js';
 import { ensurePlayer, storeSave } from '../save.js';
-
-const CITY_CATALOG = [
-  { scene: 'brooklyn', name: 'Brooklyn', sub: 'Bridges to Coney Island', tag: 'Showcase' },
-  { scene: 'boston', name: 'Boston', sub: 'Seaport & Waterfront' },
-  { scene: 'cambridge', name: 'Cambridge', sub: 'Kendall Square to MIT Domes' },
-  { scene: 'chicago', name: 'Chicago', sub: 'The Loop & Willis Tower' },
-  { scene: 'manhattan', name: 'Lower Manhattan', sub: 'Financial District Towers' },
-  { scene: 'upper-manhattan', name: 'Upper Manhattan', sub: 'Central Park & Museum Mile' },
-  { scene: 'gallery', name: 'Sandbox Playground', sub: '100% Consumption Lab' },
-];
+import { CITY_CATALOG } from '../citycatalog.js';
 
 const RANKED_CITIES = [
   { scene: 'chicago', name: 'Chicago' },

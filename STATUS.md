@@ -17,6 +17,14 @@ Last updated: 2026-08-16
 
 ## Shipped state
 
+- 2026-08-16 — 3-Minute City Challenges, 2x Coin Rewards & Secret 90s Challenge Unlock:
+  - **3-Minute Standard Challenge Clock**: Configured city challenge duration to 3 minutes (`CHALLENGE_CLOCK_SECONDS = 180` / `CHALLENGE_CLOCK_TICKS = 10,800`), providing ample time for speed boost power-up routing and full map clears.
+  - **2x Coin & Goal Bonus Multiplier**: Beating city challenges awards double coins on collected pickups and 2x level goal completion bonus.
+  - **Secret 90-Second Hyper Run Progression**: Completing all 3-minute city challenges across every metropolis in `CITY_CATALOG` unlocks the secret 90s speed challenge across the entire map roster.
+  - **Pure Sim `citycatalog.js` Module**: Separated pure progression rules and catalog metadata into a headless Node-safe module (`js/citycatalog.js`) without DOM/three.js dependencies.
+  - **Save Schema Migration v20 -> v21**: Bumped `CURRENT_VERSION = 21` with migration initializing `challenges: {}` tracking best times, scores, and completion flags for 3m and 90s modes per city.
+  - **UI Integration**: Updated Title Screen, City Carousel, HUD, and Results Screen with dynamic challenge CTAs, completion badges, 2x reward breakdowns, and secret unlock celebration banners.
+
 - 2026-08-16 — ADR-0020: Menu Wiring Bug Fixes:
   - **City Select icon slot**: `CITY_CATALOG` lacked an `icon` field on all 8 entries; the card template rendered `"undefined"`. Each entry now has its city emoji (🧪🏙️🌉🌆🔬🌳⚓🗼).
   - **Power-Up Showcase timer bar**: Fill formula used `6000` ms as the denominator while the countdown ran for `10000` ms. Replaced with `SHOWCASE_TOTAL_MS = 10000` constant so bar and countdown share one number.

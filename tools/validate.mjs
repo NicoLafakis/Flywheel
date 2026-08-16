@@ -9,11 +9,17 @@ import { isEdible } from '../js/tiers.js';
 import {
   VoxelSandboxSim, COMBO_THRESHOLDS, COMBO_STEP, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES,
   MILESTONES, MILESTONE_TIERS, RANKED_TICK_COUNT, SCENE_GOALS, comboLevel, comboMult,
+  CHALLENGE_COIN_MULTIPLIER,
   loadScene,
 } from '../js/voxelsim.js';
 import { POWERUP_TYPES, POWERUP_SPECS, activatePowerUp, createPowerUp } from '../js/powerups.js';
 import { PLAYER_MAX_RADIUS } from '../js/tiers.js';
-import { LEVEL_CLOCK_SECONDS, LEVEL_CLOCK_TICKS } from '../js/levelclock.js';
+import {
+  LEVEL_CLOCK_SECONDS, LEVEL_CLOCK_TICKS,
+  CHALLENGE_CLOCK_SECONDS, CHALLENGE_CLOCK_TICKS,
+  SECRET_CHALLENGE_CLOCK_SECONDS, SECRET_CHALLENGE_CLOCK_TICKS,
+} from '../js/levelclock.js';
+import { CITY_CATALOG } from '../js/citycatalog.js';
 import {
   BROOKLYN_CROSSINGS, BROOKLYN_OPEN_GROUND, BROOKLYN_ROAD_SPANS, BROOKLYN_STREETS,
   BROOKLYN_VEHICLES, vehicleBBox, XW_LEN,
@@ -36,7 +42,10 @@ import {
   CHICAGO_ROAD_SPANS, CHICAGO_ROUTE, CHICAGO_STREETS, CHICAGO_VEHICLES,
   CHICAGO_XW_LEN,
 } from '../js/voxelscene-chicago.js';
-import { CURRENT_VERSION, __freshSave, __MIGRATIONS, recordLevelResult } from '../js/save.js';
+import {
+  CURRENT_VERSION, __freshSave, __MIGRATIONS, recordLevelResult,
+  isCityChallengeCompleted, getCompletedChallengeCount, isSecret90sChallengeUnlocked, recordChallengeResult,
+} from '../js/save.js';
 import { UPGRADES, UPGRADE_COST_TABLE, upgradeCost, upgradeMultiplier, defaultUpgrades, SHOP_CATEGORIES, getShopItemsByCategory } from '../js/upgrades.js';
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from '../js/fwmath.js';
 import { runBoardSelftest } from './board-selftest.mjs';
@@ -2430,6 +2439,117 @@ function validateGameplayEnhancements() {
   }
 }
 
+function validateCityChallenges() {
+  console.log('Validating 3-minute city challenges, 2x coin multipliers & secret 90s unlock...');
+
+  // 1. Level Clock Declarations
+  if (CHALLENGE_CLOCK_SECONDS !== 180) {
+    fail(`CHALLENGE_CLOCK_SECONDS is ${CHALLENGE_CLOCK_SECONDS}, expected 180 (3 minutes)`);
+  }
+  if (CHALLENGE_CLOCK_TICKS !== 180 * 60) {
+    fail(`CHALLENGE_CLOCK_TICKS is ${CHALLENGE_CLOCK_TICKS}, expected 10800`);
+  }
+  if (SECRET_CHALLENGE_CLOCK_SECONDS !== 90) {
+    fail(`SECRET_CHALLENGE_CLOCK_SECONDS is ${SECRET_CHALLENGE_CLOCK_SECONDS}, expected 90`);
+  }
+  if (SECRET_CHALLENGE_CLOCK_TICKS !== 90 * 60) {
+    fail(`SECRET_CHALLENGE_CLOCK_TICKS is ${SECRET_CHALLENGE_CLOCK_TICKS}, expected 5400`);
+  }
+
+  // 2. 3-Minute Challenge Simulation & Clock Bounds
+  const sim3m = new VoxelSandboxSim({ seed: 'challenge3m-test', scene: 'gallery', mode: 'challenge3m' });
+  if (sim3m.clockLimit !== CHALLENGE_CLOCK_TICKS) {
+    fail(`challenge3m sim clockLimit is ${sim3m.clockLimit}, expected ${CHALLENGE_CLOCK_TICKS} (10,800 ticks)`);
+  }
+  if (sim3m.timeLeft !== CHALLENGE_CLOCK_SECONDS) {
+    fail(`challenge3m sim timeLeft is ${sim3m.timeLeft}, expected ${CHALLENGE_CLOCK_SECONDS} (180s)`);
+  }
+  if (!sim3m.isChallenge) {
+    fail('challenge3m sim isChallenge flag should be true');
+  }
+
+  // 3. Secret 90s Challenge Simulation
+  const sim90s = new VoxelSandboxSim({ seed: 'challenge90s-test', scene: 'gallery', mode: 'challenge90s' });
+  if (sim90s.clockLimit !== SECRET_CHALLENGE_CLOCK_TICKS) {
+    fail(`challenge90s sim clockLimit is ${sim90s.clockLimit}, expected ${SECRET_CHALLENGE_CLOCK_TICKS} (5,400 ticks)`);
+  }
+  if (sim90s.timeLeft !== SECRET_CHALLENGE_CLOCK_SECONDS) {
+    fail(`challenge90s sim timeLeft is ${sim90s.timeLeft}, expected ${SECRET_CHALLENGE_CLOCK_SECONDS} (90s)`);
+  }
+
+  // 4. Challenge Coin Multiplier (2x normal coin value)
+  if (CHALLENGE_COIN_MULTIPLIER !== 2) {
+    fail(`CHALLENGE_COIN_MULTIPLIER is ${CHALLENGE_COIN_MULTIPLIER}, expected 2`);
+  }
+
+  // 5. Secret 90s Challenge Unlock Logic Across City Catalog
+  const mockSave = __freshSave();
+  if (isSecret90sChallengeUnlocked(mockSave, CITY_CATALOG)) {
+    fail('Secret 90s challenge should be locked initially on a fresh save');
+  }
+  if (getCompletedChallengeCount(mockSave, CITY_CATALOG) !== 0) {
+    fail(`Initial completed challenge count should be 0, got ${getCompletedChallengeCount(mockSave, CITY_CATALOG)}`);
+  }
+
+  // Complete first 7 cities
+  for (let i = 0; i < CITY_CATALOG.length - 1; i++) {
+    const city = CITY_CATALOG[i];
+    recordChallengeResult(mockSave, city.scene, {
+      mode: 'challenge3m',
+      won: true,
+      elapsed: 110.5,
+      score: 15000,
+      bestCombo: 25,
+      coinsEarned: (city.coinCount * city.coinValue + city.goalBonus) * 2,
+      percent: 1.0,
+    });
+    if (!isCityChallengeCompleted(mockSave, city.scene)) {
+      fail(`isCityChallengeCompleted should be true for ${city.scene}`);
+    }
+  }
+
+  if (isSecret90sChallengeUnlocked(mockSave, CITY_CATALOG)) {
+    fail('Secret 90s challenge should still be locked when 7 of 8 cities are completed');
+  }
+  if (getCompletedChallengeCount(mockSave, CITY_CATALOG) !== CITY_CATALOG.length - 1) {
+    fail(`Completed challenge count should be ${CITY_CATALOG.length - 1}, got ${getCompletedChallengeCount(mockSave, CITY_CATALOG)}`);
+  }
+
+  // Complete final city (8th city)
+  const lastCity = CITY_CATALOG[CITY_CATALOG.length - 1];
+  recordChallengeResult(mockSave, lastCity.scene, {
+    mode: 'challenge3m',
+    won: true,
+    elapsed: 145.0,
+    score: 85000,
+    bestCombo: 50,
+    coinsEarned: (lastCity.coinCount * lastCity.coinValue + lastCity.goalBonus) * 2,
+    percent: 1.0,
+  });
+
+  if (!isSecret90sChallengeUnlocked(mockSave, CITY_CATALOG)) {
+    fail('Secret 90s challenge should be UNLOCKED after all 8 city challenges are completed!');
+  }
+  if (getCompletedChallengeCount(mockSave, CITY_CATALOG) !== CITY_CATALOG.length) {
+    fail(`Completed challenge count should be ${CITY_CATALOG.length}, got ${getCompletedChallengeCount(mockSave, CITY_CATALOG)}`);
+  }
+
+  // 6. Coins Persistence on Challenge Wins (2x reward)
+  const initialCoins = mockSave.coins;
+  recordChallengeResult(mockSave, 'chicago', {
+    mode: 'challenge3m',
+    won: true,
+    elapsed: 120.0,
+    score: 40000,
+    bestCombo: 30,
+    coinsEarned: 600, // 2x payout
+    percent: 1.0,
+  });
+  if (mockSave.coins !== initialCoins + 600) {
+    fail(`recordChallengeResult should award 600 coins to save.coins, expected ${initialCoins + 600}, got ${mockSave.coins}`);
+  }
+}
+
 function validateSyntax() {
   console.log('Validating JS syntax...');
   const scanDir = (dir) => {
@@ -2507,7 +2627,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
   // gets its own child.
   const groups = [
     ['syntax', 'syntaxCheck'],
-    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,fwMath,runBoard,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements'],
+    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,fwMath,runBoard,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges'],
     ['campaignLevels', 'campaignLevels'],
     ['scenesWinnable', 'scenesWinnable'],
     ['manhattan', 'manhattan'],
@@ -2591,6 +2711,7 @@ section('scenesWinnable', validateScenesWinnable);
 section('voxelSandbox', validateVoxelSandbox);
 section('voxelCollisions', validateVoxelCollisions);
 section('gameplayEnhancements', validateGameplayEnhancements);
+section('cityChallenges', validateCityChallenges);
 section('manhattan', validateManhattan);
 section('upperManhattan', validateUpperManhattan);
 section('brooklyn', validateBrooklyn);

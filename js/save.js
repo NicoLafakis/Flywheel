@@ -12,7 +12,7 @@ import { defaultUpgrades, upgradeCost, MAX_UPGRADE_RANK } from './upgrades.js';
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 20;
+export const CURRENT_VERSION = 21;
 
 // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
 export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2 };
@@ -121,6 +121,8 @@ function freshSave() {
     outbox: [],
     // Stat upgrades: { speed: 0, vortex: 0, growth: 0, duration: 0 }
     upgrades: defaultUpgrades(),
+    // City challenges: scene id -> { completed3m, bestTime3m, bestScore3m, completed90s, bestTime90s, bestScore90s }
+    challenges: {},
   };
 }
 
@@ -362,6 +364,12 @@ const MIGRATIONS = {
       growth: Math.max(s.upgrades?.growth || 0, (s.ownedItems || []).includes('growth5') ? 1 : 0),
     },
   }),
+  // v21: 3-minute city challenges & secret 90s hyper challenge tracking
+  20: (s) => ({
+    ...s,
+    version: 21,
+    challenges: s.challenges || {},
+  }),
 };
 
 export function loadSave() {
@@ -466,6 +474,63 @@ export function recordSandboxResult(save, scene, {
     bestPercent: Math.max(prev.bestPercent || 0, Math.min(1, Math.max(0, percent))),
   };
   save.coins += coinsEarned;
+  storeSave(save);
+}
+
+// Re-export challenge progression helpers from pure citycatalog module
+export {
+  isCityChallengeCompleted,
+  getCompletedChallengeCount,
+  isSecret90sChallengeUnlocked,
+} from './citycatalog.js';
+
+// Record City Challenge (3m or 90s secret) completion and rewards
+export function recordChallengeResult(save, scene, {
+  mode = 'challenge3m', coinsEarned = 0, elapsed = 0, bestCombo = 0, score = 0, won = true, percent = 0,
+}) {
+  if (!save.challenges) save.challenges = {};
+  const prev = save.challenges[scene] || {
+    completed3m: false, bestTime3m: null, bestScore3m: null,
+    completed90s: false, bestTime90s: null, bestScore90s: null,
+  };
+
+  const is3m = mode === 'challenge3m' || mode === 'challenge';
+  const is90s = mode === 'challenge90s' || mode === 'run90';
+
+  const clearTime = won && typeof elapsed === 'number' && !isNaN(elapsed) && elapsed > 0 ? elapsed : null;
+  const isFullClear = won || percent >= 1.0;
+
+  const entry = {
+    ...prev,
+    completed3m: prev.completed3m || (is3m && isFullClear),
+    bestTime3m: is3m && isFullClear
+      ? (prev.bestTime3m === null || prev.bestTime3m === undefined ? clearTime : Math.min(prev.bestTime3m, clearTime || prev.bestTime3m))
+      : prev.bestTime3m,
+    bestScore3m: is3m ? Math.max(prev.bestScore3m || 0, Math.floor(score)) : prev.bestScore3m,
+    completed90s: prev.completed90s || (is90s && isFullClear),
+    bestTime90s: is90s && isFullClear
+      ? (prev.bestTime90s === null || prev.bestTime90s === undefined ? clearTime : Math.min(prev.bestTime90s, clearTime || prev.bestTime90s))
+      : prev.bestTime90s,
+    bestScore90s: is90s ? Math.max(prev.bestScore90s || 0, Math.floor(score)) : prev.bestScore90s,
+  };
+
+  save.challenges[scene] = entry;
+
+  // Also update sandbox records so personal bests, high scores and clears reflect the run
+  if (!save.sandbox) save.sandbox = {};
+  const prevSb = save.sandbox[scene] || { completions: 0, bestTime: null };
+  save.sandbox[scene] = {
+    completions: prevSb.completions + (won ? 1 : 0),
+    runs: (prevSb.runs ?? prevSb.completions ?? 0) + 1,
+    bestSize: Math.max(prevSb.bestSize || 1, 1),
+    bestTime: won ? (prevSb.bestTime === null || prevSb.bestTime === undefined
+      ? elapsed : Math.min(prevSb.bestTime, elapsed)) : (prevSb.bestTime ?? null),
+    bestCombo: Math.max(prevSb.bestCombo || 0, bestCombo),
+    bestScore: Math.max(prevSb.bestScore || 0, Math.floor(score)),
+    bestPercent: Math.max(prevSb.bestPercent || 0, Math.min(1, Math.max(0, percent))),
+  };
+
+  save.coins = (save.coins || 0) + (coinsEarned || 0);
   storeSave(save);
 }
 

@@ -5,7 +5,7 @@ import {
   RANKED_TICK_COUNT, VoxelSandboxSim, sandboxSizeProgress, loadScene,
 } from './voxelsim.js';
 import { getLevel, METROS } from './levels.js';
-import { loadSave, storeSave, recordLevelResult, recordSandboxResult, isLevelUnlocked, buyUpgrade } from './save.js';
+import { loadSave, storeSave, recordLevelResult, recordSandboxResult, recordChallengeResult, isLevelUnlocked, buyUpgrade } from './save.js';
 import { upgradeMultiplier } from './upgrades.js';
 import { World3D } from './world3d.js';
 import { VoxelWorld3D } from './voxelworld.js';
@@ -240,7 +240,8 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
       startLevel();
     }
   },
-  startVoxelSandbox(scene) { startVoxelSandbox(scene); },
+  startVoxelSandbox(scene, mode = 'freeplay') { startVoxelSandbox(scene, mode); },
+  startChallenge(scene, mode = 'challenge3m') { startVoxelSandbox(scene, mode); },
   startRankedRun(scene) { void startRankedRun(scene); },
   showMultiplayerModal() { showMultiplayerHostModal(); },
   resume() {
@@ -769,7 +770,11 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
       ? { inputs: createInputBuffer(RANKED_TICK_COUNT), ticks: 0, ticket, move: { x: 0, z: 0 } }
       : null;
     resize();
-    hud.setLevel({ index: mode === 'run90' ? 'RUN' : 'SANDBOX', clock: mode === 'run90' ? 90 : 999 }, hudLabel);
+    const modeLabel = mode === 'run90' || mode === 'challenge90s'
+      ? '90s RUN'
+      : (mode === 'challenge3m' || mode === 'challenge' ? '3m CHALLENGE' : 'SANDBOX');
+    const hudClock = sim.clockLimit ? sim.clockLimit / 60 : 90;
+    hud.setLevel({ index: modeLabel, clock: hudClock }, hudLabel);
     hud.show();
     screens.clear();
     state = 'playing';
@@ -1535,22 +1540,32 @@ function endSandbox() {
     return;
   }
   screens.showSandboxResults(finished, (action, coins) => {
-    recordSandboxResult(save, finished.scene, {
-      coinsEarned: coins, elapsed: finished.time,
-      bestCombo: finished.hole.bestCombo, score: finished.hole.mass,
-      // Both halves of the outcome, because the clock made them different
-      // questions (R-2.2). `won` is a genuine full clear of the city and is what
-      // `completions` counts; `percent` is what the player actually reached in
-      // the 180 s and is the record almost every run will set.
-      won: finished.won,
-      percent: finished.totalMass ? finished.hole.rawMass / finished.totalMass : 0,
-    });
+    if (finished.isChallenge || finished.mode === 'challenge3m' || finished.mode === 'challenge' || finished.mode === 'challenge90s') {
+      recordChallengeResult(save, finished.scene, {
+        mode: finished.mode,
+        coinsEarned: coins, elapsed: finished.time,
+        bestCombo: finished.hole.bestCombo, score: finished.hole.mass,
+        won: finished.won,
+        percent: finished.totalMass ? finished.hole.rawMass / finished.totalMass : 0,
+      });
+    } else {
+      recordSandboxResult(save, finished.scene, {
+        coinsEarned: coins, elapsed: finished.time,
+        bestCombo: finished.hole.bestCombo, score: finished.hole.mass,
+        // Both halves of the outcome, because the clock made them different
+        // questions (R-2.2). `won` is a genuine full clear of the city and is what
+        // `completions` counts; `percent` is what the player actually reached in
+        // the 180 s and is the record almost every run will set.
+        won: finished.won,
+        percent: finished.totalMass ? finished.hole.rawMass / finished.totalMass : 0,
+      });
+    }
     if (action === 'menu') {
       teardownWorld(); state = 'menu'; screens.showTitle();
     } else if (action === 'cities' || action === 'map' || action === true) {
       teardownWorld(); state = 'menu'; screens.showCitySelect();
     } else {
-      startVoxelSandbox(finished.scene);
+      startVoxelSandbox(finished.scene, finished.mode);
     }
   });
 }
