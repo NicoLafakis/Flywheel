@@ -1,6 +1,19 @@
 // js/multiplayer/channel.js — Ephemeral Transport Layer (Zero Storage / Zero Persistence)
 
 import { decodeMessage, encodeMessage } from './protocol.js';
+import { RealtimeClient } from '../vendor/supabase-realtime.module.js';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '../board/config.js';
+
+let sharedRealtimeClient = null;
+function getRealtimeClient() {
+  if (!sharedRealtimeClient && typeof window !== 'undefined') {
+    sharedRealtimeClient = new RealtimeClient(`${SUPABASE_URL}/realtime/v1`, {
+      params: { apikey: SUPABASE_PUBLISHABLE_KEY }
+    });
+    sharedRealtimeClient.connect();
+  }
+  return sharedRealtimeClient;
+}
 
 /**
  * Base Channel interface.
@@ -104,42 +117,53 @@ export class LiveBroadcastChannel extends MultiplayerChannel {
   constructor(roomCode, senderId, options = {}) {
     super(roomCode, senderId);
     this.senderId = senderId;
-    this._bc = null;
+    this._client = getRealtimeClient();
+    this._channel = null;
     this._initBroadcast();
   }
 
   _initBroadcast() {
-    if (typeof BroadcastChannel !== 'undefined') {
-      try {
-        this._bc = new BroadcastChannel(`fw_room_${this.roomCode}`);
-        this._bc.onmessage = (evt) => {
-          this._dispatch(evt.data);
-        };
-      } catch (err) {
-        console.warn('[LiveBroadcastChannel] Fallback to window events:', err);
+    if (!this._client) return;
+    this._channel = this._client.channel(`fw_room_${this.roomCode}`, {
+      config: {
+        broadcast: { ack: false }
       }
-    }
+    });
+
+    this._channel
+      .on('broadcast', { event: 'fw_msg' }, (payload) => {
+        this._dispatch(payload.payload);
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[LiveBroadcastChannel] Connected to room', this.roomCode);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[LiveBroadcastChannel] Error connecting to room', this.roomCode);
+        }
+      });
   }
 
   broadcast(message) {
     const encoded = encodeMessage(message);
     // 1. Dispatch locally to self listeners
     this._dispatch(encoded);
-    // 2. Broadcast across tabs/windows
-    if (this._bc) {
-      try {
-        this._bc.postMessage(encoded);
-      } catch (err) {
-        console.error('[LiveBroadcastChannel] postMessage failed:', err);
-      }
+    // 2. Broadcast across the network
+    if (this._channel) {
+      this._channel.send({
+        type: 'broadcast',
+        event: 'fw_msg',
+        payload: encoded
+      }).catch((err) => {
+        console.error('[LiveBroadcastChannel] send failed:', err);
+      });
     }
   }
 
   close() {
     super.close();
-    if (this._bc) {
-      this._bc.close();
-      this._bc = null;
+    if (this._channel && this._client) {
+      this._client.removeChannel(this._channel);
+      this._channel = null;
     }
   }
 }

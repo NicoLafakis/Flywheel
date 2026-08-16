@@ -1412,8 +1412,6 @@ export class Screens {
     return overlay;
   }
 
-  }
-
   showCivilDisasterEmergencyCinematic({ onSkip, reducedMotion = false, duration = 5.0, disaster = {} } = {}) {
     this.dismissCivilDisasterEmergencyCinematic();
     const title = disaster.title || 'SEISMIC FAULT LINE RUPTURE';

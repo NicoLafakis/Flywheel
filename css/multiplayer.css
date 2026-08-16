@@ -331,15 +331,18 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   min-height: 100vh;
   padding: 18px;
   pointer-events: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .mp-lobby-container {
   width: 100%;
   max-width: 900px;
+  margin: auto 0;
   background: rgba(12, 16, 26, 0.95);
   backdrop-filter: blur(20px);
   border: 1.5px solid rgba(255, 255, 255, 0.14);

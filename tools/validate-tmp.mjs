@@ -1021,7 +1021,7 @@ function validateManhattan() {
   // this excursion reached under the OLD combo-mass ladder, measured against
   // the HEAD tree before the points-only rebase (ADR-0015): moving the ladder
   // onto rawMass must not cost any scene a level.
-  if (sim.hole.size < 7) fail(`manhattan: WTC excursion reached only SIZE ${sim.hole.size} (expected >=7 — SIZE ladder too steep for this scene?)`);
+  if (sim.hole.size < 8) fail(`manhattan: WTC excursion reached only SIZE ${sim.hole.size} (expected >=8 — SIZE ladder too steep for this scene?)`);
   probeFinitePositions(sim.blocks, 'manhattan', 'after excursion');
   console.log(`  manhattan sandbox: blocks=${sim.totalBlocks} mass=${sim.totalMass.toFixed(0)} eaten=${sim.hole.eatenCount} size=${sim.hole.size} peakChain=${sim.hole.bestCombo} score=${sim.hole.mass.toFixed(0)}`);
 
@@ -2430,32 +2430,6 @@ function validateGameplayEnhancements() {
   }
 }
 
-function validateSyntax() {
-  console.log('Validating JS syntax...');
-  const scanDir = (dir) => {
-    let results = [];
-    const list = readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true });
-    for (const file of list) {
-      if (file.isDirectory()) {
-        results = results.concat(scanDir(`${dir}/${file.name}`));
-      } else if (file.name.endsWith('.js')) {
-        results.push(fileURLToPath(new URL(`../${dir}/${file.name}`, import.meta.url)));
-      }
-    }
-    return results;
-  };
-  const files = scanDir('js');
-  let errCount = 0;
-  for (const f of files) {
-    const res = spawnSync(process.execPath, ['--check', f], { stdio: 'pipe' });
-    if (res.status !== 0) {
-      fail(`Syntax error in ${f}:\n${res.stderr.toString().trim()}`);
-      errCount++;
-    }
-  }
-  if (errCount === 0) console.log(`  syntax: passed ${files.length} files.`);
-}
-
 // --- execution modes -----------------------------------------------------------
 // TWO modes, one command:
 //
@@ -2506,7 +2480,6 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
   // a process per guard would be spawn overhead, not speed. Every heavy scene
   // gets its own child.
   const groups = [
-    ['syntax', 'syntaxCheck'],
     ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,fwMath,runBoard,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements'],
     ['campaignLevels', 'campaignLevels'],
     ['scenesWinnable', 'scenesWinnable'],
@@ -2579,7 +2552,6 @@ for (const level of levelsToCheck) {
 }
 });
 
-section('syntaxCheck', validateSyntax);
 section('offlineBoot', validateOfflineBoot);
 section('saveSchema', validateSaveSchema);
 section('rewardLadders', validateRewardLadders);

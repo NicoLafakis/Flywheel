@@ -99,7 +99,8 @@ export class MultiplayerLobby {
   }
 
   get inviteUrl() {
-    const origin = typeof window !== 'undefined' && window.location ? window.location.origin : 'https://flywheel.game';
+    const isLocal = typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const origin = (!isLocal && typeof window !== 'undefined' && window.location) ? window.location.origin : 'https://playflywheel.com';
     return `${origin}/?room=${this.roomCode}`;
   }
 
