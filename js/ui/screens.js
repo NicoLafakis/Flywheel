@@ -56,6 +56,7 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 1 · CASUAL',
     badge: 'STARTER',
     accentColor: '#00f0ff',
+    icon: '🧪',
     coinCount: 60,
     coinValue: 1,
     goalBonus: 25,
@@ -71,6 +72,7 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 2 · NORMAL',
     badge: 'STAGE 1',
     accentColor: '#ffd23f',
+    icon: '🏙️',
     coinCount: 70,
     coinValue: 2,
     goalBonus: 50,
@@ -86,6 +88,7 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 3 · SKILLED',
     badge: 'STAGE 2',
     accentColor: '#ff9f1c',
+    icon: '🌉',
     coinCount: 80,
     coinValue: 2,
     goalBonus: 75,
@@ -101,6 +104,7 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 4 · EXPERT',
     badge: 'STAGE 3',
     accentColor: '#ff2a2a',
+    icon: '🌆',
     coinCount: 100,
     coinValue: 2,
     goalBonus: 100,
@@ -116,6 +120,7 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 5 · MASTER',
     badge: 'STAGE 4',
     accentColor: '#9d4edd',
+    icon: '🔬',
     coinCount: 120,
     coinValue: 3,
     goalBonus: 150,
@@ -131,6 +136,7 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 6 · GRANDMASTER',
     badge: 'STAGE 5',
     accentColor: '#06d6a0',
+    icon: '🌳',
     coinCount: 140,
     coinValue: 3,
     goalBonus: 200,
@@ -146,6 +152,7 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 7 · TITAN',
     badge: 'STAGE 6',
     accentColor: '#3a86ff',
+    icon: '⚓',
     coinCount: 160,
     coinValue: 4,
     goalBonus: 300,
@@ -161,6 +168,7 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 8 · APEX',
     badge: 'FINAL APEX',
     accentColor: '#ff0054',
+    icon: '🗼',
     coinCount: 200,
     coinValue: 5,
     goalBonus: 500,
@@ -1050,13 +1058,16 @@ export class Screens {
 
     for (const cat of SHOP_CATEGORIES) {
       const isActive = cat.id === categoryId;
-      const tab = el(`<button class="shop-tab ${isActive ? 'active' : ''}" role="tab" aria-selected="${isActive}" id="shop-tab-${cat.id}">
+      // .secondary carries no visual weight here (shop-tab has its own style
+      // block with higher specificity), but it lets the #screen-root delegated
+      // click listener in main.js play audio.uiTap() on every tab switch —
+      // the same sound every other secondary button produces. (ADR-0020)
+      const tab = el(`<button class="shop-tab secondary ${isActive ? 'active' : ''}" role="tab" aria-selected="${isActive}" id="shop-tab-${cat.id}">
         <span class="tab-label">${cat.title}</span>
         <span class="tab-badge">${categoryCounts[cat.id] || ''}</span>
       </button>`);
       tab.onclick = () => {
         if (cat.id !== this.activeShopCategory) {
-          if (this.actions?.sound) this.actions.sound('click');
           this.showShop(cat.id);
         }
       };
@@ -1256,6 +1267,11 @@ export class Screens {
     const fill = s.querySelector('.pu-timer-fill');
     const btn = s.querySelector('.pu-resume-btn');
     let timerInterval = null;
+    // Named constant so the fill formula and the countdown share the same
+    // total duration. A prior edit updated remainingMs to 10 000 but left the
+    // fill formula at 6 000, causing the bar to hit 100% at 4 s elapsed and
+    // go negative for the remaining 6 s. (ADR-0020)
+    const SHOWCASE_TOTAL_MS = 10000;
 
     const cleanupAndDone = () => {
       if (finished) return;
@@ -1283,12 +1299,13 @@ export class Screens {
         cleanupAndDone();
       } else {
         if (countSec) countSec.textContent = Math.ceil(remainingMs / 1000);
-        if (fill) fill.style.width = `${((6000 - remainingMs) / 6000) * 100}%`;
+        if (fill) fill.style.width = `${((SHOWCASE_TOTAL_MS - remainingMs) / SHOWCASE_TOTAL_MS) * 100}%`;
       }
     }, tickInterval);
 
     this.root.appendChild(s);
     this.current = 'pu_showcase';
+
   }
 
   showSuperOverdriveTransformation({ powerup, onSkip, onDone, audio, reducedMotion = false, duration = 4.0 } = {}) {

@@ -1638,6 +1638,9 @@ document.getElementById('btn-pause').addEventListener('click', () => {
 document.getElementById('btn-mute').addEventListener('click', () => {
   save.muted = !save.muted; storeSave(save);
   audio.setMuted(save.muted);
+  // Sync the emoji: the button is hardcoded 🔊 in index.html and was never
+  // updated on toggle, so muting showed 🔊 forever. (ADR-0020)
+  document.getElementById('btn-mute').textContent = save.muted ? '🔇' : '🔊';
 });
 // Menu voice: one delegated listener over every screen the Screens class
 // mounts. Primary CTAs confirm, secondary buttons tap, BACK steps out.

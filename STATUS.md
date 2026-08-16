@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-15
+Last updated: 2026-08-16
 
 ---
 
@@ -16,6 +16,12 @@ Last updated: 2026-08-15
 ---
 
 ## Shipped state
+
+- 2026-08-16 — ADR-0020: Menu Wiring Bug Fixes:
+  - **City Select icon slot**: `CITY_CATALOG` lacked an `icon` field on all 8 entries; the card template rendered `"undefined"`. Each entry now has its city emoji (🧪🏙️🌉🌆🔬🌳⚓🗼).
+  - **Power-Up Showcase timer bar**: Fill formula used `6000` ms as the denominator while the countdown ran for `10000` ms. Replaced with `SHOWCASE_TOTAL_MS = 10000` constant so bar and countdown share one number.
+  - **Shop tab tap sound**: `actions?.sound('click')` was never registered; shop tabs now carry `.secondary` so the existing `#screen-root` delegated listener plays `audio.uiTap()` on every switch.
+  - **HUD mute button emoji**: Button was hardcoded `🔊` in HTML and never updated on click. Handler now writes `🔇`/`🔊` to match actual mute state.
 
 - 2026-08-16 — Demographic Cohort Playtesting (Marketing Professionals 30–55):
   - **4-Persona Simulation Harness**: Created automated demographic playtesting runner (`tools/demographic-playtest.mjs`) modeling 4 distinct player behavioral personas across the target demographic (Elena 32y, Marcus 41y, David 48y, Sarah 54y) on Campaign Levels 1–4.

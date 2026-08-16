@@ -185,6 +185,20 @@ a separate surface that doesn't touch this module: `multiplayer.html`,
 state machine entirely (see `architecture.md`'s Boundaries section), and no
 campaign or sandbox screen calls into `js/net/` yet.
 
+**Reconciled 2026-08-16 (ADR-0020):** Four menu-wiring bugs fixed in
+`js/ui/screens.js` and `js/main.js`. (1) `CITY_CATALOG` was missing an `icon`
+field on every entry; the city-select card template rendered the literal string
+`"undefined"` — each entry now carries the correct emoji. (2) The power-up
+showcase fill bar used `6000` as the total-ms denominator while the countdown
+was `10000`; replaced with `SHOWCASE_TOTAL_MS = 10000`. (3) Shop tab buttons
+called `actions?.sound('click')` which was never registered; tabs now carry
+`.secondary` so the existing `#screen-root` delegated listener fires
+`audio.uiTap()` on every switch. (4) The HUD mute button was hardcoded `🔊`
+in `index.html` and never updated on toggle; the click handler now syncs the
+emoji to `🔇`/`🔊` immediately after `audio.setMuted()`. No gameplay code
+touched.
+
+
 **Planned, not built:** the online-Flywheel package
 (`.wiki/features/online-flywheel/`) proposes new sign-in, leaderboard, and
 trophy-room screens on top of this module. See
