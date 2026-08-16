@@ -17,6 +17,11 @@ Last updated: 2026-08-15
 
 ## Shipped state
 
+- 2026-08-16 — Demographic Cohort Playtesting (Marketing Professionals 30–55):
+  - **4-Persona Simulation Harness**: Created automated demographic playtesting runner (`tools/demographic-playtest.mjs`) modeling 4 distinct player behavioral personas across the target demographic (Elena 32y, Marcus 41y, David 48y, Sarah 54y) on Campaign Levels 1–4.
+  - **Single-Player Validation**: Validated single-player campaign completion metrics (100% clears, 13–22s clear times, 3/3 stars, high combo scaling) across all 4 levels.
+  - **Aesthetic & UX Findings**: Identified key demographic preferences (clean emoji-free typography, fast 1-tap mobile loops, miniature diorama aesthetic) and roadmap recommendations (aligning power-up presentation with the industrial/architectural Flywheel brand language).
+
 - 2026-08-16 — Level 1 (The Lab) 6-Player Invite Lobby Multiplayer Shipped:
   - **6-Player Multi-Hole City Sandbox Engine**: Enhanced `VoxelSandboxSim` (`js/voxelsim.js`) to support 2..6 player holes simultaneously on Level 1 (The Lab, 12,213 blocks) with deterministic perimeter spawning, synchronized movement, and full power-up parity.
   - **Authoritative PvP Hole-on-Hole Eating & 10s Respawn Timeout**: Implemented pairwise hole collision detection ($r_\text{large} > r_\text{small} \times 1.05$). The smaller player is devoured, awarded to the killer as bonus mass, and put into a mandatory **10.0-second timeout/pause** penalty (`💀 SWALLOWED BY RIVAL! · RESPAWNING IN 10s...`) before respawning at a safe perimeter position.

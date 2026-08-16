@@ -508,7 +508,6 @@ export class Screens {
         <div class="city-select-sub">ASCENDING METROPOLIS CAMPAIGN</div>
       </div>
       <div class="city-progress-badge" id="city-progress-badge">
-        <span class="progress-icon">🏆</span>
         <span class="progress-text"></span>
       </div>
     </div>`);
