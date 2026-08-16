@@ -5,6 +5,10 @@ import { RealtimeClient } from '../vendor/supabase-realtime.module.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '../board/config.js';
 
 let sharedRealtimeClient = null;
+export function _setRealtimeClientForTest(client) {
+  sharedRealtimeClient = client;
+}
+
 function getRealtimeClient() {
   if (!sharedRealtimeClient && typeof window !== 'undefined') {
     sharedRealtimeClient = new RealtimeClient(`${SUPABASE_URL}/realtime/v1`, {
@@ -119,6 +123,8 @@ export class LiveBroadcastChannel extends MultiplayerChannel {
     this.senderId = senderId;
     this._client = getRealtimeClient();
     this._channel = null;
+    this._isSubscribed = false;
+    this._queuedBroadcasts = [];
     this._initBroadcast();
   }
 
@@ -137,10 +143,29 @@ export class LiveBroadcastChannel extends MultiplayerChannel {
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('[LiveBroadcastChannel] Connected to room', this.roomCode);
+          this._isSubscribed = true;
+          this._flushQueue();
         } else if (status === 'CHANNEL_ERROR') {
           console.error('[LiveBroadcastChannel] Error connecting to room', this.roomCode);
+          this._isSubscribed = false;
+        } else if (status === 'CLOSED') {
+          this._isSubscribed = false;
         }
       });
+  }
+
+  _flushQueue() {
+    if (!this._channel || !this._isSubscribed) return;
+    for (const encoded of this._queuedBroadcasts) {
+      this._channel.send({
+        type: 'broadcast',
+        event: 'fw_msg',
+        payload: encoded
+      }).catch((err) => {
+        console.error('[LiveBroadcastChannel] send failed:', err);
+      });
+    }
+    this._queuedBroadcasts = [];
   }
 
   broadcast(message) {
@@ -149,13 +174,18 @@ export class LiveBroadcastChannel extends MultiplayerChannel {
     this._dispatch(encoded);
     // 2. Broadcast across the network
     if (this._channel) {
-      this._channel.send({
-        type: 'broadcast',
-        event: 'fw_msg',
-        payload: encoded
-      }).catch((err) => {
-        console.error('[LiveBroadcastChannel] send failed:', err);
-      });
+      if (this._isSubscribed) {
+        this._channel.send({
+          type: 'broadcast',
+          event: 'fw_msg',
+          payload: encoded
+        }).catch((err) => {
+          console.error('[LiveBroadcastChannel] send failed:', err);
+        });
+      } else {
+        // Queue the message to be sent once subscribed
+        this._queuedBroadcasts.push(encoded);
+      }
     }
   }
 
@@ -165,5 +195,7 @@ export class LiveBroadcastChannel extends MultiplayerChannel {
       this._client.removeChannel(this._channel);
       this._channel = null;
     }
+    this._isSubscribed = false;
+    this._queuedBroadcasts = [];
   }
 }
