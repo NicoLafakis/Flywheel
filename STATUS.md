@@ -17,6 +17,21 @@ Last updated: 2026-08-15
 
 ## Shipped state
 
+- 2026-08-16 — Level 1 (The Lab) 6-Player Invite Lobby Multiplayer Shipped:
+  - **6-Player Multi-Hole City Sandbox Engine**: Enhanced `VoxelSandboxSim` (`js/voxelsim.js`) to support 2..6 player holes simultaneously on Level 1 (The Lab, 12,213 blocks) with deterministic perimeter spawning, synchronized movement, and full power-up parity.
+  - **Authoritative PvP Hole-on-Hole Eating & 10s Respawn Timeout**: Implemented pairwise hole collision detection ($r_\text{large} > r_\text{small} \times 1.05$). The smaller player is devoured, awarded to the killer as bonus mass, and put into a mandatory **10.0-second timeout/pause** penalty (`💀 SWALLOWED BY RIVAL! · RESPAWNING IN 10s...`) before respawning at a safe perimeter position.
+  - **Shareable Room Invite Links**: Instant room link generation (`?room=CODE`) with automatic lobby join when loaded from URL query parameter.
+  - **Staging Lobby with Ephemeral Chat**: Live roster display (2..6 player capacity), copy invite link button with clipboard feedback, and **zero-persistence ephemeral chat** (strictly in-memory, never written to disk or database, destroyed on match launch).
+  - **Auto-Start Countdown**: Automatically launches a 3-second countdown the moment all player slots are filled ($N/N$).
+  - **Multi-Client Wire Protocol & Session Handshake**: Authoritative host (`MultiplayerHost`, `js/multiplayer/host.js`) and client peer (`MultiplayerPeer`, `js/multiplayer/peer.js`) over ephemeral broadcast transport layer (`LiveBroadcastChannel`, `js/multiplayer/channel.js`).
+  - **Multiplayer UI, 3D Rival Hole Rendering, and Podium**: Added `MultiplayerUI` (`js/multiplayer/ui.js`), `css/multiplayer.css`, in-world rival colored hole meshes with neon rims in `VoxelWorld3D` (`js/voxelworld.js`), title screen `👥 MULTIPLAYER (2-6P)` button, and post-match victory podium with rankings.
+  - **100% TDD Test Suite**: Comprehensive automated test suites (`tools/multiplayer-config.test.mjs`, `tools/multiplayer-protocol.test.mjs`, `tools/multiplayer-lobby.test.mjs`, `tools/multiplayer-sim.test.mjs`, `tools/multiplayer-session.test.mjs`, `tools/multiplayer-e2e.test.mjs`) all passing.
+
+- 2026-08-16 — Scrapped Legacy Multiplayer & Prepared Fresh Clean-Slate Architecture:
+  - **Scrapped Legacy Multiplayer Stack**: Completely removed the old prototype arena code (`js/net/`, `js/demo/`, `arena.html`, `multiplayer.html`, `netdemo.html`, and related selftests).
+  - **Purged Outdated Multiplayer Design Docs & ADRs**: Scrapped `.wiki/features/online-flywheel/`, `.wiki/features/party-mode/`, and `ADR-0010`.
+  - **Decoupled Leaderboards & Cleaned Front Door**: Retained Supabase credentials inside `js/board/config.js` for standalone leaderboards/profiles, and removed legacy title screen `#mp-link` / redirects in preparation for building multiplayer from scratch.
+
 - 2026-08-15 - Modern Mobile Game Shop & Multi-Rank Incremental Character Stat Upgrades:
   - **Category Icon Tabs**: Replaced flat item shelf with 5 dedicated icon category tabs (`🕳️ Skins`, `👾 Creatures`, `🤝 Partners`, `🧭 Indicators`, `⚡ Upgrades`) with unlock progress badges and fluid category transitions.
   - **Collection & Bank Header**: Sticky top navigation bar featuring unified collection progress (`14/31 Cosmetics · 12/80 Upgrade Ranks`), responsive Back navigation, and live animated coin capsule.
@@ -69,7 +84,7 @@ Last updated: 2026-08-15
 - **Brand**: *Flywheel — A sprocket's story*. Branded landing screen over live city backdrop, block wordmark, legal footer.
 - **Progression**: Free-play voxel sandboxes on 180s clock, 100% full-clear goal, 60 deterministic collectible coins per city, skin & indicator shop.
 - **Cities (7 + Tokyo)**: Gallery, Manhattan, Upper Manhattan (73k blocks), Brooklyn (40k blocks), Boston (83k blocks), Cambridge (73k blocks), Chicago Loop (44k blocks), Tokyo (83k blocks).
-- **Multiplayer & Boards**: Supabase Realtime 1v1 arena (`arena.html`); THE RUN Chicago 90s verified replay; public boards; local/cloud profiles; signed outbox.
+- **Boards & Online Progression**: THE RUN Chicago 90s verified replay; public boards; local/cloud profiles; signed outbox. Multiplayer being rebuilt from scratch.
 - **Audio & Quality**: 10 streamed cues, independent audio mix controls, HIGH/LOW binary quality.
 
 ---

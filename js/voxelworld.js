@@ -749,6 +749,34 @@ export class VoxelWorld3D {
     this._ownedMats.push(this.vortexAura.material, this.titanAura.material, this.frenzyAura.material);
 
     this.scene.add(this.holeMesh);
+
+    // Multiplayer Rival Holes (Slots 1..N)
+    this.rivalMeshes = [];
+    if (this.sim.holes && this.sim.holes.length > 1) {
+      for (let i = 1; i < this.sim.holes.length; i++) {
+        const rH = this.sim.holes[i];
+        const rGroup = new THREE.Group();
+        const rDisc = new THREE.Mesh(circleGeo(), new THREE.MeshBasicMaterial({ color: 0x06060c }));
+        rDisc.rotation.x = -Math.PI / 2;
+        rDisc.position.y = 0.01;
+
+        const rimColor = rH.color || '#ff0054';
+        const rRim = new THREE.Mesh(ringGeo(), new THREE.MeshBasicMaterial({
+          color: new THREE.Color(rimColor),
+          transparent: true,
+          opacity: 0.9,
+          side: THREE.DoubleSide,
+        }));
+        rRim.rotation.x = -Math.PI / 2;
+        rRim.position.y = 0.015;
+
+        rGroup.add(rDisc, rRim);
+        rGroup.userData = { disc: rDisc, rim: rRim, hole: rH, index: i };
+        this.scene.add(rGroup);
+        this.rivalMeshes.push(rGroup);
+        this._ownedMats.push(rDisc.material, rRim.material);
+      }
+    }
     // The heading pointer: a paper-plane arrow welded to controls.heading,
     // dark outline plate under a brand-orange face, floating just above the
     // void. Tank steering is only playable when the heading is VISIBLE — the
@@ -3287,6 +3315,21 @@ export class VoxelWorld3D {
     // the hole grows.
     this.headingArrow.rotation.y = h.heading || 0;
     this.headingArrow.scale.setScalar(Math.max(0.001, h.radius * INDICATOR_SCALE));
+
+    // Update Multiplayer Rival Holes
+    if (this.rivalMeshes && this.rivalMeshes.length > 0) {
+      for (const rGroup of this.rivalMeshes) {
+        const rH = this.sim.holes[rGroup.userData.index];
+        if (!rH || rH.alive === false) {
+          rGroup.visible = false;
+          continue;
+        }
+        rGroup.visible = true;
+        rGroup.position.set(rH.x, 0, rH.z);
+        rGroup.userData.disc.scale.setScalar(rH.radius);
+        rGroup.userData.rim.scale.setScalar(rH.radius);
+      }
+    }
 
     // Power-up In-World Auras & Aura Effects
     if (this.powerupAuraGroup) {

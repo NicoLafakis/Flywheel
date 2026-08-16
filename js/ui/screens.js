@@ -56,7 +56,6 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 1 · CASUAL',
     badge: 'STARTER',
     accentColor: '#00f0ff',
-    icon: '🧪',
     coinCount: 60,
     coinValue: 1,
     goalBonus: 25,
@@ -72,7 +71,6 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 2 · NORMAL',
     badge: 'STAGE 1',
     accentColor: '#ffd23f',
-    icon: '🏦',
     coinCount: 70,
     coinValue: 2,
     goalBonus: 50,
@@ -88,7 +86,6 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 3 · SKILLED',
     badge: 'STAGE 2',
     accentColor: '#ff9f1c',
-    icon: '🌉',
     coinCount: 80,
     coinValue: 2,
     goalBonus: 75,
@@ -104,7 +101,6 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 4 · EXPERT',
     badge: 'STAGE 3',
     accentColor: '#ff2a2a',
-    icon: '🏙️',
     coinCount: 100,
     coinValue: 2,
     goalBonus: 100,
@@ -120,7 +116,6 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 5 · MASTER',
     badge: 'STAGE 4',
     accentColor: '#9d4edd',
-    icon: '🧬',
     coinCount: 120,
     coinValue: 3,
     goalBonus: 150,
@@ -136,7 +131,6 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 6 · GRANDMASTER',
     badge: 'STAGE 5',
     accentColor: '#06d6a0',
-    icon: '🌳',
     coinCount: 140,
     coinValue: 3,
     goalBonus: 200,
@@ -152,7 +146,6 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 7 · TITAN',
     badge: 'STAGE 6',
     accentColor: '#3a86ff',
-    icon: '⚓',
     coinCount: 160,
     coinValue: 4,
     goalBonus: 300,
@@ -168,7 +161,6 @@ export const CITY_CATALOG = [
     difficulty: 'TIER 8 · APEX',
     badge: 'FINAL APEX',
     accentColor: '#ff0054',
-    icon: '🗼',
     coinCount: 200,
     coinValue: 5,
     goalBonus: 500,
@@ -301,14 +293,23 @@ export class Screens {
     hero.appendChild(heroText);
     s.appendChild(hero);
 
-    // 1. Play button (clean, no subtitle)
+    // 1. Play button (Primary Hero CTA)
     const ctaWrap = el(`<div class="fw-cta-wrap">
       <button type="button" class="fw-cta" id="btn-main-play">PLAY</button>
     </div>`);
     ctaWrap.querySelector('#btn-main-play').onclick = () => this.showCitySelect();
     s.appendChild(ctaWrap);
 
-    // 2. Login | Highest Score
+    // 2. Multiplayer (Clean, dedicated secondary mode row)
+    const mpRow = el(`<div class="fw-menu-row fw-menu-row--full">
+      <button type="button" class="btn primary btn--mp" id="btn-main-mp">MULTIPLAYER</button>
+    </div>`);
+    mpRow.querySelector('#btn-main-mp').onclick = () => {
+      if (this.actions.showMultiplayerModal) this.actions.showMultiplayerModal();
+    };
+    s.appendChild(mpRow);
+
+    // 3. Login | Highest Score
     const pb = personalBest(this.save);
     const unlock = nextUnlock(this.save);
 
@@ -317,7 +318,7 @@ export class Screens {
     // Player Login / Profile
     const claimed = Boolean(this.save.player && this.save.player.name);
     const id = el(`<button type="button" class="fw-stat fw-id${claimed ? '' : ' fw-id--none'}">
-      <span class="fw-stat-k">👤 ${claimed ? 'PLAYER' : 'PLAYER LOGIN'}</span>
+      <span class="fw-stat-k">${claimed ? 'PLAYER' : 'PLAYER LOGIN'}</span>
       <span class="fw-stat-v"></span>
       <span class="fw-stat-note">${claimed ? 'VIEW PROFILE' : 'SIGN IN / REGISTER'}</span>
     </button>`);
@@ -338,7 +339,7 @@ export class Screens {
     statsRow.appendChild(scoreCard);
     s.appendChild(statsRow);
 
-    // 3. Skin Progress (standalone card directly under Login | Highest Score)
+    // 4. Skin Progress (standalone card directly under Login | Highest Score)
     const meterRow = el(`<div class="fw-status-row fw-status-row--meter"></div>`);
     const currentCoins = this.save.coins || 0;
     if (unlock) {
@@ -357,7 +358,7 @@ export class Screens {
       const goalCard = need > 0
         ? el(`<button type="button" class="fw-stat fw-stat--goal fw-stat--graphic-meter fw-stat--interactive" aria-label="Next skin: ${unlock.name}, ${pctDisplay}% complete. Need ${need} more coins.">
             <div class="fw-meter-header">
-              <span class="fw-stat-k">🪙 SKIN PROGRESS</span>
+              <span class="fw-stat-k">SKIN PROGRESS</span>
               <span class="fw-meter-pct">${pctDisplay}%</span>
             </div>
             <div class="fw-graphic-meter" role="progressbar" aria-valuenow="${pctDisplay}" aria-valuemin="0" aria-valuemax="100">
@@ -377,16 +378,16 @@ export class Screens {
             </div>
             <div class="fw-meter-footer">
               <span class="fw-meter-target">NEXT: <strong>${unlock.name}</strong></span>
-              <span class="fw-meter-coins"><strong>${currentCoins.toLocaleString('en-US')}</strong> / ${unlock.price.toLocaleString('en-US')} 🪙</span>
+              <span class="fw-meter-coins"><strong>${currentCoins.toLocaleString('en-US')}</strong> / ${unlock.price.toLocaleString('en-US')} COINS</span>
             </div>
             <span class="fw-stat-note">${need.toLocaleString('en-US')} coins needed · SHOP</span>
           </button>`)
         : el(`<button type="button" class="fw-stat fw-stat--goal fw-stat--ready fw-stat--graphic-meter fw-stat--interactive" aria-label="Skin ready to unlock: ${unlock.name} for ${unlock.price} coins.">
             <div class="fw-meter-header">
-              <span class="fw-stat-k">🪙 READY TO UNLOCK</span>
+              <span class="fw-stat-k">READY TO UNLOCK</span>
               <span class="fw-meter-pct fw-meter-pct--ready">100%</span>
             </div>
-            <div class="fw-graphic-meter fw-graphic-meter--ready">
+            <div class="fw-graphic-meter" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
               <div class="fw-meter-track">
                 <div class="fw-meter-fill fw-meter-fill--full" style="width:100%">
                   <div class="fw-meter-glare"></div>
@@ -398,7 +399,7 @@ export class Screens {
             </div>
             <div class="fw-meter-footer">
               <span class="fw-meter-target">UNLOCK: <strong>${unlock.name}</strong></span>
-              <span class="fw-meter-coins fw-meter-coins--gold"><strong>${unlock.price.toLocaleString('en-US')} 🪙</strong></span>
+              <span class="fw-meter-coins fw-meter-coins--gold"><strong>${unlock.price.toLocaleString('en-US')} COINS</strong></span>
             </div>
             <span class="fw-stat-note">${unlock.price} coins · UNLOCK IN SHOP</span>
           </button>`);
@@ -407,7 +408,7 @@ export class Screens {
     } else {
       const goalCard = el(`<button type="button" class="fw-stat fw-stat--goal fw-stat--graphic-meter fw-stat--interactive" aria-label="All skins unlocked">
         <div class="fw-meter-header">
-          <span class="fw-stat-k">🪙 SKIN PROGRESS</span>
+          <span class="fw-stat-k">SKIN PROGRESS</span>
           <span class="fw-meter-pct fw-meter-pct--ready">MAX</span>
         </div>
         <div class="fw-graphic-meter fw-graphic-meter--ready">
@@ -417,7 +418,7 @@ export class Screens {
         </div>
         <div class="fw-meter-footer">
           <span class="fw-meter-target"><strong>ALL SKINS UNLOCKED</strong></span>
-          <span class="fw-meter-coins"><strong>${currentCoins.toLocaleString('en-US')} 🪙</strong></span>
+          <span class="fw-meter-coins"><strong>${currentCoins.toLocaleString('en-US')} COINS</strong></span>
         </div>
         <span class="fw-stat-note">VISIT SHOP</span>
       </button>`);
@@ -617,12 +618,12 @@ export class Screens {
             <span class="metric-sub">VOXEL BLOCKS</span>
           </div>
           <div class="city-metric-box">
-            <span class="metric-k">⚡ DIFFICULTY</span>
+            <span class="metric-k">DIFFICULTY</span>
             <span class="metric-v">${city.difficulty.split('·')[0].trim()}</span>
             <span class="metric-sub">${city.difficulty.split('·')[1]?.trim() || 'METROPOLIS'}</span>
           </div>
           <div class="city-metric-box">
-            <span class="metric-k">🪙 MAP COINS</span>
+            <span class="metric-k">MAP COINS</span>
             <span class="metric-v">${city.coinCount} COINS</span>
             <span class="metric-sub">${city.coinValue > 1 ? `×${city.coinValue} (+${city.goalBonus} CLEAR)` : `(+${city.goalBonus} CLEAR)`}</span>
           </div>
@@ -869,7 +870,7 @@ export class Screens {
           <div>Coins found <b>${coinsCollected}/${totalCoins} (+${coinsCollected * coinVal})</b></div>
           ${sim.won ? `<div>Finish bonus <b>+${goalBonusVal}</b></div>` : ''}
           ${coins > 0 ? `<div>Coins earned <b>+${coins}</b></div>` : ''}
-          <div>Bank <b>🪙 ${bankTotal}</b></div>
+          <div>Bank <b>${bankTotal} COINS</b></div>
         </div>
         <div class="results-actions">
           <button class="btn results-btn-again">${sim.won ? 'PLAY AGAIN' : 'RETRY'}</button>
@@ -1028,7 +1029,7 @@ export class Screens {
           <h2>SHOP</h2>
           <div class="shop-progress-summary">Cosmetics: ${ownedCosmetics}/${totalCosmetics} · Upgrades: ${totalUpgradeRanks}/${maxPossibleRanks}</div>
         </div>
-        <div class="shop-coin-pill">🪙 <span class="coin-num">${(this.save.coins || 0).toLocaleString()}</span></div>
+        <div class="shop-coin-pill"><span class="coin-num">${(this.save.coins || 0).toLocaleString()}</span> COINS</div>
       </div>
       <div class="shop-category-banner"></div>
       <div class="shop-content-area" style="width:100%"></div>
@@ -1038,7 +1039,7 @@ export class Screens {
     const backBtn = s.querySelector('#shop-back-btn');
     backBtn.onclick = () => this.showTitle();
 
-    // 1. Tab Bar with Category Icons, Labels, and Badges (Docked at Bottom)
+    // 1. Tab Bar with Category Labels and Badges (Docked at Bottom)
     const tabBar = s.querySelector('.shop-tab-bar');
     const categoryCounts = {
       skins: `${SKINS.filter((s) => !s.family && (s.price === 0 || (this.save.ownedItems || []).includes(s.id))).length}/${SKINS.filter((s) => !s.family).length}`,
@@ -1051,7 +1052,6 @@ export class Screens {
     for (const cat of SHOP_CATEGORIES) {
       const isActive = cat.id === categoryId;
       const tab = el(`<button class="shop-tab ${isActive ? 'active' : ''}" role="tab" aria-selected="${isActive}" id="shop-tab-${cat.id}">
-        <span class="tab-icon">${cat.icon}</span>
         <span class="tab-label">${cat.title}</span>
         <span class="tab-badge">${categoryCounts[cat.id] || ''}</span>
       </button>`);
@@ -1123,8 +1123,8 @@ export class Screens {
               ${isMaxed ? '<span style="color:#ffd23f">Maximum Capability</span>' : `Next: <b>+${nextBoost}%</b> (+${it.stepPercent}%)`}
             </div>
             ${isMaxed
-              ? `<button class="upgrade-action-btn maxed" disabled>MAXED 👑</button>`
-              : `<button class="upgrade-action-btn primary" ${!canAfford ? 'disabled' : ''}>UPGRADE 🪙 ${cost}</button>`
+              ? `<button class="upgrade-action-btn maxed" disabled>MAXED</button>`
+              : `<button class="upgrade-action-btn primary" ${!canAfford ? 'disabled' : ''}>UPGRADE · ${cost} COINS</button>`
             }
           </div>
         </div>`);
@@ -1175,7 +1175,7 @@ export class Screens {
               ? `<button class="btn equipped" disabled>EQUIPPED</button>`
               : (owned
                 ? `<button class="btn equip">EQUIP</button>`
-                : `<button class="btn buy" ${!canAfford ? 'disabled' : ''}>BUY 🪙 ${it.price}</button>`
+                : `<button class="btn buy" ${!canAfford ? 'disabled' : ''}>BUY · ${it.price} COINS</button>`
               )
             }
           </div>

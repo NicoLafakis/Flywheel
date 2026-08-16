@@ -21,6 +21,12 @@ import { GameAudio } from './audio/game-audio.js';
 import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MASTER_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME, reseedAudioMix } from './audio/mix.js';
 import { createInputBuffer, encodeTrace, inputAt, writeInput } from './replay.js';
 
+import { LiveBroadcastChannel } from './multiplayer/channel.js';
+import { MultiplayerLobby } from './multiplayer/lobby.js';
+import { MultiplayerHost } from './multiplayer/host.js';
+import { MultiplayerPeer } from './multiplayer/peer.js';
+import { MultiplayerUI } from './multiplayer/ui.js';
+
 const canvas = document.getElementById('game-canvas');
 const hud = new HUD();
 window.__hud = hud; // debug/smoke-test hook, same idiom as __sim / __cam / __controls
@@ -102,6 +108,12 @@ let activePlayMusicCue = 'gallery'; // owner decision: gallery stays music-free
 let accumulator = 0;
 let lastTs = 0;
 let shopBonus = { clock: 0, growth: 0 };
+
+let isMultiplayer = false;
+let mpHost = null;
+let mpPeer = null;
+let mpLobby = null;
+let mpUI = null;
 
 // ------------------------------------------------------------------ quality tier
 // Two tiers, and the player picks one. Nothing here watches frame times and
@@ -230,6 +242,7 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
   },
   startVoxelSandbox(scene) { startVoxelSandbox(scene); },
   startRankedRun(scene) { void startRankedRun(scene); },
+  showMultiplayerModal() { showMultiplayerHostModal(); },
   resume() {
     if (state === 'paused') {
       state = 'playing';
@@ -841,8 +854,246 @@ function teardownWorld() {
   isShowingPokeSpawn = false;
   if (readyGate) { readyGate.dismiss(); readyGate = null; }
   if (world) { world.dispose(); world = null; }
+  if (mpHost) { mpHost.destroy(); mpHost = null; }
+  if (mpPeer) { mpPeer.destroy(); mpPeer = null; }
+  if (mpUI) { mpUI.hideRespawnOverlay(); }
+  isMultiplayer = false;
   sim = null;
   audio.stopScene();   // a level teardown silences the city bed with the city
+}
+
+function showMultiplayerHostModal() {
+  screens.clear();
+  stopMenuScene();
+  if (!mpUI) {
+    mpUI = new MultiplayerUI({
+      rootElement: document.getElementById('screen-root'),
+      audio,
+      onHostCreate: (opts) => hostMultiplayerLobby(opts),
+      onPeerJoin: (code) => joinMultiplayerLobby(code),
+      onLeaveLobby: () => {
+        if (mpLobby) { mpLobby.destroy(); mpLobby = null; }
+        teardownWorld();
+        state = 'menu';
+        screens.showTitle();
+      },
+    });
+  }
+  mpUI.showHostCreateModal({
+    onCancel: () => {
+      screens.showTitle();
+    },
+    onCreate: ({ scene, maxPlayers }) => {
+      hostMultiplayerLobby({ scene, maxPlayers });
+    },
+    onJoin: (roomCode) => {
+      joinMultiplayerLobby(roomCode);
+    },
+  });
+}
+
+function hostMultiplayerLobby({ scene = 'gallery', maxPlayers = 4 }) {
+  screens.clear();
+  stopMenuScene();
+  const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+  const channel = new LiveBroadcastChannel(roomCode, 'host');
+  const playerName = save.player?.name || 'Host';
+  const playerSkin = equippedSkinId();
+
+  if (!mpUI) {
+    mpUI = new MultiplayerUI({
+      rootElement: document.getElementById('screen-root'),
+      audio,
+      onHostCreate: (opts) => hostMultiplayerLobby(opts),
+      onPeerJoin: (code) => joinMultiplayerLobby(code),
+      onLeaveLobby: () => {
+        if (mpLobby) { mpLobby.destroy(); mpLobby = null; }
+        teardownWorld();
+        state = 'menu';
+        screens.showTitle();
+      },
+    });
+  }
+
+  mpLobby = new MultiplayerLobby({
+    channel,
+    isHost: true,
+    playerName,
+    playerSkin,
+    scene,
+    maxPlayers,
+    roomCode,
+  });
+
+  mpUI.showLobby(mpLobby, {
+    onLeave: () => {
+      if (mpLobby) { mpLobby.destroy(); mpLobby = null; }
+      screens.showTitle();
+    },
+    onForceStart: () => {
+      // Handled by mpLobby.startCountdown()
+    },
+  });
+
+  mpLobby.onGameStart = (startMsg) => {
+    startMultiplayerMatch({
+      isHost: true,
+      scene: startMsg.scene,
+      matchSeed: startMsg.matchSeed,
+      durationSeconds: startMsg.durationSeconds,
+      players: mpLobby.players.filter(Boolean),
+      mySlot: 0,
+      channel,
+    });
+  };
+}
+
+function joinMultiplayerLobby(roomCode) {
+  screens.clear();
+  stopMenuScene();
+  const code = String(roomCode || '').toUpperCase();
+  const senderId = 'peer_' + Math.random().toString(36).substring(2, 7);
+  const channel = new LiveBroadcastChannel(code, senderId);
+  const playerName = save.player?.name || `Player_${Math.floor(Math.random() * 900 + 100)}`;
+  const playerSkin = equippedSkinId();
+
+  if (!mpUI) {
+    mpUI = new MultiplayerUI({
+      rootElement: document.getElementById('screen-root'),
+      audio,
+      onHostCreate: (opts) => hostMultiplayerLobby(opts),
+      onPeerJoin: (code) => joinMultiplayerLobby(code),
+      onLeaveLobby: () => {
+        if (mpLobby) { mpLobby.destroy(); mpLobby = null; }
+        teardownWorld();
+        state = 'menu';
+        screens.showTitle();
+      },
+    });
+  }
+
+  mpLobby = new MultiplayerLobby({
+    channel,
+    isHost: false,
+    playerName,
+    playerSkin,
+    roomCode: code,
+  });
+
+  mpUI.showLobby(mpLobby, {
+    onLeave: () => {
+      if (mpLobby) { mpLobby.destroy(); mpLobby = null; }
+      screens.showTitle();
+    },
+  });
+
+  mpLobby.onGameStart = (startMsg) => {
+    startMultiplayerMatch({
+      isHost: false,
+      scene: startMsg.scene,
+      matchSeed: startMsg.matchSeed,
+      durationSeconds: startMsg.durationSeconds,
+      players: mpLobby.players.filter(Boolean),
+      mySlot: mpLobby.mySlot >= 0 ? mpLobby.mySlot : 1,
+      channel,
+    });
+  };
+}
+
+function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180, players, mySlot, channel }) {
+  screens.showLoading('MULTIPLAYER · ' + scene.toUpperCase());
+  requestAnimationFrame(() => requestAnimationFrame(async () => {
+    await loadScene(scene);
+    teardownWorld();
+    isMultiplayer = true;
+    isVoxelSandbox = true;
+    document.body.classList.add('mode-sandbox');
+    computeShopBonus();
+
+    if (isHost) {
+      mpHost = new MultiplayerHost({
+        channel,
+        scene,
+        matchSeed,
+        players,
+        durationSeconds,
+      });
+      sim = mpHost.sim;
+      mpHost.onGameOver = (gameOverData) => {
+        state = 'results';
+        audio.setMusicCue('victory');
+        mpUI.showMultiplayerPodium(gameOverData, {
+          onPlayAgain: () => {
+            hostMultiplayerLobby({ scene, maxPlayers: players.length });
+          },
+          onExit: () => {
+            teardownWorld();
+            state = 'menu';
+            screens.showTitle();
+          },
+        });
+      };
+    } else {
+      mpPeer = new MultiplayerPeer({
+        channel,
+        scene,
+        matchSeed,
+        players,
+        mySlot,
+      });
+      sim = mpPeer.sim;
+      mpPeer.onGameOver = (gameOverData) => {
+        state = 'results';
+        audio.setMusicCue('victory');
+        mpUI.showMultiplayerPodium(gameOverData, {
+          onPlayAgain: () => {
+            screens.showTitle();
+          },
+          onExit: () => {
+            teardownWorld();
+            state = 'menu';
+            screens.showTitle();
+          },
+        });
+      };
+    }
+
+    window.__sim = sim;
+    world = new VoxelWorld3D(canvas, sim, equippedSkinId(), { indicatorId: equippedIndicatorId() });
+    if (world && world.setReducedMotion) world.setReducedMotion(save.settings.reducedMotion);
+
+    cam = new ChaseCamera(canvas.clientWidth / Math.max(1, canvas.clientHeight));
+    cam.distScale = save.settings.camDist;
+    cam.setReducedMotion(save.settings.reducedMotion);
+    hud.setReducedMotion(save.settings.reducedMotion);
+    hud.resetSandboxMeters();
+    cam.setFollowDirection(true);
+    cam.setBlockers(sim.cameraBlockers);
+
+    controls = controls || new Controls(canvas);
+    controls.settings = save.settings;
+    controls.chaseMode = true;
+    controls.setCamera(cam.camera);
+    controls.heading = null;
+    cam.setSandboxSizeProgress(0);
+    controls.setSandboxSizeProgress(0);
+
+    resize();
+    hud.setLevel({ index: 'MULTIPLAYER', clock: durationSeconds }, 'MULTIPLAYER');
+    hud.show();
+    screens.clear();
+    state = 'playing';
+    activePlayMusicCue = scene;
+    audio.setMusicCue(activePlayMusicCue, { restart: true });
+    accumulator = 0;
+    lastTs = performance.now();
+    audio.startScene(scene);
+
+    if (mpLobby) {
+      mpLobby.destroy();
+      mpLobby = null;
+    }
+  }));
 }
 
 function endLevel() {
@@ -929,18 +1180,35 @@ function frame(ts) {
     const maxSteps = (TIERS[tierName] || TIERS.high).maxSubSteps || 6;
     let steps = 0;
     while (accumulator >= FIXED_DT && steps < maxSteps) {
-      // Recording is a single pair of typed-array writes per fixed tick. It is
-      // independent of ticket/network state: an offline RUN remains a complete
-      // local trace rather than a different kind of play.
-      let fixedMove = move;
-      if (rankedRun && rankedRun.ticks < RANKED_TICK_COUNT) {
-        writeInput(rankedRun.inputs, rankedRun.ticks++, move.x, move.z);
-        // THE RUN is stepped from the same quantised pair that is stored. If
-        // the browser stepped raw joystick floats and Node replayed int8s, a
-        // perfectly honest trace could produce a different score.
-        fixedMove = inputAt(rankedRun.inputs, rankedRun.ticks - 1, rankedRun.move);
+      if (isMultiplayer) {
+        if (mpHost) {
+          mpHost.step(FIXED_DT, move);
+          mpHost.sendStateSync();
+        } else if (mpPeer) {
+          mpPeer.sendInput(move);
+          mpPeer.step(FIXED_DT, move);
+          if (mpPeer.myHole) {
+            if (mpPeer.myHole.alive === false) {
+              mpUI.showRespawnOverlay(mpPeer.myHole.respawnTimer);
+            } else {
+              mpUI.hideRespawnOverlay();
+            }
+          }
+        }
+      } else {
+        // Recording is a single pair of typed-array writes per fixed tick. It is
+        // independent of ticket/network state: an offline RUN remains a complete
+        // local trace rather than a different kind of play.
+        let fixedMove = move;
+        if (rankedRun && rankedRun.ticks < RANKED_TICK_COUNT) {
+          writeInput(rankedRun.inputs, rankedRun.ticks++, move.x, move.z);
+          // THE RUN is stepped from the same quantised pair that is stored. If
+          // the browser stepped raw joystick floats and Node replayed int8s, a
+          // perfectly honest trace could produce a different score.
+          fixedMove = inputAt(rankedRun.inputs, rankedRun.ticks - 1, rankedRun.move);
+        }
+        sim.step(FIXED_DT, fixedMove);
       }
-      sim.step(FIXED_DT, fixedMove);
       accumulator -= FIXED_DT;
       steps++;
       if (sim.over) break;
@@ -1465,8 +1733,15 @@ startMenuScene(canvas, {
 });
 
 // Fallback safety timeout so boot splash never gets stuck
-setTimeout(finishBootSplash, 5000);
+// Check for invite link parameter (?room=CODE or ?join=CODE)
+const urlParams = typeof window !== 'undefined' && window.location ? new URLSearchParams(window.location.search) : null;
+const roomParam = urlParams ? (urlParams.get('room') || urlParams.get('join')) : null;
 
-screens.showTitle();
+if (roomParam) {
+  joinMultiplayerLobby(roomParam.trim().toUpperCase());
+} else {
+  screens.showTitle();
+}
+
 resize();
 requestAnimationFrame((ts) => { lastTs = ts; loopHandle = requestAnimationFrame(frame); });

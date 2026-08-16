@@ -141,35 +141,35 @@ function renderPersonalBests(container, save, { onStartCity, onStartCampaign, on
   
   const cardScore = element('div', 'fw-stat-card');
   cardScore.append(
-    element('span', 'k', '🏆 ALL-TIME HIGH SCORE'),
+    element('span', 'k', 'ALL-TIME HIGH SCORE'),
     element('span', 'v', allTimeBestScore > 0 ? allTimeBestScore.toLocaleString('en-US') : '0'),
     element('span', 'sub', allTimeBestScore > 0 ? 'Personal record' : 'Play a city to set one')
   );
   
   const cardCombo = element('div', 'fw-stat-card');
   cardCombo.append(
-    element('span', 'k', '⚡ HIGHEST COMBO'),
+    element('span', 'k', 'HIGHEST COMBO'),
     element('span', 'v', allTimeBestCombo > 0 ? formatCombo(allTimeBestCombo) : '—'),
     element('span', 'sub', allTimeBestCombo > 0 ? 'Max chain length' : 'Chain bites rapidly')
   );
 
   const cardClears = element('div', 'fw-stat-card');
   cardClears.append(
-    element('span', 'k', '🏙️ CITY CLEARS'),
+    element('span', 'k', 'CITY CLEARS'),
     element('span', 'v', `${totalSandboxClears} RUNS`),
     element('span', 'sub', 'Completed sandbox goals')
   );
 
   const cardVault = element('div', 'fw-stat-card');
   cardVault.append(
-    element('span', 'k', '🪙 COIN VAULT'),
+    element('span', 'k', 'COIN VAULT'),
     element('span', 'v', (save.coins || 0).toLocaleString('en-US')),
     element('span', 'sub', 'Available to spend in Shop')
   );
 
   const cardGear = element('div', 'fw-stat-card');
   cardGear.append(
-    element('span', 'k', '💎 CUSTOM GEAR'),
+    element('span', 'k', 'CUSTOM GEAR'),
     element('span', 'v', `${unlockedGearCount} UNLOCKED`),
     element('span', 'sub', 'Hole skins & indicators')
   );
@@ -273,9 +273,9 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
 
   // Tab Navigation Bar
   const navBar = element('div', 'fw-records-tabs');
-  const btnBests = button('🏆 PERSONAL BESTS', true);
-  const btnBoards = button('🌐 LEADERBOARDS', true);
-  const btnProfile = button('👤 IDENTITY & PROFILE', true);
+  const btnBests = button('PERSONAL BESTS', true);
+  const btnBoards = button('LEADERBOARDS', true);
+  const btnProfile = button('IDENTITY & PROFILE', true);
   navBar.append(btnBests, btnBoards, btnProfile);
   wrap.appendChild(navBar);
 
@@ -529,7 +529,7 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
       };
     } else {
       idCard.append(
-        element('span', 'k', '👤 LOGGED IN ACCOUNT'),
+        element('span', 'k', 'LOGGED IN ACCOUNT'),
         element('p', 'fw-board-note', `Signed in as "${name}". All verified scores in ranked runs are credited to this account across your devices.`)
       );
 
