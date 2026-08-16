@@ -6,6 +6,7 @@ import { cityBoard, overallBoard } from '../board/read.js';
 import { claimName, deviceKey, removePlayer, startTransfer, redeemTransfer, renamePlayer, registerPlayer, loginPlayer, playerSecret } from '../board/player.js';
 import { post } from '../board/request.js';
 import { comboMult, comboLevel, COMBO_LEVEL_NAMES } from '../voxelsim.js';
+import { ensurePlayer, storeSave } from '../save.js';
 
 const CITY_CATALOG = [
   { scene: 'brooklyn', name: 'Brooklyn', sub: 'Bridges to Coney Island', tag: 'Showcase' },
