@@ -1222,17 +1222,24 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
 .level-card .mech { font-size: 15px; }
 .level-card:hover:not(.locked) { border-color: var(--accent); }
 
-/* --- Modern Mobile Game Shop UI with Category Tabs & Incremental Upgrades --- */
+/* --- Modern Mobile Game Shop UI with Docked Bottom Navigation --- */
 .shop-screen {
+  position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; width: 100%;
-  max-width: min(1080px, 96vw); margin: 0 auto; padding-bottom: 24px;
+  max-width: 100%; margin: 0 auto;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px calc(96px + var(--sai-bottom, 0px)) 16px;
 }
 .shop-header {
-  position: sticky; top: 0; z-index: 12; width: 100%;
+  position: sticky; top: 0; z-index: 40; width: 100%; max-width: min(1080px, 100%);
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 12px 16px; margin-bottom: 12px;
-  background: rgba(18, 23, 34, 0.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0 0 16px 16px;
+  padding: calc(12px + var(--sai-top, 0px)) 16px 12px 16px;
+  margin-bottom: 12px;
+  background: rgba(14, 18, 28, 0.94);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 16px 16px;
 }
 .shop-back-btn {
   display: flex; align-items: center; gap: 6px;
@@ -1240,6 +1247,7 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
   color: #fff; background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 20px;
   cursor: pointer; transition: all 0.2s ease;
+  min-height: 40px;
 }
 .shop-back-btn:hover {
   background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.3);
@@ -1249,7 +1257,7 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
   text-align: center; flex: 1; min-width: 0;
 }
 .shop-title-block h2 {
-  margin: 0; font-size: clamp(18px, 3.5vw, 24px); letter-spacing: 1.5px;
+  margin: 0; font-size: clamp(17px, 3.5vw, 22px); letter-spacing: 1.5px;
   color: #fff; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 .shop-progress-summary {
@@ -1264,46 +1272,11 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
   box-shadow: 0 0 14px rgba(255, 210, 63, 0.15); white-space: nowrap;
 }
 
-/* Category Tab Bar */
-.shop-tab-bar {
-  display: flex; gap: 8px; width: 100%; max-width: 100%;
-  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
-  padding: 4px 4px 10px 4px; margin-bottom: 12px;
-}
-.shop-tab-bar::-webkit-scrollbar { display: none; }
-.shop-tab {
-  flex: 1 0 auto; min-width: 80px; min-height: 46px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  padding: 6px 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
-  color: rgba(255, 255, 255, 0.65); background: rgba(255, 255, 255, 0.05);
-  border: 1.5px solid rgba(255, 255, 255, 0.08); border-radius: 12px;
-  cursor: pointer; transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-  user-select: none;
-}
-.shop-tab:hover {
-  color: #fff; background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2);
-}
-.shop-tab.active {
-  color: #fff; background: linear-gradient(180deg, rgba(56, 189, 248, 0.22), rgba(56, 189, 248, 0.08));
-  border-color: #38bdf8; box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
-  transform: translateY(-2px);
-}
-.shop-tab .tab-icon {
-  font-size: 18px; line-height: 1; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5));
-}
-.shop-tab .tab-badge {
-  font-size: 9px; font-weight: 800; opacity: 0.8;
-  background: rgba(0, 0, 0, 0.35); padding: 1px 5px; border-radius: 8px; margin-top: 1px;
-}
-.shop-tab.active .tab-badge {
-  background: rgba(56, 189, 248, 0.3); color: #38bdf8;
-}
-
-/* Category Sub-Header Banner */
 .shop-category-banner {
-  width: 100%; display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px; margin-bottom: 14px;
-  background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06);
+  width: 100%; max-width: min(1080px, 100%);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; margin-bottom: 14px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
 }
 .shop-category-banner h3 {
@@ -1311,6 +1284,60 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
 }
 .shop-category-banner p {
   margin: 2px 0 0 0; font-size: 11px; color: rgba(255, 255, 255, 0.55);
+}
+
+.shop-content-area {
+  width: 100%; max-width: min(1080px, 100%);
+}
+
+/* Docked Floating Bottom Navigation Bar (On top of content) */
+.shop-tab-bar {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  z-index: 50; width: 100%; max-width: min(720px, 100vw);
+  display: flex; justify-content: space-around; align-items: stretch; gap: 4px;
+  padding: 6px 8px calc(6px + var(--sai-bottom, 0px)) 8px;
+  background: rgba(14, 18, 28, 0.96);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-top: 1.5px solid rgba(255, 255, 255, 0.14);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.65), 0 -1px 0 rgba(255, 255, 255, 0.1) inset;
+  user-select: none;
+}
+.shop-tab {
+  flex: 1 1 0; min-width: 0; min-height: 52px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 4px 6px;
+  color: rgba(255, 255, 255, 0.6); background: transparent;
+  border: 1px solid transparent; border-radius: 12px;
+  cursor: pointer; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-decoration: none; position: relative;
+}
+.shop-tab:hover {
+  color: #fff; background: rgba(255, 255, 255, 0.06);
+}
+.shop-tab.active {
+  color: #fff;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.22), rgba(56, 189, 248, 0.06));
+  border-color: rgba(56, 189, 248, 0.4);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
+  transform: translateY(-2px);
+}
+.shop-tab .tab-icon {
+  font-size: 20px; line-height: 1.1; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));
+}
+.shop-tab .tab-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.4px; line-height: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.shop-tab .tab-badge {
+  font-size: 9px; font-weight: 800; line-height: 1;
+  background: rgba(0, 0, 0, 0.4); padding: 1px 5px; border-radius: 8px; margin-top: 1px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.shop-tab.active .tab-badge {
+  background: rgba(56, 189, 248, 0.35); color: #38bdf8;
 }
 
 /* Grid of Cosmetic Items */

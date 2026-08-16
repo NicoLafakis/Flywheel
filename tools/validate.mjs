@@ -2002,7 +2002,21 @@ function validateShopAndUpgrades() {
   const totalCategorized = skinsItems.length + creaturesItems.length + partnersItems.length + indicatorsItems.length + upgradesItems.length;
   if (totalCategorized !== 35) fail(`Total shop items should be 35 (12+5+8+6+4), got ${totalCategorized}`);
 
-  console.log(`  shop & upgrades: 5 categories, 35 catalog items, 4 stat tracks (0..20 rank / +0%..+100%), ${categorySum} coins/track (${totalAllSum} total)`);
+  // 8. Shop Bottom Navigation Layout & Accessibility Assertions
+  const screensSrc = readFileSync(new URL('../js/ui/screens.js', import.meta.url), 'utf8');
+  if (!screensSrc.includes('<nav class="shop-tab-bar"') && !screensSrc.includes("nav class='shop-tab-bar'")) {
+    fail(`screens.js must render <nav class="shop-tab-bar" for accessible bottom navigation`);
+  }
+  if (!screensSrc.includes('tab-label')) {
+    fail(`screens.js shop tabs must render text labels alongside icons`);
+  }
+
+  const cssSrc = readFileSync(new URL('../css/main.css', import.meta.url), 'utf8');
+  if (!cssSrc.includes('.shop-tab-bar') || !cssSrc.includes('position: fixed') || !cssSrc.includes('bottom: 0')) {
+    fail(`css/main.css must dock .shop-tab-bar with position: fixed and bottom: 0 for mobile reachability`);
+  }
+
+  console.log(`  shop & upgrades: 5 categories, 35 catalog items, 4 stat tracks (0..20 rank / +0%..+100%), ${categorySum} coins/track (${totalAllSum} total), bottom nav validated`);
 }
 
 // --- every scene must be winnable ---------------------------------------------

@@ -1007,15 +1007,15 @@ export class Screens {
         </div>
         <div class="shop-coin-pill">🪙 <span class="coin-num">${(this.save.coins || 0).toLocaleString()}</span></div>
       </div>
-      <div class="shop-tab-bar" role="tablist"></div>
       <div class="shop-category-banner"></div>
       <div class="shop-content-area" style="width:100%"></div>
+      <nav class="shop-tab-bar" role="tablist" aria-label="Shop Categories"></nav>
     </div>`);
 
     const backBtn = s.querySelector('#shop-back-btn');
     backBtn.onclick = () => this.showTitle();
 
-    // 1. Tab Bar with Category Icons
+    // 1. Tab Bar with Category Icons, Labels, and Badges (Docked at Bottom)
     const tabBar = s.querySelector('.shop-tab-bar');
     const categoryCounts = {
       skins: `${SKINS.filter((s) => !s.family && (s.price === 0 || (this.save.ownedItems || []).includes(s.id))).length}/${SKINS.filter((s) => !s.family).length}`,
@@ -1027,12 +1027,14 @@ export class Screens {
 
     for (const cat of SHOP_CATEGORIES) {
       const isActive = cat.id === categoryId;
-      const tab = el(`<button class="shop-tab ${isActive ? 'active' : ''}" role="tab" aria-selected="${isActive}">
+      const tab = el(`<button class="shop-tab ${isActive ? 'active' : ''}" role="tab" aria-selected="${isActive}" id="shop-tab-${cat.id}">
         <span class="tab-icon">${cat.icon}</span>
+        <span class="tab-label">${cat.title}</span>
         <span class="tab-badge">${categoryCounts[cat.id] || ''}</span>
       </button>`);
       tab.onclick = () => {
         if (cat.id !== this.activeShopCategory) {
+          if (this.actions?.sound) this.actions.sound('click');
           this.showShop(cat.id);
         }
       };
