@@ -12,3 +12,4 @@ _*-deliverables/
 .vercel
 .env*
 !.env.example
+supabase/.temp/
