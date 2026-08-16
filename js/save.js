@@ -418,14 +418,19 @@ export function storeSave(save) {
 // the seatbelt for a save that reached us down some path neither of those covers
 // — a hand-edited localStorage entry, a partial write, a future migration bug.
 // Costing one `||` to guarantee the screen can always be left is a good trade.
-export function recordLevelResult(save, levelIndex, { stars, mass, bestCombo, won, coinsEarned }) {
+export function recordLevelResult(save, levelIndex, { stars, mass, bestCombo, won, coinsEarned, elapsed }) {
   if (!save.levels) save.levels = {};
-  const prev = save.levels[levelIndex] || { stars: 0, bestMass: 0, bestCombo: 0, won: false };
+  const prev = save.levels[levelIndex] || { stars: 0, bestMass: 0, bestCombo: 0, won: false, fastestClear: null };
+  const clearTime = won && typeof elapsed === 'number' && !isNaN(elapsed) && elapsed > 0 ? elapsed : null;
+  const newFastest = clearTime !== null
+    ? (prev.fastestClear == null ? clearTime : Math.min(prev.fastestClear, clearTime))
+    : (prev.fastestClear ?? null);
   save.levels[levelIndex] = {
     stars: Math.max(prev.stars, stars),
     bestMass: Math.max(prev.bestMass, Math.floor(mass)),
     bestCombo: Math.max(prev.bestCombo, bestCombo),
     won: prev.won || won,
+    fastestClear: newFastest,
   };
   save.coins += coinsEarned;
   storeSave(save);

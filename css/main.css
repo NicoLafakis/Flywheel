@@ -1513,11 +1513,31 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
   background: rgba(255, 210, 63, 0.15); color: #ffd23f; border: 1px solid rgba(255, 210, 63, 0.35);
   cursor: default; opacity: 0.9;
 }
-.coins { font-size: clamp(16px, 3vw, 22px); color: #ffd23f; font-weight: 800; margin-bottom: 10px; }
-
+.coins { font-size: clamp(16px, 3vw, 22px); color: #ffd23f; font-weight: 800; }
 .results-stars { font-size: clamp(34px, 8vw, 60px); color: #ffd23f; letter-spacing: 8px; margin: 10px 0; }
-.results-stats { background: var(--panel); border-radius: 14px; padding: 16px 26px; margin: 10px 0; line-height: 1.8; min-width: min(360px, 86vw); }
-.results-stats b { color: #ffd23f; float: right; margin-left: 40px; }
+.results-screen { z-index: 60; }
+.results-card {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(14, 20, 38, 0.95); border: 1px solid rgba(255, 210, 63, 0.28);
+  border-radius: 20px; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 32px rgba(255, 210, 63, 0.12);
+  padding: clamp(16px, 4vw, 28px); max-width: min(480px, 92vw); width: 100%;
+  animation: popIn 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+.results-stats { background: var(--panel); border-radius: 14px; padding: 16px 22px; margin: 12px 0; line-height: 1.8; width: 100%; box-sizing: border-box; }
+.results-stats > div { display: flex; justify-content: space-between; align-items: center; }
+.results-stats b { color: #ffd23f; margin-left: 12px; }
+.results-actions {
+  display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 14px;
+}
+.results-actions .btn {
+  width: 100%; margin: 0; padding: 12px 20px; font-size: 16px; font-weight: 800;
+}
+.rec-new {
+  display: inline-block; background: linear-gradient(135deg, #ffd23f, #ff9e00);
+  color: #0b0f19; font-size: 10px; font-weight: 900; padding: 2px 6px;
+  border-radius: 6px; letter-spacing: 0.8px; margin-left: 6px; vertical-align: middle;
+  animation: pulseGlow 1.5s infinite alternate;
+}
 /* SETTINGS rows. Every row used to be `LABEL <span style="float:right">VALUE`,
    which is the pattern that wraps the moment label + value exceed the width —
    and it wraps INVISIBLY to script, because a floated value is out of flow, so

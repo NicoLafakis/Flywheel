@@ -36,7 +36,7 @@ import {
   CHICAGO_ROAD_SPANS, CHICAGO_ROUTE, CHICAGO_STREETS, CHICAGO_VEHICLES,
   CHICAGO_XW_LEN,
 } from '../js/voxelscene-chicago.js';
-import { CURRENT_VERSION, __freshSave, __MIGRATIONS } from '../js/save.js';
+import { CURRENT_VERSION, __freshSave, __MIGRATIONS, recordLevelResult } from '../js/save.js';
 import { UPGRADES, UPGRADE_COST_TABLE, upgradeCost, upgradeMultiplier, defaultUpgrades, SHOP_CATEGORIES, getShopItemsByCategory } from '../js/upgrades.js';
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from '../js/fwmath.js';
 import { runBoardSelftest } from './board-selftest.mjs';
@@ -2403,6 +2403,47 @@ function validateGameplayEnhancements() {
     if (!teleportEv) {
       fail(`Disaster penalty should emit 'disaster_teleport' event`);
     }
+  }
+
+  // 5. Fastest Clear Time Tracking (Campaign & Sandbox Results)
+  const mockSave = __freshSave();
+  recordLevelResult(mockSave, 1, { stars: 3, mass: 100, bestCombo: 5, won: true, coinsEarned: 10, elapsed: 42.5 });
+  if (mockSave.levels[1].fastestClear !== 42.5) {
+    fail(`recordLevelResult failed to set initial fastestClear, expected 42.5 got ${mockSave.levels[1]?.fastestClear}`);
+  }
+  // Faster clear replaces fastestClear
+  recordLevelResult(mockSave, 1, { stars: 3, mass: 110, bestCombo: 6, won: true, coinsEarned: 10, elapsed: 35.2 });
+  if (mockSave.levels[1].fastestClear !== 35.2) {
+    fail(`recordLevelResult failed to update fastestClear with faster time, expected 35.2 got ${mockSave.levels[1]?.fastestClear}`);
+  }
+  // Slower clear preserves fastestClear
+  recordLevelResult(mockSave, 1, { stars: 3, mass: 120, bestCombo: 7, won: true, coinsEarned: 10, elapsed: 50.0 });
+  if (mockSave.levels[1].fastestClear !== 35.2) {
+    fail(`recordLevelResult overwritten fastestClear with slower time, expected 35.2 got ${mockSave.levels[1]?.fastestClear}`);
+  }
+  // Failed attempt does not update fastestClear
+  recordLevelResult(mockSave, 1, { stars: 0, mass: 50, bestCombo: 2, won: false, coinsEarned: 0, elapsed: 20.0 });
+  if (mockSave.levels[1].fastestClear !== 35.2) {
+    fail(`recordLevelResult updated fastestClear on loss, expected 35.2 got ${mockSave.levels[1]?.fastestClear}`);
+  }
+
+  // 6. Modal / Cinematic 10-Second Auto-Dismiss Durations & Results Navigation Markup
+  const screensCode = readFileSync(new URL('../js/ui/screens.js', import.meta.url), 'utf8');
+  if (!screensCode.includes('remainingMs = 10000')) {
+    fail('showPowerUpShowcase in screens.js does not use 10000ms (10s) duration');
+  }
+  if (!screensCode.includes('Math.max(10000, duration * 1000)')) {
+    fail('Cinematic autoDismissTimeout in screens.js does not use Math.max(10000, ...)');
+  }
+  if (!screensCode.includes('results-btn-again') || !screensCode.includes('results-btn-cities') || !screensCode.includes('results-btn-menu')) {
+    fail('showSandboxResults in screens.js is missing results action buttons (again, cities, menu)');
+  }
+  if (!screensCode.includes('results-btn-cont') || !screensCode.includes('results-btn-cities') || !screensCode.includes('results-btn-menu')) {
+    fail('showResults in screens.js is missing results action buttons (cont, cities, menu)');
+  }
+  const hudCode = readFileSync(new URL('../js/ui/hud.js', import.meta.url), 'utf8');
+  if (!hudCode.includes('ms = 10000')) {
+    fail('hud.js announce/toast does not default to ms = 10000 (10s)');
   }
 }
 

@@ -839,14 +839,21 @@ function endLevel() {
   hud.hide();
   const won = sim.won;
   if (won) audio.win(); else audio.lose();
-  screens.showResults(level, sim, (stars, coins, toMap) => {
+  const elapsed = typeof sim.elapsedTime === 'number' ? sim.elapsedTime : Math.max(0, (level.time || 300) - (sim.timeLeft || 0));
+  screens.showResults(level, sim, (stars, coins, navAction) => {
     recordLevelResult(save, level.index, {
       stars, mass: sim.player.mass, bestCombo: sim.player.bestCombo,
-      won, coinsEarned: coins,
+      won, coinsEarned: coins, elapsed,
     });
-    if (toMap) { teardownWorld(); state = 'menu'; screens.showWorldMap(); }
-    else if (won && level.index < 100) { level = getLevel(level.index + 1); screens.actions.play(level); }
-    else startLevel();
+    if (navAction === 'menu') {
+      teardownWorld(); state = 'menu'; screens.showTitle();
+    } else if (navAction === 'cities' || navAction === 'map' || navAction === true) {
+      teardownWorld(); state = 'menu'; screens.showCitySelect();
+    } else if (won && level.index < 100) {
+      level = getLevel(level.index + 1); screens.actions.play(level);
+    } else {
+      startLevel();
+    }
   });
 }
 
@@ -1273,7 +1280,7 @@ function endSandbox() {
     }
     return;
   }
-  screens.showSandboxResults(finished, (toCities, coins) => {
+  screens.showSandboxResults(finished, (action, coins) => {
     recordSandboxResult(save, finished.scene, {
       coinsEarned: coins, elapsed: finished.time,
       bestCombo: finished.hole.bestCombo, score: finished.hole.mass,
@@ -1284,8 +1291,13 @@ function endSandbox() {
       won: finished.won,
       percent: finished.totalMass ? finished.hole.rawMass / finished.totalMass : 0,
     });
-    if (toCities) { teardownWorld(); state = 'menu'; screens.showCitySelect(); }
-    else startVoxelSandbox(finished.scene);
+    if (action === 'menu') {
+      teardownWorld(); state = 'menu'; screens.showTitle();
+    } else if (action === 'cities' || action === 'map' || action === true) {
+      teardownWorld(); state = 'menu'; screens.showCitySelect();
+    } else {
+      startVoxelSandbox(finished.scene);
+    }
   });
 }
 

@@ -850,17 +850,40 @@ export class Screens {
     const cleared = sim.totalMass ? sim.hole.rawMass / sim.totalMass : 0;
     const clearedPct = sim.won ? 100 : Math.floor(cleared * 100);
     const newPercent = !sim.won && cleared > (prev.bestPercent || 0);
-    const s = el(`<div class="screen"><h2>${sim.won ? 'GOAL COMPLETE' : "TIME'S UP"}</h2><div class="results-stats">
-      <div>${sim.goal.name}</div><div>City cleared <b>${clearedPct}%</b>${newPercent ? ' <span class="rec-new">BEST!</span>' : ''}</div>
-      <div>Score <b>${score.toLocaleString('en-US')}</b>${newScore ? ' <span class="rec-new">BEST!</span>' : ''}</div>
-      <div>Best chain <b>${best} eats at x${comboMult(best)}</b>${newCombo ? ' <span class="rec-new">BEST!</span>' : ''}</div>
-      <div>Coins found <b>${coinsCollected}/${totalCoins} (+${coinsCollected * coinVal})</b></div>
-      ${sim.won ? `<div>Finish bonus <b>+${goalBonusVal}</b></div>` : ''}
-      ${coins > 0 ? `<div>Coins earned <b>+${coins}</b></div>` : ''}
-      <div>Bank <b>🪙 ${bankTotal}</b></div></div></div>`);
-    const again = el(`<button class="btn">PLAY AGAIN</button>`); again.onclick = () => onContinue(false, coins);
-    const cities = el(`<button class="btn secondary">CITIES</button>`); cities.onclick = () => onContinue(true, coins);
-    s.append(again, cities); this.root.appendChild(s); this.current = 'results';
+    const elapsed = typeof sim.time === 'number' ? sim.time : 0;
+    const newFastest = sim.won && (prev.bestTime == null || elapsed < prev.bestTime);
+    const fastestDisplay = sim.won
+      ? (newFastest ? elapsed : Math.min(prev.bestTime || elapsed, elapsed))
+      : (prev.bestTime ?? null);
+
+    const s = el(`<div class="screen results-screen">
+      <div class="results-card">
+        <h2>${sim.won ? '🎉 GOAL COMPLETE! 🎉' : "TIME'S UP!"}</h2>
+        <div class="results-stats">
+          <div>${sim.goal.name}</div>
+          <div>City cleared <b>${clearedPct}%</b>${newPercent ? ' <span class="rec-new">BEST!</span>' : ''}</div>
+          <div>Score <b>${score.toLocaleString('en-US')}</b>${newScore ? ' <span class="rec-new">BEST!</span>' : ''}</div>
+          <div>Best chain <b>${best} eats at x${comboMult(best)}</b>${newCombo ? ' <span class="rec-new">BEST!</span>' : ''}</div>
+          <div>Time elapsed <b>${elapsed.toFixed(1)}s</b></div>
+          ${fastestDisplay !== null ? `<div>Fastest Clear <b>${fastestDisplay.toFixed(1)}s</b>${newFastest ? ' <span class="rec-new">BEST!</span>' : ''}</div>` : ''}
+          <div>Coins found <b>${coinsCollected}/${totalCoins} (+${coinsCollected * coinVal})</b></div>
+          ${sim.won ? `<div>Finish bonus <b>+${goalBonusVal}</b></div>` : ''}
+          ${coins > 0 ? `<div>Coins earned <b>+${coins}</b></div>` : ''}
+          <div>Bank <b>🪙 ${bankTotal}</b></div>
+        </div>
+        <div class="results-actions">
+          <button class="btn results-btn-again">${sim.won ? 'PLAY AGAIN' : 'RETRY'}</button>
+          <button class="btn secondary results-btn-cities">CHANGE MAP</button>
+          <button class="btn secondary results-btn-menu">MAIN MENU</button>
+        </div>
+      </div>
+    </div>`);
+
+    s.querySelector('.results-btn-again').onclick = () => onContinue(false, coins);
+    s.querySelector('.results-btn-cities').onclick = () => onContinue('cities', coins);
+    s.querySelector('.results-btn-menu').onclick = () => onContinue('menu', coins);
+    this.root.appendChild(s);
+    this.current = 'results';
   }
 
   // A RUN ends on its fixed tick boundary, never by clearing a city. Its score
@@ -1223,12 +1246,12 @@ export class Screens {
         <div class="pu-showcase-timer-bar">
           <div class="pu-timer-fill"></div>
         </div>
-        <div class="pu-showcase-countdown">Resuming in <b id="pu-count-sec">6</b>s...</div>
+        <div class="pu-showcase-countdown">Resuming in <b id="pu-count-sec">10</b>s...</div>
         <button class="btn pu-resume-btn" type="button">RESUME (SPACE)</button>
       </div>
     </div>`);
 
-    let remainingMs = 6000;
+    let remainingMs = 10000;
     let finished = false;
     const countSec = s.querySelector('#pu-count-sec');
     const fill = s.querySelector('.pu-timer-fill');
@@ -1364,7 +1387,7 @@ export class Screens {
       else if (typeof onSkip === 'function') onSkip();
     };
 
-    const autoDismissTimeout = setTimeout(() => { if (!done) finish(); }, Math.max(6000, duration * 1000));
+    const autoDismissTimeout = setTimeout(() => { if (!done) finish(); }, Math.max(10000, duration * 1000));
     const handleSkip = (e) => {
       if (done) return;
       if (e && e.type === 'keydown') {
@@ -1444,7 +1467,7 @@ export class Screens {
       if (typeof onSkip === 'function') onSkip();
     };
 
-    const autoDismissTimeout = setTimeout(() => { if (!done) handleSkip(); }, Math.max(6000, duration * 1000));
+    const autoDismissTimeout = setTimeout(() => { if (!done) handleSkip(); }, Math.max(10000, duration * 1000));
     window.addEventListener('keydown', handleSkip);
     overlay.addEventListener('click', handleSkip);
     overlay.addEventListener('touchstart', handleSkip, { passive: true });
@@ -1533,7 +1556,7 @@ export class Screens {
         this.dismissPokemonEncounterModal();
         if (typeof onSkip === 'function') onSkip();
       }
-    }, 6000);
+    }, 10000);
 
     window.addEventListener('keydown', handleSkip);
     overlay.addEventListener('click', handleSkip);
@@ -1569,20 +1592,36 @@ export class Screens {
     if (this.actions.music) this.actions.music('results', { restart: true });
     const stars = starsForResult(level, sim.timeLeft, sim.won);
     const coins = coinsForResult(level, stars, sim.player.bestCombo);
-    const s = el(`<div class="screen">
-      <h2>${sim.won ? 'LEVEL COMPLETE!' : "TIME'S UP!"}</h2>
-      <div class="results-stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
-      <div class="results-stats">
-        Mass <b>${Math.floor(sim.player.mass)} / ${level.target}</b><br>
-        Time left <b>${Math.ceil(sim.timeLeft)}s</b><br>
-        Best chain <b>${sim.player.bestCombo} eats at x${campaignComboMult(sim.player.bestCombo).toFixed(1)}</b><br>
-        Coins earned <b>+${coins}</b>
-      </div></div>`);
-    const cont = el(`<button class="btn">${sim.won ? 'CONTINUE' : 'RETRY'}</button>`);
-    cont.onclick = () => onContinue(stars, coins);
-    const map = el(`<button class="btn secondary">CITIES</button>`);
-    map.onclick = () => { onContinue(stars, coins, true); };
-    s.append(cont, map);
+    const elapsed = typeof sim.elapsedTime === 'number' ? sim.elapsedTime : Math.max(0, (level.time || 300) - (sim.timeLeft || 0));
+    const prev = (this.save.levels || {})[level.index] || {};
+    const newFastest = sim.won && (prev.fastestClear == null || elapsed < prev.fastestClear);
+    const fastestDisplay = sim.won
+      ? (newFastest ? elapsed : Math.min(prev.fastestClear || elapsed, elapsed))
+      : (prev.fastestClear ?? null);
+
+    const s = el(`<div class="screen results-screen">
+      <div class="results-card">
+        <h2>${sim.won ? '🎉 LEVEL COMPLETE! 🎉' : "TIME'S UP!"}</h2>
+        <div class="results-stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
+        <div class="results-stats">
+          <div>Mass <b>${Math.floor(sim.player.mass)} / ${level.target}</b></div>
+          <div>Time elapsed <b>${elapsed.toFixed(1)}s</b></div>
+          ${fastestDisplay !== null ? `<div>Fastest Clear <b>${fastestDisplay.toFixed(1)}s</b>${newFastest ? ' <span class="rec-new">BEST!</span>' : ''}</div>` : ''}
+          <div>Time left <b>${Math.ceil(sim.timeLeft)}s</b></div>
+          <div>Best chain <b>${sim.player.bestCombo} eats at x${campaignComboMult(sim.player.bestCombo).toFixed(1)}</b></div>
+          <div>Coins earned <b>+${coins}</b></div>
+        </div>
+        <div class="results-actions">
+          <button class="btn results-btn-cont">${sim.won ? 'CONTINUE' : 'RETRY'}</button>
+          <button class="btn secondary results-btn-cities">CHANGE MAP</button>
+          <button class="btn secondary results-btn-menu">MAIN MENU</button>
+        </div>
+      </div>
+    </div>`);
+
+    s.querySelector('.results-btn-cont').onclick = () => onContinue(stars, coins, false);
+    s.querySelector('.results-btn-cities').onclick = () => onContinue(stars, coins, 'cities');
+    s.querySelector('.results-btn-menu').onclick = () => onContinue(stars, coins, 'menu');
     this.root.appendChild(s);
     this.current = 'results';
   }

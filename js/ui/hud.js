@@ -113,7 +113,7 @@ export class HUD {
   //   - a lower one never truncates a higher one already showing;
   //   - repeats from the same source coalesce in place rather than stacking,
   //     so the player never watches a backlog drain.
-  announce({ text, sub = '', source, priority = 0, ms = 6000, channel = 'band', tier = 'hype' }) {
+  announce({ text, sub = '', source, priority = 0, ms = 10000, channel = 'band', tier = 'hype' }) {
     const now = performance.now();
     const live = this._ann && this._ann.until > now ? this._ann : null;
     if (live && live.priority > priority) return false;
@@ -193,7 +193,7 @@ export class HUD {
     this.banner.textContent = level.index === 'SANDBOX' ? `✦ ${metroName} · SANDBOX ✦` : `LEVEL ${level.index} · ${metroName}`;
   }
 
-  showToast(text, ms = 6000) {
+  showToast(text, ms = 10000) {
     this.toast.textContent = text;
     this.toast.classList.remove('hidden');
     clearTimeout(this.toastTimer);
