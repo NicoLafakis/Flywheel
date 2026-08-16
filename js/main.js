@@ -92,7 +92,7 @@ window.addEventListener('click', earlyUnlock, { passive: true });
 window.addEventListener('keydown', earlyUnlock, { passive: true });
 
 // ------------------------------------------------------------------ game state
-let state = 'menu'; // menu | intro | playing | powerup_collect_cinematic | quake_cinematic | paused | results
+let state = 'menu'; // menu | intro | playing | powerup_pause | quake_cinematic | paused | results
 let isVoxelSandbox = false;
 let level = null;
 let sim = null;
@@ -476,43 +476,11 @@ function playEarthquakeCinematic(ev) {
 function playPowerUpCollectCinematic(powerup) {
   if (!cam || !powerup || powerup.type === 'quake' || state !== 'playing') return;
 
-  const previousState = state;
-  const reducedMotion = !!save.settings.reducedMotion
-    || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let finished = false;
-  const finish = (skipped = false) => {
-    if (finished) return;
-    finished = true;
-    screens.dismissDragonballCollectCinematic();
-    if (skipped && cam && cam.skipDragonballCinematic) cam.skipDragonballCinematic();
-
-    if (state === 'powerup_collect_cinematic') {
-      state = previousState;
-      accumulator = 0;
-      lastTs = performance.now();
-    }
-    if (sim && (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0))) {
-      if (isVoxelSandbox) endSandbox(); else endLevel();
-    }
-  };
-
-  const hole = isVoxelSandbox ? sim.hole : sim.player;
-  controls?.cancelPointer();
-  state = 'powerup_collect_cinematic';
-  screens.showDragonballCollectCinematic({
-    powerup,
-    audio,
-    onSkip: () => finish(true),
-    onDone: () => finish(false),
-    reducedMotion,
-    duration: 3.4,
-  });
-  cam.startDragonballCollectCinematic({
-    playerX: hole.x,
-    playerZ: hole.z,
-    duration: 3.4,
-    reducedMotion,
-    onComplete: () => finish(false),
+  const prevState = state;
+  state = 'powerup_pause';
+  screens.showPowerUpShowcase(powerup, () => {
+    state = prevState;
+    lastTs = performance.now();
   });
 }
 
@@ -849,7 +817,6 @@ function teardownWorld() {
   stopMenuScene();
   screens.dismissPokemonEncounterModal();
   screens.dismissEarthquakeCinematic();
-  screens.dismissDragonballCollectCinematic();
   pokeSpawnQueue = [];
   isShowingPokeSpawn = false;
   if (readyGate) { readyGate.dismiss(); readyGate = null; }
@@ -1378,7 +1345,7 @@ function frame(ts) {
       // its presentation readable; the next playing frame opens results once
       // the cinematic releases the state hold.
       if (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0)) {
-        if (state !== 'quake_cinematic' && state !== 'powerup_collect_cinematic' && state !== 'powerup_encounter') {
+        if (state !== 'quake_cinematic' && state !== 'powerup_pause' && state !== 'powerup_encounter') {
           endSandbox();
         }
       }
@@ -1517,12 +1484,12 @@ function frame(ts) {
       hud.update(sim);
       hud.drawMinimap(sim);
       if (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0)) {
-        if (state !== 'quake_cinematic' && state !== 'powerup_collect_cinematic' && state !== 'powerup_encounter') {
+        if (state !== 'quake_cinematic' && state !== 'powerup_pause' && state !== 'powerup_encounter') {
           endLevel();
         }
       }
     }
-  } else if ((state === 'quake_cinematic' || state === 'powerup_collect_cinematic' || state === 'powerup_encounter') && world && cam) {
+  } else if ((state === 'quake_cinematic' || state === 'powerup_pause' || state === 'powerup_encounter') && world && cam) {
     world.update(realDt, []);
     const h = (sim && sim.hole) || (sim && sim.player) || { x: 0, z: 0, radius: 2 };
     cam.update(realDt, h.x, h.z, h.radius, 0, 0, false, null);

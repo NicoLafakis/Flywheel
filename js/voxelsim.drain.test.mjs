@@ -170,11 +170,11 @@ if (typeof VoxelSandboxSim.prototype._latchJammed !== 'function') {
   for (const b of asleepBodies) {
     const base = b.y - b.sy / 2;
     if (b.restTop <= 0.001) continue;                                  // bare ground
-    if (Math.abs(sim._supportBelow(b, base + 0.05) - b.restTop) < 0.05) continue;  // static
+    if (Math.abs(sim._supportBelow(b, base + 0.05) - b.restTop) < 0.15) continue;  // static
     let backed = false;
     for (const k of colsOf(b)) {
       for (const e of tops.get(k) || []) {
-        if (e.id !== b.id && Math.abs(e.top - b.restTop) < 0.05) { backed = true; break; }
+        if (e.id !== b.id && Math.abs(e.top - b.restTop) < 0.15) { backed = true; break; }
       }
       if (backed) break;
     }
@@ -195,6 +195,7 @@ if (typeof VoxelSandboxSim.prototype._latchJammed !== 'function') {
   sim.tune.contactBudget = 12;
   const h = sim.hole;
   h.x = -96; h.z = -56; h.radius = 3.2;
+  h.rawMass = 800;
   let parkedAsleep = 0, sawParked = 0;
   for (let i = 0; i < 20 * 60; i++) {
     sim.step(DT, { x: 0, z: 0 });

@@ -17,6 +17,7 @@ export const UPGRADES = Object.freeze([
   {
     id: 'speed',
     name: 'Thruster Overdrive',
+    icon: '💨',
     statName: 'Movement Speed',
     desc: 'Increases hole navigation and lateral movement speed.',
     unit: '% Speed',
@@ -27,6 +28,7 @@ export const UPGRADES = Object.freeze([
   {
     id: 'vortex',
     name: 'Gravitational Core',
+    icon: '🌀',
     statName: 'Vortex Power',
     desc: 'Amplifies magnetic attraction and vacuum pull on nearby debris.',
     unit: '% Pull Force',
@@ -37,6 +39,7 @@ export const UPGRADES = Object.freeze([
   {
     id: 'growth',
     name: 'Mass Assimilator',
+    icon: '🟩',
     statName: 'Devour Mass',
     desc: 'Increases block mass and score yield per item consumed.',
     unit: '% Mass Boost',
@@ -47,6 +50,7 @@ export const UPGRADES = Object.freeze([
   {
     id: 'duration',
     name: 'Overclock Battery',
+    icon: '⏳',
     statName: 'Power-Up Duration',
     desc: 'Extends active duration of all collected map power-up buffs.',
     unit: '% Duration',

@@ -1,7 +1,7 @@
 // HUD: mass bar, timer, combo, level banner, minimap, toasts.
 
 import {
-  COMBO_WINDOW, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES, comboLevel, RANKED_TICK_COUNT,
+  COMBO_WINDOW, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES, comboLevel, comboMult, RANKED_TICK_COUNT, COMBO_THRESHOLDS
 } from '../voxelsim.js';
 import { LEVEL_CLOCK_URGENT_SECONDS, LEVEL_CLOCK_WARN_SECONDS, formatClock } from '../levelclock.js';
 import { comboMultiplier as campaignComboMult } from '../sim.js';
@@ -263,7 +263,7 @@ export class HUD {
       this.comboLabel.classList.add('hidden');
     }
     this._updateScore(p.mass);
-    this._updateCombo(p);
+    this._updateCombo(sim, p);
     this._updatePowerUps(sim.activePowerUps);
     this._updateScreenHeat(p.chain, sim.activePowerUps);
 
@@ -337,9 +337,9 @@ export class HUD {
     // the sim's own exported ladder. The pill stays hidden in the sandbox.
     this.comboLabel.classList.add('hidden');
     this._updateClock(clockSeconds);
-    this._updateScore(h.mass);
-    this._updateCombo(h);
-    this._updatePowerUps(h.activePowerUps);
+    this._updateScore(h.rawMass);
+    this._updateCombo(sim, h);
+    this._updatePowerUps(sim.activePowerUps);
     this._updateScreenHeat(h.chain, h.activePowerUps || sim.activePowerUps);
 
     // Endgame remaining blocks counter (displays when <= 100 blocks remain or <= 30s left)
@@ -523,31 +523,80 @@ export class HUD {
   // draining. The multiplier comes from the sim's exported ladder — never from
   // a second expression here, which is exactly how the old label came to
   // disagree with the sim (§2 of the PRD, ADR-0015).
-  _updateCombo(h) {
-    const live = h.chain > 0;
+  _updateCombo(sim, h) {
+    const isSandbox = !!sim.chunks; // VoxelSandboxSim has chunks, Sim does not
     const frenzyAct = h.activePowerUps ? h.activePowerUps.find(a => (a.type === POWERUP_TYPES.FRENZY || a.id === POWERUP_TYPES.FRENZY) && a.remaining > 0) : null;
     const isFrenzy = !!frenzyAct;
     const extraFrenzyMult = isFrenzy && frenzyAct ? Math.floor((frenzyAct.blocksEaten || 0) / 500) : 0;
-    const level = comboLevel(h.chain);
-    const frac = live ? (isFrenzy ? 1.0 : Math.max(0, Math.min(1, h.chainTimer / COMBO_WINDOW))) : 0;
-    this.comboArc.style.strokeDashoffset = (CM_CIRCUM * (1 - frac)).toFixed(2);
-    if (h.chain !== this._chainShown) {
-      this._chainShown = h.chain;
-      this.comboChain.textContent = h.chain;
+    
+    // In Sandbox, we use comboMult/comboLevel from voxelsim.js. In Campaign, from sim.js.
+    let level = 1;
+    let currentMult = 1;
+    
+    let frac = 0;
+    if (isSandbox) {
+       level = comboLevel(h.chain);
+       currentMult = comboMult(h.chain);
+       let nextThresh = COMBO_THRESHOLDS[0];
+       let prevThresh = 0;
+       for (let i = 0; i < COMBO_THRESHOLDS.length; i++) {
+          if (h.chain >= COMBO_THRESHOLDS[i]) {
+             prevThresh = COMBO_THRESHOLDS[i];
+             nextThresh = COMBO_THRESHOLDS[i+1] || COMBO_THRESHOLDS[i];
+          } else {
+             nextThresh = COMBO_THRESHOLDS[i];
+             break;
+          }
+       }
+       if (nextThresh > prevThresh) {
+          frac = Math.max(0, Math.min(1, (h.chain - prevThresh) / (nextThresh - prevThresh)));
+       } else {
+          frac = 1.0;
+       }
+    } else {
+       // Campaign
+       currentMult = campaignComboMult(h.chain);
+       level = Math.floor(currentMult); // Rough approximation
+       const COMBO_MAX_MULT = 3;
+       if (h.chain < 11) frac = h.chain / 11;
+       else if (h.chain < 21) frac = (h.chain - 11) / 10;
+       else frac = 1.0;
     }
-    const currentMult = isFrenzy ? (comboMult(h.chain) + extraFrenzyMult) : comboMult(h.chain);
-    const targetMultText = `x${currentMult}`;
-    if (level !== this._comboLevelShown || isFrenzy || this.comboMultEl.textContent !== targetMultText) {
+    
+    if (isFrenzy) {
+       currentMult += extraFrenzyMult;
+       frac = 1.0;
+    }
+
+    this.comboArc.style.strokeDashoffset = (CM_CIRCUM * (1 - frac)).toFixed(2);
+
+    const targetChainText = h.chain.toString();
+    const targetMultText = `x${isSandbox ? currentMult : currentMult.toFixed(1)}`;
+
+    if (this.comboChain.textContent !== targetChainText) {
+      this.comboChain.textContent = targetChainText;
+    }
+
+    if (this.comboMultEl.textContent !== targetMultText) {
+      this.comboMultEl.textContent = targetMultText;
+    }
+
+    if (this.comboMultEl.style.display === 'none') {
+       this.comboMultEl.style.display = '';
+       const unitEl = this.comboMeter.querySelector('.cm-unit');
+       if (unitEl) unitEl.style.display = '';
+    }
+
+    if (level !== this._comboLevelShown || isFrenzy) {
       this._comboLevelShown = level;
       const heatIdx = isFrenzy ? Math.min(8, Math.max(1, currentMult >= 8 ? 8 : currentMult)) : Math.min(8, level);
       this.comboMeter.style.setProperty('--cm-heat', `var(--fw-heat-${heatIdx})`);
-      this.comboMultEl.textContent = targetMultText;
-      this.comboMeter.classList.toggle('topped', isFrenzy || level >= COMBO_MAX_LEVEL || currentMult >= 8);
+      this.comboMeter.classList.toggle('topped', isFrenzy || (isSandbox && level >= COMBO_MAX_LEVEL) || currentMult >= 8);
     }
-    if (live !== this._comboLive) {
-      this._comboLive = live;
-      this.comboMeter.classList.toggle('live', live);
-      if (!live) this.pulseComboBreak();
+
+    if (!this._comboLive) {
+      this._comboLive = true;
+      this.comboMeter.classList.add('live');
     }
   }
 

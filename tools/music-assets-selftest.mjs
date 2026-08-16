@@ -7,7 +7,7 @@ const root = new URL('../assets/music/', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('MANIFEST.json', root), 'utf8'));
 const diskMp3 = (await readdir(root)).filter((name) => name.endsWith('.mp3')).sort();
 const manifestMp3 = manifest.files.map((row) => row.path).sort();
-const cueMp3 = Object.values(MUSIC_CUES).filter(Boolean).sort();
+const cueMp3 = [...new Set(Object.values(MUSIC_CUES).filter(Boolean))].sort();
 
 assert.deepEqual(diskMp3, manifestMp3, 'manifest must list every shipped MP3 exactly once');
 assert.deepEqual(diskMp3, cueMp3, 'cue registry and shipped MP3 set must match');

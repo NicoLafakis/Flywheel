@@ -498,6 +498,11 @@ export class AudioEngine {
 
   /** Dramatic anime hit-stop freeze impact sound with instant sub-bass drop. */
   playAnimeHitStop({ vol = 1.0 } = {}) {
+    this.playBassDrop({ vol });
+  }
+
+  /** Speaker-rattling cinematic sub-bass drop */
+  playBassDrop({ vol = 1.0 } = {}) {
     if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
     try {
       const now = this.ctx.currentTime;
@@ -518,14 +523,74 @@ export class AudioEngine {
       const oscBass = this.ctx.createOscillator();
       const gainBass = this.ctx.createGain();
       oscBass.type = 'sine';
-      oscBass.frequency.setValueAtTime(110, now);
-      oscBass.frequency.exponentialRampToValueAtTime(32, now + 0.7);
-      gainBass.gain.setValueAtTime(0.65 * this._vol * vol, now);
-      gainBass.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+      oscBass.frequency.setValueAtTime(120, now);
+      oscBass.frequency.exponentialRampToValueAtTime(28, now + 0.85);
+      gainBass.gain.setValueAtTime(0.85 * this._vol * vol, now);
+      gainBass.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
       oscBass.connect(gainBass);
       gainBass.connect(this.sfx);
       oscBass.start(now);
-      oscBass.stop(now + 0.8);
+      oscBass.stop(now + 0.95);
+    } catch { /* fallback */ }
+  }
+
+  /** Ascending high-voltage energy charge riser */
+  playEnergyRiser({ vol = 0.9, duration = 1.2 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(1600, now + duration);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(400, now);
+      filter.frequency.exponentialRampToValueAtTime(8000, now + duration);
+      filter.Q.setValueAtTime(6.0, now);
+
+      gain.gain.setValueAtTime(0.05 * this._vol * vol, now);
+      gain.gain.linearRampToValueAtTime(0.55 * this._vol * vol, now + duration * 0.8);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration + 0.1);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.sfx);
+      osc.start(now);
+      osc.stop(now + duration + 0.15);
+    } catch { /* fallback */ }
+  }
+
+  /** Two-tone municipal civil emergency alert siren */
+  playCivilEmergencySiren({ vol = 1.0, duration = 2.4 } = {}) {
+    if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+
+      const cycle = 0.6;
+      const cycles = Math.ceil(duration / cycle);
+      for (let i = 0; i < cycles; i++) {
+        const t = now + i * cycle;
+        osc.frequency.setValueAtTime(440, t);
+        osc.frequency.linearRampToValueAtTime(660, t + cycle * 0.5);
+        osc.frequency.linearRampToValueAtTime(440, t + cycle);
+      }
+
+      gain.gain.setValueAtTime(0.01, now);
+      gain.gain.linearRampToValueAtTime(0.6 * this._vol * vol, now + 0.2);
+      gain.gain.setValueAtTime(0.6 * this._vol * vol, now + duration - 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      osc.connect(gain);
+      gain.connect(this.sfx);
+      osc.start(now);
+      osc.stop(now + duration + 0.05);
     } catch { /* fallback */ }
   }
 

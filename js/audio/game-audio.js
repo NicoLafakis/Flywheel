@@ -319,8 +319,24 @@ export class GameAudio {
     this.music.duck(2.2, 0.4);
   }
 
-  playPokemonDropLand() {
+  playOrbitalDropLand() {
     this.engine.playRandom(['ground-impact-1', 'ground-impact-2'], { vol: 0.85 });
+  }
+
+  playPokemonDropLand() {
+    this.playOrbitalDropLand();
+  }
+
+  playPowerUpTransformation(opts = {}) {
+    this.engine.playBassDrop(opts);
+    if (this.engine.playEnergyRiser) {
+      this.engine.playEnergyRiser({ vol: (opts.vol || 1.0) * 0.85, duration: 1.0 });
+    }
+  }
+
+  playCivilEmergencyDisaster(opts = {}) {
+    this.engine.playCivilEmergencySiren(opts);
+    this.engine.playBassDrop({ vol: 0.9 });
   }
 
   playMeteorIncoming() {

@@ -30,7 +30,7 @@ function count(source, text) {
 
 // Main loop: the emitted quake event must enter the dedicated state in both
 // campaign and sandbox paths, rather than merely supplying a camera shake.
-check(main.includes("let state = 'menu'; // menu | intro | playing | powerup_collect_cinematic | quake_cinematic | paused | results"),
+check(main.includes("let state = 'menu'; // menu | intro | playing | powerup_pause | quake_cinematic | paused | results"),
   'main state enum does not include both cinematic hold states');
 check(main.includes('function playEarthquakeCinematic(ev) {'),
   'main does not own a quake cinematic coordinator');
@@ -51,21 +51,19 @@ check(main.includes('world.skipQuakeCinematic()'),
 check(count(main, 'playEarthquakeCinematic(ev);') === 2,
   'quake event must be wired once for sandbox and once for campaign');
 check(main.includes('function playPowerUpCollectCinematic(powerup) {'),
-  'main does not coordinate the non-quake Dragon Ball collection cinematic');
+  'main does not coordinate the non-quake collection showcase');
 check(count(main, 'playPowerUpCollectCinematic(ev.powerup);') === 2,
-  'non-quake collection cinematic must be wired once for sandbox and once for campaign');
+  'non-quake collection showcase must be wired once for sandbox and once for campaign');
 check(count(main, 'if (!isQuake) playPowerUpCollectCinematic(ev.powerup);') === 2,
-  'the Dragon Ball collection cinematic must never replace Fault Line Rupture');
+  'the collection showcase must never replace Fault Line Rupture');
 check(count(main, "if (isChrono) audio.playChronoFreeze({ vol: 0.95, delay: 0.25 });") === 2,
   'Chrono Freeze must cue its ice sound after the normal pickup cue in both play modes');
-check(main.includes("state === 'powerup_collect_cinematic'"),
-  'frame loop does not hold the timer during the collection cinematic');
-check(main.includes('screens.dismissDragonballCollectCinematic();'),
-  'collection cinematic is not cleaned up during world teardown or completion');
-check(main.includes("state === 'quake_cinematic' || state === 'powerup_collect_cinematic' || state === 'powerup_encounter'"),
+check(main.includes("state === 'powerup_pause'"),
+  'frame loop does not hold the timer during the collection showcase');
+check(main.includes("state === 'quake_cinematic' || state === 'powerup_pause' || state === 'powerup_encounter'"),
   'frame loop does not render both held cinematic states');
-check(count(main, "state !== 'powerup_collect_cinematic'") === 2,
-  'results must wait for a non-quake collection cinematic in campaign and sandbox play');
+check(count(main, "state !== 'powerup_pause'") === 2,
+  'results must wait for a non-quake collection showcase in campaign and sandbox play');
 
 // Provider contract: the controls exposed by the coordinator must remain
 // present on the camera, UI, and both renderers.
@@ -77,29 +75,20 @@ check(camera.includes('Phase 5: hold at the distant endpoint and pull a delibera
 check(camera.includes('Phase 6: chase the glowing fissure back toward the player'),
   'camera no longer tracks the fissure back to the player');
 check(camera.includes('skipEarthquakeCinematic()'), 'camera skip API is missing');
-check(camera.includes('const liveDist = dist;')
-  && camera.includes('dist = startDist + (liveDist - startDist) * easeU;'),
-  'Dragon Ball pickup return phase does not preserve a defined live chase distance');
-check(screens.includes('showEarthquakeCinematic({'), 'earthquake UI overlay API is missing');
-check(screens.includes('showDragonballCollectCinematic({')
-  && screens.includes('duration = 3.4')
-  && screens.includes('Math.max(2400, duration * 1000)'),
-  'the Dragon Ball explanation card does not hold long enough to be read');
-check(screens.includes('quake-word-earth">EARTH</div>')
-  && screens.includes('quake-word-quake">QUAKE</div>')
-  && screens.includes('quake-word-time">TIME!</div>'),
-  'earthquake overlay no longer contains the three super-move text slams');
-check(screens.includes('const cueScale = duration / 5.8;'),
-  'quake text slams no longer scale with the cinematic duration');
+check(screens.includes('showCivilDisasterEmergencyCinematic(') || screens.includes('showEarthquakeCinematic('), 'civil emergency / earthquake UI overlay API is missing');
+check(screens.includes('showPowerUpShowcase('),
+  'the powerup showcase card API is missing');
+check(screens.includes('civil-emergency-ticker')
+  && screens.includes('civil-telemetry-badge')
+  && screens.includes('civil-alert-title'),
+  'civil emergency overlay no longer contains the municipal alert ticker and telemetry');
 check(screens.includes("e.code !== 'Space' && e.code !== 'Enter' && e.code !== 'Escape'"),
   'earthquake overlay no longer supports all keyboard skip controls');
 check(voxelWorld.includes('skipQuakeCinematic()'), 'voxel renderer skip API is missing');
 check(world3d.includes('skipQuakeCinematic()'), 'campaign renderer skip API is missing');
-check(css.includes('.quake-zoom-stage.stage-earth .quake-word-earth')
-  && css.includes('.quake-zoom-stage.stage-quake .quake-word-quake')
-  && css.includes('.quake-zoom-stage.stage-time .quake-word-time'),
-  'quake overlay CSS no longer animates all three text slams');
-check(css.includes('@media (prefers-reduced-motion: reduce)'),
-  'quake overlay CSS no longer provides a reduced-motion guard');
+check(css.includes('.civil-emergency-overlay')
+  && css.includes('.civil-emergency-ticker')
+  && css.includes('.civil-alert-title'),
+  'civil emergency overlay CSS no longer styles the alert presentation');
 
-console.log(`earthquake cinematic selftest: ${assertions} assertions PASS`);
+console.log(`earthquake / civil disaster cinematic selftest: ${assertions} assertions PASS`);

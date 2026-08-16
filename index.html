@@ -286,10 +286,11 @@
     bgMusicPreload.preload = 'auto';
   } catch (e) {}
 
-  function bootFailed() {
+  function bootFailed(err) {
     if (done) return;
+    console.error('[Boot Error Diagnostics]:', err);
     var splash = document.getElementById('boot-splash');
-    if (!splash) { done = true; return; }   // main.js got there — boot is fine
+    if (!splash) { done = true; return; }
     done = true;
     var line = splash.querySelector('.boot-fallback-label') || splash.querySelector('span');
     if (!line) { line = document.createElement('span'); splash.appendChild(line); }
@@ -300,16 +301,32 @@
     line.style.maxWidth = '22em';
     line.style.textAlign = 'center';
     line.style.lineHeight = '1.5';
-    if (statEl) statEl.textContent = 'LOAD ERROR';
+    if (statEl) {
+      statEl.textContent = 'LOAD ERROR';
+      statEl.style.color = '#ff3355';
+    }
   }
 
   window.addEventListener('error', function (e) {
     var t = e.target;
     if (t && t !== window && t.tagName !== 'SCRIPT') return;
-    bootFailed();
+    bootFailed(e.error || e.message || e);
   }, true);
-  window.addEventListener('unhandledrejection', bootFailed);
-  setTimeout(bootFailed, TIMEOUT_MS);
+
+  window.addEventListener('unhandledrejection', function (e) {
+    // Ignore benign audio autoplay and network sync rejections
+    var reason = e ? (e.reason || e) : null;
+    var msg = reason && (reason.message || reason.name || String(reason));
+    if (msg && (msg.includes('NotAllowedError') || msg.includes('play()') || msg.includes('Failed to fetch') || msg.includes('NetworkError'))) {
+      console.warn('[Ignored Benign Rejection on Boot]:', msg);
+      return;
+    }
+    bootFailed(reason);
+  });
+
+  setTimeout(function () {
+    bootFailed(new Error('Boot sequence timed out after ' + TIMEOUT_MS + 'ms'));
+  }, TIMEOUT_MS);
 })();
 </script>
 <script type="module" src="js/main.js"></script>

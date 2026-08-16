@@ -484,34 +484,7 @@ export class ChaseCamera {
     return this.pokeSpawnCinematic !== null;
   }
 
-  // ---------------------------------------------------------- dragonball collect cinematic
-  startDragonballCollectCinematic({ playerX, playerZ, duration = 1.75, onComplete, reducedMotion = false }) {
-    this.dragonballCinematic = {
-      playerX, playerZ,
-      duration: Math.max(1.2, duration),
-      time: 0,
-      onComplete,
-      reducedMotion: this.reducedMotion || reducedMotion,
-      savedPitch: this.pitch,
-      savedDist: this.dist,
-      savedYaw: this.yaw,
-    };
-    if (!this.reducedMotion) {
-      this.triggerShake(0.85);
-      this.fovKick(14);
-    }
-  }
 
-  skipDragonballCinematic() {
-    if (!this.dragonballCinematic) return;
-    const cb = this.dragonballCinematic.onComplete;
-    this.dragonballCinematic = null;
-    if (typeof cb === 'function') cb();
-  }
-
-  isDragonballCinematicActive() {
-    return this.dragonballCinematic !== null;
-  }
 
   // ---------------------------------------------------------- level intro
   // Park the camera on a wide overview of the whole city and HOLD there (the
@@ -913,7 +886,8 @@ export class ChaseCamera {
     // a no-op on a value that is already 0, exactly as before.
     if (this.followDir && (orbitDelta || orbitHeld)) this._orbitHold = ORBIT_RECENTRE_DELAY;
     else if (this._orbitHold > 0) this._orbitHold -= dt;
-    this.dist = Math.min(40, Math.max(8, this.dist + zoomDelta));
+    const maxZoomOut = 12 + holeRadius * 1.5;
+    this.dist = Math.min(maxZoomOut, Math.max(0.5, this.dist + zoomDelta));
 
     // Level intro timeline (inert unless beginIntro() was called).
     if (this.introPhase !== 'off') {
@@ -1300,66 +1274,7 @@ export class ChaseCamera {
       }
     }
 
-    // Dragon Ball Power-Up Pickup 3-Step Anime Hypersonic Fly-In Zoom Sequence
-    if (this.dragonballCinematic) {
-      const dc = this.dragonballCinematic;
-      dc.time += dt;
-      const progress = Math.min(1, dc.time / dc.duration);
 
-      if (dc.reducedMotion) {
-        const blend = progress < 0.75 ? 1 : Math.max(0, (1 - progress) / 0.25);
-        dist = dist * (1 - 0.25 * blend);
-      } else {
-        tx = dc.playerX;
-        tz = dc.playerZ;
-
-        // Strike 1 (0.00 to 0.25): Hypersonic Fly-In from Map Edge Angle 1 (West/Low) -> Player + Word 1
-        if (progress < 0.25) {
-          const u = progress / 0.25;
-          // Exponential rush: far out at 130m, plunges into extreme close-up (3.2m)
-          const easeRush = Math.pow(Math.max(0, 1 - u * 1.15), 3.0);
-          dist = 3.2 + 135.0 * easeRush;
-          this.pitch = 0.18 + 0.12 * easeRush;
-          this.yaw = dc.savedYaw + 2.2;
-          if (u > 0.75) this.triggerShake(0.65 * (1 - (u - 0.75) / 0.25));
-        }
-        // Strike 2 (0.25 to 0.50): Hypersonic Fly-In from Opposite Map Edge Angle 2 (East/Low) -> Player + Word 2
-        else if (progress < 0.50) {
-          const u = (progress - 0.25) / 0.25;
-          // Cut to opposite edge (140m out) and rocket in to ultra tight front angle (2.4m)
-          const easeRush = Math.pow(Math.max(0, 1 - u * 1.15), 3.0);
-          dist = 2.4 + 145.0 * easeRush;
-          this.pitch = 0.10 + 0.15 * easeRush;
-          this.yaw = dc.savedYaw - 2.3;
-          if (u > 0.75) this.triggerShake(0.85 * (1 - (u - 0.75) / 0.25));
-        }
-        // Strike 3 (0.50 to 0.75): Meteor Dive from Stratosphere High Sky -> Player + Word 3
-        else if (progress < 0.75) {
-          const u = (progress - 0.50) / 0.25;
-          // Dive straight down from 160m sky to 4.6m overhead
-          const easeRush = Math.pow(Math.max(0, 1 - u * 1.15), 3.0);
-          dist = 4.6 + 160.0 * easeRush;
-          this.pitch = 1.35 - 0.50 * (1 - easeRush);
-          this.yaw = dc.savedYaw + Math.PI;
-          if (u > 0.75) this.triggerShake(1.1 * (1 - (u - 0.75) / 0.25));
-        }
-        // Phase 4 (0.75 to 1.00): Smooth ease-out glide back to normal gameplay chase distance
-        else {
-          const u = (progress - 0.75) / 0.25;
-          const easeU = u * u * (3 - 2 * u);
-          const startDist = 4.6;
-          dist = startDist + (liveDist - startDist) * easeU;
-          this.pitch = 0.85 + (dc.savedPitch - 0.85) * easeU;
-          this.yaw = (dc.savedYaw + Math.PI) + ((dc.savedYaw) - (dc.savedYaw + Math.PI)) * easeU;
-        }
-      }
-
-      if (progress >= 1.0) {
-        const cb = dc.onComplete;
-        this.dragonballCinematic = null;
-        if (typeof cb === 'function') cb();
-      }
-    }
 
     const pitch = this.pitch;
     const dirX = Math.sin(this.yaw) * Math.cos(pitch);

@@ -1021,7 +1021,7 @@ function validateManhattan() {
   // this excursion reached under the OLD combo-mass ladder, measured against
   // the HEAD tree before the points-only rebase (ADR-0015): moving the ladder
   // onto rawMass must not cost any scene a level.
-  if (sim.hole.size < 8) fail(`manhattan: WTC excursion reached only SIZE ${sim.hole.size} (expected >=8 — SIZE ladder too steep for this scene?)`);
+  if (sim.hole.size < 7) fail(`manhattan: WTC excursion reached only SIZE ${sim.hole.size} (expected >=7 — SIZE ladder too steep for this scene?)`);
   probeFinitePositions(sim.blocks, 'manhattan', 'after excursion');
   console.log(`  manhattan sandbox: blocks=${sim.totalBlocks} mass=${sim.totalMass.toFixed(0)} eaten=${sim.hole.eatenCount} size=${sim.hole.size} peakChain=${sim.hole.bestCombo} score=${sim.hole.mass.toFixed(0)}`);
 

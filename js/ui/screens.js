@@ -1291,97 +1291,95 @@ export class Screens {
     this.current = 'pu_showcase';
   }
 
-  showDragonballCollectCinematic({ powerup, onSkip, onDone, audio, reducedMotion = false, duration = 6.0 } = {}) {
-    this.dismissDragonballCollectCinematic();
+  showSuperOverdriveTransformation({ powerup, onSkip, onDone, audio, reducedMotion = false, duration = 4.0 } = {}) {
+    this.dismissSuperOverdriveTransformation();
     const spec = (powerup && powerup.spec) || (powerup && POWERUP_SPECS[powerup.type]) || {
       id: 'boost',
-      name: 'POWER BOOST',
-      zoomParts: ['POWER', 'SUPER', 'BOOST!'],
-      animeSubtitle: 'POWER MAXIMUM UNLEASHED',
-      icon: '⚡',
-      tagline: 'Super Charge',
+      name: 'HYPER OVERDRIVE',
+      zoomParts: ['HYPER', 'VELOCITY', 'OVERDRIVE!'],
+      tagline: 'Maximum Power Surge',
       desc: 'Enhanced velocity and maximum absorption power!',
-      color: 0x00d2ff,
+      color: 0x00f0ff,
     };
-    const parts = spec.zoomParts || (spec.name ? spec.name.split(' ') : ['POWER', 'UP', 'UNLEASHED!']);
-    while (parts.length < 3) parts.push('ACTIVATED!');
-    const colorHex = '#' + (spec.color != null ? spec.color.toString(16).padStart(6, '0') : 'ffd700');
+    const parts = spec.zoomParts || (spec.name ? spec.name.split(' ') : ['HYPER', 'POWER', 'OVERDRIVE!']);
+    while (parts.length < 3) parts.push('OVERDRIVE!');
+    const colorHex = '#' + (spec.color != null ? spec.color.toString(16).padStart(6, '0') : '00f0ff');
 
-    const overlay = el(`<div id="db-collect-overlay" style="--db-color:${colorHex}">
-      <div class="db-cinematic-bar top"></div>
+    const overlay = el(`<div id="overdrive-collect-overlay" class="overdrive-overlay" style="--pu-accent:${colorHex}">
+      <div class="overdrive-cinematic-bar top"></div>
       ${reducedMotion ? '' : `
-        <div class="db-impact-flash"></div>
-        <div class="db-ki-rays"></div>
-        <div class="db-speed-lines"></div>
+        <div class="overdrive-anamorphic-flare"></div>
+        <div class="overdrive-chromatic-pulse"></div>
+        <div class="overdrive-energy-aura"></div>
       `}
-      <div class="db-zoom-stage stage-1">
-        <div class="db-anime-sub">⚡ ${spec.animeSubtitle || 'DRAGON BALL ANIME POWER-UP'} ⚡</div>
+      <div class="overdrive-zoom-stage stage-1">
+        <div class="overdrive-sub-header">✦ ENERGY TRANSFORMATION ACTIVE ✦</div>
         
-        <div class="db-word-box word-1">
-          <div class="db-word-inner">${parts[0]}</div>
+        <div class="overdrive-word-box word-1">
+          <div class="overdrive-word-inner">${parts[0]}</div>
         </div>
 
-        <div class="db-word-box word-2">
-          <div class="db-word-inner">${parts[1]}</div>
+        <div class="overdrive-word-box word-2">
+          <div class="overdrive-word-inner">${parts[1]}</div>
         </div>
 
-        <div class="db-word-box word-3">
-          <div class="db-word-inner">${parts[2]}</div>
+        <div class="overdrive-word-box word-3">
+          <div class="overdrive-word-inner">${parts[2]}</div>
         </div>
 
-        <div class="db-reveal-card">
-          <div class="db-card-header">
-            <div class="db-card-icon">${spec.icon || '⚡'}</div>
-            <div class="db-card-headings">
-              <div class="db-card-badge">POWER-UP ACTIVATED</div>
-              <h2 class="db-card-title">${spec.name}</h2>
-              <div class="db-card-tagline">${spec.tagline || ''}</div>
+        <div class="overdrive-reveal-card">
+          <div class="overdrive-card-header">
+            <div class="overdrive-card-headings">
+              <div class="overdrive-card-badge">POWER-UP OVERDRIVE ACTIVE</div>
+              <h2 class="overdrive-card-title">${spec.name}</h2>
+              <div class="overdrive-card-tagline">${spec.tagline || ''}</div>
             </div>
           </div>
-          <p class="db-card-desc">${spec.desc || ''}</p>
-          <div class="db-card-meta">
-            <span class="db-meta-pill">⏱️ ${spec.duration ? spec.duration + 's Duration' : 'Instant Blast'}</span>
-            <span class="db-meta-pill">${spec.pokeType ? '🔮 ' + spec.pokeType : '⚡ SUPER BUFF'}</span>
+          <p class="overdrive-card-desc">${spec.desc || ''}</p>
+          <div class="overdrive-card-meta">
+            <span class="overdrive-meta-pill">DURATION: ${spec.duration ? spec.duration + ' SECONDS' : 'INSTANT SHOCKWAVE'}</span>
+            <span class="overdrive-meta-pill">STATUS: MAXIMUM BURST</span>
           </div>
-          <div class="db-card-hint">SPACE / TAP TO CONTINUE</div>
+          <div class="overdrive-card-hint">SPACE / TAP TO CONTINUE</div>
         </div>
       </div>
-      <div class="db-cinematic-bar bottom"></div>
+      <div class="overdrive-cinematic-bar bottom"></div>
     </div>`);
 
     let done = false;
-    const stage = overlay.querySelector('.db-zoom-stage');
+    const stage = overlay.querySelector('.overdrive-zoom-stage');
     const timeouts = [];
     
-    if (audio && audio.playDragonballHit1) {
-      timeouts.push(setTimeout(() => { if (!done) audio.playDragonballHit1(); }, 120));
+    if (audio) {
+      if (audio.playPowerUpTransformation) {
+        audio.playPowerUpTransformation({ vol: 1.0 });
+      } else if (audio.playBassDrop) {
+        audio.playBassDrop({ vol: 1.0 });
+      }
     }
+
     timeouts.push(setTimeout(() => {
       if (done) return;
-      if (stage) {
-        stage.className = 'db-zoom-stage stage-2';
-        if (audio && audio.playDragonballHit2) audio.playDragonballHit2();
-      }
-    }, 560));
+      if (stage) stage.className = 'overdrive-zoom-stage stage-2';
+      if (audio && audio.playDragonballHit2) audio.playDragonballHit2();
+    }, 450));
+
     timeouts.push(setTimeout(() => {
       if (done) return;
-      if (stage) {
-        stage.className = 'db-zoom-stage stage-3';
-        if (audio && audio.playDragonballHit3) audio.playDragonballHit3();
-      }
-    }, 1120));
+      if (stage) stage.className = 'overdrive-zoom-stage stage-3';
+      if (audio && audio.playDragonballHit3) audio.playDragonballHit3();
+    }, 900));
+
     timeouts.push(setTimeout(() => {
       if (done) return;
-      if (stage) {
-        stage.className = 'db-zoom-stage stage-reveal';
-      }
-    }, 1680));
+      if (stage) stage.className = 'overdrive-zoom-stage stage-reveal';
+    }, 1350));
 
     const finish = () => {
       if (done) return;
       done = true;
       timeouts.forEach(clearTimeout);
-      this.dismissDragonballCollectCinematic();
+      this.dismissSuperOverdriveTransformation();
       if (typeof onDone === 'function') onDone();
       else if (typeof onSkip === 'function') onSkip();
     };
@@ -1400,7 +1398,7 @@ export class Screens {
     overlay.addEventListener('click', handleSkip);
     overlay.addEventListener('touchstart', handleSkip, { passive: true });
 
-    this._dbCollectCleanup = () => {
+    this._overdriveCollectCleanup = () => {
       clearTimeout(autoDismissTimeout);
       timeouts.forEach(clearTimeout);
       window.removeEventListener('keydown', handleSkip);
@@ -1410,51 +1408,37 @@ export class Screens {
     };
 
     document.body.appendChild(overlay);
-    this._dbCollectOverlayEl = overlay;
+    this._overdriveCollectOverlayEl = overlay;
     return overlay;
   }
 
-  dismissDragonballCollectCinematic() {
-    if (this._dbCollectOverlayEl) {
-      this._dbCollectOverlayEl.classList.add('fading-out');
-      const cleanup = this._dbCollectCleanup;
-      setTimeout(() => { if (cleanup) cleanup(); }, 250);
-      this._dbCollectOverlayEl = null;
-      this._dbCollectCleanup = null;
-    }
   }
 
-  showEarthquakeCinematic({ onSkip, reducedMotion = false, duration = 6.0 } = {}) {
-    this.dismissEarthquakeCinematic();
-    const overlay = el(`<div id="quake-cinematic-overlay" class="${reducedMotion ? 'reduced-motion' : ''}">
-      <div class="quake-cinematic-bar top"></div>
-      ${reducedMotion ? '' : `
-        <div class="quake-impact-flash"></div>
-        <div class="quake-dragonball-aura"></div>
-        <div class="quake-speed-lines"></div>
-        <div class="quake-zoom-stage stage-earth" aria-hidden="true">
-          <div class="quake-word quake-word-earth">EARTH</div>
-          <div class="quake-word quake-word-quake">QUAKE</div>
-          <div class="quake-word quake-word-time">TIME!</div>
-        </div>
-      `}
-      <div class="quake-anime-banner">
-        <div class="quake-banner-sub">⚡ DRAGON BALL SUPER SAIYAN QUAKE ⚡</div>
-        <h1 class="quake-banner-title">FAULT LINE RUPTURE</h1>
-        <div class="quake-banner-hint">SPACE / TAP TO SKIP</div>
+  showCivilDisasterEmergencyCinematic({ onSkip, reducedMotion = false, duration = 5.0, disaster = {} } = {}) {
+    this.dismissCivilDisasterEmergencyCinematic();
+    const title = disaster.title || 'SEISMIC FAULT LINE RUPTURE';
+    const sub = disaster.sub || 'MAGNITUDE: 7.8 RICHTER · EPICENTER: METROPOLIS GRID';
+
+    const overlay = el(`<div id="civil-disaster-overlay" class="civil-emergency-overlay ${reducedMotion ? 'reduced-motion' : ''}">
+      <div class="civil-cinematic-bar top">
+        <div class="civil-emergency-ticker">⚠️ CIVIL EMERGENCY ALERT · TECTONIC FAULT RUPTURE IN PROGRESS · EVACUATE SURFACE ⚠️</div>
       </div>
-      <div class="quake-cinematic-bar bottom"></div>
+      ${reducedMotion ? '' : `
+        <div class="civil-anamorphic-flare"></div>
+        <div class="civil-chromatic-pulse"></div>
+        <div class="civil-seismic-rift-lines"></div>
+      `}
+      <div class="civil-zoom-stage stage-1" aria-hidden="true">
+        <div class="civil-telemetry-badge">${sub}</div>
+        <div class="civil-alert-title">${title}</div>
+        <div class="civil-prompt-pill">SPACE / TAP TO PROCEED</div>
+      </div>
+      <div class="civil-cinematic-bar bottom"></div>
     </div>`);
 
     let done = false;
     const timeouts = [];
-    const stage = overlay.querySelector('.quake-zoom-stage');
-    if (stage) {
-      const cueScale = duration / 5.8;
-      for (const [delay, className] of [[650, 'stage-earth'], [1460, 'stage-quake'], [2270, 'stage-time'], [3100, 'stage-rift']]) {
-        timeouts.push(setTimeout(() => { if (!done) stage.className = `quake-zoom-stage ${className}`; }, delay * cueScale));
-      }
-    }
+
     const handleSkip = (e) => {
       if (done) return;
       if (e && e.type === 'keydown') {
@@ -1462,7 +1446,7 @@ export class Screens {
         e.preventDefault();
       }
       done = true;
-      this.dismissEarthquakeCinematic();
+      this.dismissCivilDisasterEmergencyCinematic();
       if (typeof onSkip === 'function') onSkip();
     };
 
@@ -1471,7 +1455,7 @@ export class Screens {
     overlay.addEventListener('click', handleSkip);
     overlay.addEventListener('touchstart', handleSkip, { passive: true });
 
-    this._quakeOverlayCleanup = () => {
+    this._civilDisasterCleanup = () => {
       clearTimeout(autoDismissTimeout);
       timeouts.forEach(clearTimeout);
       window.removeEventListener('keydown', handleSkip);
@@ -1481,109 +1465,56 @@ export class Screens {
     };
 
     document.body.appendChild(overlay);
-    this._quakeOverlayEl = overlay;
+    this._civilDisasterOverlayEl = overlay;
     return overlay;
   }
 
-  dismissEarthquakeCinematic() {
-    if (this._quakeOverlayEl) {
-      this._quakeOverlayEl.classList.add('fading-out');
-      const cleanup = this._quakeOverlayCleanup;
-      setTimeout(() => {
-        if (cleanup) cleanup();
-      }, 300);
-      this._quakeOverlayEl = null;
-      this._quakeOverlayCleanup = null;
-    }
+  showEarthquakeCinematic(opts) {
+    return this.showCivilDisasterEmergencyCinematic(opts);
   }
 
-  showPokemonEncounterModal({ powerup, onSkip, reducedMotion = false } = {}) {
-    this.dismissPokemonEncounterModal();
-    const spec = (powerup && powerup.spec) || powerup || {};
-    const colorHex = '#' + (spec.color || 0xffb703).toString(16).padStart(6, '0');
-    const glowHex = '#' + (spec.glowColor || 0xff7700).toString(16).padStart(6, '0');
-    const pokeType = spec.pokeType || 'MYTHICAL / POWER';
-    const pokeLevel = spec.pokeLevel || 50;
-    const pokeRarity = spec.pokeRarity || 'LEGENDARY';
-
-    const overlay = el(`<div id="poke-encounter-overlay" style="--poke-color: ${colorHex}; --poke-glow: ${glowHex};">
-      ${reducedMotion ? '' : `
-        <div class="poke-battle-wipe left"></div>
-        <div class="poke-battle-wipe right"></div>
-        <div class="poke-radial-burst"></div>
-      `}
-      <div class="poke-encounter-card">
-        <div class="poke-card-header">
-          <span class="poke-wild-tag">⚡ A WILD POWER-UP HAS APPEARED! ⚡</span>
-          <span class="poke-rarity-badge">${pokeRarity}</span>
-        </div>
-        <div class="poke-card-body">
-          <div class="poke-icon-circle">
-            <span class="poke-icon">${spec.icon || '⚡'}</span>
-            <div class="poke-icon-aura"></div>
-          </div>
-          <div class="poke-info">
-            <div class="poke-name-row">
-              <h1 class="poke-powerup-name">${spec.name || 'POWER-UP'}</h1>
-              <span class="poke-level">Lv.${pokeLevel}</span>
-            </div>
-            <div class="poke-type-pill">TYPE / ${pokeType}</div>
-            <p class="poke-flavor-text">${spec.desc || spec.tagline || 'A powerful booster has landed in the city!'}</p>
-          </div>
-        </div>
-        <div class="poke-card-footer">
-          <span class="poke-prompt-pill">SPACE / TAP TO ENGAGE</span>
-        </div>
-      </div>
-    </div>`);
-
-    let done = false;
-    const handleSkip = (e) => {
-      if (done) return;
-      if (e && e.type === 'keydown') {
-        if (e.code !== 'Space' && e.code !== 'Enter' && e.code !== 'Escape') return;
-        e.preventDefault();
-      }
-      done = true;
-      this.dismissPokemonEncounterModal();
-      if (typeof onSkip === 'function') onSkip();
-    };
-
-    const autoDismissTimeout = setTimeout(() => {
-      if (!done) {
-        done = true;
-        this.dismissPokemonEncounterModal();
-        if (typeof onSkip === 'function') onSkip();
-      }
-    }, 10000);
-
-    window.addEventListener('keydown', handleSkip);
-    overlay.addEventListener('click', handleSkip);
-    overlay.addEventListener('touchstart', handleSkip, { passive: true });
-
-    this._pokeOverlayCleanup = () => {
-      clearTimeout(autoDismissTimeout);
-      window.removeEventListener('keydown', handleSkip);
-      overlay.removeEventListener('click', handleSkip);
-      overlay.removeEventListener('touchstart', handleSkip);
-      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-    };
-
-    document.body.appendChild(overlay);
-    this._pokeOverlayEl = overlay;
-    return overlay;
-  }
-
-  dismissPokemonEncounterModal() {
-    if (this._pokeOverlayEl) {
-      this._pokeOverlayEl.classList.add('fading-out');
-      const cleanup = this._pokeOverlayCleanup;
+  dismissCivilDisasterEmergencyCinematic() {
+    if (this._civilDisasterOverlayEl) {
+      this._civilDisasterOverlayEl.classList.add('fading-out');
+      const cleanup = this._civilDisasterCleanup;
       setTimeout(() => {
         if (cleanup) cleanup();
       }, 250);
-      this._pokeOverlayEl = null;
-      this._pokeOverlayCleanup = null;
+      this._civilDisasterOverlayEl = null;
+      this._civilDisasterCleanup = null;
     }
+  }
+
+  dismissEarthquakeCinematic() {
+    this.dismissCivilDisasterEmergencyCinematic();
+  }
+
+  showOrbitalBeaconNotification(powerup) {
+    const spec = (powerup && powerup.spec) || (powerup && POWERUP_SPECS[powerup.type]) || {};
+    const name = spec.name || 'ORBITAL POWER-UP';
+    const colorHex = '#' + (spec.color != null ? spec.color.toString(16).padStart(6, '0') : '00f0ff');
+
+    const toast = el(`<div class="orbital-beacon-toast" style="--pu-accent: ${colorHex};">
+      <div class="orbital-toast-badge">ORBITAL DROP DETECTED</div>
+      <div class="orbital-toast-name">${name}</div>
+    </div>`);
+
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('fading-out');
+      setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 350);
+    }, 2800);
+  }
+
+  showPokemonEncounterModal({ powerup, onSkip } = {}) {
+    this.showOrbitalBeaconNotification(powerup);
+    if (typeof onSkip === 'function') onSkip();
+  }
+
+  dismissPokemonEncounterModal() {
+    // Legacy stub — orbital beacon toast auto-dismisses
   }
 
   showResults(level, sim, onContinue) {

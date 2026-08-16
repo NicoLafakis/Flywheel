@@ -45,6 +45,7 @@ const ok = (m) => console.log('  ok: ' + m);
   const sim = new VoxelSandboxSim({ seed: 'probe', scene: 'boston' });
   const h = sim.hole;
   h.x = -96; h.z = -56; h.radius = 3.2;
+  h.rawMass = 800; // prevent shrinking on first eat
 
   const g = sim.tune.gravity;
   const prevY = new Map();          // id -> y last step

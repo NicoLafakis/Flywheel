@@ -3747,10 +3747,88 @@ export class VoxelWorld3D {
         vy: -0.8 - Math.random() * 0.8,
         vr: (Math.random() - 0.5) * 12,
         size: s,
-        life: 0.35 + Math.random() * 0.2,
-        maxLife: 0.55,
       });
     }
+  }
+
+  triggerTransformationLighting({ color = 0x00f0ff, duration = 2.0 } = {}) {
+    if (!this._transLight && this.scene) {
+      this._transLight = new THREE.PointLight(color, 0, 50, 1.2);
+      this.scene.add(this._transLight);
+    }
+    if (this._transLight) {
+      this._transLight.color.set(color);
+      this._transLight.intensity = 8.5;
+      this._transLightDur = duration;
+      this._transLightTimer = duration;
+    }
+  }
+
+  _triggerPowerUpLighting(opts) {
+    this.triggerTransformationLighting(opts);
+  }
+
+  spawnShockwaveRing(x, z, { color = 0x00f0ff, maxRadius = 35.0, duration = 1.2 } = {}) {
+    const ring = new THREE.Mesh(ringGeo(), mat(color, { emissive: color, transparent: true, opacity: 0.9 }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(x, 0.08, z);
+    ring.scale.setScalar(1.0);
+    this.scene.add(ring);
+    this.particles = this.particles || [];
+    this.particles.push({
+      mesh: ring,
+      isRing: true,
+      life: duration,
+      maxLife: duration,
+      startRadius: 1.0,
+      targetRadius: maxRadius,
+    });
+  }
+
+  _spawnShockwaveRing(x, z, opts) {
+    this.spawnShockwaveRing(x, z, opts);
+  }
+
+  spawnOrbitalBeacon(x, z, { color = 0x00f0ff, duration = 8.0 } = {}) {
+    const beaconGeo = new THREE.CylinderGeometry(0.5, 2.5, 100, 16, 1, true);
+    const beaconMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.75,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat);
+    beaconMesh.position.set(x, 50, z);
+    this.scene.add(beaconMesh);
+
+    const groundDisc = new THREE.Mesh(
+      ringGeo(),
+      mat(color, { emissive: color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending })
+    );
+    groundDisc.rotation.x = -Math.PI / 2;
+    groundDisc.position.set(x, 0.06, z);
+    groundDisc.scale.setScalar(4.5);
+    this.scene.add(groundDisc);
+
+    this.particles = this.particles || [];
+    this.particles.push({
+      mesh: beaconMesh,
+      isBeam: true,
+      life: duration,
+      maxLife: duration,
+      mat: beaconMat,
+      initialScale: 1.0,
+    });
+    this.particles.push({
+      mesh: groundDisc,
+      isRing: true,
+      life: duration,
+      maxLife: duration,
+      startRadius: 4.5,
+      targetRadius: 6.5,
+    });
   }
 
   // ---------------------------------------------------------- block sync pass

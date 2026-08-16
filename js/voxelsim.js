@@ -2629,12 +2629,12 @@ export class VoxelSandboxSim {
         }
         const sl = this._sleepers.get(k);
         if (sl) {
-          // iterate a copy: the recursive _topRemove(s) below can splice this
-          // same column list again (cluster wakes), invalidating a live loop
-          for (const s of sl.slice()) {
-            if (!s.asleep || s.restTop < bTop - 1e-6) continue;
-            const i = sl.indexOf(s);
-            if (i >= 0) sl.splice(i, 1);
+          // iterate backwards to safely splice asleep=false cleanup
+          for (let i = sl.length - 1; i >= 0; i--) {
+            const s = sl[i];
+            if (!s || !s.asleep) { sl.splice(i, 1); continue; }
+            if (s.restTop < bTop - 1e-6) continue;
+            sl.splice(i, 1);
             s.asleep = false;
             this._reviveResting(s); // support gone: back into the active list
             this._sleepObsRemove(s);
@@ -2869,11 +2869,17 @@ export class VoxelSandboxSim {
     b.asleep = false;
     this._reviveResting(b);
     this._sleepObsRemove(b);
-    const sl = this._sleepers.get(b.restCol);
-    if (sl) {
-      const i = sl.indexOf(b);
-      if (i >= 0) sl.splice(i, 1);
-      if (sl.length === 0) this._sleepers.delete(b.restCol);
+    const [fx, , fz] = this._foot(b);
+    for (let ix = 0; ix < b.fsx; ix++) {
+      for (let iz = 0; iz < b.fsz; iz++) {
+        const colK = cellKey(fx + ix, fz + iz);
+        const sl = this._sleepers.get(colK);
+        if (sl) {
+          const i = sl.indexOf(b);
+          if (i >= 0) sl.splice(i, 1);
+          if (sl.length === 0) this._sleepers.delete(colK);
+        }
+      }
     }
     this._topRemove(b);
   }
@@ -3221,7 +3227,7 @@ export class VoxelSandboxSim {
           // axis the low neighbour sits on (`b.s` both ways, for a cube)
           if (support - lowTop > (lowX !== 0 ? b.sx : b.sz) * 1.25) {
             b.vx += lowX * 4.5 * dt; b.vz += lowZ * 4.5 * dt;
-          } else if (b.vx * b.vx + b.vz * b.vz < 0.06) {
+          } else if (!looseSup && b.vx * b.vx + b.vz * b.vz < 0.06) {
             // sleep CANDIDATE — committed only after this step's contact
             // pass proves the block is contact-free, so nothing ever dozes
             // off mid-overlap (frozen overlaps can never separate)
@@ -3257,12 +3263,15 @@ export class VoxelSandboxSim {
       b._jamSteps = 0;
       b.vx = 0; b.vy = 0; b.vz = 0; b.vRotX = 0; b.vRotZ = 0;
       const [fx, , fz] = this._foot(b);
-      const colK = cellKey(fx + (b.fsx >> 1), fz + (b.fsz >> 1));
-      b.restCol = colK;
       b.restTop = b._sleepSupport;
-      let sl = this._sleepers.get(colK);
-      if (!sl) { sl = []; this._sleepers.set(colK, sl); }
-      sl.push(b);
+      for (let ix = 0; ix < b.fsx; ix++) {
+        for (let iz = 0; iz < b.fsz; iz++) {
+          const colK = cellKey(fx + ix, fz + iz);
+          let sl = this._sleepers.get(colK);
+          if (!sl) { sl = []; this._sleepers.set(colK, sl); }
+          sl.push(b);
+        }
+      }
       this._topAdd(b);
       this._sleepObsAdd(b);
       // it has settled: stop rescanning it every step from here on — but not
@@ -3494,7 +3503,10 @@ export class VoxelSandboxSim {
       awake.length = budget;
     }
     const movable = new Set(awake);
-    for (const b of awake) b._inContact = false; // re-set on overlap below
+    for (const b of awake) {
+      b._inContact = false; // re-set on overlap below
+      b._budgetHold = false; // clear hold if it made the budget
+    }
     // buckets are padded by one fine cell all round: rounded footprints could
     // otherwise leave a ≤0.25 m sliver where two blocks overlap without ever
     // sharing a column — a gap exact AABB tests never even see
@@ -3660,6 +3672,7 @@ export class VoxelSandboxSim {
       b._inContact = true; // blocks sleep only when (meaningfully) contact-free
       if (movableO) o._inContact = true;
     }
+
     // A +y resolution against a STATIC solid is a landing, and a landing is
     // only legitimate on a surface the block was at or above before this
     // step's motion. Without the gate, a block embedded beside a standing
@@ -3669,6 +3682,7 @@ export class VoxelSandboxSim {
     // eject laterally instead, which is also what looks right.
     const upBlocked = !movableO && dy >= 0 &&
       (b._yPrevBase === undefined || b._yPrevBase < o.y + o.sy / 2 - 0.05);
+    
     if (px <= py && px <= pz) this._pushAxis(b, o, 'x', dx >= 0 ? 1 : -1, px, movableO);
     else if (py <= px && py <= pz && !upBlocked) this._pushAxis(b, o, 'y', dy >= 0 ? 1 : -1, py, movableO);
     else if (pz <= px) this._pushAxis(b, o, 'z', dz >= 0 ? 1 : -1, pz, movableO);
@@ -3706,6 +3720,10 @@ export class VoxelSandboxSim {
     if (movableO) { o.vRotX *= 0.5; o.vRotZ *= 0.5; }
     // remember what we are standing on: resting on a loose body counts as
     // support next step, so piles can quiet down and solidify bottom-up
+    if (pen > 0.05) {
+      b._inContact = true;
+      if (movableO) o._inContact = true;
+    }
     if (axis === 'y' && sign > 0) {
       this._scFloorHit = true; // read (and reset) by the debris wall-scrape response
       if (o.state === 'falling') b._restLoose = o;
