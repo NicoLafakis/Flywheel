@@ -9,7 +9,8 @@ Clean-slate 6-player synchronized shared-city multiplayer with invite links, pre
 3. [02 — Detailed Requirements](02-requirements.md): Functional, UI/UX, network, audio, performance, and anti-persistence specifications.
 4. [03 — Technical Design](03-technical-design.md): System architecture, lobby state machine, multi-hole simulation integration, and transport layers.
 5. [04 — Netcode & Wire Protocol](04-netcode-protocol.md): Broadcast schema, ephemeral chat channel, state synchronization, clock alignment, and disconnection handling.
-6. [13 — Task Breakdown](13-tasks.md): Phased Red-Green-Refactor TDD execution plan.
+6. [05 — Multi-Hole Gameplay & Execution Plan](05-multihole-gameplay-plan.md): Independent player-controlled holes, camera tracking, rival rendering, multi-hole shader voxel clipping, and live scoreboards.
+7. [13 — Task Breakdown](13-tasks.md): Phased Red-Green-Refactor TDD execution plan.
 
 ## Quick Reference
 
