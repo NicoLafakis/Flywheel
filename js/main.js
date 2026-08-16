@@ -74,13 +74,15 @@ const earlyUnlock = () => {
   try {
     audio.engine.unlock();
     audio.music.unlock();
+    if (audio.music && audio.music.audio && audio.music.audio.paused && !audio.music._muted) {
+      audio.music._safePlay();
+    }
   } catch {}
-  window.removeEventListener('pointerdown', earlyUnlock);
-  window.removeEventListener('touchstart', earlyUnlock);
-  window.removeEventListener('keydown', earlyUnlock);
 };
 window.addEventListener('pointerdown', earlyUnlock, { passive: true });
 window.addEventListener('touchstart', earlyUnlock, { passive: true });
+window.addEventListener('mousedown', earlyUnlock, { passive: true });
+window.addEventListener('click', earlyUnlock, { passive: true });
 window.addEventListener('keydown', earlyUnlock, { passive: true });
 
 // ------------------------------------------------------------------ game state
@@ -1429,15 +1431,29 @@ function finishBootSplash() {
   if (typeof window.__setBootProgress === 'function') {
     window.__setBootProgress(100, 'READY TO ROLL!');
   }
+  const bootSplash = document.getElementById('boot-splash');
+  if (bootSplash) {
+    bootSplash.style.cursor = 'pointer';
+    const dismiss = () => {
+      earlyUnlock();
+      if (!bootSplash.classList.contains('fade-out')) {
+        bootSplash.classList.add('fade-out');
+        setTimeout(() => {
+          if (bootSplash.parentNode) bootSplash.remove();
+        }, 450);
+      }
+    };
+    bootSplash.addEventListener('pointerdown', dismiss, { once: true });
+    bootSplash.addEventListener('click', dismiss, { once: true });
+  }
   setTimeout(() => {
-    const bootSplash = document.getElementById('boot-splash');
-    if (bootSplash) {
+    if (bootSplash && bootSplash.parentNode && !bootSplash.classList.contains('fade-out')) {
       bootSplash.classList.add('fade-out');
       setTimeout(() => {
         if (bootSplash.parentNode) bootSplash.remove();
       }, 450);
     }
-  }, 1600);
+  }, 1400);
 }
 
 // Start menu scene immediately on cold boot with onReady hook
