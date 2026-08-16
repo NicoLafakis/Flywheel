@@ -1000,6 +1000,7 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
           writeSave(save);
         }
         mpUI.showMultiplayerPodium(gameOverData, {
+          localSlot: sim.localSlot ?? 0,
           onPlayAgain: () => {
             hostMultiplayerLobby({ scene, maxPlayers: players.length });
           },
@@ -1028,6 +1029,7 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
           writeSave(save);
         }
         mpUI.showMultiplayerPodium(gameOverData, {
+          localSlot: sim.localSlot ?? mySlot,
           onPlayAgain: () => {
             screens.showTitle();
           },
@@ -1425,7 +1427,13 @@ function frame(ts) {
       // the cinematic releases the state hold.
       if (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0)) {
         if (state !== 'quake_cinematic' && state !== 'powerup_pause' && state !== 'powerup_encounter') {
-          endSandbox();
+          if (isMultiplayer) {
+            if (isHost && mpHost && !mpHost.over) {
+              mpHost.finishMatch(sim.won ? 'CITY_CLEARED' : 'TIME_EXPIRED');
+            }
+          } else {
+            endSandbox();
+          }
         }
       }
     } else {

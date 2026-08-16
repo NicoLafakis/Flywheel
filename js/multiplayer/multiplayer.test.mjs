@@ -276,6 +276,116 @@ console.log('\n--- 6. 10-Second Combo Window & Decay Lifecycle ---');
   else ok('Chain resets cleanly to 0 upon timer expiry');
 }
 
+console.log('\n--- 7. Multiplayer End-of-Match Per-Player Stats Breakdown ---');
+{
+  const hub = new InMemoryChannelHub();
+  const hostChannel = hub.createChannel('room-podium');
+  const peerChannel = hub.createChannel('room-podium');
+
+  const players = [
+    { slot: 0, name: 'Alice (Host)', skin: 'baseline-cyan', color: '#00f0ff' },
+    { slot: 1, name: 'Bob (Peer)', skin: 'baseline-crimson', color: '#ff2a55' },
+    { slot: 2, name: 'Charlie (AI/Friend)', skin: 'baseline-amber', color: '#ffb300' },
+  ];
+
+  const host = new MultiplayerHost({
+    channel: hostChannel,
+    scene: 'gallery',
+    matchSeed: 42,
+    players,
+    durationSeconds: 180,
+  });
+
+  const peer = new MultiplayerPeer({
+    channel: peerChannel,
+    scene: 'gallery',
+    matchSeed: 42,
+    players,
+    mySlot: 1,
+  });
+
+  // Assign distinct stats to each hole
+  const h0 = host.sim.holes[0];
+  h0.mass = 3500;
+  h0.rawMass = 3500;
+  h0.bestCombo = 120;
+  h0.kills = 2;
+  h0.timesEaten = 0;
+  h0.coins = 50;
+  h0.coinsCollected = 25;
+
+  const h1 = host.sim.holes[1];
+  h1.mass = 1800;
+  h1.rawMass = 1800;
+  h1.bestCombo = 45;
+  h1.kills = 1;
+  h1.timesEaten = 1;
+  h1.coins = 20;
+  h1.coinsCollected = 10;
+
+  const h2 = host.sim.holes[2];
+  h2.mass = 600;
+  h2.rawMass = 600;
+  h2.bestCombo = 10;
+  h2.kills = 0;
+  h2.timesEaten = 2;
+  h2.coins = 4;
+  h2.coinsCollected = 2;
+
+  let hostResult = null;
+  let peerResult = null;
+  host.onGameOver = (data) => { hostResult = data; };
+  peer.onGameOver = (data) => { peerResult = data; };
+
+  host.finishMatch('CITY_CLEARED');
+
+  if (!hostResult) fail('host.onGameOver did not receive game over data');
+  if (!peerResult) fail('peer.onGameOver did not receive game over data');
+
+  const lb = hostResult ? hostResult.finalLeaderboard : [];
+  if (lb.length !== 3) {
+    fail(`Expected 3 players on leaderboard, got ${lb.length}`);
+  } else {
+    ok('Leaderboard has all 3 players');
+    
+    // Rank 1: Alice
+    const r1 = lb[0];
+    if (r1.slot !== 0 || r1.rank !== 1 || r1.name !== 'Alice (Host)') fail(`Rank 1 mismatch: got ${JSON.stringify(r1)}`);
+    else ok('Rank 1 is correctly Alice (Host)');
+    if (r1.score !== 3500 || r1.mass !== 3500 || r1.bestChain !== 120 || r1.kills !== 2 || r1.coins !== 50) {
+      fail(`Rank 1 stats incorrect: ${JSON.stringify(r1)}`);
+    } else ok('Rank 1 stats verified per player');
+    if (typeof r1.percentCleared !== 'number' || r1.percentCleared <= 0) {
+      fail(`Rank 1 percentCleared must be a positive number, got ${r1.percentCleared}`);
+    } else ok(`Rank 1 percentCleared calculated correctly (${r1.percentCleared}%)`);
+
+    // Rank 2: Bob
+    const r2 = lb[1];
+    if (r2.slot !== 1 || r2.rank !== 2 || r2.name !== 'Bob (Peer)') fail(`Rank 2 mismatch: got ${JSON.stringify(r2)}`);
+    else ok('Rank 2 is correctly Bob (Peer)');
+    if (r2.score !== 1800 || r2.bestChain !== 45 || r2.kills !== 1 || r2.timesEaten !== 1 || r2.coins !== 20) {
+      fail(`Rank 2 stats incorrect: ${JSON.stringify(r2)}`);
+    } else ok('Rank 2 stats strictly isolated from Rank 1');
+
+    // Rank 3: Charlie
+    const r3 = lb[2];
+    if (r3.slot !== 2 || r3.rank !== 3) fail(`Rank 3 mismatch: got ${JSON.stringify(r3)}`);
+    else ok('Rank 3 is correctly Charlie');
+    if (r3.score !== 600 || r3.timesEaten !== 2 || r3.coins !== 4) {
+      fail(`Rank 3 stats incorrect: ${JSON.stringify(r3)}`);
+    } else ok('Rank 3 stats verified per player');
+  }
+
+  // Verify peer received identical leaderboard
+  if (JSON.stringify(hostResult.finalLeaderboard) !== JSON.stringify(peerResult.finalLeaderboard)) {
+    fail('Peer leaderboard differs from host leaderboard');
+  } else ok('Peer received identical synchronized finalLeaderboard');
+
+  host.destroy();
+  peer.destroy();
+}
+
 console.log('\n' + (failures === 0 ? 'PASS — all multiplayer tests passed.' : `FAIL — ${failures} assertion(s) failed.`));
 process.exit(failures === 0 ? 0 : 1);
+
 

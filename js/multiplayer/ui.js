@@ -487,43 +487,75 @@ export class MultiplayerUI {
     if (overlay) overlay.classList.add('hidden');
   }
 
-  showMultiplayerPodium(gameOverData, { onPlayAgain, onExit }) {
+  showMultiplayerPodium(gameOverData, { localSlot = 0, onPlayAgain, onExit } = {}) {
     this.clear();
     const podiumView = document.createElement('div');
     podiumView.className = 'screen mp-screen mp-podium-view';
     podiumView.style.pointerEvents = 'auto';
 
     const lb = gameOverData?.finalLeaderboard || [];
-    const winner = lb[0] || { name: 'Player 1', score: 0 };
+    const winner = lb[0] || { name: 'Player 1', score: 0, slot: 0 };
+    const isLocalWinner = winner.slot === localSlot;
+    const reason = gameOverData?.reason === 'CITY_CLEARED' ? 'METROPOLIS 100% DEMOLISHED' : 'MATCH COMPLETE · TIME EXPIRED';
 
-    let rowsHTML = '';
+    let cardsHTML = '';
     lb.forEach((p, idx) => {
-      const ranks = ['1ST', '2ND', '3RD'];
-      const rankDisplay = ranks[idx] || `#${p.rank}`;
-      rowsHTML += `
-        <div class="mp-podium-row ${idx === 0 ? 'winner' : ''}">
-          <div class="mp-rank-badge">${rankDisplay}</div>
-          <div class="mp-row-color" style="background: ${p.color || '#00f0ff'}"></div>
-          <div class="mp-row-name">${p.name}</div>
-          <div class="mp-row-stats">
-            <span class="mp-stat-score">${p.score.toLocaleString()} PTS</span>
-            <span class="mp-stat-mass">${p.mass} kg</span>
-            <span class="mp-stat-kills">${p.kills || 0} KILLS</span>
-            <span class="mp-stat-coins">🪙 ${p.coins || 0}</span>
+      const isLocal = p.slot === localSlot;
+      const rankLabels = ['1ST', '2ND', '3RD', '4TH', '5TH', '6TH'];
+      const rankMedals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣'];
+      const rankDisplay = rankLabels[idx] || `#${p.rank}`;
+      const medal = rankMedals[idx] || '🎖️';
+
+      cardsHTML += `
+        <div class="mp-podium-card ${idx === 0 ? 'winner' : ''} ${isLocal ? 'local-player' : ''}">
+          <div class="mp-card-top">
+            <div class="mp-rank-section">
+              <span class="mp-rank-medal">${medal}</span>
+              <span class="mp-rank-badge">${rankDisplay}</span>
+            </div>
+            <div class="mp-player-info">
+              <div class="mp-row-color" style="background: ${p.color || '#00f0ff'}"></div>
+              <span class="mp-player-name">${p.name}</span>
+              ${isLocal ? '<span class="mp-you-badge">YOU</span>' : ''}
+            </div>
+            <div class="mp-player-score">${(p.score || 0).toLocaleString()} <span class="mp-score-unit">PTS</span></div>
+          </div>
+
+          <div class="mp-stats-breakdown-grid">
+            <div class="mp-breakdown-cell">
+              <span class="mp-cell-label">DEVOURED</span>
+              <span class="mp-cell-val">${p.percentCleared || 0}% <span class="mp-cell-sub">(${p.mass || 0} kg)</span></span>
+            </div>
+            <div class="mp-breakdown-cell">
+              <span class="mp-cell-label">BEST COMBO</span>
+              <span class="mp-cell-val">${p.bestChain || 0} <span class="mp-cell-sub">EATS</span></span>
+            </div>
+            <div class="mp-breakdown-cell">
+              <span class="mp-cell-label">TAKEDOWNS</span>
+              <span class="mp-cell-val mp-val-kills">${p.kills || 0} <span class="mp-cell-sub">(${p.timesEaten || 0} eaten)</span></span>
+            </div>
+            <div class="mp-breakdown-cell">
+              <span class="mp-cell-label">COINS EARNED</span>
+              <span class="mp-cell-val mp-val-coins">🪙 +${p.coins || 0} <span class="mp-cell-sub">(${p.coinsCollected || 0} found)</span></span>
+            </div>
           </div>
         </div>
       `;
     });
 
+    const headerTitle = isLocalWinner
+      ? '🎉 VICTORY! YOU WIN! 🎉'
+      : `${winner.name.toUpperCase()} WINS!`;
+
     podiumView.innerHTML = `
       <div class="mp-podium-container">
         <div class="mp-podium-header">
-          <div class="mp-winner-title">${winner.name.toUpperCase()} WINS!</div>
-          <div class="mp-winner-sub">TOTAL METROPOLIS DEMOLITION</div>
+          <div class="mp-winner-title ${isLocalWinner ? 'gold-glow' : ''}">${headerTitle}</div>
+          <div class="mp-winner-sub">${reason}</div>
         </div>
 
-        <div class="mp-leaderboard-card">
-          ${rowsHTML}
+        <div class="mp-leaderboard-grid">
+          ${cardsHTML}
         </div>
 
         <div class="mp-podium-actions">

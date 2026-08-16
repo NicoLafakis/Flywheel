@@ -128,21 +128,28 @@ export class MultiplayerHost {
   }
 
   finishMatch(reason = 'TIME_EXPIRED') {
+    const totalMapMass = this.sim.totalMass || 1;
     // Rank players by total eaten mass / score descending
     const leaderboard = this.sim.holes
-      .map((h, i) => ({
-        slot: h.slot !== undefined ? h.slot : i,
-        name: h.name || (this.players[i] ? this.players[i].name : `Player ${i + 1}`),
-        score: Math.round(h.mass),
-        mass: Math.round(h.rawMass),
-        bestChain: h.bestCombo || 0,
-        kills: h.kills || 0,
-        timesEaten: h.timesEaten || 0,
-        coins: h.coins || 0,
-        coinsCollected: h.coinsCollected || 0,
-        color: h.color,
-        skin: h.skin,
-      }))
+      .map((h, i) => {
+        const rawMass = h.rawMass || 0;
+        const pct = Math.max(0, Math.min(100, Math.round((rawMass / totalMapMass) * 100)));
+        const pInfo = this.players.find((p) => p.slot === (h.slot ?? i)) || this.players[i] || {};
+        return {
+          slot: h.slot !== undefined ? h.slot : i,
+          name: pInfo.name || h.name || `Player ${i + 1}`,
+          score: Math.round(h.mass || 0),
+          mass: Math.round(rawMass),
+          percentCleared: pct,
+          bestChain: h.bestCombo || 0,
+          kills: h.kills || 0,
+          timesEaten: h.timesEaten || 0,
+          coins: h.coins || 0,
+          coinsCollected: h.coinsCollected || 0,
+          color: pInfo.color || h.color,
+          skin: pInfo.skin || h.skin,
+        };
+      })
       .sort((a, b) => b.score - a.score)
       .map((p, rankIdx) => ({ ...p, rank: rankIdx + 1 }));
 

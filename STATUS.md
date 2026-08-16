@@ -17,6 +17,19 @@ Last updated: 2026-08-16
 
 ## Shipped state
 
+- 2026-08-16 — Multiplayer Per-Player End-of-Match Scorecard & Results Podium Shipped:
+  - **Eliminated Generic Single-Player Results Screen in Multiplayer**: Guarded `tickVoxelSandbox()` in `js/main.js` so single-player `endSandbox()` / `showSandboxResults` is bypassed in multiplayer. Match completion strictly finishes via `MultiplayerHost.finishMatch()` and `MultiplayerPeer.onGameOver`.
+  - **Comprehensive Per-Player Leaderboard Cards**: Upgraded `showMultiplayerPodium()` in `js/multiplayer/ui.js` and `css/multiplayer.css` to render an enhanced per-player comparative scorecard featuring:
+    - Rank badges & trophy medals (1st 🥇, 2nd 🥈, 3rd 🥉, etc.)
+    - Player name, slot color swatch, and glowing **`YOU`** badge for the local player
+    - **Score (PTS)** formatted with commas
+    - **City Devoured** (% of total metropolis mass & raw kg eaten)
+    - **Best Combo** (maximum chain eats achieved)
+    - **PvP Takedowns** (kills count and times swallowed)
+    - **Coins Earned** (pickups collected and coins banked)
+  - **Personalized Header & Reason**: Displays `🎉 VICTORY! YOU WIN! 🎉` with gold glow when local player places #1, `${winner.name} WINS!` for rivals, and subtitle reason (`METROPOLIS 100% DEMOLISHED` or `MATCH COMPLETE · TIME EXPIRED`).
+  - **100% Automated TDD Test Coverage**: Added Section 7 to `js/multiplayer/multiplayer.test.mjs` verifying per-player leaderboard generation, `percentCleared` calculations, and synchronized host/peer delivery. All tests passing (`ALL PASS`).
+
 - 2026-08-16 — 10-Second Combo Meter with 5s / 3s Dynamic Flashing & Arc Draining Shipped:
   - **10.0-Second Combo Reset Window**: Set `COMBO_WINDOW = 10.0` in `js/voxelsim.js` and `js/sim.js`, granting players a generous 10-second window between meals to navigate across city streets without dropping their combo chains.
   - **Radial SVG Arc Draining**: Updated `_updateCombo` in `js/ui/hud.js` to smoothly animate `comboArc.style.strokeDashoffset` from 100% full down to 0% in proportion to `chainTimer / COMBO_WINDOW`.

@@ -756,11 +756,12 @@ export class Screens {
     const bankTotal = currentSaveCoins + coins;
 
     const prev = (this.save.sandbox || {})[sim.scene] || {};
-    const score = Math.floor(sim.hole.mass);
-    const best = sim.hole.bestCombo;
+    const h = sim.localHole || sim.hole || {};
+    const score = Math.floor(h.mass || 0);
+    const best = h.bestCombo || 0;
     const newScore = score > (prev.bestScore || 0);
     const newCombo = best > (prev.bestCombo || 0);
-    const cleared = sim.totalMass ? sim.hole.rawMass / sim.totalMass : 0;
+    const cleared = sim.totalMass ? (h.rawMass || 0) / sim.totalMass : 0;
     const clearedPct = sim.won ? 100 : Math.floor(cleared * 100);
     const newPercent = !sim.won && cleared > (prev.bestPercent || 0);
     const elapsed = typeof sim.time === 'number' ? sim.time : 0;
