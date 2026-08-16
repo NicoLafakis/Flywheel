@@ -381,6 +381,35 @@ console.log('\n--- 7. Multiplayer End-of-Match Per-Player Stats Breakdown ---');
     fail('Peer leaderboard differs from host leaderboard');
   } else ok('Peer received identical synchronized finalLeaderboard');
 
+  // Verify idempotency (no infinite freeze loops)
+  if (host.over !== true) fail('host.over must be true after finishMatch');
+  else ok('host.over is true');
+  if (peer.over !== true) fail('peer.over must be true after receiving GAME_OVER');
+  else ok('peer.over is true');
+
+  let extraHostGameOverCalls = 0;
+  host.onGameOver = () => { extraHostGameOverCalls++; };
+  host.finishMatch('TIME_EXPIRED');
+  if (extraHostGameOverCalls !== 0) fail('Subsequent finishMatch call was not a no-op');
+  else ok('Subsequent finishMatch calls are idempotent no-ops');
+
+  // Test automatic goal trigger in host.step()
+  const host2 = new MultiplayerHost({
+    channel: hub.createChannel('room-podium-2'),
+    scene: 'gallery',
+    matchSeed: 43,
+    players,
+    durationSeconds: 180,
+  });
+  let host2GameOverFired = false;
+  host2.onGameOver = () => { host2GameOverFired = true; };
+  host2.sim.won = true;
+  host2.sim.over = true;
+  host2.step(1 / 60, { x: 0, z: 0 });
+  if (!host2GameOverFired || !host2.over) fail('host.step() failed to automatically finish match when sim.won is true');
+  else ok('host.step() automatically finishes match when goal is reached');
+
+  host2.destroy();
   host.destroy();
   peer.destroy();
 }

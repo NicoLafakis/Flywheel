@@ -992,7 +992,10 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
       });
       sim = mpHost.sim;
       mpHost.onGameOver = (gameOverData) => {
+        if (state === 'results') return;
         state = 'results';
+        hud.hide();
+        screens.clear();
         audio.setMusicCue('victory');
         const earned = (sim.localHole && typeof sim.localHole.coins === 'number') ? sim.localHole.coins : 0;
         if (earned > 0) {
@@ -1002,10 +1005,19 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
         mpUI.showMultiplayerPodium(gameOverData, {
           localSlot: sim.localSlot ?? 0,
           onPlayAgain: () => {
+            if (mpHost) { mpHost.destroy(); mpHost = null; }
+            if (mpPeer) { mpPeer.destroy(); mpPeer = null; }
+            teardownWorld();
+            screens.clear();
+            mpUI.clear();
             hostMultiplayerLobby({ scene, maxPlayers: players.length });
           },
           onExit: () => {
+            if (mpHost) { mpHost.destroy(); mpHost = null; }
+            if (mpPeer) { mpPeer.destroy(); mpPeer = null; }
             teardownWorld();
+            screens.clear();
+            mpUI.clear();
             state = 'menu';
             screens.showTitle();
           },
@@ -1021,7 +1033,10 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
       });
       sim = mpPeer.sim;
       mpPeer.onGameOver = (gameOverData) => {
+        if (state === 'results') return;
         state = 'results';
+        hud.hide();
+        screens.clear();
         audio.setMusicCue('victory');
         const earned = (sim.localHole && typeof sim.localHole.coins === 'number') ? sim.localHole.coins : 0;
         if (earned > 0) {
@@ -1031,10 +1046,19 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
         mpUI.showMultiplayerPodium(gameOverData, {
           localSlot: sim.localSlot ?? mySlot,
           onPlayAgain: () => {
+            if (mpHost) { mpHost.destroy(); mpHost = null; }
+            if (mpPeer) { mpPeer.destroy(); mpPeer = null; }
+            teardownWorld();
+            screens.clear();
+            mpUI.clear();
             screens.showTitle();
           },
           onExit: () => {
+            if (mpHost) { mpHost.destroy(); mpHost = null; }
+            if (mpPeer) { mpPeer.destroy(); mpPeer = null; }
             teardownWorld();
+            screens.clear();
+            mpUI.clear();
             state = 'menu';
             screens.showTitle();
           },

@@ -91,12 +91,13 @@ export class MultiplayerHost {
     // Check game over conditions:
     // 1. Time expired (180s = 10800 ticks at 60Hz)
     // 2. All edible city blocks eaten
+    // 3. Goal reached (sim.won or sim.over)
     const timeExpired = this.tick >= this.durationSeconds * 60;
     const allBlocksEaten = this.sim.blocks && this.sim.blocks.length > 0 && this.sim.blocks.every((b) => b.state === 'consumed');
+    const goalReached = Boolean(this.sim.won || this.sim.over);
 
-    if ((timeExpired || allBlocksEaten) && !this.over) {
-      this.over = true;
-      this.finishMatch(timeExpired ? 'TIME_EXPIRED' : 'CITY_CLEARED');
+    if ((timeExpired || allBlocksEaten || goalReached) && !this.over) {
+      this.finishMatch(goalReached || allBlocksEaten ? 'CITY_CLEARED' : 'TIME_EXPIRED');
     }
   }
 
@@ -128,6 +129,8 @@ export class MultiplayerHost {
   }
 
   finishMatch(reason = 'TIME_EXPIRED') {
+    if (this.over) return;
+    this.over = true;
     const totalMapMass = this.sim.totalMass || 1;
     // Rank players by total eaten mass / score descending
     const leaderboard = this.sim.holes

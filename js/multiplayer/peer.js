@@ -86,6 +86,7 @@ export class MultiplayerPeer {
         break;
 
       case MSG_TYPES.GAME_OVER:
+        if (this.over) return;
         this.over = true;
         if (this.onGameOver) this.onGameOver(msg);
         break;
