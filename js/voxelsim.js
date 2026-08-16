@@ -627,8 +627,13 @@ const DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1
 const REPOSE_DIRS = [1, 0, -1, 0, 0, 1, 0, -1];
 
 export class VoxelSandboxSim {
-  constructor({ seed = 'voxel-sandbox', scene = 'gallery', mode = 'freeplay', upgrades = null } = {}) {
+  constructor(optionsOrScene = {}, maybeOptions = {}) {
+    const opts = typeof optionsOrScene === 'string'
+      ? { scene: optionsOrScene, ...maybeOptions }
+      : (optionsOrScene || {});
+    const { seed = 'voxel-sandbox', scene = 'gallery', mode = 'freeplay', upgrades = null, holes = null } = opts;
     this.rng = new RNG(seed);
+    this.scene = scene;
     this.mode = mode;
     this.upgrades = upgrades;
     this.speedMult = upgradeMultiplier(upgrades?.speed);
@@ -657,13 +662,12 @@ export class VoxelSandboxSim {
       LEVEL_CLOCK_WARN_SECONDS, LEVEL_CLOCK_URGENT_SECONDS,
     ].map((at) => ({ at, tick: this.clockLimit - at * 60 }));
     this._clockMarkIdx = 0;    // next unfired endgame state, monotonic like _massMarkIdx
-    // THE ROSTER (ai-players FR-001/FR-002). `holes` is the canonical,
-    // index-ordered collection; every per-hole quantity (mass, chain, SIZE,
-    // coverage cache) lives ON the hole, never on the sim. `sim.hole` survives
-    // as an accessor for `holes[0]` so every shipped single-player read keeps
-    // working unchanged — with one hole, every pass below performs the same
-    // arithmetic in the same order as the single-hole build it replaced.
-    this.holes = [this._newHole(0, 16, 0)];
+    // THE ROSTER. `holes` is the canonical, index-ordered collection.
+    if (Array.isArray(holes) && holes.length > 0) {
+      this.holes = holes.map((hCfg, idx) => this._newHole(hCfg.x ?? 0, hCfg.z ?? 0, idx, hCfg));
+    } else {
+      this.holes = [this._newHole(0, 16, 0)];
+    }
     this.time = 0;
     this.over = false;
     this.won = false;
@@ -894,13 +898,21 @@ export class VoxelSandboxSim {
   //                in js/net/snapshot.js reads it)
   //   isPlayer     true only for holes[0], the local human by convention
   //   _cov/_covSpare  the per-hole removal-zone coverage cache (_coverageChanged)
-  _newHole(x, z, index) {
+  _newHole(x, z, index, config = {}) {
     const isPlayer = index === 0;
     return {
       x, z, radius: START_RADIUS, mass: 0, rawMass: 0,
       chain: 0, chainTimer: 0, bestCombo: 0, eatenCount: 0, isPlayer,
       size: 1, sizeFrac: 0, // SIZE level (1..24) + progress to the next level
       index,
+      slot: config.slot !== undefined ? config.slot : index,
+      name: config.name || (index === 0 ? 'Player' : `Player ${index + 1}`),
+      skin: config.skin || 'default',
+      color: config.color || (index === 0 ? '#00f0ff' : '#ff0054'),
+      alive: true,
+      respawnTimer: 0,
+      kills: 0,
+      timesEaten: 0,
       activePowerUps: [],
       speedMult: isPlayer ? (this.speedMult || 1.0) : 1.0,
       vortexMult: isPlayer ? (this.vortexMult || 1.0) : 1.0,
@@ -4111,6 +4123,27 @@ export class VoxelSandboxSim {
 
     for (let hi = 0; hi < holes.length; hi++) {
       const h = holes[hi];
+      
+      // If hole was eaten in PvP, count down 10s respawn timeout
+      if (h.alive === false) {
+        if (h.respawnTimer > 0) {
+          h.respawnTimer = Math.max(0, h.respawnTimer - dt);
+          if (h.respawnTimer <= 0) {
+            h.alive = true;
+            h.respawnTimer = 0;
+            h.radius = START_RADIUS;
+            h.size = 1;
+            h.sizeFrac = 0;
+            const angle = (h.slot || h.index) * (6.283185 / Math.max(1, holes.length));
+            const dist = Math.min(25, (this.bounds || 30) * 0.7);
+            h.x = fwCos(angle) * dist;
+            h.z = fwSin(angle) * dist;
+            this.events.push({ type: 'pvp_respawn', slot: h.slot ?? h.index, hole: h });
+          }
+        }
+        continue; // Dead hole does not move or eat
+      }
+
       const m = moves ? moves[hi] : (hi === 0 ? move : null);
 
       stepActivePowerUps(h.activePowerUps, dt);
@@ -4144,6 +4177,7 @@ export class VoxelSandboxSim {
       }
 
     }
+    this._stepPvP();
     this._collectCoins();
 
     // Step wandering ground power-ups, lifespan expiration, and boundary reflections
@@ -4399,6 +4433,50 @@ export class VoxelSandboxSim {
         this.timedOut = true;
         this.over = true;
         this.events.push({ type: 'timeup', ticks: this.clockTicks, hole: this.hole });
+      }
+    }
+  }
+
+  _stepPvP() {
+    const holes = this.holes;
+    if (!holes || holes.length < 2) return;
+
+    for (let i = 0; i < holes.length; i++) {
+      const hA = holes[i];
+      if (!hA.alive) continue;
+
+      for (let j = 0; j < holes.length; j++) {
+        if (i === j) continue;
+        const hB = holes[j];
+        if (!hB.alive) continue;
+
+        const dx = hA.x - hB.x;
+        const dz = hA.z - hB.z;
+        const dist = fwHypot2(dx, dz);
+
+        // Edibility check: distance within hA's radius, and hA is larger than hB
+        if (dist < hA.radius && hA.radius > hB.radius * 1.05) {
+          // Hole A eats Hole B!
+          hB.alive = false;
+          hB.respawnTimer = 10.0;
+          hB.timesEaten = (hB.timesEaten || 0) + 1;
+          hA.kills = (hA.kills || 0) + 1;
+
+          const award = Math.max(250, (hB.mass || 0) * 0.5);
+          this._award(hA, award, null);
+
+          const ev = {
+            type: 'pvp_kill',
+            killerSlot: hA.slot !== undefined ? hA.slot : hA.index,
+            victimSlot: hB.slot !== undefined ? hB.slot : hB.index,
+            killer: hA,
+            victim: hB,
+            awardMass: award,
+            respawnDelaySeconds: 10.0,
+          };
+          this.events.push(ev);
+          if (this.onPvPKill) this.onPvPKill(ev);
+        }
       }
     }
   }
