@@ -994,6 +994,11 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
       mpHost.onGameOver = (gameOverData) => {
         state = 'results';
         audio.setMusicCue('victory');
+        const earned = (sim.localHole && typeof sim.localHole.coins === 'number') ? sim.localHole.coins : 0;
+        if (earned > 0) {
+          save.coins = (save.coins || 0) + earned;
+          writeSave(save);
+        }
         mpUI.showMultiplayerPodium(gameOverData, {
           onPlayAgain: () => {
             hostMultiplayerLobby({ scene, maxPlayers: players.length });
@@ -1017,6 +1022,11 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
       mpPeer.onGameOver = (gameOverData) => {
         state = 'results';
         audio.setMusicCue('victory');
+        const earned = (sim.localHole && typeof sim.localHole.coins === 'number') ? sim.localHole.coins : 0;
+        if (earned > 0) {
+          save.coins = (save.coins || 0) + earned;
+          writeSave(save);
+        }
         mpUI.showMultiplayerPodium(gameOverData, {
           onPlayAgain: () => {
             screens.showTitle();
@@ -1041,6 +1051,15 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
     hud.resetSandboxMeters();
     cam.setFollowDirection(true);
     cam.setBlockers(sim.cameraBlockers);
+    // Instant snap to local hole spawn to eliminate spawn swoop and shake
+    const spawnHole = sim.localHole;
+    if (spawnHole) {
+      cam.target.set(spawnHole.x, 0, spawnHole.z);
+      cam.smoothTarget.set(spawnHole.x, 0, spawnHole.z);
+      cam.lastHoleX = spawnHole.x;
+      cam.lastHoleZ = spawnHole.z;
+    }
+    cam.shakeIntensity = 0;
 
     controls = controls || new Controls(canvas);
     controls.settings = save.settings;
@@ -1113,7 +1132,7 @@ function frame(ts) {
     if (isVoxelSandbox) {
       // One signal, two consumers: the camera scales its framing, standoff and
       // chase rates off it, Controls scales the manual orbit rate.
-      const sizeT = sandboxSizeProgress(sim.hole.size, sim.hole.sizeFrac);
+      const sizeT = sandboxSizeProgress(sim.localHole.size, sim.localHole.sizeFrac);
       cam.setSandboxSizeProgress(sizeT);
       controls.setSandboxSizeProgress(sizeT);
     }
@@ -1125,11 +1144,11 @@ function frame(ts) {
     // was made on, so it has to be cancelled rather than merely ignored.
     if (held) controls.cancelPointer();
     const move = held ? { x: 0, z: 0 }
-      : controls.getMove(cam.yaw, undefined, isVoxelSandbox ? sim.hole : sim.player);
+      : controls.getMove(cam.yaw, undefined, isVoxelSandbox ? sim.localHole : sim.player);
     // The steering heading rides on the hole for the renderer: directional
     // skins and bite bearings read it there (skins.js, world _skinFrame).
     // Neither sim ever does — it is presentational state, not gameplay state.
-    const driveHole = isVoxelSandbox ? sim.hole : sim.player;
+    const driveHole = isVoxelSandbox ? sim.localHole : sim.player;
     driveHole.heading = controls.heading ?? 0;
     const orbit = controls.consumeOrbit();
     const zoom = controls.consumeZoom();
@@ -1159,12 +1178,13 @@ function frame(ts) {
         } else if (mpPeer) {
           mpPeer.sendInput(move);
           mpPeer.step(FIXED_DT, move);
-          if (mpPeer.myHole) {
-            if (mpPeer.myHole.alive === false) {
-              mpUI.showRespawnOverlay(mpPeer.myHole.respawnTimer);
-            } else {
-              mpUI.hideRespawnOverlay();
-            }
+        }
+        const myHole = sim.localHole;
+        if (myHole) {
+          if (myHole.alive === false) {
+            mpUI.showRespawnOverlay(myHole.respawnTimer);
+          } else {
+            mpUI.hideRespawnOverlay();
           }
         }
       } else {
@@ -1192,74 +1212,82 @@ function frame(ts) {
     if (isVoxelSandbox) {
       // The listener rides the local hole: positional sounds (collapses, the
       // derailment) and the el-train bed fall off with distance from it.
-      audio.updateListener(sim.hole.x, sim.hole.z, sim.moverSim);
+      audio.updateListener(sim.localHole.x, sim.localHole.z, sim.moverSim);
       for (const ev of events) {
-        audio.handleEvent(ev);   // gulps, combo ladder, tiered collapses, stingers
+        const isLocalHole = !isMultiplayer || ev.hole === sim.localHole || (ev.hole && ev.hole.slot === (sim.localSlot ?? 0));
         if (ev.type === 'combo') {
-          hud.pulseCombo();
-          if (ev.level >= 2) {
-            const multNum = typeof ev.mult === 'number' ? ev.mult : ev.level;
-            const comboText = ev.top ? `MAX ${multNum}X` : `${multNum}X`;
-            let subText = 'COMBO!';
-            if (ev.level >= 8 || ev.top) subText = 'GODLIKE!';
-            else if (ev.level >= 6) subText = 'MEGA!';
-            else if (ev.level >= 4) subText = 'HYPER!';
+          if (isLocalHole) {
+            hud.pulseCombo();
+            if (ev.level >= 2) {
+              const multNum = typeof ev.mult === 'number' ? ev.mult : ev.level;
+              const comboText = ev.top ? `MAX ${multNum}X` : `${multNum}X`;
+              let subText = 'COMBO!';
+              if (ev.level >= 8 || ev.top) subText = 'GODLIKE!';
+              else if (ev.level >= 6) subText = 'MEGA!';
+              else if (ev.level >= 4) subText = 'HYPER!';
 
-            hud.announce({
-              text: comboText,
-              sub: subText,
-              tier: ev.level,
-              source: 'combo',
-              priority: ANN.COMBO + ev.level,
-              ms: 1100,
-              channel: 'cm_burst',
-            });
-            if (ev.level >= 4) {
-              world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * 1.3, ev.top ? 0xff2d1f : 0x00e5ff);
-              world.spawnGoldenSparkles(ev.hole.x, ev.hole.z, ev.hole.radius, 12);
-              if (!save.settings.reducedMotion) cam.triggerShake(ev.top ? 0.35 : 0.2);
+              hud.announce({
+                text: comboText,
+                sub: subText,
+                tier: ev.level,
+                source: 'combo',
+                priority: ANN.COMBO + ev.level,
+                ms: 1100,
+                channel: 'cm_burst',
+              });
+              if (ev.level >= 4) {
+                world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * 1.3, ev.top ? 0xff2d1f : 0x00e5ff);
+                world.spawnGoldenSparkles(ev.hole.x, ev.hole.z, ev.hole.radius, 12);
+                if (!save.settings.reducedMotion) cam.triggerShake(ev.top ? 0.35 : 0.2);
+              }
             }
           }
         } else if (ev.type === 'crash') {
-          cam.triggerShake(Math.min(0.6, 0.1 + ev.size * 0.02));
+          if (isLocalHole) cam.triggerShake(Math.min(0.6, 0.1 + ev.size * 0.02));
         } else if (ev.type === 'growth') {
           // SIZE level-up: sting (GameAudio), shake, FOV punch, confetti, center-screen big pop
-          cam.triggerShake(0.4);
-          cam.fovKick(7);
           world.spawnBurst(ev.hole.x, ev.hole.z, ev.hole.radius, 0xffd23f, ev.size);
-          hud.announce({
-            text: `SIZE ${ev.size}!`,
-            sub: '✦ EXPANDING VORTEX ✦',
-            source: 'size',
-            tier: 'size',
-            priority: ANN.SIZE,
-            ms: 1300,
-            channel: 'pop',
-          });
+          if (isLocalHole) {
+            cam.triggerShake(0.4);
+            cam.fovKick(7);
+            hud.announce({
+              text: `SIZE ${ev.size}!`,
+              sub: '✦ EXPANDING VORTEX ✦',
+              tier: 'size',
+              source: 'size',
+              priority: ANN.SIZE,
+              ms: 1300,
+              channel: 'pop',
+            });
+          }
         } else if (ev.type === 'milestone') {
           // Consumption: the widest thing in the mix. GameAudio scales the
           // fanfare by tier; the screen answers with the full-width band.
           const loud = ev.tier === 'roar';
           if (loud) {
-            cam.fovKick(8);
+            if (isLocalHole) cam.fovKick(8);
             world.spawnBurst(ev.hole.x, ev.hole.z, ev.hole.radius * 1.3, 0xff7700, 8);
           }
           world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * (loud ? 1.6 : 1.2), loud ? 0xffffff : 0xffd23f);
-          const pct = Math.round((ev.frac || (ev.row && ev.row.at) || 0) * 100);
-          hud.announce({
-            text: ev.text,
-            sub: pct >= 100 ? '⚡ FULL MAP EXTINCTION ⚡' : `✦ ${pct}% CITY HARVEST ✦`,
-            tier: ev.tier,
-            source: 'milestone',
-            priority: ANN.MILESTONE + (loud ? 5 : 0),
-            ms: 2200,
-            channel: 'band',
-          });
+          if (isLocalHole) {
+            const pct = Math.round((ev.frac || (ev.row && ev.row.at) || 0) * 100);
+            hud.announce({
+              text: ev.text,
+              sub: pct >= 100 ? '⚡ FULL MAP EXTINCTION ⚡' : `✦ ${pct}% CITY HARVEST ✦`,
+              tier: ev.tier,
+              source: 'milestone',
+              priority: ANN.MILESTONE + (loud ? 5 : 0),
+              ms: 2200,
+              channel: 'band',
+            });
+          }
         } else if (ev.type === 'coin') {
           world.spawnGoldenSparkles(ev.hole.x, ev.hole.z, ev.hole.radius, 16);
-          hud.announce({ text: `COIN! +${ev.value}`, source: 'coin', priority: ANN.COIN, ms: 700 });
-          triggerHaptic(15);
-          audio.playCoin();
+          if (isLocalHole) {
+            hud.announce({ text: `COIN! +${ev.value}`, source: 'coin', priority: ANN.COIN, ms: 700 });
+            triggerHaptic(15);
+            audio.playCoin();
+          }
         } else if (ev.type === 'clock') {
           // The endgame states (R-1.5). Fired by the sim at exact ticks, so both
           // arrive once and at the same moment on every device. The visual state
@@ -1278,34 +1306,52 @@ function frame(ts) {
           });
         } else if (ev.type === 'powerup_collect') {
           audio.playPowerUpCollect();
-          const isQuake = ev.powerup.type === 'quake' || (ev.powerup.spec && ev.powerup.spec.id === 'quake');
-          const isChrono = ev.powerup.type === 'chrono' || (ev.powerup.spec && ev.powerup.spec.id === 'chrono');
-          if (isChrono) audio.playChronoFreeze({ vol: 0.95, delay: 0.25 });
-          if (isQuake) {
-            audio.playFaultLineQuake();
-            cam.triggerShake(1.2);
+          if (!isMultiplayer) {
+            const isQuake = ev.powerup.type === 'quake' || (ev.powerup.spec && ev.powerup.spec.id === 'quake');
+            const isChrono = ev.powerup.type === 'chrono' || (ev.powerup.spec && ev.powerup.spec.id === 'chrono');
+            if (isChrono) audio.playChronoFreeze({ vol: 0.95, delay: 0.25 });
+            if (isQuake) {
+              audio.playFaultLineQuake();
+              cam.triggerShake(1.2);
+            } else {
+              cam.triggerShake(0.35);
+            }
+            triggerHaptic(80);
+            const spec = ev.powerup.spec || {};
+            hud.announce({
+              text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
+              sub: spec.tagline ? `✦ ${spec.tagline.toUpperCase()} ✦` : '✦ BUFF ACTIVATED ✦',
+              source: 'powerup',
+              tier: 'powerup',
+              priority: ANN.SIZE,
+              ms: 6000,
+              channel: 'band',
+            });
+            if (typeof screens.triggerActivePowerUpOverlay === 'function') {
+              screens.triggerActivePowerUpOverlay(ev.powerup.type);
+            }
+            if (!isQuake) playPowerUpCollectCinematic(ev.powerup);
           } else {
-            cam.triggerShake(0.35);
+            // Multiplayer: only trigger lightweight non-blocking announcement if the local player collected it
+            const isMyHole = ev.hole === sim.localHole || (ev.hole && ev.hole.slot === (sim.localSlot ?? 0));
+            if (isMyHole) {
+              const spec = ev.powerup.spec || {};
+              hud.announce({
+                text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
+                sub: spec.tagline ? `✦ ${spec.tagline.toUpperCase()} ✦` : '✦ BUFF ACTIVATED ✦',
+                source: 'powerup',
+                tier: 'powerup',
+                priority: ANN.SIZE,
+                ms: 2200,
+                channel: 'band',
+              });
+              triggerHaptic(50);
+            }
           }
-          triggerHaptic(80);
-          const spec = ev.powerup.spec || {};
-          hud.announce({
-            text: `${spec.icon || '⚡'} ${spec.name || 'POWER-UP'}!`,
-            sub: spec.tagline ? `✦ ${spec.tagline.toUpperCase()} ✦` : '✦ BUFF ACTIVATED ✦',
-            source: 'powerup',
-            tier: 'powerup',
-            priority: ANN.SIZE,
-            ms: 6000,
-            channel: 'band',
-          });
-          if (typeof screens.triggerActivePowerUpOverlay === 'function') {
-            screens.triggerActivePowerUpOverlay(ev.powerup.type);
-          }
-          if (!isQuake) playPowerUpCollectCinematic(ev.powerup);
         } else if (ev.type === 'powerup_spawn') {
-          queuePokemonSpawnIntro(ev.powerup, sim, cam);
+          if (!isMultiplayer) queuePokemonSpawnIntro(ev.powerup, sim, cam);
         } else if (ev.type === 'disaster') {
-          cam.triggerShake(1.2);
+          if (!isMultiplayer) cam.triggerShake(1.2);
           triggerHaptic(100);
           hud.announce({
             text: ev.title || '⚠️ NATURAL DISASTER! ⚠️',
@@ -1317,7 +1363,7 @@ function frame(ts) {
             channel: 'band',
           });
         } else if (ev.type === 'disaster_teleport') {
-          cam.triggerShake(1.5);
+          if (!isMultiplayer) cam.triggerShake(1.5);
           triggerHaptic(120);
           world.spawnBurst(ev.fromX, ev.fromZ, ev.hole.radius * 1.5, 0xff0055, 8);
           world.spawnShockRing(ev.fromX, ev.fromZ, ev.hole.radius * 2.0, 0xff0055);
@@ -1333,13 +1379,41 @@ function frame(ts) {
             channel: 'band',
           });
         } else if (ev.type === 'quake') {
-          triggerHaptic(75);
-          playEarthquakeCinematic(ev);
+          if (!isMultiplayer) {
+            triggerHaptic(75);
+            playEarthquakeCinematic(ev);
+          }
+        } else if (ev.type === 'pvp_kill') {
+          const mySlot = sim.localSlot ?? 0;
+          const isLocalKiller = ev.killerSlot === mySlot;
+          const isLocalVictim = ev.victimSlot === mySlot;
+          if (isLocalKiller) {
+            cam.triggerShake(0.6);
+            cam.fovKick(8);
+            world.spawnBurst(ev.killer.x, ev.killer.z, ev.killer.radius * 1.5, 0xff0054, 16);
+            world.spawnShockRing(ev.killer.x, ev.killer.z, ev.killer.radius * 2.0, 0xffffff);
+            hud.announce({
+              text: `RIVAL SWALLOWED! +${Math.round(ev.awardMass)} MASS`,
+              sub: '✦ PVP TAKEDOWN ✦',
+              tier: 'roar',
+              source: 'pvp',
+              priority: ANN.SIZE + 3,
+              ms: 2500,
+              channel: 'band',
+            });
+            if (audio.playPowerUpCollect) audio.playPowerUpCollect();
+          } else if (isLocalVictim) {
+            cam.triggerShake(1.2);
+            world.spawnBurst(ev.victim.x, ev.victim.z, ev.victim.radius * 1.5, 0xff0054, 12);
+          }
+        } else if (ev.type === 'pvp_respawn') {
+          world.spawnBurst(ev.hole.x, ev.hole.z, ev.hole.radius * 1.5, 0x00f0ff, 10);
+          world.spawnShockRing(ev.hole.x, ev.hole.z, ev.hole.radius * 2.0, 0x00f0ff);
         }
       }
       // to eats, SIZE-ups and consumption milestones.
       world.update(realDt, events);
-      const hole = sim.hole;
+      const hole = sim.localHole;
       // orbitHeld, not just the orbit delta: a touch-drag finger that has
       // stopped moving emits no delta and would otherwise let the camera's
       // recentre grace expire underneath it. See Controls.orbitHeld.

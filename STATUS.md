@@ -8,14 +8,22 @@ Last updated: 2026-08-16
 
 ## Active focus
 
-- **Power-Up System**: Dynamic roaming power-ups with intermittent spawn/despawn lifecycle, HUD flyout notifications, screen edge ambient FX, and full WebAudio fanfares (`.wiki/modules/powerups.md`).
-- **Scoreboards & Offline Fallback**: Live boards + seamless local/offline player profile creation and sync (`js/board/player.js`).
-- **Timed Runs & Full Clear**: 180s clock (`js/levelclock.js`), 100% full-clear goals, verified 90s score attack on Chicago Loop.
-- **T-403 — Parallel Validator**: Child processes for independent test suites, 0.4s fast check, Cambridge soak opt-in.
+- **Multiplayer Multi-Hole & Join Polish**: 6-player synchronized invite lobby multiplayer, multi-hole presentation alignment, PvP hole swallowing, 10s respawn timeout, per-player coin isolation, and 7 free color skins (`.wiki/modules/multiplayer.md`).
+- **Power-Up System**: Dynamic roaming power-ups with intermittent spawn/despawn lifecycle, in-world 3D beams, and full WebAudio fanfares (`.wiki/modules/powerups.md`).
+- **Scoreboards & Offline Fallback**: Live ranked boards + server-replayed trace verification and local profile fallback (`js/board/`).
+- **Cambridge Phase 7 Secrets & Belts**: Cambridge 44 hidden easter eggs, 11 ground glyphs, and championship belts.
 
 ---
 
 ## Shipped state
+
+- 2026-08-16 — 10-Second Combo Meter with 5s / 3s Dynamic Flashing & Arc Draining Shipped:
+  - **10.0-Second Combo Reset Window**: Set `COMBO_WINDOW = 10.0` in `js/voxelsim.js` and `js/sim.js`, granting players a generous 10-second window between meals to navigate across city streets without dropping their combo chains.
+  - **Radial SVG Arc Draining**: Updated `_updateCombo` in `js/ui/hud.js` to smoothly animate `comboArc.style.strokeDashoffset` from 100% full down to 0% in proportion to `chainTimer / COMBO_WINDOW`.
+  - **5-Second Warning Flash**: Applied `.cm-warn` when `chainTimer <= 5.0s`, pulsing the meter at ~2 Hz with warm golden heat aura.
+  - **3-Second Urgent Flash**: Applied `.cm-urgent` when `chainTimer <= 3.0s`, escalating to a rapid ~5 Hz high-intensity neon strobe with micro-pulse scaling.
+  - **Clean Expiration Reset**: At 0s, clears warning/urgent states, fires `pulseComboBreak()`, and smoothly returns to resting state.
+  - **100% Automated TDD Test Coverage**: Added Section 6 to `js/multiplayer/multiplayer.test.mjs` verifying 10s initialization, linear time decay, warning/urgent checkpoints, and 0s chain resets. All tests passing (`ALL PASS`).
 
 - 2026-08-16 — 3-Minute City Challenges, 2x Coin Rewards & Secret 90s Challenge Unlock:
   - **3-Minute Standard Challenge Clock**: Configured city challenge duration to 3 minutes (`CHALLENGE_CLOCK_SECONDS = 180` / `CHALLENGE_CLOCK_TICKS = 10,800`), providing ample time for speed boost power-up routing and full map clears.
@@ -24,6 +32,18 @@ Last updated: 2026-08-16
   - **Pure Sim `citycatalog.js` Module**: Separated pure progression rules and catalog metadata into a headless Node-safe module (`js/citycatalog.js`) without DOM/three.js dependencies.
   - **Save Schema Migration v20 -> v21**: Bumped `CURRENT_VERSION = 21` with migration initializing `challenges: {}` tracking best times, scores, and completion flags for 3m and 90s modes per city.
   - **UI Integration**: Updated Title Screen, City Carousel, HUD, and Results Screen with dynamic challenge CTAs, completion badges, 2x reward breakdowns, and secret unlock celebration banners.
+
+- 2026-08-16 — Multiplayer Multi-Hole System, Power-Up Polish & 7 Basic Color Skins Shipped:
+  - **Nixed Multiplayer Power-Up/Disaster Cutscenes & Pauses**: Disabled `queuePokemonSpawnIntro` (no `powerup_encounter` camera hijacking/modals), `playPowerUpCollectCinematic` (no 10-second `powerup_pause` showcase modal), `playEarthquakeCinematic` (no `quake_cinematic` pause), and remote camera shakes during multiplayer matches. Power-ups render cleanly with live in-world 3D beams and auras and lightweight non-blocking HUD banners.
+  - **Instant Camera Spawn Snapping**: Updated `startMultiplayerMatch` in `main.js` to immediately initialize `cam.target`, `cam.smoothTarget`, `cam.lastHoleX`, `cam.lastHoleZ`, and clear `cam.shakeIntensity` at the player's perimeter spawn point, eliminating the initial camera swoop and shaky entry.
+  - **Local Player Hole Alignment across Presentation Stack**: Added `localSlot` and `localHole` getter to `VoxelSandboxSim` (`js/voxelsim.js`). Wired `main.js` (controls, camera, audio listener, heading indicator), `hud.js` (mass, SIZE, cleared %, combo), and `voxelworld.js` to strictly follow `sim.localHole`, completely fixing the peer hole tracking and visual desync bugs where peers previously followed slot 0.
+  - **Dynamic Inverted Rival Meshes in 3D**: `VoxelWorld3D` (`js/voxelworld.js`) now creates rival meshes for all connected slots $0..N-1$ excluding `localSlot`, each rendered with high-contrast colored rings corresponding to their `PLAYER_PALETTES` slot color, while the local hole renders with the player's equipped skin and nav indicator.
+  - **7 Free Basic Color Skins**: Added 7 new 0-cost baseline skins (`baseline-cyan`, `baseline-crimson`, `baseline-amber`, `baseline-emerald`, `baseline-purple`, `baseline-orange`, `baseline-magenta`) in `js/skins.js` based on `buildBaseline`, automatically owned by all players (`isOwned: true`) without requiring save migrations.
+  - **Multiplayer Hole Interaction & PvP Polish**: Supported PvP hole swallowing ($r_\text{killer} > r_\text{victim} \times 1.05$), +50% mass steal bounties, 10s perimeter respawning, respawn overlay for both host and peers, real-time takedown announcements (`hud.announce`), camera kick/shake, shockwaves, and portal respawn bursts in `main.js`.
+  - **Host Podium Callback Fix**: Added missing `onGameOver` callback execution to `MultiplayerHost.finishMatch()`, ensuring hosts transition to the victory podium alongside peers upon match expiration.
+  - **Strict Per-Player Coin Attribution & Isolation**: Initialized `coinsCollected: 0` and `coins: 0` per hole in `VoxelSandboxSim` (`js/voxelsim.js`), isolated `_collectCoinsFor(h)` increments to the specific collecting hole, updated `hud.js` to render each player's local coin count, guarded `audio.playCoin()` / toasts / combo pulses to fire only for the local hole, included coins in host wire state syncs & leaderboard, and deposited only the local player's earned coins into their persistent vault (`save.coins`) on match completion.
+  - **100% Automated TDD Test Coverage**: Created `js/multiplayer/multiplayer.test.mjs` verifying multi-hole sim properties, host/peer session bindings, PvP mechanics, skin registration, and per-player coin isolation. All tests passing (`ALL PASS`).
+>>>>>>> 23ba05e (feat(multiplayer): multi-hole sim, 10s combo meter with 5s/3s flash, 7 color skins & coin isolation)
 
 - 2026-08-16 — ADR-0020: Menu Wiring Bug Fixes:
   - **City Select icon slot**: `CITY_CATALOG` lacked an `icon` field on all 8 entries; the card template rendered `"undefined"`. Each entry now has its city emoji (🧪🏙️🌉🌆🔬🌳⚓🗼).

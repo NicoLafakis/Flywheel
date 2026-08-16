@@ -10,7 +10,7 @@ import {
   MAX_MAP_POWERUPS, MIN_POWERUP_SEPARATION, findSpacedPowerUpLocation,
 } from './powerups.js';
 
-export const COMBO_WINDOW = 1.5;
+export const COMBO_WINDOW = 10.0;
 export const COMBO_MAX_MULT = 3;
 
 export function comboMultiplier(chain) {

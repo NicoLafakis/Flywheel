@@ -49,6 +49,7 @@ export class MultiplayerPeer {
       mode: 'freeplay',
       holes: holeConfigs,
     });
+    this.sim.localSlot = this.mySlot;
 
     // Subscribe to incoming messages from host
     this._unsubscribe = this.channel.onMessage((msg) => this._handleMessage(msg));
@@ -113,6 +114,8 @@ export class MultiplayerPeer {
       targetHole.respawnTimer = hState.respawnTimer;
       targetHole.kills = hState.kills;
       targetHole.timesEaten = hState.timesEaten;
+      if (hState.coinsCollected !== undefined) targetHole.coinsCollected = hState.coinsCollected;
+      if (hState.coins !== undefined) targetHole.coins = hState.coins;
     }
   }
 

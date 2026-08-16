@@ -285,7 +285,7 @@ export class HUD {
   // bar, voxel/mass counts in the label, elapsed time, combo readout.
   updateSandbox(sim) {
     this._showMinimap(false);
-    const h = sim.hole;
+    const h = sim.localHole || sim.hole;
     this.massBar.style.background = '#ffd23f';
     const cleared = Math.min(1, h.rawMass / sim.totalMass);
     // Live numeric progress, not a static banner: "GOAL: CLEAR 50%" never told
@@ -309,8 +309,9 @@ export class HUD {
     this.massLabel.textContent = sim.won
       ? `${sim.goal.name} · GOAL REACHED · SIZE ${h.size}`
       : `CLEARED ${Math.floor(cleared * 100)}%${targetSuffix} OF THE CITY · SIZE ${h.size}`;
-    this.massBar.style.width = `${(cleared * 100).toFixed(1)}%`;
-    const coinsCol = (typeof sim.coinsCollected === 'number' && !isNaN(sim.coinsCollected)) ? sim.coinsCollected : 0;
+    const coinsCol = (h && typeof h.coinsCollected === 'number' && !isNaN(h.coinsCollected))
+      ? h.coinsCollected
+      : ((typeof sim.coinsCollected === 'number' && !isNaN(sim.coinsCollected)) ? sim.coinsCollected : 0);
     const totalCoins = (sim.coins && Array.isArray(sim.coins)) ? sim.coins.length : 0;
     this.timer.textContent = `🪙 ${coinsCol}/${totalCoins}`;
     this.timer.classList.remove('low');
@@ -565,10 +566,19 @@ export class HUD {
     
     if (isFrenzy) {
        currentMult += extraFrenzyMult;
-       frac = 1.0;
     }
 
-    this.comboArc.style.strokeDashoffset = (CM_CIRCUM * (1 - frac)).toFixed(2);
+    // Arc drains smoothly over the 10-second combo window.
+    const timeFrac = (h.chain > 0 && typeof h.chainTimer === 'number')
+      ? Math.max(0, Math.min(1, h.chainTimer / COMBO_WINDOW))
+      : 0;
+    this.comboArc.style.strokeDashoffset = (CM_CIRCUM * (1 - timeFrac)).toFixed(2);
+
+    // Flashing: Warn at <= 5s, Urgent (brighter & faster) at <= 3s
+    const isWarn = h.chain > 0 && h.chainTimer <= 5.0 && h.chainTimer > 3.0;
+    const isUrgent = h.chain > 0 && h.chainTimer <= 3.0 && h.chainTimer > 0;
+    this.comboMeter.classList.toggle('cm-warn', isWarn);
+    this.comboMeter.classList.toggle('cm-urgent', isUrgent);
 
     const targetChainText = h.chain.toString();
     const targetMultText = `x${isSandbox ? currentMult : currentMult.toFixed(1)}`;
@@ -612,7 +622,7 @@ export class HUD {
 
   pulseComboBreak() {
     const el = this.comboMeter;
-    el.classList.remove('broke');
+    el.classList.remove('broke', 'cm-warn', 'cm-urgent');
     void el.offsetWidth;
     el.classList.add('broke');
     clearTimeout(this._breakTimer);
@@ -630,7 +640,7 @@ export class HUD {
     this.levelClock.classList.remove('warn', 'urgent');
     this.levelClock.classList.add('hidden');
     this._scoreLast = performance.now();
-    this.comboMeter.classList.remove('live', 'step', 'broke');
+    this.comboMeter.classList.remove('live', 'step', 'broke', 'cm-warn', 'cm-urgent');
     this.scoreValue.textContent = '0';
     this.comboChain.textContent = '0';
     this.comboMultEl.textContent = 'x1';

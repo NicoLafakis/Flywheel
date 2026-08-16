@@ -47,124 +47,23 @@ replay.js ──► Vercel API ──► voxelsim.js replay ──► Supabase p
   Vercel only. Server replay is another `voxelsim.js` caller; it cannot write
   gameplay state, and the fixed loop never waits on a request.
 
-**Multi-hole sim, shipped 2026-08-10:** `VoxelSandboxSim` now runs a roster,
-`sim.holes[]`, rather than one hole. `sim.hole` is kept as an accessor for
-`holes[0]` (`get hole()`/`set hole()`), so every pre-existing single-player
-read and write keeps working unchanged — this is what makes the roster a
-non-breaking refactor rather than a rewrite. `addHole(x, z)` appends a hole
-with the next roster index; `step()` takes either the legacy single `move`
-or an array of moves (one per hole, index-aligned) — `sim.step.length` is
-deliberately still 2, since `js/net/host.js` feature-detects the array form.
-Support recalculation resolves against the **union** of every hole's
-influence rather than each hole's own, which fixed a real artifact (one
-hole's undermining getting partially healed by the other hole's presence
-elsewhere); conflicts (two holes reaching the same coin the same step)
-resolve in hole-index order, deterministically. `js/demo/duel.js` — the
-hot-seat two-player demo — is now a thin wrapper over the native roster
-(`sim.holes[0]`/`addHole` for the second player, one real `sim.step(dt,
-moves)` per frame) instead of its original dt-slicing hack (bind hole A, step
-half the frame, bind hole B, step the other half); the wrapper's public API
-(`step`, `drain`, `hole`, `fraction`) is unchanged, so `js/demo/demo.js`
-needed no edits. New test: `js/voxelsim.multihole.test.mjs` (roster shape,
-call-shape equivalence, two-hole determinism, independent per-hole
-accumulation, shared-world conservation, and the duel-heal fix specifically).
-Single-player behavior was verified bit-identical to pre-refactor HEAD across
-three scenes.
+**Multi-hole sim & presentation alignment:** `VoxelSandboxSim` (`js/voxelsim.js`) runs a multi-hole roster `sim.holes[]`.
+- `sim.localSlot`: Identifies which hole index belongs to the local machine (default `0`).
+- `sim.localHole`: Getter returning `sim.holes[this.localSlot]`. Presentation code across `main.js` (controls, camera, audio listener, heading indicator), `hud.js` (mass, SIZE, cleared %, combo), and `voxelworld.js` strictly reads `sim.localHole`, eliminating peer desync and camera jumping.
+- `sim.hole`: Maintained as a backward-compatible alias for `sim.holes[0]`.
+- `addHole(x, z, opts)`: Appends an additional player hole with specific perimeter spawn coordinates, palette color, and cosmetic skin.
+- Support recalculation resolves against the union of all active holes.
+- Conflicts (such as two holes reaching the same coin on the same fixed step) resolve in deterministic hole-index order.
 
-**Built and wired end to end, live on a real URL (2026-08-10):** the fourth
-**net** ring proposed in
-[features/online-flywheel/03-technical-design.md](features/online-flywheel/03-technical-design.md)
-went from standalone skeleton to a playable two-device product in one day,
-in `js/net/`:
+**6-Player Synchronized Multiplayer (`js/multiplayer/`):** Built clean-slate on Supabase Realtime Broadcast ([ADR-0019](adr/0019-six-player-invite-lobby-multiplayer.md)), directly integrated into the single-player engine in `js/main.js`:
+- `channel.js`: Wraps Supabase Realtime Broadcast (`js/vendor/supabase-realtime.module.js`) with an outbound message queue that buffers transmissions until `SUBSCRIBED` confirmation, eliminating join race conditions.
+- `protocol.js`: Fast binary-compatible message definitions (`JOIN_REQUEST`, `ROOM_STATE`, `START_GAME`, `PLAYER_MOVE`, `STATE_SYNC`, `PVP_KILL`, `CHAT_MESSAGE`, `GAME_OVER`).
+- `lobby.js`: Pre-game room management (2..6 players), 5-character alphanumeric room codes, shareable invite links (`?room=CODE`), ephemeral in-memory chat, and an unskippable 3.0s auto-countdown when the lobby fills.
+- `host.js`: Authoritative host simulation running `sim.step(1/60, moves)` at 60 Hz, broadcasting state syncs, detecting PvP hole swallowing ($r_\text{killer} > r_\text{victim} \times 1.05$), awarding +50% mass bounties, and managing 10s perimeter respawns.
+- `peer.js`: Follower loop sending steering intents and reconciling authoritative state syncs with local interpolation.
+- `ui.js`: DOM-based multiplayer lobby, room code sharing, ephemeral chat view, in-game 10s respawn timeout overlays, and post-match victory podium rankings.
 
-- `driver.js` — the driver seam (`decide(hole, world, dt)`), `HumanDriver`,
-  `PeerDriver`, `IdleDriver` — unchanged since first landing.
-- `protocol.js` — versioned message codecs, validated against hostile
-  payloads; gained a `REJECT` control message so a refused JOIN (room full,
-  match locked) is distinguishable on the wire from "nobody there" (a
-  timeout alone can't tell the two apart).
-- `snapshot.js`, `transport.js` — unchanged in shape; `transport.js`'s
-  `LoopbackTransport` (latency/jitter/drop simulation) now has a real
-  Supabase Realtime sibling, not just a stub — see below.
-- `host.js` — promoted from a loop skeleton to the real authority: it feeds
-  the full per-slot moves array into the multi-hole sim
-  (`sim.step(dt, moves)`), broadcasts snapshots, and ships the promised RLE
-  eaten bitset in keyframes.
-- `peer.js` (**new**) — the follower loop: fixed-cadence intents, snapshot
-  interpolation, own-hole prediction with banded reconciliation
-  (ignore/smooth/snap), and keyframe healing when a client falls behind.
-  **Naming note:** the design docs call the host/peer pair
-  `arena-host.js`/`arena-peer.js`; they ship as `host.js`/`peer.js` — the
-  rename never happened, and the file-header comments explain why (it was
-  meant to land alongside the room-lifecycle file, which shipped the same
-  day as `arena.js`, at which point renaming stopped being worth doing).
-- `arena.js` (**new**, T-603 minimal cut) — room lifecycle: 5-symbol codes
-  from a 27-symbol no-vowel, no-confusables alphabet
-  (`BCDFGHJKMNPQRSTVWXZ23456789`) minted client-side via
-  `crypto.getRandomValues`; forgiving code normalization (lowercase, dashes,
-  a pasted `?room=` invite URL); a deterministic `deriveSeed(code)` so every
-  client builds the identical city (ADR-0003); JOIN/WELCOME/REJECT/ROSTER
-  handshake with room-full and no-host errors and a "HOST LEFT" freeze.
-  Server-minted rooms/seeds (T-602) and host succession (T-606) are explicit,
-  named non-goals of this cut — see
-  [features/online-flywheel/13-tasks.md](features/online-flywheel/13-tasks.md).
-- `client.js` + `supabase-config.js` (**new**) — the one file
-  (`client.js`) that imports the vendored Supabase Realtime client;
-  everything else in `js/net/` goes through it. `supabase-config.js` holds
-  only the project URL and the publishable key (both public-by-design browser
-  values; the secret key never leaves `.env.local`).
-- `js/vendor/supabase-realtime.module.js` (**new**) — `@supabase/realtime-js`
-  2.112.2, bundled once to a single self-contained 135 KB ESM file and
-  committed same-origin, same pattern as `js/vendor/three.module.js`
-  (ADR-0014): pinned, never edited, replaced wholesale to upgrade. The full
-  `supabase-js` (auth + PostgREST + storage + functions, ~500 KB) was
-  skipped — Realtime broadcast is the only capability with a caller today.
-
-Two proof surfaces, both new: `netdemo.html` + `js/demo/netdemo.js` run a
-host and a peer in one page over `LoopbackHub` (120 ms latency / 30 ms
-jitter / 5% drop) — the right half of the page renders purely from the wire,
-nothing but wire messages crosses to it. `arena.html` + `js/demo/arena.js`
-is the real product: HOST A CITY / JOIN A CITY, a giant shareable code plus
-a copyable `?room=` invite link that auto-joins, a touch joystick for
-mobile, score plates, a 3-minute clock, a winner banner, RECONNECTING and
-HOST LEFT states. It runs the same netcode stack as `netdemo.html` with
-`LoopbackHub` swapped for the real Supabase Realtime transport through the
-existing seam — swapping the transport was the entire diff needed to go
-from loopback proof to two phones on the internet. **Proven live**: a
-two-browser-context match played to completion against the deployed
-project, at https://flywheel-woad.vercel.app/arena.html.
-
-Self-tests: `tools/net-match-selftest.mjs` (48 checks, including a bit-exact
-host replay), `tools/arena-selftest.mjs` (48 offline checks — codes,
-normalization, seeds, handshake, room-full, no-host, the REJECT guard), and
-`tools/net-live-selftest.mjs` (18/18 against the real Supabase project —
-subscribe, both-direction binary and control frames, RTT, clean disconnect;
-kept out of the default validate chain since it needs live credentials and a
-network).
-
-**Discoverable from the title screen as of 2026-08-11, still not reachable
-from `js/main.js`'s state machine.** `index.html` now carries a MULTIPLAYER
-plate on the title screen (styled in the landing chips' own vocabulary — dark
-plate, gold accent bar, 2P tag, gold hover), gated by a CSS `:has()` rule so
-it only exists while the landing screen is mounted (never over gameplay, HUD,
-pause, shop, or the boot splash) — zero JS, no edits to `js/main.js` or
-`js/ui/screens.js`, fails safe to hidden on browsers too old for `:has()`.
-It links to `/arena`, served extensionless by the new `vercel.json`'s
-`cleanUrls`, which also 307-redirects `/multiplayer` to `/arena` so both
-guessable names land on the online arena. `arena.html` and `netdemo.html`
-are still standalone pages outside the campaign/sandbox state machine,
-exactly like the hot-seat `multiplayer.html` demo below — the button makes
-the arena a click away from the title screen, it does not fold it into
-`main.js`'s screens. Deferred, with the seam each will use noted in
-[features/online-flywheel/13-tasks.md](features/online-flywheel/13-tasks.md):
-host migration/succession (T-606 — a vanished host freezes the match today
-rather than electing a new one), spectators, more than two players (the
-netcode itself supports up to 8 via `LIMITS.MAX_HOLES`; `arena.js`/`arena.html`
-seat exactly 2), server-minted rooms (T-602), and peer-side debris cosmetics.
-Its invariants hold as designed: the net layer never writes sim state outside
-`sim.step()` (there is exactly one `sim.step()` call in `host.js` and no
-other assignment to a sim field), it never imports three.js, a client's score
-is never the record, and the network is optional at every point.
+**Zero-storage networking guarantee:** Multiplayer is completely ephemeral and does not write state to database tables or localStorage during matches. Matches run directly within the standard engine and deposit only the local player's earned match coins into `save.coins` upon victory podium display.
 
 **Rival visibility, phases A-D shipped (2026-08-11), new `js/rival/` ring:**
 out of a live two-phone playtest complaint ("no sense of whose blocks were

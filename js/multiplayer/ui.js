@@ -509,6 +509,7 @@ export class MultiplayerUI {
             <span class="mp-stat-score">${p.score.toLocaleString()} PTS</span>
             <span class="mp-stat-mass">${p.mass} kg</span>
             <span class="mp-stat-kills">${p.kills || 0} KILLS</span>
+            <span class="mp-stat-coins">🪙 ${p.coins || 0}</span>
           </div>
         </div>
       `;

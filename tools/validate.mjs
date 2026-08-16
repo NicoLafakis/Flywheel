@@ -1969,14 +1969,14 @@ function validateShopAndUpgrades() {
   const indicatorsItems = getShopItemsByCategory('indicators', { save: dummySave, skins: skinsParsed, indicatorSkins: indParsed });
   const upgradesItems = getShopItemsByCategory('upgrades', { save: dummySave, skins: skinsParsed, indicatorSkins: indParsed });
 
-  if (skinsItems.length !== 12) fail(`Category 'skins' should contain 12 standard skins, found ${skinsItems.length}`);
+  if (skinsItems.length !== 19) fail(`Category 'skins' should contain 19 standard skins, found ${skinsItems.length}`);
   if (creaturesItems.length !== 5) fail(`Category 'creatures' should contain 5 creature skins, found ${creaturesItems.length}`);
   if (partnersItems.length !== 8) fail(`Category 'partners' should contain 8 partner skins, found ${partnersItems.length}`);
   if (indicatorsItems.length !== 6) fail(`Category 'indicators' should contain 6 indicator skins, found ${indicatorsItems.length}`);
   if (upgradesItems.length !== 4) fail(`Category 'upgrades' should contain 4 stat upgrades, found ${upgradesItems.length}`);
 
   const totalCategorized = skinsItems.length + creaturesItems.length + partnersItems.length + indicatorsItems.length + upgradesItems.length;
-  if (totalCategorized !== 35) fail(`Total shop items should be 35 (12+5+8+6+4), got ${totalCategorized}`);
+  if (totalCategorized !== 42) fail(`Total shop items should be 42 (19+5+8+6+4), got ${totalCategorized}`);
 
   // 8. Shop Bottom Navigation Layout & Accessibility Assertions
   const screensSrc = readFileSync(new URL('../js/ui/screens.js', import.meta.url), 'utf8');

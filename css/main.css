@@ -412,6 +412,38 @@ body.mode-sandbox #combo-meter.broke .cm-arc { animation: cm-break .35s ease-in;
   100% { opacity: 0; stroke: #6b7280; }
 }
 
+/* Combo Meter Warning: Flash at <= 5s */
+#combo-meter.cm-warn {
+  animation: cm-flash-warn 0.5s ease-in-out infinite alternate;
+}
+@keyframes cm-flash-warn {
+  0% {
+    filter: brightness(1);
+    box-shadow: 0 4px 22px rgba(0, 0, 0, 0.7), 0 0 20px var(--cm-heat);
+  }
+  100% {
+    filter: brightness(1.6) drop-shadow(0 0 10px #ffffff);
+    box-shadow: 0 4px 28px rgba(0, 0, 0, 0.8), 0 0 36px #ffffff, 0 0 48px var(--cm-heat);
+  }
+}
+
+/* Combo Meter Urgent: Flash brighter and faster at <= 3s */
+#combo-meter.cm-urgent {
+  animation: cm-flash-urgent 0.18s ease-in-out infinite alternate;
+}
+@keyframes cm-flash-urgent {
+  0% {
+    filter: brightness(1.2);
+    transform: scale(1.04);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.7), 0 0 25px var(--cm-heat);
+  }
+  100% {
+    filter: brightness(2.4) drop-shadow(0 0 16px #ffffff);
+    transform: scale(1.12);
+    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.9), 0 0 50px #ffffff, 0 0 70px #ff0055;
+  }
+}
+
 /* ---------- Endgame Remaining Blocks Pill ---------- */
 #blocks-left-pill {
   position: absolute;
@@ -815,12 +847,16 @@ body.mode-sandbox #combo-meter.broke .cm-arc { animation: cm-break .35s ease-in;
 @media (prefers-reduced-motion: reduce) {
   body.mode-sandbox #score-plate.gain #score-value,
   body.mode-sandbox #combo-meter.step::after,
+  body.mode-sandbox #combo-meter.cm-warn,
+  body.mode-sandbox #combo-meter.cm-urgent,
   body.mode-sandbox #combo-meter.broke .cm-arc { animation: none; }
   #hype-band.show { animation: hype-fade 1.8s ease-out forwards; }
   #level-clock.urgent { animation: none; background: rgba(255, 45, 31, .28); }
 }
 body.reduced-motion.mode-sandbox #score-plate.gain #score-value,
 body.reduced-motion.mode-sandbox #combo-meter.step::after,
+body.reduced-motion.mode-sandbox #combo-meter.cm-warn,
+body.reduced-motion.mode-sandbox #combo-meter.cm-urgent,
 body.reduced-motion.mode-sandbox #combo-meter.broke .cm-arc { animation: none; }
 body.reduced-motion #level-clock.urgent { animation: none; background: rgba(255, 45, 31, .28); }
 body.reduced-motion #hype-band.show { animation: hype-fade 1.8s ease-out forwards; }

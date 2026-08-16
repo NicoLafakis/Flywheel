@@ -343,7 +343,7 @@ const SPEED_MULT = 1.4;      // sandbox hole runs at 1.4× the campaign speed cu
 const SANDBOX_SPEED_RAMP = 2.72;
 // Mirrors sim.js combo rules, duplicated so the sandbox stays free of the
 // sim.js → citygen.js import chain.
-export const COMBO_WINDOW = 1.5;
+export const COMBO_WINDOW = 10.0;
 
 // --- the combo ladder (ADR-0015) ---------------------------------------------
 // A TABLE, not a formula, and exported so the HUD reads the same object the sim
@@ -679,6 +679,7 @@ export class VoxelSandboxSim {
     } else {
       this.holes = [this._newHole(0, 16, 0)];
     }
+    this.localSlot = 0;
     this.time = 0;
     this.over = false;
     this.won = false;
@@ -904,6 +905,13 @@ export class VoxelSandboxSim {
   get hole() { return this.holes[0]; }
   set hole(h) { this.holes[0] = h; }
 
+  /**
+   * The hole controlled by the local player on this client instance.
+   * In single-player and for the host, localSlot is 0 (identical to `sim.hole`).
+   * Remote peers set localSlot = mySlot to follow and steer their own hole.
+   */
+  get localHole() { return this.holes[this.localSlot] || this.holes[0]; }
+
   // Every field the single-hole build kept on `this.hole`, plus:
   //   index        the hole's identity for the life of the match (slot mapping
   //                in js/net/snapshot.js reads it)
@@ -924,6 +932,8 @@ export class VoxelSandboxSim {
       respawnTimer: 0,
       kills: 0,
       timesEaten: 0,
+      coinsCollected: 0,
+      coins: 0,
       activePowerUps: [],
       speedMult: isPlayer ? (this.speedMult || 1.0) : 1.0,
       vortexMult: isPlayer ? (this.vortexMult || 1.0) : 1.0,
@@ -1034,6 +1044,8 @@ export class VoxelSandboxSim {
       if (coin.collected || fwHypot2(coin.x - h.x, coin.z - h.z) > reach) continue;
       coin.collected = true;
       this.coinsCollected++;
+      h.coinsCollected = (h.coinsCollected || 0) + 1;
+      h.coins = (h.coins || 0) + coinVal;
       // A coin SUSTAINS a chain; it is never a link in one. The asymmetry is
       // the point: refreshing the window buys the player another COMBO_WINDOW
       // to reach the next eatable, which is what makes a coin able to bridge a

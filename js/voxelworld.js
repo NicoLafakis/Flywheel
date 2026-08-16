@@ -750,10 +750,12 @@ export class VoxelWorld3D {
 
     this.scene.add(this.holeMesh);
 
-    // Multiplayer Rival Holes (Slots 1..N)
+    // Multiplayer Rival Holes (all holes except localSlot)
     this.rivalMeshes = [];
+    const localSlot = this.sim.localSlot ?? 0;
     if (this.sim.holes && this.sim.holes.length > 1) {
-      for (let i = 1; i < this.sim.holes.length; i++) {
+      for (let i = 0; i < this.sim.holes.length; i++) {
+        if (i === localSlot) continue;
         const rH = this.sim.holes[i];
         const rGroup = new THREE.Group();
         const rDisc = new THREE.Mesh(circleGeo(), new THREE.MeshBasicMaterial({ color: 0x06060c }));
@@ -2063,7 +2065,7 @@ export class VoxelWorld3D {
       }
     }
     if (!framed) {
-      const h = this.sim.hole;
+      const h = this.sim.localHole;
       c.set(h ? h.x : 0, 0, h ? h.z : 0);
     }
     this._setShadowExtent(extent);
@@ -3038,7 +3040,7 @@ export class VoxelWorld3D {
 
   _tickPigeons(p, dt, t) {
     const { birds, mesh } = p;
-    const h = this.sim.hole;
+    const h = this.sim.localHole;
     const frame = this._aFrame, q = this._aq, q2 = this._aq2, v = this._av;
     const trigger = (h ? h.radius : 1) + 5;
     const trig2 = trigger * trigger;
@@ -3294,7 +3296,7 @@ export class VoxelWorld3D {
       }
       this._quakeFxQueue = remaining.length > 0 ? remaining : null;
     }
-    const h = this.sim.hole;
+    const h = this.sim.localHole;
     this.holeMesh.position.set(h.x, 0, h.z);
     // The void grows with the hole. Full h.radius, matching the skin's own
     // `local.scale.setScalar(st.radius)`, so the black disc always reaches the

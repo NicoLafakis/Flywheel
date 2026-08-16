@@ -49,6 +49,7 @@ export class MultiplayerHost {
       mode: 'freeplay',
       holes: holeConfigs,
     });
+    this.sim.localSlot = 0;
 
     // Hook PvP kill event forwarding
     this.sim.onPvPKill = (ev) => {
@@ -115,6 +116,8 @@ export class MultiplayerHost {
       respawnTimer: h.respawnTimer,
       kills: h.kills || 0,
       timesEaten: h.timesEaten || 0,
+      coins: h.coins || 0,
+      coinsCollected: h.coinsCollected || 0,
     }));
 
     const syncMsg = createStateSync({
@@ -135,6 +138,8 @@ export class MultiplayerHost {
         bestChain: h.bestCombo || 0,
         kills: h.kills || 0,
         timesEaten: h.timesEaten || 0,
+        coins: h.coins || 0,
+        coinsCollected: h.coinsCollected || 0,
         color: h.color,
         skin: h.skin,
       }))
@@ -149,6 +154,7 @@ export class MultiplayerHost {
     });
 
     this.channel.broadcast(gameOverMsg);
+    if (this.onGameOver) this.onGameOver(gameOverMsg);
   }
 
   destroy() {

@@ -2,31 +2,14 @@
 
 > Living documentation for **Flywheel** — "A sprocket's story" (repo:
 > `Flywheel`; the eat-everything mechanic itself is still called "hole" in
-> code and vocabulary — see [glossary.md](glossary.md)). Updated 2026-08-11
-> (rival-progress visibility phases A-D shipped in the live arena — crater
-> tinting, tug bar, off-screen chevron, milestone callouts, end-of-match
-> territory reveal with a follow-zoom camera — plus protocol v3, so eater
-> identity survives a keyframe; a same-day physics fix made gravity uniform
-> and stopped debris teleporting onto rooftops or hanging mid-air, see
-> [findings/](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md).
-> Also shipped the same day: the Chicago Loop's CTA train now derails at
-> eaten track, runs the streets as a runaway, and is eatable once derailed
-> (a mover-simulation engine in `js/voxelsim.js`, opt-in capability flags any
-> mover can use); a real WebAudio engine (`js/audio/`, 32 CC0 sound files,
-> see `CREDITS.md`) wired into the live arena, the hot-seat demo, and the
-> scene viewer (not yet the main campaign game); and a MULTIPLAYER plate on
-> the title screen linking to a clean `/arena` URL, so the live arena is a
-> click away for the first time. The Chicago Loop scene itself was rebuilt
-> ground-up and is now fully menu-reachable: it joined the arena's HOST A
-> CITY picker on 2026-08-11 and, the same day, the single-player free-play
-> menu (`js/main.js`'s `AUTHORED_SCENES` + `js/ui/screens.js`'s FREE_PLAY
-> card). The `js/net/` multiplayer layer remains wired end to end and **live**: host +
-> peer loops proven over a loopback demo page, then over real Supabase
-> Realtime in a two-device arena at
-> https://flywheel-woad.vercel.app/arena.html, still not called from
-> `js/main.js`'s state machine even though the title screen now links to it;
-> the Cambridge sandbox's map is complete and playable with hidden content
-> still ahead).
+> code and vocabulary — see [glossary.md](glossary.md)). Updated 2026-08-16.
+> 
+> **Current Shipped Capabilities:**
+> - **8 Handcrafted Voxel Metropolises**: The Gallery (The Lab), Lower Manhattan, Upper Manhattan, Brooklyn, Boston, Cambridge, Chicago Loop (with runaway CTA train derailment physics), and Neo Tokyo.
+> - **6-Player Synchronized Invite Multiplayer (`js/multiplayer/`)**: Real-time multi-hole sandbox over Supabase Realtime Broadcast with 5-letter room codes, shareable invite links (`?room=CODE`), ephemeral chat, auto-countdown, PvP hole swallowing ($r_\text{killer} > r_\text{victim} \times 1.05$), 10s perimeter respawn timeouts, per-player coin attribution, and victory podium rankings.
+> - **Cosmetics & Multi-Rank Stat Upgrades (`js/skins.js`, `js/upgrades.js`)**: Modern mobile shop with 5 icon category tabs (`🕳️ Skins`, `👾 Creatures`, `🤝 Partners`, `🧭 Indicators`, `⚡ Upgrades`), 7 free basic color skins, and 4 stat tracks with 20 incremental ranks each (+0%..+100% speed, vortex, growth, duration boosts).
+> - **Server-Replayed Scoreboards & Profiles (`js/board/`)**: Replay-validated ranked RUN leaderboards, anonymous device-token profile management, and seamless offline fallback.
+> - **Interactive Audio Engine (`js/audio/`)**: Full WebAudio engine with 32 sound assets, spatial listener tracking, state-aware music cues, and volume ducking.
 
 ## What is this?
 
@@ -63,7 +46,7 @@ what each is waiting on, and what could start today.
 | [conventions.md](conventions.md) | Coding standards, naming, determinism rules |
 | [glossary.md](glossary.md) | Domain terms (tier, snack ring, tide, ...) |
 | [visual-direction.md](visual-direction.md) | Art-target gap analysis: current vs reference |
-| [modules/](modules/) | Per-module docs with `covers:` globs: [audio](modules/audio.md), [campaign](modules/campaign.md), [citygen](modules/citygen.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
+| [modules/](modules/) | Per-module docs with `covers:` globs: [audio](modules/audio.md), [campaign](modules/campaign.md), [citygen](modules/citygen.md), [multiplayer](modules/multiplayer.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
 | [adr/](adr/) | Architecture Decision Records |
 | [runbooks/](runbooks/) | Run/validate/deploy playbooks |
 | [findings/](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md) | Root-cause analyses: [RCA-2026-08-11 skyscraper launch and hanging debris](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md) (roof-snap teleport in the debris landing test, wall-scrape vy bounce, per-material gravity — **resolved, fixed by commit 235c82d the same day**); [RCA-2026-08-11 cambridge validator stall](findings/RCA-2026-08-11-cambridge-validator-stall.md) (the 780 s Cambridge excursion hits superlinear debris churn on the untiered physics — **resolved 2026-08-13**: root cause was unretirable jammed debris, fixed by T-402/[ADR-0018](adr/0018-debris-retires-on-proven-stationarity.md), and the validator is now a parallel orchestrator that completes end to end) |

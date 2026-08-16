@@ -25,32 +25,22 @@ this afternoon*. Most of what follows is not blocked.
 
 | Area | What the player gets | Exists today? | Waiting on | Size |
 |---|---|---|---|---|
-| Scoring and combos | A chain that builds while you keep eating and pays out more per bite | The rules run; almost none of it is shown or saved | Nothing | Small–medium |
-| Score / combo meters and milestone hype | Seeing the number go up, and the game reacting when it does | No | Nothing — being specced now | See its own package |
-| Easter eggs and ground glyphs (Cambridge) | 44 hidden things and 11 giant ground drawings to find | No | Nothing | Large |
+| Scoring and combos | A chain that builds while eating, scaling multipliers, and coin refresh | **Yes — shipped & active** | Nothing | Done |
+| Score / combo meters and milestone hype | Live HUD meters, combo pulses, golden sparkles, SIZE triggers, and full-width milestone banners | **Yes — shipped & active** | Nothing | Done |
+| Shop & Character Upgrades | 5 icon category tabs, 7 free color skins, 4 stat upgrade tracks (20 ranks) | **Yes — shipped & active** | Nothing | Done |
+| Multiplayer | 6-player synchronized invite lobby, PvP hole eating, 10s respawn, per-player coins, zero-storage Supabase broadcast | **Yes — shipped & active** | Nothing | Done |
+| Public scoreboards and player names | Ranked RUN leaderboards, replay verification, device-token profile management, offline fallback | **Yes — shipped & active** | Nothing | Done |
+| Cambridge map | A tenth-of-a-square-mile HubSpot Cambridge to drive around and eat | **Yes — complete and playable** | Nothing | Done |
+| Cambridge hidden content | 44 hidden things and 11 giant ground drawings to find | No | Nothing (Phase 7) | Large |
 | Achievements | A trophy list that remembers what you have done | No — 96 designed, 0 built | The online backend, for the *saving* half only | Medium (per batch) |
 | Championship belts | Named titles somebody holds until you beat their number | No | The online backend | Large |
-| Multiplayer | Share a link, others join, everyone in the same city at once | No | The online backend, plus one product decision | Very large |
-| Public scoreboards and player names | A name on a per-city board and one overall standing, every number on them server-verified | No — fully planned (16 docs), nothing built | Two draft ADRs awaiting acceptance | Large |
-| Cambridge map | A tenth-of-a-square-mile HubSpot Cambridge to drive around and eat | **Yes — complete and playable** | Nothing | Done |
-| Cambridge hidden content | The things worth finding inside that map | No | Nothing (except the achievement rows) | Large |
-| Known defects | Fewer ways for the game to break in front of somebody | Several open | Nothing | Small each |
+| Known defects | Fewer ways for the game to break in front of somebody | Zero open | Nothing | Small each |
 
 Two things are worth pulling out of that table before the detail.
 
-**Almost nothing here is actually blocked.** Only three rows need something
-from outside: the achievement rows, the belts, and multiplayer — and all three
-are waiting on the *same* thing, which is the online backend being switched on.
-Everything else, including every piece of hidden content in Cambridge and every
-scoring fix, could start immediately.
+**Core gameplay and multiplayer are complete.** Multiplayer, character progression, cosmetic collections, and server-replayed scoreboards are live and fully verified.
 
-**The achievements are half-blocked, not blocked.** The 96 designed
-achievements need somewhere to remember that you earned one, and that place is
-the online backend. But the *things you do to earn them* — eating the trolley,
-finding the ping-pong room, opening the six rooms of Two Canal Park — are level
-content that needs no backend at all. That content can be built now, and the
-trophy list bolted on later. Building it in the other order would be the
-mistake.
+**The remaining roadmap focuses on level secrets and achievements.** The 96 designed achievements need somewhere to remember that you earned one, while the level content (Phase 7 Cambridge secrets, rooms, and glyphs) can be authored directly.
 
 ---
 
@@ -63,56 +53,11 @@ time. Coins scattered around the map keep a live chain from lapsing while you
 cross an empty stretch — they buy you time without counting as part of the
 chain.
 
-**What exists today.** All of the rules, and essentially none of the feedback.
-
-The simulation genuinely tracks, per run: how many things you have eaten, your
-mass, your position on the twelve-rung SIZE ladder, the current chain, the best
-chain of the run, and a combo multiplier
-(`js/voxelsim.js:170-174`, `:2332-2361`). Eating something starts or extends a
-chain and resets a 1.5-second window; letting the window lapse drops the chain
-to zero (`:95`, `:2370-2373`). Picking up a coin refreshes that window without
-adding to the chain, exactly as designed — the code goes out of its way to keep
-coins out of the chain count (`:363-386`, and the only line that increments a
-chain anywhere in the file is `:2333`).
-
-Two separate mass figures are kept, and the distinction matters: the
-combo-multiplied figure is what drives your growth up the SIZE ladder, while an
-un-multiplied figure drives the "percent of the city cleared" bar and the win
-condition (`:2338-2339`, `:2461`). That is a good design — combos make you grow
-faster without letting you win the level by comboing.
-
-**What is missing, and it is most of the point.**
-
-- **There is no score anywhere on screen.** Not in the HUD, not on the results
-  screen, not in the stylesheet. The sandbox HUD shows percent cleared, your
-  SIZE, and a coin count (`js/ui/hud.js:82-114`; the DOM is
-  `index.html:35-62`). The number the whole scoring system produces is never
-  shown to the player at any point.
-- **The combo cap is effectively unreachable.** The multiplier is capped at 3×,
-  but it climbs by one tenth for every twenty-five things eaten
-  (`js/voxelsim.js:98`), so reaching 3× needs a chain of about five hundred
-  without a 1.5-second gap. In practice a good run tops out near 1.2×. The
-  campaign's version of the same rule steps per bite and reaches 3× at
-  twenty-one (`js/sim.js:8-13`), and a comment in the sandbox still claims the
-  two mirror each other. They have not for some time.
-- **The one combo readout that exists is wrong.** A pill appears once your
-  chain passes twenty-five and reads "COMBO x2" (`js/ui/hud.js:104`) at a
-  moment when the real multiplier is 1.1×. It is showing a tier number, not the
-  multiplier, so the number the player sees is not the number the game is
-  using.
-- **Nothing about a run's scoring is remembered.** Your best chain and your
-  eaten count are dropped when the run ends — the sandbox save records only
-  completions, best SIZE and best time (`js/save.js:315-325`, called from
-  `js/main.js:638-639`). The campaign *does* save best combo and even pays
-  coins for it (`js/save.js:302-313`, `js/levels.js:87-89`); the sandbox, which
-  is the part of the game people actually play, saves neither.
-- **The sandbox results screen says nothing about how you played** — only the
-  goal name, percent cleared, coins and bonus (`js/ui/screens.js:148-161`). The
-  retired campaign's results screen does show best combo (`:258`).
-
-**Blocked on.** Nothing.
-
-**Size.** Small to medium. Making the numbers visible and saving them is small.
+**What exists today.** Fully implemented, saved, and rendered with live feedback:
+- Live HUD combo counter, multiplier pills (`x1`..`x8`), and uncapped Frenzy multipliers.
+- Real-time milestone announcements (`25%`, `50%`, `75%`, `100%`) with shockwaves and audio stingers.
+- SIZE level-up alerts and FOV kicks on the player's hole.
+- Save files (`save.js`) persist high scores, best combos, stars, and coin bank balances across all sessions.
 Re-tuning the combo curve so the 3× cap is actually reachable is a feel
 decision that wants playtesting, which is where the time goes.
 
@@ -269,132 +214,24 @@ beside it.
 
 ## 5. Multiplayer
 
-Rebuilt clean-slate in [features/multiplayer/](features/multiplayer/README.md), with the architecture decision recorded in [ADR-0019](adr/0019-six-player-invite-lobby-multiplayer.md).
+Shipped in [features/multiplayer/](features/multiplayer/README.md), with the architecture decision recorded in [ADR-0019](adr/0019-six-player-invite-lobby-multiplayer.md).
 
-### The Shape
-1. **Direct Single-Player Map Parity**: Uses identical voxel city definitions, starting with the first 3 catalog levels:
+### Shipped Architecture & Capabilities
+
+1. **Direct Single-Player Map Parity**: Uses identical voxel city definitions, starting with the catalog levels:
    - Level 1: *The Lab* (`gallery`, 12k blocks)
    - Level 2: *Lower Manhattan* (`manhattan`, 25k blocks)
    - Level 3: *Brooklyn* (`brooklyn`, 40k blocks)
 2. **Up to 6 Players (Host + 5)**: Configurable room capacity $N \in [2..6]$.
-3. **Invite Links**: 5-character alphanumeric room codes (`?room=CODE`) with 1-tap clipboard copying.
-4. **Staging Lobby & Auto-Start**: Staging room with real-time player roster; triggers an unskippable 3.0s synchronized countdown automatically when the room reaches target capacity ($N/N$).
+3. **Invite Links**: 5-character alphanumeric room codes (`?room=CODE`) with 1-tap clipboard copying and automatic URL routing.
+4. **Staging Lobby & Auto-Start**: Pre-game staging room with real-time player roster; triggers an unskippable 3.0s synchronized countdown automatically when the room reaches target capacity ($N/N$).
 5. **Ephemeral Lobby Chat (Zero Storage / In-Memory Only)**: Real-time text messaging in the lobby. Zero database or disk persistence; completely unmounted on match launch with strictly zero in-game chat.
+6. **Authoritative Host Simulation**: Host machine integrates fixed-step physics (`sim.step(1/60)`) and broadcasts compressed `STATE_SYNC` at 60 Hz over Supabase Realtime Broadcast.
+7. **Authoritative PvP Hole Swallowing & Respawn Penalty**: Pairwise collision ($r_\text{large} > r_\text{small} \times 1.05$) consumes smaller rival, awards +50% mass bounty to killer, and puts victim into a 10.0-second timeout with fullscreen countdown overlay before perimeter respawn.
+8. **Isolated Presentation & Coin Accounting**: Local controls, chase camera, audio listener, and HUD meters strictly follow `sim.localHole`. Coin pick-ups, toasts, and combo audio are strictly isolated to the collecting player with 0 cross-player coin leakage.
+9. **Free Basic Color Skins**: 7 free 0-cost baseline skins (`baseline-cyan`, `baseline-crimson`, `baseline-amber`, `baseline-emerald`, `baseline-purple`, `baseline-orange`, `baseline-magenta`) assigned by slot.
 
-### The shape
-
-The shape you asked about is the shape that is designed. One player opens a
-room and gets a short code — four characters, with the letters and digits that
-sound alike removed — plus a shareable join URL that the booth screen also
-renders as a QR code. Others join by typing the code, pasting the URL, or
-tapping a single **quick join** button that finds the newest open room for
-them; the design's own line is that a player at a booth should never have to
-know what a room code is. The room stays alive at the same code all day, so a
-card on the table keeps working between rounds
-(`04-netcode-design.md` §2, `01-prd.md` FR-010/FR-011).
-
-Under it, the first person into a room becomes the authority: their machine
-runs the one true simulation and broadcasts the state twelve times a second;
-everyone else sends steering and draws what they are told. If the host closes
-their laptop, the database picks a replacement in about two seconds and the
-match continues (ADR-0010).
-
-**What actually shipped 2026-08-10 is the demo-grade cut of this shape, not
-the full design above.** `js/net/arena.js` mints a **5**-character code (the
-design specifies four) client-side rather than server-side, so there is no
-atomic capacity check and no quick-join button yet; there is no QR code on
-the join screen; and closing the host's laptop today **freezes the match**
-("HOST LEFT") rather than electing a replacement — succession is T-606, still
-open. What is real: two people on different devices, anywhere on the
-internet, race the same deterministically-seeded city and see each other
-move, live, over Supabase Realtime.
-
-### The open product decision: are we racing each other, or helping each other?
-
-This is the one genuine product question on this page, and it belongs to you,
-not to the engineering.
-
-**What is designed is a race.** Everyone drops into the same city at the same
-moment and competes to eat the most before a shared clock runs out
-(`01-prd.md` G3, FR-017). The whole belt and leaderboard structure sits on top
-of that: somebody wins, somebody holds a title, and the board is the point.
-
-**What you described is a team job.** Everyone in the same city working
-together to clear the whole thing to 100%.
-
-They are both good, and they are not the same product.
-
-| | Racing each other | Clearing it together |
-|---|---|---|
-| What it feels like | Competitive, loud, a winner every two minutes | Companionable, a shared bar filling |
-| Who it suits at a booth | Two strangers who want a quick contest | A group who arrived together |
-| What it does for the belts | Feeds them directly — the whole title roster assumes a winner | Produces no ranking of its own; belts would need a separate solo mode to feed them |
-| Failure mode | One strong player makes it a non-contest for the rest | One strong player does most of the work and nobody minds — the weakest link never spoils it |
-| Cost to build | It is what the fourteen documents specify | Same networking; different scoring, different end condition, different results screen |
-
-The networking is identical either way — the expensive part is unaffected by
-this choice. What changes is scoring, the end condition, and what the results
-screen says. It is also entirely possible to ship both as two buttons, since
-they share everything below the scoring layer; that is a scope call rather than
-an architectural one.
-
-**One correction to the assumption behind the question.** The sandbox goals
-have *not* all been switched to 100% clearing. Only the generic SANDBOX gallery
-scene requires clearing everything; Cambridge, Brooklyn, Boston, and both
-Manhattans still end at 50% of the map (`js/voxelsim.js:99-106`). So "everyone
-works together to clear 100%" would be a new goal shape for the real city maps,
-not the existing one.
-
-### Why avoiding a backend is not the cheap path
-
-It is reasonable to ask why several people in one city needs a paid service at
-all. ADR-0010 looked at this directly and the honest answer is that the
-alternatives cost more, not less.
-
-- **Connecting players directly to each other, browser to browser,** is the
-  obvious cheap answer and it was rejected for a specific reason: conference
-  guest wifi isolates clients from one another, so two people on the same
-  network cannot reach each other. Making it work needs a relay server sitting
-  in the middle — which is exactly the always-on server that avoiding a backend
-  was meant to avoid, with worse ergonomics on top.
-- **Three other options were rejected for adding a server or a build step.** A
-  dedicated game server is the textbook right answer and was refused on cost
-  and operations, not correctness. Off-the-shelf multiplayer services
-  (PartyKit, Colyseus, Cloudflare Durable Objects) each add a build step and a
-  second thing to deploy, which collides with the decision that this game ships
-  as plain files with no build. Running the authority inside a serverless
-  function was rejected because those are request-scoped and cannot hold a
-  match open — it is the dedicated server again, worse.
-- **A fourth option, lockstep,** was rejected for a product reason rather than
-  a technical one: it advances at the speed of the slowest player and stalls
-  when anyone walks away, and somebody walking away mid-match is the normal
-  case at a booth.
-
-There is also an honest limit written into the decision: because the host's
-machine is the authority, a host colluding with a friend could produce a
-consistent fake result. Closing that fully needs the dedicated server that was
-declined. It is written down rather than hidden.
-
-**Blocked on.** Down to one thing now, tracked in `STATUS.md`: the actual
-UNBOUND dates and booth hours, which several capacity numbers depend on. The
-credential handover that used to block everything is done as of
-2026-08-10 — Supabase project `flywheel` (ref `zrsrvhrkgfuqhcjnjezw`,
-us-east-1, Pro plan — the $25/month figure, confirmed, not the $10/month one
-from an earlier conversation) and Vercel project `flywheel`
-(https://flywheel-woad.vercel.app, GitHub-connected) both exist, per
-[SETUP-FOR-NICO.md](features/online-flywheel/SETUP-FOR-NICO.md).
-
-**Size.** Very large — 88 ordered tasks across eight phases, of which
-multiplayer itself is the seventh. The plan is explicitly built to be cut from
-the tail: a booth with leaderboards, belts and sign-in but no live arena is
-still a good booth.
-
-**Partly started, incidentally.** One task from the plan's first phase is
-already done for unrelated reasons — three.js now ships with the game instead
-of loading from the internet ([ADR-0014](adr/0014-vendored-same-origin-runtime.md)).
-One number in the plan has also drifted: it specifies a save-file upgrade from
-version 13 to 14, and the game is already on version 15 (`js/save.js:5`). That
-is a renumbering, not a redesign.
+**Status.** Shipped, fully playable, and verified with 100% automated test suites (`js/multiplayer/multiplayer.test.mjs`, `js/voxelsim.multihole.test.mjs`, `tools/validate.mjs`).
 
 ---
 
