@@ -67,7 +67,7 @@ what each is waiting on, and what could start today.
 | [adr/](adr/) | Architecture Decision Records |
 | [runbooks/](runbooks/) | Run/validate/deploy playbooks |
 | [findings/](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md) | Root-cause analyses: [RCA-2026-08-11 skyscraper launch and hanging debris](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md) (roof-snap teleport in the debris landing test, wall-scrape vy bounce, per-material gravity — **resolved, fixed by commit 235c82d the same day**); [RCA-2026-08-11 cambridge validator stall](findings/RCA-2026-08-11-cambridge-validator-stall.md) (the 780 s Cambridge excursion hits superlinear debris churn on the untiered physics — **resolved 2026-08-13**: root cause was unretirable jammed debris, fixed by T-402/[ADR-0018](adr/0018-debris-retires-on-proven-stationarity.md), and the validator is now a parallel orchestrator that completes end to end) |
-| [features/](features/) | Feature planning packages: [game-music](features/game-music/00-objective-overview.md) (implemented 2026-08-11), [upper-manhattan-park](features/upper-manhattan-park/overview.md), [online-flywheel](features/online-flywheel/README.md) (the `js/net/` layer is wired end to end and proven live over Supabase Realtime — a two-device arena at flywheel-woad.vercel.app/arena.html — but not yet called from `js/main.js` or any campaign/sandbox screen), [scoreboards-and-profiles](features/scoreboards-and-profiles/00-objective-overview.md) (ADRs 0016/0017 accepted: bounded, server-replayed RUN scores; optional device-token profile names; implementation and applied schema), [rival-visibility](features/rival-visibility/README.md) (phases A-D shipped 2026-08-11 — craters, tug bar, off-screen chevron, callouts, end reveal; two patterns deferred until 8-player), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary; engine change, primitive layer, scene registration and all ten districts committed, Phase 7's hidden content and the Phase 8 sign-off ahead) |
+| [features/](features/) | Feature planning packages: [game-music](features/game-music/00-objective-overview.md) (implemented 2026-08-11), [upper-manhattan-park](features/upper-manhattan-park/overview.md), [multiplayer](features/multiplayer/README.md) (6-player synchronized shared-city sandboxes with invite links, pre-game lobby, ephemeral chat, auto-start on full room, and 1:1 single-player map parity across The Lab, Lower Manhattan, and Brooklyn), [scoreboards-and-profiles](features/scoreboards-and-profiles/00-objective-overview.md) (ADRs 0016/0017 accepted: bounded, server-replayed RUN scores; optional device-token profile names; implementation and applied schema), [rival-visibility](features/rival-visibility/README.md) (phases A-D shipped 2026-08-11 — craters, tug bar, off-screen chevron, callouts, end reveal), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary) |
 
 ## Feature planning packages
 
@@ -76,20 +76,12 @@ what each is waiting on, and what could start today.
   music, independent persisted music volume, focus safety, and mix ducking.
   Implemented 2026-08-11; all cue and rights decisions are resolved in the
   [requirements](features/game-music/01-requirements.md).
-- [features/online-flywheel/](features/online-flywheel/README.md) — the plan
-  to take Flywheel from a single-player static toy to a networked product
-  (accounts, achievements, a live shared arena, four leaderboard scopes) for
-  the UNBOUND conference. **The `js/net/` layer is wired end to end and live
-  (2026-08-10):** host and peer loops proven over a loopback demo page, then
-  over real Supabase Realtime in a two-device arena at
-  https://flywheel-woad.vercel.app/arena.html. It is a standalone page, still
-  not called from `js/main.js` or any campaign/sandbox screen, though a
-  MULTIPLAYER plate on the title screen has linked to it since 2026-08-11;
-  accounts,
-  leaderboards and host succession remain undesigned or unbuilt. Start
-  at the [README](features/online-flywheel/README.md), which points
-  implementers at [00-objective-overview.md](features/online-flywheel/00-objective-overview.md)
-  and Nico at [SETUP-FOR-NICO.md](features/online-flywheel/SETUP-FOR-NICO.md).
+- [features/multiplayer/](features/multiplayer/README.md) — 6-player synchronized
+  shared metropolis arena ([ADR-0019](adr/0019-six-player-invite-lobby-multiplayer.md)):
+  host + up to 5 joiners, direct 1:1 copies of single-player maps starting with
+  the first 3 levels (The Lab, Lower Manhattan, Brooklyn), shareable invite
+  links, pre-game lobby with ephemeral in-memory chat (zero storage, zero in-game
+  chat), and automatic 3s countdown start on full room.
 - [features/rival-visibility/](features/rival-visibility/README.md) — making
   a rival's progress visible in the live arena, out of a two-phone playtest
   complaint that neither screen ever said who ate what. **Phases A-D shipped

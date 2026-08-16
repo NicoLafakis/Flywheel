@@ -21,10 +21,9 @@
 // No Math.random, no Date.now, no I/O (CC-2).
 
 import { MAX_SLOTS } from './identity.js';
-import { EATER_ANON } from '../net/protocol.js';
+export const EATER_ANON = 255;
 
-/** Keyframe streams use this pseudo-slot for "eaten, eater unknown" (a block
- * consumed before the recording host existed) — the wire's EATER_ANON,
+/** Keyframe streams use this pseudo-slot for "eaten, eater unknown" —
  * re-exported so headless consumers need only this module. */
 export const EATER_UNKNOWN = EATER_ANON;
 

@@ -269,35 +269,17 @@ beside it.
 
 ## 5. Multiplayer
 
-Designed across fourteen documents in
-[features/online-flywheel/](features/online-flywheel/README.md), with the
-architecture decision recorded and **accepted on 2026-08-06** in
-[ADR-0010](adr/0010-host-authoritative-arena.md). **As of 2026-08-10 this is
-live and playable, on a standalone page, not wired into the game.** As of
-2026-08-11, playing that live arena is no longer a blind race: a two-phone
-playtest surfaced that neither screen ever showed whose blocks were whose, so
-craters now tint by who ate them, an off-screen chevron points at the other
-player, milestone callouts fire, a coarse tug-of-war bar tracks who is ahead,
-and the end screen reveals the full city split by territory — see
-[features/rival-visibility/README.md](features/rival-visibility/README.md).
-Phase 6
-(the live arena, `13-tasks.md`) shipped substantially ahead of Phases 1-5 by
-product decision — Nico chose "two phones ASAP" over building the plan in
-order. `js/net/host.js` (the authority loop) and the new `js/net/peer.js`
-(the follower loop) are wired end to end: proven first over a loopback
-simulator (`netdemo.html`), then over real Supabase Realtime in a two-device
-arena (`arena.html`, `js/net/arena.js` — 5-char codes, JOIN/WELCOME/REJECT/
-ROSTER handshake, no server-side room minting yet), played to a real,
-completed match at https://flywheel-woad.vercel.app/arena.html, and as of
-2026-08-11 a click away from a MULTIPLAYER plate on the title screen. Still
-not called from `js/main.js` or folded into any campaign/sandbox screen.
-Still open: host
-migration/succession, server-minted rooms, spectators, more than two seated
-players (the netcode supports up to 8), and everything in Phases 1-5
-(accounts, boards, belts) that a booth arena would want to sit on top of.
-`tools/net-match-selftest.mjs` (48 checks incl. a bit-exact host replay),
-`tools/arena-selftest.mjs` (48 offline checks) and `tools/net-live-selftest.mjs`
-(18/18 against the live project) cover it.
+Rebuilt clean-slate in [features/multiplayer/](features/multiplayer/README.md), with the architecture decision recorded in [ADR-0019](adr/0019-six-player-invite-lobby-multiplayer.md).
+
+### The Shape
+1. **Direct Single-Player Map Parity**: Uses identical voxel city definitions, starting with the first 3 catalog levels:
+   - Level 1: *The Lab* (`gallery`, 12k blocks)
+   - Level 2: *Lower Manhattan* (`manhattan`, 25k blocks)
+   - Level 3: *Brooklyn* (`brooklyn`, 40k blocks)
+2. **Up to 6 Players (Host + 5)**: Configurable room capacity $N \in [2..6]$.
+3. **Invite Links**: 5-character alphanumeric room codes (`?room=CODE`) with 1-tap clipboard copying.
+4. **Staging Lobby & Auto-Start**: Staging room with real-time player roster; triggers an unskippable 3.0s synchronized countdown automatically when the room reaches target capacity ($N/N$).
+5. **Ephemeral Lobby Chat (Zero Storage / In-Memory Only)**: Real-time text messaging in the lobby. Zero database or disk persistence; completely unmounted on match launch with strictly zero in-game chat.
 
 ### The shape
 

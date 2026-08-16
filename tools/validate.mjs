@@ -1675,7 +1675,6 @@ function validateRewardLadders() {
 
   const hudSrc = read('js/ui/hud.js');
   const screensSrc = read('js/ui/screens.js');
-  const arenaSrc = read('js/demo/arena.js');
   const indexSrc = read('index.html');
   const simSrc = read('js/voxelsim.js');
 
@@ -1699,7 +1698,7 @@ function validateRewardLadders() {
   // pass: those ARE multipliers, derived from the chain by the sim's own ladder,
   // which is the whole point. The defect is the raw count wearing the notation.
   const CHAIN_WITH_X = /x\$\{\s*[\w.]*\b(chain|bestCombo)\b\s*\}/;
-  for (const [name, src] of [['js/ui/hud.js', hudSrc], ['js/ui/screens.js', screensSrc], ['js/demo/arena.js', arenaSrc]]) {
+  for (const [name, src] of [['js/ui/hud.js', hudSrc], ['js/ui/screens.js', screensSrc]]) {
     const m = stripComments(src).match(CHAIN_WITH_X);
     if (m) fail(`${name} prints a chain count with an "x" in front of it (\`${m[0]}\`) — that is a multiplier's notation on a block count (T-309)`);
   }
@@ -1811,18 +1810,6 @@ function validateRewardLadders() {
   if (!readout) fail('index.html has no .cm-readout block — the combo ring markup moved and this guard no longer watches anything');
   else if (!/cm-unit/.test(readout[0]) || !/CHAIN/i.test(readout[0])) {
     fail(`index.html combo ring does not label its big number as a CHAIN: ${readout[0].replace(/\s+/g, ' ')} (T-310)`);
-  }
-
-  // B2 #11/#13, A6.5 (T-306): the arena's tug bar shows raw-mass territory
-  // while the plates above it show combo-multiplied points. The bar must say so.
-  const tug = stripHtmlComments(read('arena.html')).match(/<div id="tug-ends">[\s\S]*?<\/div>/);
-  if (!tug) fail('arena.html has no #tug-ends block — the tug bar markup moved and this guard no longer watches anything');
-  else if (!/TERRITORY/i.test(tug[0])) {
-    fail(`arena.html tug bar is unlabelled: ${tug[0].replace(/\s+/g, ' ')} — it shows raw mass beside a combo-multiplied score and must not be readable as the score (T-306)`);
-  }
-  // A6.4 (T-305): the winner must be decided on the currency the frame prints.
-  if (/winIdx\s*=[^;]*split\[[01]\]\.mass/.test(stripComments(arenaSrc))) {
-    fail('js/demo/arena.js decides the winner on finalSplit().mass (raw, un-multiplied) while printing combo-multiplied PTS — two verdicts in one frame (T-305)');
   }
 
   // Every gameplay announcement goes through the queue (GWT-604): the sandbox
