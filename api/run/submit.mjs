@@ -54,10 +54,45 @@ export default async function handler(req, res) {
         mode: ticket.mode, tune_id: ticket.tune_id, player_id: ticket.player_id, issued_at: ticket.issued_at })) {
       fail(res, 401, 'TICKET_INVALID', 'This run ticket is not valid.'); return;
     }
+    // Two ways a ticket-bound player can be proven, and which one applies is
+    // decided by what the caller sent, never by preference.
+    //
+    // WITH CREDENTIALS: unchanged. A claimed account is authenticated by its
+    // bearer token and must be the player the ticket names.
+    //
+    // WITHOUT: the ticket may still name a player, because run/start now
+    // auto-provisions one for a device that has no identity (see
+    // api/_names.mjs). That player has never been claimed by a human and the
+    // browser may hold no credential for it at all - the shipped client sends
+    // none, since there is nothing in localStorage to send. Requiring a token
+    // here would 401 every guest run at submission, which is worse than the
+    // silent non-publication provisioning exists to fix: the outbox drops a
+    // non-retryable failure, so the run would be gone rather than queued.
+    //
+    // What stands in for the credential is the ticket itself. It is HMAC-signed
+    // over its `player_id` (so the binding cannot be edited), and `device_key`
+    // on the ticket row was matched against the submitting device above (so this
+    // is the machine the ticket was issued to). That is exactly the evidence
+    // `fw_claim_name` has always accepted as ownership. It works only for an
+    // `is_auto` player: a CLAIMED account still requires its token, or a leaked
+    // device key would be enough to submit in someone else's name.
     if (ticket.player_id) {
-      const player = await playerForToken(data.player_id, data.player_token);
-      if (!player || player.id !== ticket.player_id) {
-        fail(res, 401, 'PLAYER_TOKEN_INVALID', 'This device no longer owns that name.'); return;
+      if (data.player_id || data.player_token) {
+        const player = await playerForToken(data.player_id, data.player_token);
+        if (!player || player.id !== ticket.player_id) {
+          fail(res, 401, 'PLAYER_TOKEN_INVALID', 'This device no longer owns that name.'); return;
+        }
+      } else {
+        // `select=*` for the reason playerForToken() uses it: PostgREST 400s a
+        // whole request that names a column the database does not have, and
+        // `is_auto` arrives in a migration applied by hand while this code
+        // deploys on push. A star answers `undefined` instead, which falls
+        // through to the 401 below - the pre-provisioning behaviour.
+        const rows = await rest(`players?select=*&id=eq.${encodeURIComponent(ticket.player_id)}`);
+        const bound = rows && rows[0];
+        if (!bound || bound.is_auto !== true || bound.moderation_state === 'hidden') {
+          fail(res, 401, 'PLAYER_TOKEN_INVALID', 'This device no longer owns that name.'); return;
+        }
       }
     }
     if (data.tick_count !== RANKED_TICK_COUNT || data.tune_id !== RANKED_TUNE_ID

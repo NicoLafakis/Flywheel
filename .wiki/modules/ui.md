@@ -22,7 +22,7 @@ tying everything together.
 | `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, the announcement queue and its three backends (`#toast`, `#big-pop`, `#hype-band`); `updateSandbox()` variant for the voxel mode (live `CLEARED x% OF THE CITY · SIZE n` readout, the `#level-clock` countdown pill via `_updateClock()`, dimmed coin pill via `body.mode-sandbox`, the score plate's count-up, and the combo ring — chain, window drain and the multiplier read from `voxelsim.js`'s exported ladder, never re-derived; see [ADR-0015](../adr/0015-scoring-ladder-is-a-table-the-hud-reads.md)) |
 | `js/ui/screens.js` | 2-Stage Menu Flow: Stage 1 Title (branded landing over live city backdrop: sprocket + `FLYWHEEL` wordmark + tagline plate, prominent `PLAY` CTA, always-visible player status strip with Player Login / profile, Highest Score overall, and graphic segmented coin progress meter toward next skin level; THE RUN Chicago 90s, RECORDS, SHOP, SETTINGS, and HELP & FAQ utilities, and `.fw-foot` CC0 sound manifest + PRIVACY/TERMS legal line); Stage 2 City Selection Carousel (`showCitySelect`: 3D featured city card, `<`/`>` navigation arrows, touch swipe gestures, dynamic block count size-ascending ordering via `getSortedCityCatalog()`, gated progression unlocking via `isCityUnlocked()`, and bottom dot rail); Modern Mobile Game Shop (`showShop`: 5 icon-based category tabs `🕳️ Skins`, `👾 Creatures`, `🤝 Partners`, `🧭 Indicators`, `⚡ Upgrades`, sticky header with collection stats `14/31 Cosmetics · 12/80 Upgrade Ranks` and live coin capsule, 4 incremental stat tracks with 20-segment pip progress meters and +5%..+100% power boost ladders, responsive item card grid with baked 3D previews), results, pause (two-step confirms for run-discarding buttons), mechanic intro |
 | `js/ui/help.js` | Interactive Help, Walkthrough, FAQ, and Tips 'n Tricks system (`renderHelp`): 3 tabbed views (`WALKTHROUGH`, `FAQ`, `TIPS 'N TRICKS`), real-time search & filter engine across all chapters and tags, collapsible animated accordion cards, and comprehensive documentation covering all 8 cities, 6 power-ups, controls, menus, upgrades, combos, multiplayer mechanics, and pro strategies |
-| `js/ui/boards.js` + `js/board/` | Lazy optional board layer: accessible public record tables and profile/claim/transfer/remove actions; direct PostgREST reads use only the publishable key, while every mutation goes through a Vercel Function with a timeout and offline fallback |
+| `js/ui/boards.js` + `js/board/` | Lazy optional board layer, three tabs: **MY RECORDS** (this player, every city, all time — the local save's bests, with the server's verified per-city bests folded in on arrival), **LEADERBOARD** (every player, one global top ten, ranked by total score) and **MY NAME** (the generated name, its re-roll, and the sign-in door). Direct PostgREST reads use only the publishable key, while every mutation goes through a Vercel Function with a timeout and offline fallback |
 | `js/ui/menuscene.js` | The live city behind the landing screen — the same `VoxelSandboxSim` + `VoxelWorld3D` + `ChaseCamera` trio the sandbox mounts, on the same canvas, on autopilot (held establishing orbit, never released; a scripted heading sweep drives the hole so the skyline is actively being eaten). Scheduled, never blocking: `startMenuScene` only arms a timer, `tickMenuScene` is folded into `main.js`'s single rAF loop, and `stopMenuScene` disposes from `teardownWorld` before any game world claims the canvas |
 | `js/ui/ready.js` | Level-start "READY?" gate overlay (`mountReadyGate`) — the visual reference for the brand layer; renders the shared wordmark at gate scale over the live 3D establishing shot |
 | `js/ui/blockword.js` | Shared block-wordmark builder (`buildBlockWord`) — per-character gold slab letters with outline ring, extrude, deterministic index-derived tilt/stagger/bob. Used by both `screens.js` (`FLYWHEEL`) and `ready.js` (`READY?`) so the two never drift apart. See `.wiki/adr/0005-shared-brand-layer.md` |
@@ -36,6 +36,51 @@ tying everything together.
 
 - Screens communicate **only** through the `actions` object passed to
   `Screens` — don't reach into `main.js` state from UI code.
+- **RECORDS and LEADERBOARD are two different questions and two different
+  reads** (2026-08-17). RECORDS is "how am I doing": the local save, plus this
+  player's own verified per-city bests from `v_city_board?player_id=eq.<id>`,
+  folded into the city cards that are already on screen by `hydrateVerified()`
+  so nothing waits on the network (invariant 10). LEADERBOARD is "who is the
+  best": ONE global all-time list from `v_leaderboard`, every player, ranked by
+  the sum of their best score on each city. There are **no seasons** — the
+  weekly-season banner and its client-side countdown are deleted; nothing ever
+  reset and no scheduler existed, so it was a countdown a player could time
+  against nothing happening. `tools/records-and-names.test.mjs` fails the build
+  if any of that copy returns. The optional `seasonId` parameter on
+  `cityBoard()` is deliberately kept; only the product-facing fiction went.
+  `v_overall` (rank POINTS, a positional score) is retired in a later pass, so
+  `overallBoard()` still exists and nothing renders it.
+- **"Top ten" is a rank cut, not a slice.** `v_leaderboard.rank` is a
+  `dense_rank()`, so a genuine tie shares a rank and `rank <= 10` can be twelve
+  rows. `topTen()` in `boards.js` is exported and pure for exactly this
+  assertion: slicing to ten would drop two of three players out of a tenth place
+  they hold.
+- **Everybody has a name from their first frame** (2026-08-17). `defaultPlayer()`
+  in `js/save.js` generates one through `js/board/names.js`, and the **v21 -> v22
+  migration** hands one to every existing save — a default alone reaches nobody,
+  since migrations only run for saves older than `CURRENT_VERSION`. `nameSource`
+  distinguishes the two kinds: `'auto'` is a name the game handed out (shown with
+  a re-roll, still invited to sign in) and `'claimed'` is a name the SERVER owns
+  (register / login / claim / provision), which nothing local may overwrite —
+  `adoptServerName()` takes the server's spelling as authoritative when the
+  response carries one and leaves the local name alone when it does not. Read the
+  name through `playerName(save)`, never `save.player?.name`: it is the one
+  accessor that repairs a save which somehow lacks one, which is why the title
+  chip, the profile heading and all three multiplayer prompts now give the same
+  answer instead of `'LOG IN'`, `'Host'` and `Player_417`. Entropy is
+  `crypto.getRandomValues` — never `Math.random()` (banned in `js/`) and never
+  `rng.js` (a name must not be derivable from a world seed).
+- The re-roll on the title chip is a SIBLING of the identity chip, inside
+  `.fw-id-cell` — a `<button>` inside a `<button>` is invalid markup and the
+  browsers that render it anyway give the click to the outer control. Its 44px
+  touch target is grown with a pseudo-element, scoped by
+  `.fw-reroll:not(.fw-reroll--wide)::after`: the wide profile-screen variant is
+  `position: static`, so the same pseudo-element resolved against
+  `.fw-records-wrap` instead and laid an invisible `inset: -6px` sheet over the
+  whole RECORDS screen, swallowing every tab tap.
+- A row hidden from script needs `[hidden]` spelled out in CSS when a class rule
+  sets `display` — `.fw-city-stats-row[hidden]`. Without it the empty
+  `Ranked best: —` row rendered on every city card despite `hidden = true`.
 - The countdown lives in `#level-clock`, its OWN pill — not in `#timer`, which
   the sandbox already repurposed as the coin readout and the campaign still uses
   as its own countdown. `_updateClock(seconds)` is the single entry point: pass

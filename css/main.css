@@ -2467,13 +2467,10 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
 .fw-stat--interactive:active { transform: scale(.97); }
 .fw-id:focus-visible,
 .fw-stat--interactive:focus-visible { outline: 3px solid var(--fw-gold); outline-offset: 3px; }
-/* No name yet. The VALUE goes quiet and the invitation stays gold: NO NAME YET
-   rendered in the same gold as a personal best would read as a thing achieved,
-   which is the opposite of what the cell is saying. */
-.fw-id--none .fw-stat-v {
-  color: rgba(255, 255, 255, .62); text-shadow: none;
-  font-size: clamp(13px, 2vw, 15px); letter-spacing: 1.2px;
-}
+/* There is no nameless state any more — every arriving player is handed a name
+   before this screen paints (js/save.js `defaultPlayer`) — so the quiet
+   "NO NAME YET" treatment that used to live here has gone with the state it
+   described. The cell always shows a real name, in the gold a name deserves. */
 /* The bar fills by transform, never by width: the track is a fixed box and the
    fill is scaled inside it, so nothing on this screen ever animates layout. */
 .fw-bar {
@@ -2778,7 +2775,6 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
 .fw-board-table th { color: rgba(255, 255, 255, .58); font-size: 10px; letter-spacing: 1px; }
 .fw-board-table td:first-child { color: var(--fw-gold); font-weight: 800; }
 .fw-board-table tbody tr:nth-child(odd) { background: rgba(255, 255, 255, .035); }
-.fw-board-report { min-height: 34px; padding: 6px 10px; font-size: 10px; }
 .fw-board-note { max-width: 620px; color: rgba(255, 255, 255, .67); line-height: 1.5; }
 /* The route to a name, on the PROFILE screen (js/ui/screens.js showProfile).
    The identity chip now brings players here who hold no name at all, so this
@@ -2909,6 +2905,10 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   background: rgba(255, 255, 255, .06); color: rgba(255, 255, 255, .45);
   border: 1px dashed rgba(255, 255, 255, .2);
 }
+/* A class rule that sets `display` beats the UA stylesheet's `[hidden]`, so any
+   row hidden from script would otherwise stay on screen. `Ranked best: —` did
+   exactly that on every city card — a dash under a heading nobody had earned. */
+.fw-city-stats-row[hidden] { display: none; }
 .fw-city-stats-row {
   display: flex; justify-content: space-between; align-items: center;
   font-size: 12px; font-variant-numeric: tabular-nums; padding: 4px 0;
@@ -2930,6 +2930,176 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
 }
 .fw-campaign-info h4 { margin: 0 0 4px; color: var(--fw-gold); font-size: 16px; font-weight: 900; }
 .fw-campaign-info p { margin: 0; color: rgba(255, 255, 255, .7); font-size: 12px; }
+
+/* ---------- The leaderboard ----------
+   One board: every player, all time, ranked by the sum of their best score on
+   each city. It reuses .fw-board-table's plate wholesale and adds only what a
+   RANKING needs that a table does not — a podium edge, and a way for a player to
+   find themselves in a list of strangers. */
+.fw-board-column { width: min(760px, 100%); margin: 0 auto; }
+.fw-board-head { width: 100%; margin: 0 0 10px; }
+.fw-board-head h3 {
+  margin: 0 0 4px; color: var(--fw-gold); font-size: 15px; font-weight: 900;
+  letter-spacing: 1.4px;
+}
+.fw-board-head p {
+  margin: 0; max-width: 60ch; font-size: 12px; line-height: 1.5;
+  color: rgba(255, 255, 255, .62);
+}
+.fw-leaderboard { min-width: 420px; }
+.fw-leaderboard .fw-rank-cell { width: 1%; }
+.fw-leaderboard .fw-num-cell { text-align: right; }
+.fw-leaderboard .fw-cities-cell { color: rgba(255, 255, 255, .6); }
+.fw-leaderboard .fw-name-cell { width: 99%; color: #fff; font-weight: 800; }
+.fw-leaderboard .fw-col-report { width: 1%; text-align: right; padding-left: 0; }
+/* The podium is an EDGE, not a fill: three coloured rails read as one ranking
+   ladder, where three tinted rows read as three unrelated highlights. */
+.fw-leaderboard tbody tr { box-shadow: inset 3px 0 0 transparent; }
+.fw-leaderboard tbody tr.fw-podium-1 { box-shadow: inset 3px 0 0 var(--fw-gold); background: rgba(255, 210, 63, .07); }
+.fw-leaderboard tbody tr.fw-podium-2 { box-shadow: inset 3px 0 0 rgba(214, 223, 240, .85); }
+.fw-leaderboard tbody tr.fw-podium-3 { box-shadow: inset 3px 0 0 rgba(214, 137, 74, .9); }
+/* Finding yourself among strangers is the reason the screen was opened, so it
+   is a different colour family from the podium entirely — cyan is "you" across
+   this game's HUD, gold is "best". */
+.fw-leaderboard tbody tr.fw-is-you { background: rgba(0, 240, 255, .1); }
+.fw-leaderboard tbody tr.fw-is-you .fw-board-name { color: #8ff6ff; }
+.fw-you-tag {
+  margin-left: 8px; padding: 2px 6px; border-radius: 5px; font-size: 9px;
+  font-weight: 900; letter-spacing: 1px; vertical-align: 1px;
+  color: #001a1e; background: #00f0ff;
+}
+.fw-board-report {
+  min-height: 34px; min-width: 34px; padding: 6px 9px; font-size: 12px;
+  opacity: .45; transition: opacity .15s ease;
+}
+.fw-board-report:hover, .fw-board-report:focus-visible { opacity: 1; }
+
+/* Your own place, when it is not one of the ten on screen. */
+.fw-standing-slot:empty { display: none; }
+.fw-standing {
+  display: flex; flex-direction: column; gap: 2px; margin-top: 12px;
+  padding: 10px 14px; border-radius: 12px;
+  background: rgba(0, 240, 255, .08); border: 2px solid rgba(0, 240, 255, .32);
+}
+.fw-standing .k { font-size: 10px; font-weight: 800; letter-spacing: 1.4px; color: rgba(255, 255, 255, .6); }
+.fw-standing .v { font-size: 20px; font-weight: 900; color: #8ff6ff; font-variant-numeric: tabular-nums; }
+.fw-standing .sub { font-size: 11px; font-weight: 700; color: rgba(255, 255, 255, .55); }
+
+/* The empty board. It will be the state this screen is in for its whole first
+   week, so it is built as an invitation: the vacant first-place row, with the
+   player's own name already sitting in it. */
+.fw-board-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  text-align: center; padding: 22px 18px; width: 100%; box-sizing: border-box;
+  background: rgba(7, 10, 18, .82); border: 2px dashed rgba(255, 210, 63, .4);
+  border-radius: 14px;
+}
+.fw-empty-slot {
+  display: flex; align-items: center; gap: 12px; width: min(420px, 100%);
+  padding: 10px 14px; box-sizing: border-box; border-radius: 10px;
+  background: rgba(255, 210, 63, .07);
+  box-shadow: inset 3px 0 0 var(--fw-gold);
+  font-variant-numeric: tabular-nums;
+}
+.fw-empty-rank { font-weight: 900; color: var(--fw-gold); }
+.fw-empty-name {
+  flex: 1; text-align: left; font-weight: 800; color: rgba(255, 255, 255, .92);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fw-empty-score { color: rgba(255, 255, 255, .35); font-weight: 800; }
+.fw-board-empty h4 {
+  margin: 4px 0 0; color: var(--fw-gold); font-size: 14px; font-weight: 900;
+  letter-spacing: 1.4px;
+}
+.fw-board-empty p {
+  margin: 0; max-width: 46ch; font-size: 12px; line-height: 1.55;
+  color: rgba(255, 255, 255, .66);
+}
+.fw-board-empty-cta { margin-top: 4px; }
+
+/* ---------- The name, and rolling for another ----------
+   The re-roll is the first delightful thing a new player touches, so it answers
+   instantly and never asks a question. It is a sibling of the identity chip, not
+   a child: a button inside a button is invalid markup. */
+.fw-id-cell { position: relative; display: grid; min-width: 0; }
+.fw-id-cell .fw-id { width: 100%; padding-right: 42px; }
+/* A generated name ("Eagleton Sundae") is far longer than the "LOG IN" this
+   cell used to hold, and the chip is half a 440px row. It steps down a size and
+   is allowed to take a second line rather than pushing the strip out of shape. */
+.fw-id-cell .fw-stat-v {
+  font-size: clamp(13px, 3.2vw, 17px); line-height: 1.15;
+  overflow-wrap: anywhere; letter-spacing: .4px;
+}
+.fw-reroll {
+  position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+  width: 32px; height: 32px; padding: 0; display: grid; place-items: center;
+  font: inherit; font-size: 16px; line-height: 1; cursor: pointer;
+  color: var(--fw-gold); background: rgba(255, 210, 63, .1);
+  border: 1.5px solid rgba(255, 210, 63, .45); border-radius: 999px;
+  box-shadow: none; letter-spacing: 0;
+  transition: background var(--fw-release, 160ms) ease,
+              transform var(--fw-press, 60ms) var(--fw-back, ease);
+}
+/* The visible disc stays 32px so it does not crowd the chip, while the touch
+   target is a comfortable 44 — the hit area is grown, not the paint.
+   Scoped to the COMPACT disc on purpose: the wide variant is `position: static`,
+   so an absolutely-positioned pseudo-element on it resolves against the nearest
+   positioned ancestor instead — `.fw-records-wrap` — and `inset: -6px` of the
+   whole records screen is an invisible sheet over the tab bar. Every tap on
+   that screen hit the re-roll. */
+.fw-reroll:not(.fw-reroll--wide)::after {
+  content: ''; position: absolute; inset: -6px; border-radius: inherit;
+}
+.fw-reroll:hover { background: rgba(255, 210, 63, .22); }
+.fw-reroll:active { transform: translateY(-50%) scale(.9) rotate(90deg); }
+.fw-reroll:focus-visible { outline: 3px solid var(--fw-gold); outline-offset: 3px; }
+/* The wide variant on the profile screen sits in normal flow beside the name. */
+.fw-reroll--wide {
+  position: static; transform: none; width: auto; height: auto;
+  min-height: 40px; padding: 0 14px; border-radius: 10px;
+  font-size: 12px; font-weight: 800; letter-spacing: 1px;
+}
+.fw-reroll--wide:active { transform: scale(.96); }
+
+.fw-identity-title {
+  margin: 0 0 8px; color: var(--fw-gold); font-size: 12px; font-weight: 900;
+  letter-spacing: 1.6px;
+}
+.fw-name-plate {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; padding: 12px 16px; margin-bottom: 10px;
+  background: rgba(9, 12, 22, .88); border: 2px solid rgba(255, 210, 63, .35);
+  border-radius: 12px; box-shadow: 0 4px 0 rgba(3, 5, 11, .55);
+}
+.fw-name-value {
+  font-size: clamp(20px, 4.4vw, 30px); font-weight: 900; letter-spacing: .6px;
+  color: var(--fw-gold); text-shadow: var(--fw-ring-2);
+  overflow-wrap: anywhere;
+}
+/* The roll itself: the new name drops in rather than swapping silently, so the
+   press is answered even when two draws look alike at a glance. */
+.fw-name-value.is-rolling,
+.fw-stat-v.is-rolling { animation: fw-name-roll 260ms cubic-bezier(.2, 1, .3, 1); }
+@keyframes fw-name-roll {
+  from { opacity: 0; transform: translateY(-6px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fw-name-value.is-rolling,
+  .fw-stat-v.is-rolling { animation: fw-name-fade 160ms linear; }
+  .fw-reroll:active { transform: translateY(-50%) scale(.96); }
+}
+@keyframes fw-name-fade { from { opacity: .35; } to { opacity: 1; } }
+
+@media (max-width: 560px) {
+  /* The report flag is the least important thing in a row and the first thing
+     to cost a phone its horizontal space. */
+  .fw-leaderboard { min-width: 320px; }
+  .fw-leaderboard .fw-cities-cell, .fw-leaderboard th:nth-child(4) { display: none; }
+  .fw-leaderboard th, .fw-leaderboard td { padding: 9px 8px; }
+  .fw-name-plate { justify-content: center; text-align: center; }
+  .fw-reroll--wide { width: 100%; }
+}
 
 /* ---------- Scroll Affordance Indicator ---------- */
 .fw-scroll-hint {

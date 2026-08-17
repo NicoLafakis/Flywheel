@@ -545,7 +545,13 @@ console.log('\n--- T-626: the direct-link join flow asks for a display name ---'
 
   const join = functionBody(mainSrc, 'joinMultiplayerLobby');
   assert.match(join, /showJoinNamePrompt/, 'the invite-link join path must prompt before connecting');
-  assert.match(join, /save\.player\?\.name/, 'the prompt must be pre-filled from the saved profile');
+  // Was `save.player?.name`. That read could be empty — a save with no name
+  // pre-filled the prompt with nothing, which is the state this guard was
+  // written against. Every player now carries a generated name, and
+  // `playerName(save)` is the one accessor that reads it and repairs a save that
+  // somehow lacks one, so the requirement is unchanged and only the expression
+  // that satisfies it moved.
+  assert.match(join, /playerName\(save\)/, 'the prompt must be pre-filled from the saved profile');
 }
 
 console.log('\n✓ Multiplayer bug-fix batch (T-620..T-626) test PASSED');

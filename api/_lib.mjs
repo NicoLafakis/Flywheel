@@ -7,14 +7,18 @@ export const RANKED_SCENES = Object.freeze(['chicago', 'brooklyn', 'boston', 'ca
 export const TICKET_TTL_MS = 15 * 60 * 1000;
 export const MAX_REQUEST_BYTES = 65536;
 
-// Weekly seasons anchor: Monday 00:00:00 UTC, Aug 10, 2026 (Season 1).
-const SEASON_EPOCH_MS = Date.UTC(2026, 7, 10, 0, 0, 0); // 2026-08-10T00:00:00Z
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
-export function currentWeeklySeasonId(nowMs = Date.now()) {
-  const elapsed = Math.max(0, nowMs - SEASON_EPOCH_MS);
-  return 1 + Math.floor(elapsed / WEEK_MS);
-}
+// THERE ARE NO WEEKLY SEASONS. `currentWeeklySeasonId()` lived here, was
+// imported by `run/start` and never called by anything: `fw_accept_run` inserts
+// without a `season_id` and every row has therefore always defaulted to 1, while
+// the UI counted down to a reset that could not happen. The boards are all-time
+// - one global leaderboard ranked by the sum of a player's best score on each
+// city (`v_leaderboard`, 20260817113000) - so the function is gone rather than
+// left as a loaded gun.
+//
+// The `season_id` COLUMNS stay. They are one integer per row, they are already
+// indexed into `board_public_city_idx` and `runs_board_idx`, and they are the
+// seam a seasonal board would need if one is ever wanted. Dropping them would be
+// a destructive migration bought with nothing.
 
 export function json(res, status, payload) {
   res.status(status).setHeader('content-type', 'application/json; charset=utf-8');

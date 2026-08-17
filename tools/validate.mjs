@@ -2600,6 +2600,20 @@ function validateMultiplayer() {
     // upgrade are cross-file agreements (citycatalog <-> voxelsim, main.js ->
     // sim.js) that no single-module section owns, and both drifted silently.
     'tools/economy-consistency.test.mjs',
+    // Automatic guest names. The generator lives in js/board/names.js but the
+    // rules it must satisfy live in api/ (`normaliseName`, `blocked()`), so no
+    // single-module section owns the agreement. The sweep is exhaustive over the
+    // whole cross product because a 1-in-2000 bad name is a name a real player
+    // receives on their first run, with no retry surface in front of them.
+    'tools/names.test.mjs',
+    // The other half of the same feature: where names.test.mjs guards the words
+    // the generator may produce, this one guards that a player actually RECEIVES
+    // one (the save default and its v22 migration), that they can re-roll it,
+    // that RECORDS and LEADERBOARDS are two different reads, and that the
+    // retired weekly-season countdown never comes back. It spans js/save.js,
+    // js/board/read.js, js/ui/boards.js, js/ui/screens.js and js/main.js, so no
+    // single-module section owns it.
+    'tools/records-and-names.test.mjs',
     // Repo-wide rather than multiplayer, but the one merge-conflict marker that
     // ever shipped rode in on a multiplayer commit, and this is the section that
     // spawns standalone suites. There is no build step, linter or formatter

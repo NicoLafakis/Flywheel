@@ -1,0 +1,22 @@
+{
+  "_comment": "Parks-and-Recreation word lists for automatic player names. js/board/names.js mirrors these as a JS literal (the browser has no build step and cannot rely on JSON module imports); tools/names.test.mjs asserts the two are identical. The vocabulary is NOT capped so that every pair fits — the CROSS PRODUCT is filtered instead. Build the valid pair set as every [modifier, subject] where modifier.length + 1 + subject.length <= maxNameLength, and draw only from that set; validPairCount is what a correct filter must produce.",
+  "maxNameLength": 16,
+  "maxDiscriminator": 9999,
+  "validPairCount": 2070,
+  "modifiers": [
+    "Meat", "Duke", "Waffle", "Snake", "Agent", "Scotch", "Lil", "Bacon",
+    "Sad", "Turf", "Mouse", "Janet", "Bert", "Tammy", "Calzone", "Pawnee",
+    "Eagleton", "Treat", "Swanson", "Wamapoke", "Perd", "Sewage", "Whiskey", "Raccoon",
+    "Gravy", "Nacho", "Skate", "Grumpy", "Rowdy", "Feisty", "Chunky", "Velvet",
+    "Burly", "Salty", "Smug", "Sweaty", "Reckless", "Humble", "Sturdy", "Mustache",
+    "Bologna", "Hoosier", "Banjo", "Greasy"
+  ],
+  "subjects": [
+    "Tornado", "Silver", "Baron", "Juice", "Macklin", "Sebastian", "Snakehole", "Hapley",
+    "Rat", "Chief", "Snob", "Cones", "Jerry", "Ranger", "Wagon", "Pit",
+    "Two", "Knope", "Ludgate", "Dwyer", "Meagle", "Gergich", "Traeger", "Wyatt",
+    "Swanson", "Waffles", "Mayor", "Gizzard", "Possum", "Nugget", "Pickle", "Menace",
+    "Goblin", "Otter", "Raccoon", "Meatloaf", "Casserole", "Dumpster", "Trombone", "Burrito",
+    "Sundae", "Deputy", "Intern", "Rascal", "Gremlin", "Noodle", "Wizard", "Bagel"
+  ]
+}

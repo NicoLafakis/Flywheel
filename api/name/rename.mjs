@@ -1,22 +1,15 @@
-import blockedNames from '../data/blocked-names.json' with { type: 'json' };
 import {
   body, errorResponse, fail, isDeviceKey, isUuid, normaliseName,
   ok, playerForToken, rest,
 } from '../_lib.mjs';
+import { blockedName as blocked, suggestions } from '../_names.mjs';
 
-const RESERVED = new Set(['admin', 'administrator', 'moderator', 'official', 'staff', 'support', 'system', 'flywheel', 'sprocket']);
-
-async function blocked(key) {
-  if (RESERVED.has(key) || blockedNames.some((row) => key.includes(row.pattern))) return true;
-  const rows = await rest(`blocked_names?select=pattern,is_exact&limit=500`);
-  return rows.some((row) => row.is_exact ? key === row.pattern : key.includes(row.pattern));
-}
-
-function suggestions(name, key) {
-  const suffixes = ['7', 'X', '27', 'GO', 'RUN'];
-  return suffixes.map((suffix) => `${name.slice(0, Math.max(1, 16 - suffix.length))}${suffix}`)
-    .filter((candidate) => candidate.toLowerCase().replace(/[^a-z0-9]/g, '') !== key);
-}
+// This is also the escape hatch for an automatically generated name. A guest
+// provisioned by run/start is a device-token account - `token_hash =
+// sha256(token)`, no session hash - so the {player_id, token} pair run/start
+// returned authenticates here through playerForToken()'s fallback path, and the
+// board_public patch below is what stops the leaderboard from still showing
+// "Meat Tornado" after they have renamed themselves.
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.setHeader('allow', 'POST'); fail(res, 405, 'METHOD_NOT_ALLOWED', 'Use POST.'); return; }

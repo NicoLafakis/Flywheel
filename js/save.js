@@ -9,10 +9,16 @@
 // screen. Retune the mix there, not here.
 import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MASTER_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME } from './audio/mix.js';
 import { defaultUpgrades, upgradeCost, MAX_UPGRADE_RANK } from './upgrades.js';
+// The name generator. It is dependency-free and deliberately NOT seeded (see the
+// header of that file): a player's name must not be derivable from a world seed,
+// so it draws from `crypto.getRandomValues` and never from rng.js. Importing it
+// here rather than at each call site is what makes the DEFAULT carry a name,
+// which is the only way a player who never opens a menu ends up with one.
+import { generateName } from './board/names.js';
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 21;
+export const CURRENT_VERSION = 22;
 
 // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
 export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2 };
@@ -80,8 +86,20 @@ function defaultSettings() {
 // Public board identity only. The bearer token lives separately in
 // localStorage['fw-player']: saves are exportable, hand-editable, and can be
 // quarantined, so they are deliberately not an authentication container.
+//
+// The name is generated HERE, at the default, rather than at the first screen
+// that wants to print one. A `null` name meant every guest rendered as a
+// placeholder and nothing they did could ever be published, and every surface
+// grew its own fallback ('LOG IN', 'Host', 'Player_417') — three different
+// answers to the same question. One default, one answer.
+//
+// `nameSource` is what stops the two kinds of name being confused. 'auto' is a
+// name the game handed out: the player never chose it, so it is re-rollable and
+// the UI still invites them to sign in. 'claimed' is a name the SERVER owns —
+// registered, logged in, or assigned during provisioning — and the local save is
+// not the authority on it, so nothing here may overwrite it.
 function defaultPlayer() {
-  return { id: null, name: null, claimedAt: null };
+  return { id: null, name: generateName(), claimedAt: null, nameSource: 'auto' };
 }
 
 // The shape a brand-new player starts on. It is NOT the union of what the
@@ -370,6 +388,36 @@ const MIGRATIONS = {
     version: 21,
     challenges: s.challenges || {},
   }),
+  // v22: every player has a name. Changing `defaultPlayer()` alone would have
+  // reached nobody — a default is only read by a save that does not exist yet,
+  // and migrations run only for saves OLDER than CURRENT_VERSION — so the whole
+  // installed base would have kept its `name: null` and its placeholder chip
+  // forever. This is the half that reaches them.
+  //
+  // Three cases, and the distinction between the last two is the point of
+  // `nameSource`:
+  //   - no name at all  -> generate one, marked 'auto' (re-rollable).
+  //   - a name with a `claimedAt` -> the server owns that name. Keep it, mark it
+  //     'claimed', and never re-roll it: renaming a registered account behind
+  //     the server's back would publish scores under a name it does not hold.
+  //   - a name with no claim (the offline `local-*` path in board/player.js
+  //     writes one) -> keep the name, mark it 'auto'. It was never registered,
+  //     so the player is free to shop for another.
+  // Nothing is deleted and no id is fabricated: a name is not an account.
+  21: (s) => ({
+    ...s,
+    version: 22,
+    player: (() => {
+      const prev = s.player || {};
+      const name = typeof prev.name === 'string' && prev.name.trim() ? prev.name : generateName();
+      return {
+        ...defaultPlayer(),
+        ...prev,
+        name,
+        nameSource: prev.claimedAt ? 'claimed' : 'auto',
+      };
+    })(),
+  }),
 };
 
 export function loadSave() {
@@ -540,6 +588,60 @@ export function recordChallengeResult(save, scene, {
 export function ensurePlayer(save) {
   if (!save.player) save.player = defaultPlayer();
   return save.player;
+}
+
+// The one question every name surface asks: what is this player called? It is a
+// getter with a seatbelt rather than a plain read, for the same reason the
+// result recorders re-establish their own containers — a hand-edited save, a
+// partial write or a future migration bug must not leave a blank where a name
+// goes. The repair is persisted so the answer does not change on the next frame.
+export function playerName(save) {
+  const player = ensurePlayer(save);
+  if (typeof player.name !== 'string' || !player.name.trim()) {
+    player.name = generateName();
+    player.nameSource = 'auto';
+    storeSave(save);
+  }
+  return player.name;
+}
+
+// Shopping for a name you like. Loops rather than accepting the first draw
+// because a re-roll that hands back the same name reads as a dead button, and
+// over 1,936 pairings a repeat is common enough to notice. Bounded, and the
+// bound returns the current name rather than throwing: worst case the button
+// does nothing, which beats a screen that crashes.
+//
+// A CLAIMED name is left exactly alone. The server owns it; this is not the
+// rename path (that is `renamePlayer()` in js/board/player.js, which asks).
+export function rerollPlayerName(save) {
+  const player = ensurePlayer(save);
+  if (player.nameSource === 'claimed') return player.name;
+  const current = player.name;
+  for (let guard = 0; guard < 64; guard++) {
+    const candidate = generateName();
+    if (candidate === current) continue;
+    player.name = candidate;
+    player.nameSource = 'auto';
+    storeSave(save);
+    return candidate;
+  }
+  return current;
+}
+
+// The server resolves uniqueness collisions, so the name it returns from a
+// register/login/claim/provision can differ from the one this device generated.
+// When it sends one it is authoritative and the local name yields to it.
+//
+// When it sends NOTHING the local name stands untouched (invariant 10): an
+// offline player must always be able to play, and blanking their identity
+// because a request failed is exactly the trap that must not be widened.
+export function adoptServerName(save, name) {
+  const player = ensurePlayer(save);
+  if (typeof name !== 'string' || !name.trim()) return player.name;
+  player.name = name.trim();
+  player.nameSource = 'claimed';
+  storeSave(save);
+  return player.name;
 }
 
 // Exported for the schema guard in tools/validate.mjs, which has to build both

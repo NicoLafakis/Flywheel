@@ -1,8 +1,9 @@
 import {
   TICKET_TTL_MS, RANKED_SCENES, body, errorResponse, fail, isDeviceKey, method,
   newRunId, newSeed, ok, rest, makeTicket, playerForToken, requiredEnv,
-  originRateKey, currentWeeklySeasonId,
+  originRateKey,
 } from '../_lib.mjs';
+import { ensureDevicePlayer } from '../_names.mjs';
 import { RANKED_TUNE_ID } from '../../js/voxelsim.js';
 
 const MAX_TICKETS_PER_HOUR = 12;
@@ -21,6 +22,7 @@ export default async function handler(req, res) {
       return;
     }
     let player = null;
+    let assigned = null;
     if (data.player_id || data.player_token) {
       player = await playerForToken(data.player_id, data.player_token);
       if (!player) { fail(res, 401, 'PLAYER_TOKEN_INVALID', 'This device no longer owns that name.'); return; }
@@ -34,6 +36,23 @@ export default async function handler(req, res) {
     if (attempts.length >= MAX_TICKETS_PER_HOUR || originAttempts.length >= 60) {
       fail(res, 429, 'TICKET_RATE_LIMIT', 'Try another ranked run in a little while.', true);
       return;
+    }
+    // Nobody plays anonymously any more. A ticket with `player_id: null` is a run
+    // fw_record_verdict verifies, scores and then never publishes (it inserts
+    // into board_public only `when r.player_id is not null`), which is the single
+    // biggest reason every board read `[]`. So an unbound device is given - or
+    // re-given - a real players row with a generated name here, and its very
+    // first run lands on the leaderboard with no signup, no typing and no
+    // action from the player.
+    //
+    // DELIBERATELY AFTER THE RATE LIMIT. This is the only path that creates a
+    // players row without a human deciding to, so it has to sit behind the same
+    // 12/hr device and 60/hr origin gate as the ticket it is issued with;
+    // ensureDevicePlayer() then caps it again at one auto player per device for
+    // the life of that device.
+    if (!player) {
+      assigned = await ensureDevicePlayer(data.device_key);
+      if (assigned) player = assigned.player;
     }
     const issued_at = new Date().toISOString();
     const row = {
@@ -51,7 +70,14 @@ export default async function handler(req, res) {
     });
     const ticket = makeTicket({ run_id: row.id, seed: row.seed, scene_id: row.scene_id,
       mode: row.mode, tune_id: row.tune_id, player_id: row.player_id, issued_at: row.issued_at });
+    // The assigned identity travels back with the ticket: `player_name` so the
+    // UI can show who the player is, and `player_token` ONLY on the request that
+    // created the row, so the browser can store the credential and later rename
+    // itself through name/rename. A re-bound device gets the name and no token -
+    // the token was handed out once and is not re-derivable here.
     ok(res, { run_id: row.id, seed: row.seed, scene_id: row.scene_id, mode: row.mode,
-      tune_id: row.tune_id, issued_at: row.issued_at, ticket });
+      tune_id: row.tune_id, issued_at: row.issued_at, ticket,
+      player_id: row.player_id, player_name: player ? player.name : null,
+      ...(assigned && assigned.token ? { player_token: assigned.token } : {}) });
   } catch (error) { errorResponse(res, error); }
 }

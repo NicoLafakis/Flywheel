@@ -26,17 +26,18 @@ start and finish a city or a RUN, and a failed ranked submission is queued
 | File | Method | Purpose |
 |------|--------|---------|
 | `api/_lib.mjs` | — | Shared primitives: JSON envelope helpers (`ok`/`fail`/`json`), request-body reader with a 64 KB cap, Supabase REST/RPC client (service-role key, server-only), HMAC ticket signing, device/player token hashing, name normalisation + leet-speak collision key, origin rate-limit key (HMAC of the forwarded IP, never stored raw), and `errorResponse()` (maps a thrown error to 400/503 without leaking internals) |
+| `api/_names.mjs` | — | The one name screen (`blockedLocally` = reserved words + the static pattern file; `blockedName` adds the live `blocked_names` table) plus automatic guest identity: `autoNameCandidates()` drives `js/board/names.js`'s retry ladder with `node:crypto` randomness, and `ensureDevicePlayer()` gives an unbound device a real `players` row. `register`/`claim`/`rename` import the screen from here instead of each keeping a copy |
 | `api/_verify.mjs` | — | Server-side replay verification: `verifyReplay()` decodes a stored input trace, rebuilds a `VoxelSandboxSim` for the claimed scene/seed, asserts the ranked tune was not silently swapped, steps it tick-for-tick, and floors `sim.hole.mass` into the score that actually gets published. `drainOnePendingRun()` is the unit the cron endpoint calls |
 | `api/health.mjs` | GET | Deployment smoke probe. Reveals no environment state; a 200 means the function bundle booted, nothing more |
-| `api/auth/register.mjs` | POST | Password-based account creation: validates the name (blocklist + reserved words + per-IP daily cap of 8), stores `token_hash = HMAC-SHA256(password)` under `FW_TICKET_SECRET` as the password verifier and `session_token_hash = sha256(token)` as the bearer credential, mints that `token` for the response, optionally links a just-played `run_id` to the new player |
+| `api/auth/register.mjs` | POST | Password-based account creation: validates the name (blocklist + reserved words + per-IP daily cap of 8), then hands the whole create-and-inherit step to `fw_register_device_player` — which upgrades this device's auto-provisioned guest in place if it has one, adopts every unclaimed run the device's tickets prove it played, and backfills `board_public` for each. `token_hash = HMAC-SHA256(password)` under `FW_TICKET_SECRET` is the password verifier, `session_token_hash = sha256(token)` the bearer credential |
 | `api/auth/login.mjs` | POST | Password check against the stored `token_hash`, then mints a fresh bearer `token` and writes `session_token_hash = sha256(token)`. `token_hash` is deliberately left alone — it is the password verifier, and overwriting it would lock the account out of every future login. One session hash per account, so logging in on a second device signs the first out |
 | `api/name/claim.mjs` | POST | The guest-first path (ADR-0011): mints a device token, sends only its SHA-256 hash to `fw_claim_name` (Postgres RPC), links the run that earned the claim. No password |
-| `api/name/rename.mjs` | POST | Renames an already-claimed player; gated by `playerForToken(player_id, token)`, then patches both `players` and the `board_public` view's cached name |
+| `api/name/rename.mjs` | POST | Renames an already-claimed player; gated by `playerForToken(player_id, token)`, then patches both `players` and the `board_public` view's cached name. Also the escape hatch for an automatically generated name — an auto-provisioned guest is a device-token account, so the `{player_id, token}` pair `run/start` returned authenticates here with no password and no signup |
 | `api/name/transfer/start.mjs` | POST | Mints a 6-character, unambiguous-alphabet transfer code (rejection-sampled to avoid modulo bias) with a 10-minute TTL, for moving a claimed name to a second device |
 | `api/name/transfer/redeem.mjs` | POST | Consumes a transfer code via `fw_transfer_redeem`, mints a new bearer token, hashes it server-side into `token_hash` before returning it. Redeeming hands ownership to the redeeming device, so the RPC also nulls `session_token_hash`: a password login on the previous device does not outlive the transfer |
 | `api/player/remove.mjs` | POST | Deletes a claimed name via `fw_remove_player`, gated by `playerForToken(player_id, token)` — the browser posts its stored secret verbatim, so `token` is the field that carries the credential (`player_token` is accepted as an alias) |
-| `api/run/start.mjs` | POST | Ranked-run ticket issuance: requires `FW_BOARDS_ACCEPTING=true`, checks the scene is in `RANKED_SCENES`, rate-limits per device (12/hr) and per hashed origin (60/hr), returns an HMAC ticket (`makeTicket`) binding run id + seed + scene + tune + issuer + timestamp |
-| `api/run/submit.mjs` | POST | Ranked-run submission: validates the ticket signature, re-authenticates the claimed player if the ticket has one, checks the trace shape (tick count, tune id, sim version), is idempotent on `run_id`, rate-limits (20/hr device and origin), and — this is invariant 8 — stores the trace via `fw_accept_run` and returns only a `verdict`, never a browser-computed score |
+| `api/run/start.mjs` | POST | Ranked-run ticket issuance: requires `FW_BOARDS_ACCEPTING=true`, checks the scene is in `RANKED_SCENES`, rate-limits per device (12/hr) and per hashed origin (60/hr), returns an HMAC ticket (`makeTicket`) binding run id + seed + scene + tune + issuer + timestamp. Also where a nameless device stops being nameless — see **Nobody plays anonymously** below |
+| `api/run/submit.mjs` | POST | Ranked-run submission: validates the ticket signature, re-authenticates the claimed player if the ticket has one, checks the trace shape (tick count, tune id, sim version), is idempotent on `run_id`, rate-limits (20/hr device and origin), and — this is invariant 8 — stores the trace via `fw_accept_run` and returns only a `verdict`, never a browser-computed score. A ticket bound to an `is_auto` guest is accepted with no credentials, on the ticket signature plus the device-key match alone |
 | `api/run/status.mjs` | POST | Polls a stored run's verdict for a `(run_id, device_key)` pair the caller must already hold |
 | `api/run/verify.mjs` | GET (cron) | Invoked once a minute by Vercel Cron (`vercel.json`), gated on `CRON_SECRET`. Calls `drainOnePendingRun()` — one replay per invocation, bounding CPU per tick while pending submissions stay durable |
 | `api/report.mjs` | POST | Player-reports-player moderation intake; one report per reporter/target pair per 24h |
@@ -61,6 +62,74 @@ caught here). `api/run/verify.mjs`'s cron is the only path that turns a
 `pending` run into `verified`/`mismatch`/`unverifiable`; nothing in `api/`
 lets a client set its own verdict.
 
+## Nobody plays anonymously
+
+`fw_record_verdict` publishes a verified run to `board_public` only
+`when r.player_id is not null`, and `run/start` used to bind `player_id: null`
+for anyone who had not typed a name into a signup form. A guest's run was
+ticketed, submitted, replayed by the cron, scored — and then dropped, with no
+error on any surface. That is the single biggest reason both boards read `[]`.
+
+So `run/start` calls `ensureDevicePlayer()` (`api/_names.mjs`) for any request
+that arrives with no player binding, and the device gets a real `players` row
+with a Parks-and-Recreation name before it has done anything. Four properties
+are load-bearing:
+
+- **One auto player per device, ever.** `ensureDevicePlayer()` first looks for
+  the newest `run_tickets` row this device key was issued that carries a
+  `player_id`, and re-binds to it. A client that ignores or fails to store the
+  credentials we return therefore accumulates scores on one identity instead of
+  minting a ghost player per ticket. That, not the hourly ticket limit, is what
+  bounds this path.
+- **Behind the rate limit.** The call sits after the 12/hr device and 60/hr
+  origin checks, so the only path that creates a `players` row without a human
+  deciding to cannot be used to mass-create rows faster than tickets are issued.
+- **A claimed account is never re-bound.** The re-bind only matches
+  `is_auto = true` rows. A run must not be attributed to a real account on the
+  strength of a device key alone; a browser that still owns that account sends
+  its token instead.
+- **It never throws.** Any failure — including the deploy window where this code
+  is live and the `is_auto` migration is not, which PostgREST answers with a 400
+  — logs and returns null, and the ticket is issued unbound exactly as before.
+
+The response carries `player_name` always and `player_token` only on the request
+that created the row, so the browser can store the credential and later rename
+itself through `name/rename`.
+
+**`run/submit` had to move with it.** It re-authenticates the claimed player
+whenever the *ticket* carries one, and a guest browser has no credential to
+send — so provisioning alone would have turned every guest run into a `401` at
+submission, which is worse than the silent non-publication it fixes (the outbox
+drops a non-retryable failure, so the run would be gone rather than queued).
+Submission therefore proves a ticket-bound player two ways: with credentials, if
+any were sent, exactly as before; and otherwise by the ticket itself, which is
+HMAC-signed over its `player_id` and whose `device_key` was already matched
+against the submitting device. That second path is accepted **only** for an
+`is_auto` player — a claimed account still requires its token, or a leaked
+device key would be enough to submit in someone else's name.
+
+The names come from `js/board/names.js`, imported directly rather than
+reimplemented (the same arrangement as `_verify.mjs` importing `js/voxelsim.js`).
+`nameCandidates()` returns a retry ladder whose first rung is the clean
+undecorated name, so a unique-violation on `name_key` costs one extra INSERT
+rather than a failed ticket, and a digit only ever appears after a real
+collision.
+
+## There are no weekly seasons
+
+The boards are all-time: one global leaderboard ranked by the sum of a player's
+best score on each city (`v_leaderboard`,
+`supabase/migrations/20260817113000_add_all_time_leaderboard.sql`). There was
+never a working weekly reset — `fw_accept_run` inserts without a `season_id`, so
+every row has always defaulted to 1, while `currentWeeklySeasonId()` sat in
+`_lib.mjs` imported by `run/start` and called by nothing. It is gone.
+
+The `season_id` **columns stay**. They are one integer per row, they are already
+part of `board_public_city_idx` and `runs_board_idx`, and they are the seam a
+seasonal board would need if one is ever wanted. Dropping them would be a
+destructive migration bought with nothing, and `tools/api-auth.test.mjs` asserts
+no migration ever does.
+
 ## Invariant 10 — network is optional
 
 - `js/board/player.js`'s `registerPlayer`/`loginPlayer`/`claimName` each try
@@ -76,6 +145,43 @@ lets a client set its own verdict.
 - `js/board/read.js` caches every successful board read in `localStorage`
   (`fw-board-cache`) and serves the cache on a failed fetch, so a flaky
   connection degrades to "last known standings" instead of an error screen.
+
+## Account creation inherits what the device played
+
+`auth/register` used to adopt a prior run with a bare
+`PATCH runs?id=eq.<data.run_id>` and **no ownership check of any kind** — no
+device match, no `player_id is null`, no verdict check. Any run id a caller
+learned was adoptable by a name they had just created. It never fired in
+practice only because the shipped client passes no `run_id`, which is also why
+creating an account inherited nothing at all.
+
+Both halves are now inside `fw_register_device_player`
+(`supabase/migrations/20260817124500_register_adopts_device_runs.sql`), modelled
+on `fw_claim_name`, which has had this right since the beginning:
+
+- **The gate is a `run_tickets` join.** The ticket is the only record of which
+  device was issued a run, and `run_tickets` is invisible to the browser. Every
+  write that moves a run under a player joins it on `t.device_key =
+  p_device_key` and takes only rows where `r.player_id is null`.
+- **`p_run_id` authorises nothing.** It is reported back as
+  `requested_run_adopted` so registration can answer "did the run I just played
+  land?" honestly, and it appears in no write.
+- **The backfill is the part that publishes.** A guard on the PATCH would not
+  have been enough: for an already-`verified` run, `fw_record_verdict` has
+  already run, taken the `player_id is not null` branch, skipped the
+  `board_public` insert, and will never run again. Re-pointing the run publishes
+  nothing on its own.
+- **The device's guest is upgraded, not orphaned.** Since `run/start`
+  auto-provisions, this device's runs usually are not unclaimed — they belong to
+  its guest. Registration takes that same row (`is_auto` and no
+  `session_token_hash`, so it has never been claimed by a human), renames it,
+  gives it the password, and patches the published name on every `board_public`
+  row. Creating a second player and leaving "Meat Tornado" holding the scores
+  would be the same invisible failure this change exists to end.
+
+The residual trust boundary is the `device_key` itself: anyone holding it can
+inherit that device's guest identity. That is the same trust `fw_claim_name` has
+always placed in it (ADR-0011), not a new one.
 
 ## Auth posture
 
@@ -175,6 +281,20 @@ client, and callers read `id` and `name` only.
   `js/board/config.js` — necessarily, since one ships to the server bundle
   and the other to the browser, but a scene added to one and not the other is
   a silent drift risk with no test catching it today.
+- **The `local-*` identity trap.** `js/board/player.js`'s `registerPlayer`,
+  `loginPlayer` and `claimName` each fall back to a fabricated
+  `{player_id: 'local-…', token: 'local-token-…'}` on any non-validation
+  failure, and `savePlayerSecret()` persists it. `js/board/run.js`'s
+  `startTicket()` then sends that pair on every later request, and `run/start`
+  rejects an invalid binding outright with `401 PLAYER_TOKEN_INVALID` — so one
+  offline moment permanently un-ranks the browser until localStorage is
+  cleared. The server side cannot fix this (a 401 for a `player_id` that is not
+  a UUID is the correct answer), and `js/**` is out of scope for the change
+  that documented it. Nothing here makes it worse: auto-provisioning only runs
+  when NO binding was sent, so a browser holding a `local-*` secret takes the
+  401 branch before reaching it and gets the same result it does today. The fix
+  belongs in `js/board/player.js` — do not write a credential the server never
+  issued; leave the secret absent and let `run/start` provision a real one.
 
 ## Guards
 
@@ -199,6 +319,34 @@ Its `BLOCKED_ON_SCHEMA` list is empty and expected to stay so; entries there
 require a stated reason and clear themselves once the endpoint starts
 persisting.
 
+Its third section covers automatic identity and adoption, and is part lexical,
+part real:
+
+- **Real.** `api/_lib.mjs` and `api/_names.mjs` are both importable headlessly
+  (neither touches env or the database at module scope), so the claim "a
+  generated name always passes the rules a typed name has to pass" is checked by
+  generating 1,200 names and running `normaliseName()` and the blocklist screen
+  over them — not by reading the source that is supposed to call them.
+- **Lexical.** That `run/start` provisions only on the unbound path and only
+  *after* the rate limit; that `register` no longer writes `runs` directly and
+  goes through the RPC; that every `update public.runs` in the new migration
+  joins `run_tickets` on the device key, takes only `player_id is null` rows,
+  and never keys off `p_run_id`; that the migration backfills `board_public`
+  idempotently; that its grants are revoked from `anon`/`authenticated`; that
+  no `currentWeeklySeasonId` survives under `api/`; and that no migration ever
+  drops `season_id`.
+- **One class worth naming.** A plpgsql function whose `returns table(...)`
+  names a column that also exists on a table it updates makes that name
+  ambiguous in any unqualified reference, and `plpgsql.variable_conflict =
+  error` raises **at run time** — `create function` never plans the body, so
+  the migration applies cleanly and the function fails the first time a real
+  player reaches it. `fw_transfer_redeem` shipped that way
+  (`token_version = token_version + 1` with a `token_version` OUT column) and is
+  re-created with the reference qualified in
+  `20260817124500_register_adopts_device_runs.sql`. Both functions that return a
+  `token_version` and increment it are now pinned by the test, as is the
+  `session_token_hash = null` line the re-creation had to carry forward.
+
 ## Applying a migration
 
 There is **no automated path**. The repo has no `.github/` workflow, no
@@ -215,6 +363,13 @@ minute, while the migration sits unapplied until someone runs it. Everything in
 `api/` therefore has to survive its own schema arriving late — which is why
 `playerForToken()` uses `select=*` and why every other `players?select=` names
 only long-standing columns.
+
+Two migrations are currently written and **not yet applied**:
+
+| File | Adds | Behaviour until it is applied |
+|------|------|-------------------------------|
+| `20260817113000_add_all_time_leaderboard.sql` | `v_leaderboard` (the one global all-time board) + a supporting index | Reads of `v_leaderboard` 404; every existing board is unaffected |
+| `20260817124500_register_adopts_device_runs.sql` | `players.is_auto`, `fw_register_device_player`, and a re-created `fw_transfer_redeem` with its ambiguous reference qualified | `ensureDevicePlayer()` catches the PostgREST 400 on the unknown `is_auto` column and issues today's unbound guest ticket; `auth/register` answers `503 SERVICE_UNAVAILABLE` (retryable) on the missing RPC rather than creating a half-account. Degraded, never broken — but no board fills up until it is applied |
 
 ## Gotchas
 

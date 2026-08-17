@@ -1,7 +1,7 @@
 // Full-screen UI: title, world map, shop, results, pause, mechanic intro.
 
 import { LEVELS, METROS, MECHANICS, LEVELS_PER_METRO, coinsForResult, starsForResult } from '../levels.js';
-import { isLevelUnlocked, storeSave, VOX_DEFAULTS } from '../save.js';
+import { isLevelUnlocked, storeSave, VOX_DEFAULTS, playerName, rerollPlayerName } from '../save.js';
 import { ORBIT_RATE, ORBIT_RATE_RAMP } from '../controls.js';
 import { defaultTierForDevice } from '../quality.js';
 // The shipped mix, so the three slider rows cannot render a different resting
@@ -196,19 +196,48 @@ export class Screens {
 
     const statsRow = el(`<div class="fw-status-row fw-status-row--split"></div>`);
 
-    // Player Login / Profile
-    const claimed = Boolean(this.save.player && this.save.player.name);
-    const id = el(`<button type="button" class="fw-stat fw-id${claimed ? '' : ' fw-id--none'}">
-      <span class="fw-stat-k">${claimed ? 'PLAYER' : 'PLAYER LOGIN'}</span>
+    // The player's name. Nobody is anonymous any more: an arriving player is
+    // handed one (js/save.js `defaultPlayer`) before this screen ever paints, so
+    // this cell shows a NAME rather than an invitation to acquire one, and the
+    // note line carries the invitation instead.
+    //
+    // The re-roll is a sibling of the chip, not a child of it: a button inside a
+    // button is invalid, and the browsers that do render it give the outer
+    // control the click. So the cell is a wrapper holding both, and the wrapper
+    // is what the grid column sees.
+    const name = playerName(this.save);
+    const claimed = (this.save.player && this.save.player.nameSource) === 'claimed';
+    const idCell = el(`<div class="fw-id-cell"></div>`);
+    const id = el(`<button type="button" class="fw-stat fw-id">
+      <span class="fw-stat-k">${claimed ? 'PLAYER' : 'YOU ARE'}</span>
       <span class="fw-stat-v"></span>
-      <span class="fw-stat-note">${claimed ? 'VIEW PROFILE' : 'SIGN IN / REGISTER'}</span>
+      <span class="fw-stat-note">${claimed ? 'VIEW PROFILE' : 'SIGN IN TO KEEP IT'}</span>
     </button>`);
-    id.querySelector('.fw-stat-v').textContent = claimed ? this.save.player.name : 'LOG IN';
-    id.setAttribute('aria-label', claimed
-      ? `Profile for ${this.save.player.name}`
-      : 'Player Login. Open profile screen to sign in or register.');
+    const nameSlot = id.querySelector('.fw-stat-v');
+    nameSlot.textContent = name;
+    id.setAttribute('aria-label', `Profile for ${name}`);
     id.onclick = () => this.showProfile();
-    statsRow.appendChild(id);
+    idCell.appendChild(id);
+
+    if (!claimed) {
+      // `secondary` is not styling here — `.fw-reroll` overrides all of it. It is
+      // how main.js's one delegated menu-voice listener knows this is a light
+      // tap and not a primary confirm.
+      const reroll = el(`<button type="button" class="fw-reroll secondary" aria-label="Roll a different name">⟳</button>`);
+      reroll.onclick = () => {
+        const rolled = rerollPlayerName(this.save);
+        nameSlot.textContent = rolled;
+        id.setAttribute('aria-label', `Profile for ${rolled}`);
+        // Re-triggered by hand on every press: the class is already on the node
+        // after the first roll, and without the reflow the second press would
+        // animate nothing — which reads as the button having broken.
+        nameSlot.classList.remove('is-rolling');
+        void nameSlot.offsetWidth;
+        nameSlot.classList.add('is-rolling');
+      };
+      idCell.appendChild(reroll);
+    }
+    statsRow.appendChild(idCell);
 
     // Highest Score
     const scoreVal = (pb.score !== null && pb.score !== undefined && pb.score > 0) ? pb.score : 0;
@@ -931,33 +960,13 @@ export class Screens {
         onStartCity: (scene) => this.actions.startVoxelSandbox(scene),
         onStartRankedRun: (scene) => this.actions.startRankedRun(scene),
       });
-      // The identity chip brings players here who have no name at all, which
-      // that button was gated against before — so this screen is now the place
-      // the game explains how a name is obtained, and it has to be honest about
-      // it. boards.js already states the FACT ("EARN A VERIFIED RUN TO CLAIM
-      // ONE") and that stays the sentence; what it cannot state is the door,
-      // because THE RUN is a main.js action the board layer has no handle on.
-      // There is exactly one claim flow in this codebase — showRunResults mounts
-      // mountClaim when the server verdict comes back `verified` and the device
-      // holds no name — so the whole path is: play THE RUN, get verified, claim
-      // on that results screen. No other route is invented here, because no
-      // other route exists.
-      if (!(this.save.player && this.save.player.name) && this.actions.startRankedRun) {
-        // Anchored to the empty-state note by class rather than by child index,
-        // for the reason showRunResults documents: an index silently repoints at
-        // whatever happens to sit there after the next edit. With no name there
-        // is no transfer note, so this is the only .fw-board-note on the screen.
-        const note = this.root.querySelector('.fw-board-note');
-        const path = el(`<div class="fw-claim-path">
-          <p class="fw-board-note">A name comes from a verified place on the board, not from a sign-up. Play THE RUN; if the server verifies your score, the claim form appears on that run's results screen.</p>
-        </div>`);
-        // Same label as the title screen's, so it reads as the same door rather
-        // than a second one.
-        const run = el(`<button type="button" class="btn">RUN CHICAGO · 90 SECONDS</button>`);
-        run.onclick = () => this.actions.startRankedRun('chicago');
-        path.appendChild(run);
-        if (note) note.after(path); else this.root.querySelector('.screen').appendChild(path);
-      }
+      // The "how do I get a name" path that used to be injected here is gone
+      // with the problem it solved. Every player now arrives holding a name, so
+      // there is no nameless state to explain, and the copy it added — that a
+      // name comes only from a server-verified run — stopped being true the
+      // moment names were handed out on arrival. The profile screen owns the
+      // whole name story now (show it, re-roll it, sign in to keep it) and
+      // nothing has to be bolted on from out here.
       this.current = 'profile';
     } catch { this.showTitle(); }
   }

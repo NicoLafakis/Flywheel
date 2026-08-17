@@ -2,35 +2,36 @@
 // It is intentionally imported only from the title/results actions so a normal
 // offline city session never pays for it.
 
-import { cityBoard, overallBoard } from '../board/read.js';
+import { leaderboard, playerCityRecords, playerStanding } from '../board/read.js';
 import { claimName, deviceKey, removePlayer, startTransfer, redeemTransfer, renamePlayer, registerPlayer, loginPlayer, playerSecret } from '../board/player.js';
 import { post } from '../board/request.js';
 import { comboMult, comboLevel, COMBO_LEVEL_NAMES } from '../voxelsim.js';
-import { ensurePlayer, storeSave } from '../save.js';
+import { ensurePlayer, storeSave, playerName, rerollPlayerName } from '../save.js';
 import { CITY_CATALOG } from '../citycatalog.js';
 
-const RANKED_CITIES = [
-  { scene: 'chicago', name: 'Chicago' },
-  { scene: 'brooklyn', name: 'Brooklyn' },
-  { scene: 'boston', name: 'Boston' },
-  { scene: 'cambridge', name: 'Cambridge' },
-  { scene: 'manhattan', name: 'Lower Manhattan' },
-  { scene: 'upper-manhattan', name: 'Upper Manhattan' },
-];
+// How many players the leaderboard shows. Not a database concern: the view
+// materializes every player and the cut is a presentation decision, which is
+// why it lives here and in one place.
+const LEADERBOARD_SIZE = 10;
 
-// Weekly seasons anchor: Monday 00:00:00 UTC, Aug 10, 2026 (Season 1).
-const SEASON_EPOCH_MS = Date.UTC(2026, 7, 10, 0, 0, 0);
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
-export function currentWeeklySeasonInfo(nowMs = Date.now()) {
-  const elapsed = Math.max(0, nowMs - SEASON_EPOCH_MS);
-  const season = 1 + Math.floor(elapsed / WEEK_MS);
-  const nextResetMs = SEASON_EPOCH_MS + season * WEEK_MS;
-  const remainingMs = Math.max(0, nextResetMs - nowMs);
-  const days = Math.floor(remainingMs / (24 * 60 * 60 * 1000));
-  const hours = Math.floor((remainingMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-  const mins = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
-  return { season, nextResetMs, days, hours, mins };
+/**
+ * The top-ten cut, tie-aware and pure so it can be asserted headlessly.
+ *
+ * `v_leaderboard.rank` is a `dense_rank()`, so three players tied on total score
+ * all hold rank 10 and all three genuinely ARE tenth. Slicing the array to ten
+ * rows would drop two of them out of a place they hold, which is the one thing a
+ * leaderboard may not do. So the cut is on the RANK, not on the row count, and
+ * the returned list can legitimately be longer than `limit`.
+ *
+ * A row with no rank at all (an older offline cache, or a view that changed
+ * shape) still has to render something rather than vanishing, so those fall back
+ * to their arrival order and are capped at `limit`.
+ */
+export function topTen(rows, limit = LEADERBOARD_SIZE) {
+  if (!Array.isArray(rows)) return [];
+  const ranked = rows.filter((row) => row && Number.isFinite(Number(row.rank)));
+  if (ranked.length !== rows.length) return rows.filter(Boolean).slice(0, limit);
+  return ranked.filter((row) => Number(row.rank) <= limit);
 }
 
 function element(tag, className = '', text = '') {
@@ -69,39 +70,139 @@ function rankBadge(rank) {
   return String(rank || '—');
 }
 
-function boardTable(rows, overall, onReport) {
-  const table = element('table', 'fw-board-table');
-  const caption = element('caption', '', overall ? 'THE FLYWHEEL · lifetime verified points across cities' : 'WEEKLY CITY RECORDS · verified ranked 90s runs');
+function score(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString('en-US') : '—';
+}
+
+/**
+ * THE leaderboard: every player, all time, ranked by the sum of their best
+ * verified score on each city.
+ *
+ * `Cities` is not decoration — it is the column that explains the total. Without
+ * it "412,000" is an unexplained number; with it a player can see that the
+ * leader's total is four cities deep and that replaying one city cannot inflate
+ * it. That is the whole ranking rule, shown rather than written.
+ */
+function leaderboardTable(rows, youId, onReport) {
+  const table = element('table', 'fw-board-table fw-leaderboard');
+  table.append(element('caption', '', 'ALL-TIME · YOUR BEST SCORE ON EACH CITY, ADDED UP'));
+
   const head = document.createElement('thead');
   const hrow = document.createElement('tr');
-  const headers = overall ? ['Rank', 'Player', 'Points', 'Cities', 'Best Rank'] : ['Rank', 'Player', 'Score', 'Verified', 'Report'];
-  for (const label of headers) {
-    const th = element('th', '', label); th.scope = 'col'; hrow.appendChild(th);
+  for (const label of ['Rank', 'Player', 'Total score', 'Cities', '']) {
+    const th = element('th', '', label);
+    th.scope = 'col';
+    if (!label) th.className = 'fw-col-report';
+    hrow.appendChild(th);
   }
   head.appendChild(hrow);
+
   const body = document.createElement('tbody');
   for (const row of rows) {
     const tr = document.createElement('tr');
-    const rankStr = rankBadge(row.rank);
-    const values = overall
-      ? [rankStr, row.name, Number(row.points).toLocaleString('en-US'), String(row.cities), row.best_rank ? `#${row.best_rank}` : '—']
-      : [rankStr, row.name, Number(row.score).toLocaleString('en-US'), new Date(row.verified_at).toLocaleDateString()];
-    for (let idx = 0; idx < values.length; idx++) {
-      const td = element('td', '', values[idx]);
-      if (idx === 0 && row.rank <= 3) td.style.fontWeight = '900';
-      tr.appendChild(td);
-    }
-    if (!overall && onReport) {
-      const cell = document.createElement('td');
-      const report = button('REPORT', true);
+    const rank = Number(row.rank);
+    if (rank >= 1 && rank <= 3) tr.classList.add(`fw-podium-${rank}`);
+    const isYou = youId && row.player_id === youId;
+    if (isYou) tr.classList.add('fw-is-you');
+
+    tr.appendChild(element('td', 'fw-rank-cell', rankBadge(rank)));
+
+    const nameCell = element('td', 'fw-name-cell');
+    nameCell.appendChild(element('span', 'fw-board-name', row.name || 'Unnamed'));
+    // The player finding themselves in a list of strangers is the whole reason
+    // they opened the screen, so it is a tag rather than a colour alone.
+    if (isYou) nameCell.appendChild(element('span', 'fw-you-tag', 'YOU'));
+    tr.appendChild(nameCell);
+
+    tr.appendChild(element('td', 'fw-num-cell', score(row.total_score)));
+    tr.appendChild(element('td', 'fw-num-cell fw-cities-cell', String(row.cities ?? '—')));
+
+    const reportCell = element('td', 'fw-col-report');
+    if (onReport && !isYou && row.player_id) {
+      const report = button('⚑', true);
       report.classList.add('fw-board-report');
+      report.title = `Report ${row.name || 'this player'}`;
+      report.setAttribute('aria-label', `Report ${row.name || 'this player'}`);
       report.onclick = () => onReport(row.player_id, report);
-      cell.appendChild(report); tr.appendChild(cell);
+      reportCell.appendChild(report);
     }
+    tr.appendChild(reportCell);
+
     body.appendChild(tr);
   }
-  table.append(caption, head, body);
+  table.append(head, body);
   return table;
+}
+
+/**
+ * An empty board is the state this screen will be in for its whole first week,
+ * so it is built as an invitation and not as an apology. One sentence stating
+ * the fact, one stating the stake, and the door — a 90-second ranked run — right
+ * there, because a player who reads "be the first" and then has to go find the
+ * button will not.
+ */
+function emptyBoard(onStartRankedRun, you) {
+  const plate = element('div', 'fw-board-empty');
+
+  // The signature of this screen, and the reason the empty state is not a
+  // paragraph: the first-place row, drawn as a vacant slot with the player's own
+  // name already sitting in it. It says what the board is, what a row looks like,
+  // and what happens if they run — in one glance and no sentences.
+  const slot = element('div', 'fw-empty-slot');
+  slot.append(
+    element('span', 'fw-empty-rank', '🥇 1'),
+    element('span', 'fw-empty-name', you || 'YOUR NAME'),
+    element('span', 'fw-empty-score', '—'),
+  );
+  plate.append(
+    slot,
+    element('h4', '', 'THIS SEAT IS OPEN'),
+    element('p', '', 'Nobody has set a verified score yet. One 90-second run puts you at the top, and you stay there until somebody beats it.'),
+  );
+  if (onStartRankedRun) {
+    const go = button('RUN CHICAGO · 90 SECONDS');
+    go.classList.add('fw-board-empty-cta');
+    go.onclick = () => onStartRankedRun('chicago');
+    plate.appendChild(go);
+  }
+  return plate;
+}
+
+/**
+ * A player's own verified bests, per city, folded into the RECORDS cards that
+ * are already on screen.
+ *
+ * Deliberately fire-and-forget and deliberately silent on failure. The local
+ * save has already answered the question the screen asks; this only adds the
+ * server's confirmation of it, so a timeout, an offline device or a player who
+ * has never had a run verified all land on the same correct outcome — the local
+ * records, with no error furniture bolted to them.
+ */
+async function hydrateVerified(container, save) {
+  const player = save.player;
+  if (!player || !player.id) return;
+  try {
+    const result = await playerCityRecords(player.id);
+    const rows = Array.isArray(result.data) ? result.data : [];
+    if (!rows.length) return;
+    // One row per city: the view can hold several verified runs for a player on
+    // the same city, and the record is the best of them.
+    const best = new Map();
+    for (const row of rows) {
+      const prev = best.get(row.scene_id);
+      if (!prev || Number(row.score) > Number(prev.score)) best.set(row.scene_id, row);
+    }
+    for (const card of container.querySelectorAll('.fw-city-card')) {
+      const row = best.get(card.dataset.scene);
+      const slot = card.querySelector('.fw-city-verified');
+      if (!row || !slot) continue;
+      const value = slot.querySelector('.val');
+      value.textContent = row.rank ? `${score(row.score)} · #${row.rank}` : score(row.score);
+      value.classList.add('highlight');
+      slot.hidden = false;
+    }
+  } catch { /* the local records already answered; the server's copy is a bonus */ }
 }
 
 function renderPersonalBests(container, save, { onStartCity, onStartCampaign, onStartRankedRun }) {
@@ -169,6 +270,13 @@ function renderPersonalBests(container, save, { onStartCity, onStartCampaign, on
   statGrid.append(cardScore, cardCombo, cardClears, cardVault, cardGear);
   container.appendChild(statGrid);
 
+  // Everything above this line is the local save — the honest, always-available
+  // answer that an offline player still gets (invariant 10). Everything below is
+  // the SERVER's copy of the same player, which only exists once a run has been
+  // verified, and which arrives late or never. It is added to the cards that are
+  // already on screen rather than gating them, so nothing waits on the network.
+  hydrateVerified(container, save);
+
   // 3. City Breakdown Matrix
   const citySectionHead = element('div', 'fw-section-header');
   citySectionHead.append(
@@ -186,7 +294,8 @@ function renderPersonalBests(container, save, { onStartCity, onStartCampaign, on
     const bestTime = rec.bestTime || 0;
 
     const card = element('div', 'fw-city-card');
-    
+    card.dataset.scene = city.scene || 'gallery';
+
     // Header
     const header = element('div', 'fw-city-card-header');
     const titleWrap = element('div');
@@ -229,6 +338,17 @@ function renderPersonalBests(container, save, { onStartCity, onStartCampaign, on
 
     card.append(rowScore, rowCombo, rowTime);
 
+    // Filled in by hydrateVerified() when the server holds a verified run for
+    // this player on this city. Absent until then rather than showing a dash: a
+    // "—" beside the words RANKED BEST reads as a score of nothing.
+    const rowVerified = element('div', 'fw-city-stats-row fw-city-verified');
+    rowVerified.hidden = true;
+    rowVerified.append(
+      element('span', 'lbl', 'Ranked best:'),
+      element('span', 'val', '—'),
+    );
+    card.appendChild(rowVerified);
+
     const btnGroup = element('div', 'fw-city-btn-group');
     btnGroup.style.display = 'flex';
     btnGroup.style.gap = '6px';
@@ -261,13 +381,22 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
   const screen = element('section', 'screen');
   const wrap = element('div', 'fw-records-wrap');
   
-  wrap.appendChild(element('h2', '', 'RECORDS & STATS'));
+  wrap.appendChild(element('h2', '', 'RECORDS'));
 
-  // Tab Navigation Bar
+  // Two questions, two tabs, and the labels say which is which: RECORDS is
+  // "how am I doing" (this player, every city, all time) and LEADERBOARD is
+  // "who is the best" (every player, one global list). They used to be the same
+  // read behind three tabs, which is why neither answered its own question.
   const navBar = element('div', 'fw-records-tabs');
-  const btnBests = button('PERSONAL BESTS', true);
-  const btnBoards = button('LEADERBOARDS', true);
-  const btnProfile = button('IDENTITY & PROFILE', true);
+  const btnBests = button('MY RECORDS', true);
+  const btnBoards = button('LEADERBOARD', true);
+  const btnProfile = button('MY NAME', true);
+  navBar.setAttribute('role', 'tablist');
+  navBar.setAttribute('aria-label', 'Records sections');
+  for (const b of [btnBests, btnBoards, btnProfile]) {
+    b.setAttribute('role', 'tab');
+    b.classList.add('fw-records-tab');
+  }
   navBar.append(btnBests, btnBoards, btnProfile);
   wrap.appendChild(navBar);
 
@@ -304,9 +433,11 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
 
   function setTab(tab) {
     activeTab = tab;
-    btnBests.classList.toggle('fw-records-tab--active', tab === 'bests');
-    btnBoards.classList.toggle('fw-records-tab--active', tab === 'boards');
-    btnProfile.classList.toggle('fw-records-tab--active', tab === 'profile');
+    for (const [node, key] of [[btnBests, 'bests'], [btnBoards, 'boards'], [btnProfile, 'profile']]) {
+      const on = tab === key;
+      node.classList.toggle('fw-records-tab--active', on);
+      node.setAttribute('aria-selected', on ? 'true' : 'false');
+    }
 
     if (tab === 'bests') {
       contentSlot.innerHTML = '';
@@ -320,89 +451,97 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
     setTimeout(updateScrollHint, 80);
   }
 
+  // ONE board. Every player, all time, ranked by the sum of their best score on
+  // each city — so replaying a city only moves you if you beat your own best
+  // there, and the ranking grows on its own as cities are added because nothing
+  // here enumerates them. There are no seasons and nothing resets.
   async function renderLeaderboardTab(target) {
     target.innerHTML = '';
 
-    const seasonInfo = currentWeeklySeasonInfo();
+    const you = ensurePlayer(save);
 
-    // Season Banner
-    const seasonBanner = element('div', 'fw-campaign-banner');
-    seasonBanner.style.marginBottom = '12px';
-    const seasonText = element('div');
-    seasonText.innerHTML = `<h4 style="margin:0 0 4px; color:var(--fw-gold)">⚡ WEEKLY SEASON ${seasonInfo.season}</h4>
-      <p style="margin:0; font-size:12px; color:rgba(255,255,255,0.75)">
-        Weekly reset in <b>${seasonInfo.days}d ${seasonInfo.hours}h ${seasonInfo.mins}m</b> · City records reset weekly; overall points accumulate lifetime.
-      </p>`;
-    seasonBanner.appendChild(seasonText);
-    target.appendChild(seasonBanner);
+    // The RECORDS tab is a wide card grid, so the shared content slot is full
+    // width. A ten-row list is not: at 1180px the rows stretch until rank and
+    // score are half a screen apart. So the leaderboard sets its own measure and
+    // centres it under the tab bar rather than hugging the left edge.
+    const column = element('div', 'fw-board-column');
+    target.appendChild(column);
+    target = column;
 
-    // City & Global sub-selectors
-    const subNav = element('div', 'fw-records-tabs');
-    subNav.style.margin = '4px 0 12px';
-    
-    const subButtons = [];
-
-    const subOverall = button('👑 THE FLYWHEEL (LIFETIME)', true);
-    subButtons.push({ key: 'overall', btn: subOverall });
-    subNav.appendChild(subOverall);
-
-    for (const c of RANKED_CITIES) {
-      const btn = button(c.name.toUpperCase(), true);
-      subButtons.push({ key: c.scene, btn });
-      subNav.appendChild(btn);
-    }
-    target.appendChild(subNav);
+    const header = element('div', 'fw-board-head');
+    header.append(
+      element('h3', '', 'LEADERBOARD'),
+      element('p', '', `The ten highest players in the game. Your rank is the total of your best verified score on every city — beat your own record anywhere and the total goes up.`),
+    );
+    target.appendChild(header);
 
     const boardContent = element('div', 'fw-board-slot');
-    boardContent.textContent = 'LOADING VERIFIED RECORDS…';
     target.appendChild(boardContent);
 
-    let currentSelection = 'overall';
+    const standingSlot = element('div', 'fw-standing-slot');
+    target.appendChild(standingSlot);
 
-    async function loadBoard(kind) {
-      currentSelection = kind;
-      for (const item of subButtons) {
-        item.btn.classList.toggle('fw-records-tab--active', item.key === kind);
-      }
-      boardContent.textContent = 'LOADING VERIFIED RECORDS…';
+    function loading() {
+      boardContent.innerHTML = '';
+      const skeleton = element('p', 'fw-board-note', 'READING VERIFIED SCORES…');
+      skeleton.setAttribute('role', 'status');
+      boardContent.appendChild(skeleton);
+    }
+
+    async function loadBoard() {
+      loading();
       try {
-        const result = kind === 'overall' ? await overallBoard() : await cityBoard(kind);
+        const result = await leaderboard(LEADERBOARD_SIZE);
         boardContent.innerHTML = '';
         if (result.cached) {
-          boardContent.appendChild(element('p', 'fw-board-note', `OFFLINE CACHE · Showing saved records from ${new Date(result.at).toLocaleString()}`));
+          boardContent.appendChild(element('p', 'fw-board-note', `SAVED COPY · last read ${new Date(result.at).toLocaleString()}`));
         }
-        const rows = result.data || [];
+        const rows = topTen(result.data, LEADERBOARD_SIZE);
         if (!rows.length) {
-          const cityName = kind === 'overall' ? 'any city' : RANKED_CITIES.find(c => c.scene === kind)?.name || kind;
-          boardContent.appendChild(element('p', 'fw-board-note', `FIRST VERIFIED RUN SETS THE RECORD. Complete a 90-second run in ${cityName} to claim the top spot.`));
+          boardContent.appendChild(emptyBoard(onStartRankedRun, playerName(save)));
         } else {
-          boardContent.appendChild(boardTable(rows, kind === 'overall', async (playerId, report) => {
+          boardContent.appendChild(leaderboardTable(rows, you.id, async (playerId, report) => {
             report.disabled = true;
             try {
               await post('/report', { player_id: playerId, device_key: deviceKey() });
-              report.textContent = 'REPORTED';
+              report.textContent = '✓';
+              report.setAttribute('aria-label', 'Reported');
             } catch {
-              report.textContent = 'TRY LATER';
+              report.textContent = '⚑';
               report.disabled = false;
+              report.setAttribute('aria-label', 'Report failed, try again');
             }
           }));
+          // Someone outside the top ten still has a standing, and it is the
+          // number that makes the board mean anything to them.
+          if (you.id && !rows.some((row) => row.player_id === you.id)) loadStanding(you.id);
         }
       } catch {
         boardContent.innerHTML = '';
-        boardContent.appendChild(element('p', 'fw-board-note', 'LEADERBOARDS ARE CURRENTLY OFFLINE. Offline personal records and local gameplay remain fully functional.'));
-        const retryBtn = button('RETRY CONNECTION', true);
-        retryBtn.onclick = () => loadBoard(kind);
+        boardContent.appendChild(element('p', 'fw-board-note', 'The leaderboard could not be reached. Everything else — your records, every city, every run — still works.'));
+        const retryBtn = button('TRY AGAIN', true);
+        retryBtn.onclick = () => loadBoard();
         boardContent.appendChild(retryBtn);
       }
     }
 
-    subOverall.onclick = () => loadBoard('overall');
-    for (const item of subButtons) {
-      if (item.key !== 'overall') {
-        item.btn.onclick = () => loadBoard(item.key);
-      }
+    async function loadStanding(playerId) {
+      try {
+        const result = await playerStanding(playerId);
+        const mine = (result.data || [])[0];
+        if (!mine) return;
+        standingSlot.innerHTML = '';
+        const card = element('div', 'fw-standing');
+        card.append(
+          element('span', 'k', 'YOUR PLACE'),
+          element('span', 'v', `#${mine.rank}`),
+          element('span', 'sub', `${score(mine.total_score)} across ${mine.cities} ${mine.cities === 1 ? 'city' : 'cities'}`),
+        );
+        standingSlot.appendChild(card);
+      } catch { /* a missing standing is a quiet absence, not an error state */ }
     }
-    loadBoard('overall');
+
+    loadBoard();
   }
 
   function renderProfileTab(target, save, refresh, { onStartRankedRun }) {
@@ -411,25 +550,51 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
     wrap.style.margin = '0 auto';
     wrap.style.width = '100%';
 
-    const name = save.player && save.player.name;
-    const title = element('h3', '', name ? `PLAYER IDENTITY: ${name}` : 'UNCLAIMED IDENTITY');
-    title.style.color = 'var(--fw-gold)';
-    title.style.margin = '0 0 8px';
+    // Everybody has a name from the first frame, so this screen no longer opens
+    // on an absence. `claimed` — not the presence of a name — is what decides
+    // whether it shows the sign-in door or the account it is already signed in
+    // to. A claimed name belongs to the server and is not re-rollable here.
+    const name = playerName(save);
+    const claimed = (save.player && save.player.nameSource) === 'claimed';
+
+    const title = element('h3', 'fw-identity-title', 'YOUR NAME');
     wrap.appendChild(title);
 
-    const desc = element('p', 'fw-board-note', name
-      ? `This device is linked to "${name}". All verified scores in ranked runs are credited to this name.`
-      : 'No public board name is claimed on this device yet. Claim a name below or enter a 6-character transfer code from another device.');
+    const plate = element('div', 'fw-name-plate');
+    const namePlate = element('span', 'fw-name-value', name);
+    namePlate.setAttribute('aria-live', 'polite');
+    plate.appendChild(namePlate);
+
+    if (!claimed) {
+      const reroll = button('⟳ ROLL AGAIN', true);
+      reroll.classList.add('fw-reroll', 'fw-reroll--wide');
+      reroll.setAttribute('aria-label', 'Roll a different name');
+      reroll.onclick = () => {
+        namePlate.textContent = rerollPlayerName(save);
+        // Restart the flip on every press: without the reflow the class is
+        // already there and the second press animates nothing, which reads as
+        // a dead button on exactly the press that proves the button works.
+        namePlate.classList.remove('is-rolling');
+        void namePlate.offsetWidth;
+        namePlate.classList.add('is-rolling');
+      };
+      plate.appendChild(reroll);
+    }
+    wrap.appendChild(plate);
+
+    const desc = element('p', 'fw-board-note', claimed
+      ? `You are signed in as "${name}". Every verified score is credited to this name on all your devices.`
+      : 'This is the name beside your scores. Roll for another as many times as you like — it costs nothing and changes nothing else. Sign in below to keep it on every device you play on.');
     desc.style.marginBottom = '16px';
     wrap.appendChild(desc);
 
     // Section 1: Player Authentication & Account Status
     const idCard = element('div', 'fw-stat-card');
     idCard.style.marginBottom = '16px';
-    if (!name) {
+    if (!claimed) {
       idCard.append(
-        element('span', 'k', '🔐 PLAYER SIGN IN / CREATE ACCOUNT'),
-        element('p', 'fw-board-note', 'Use a simple Player Name and Password to sign in or create an account across your phone, tablet, and PC.')
+        element('span', 'k', '🔐 KEEP THIS NAME ON EVERY DEVICE'),
+        element('p', 'fw-board-note', 'Add a password and this name is yours on your phone, tablet and computer. Already have an account? Sign in instead.')
       );
 
       const authToggleWrap = element('div');
@@ -450,6 +615,11 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
       authForm.style.flexDirection = 'column';
       authForm.style.gap = '8px';
       authForm.style.marginTop = '6px';
+      // The card centres its children, which left both fields at their intrinsic
+      // width — the name placeholder was cut off mid-word ("Player Name (3–16
+      // characte") in a card with 300px of empty space either side.
+      authForm.style.width = '100%';
+      authForm.style.alignItems = 'stretch';
 
       const nameInput = document.createElement('input');
       nameInput.className = 'fw-claim-input';
@@ -495,7 +665,11 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
         isRegister = true;
         btnModeRegister.classList.add('fw-records-tab--active');
         btnModeLogin.classList.remove('fw-records-tab--active');
-        submitBtn.textContent = 'CREATE ACCOUNT';
+        submitBtn.textContent = `CREATE ACCOUNT`;
+        // The name they have been shopping for is the name they want to keep,
+        // so the field arrives holding it rather than empty. Still editable, and
+        // never overwritten if they have already typed something.
+        if (!nameInput.value) nameInput.value = save.player.name || '';
         note.textContent = '';
       };
 
@@ -535,9 +709,12 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
       logoutBtn.onclick = () => {
         if (!window.confirm('Log out from this browser? Your account remains safe on the cloud.')) return;
         const player = ensurePlayer(save);
-        player.id = null; player.name = null; player.claimedAt = null;
+        // Signing out hands the device back a fresh automatic name rather than a
+        // blank one: a guest is still a player with a name, and every surface
+        // that prints one would otherwise be empty until they signed in again.
+        player.id = null; player.claimedAt = null; player.name = null; player.nameSource = 'auto';
         try { localStorage.removeItem('fw-player'); } catch {}
-        storeSave(save);
+        playerName(save);
         refresh();
       };
 
@@ -546,7 +723,10 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
     }
     wrap.appendChild(idCard);
 
-    if (name) {
+    // Only a name the SERVER holds can be removed from the boards. An automatic
+    // local name has nothing published behind it, so offering to delete it would
+    // be offering a destructive action that does nothing.
+    if (claimed) {
       const dangerCard = element('div', 'fw-stat');
       dangerCard.append(
         element('span', 'k', '⚠️ DANGER ZONE'),

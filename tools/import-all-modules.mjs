@@ -15,5 +15,6 @@ import * as peer from '../js/multiplayer/peer.js';
 import * as config from '../js/multiplayer/config.js';
 import * as protocol from '../js/multiplayer/protocol.js';
 import * as roster from '../js/multiplayer/roster.js';
+import * as names from '../js/board/names.js';
 
 console.log('All modules imported successfully in Node!');

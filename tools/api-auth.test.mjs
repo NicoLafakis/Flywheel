@@ -475,4 +475,247 @@ assert.match(lookup, /players\?select=(\*|[^&]*session_token_hash)/,
 
 console.log(`  ok: ${adding[0]} adds players.${SESSION_COLUMN} and clears it in fw_remove_player + fw_transfer_redeem`);
 console.log('  ok: playerForToken() checks the session hash and still falls back to the device token hash');
+
+// ---------------------------------------------------------------------------
+// AUTOMATIC GUEST IDENTITY, RUN ADOPTION, AND THE COLLAPSE OF WEEKLY SEASONS.
+//
+// Three defects sat behind an empty leaderboard, and each one is silent:
+//
+//   1. `run/start` bound `player_id: null` for a guest, and `fw_record_verdict`
+//      only publishes `when r.player_id is not null`. A guest's run was ticketed,
+//      submitted, replayed, scored - and then dropped on the floor. No error
+//      anywhere. Every board read `[]`.
+//   2. `auth/register` adopted a prior run with a bare
+//      `PATCH runs?id=eq.<caller-supplied id>` and NO ownership check: no device
+//      match, no `player_id is null`, no verdict check. Any run id a caller
+//      learned was adoptable. It never fired in practice only because the
+//      shipped client sends no `run_id`, which is also why creating an account
+//      adopted nothing.
+//   3. `currentWeeklySeasonId` was imported by `run/start` and never called,
+//      while nothing ever wrote a `season_id`. A weekly reset that does not
+//      exist is worse than none - the UI counted down to it.
+//
+// These assertions are mostly lexical for the reason stated at the top of this
+// file (handlers need Supabase env + a live Postgres). Where a claim CAN be
+// proven by running real code it is: `api/_names.mjs` and `api/_lib.mjs` are
+// both importable headlessly, so the "a generated name always passes the name
+// rules" claim is checked by generating names and running the rules on them,
+// not by reading the source that is supposed to do it.
+// ---------------------------------------------------------------------------
+const { normaliseName: normalise } = await import('../api/_lib.mjs');
+const { autoNameCandidates, blockedLocally } = await import('../api/_names.mjs');
+
+const provisionSrc = stripComments(read('api/_names.mjs'));
+const startSrc = stripComments(read('api/run/start.mjs'));
+const registerSrc = stripComments(read('api/auth/register.mjs'));
+const renameSrc = stripComments(read('api/name/rename.mjs'));
+
+// --- 1. A guest is given a real players row at ticket time ------------------
+assert.match(startSrc, /\bensureDevicePlayer\b/,
+  'api/run/start.mjs must provision (or re-use) a players row for a guest, or every guest run is verified and then never published');
+assert.match(startSrc, /from\s+'\.\.\/_names\.mjs'/,
+  'run/start must get provisioning from the shared api/_names.mjs seam, not a private copy of the name rules');
+// Only on the UNBOUND path: a caller who authenticated already has an identity
+// and must not be handed a second one.
+assert.match(startSrc, /if\s*\(\s*!player\s*\)\s*\{\s*assigned\s*=\s*await\s+ensureDevicePlayer\s*\(/,
+  'ensureDevicePlayer() must be guarded by `if (!player)` - provisioning over an authenticated player would mint a duplicate identity');
+// And BEHIND the rate limit. This is the only path that creates a players row
+// with no human deciding to, so an unbounded one is a row-spam surface.
+const limitAt = startSrc.indexOf('TICKET_RATE_LIMIT');
+const provisionAt = startSrc.indexOf('ensureDevicePlayer(');
+assert.ok(limitAt !== -1 && provisionAt > limitAt,
+  'ensureDevicePlayer() must run AFTER the 12/hr device + 60/hr origin ticket rate limit, or auto-provisioning is an unmetered way to mass-create players');
+// The credential has to reach the browser or the player can never rename, and
+// the assigned name has to reach it or the UI cannot show who they are.
+assert.match(startSrc, /player_name/,
+  'run/start must return the assigned name so the client can store and display it');
+assert.match(startSrc, /player_token/,
+  'run/start must return the minted credential for a freshly provisioned player');
+
+// A bearer token minted anywhere under api/ must have its hash persisted - the
+// same rule the minter sweep above applies to routed handlers, extended to the
+// shared module, which the route walker deliberately skips.
+assert.match(provisionSrc, /\bnewDeviceToken\s*\(\s*\)/,
+  'api/_names.mjs must mint the guest credential with newDeviceToken()');
+assert.match(provisionSrc, /sha256Hex\s*\(\s*token\s*\)/,
+  'api/_names.mjs must persist sha256Hex(token) - an unpersisted bearer token authenticates nothing afterwards');
+// Device-token account kind, deliberately: token_hash = sha256(token) and NO
+// session hash, so playerForToken()'s fallback path authenticates it. Writing a
+// session hash here would make the guest a password account with no password.
+assert.doesNotMatch(provisionSrc, new RegExp(SESSION_COLUMN),
+  `an auto-provisioned guest must be a device-token account (no ${SESSION_COLUMN}), or playerForToken() picks the wrong column`);
+assert.match(provisionSrc, /is_auto/,
+  'an auto-provisioned player must be marked, so account creation can upgrade it instead of orphaning its scores');
+
+// --- 1b. The submission of an auto-provisioned run must not 401 -------------
+// Binding a guest ticket to a player has a consequence one file over:
+// `run/submit` re-authenticates the claimed player whenever the TICKET carries
+// one. The shipped client sends no player credentials for a guest (there are
+// none in localStorage), so provisioning without this would have turned every
+// guest run into `401 PLAYER_TOKEN_INVALID` at submit - strictly worse than the
+// silent non-publication it was fixing, because the outbox drops a
+// non-retryable failure. The ticket's own device_key match is the credential on
+// that path, and it is the same evidence fw_claim_name has always accepted.
+const submitSrc = stripComments(read('api/run/submit.mjs'));
+assert.match(submitSrc, /ticket\.device_key\s*!==\s*data\.device_key/,
+  'run/submit must still require the submitting device to be the device the ticket was issued to - that match is what stands in for a credential on the guest path');
+assert.match(submitSrc, /is_auto/,
+  'run/submit must accept a ticket-bound AUTO-provisioned player with no credentials, or every guest run 401s at submission');
+assert.match(submitSrc, /if\s*\(\s*data\.player_id\s*\|\|\s*data\.player_token\s*\)/,
+  'the credential path must still run whenever credentials were supplied - the guest fallback is only for a request that sent none');
+assert.match(submitSrc, /playerForToken\s*\(\s*data\.player_id\s*,\s*data\.player_token\s*\)/,
+  'a submission that DOES supply credentials must still be authenticated by them');
+assert.match(submitSrc, /players\?select=\*/,
+  'run/submit must read the ticket-bound player with select=* - a narrowed list naming is_auto 400s the whole request on a database where the migration has not been applied yet');
+
+// --- 2. Generated names satisfy the rules a typed name has to satisfy -------
+// Run the real screens over the real generator rather than trusting that the
+// implementation calls them.
+let sweptNames = 0;
+for (let round = 0; round < 200; round++) {
+  const candidates = autoNameCandidates(6);
+  assert.equal(candidates.length, 6, 'autoNameCandidates(6) must return a full retry ladder');
+  assert.equal(new Set(candidates).size, 6, 'a retry ladder with a repeated rung wastes an insert on a name that already collided');
+  for (const candidate of candidates) {
+    const parsed = normalise(candidate);
+    assert.ok(parsed, `auto-generated name ${JSON.stringify(candidate)} is rejected by normaliseName() - the player would be handed a 400 on their first run`);
+    assert.equal(parsed.name, candidate, `normaliseName() rewrote ${JSON.stringify(candidate)}; the stored name must be the one that was generated`);
+    assert.equal(blockedLocally(parsed.key), false,
+      `auto-generated name ${JSON.stringify(candidate)} trips the blocklist screen`);
+    sweptNames++;
+  }
+}
+assert.ok(sweptNames >= 1200, `only ${sweptNames} generated name(s) screened - the sweep is not exercising the generator`);
+
+// The DB half of the screen must still be there: the local patterns are only
+// the static file, and `blocked_names` is the live list an operator edits.
+assert.match(provisionSrc, /blocked_names\?select=pattern,is_exact/,
+  'blockedName() must still consult the live blocked_names table, not only the static JSON');
+
+// One screen, four callers. A fourth private copy is how the live table check
+// gets dropped from one path and nobody notices.
+for (const file of ['api/auth/register.mjs', 'api/name/claim.mjs', 'api/name/rename.mjs']) {
+  const src = stripComments(read(file));
+  assert.match(src, /from\s+'\.\.\/_names\.mjs'/,
+    `${file} must import the shared name screen from api/_names.mjs`);
+  assert.doesNotMatch(src, /async\s+function\s+blocked\s*\(/,
+    `${file} still defines a private blocked() - the screen must have exactly one definition`);
+}
+
+// --- 3. Adoption is gated on ownership, and the bare PATCH is gone ----------
+assert.doesNotMatch(registerSrc, /runs\?id=eq/,
+  'api/auth/register.mjs must NOT patch runs by a caller-supplied id - that adopted any run id a caller learned');
+assert.doesNotMatch(registerSrc, /rest\s*\(\s*`?runs/,
+  'api/auth/register.mjs must not write the runs table directly at all; adoption belongs in the RPC that can prove ownership');
+assert.match(registerSrc, /rpc\s*\(\s*'fw_register_device_player'/,
+  'api/auth/register.mjs must create and adopt through fw_register_device_player, which joins run_tickets to prove the device owns the runs');
+assert.match(registerSrc, /p_device_key\s*:/,
+  'the adoption RPC call must pass the device key - it is the only evidence of ownership the caller can supply');
+
+const REGISTER_FN = 'fw_register_device_player';
+const adopting = migrationFiles.filter((name) => read(`supabase/migrations/${name}`).includes(`function public.${REGISTER_FN}`));
+assert.equal(adopting.length, 1,
+  `exactly one migration must define ${REGISTER_FN}; found ${adopting.length} (${adopting.join(', ') || 'none'})`);
+const adoptSql = read(`supabase/migrations/${adopting[0]}`);
+// The structural checks below run on EXECUTABLE sql only. A migration documents
+// its own rollback in `--` comments, and a scanner that cannot tell a documented
+// `drop column` from an executed one either fails on good documentation or
+// passes on a real drop. (No string literal in these files contains `--`.)
+const adoptDdl = adoptSql.replace(/--[^\n]*/g, '');
+
+assert.match(adoptDdl, new RegExp(`function public\\.${REGISTER_FN}[\\s\\S]{0,600}?security definer`, 'i'),
+  `${REGISTER_FN} must be security definer - the tables it writes are revoked from every role but service_role`);
+assert.match(adoptDdl, /set\s+search_path\s*=\s*public,\s*pg_temp/i,
+  `${REGISTER_FN} must pin search_path, like every other fw_ function`);
+
+// THE gate. Every write that moves a run under a player must join the ticket
+// that proves this device played it, and must only take runs nobody owns.
+const runWrites = [...adoptDdl.matchAll(/update\s+public\.runs\b/gi)];
+assert.ok(runWrites.length >= 1, `${adopting[0]} must adopt runs by updating public.runs`);
+for (const match of runWrites) {
+  const end = adoptDdl.indexOf(';', match.index);
+  const statement = adoptDdl.slice(match.index, end === -1 ? adoptDdl.length : end);
+  assert.match(statement, /public\.run_tickets/,
+    'every adoption write must join public.run_tickets - the ticket is the only proof the device played the run');
+  assert.match(statement, /device_key\s*=\s*p_device_key/,
+    'every adoption write must be scoped to the calling device key');
+  assert.match(statement, /player_id\s+is\s+null/,
+    'adoption must only take unclaimed runs - anything else steals a run from the player who owns it');
+  assert.doesNotMatch(statement, /r\.id\s*=\s*p_run_id/,
+    'a caller-supplied run id must never be the thing that authorises a write; it may only be reported on');
+}
+
+// The backfill. For an already-verified run, fw_record_verdict has run and
+// skipped the publish (player_id was null), so re-pointing the run alone
+// publishes nothing. This is what a bare PATCH could never do.
+assert.match(adoptDdl, /insert\s+into\s+public\.board_public/i,
+  `${REGISTER_FN} must backfill board_public - for an already-verified run fw_record_verdict has already run and skipped the insert`);
+assert.match(adoptDdl, /on\s+conflict\s*\(\s*run_id\s*\)\s*do\s+update/i,
+  'the board_public backfill must be idempotent on run_id, like fw_record_verdict and fw_claim_name');
+assert.match(adoptDdl, /verdict\s*=\s*'verified'/i,
+  'only a verified run may be published to board_public - invariant 8');
+
+// Upgrading, not orphaning: a device that already plays as an auto-provisioned
+// guest must keep its scores when it creates an account.
+assert.match(adoptDdl, /is_auto/,
+  `${REGISTER_FN} must adopt the device's auto-provisioned guest, or every score earned before signup is stranded on a ghost player`);
+assert.match(adoptDdl, /add\s+column\s+if\s+not\s+exists\s+is_auto\s+boolean/i,
+  'the is_auto marker must be added with `if not exists`, so re-applying the migration is a no-op');
+
+assert.match(adoptDdl, new RegExp(`revoke\\s+all\\s+on\\s+function\\s+public\\.${REGISTER_FN}[\\s\\S]{0,200}?from\\s+public,\\s*anon,\\s*authenticated`, 'i'),
+  `${REGISTER_FN} must be revoked from anon/authenticated - a browser must not be able to call it directly`);
+assert.match(adoptDdl, new RegExp(`grant\\s+execute\\s+on\\s+function\\s+public\\.${REGISTER_FN}[\\s\\S]{0,200}?to\\s+service_role`, 'i'),
+  `${REGISTER_FN} must be granted to service_role, or api/ cannot call it (default privileges revoke execute on new functions)`);
+assert.doesNotMatch(adoptDdl, /\bdrop\s+(table|column)\b/i,
+  `${adopting[0]} must stay additive`);
+
+// A plpgsql function whose RETURNS TABLE names a column that also exists on a
+// table it updates has an ambiguous name in any UNqualified reference, and
+// `plpgsql.variable_conflict = error` (the default) raises on it AT RUN TIME -
+// `create function` never plans the body, so the migration applies cleanly and
+// the function fails the first time a real player reaches it. That is how
+// `fw_transfer_redeem` shipped broken. Both functions that return a
+// `token_version` column and also increment it are pinned here.
+for (const fn of ['fw_register_device_player', 'fw_transfer_redeem']) {
+  const start = adoptDdl.indexOf(`function public.${fn}`);
+  assert.ok(start !== -1, `${adopting[0]} must define ${fn}`);
+  const next = adoptDdl.indexOf('function public.', start + 1);
+  const fnBody = adoptDdl.slice(start, next === -1 ? adoptDdl.length : next);
+  if (!/returns\s+table\s*\([^)]*token_version/i.test(fnBody)) continue;
+  assert.doesNotMatch(fnBody, /token_version\s*=\s*token_version\s*\+/i,
+    `${fn} returns a token_version column, so an unqualified \`token_version + 1\` is ambiguous and raises at run time - write \`players.token_version + 1\``);
+  assert.match(fnBody, /token_version\s*=\s*players\.token_version\s*\+\s*1/i,
+    `${fn} must qualify the increment as players.token_version + 1`);
+}
+// Re-creating fw_transfer_redeem must not silently undo the revocation
+// 20260816214501 added to it.
+const redeemStart = adoptDdl.indexOf('function public.fw_transfer_redeem');
+assert.match(adoptDdl.slice(redeemStart, redeemStart + 1200), new RegExp(`${SESSION_COLUMN}\\s*=\\s*null`, 'i'),
+  `the re-created fw_transfer_redeem must still clear ${SESSION_COLUMN}, or a transferred-away device keeps a session token that validates`);
+
+// --- 4. Seasons are one permanent season ------------------------------------
+for (const file of [...handlerFiles, 'api/_lib.mjs', 'api/_verify.mjs', 'api/_names.mjs']) {
+  // Code, not prose: the comment left where the function used to live explains
+  // why there is no weekly season, and must not read as a violation.
+  assert.doesNotMatch(stripComments(read(file)), /currentWeeklySeasonId/,
+    `${file} still references currentWeeklySeasonId - the boards are all-time and there is no weekly reset`);
+}
+// The COLUMNS stay. They cost nothing, they are deliberate future-proofing, and
+// dropping them would rewrite two published views for no gain.
+for (const name of migrationFiles) {
+  assert.doesNotMatch(read(`supabase/migrations/${name}`), /drop\s+column[\s\S]{0,40}season_id/i,
+    `${name} drops season_id - the column is deliberate future-proofing and stays`);
+}
+assert.match(read('supabase/migrations/20260812204210_scoreboards_profiles.sql'), /season_id\s+integer\s+not\s+null/,
+  'board_public.season_id must still exist - collapsing seasons is a product decision, not a schema deletion');
+
+// --- 5. A generated name can be changed -------------------------------------
+assert.match(renameSrc, /playerForToken\s*\(\s*data\.player_id\s*,\s*data\.token\s*\)/,
+  'name/rename must authenticate with the {player_id, token} pair the browser stores - which is exactly what run/start hands a freshly provisioned guest');
+assert.match(renameSrc, /board_public\?player_id=eq\./,
+  'name/rename must patch the published name too, or the leaderboard keeps showing the generated one');
+
+console.log(`  ok: run/start provisions a named guest; ${sweptNames} generated names pass normaliseName() + the blocklist`);
+console.log(`  ok: ${adopting[0]} adopts runs only through the run_tickets ownership join and backfills board_public`);
+console.log('  ok: no weekly season code left under api/, and no migration drops season_id');
 console.log('✓ api endpoint/caller field + token-persistence guard PASSED');

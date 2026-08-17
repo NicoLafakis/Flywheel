@@ -1,4 +1,4 @@
-import { ensurePlayer, storeSave } from '../save.js';
+import { ensurePlayer, storeSave, adoptServerName, playerName } from '../save.js';
 import { post } from './request.js';
 
 const DEVICE_KEY = 'fw-board-device';
@@ -30,15 +30,31 @@ export function savePlayerSecret(secret) {
   try { localStorage.setItem(PLAYER_KEY, JSON.stringify(secret)); } catch { /* claim still renders from save */ }
 }
 
+// The server resolves name-uniqueness collisions, so the name that comes back
+// from a register / login / claim / provision can differ from the one this
+// device asked for. When the response carries a name it is authoritative; when
+// it does not, the name the player already has stands (invariant 10 — an
+// offline player must never be left without an identity).
+//
+// `chosen` is a name the PLAYER typed or accepted, so it is marked 'claimed'
+// either way: it is not a name the game handed out and nothing may re-roll it
+// behind their back.
+function applyIdentity(save, { player_id = null, name = null } = {}, chosen = null) {
+  const player = ensurePlayer(save);
+  if (player_id) player.id = player_id;
+  const resolved = (typeof name === 'string' && name.trim()) ? name : chosen;
+  if (resolved) adoptServerName(save, resolved);
+  player.claimedAt = new Date().toISOString();
+  player.nameSource = 'claimed';
+  storeSave(save);
+  return player.name;
+}
+
 export async function registerPlayer(save, name, password, runId = null) {
   try {
     const result = await post('/auth/register', { name, password, run_id: runId, device_key: deviceKey() });
     savePlayerSecret({ player_id: result.player_id, token: result.token });
-    const player = ensurePlayer(save);
-    player.id = result.player_id;
-    player.name = result.name;
-    player.claimedAt = new Date().toISOString();
-    storeSave(save);
+    applyIdentity(save, result, name);
     return result;
   } catch (error) {
     if (error.status === 400 || error.status === 409 || error.code === 'NAME_TAKEN' || error.code === 'PASSWORD_SHORT' || error.code === 'NAME_BLOCKED') {
@@ -47,11 +63,7 @@ export async function registerPlayer(save, name, password, runId = null) {
     const localId = 'local-' + b64url(crypto.getRandomValues(new Uint8Array(12)));
     const localToken = 'local-token-' + b64url(crypto.getRandomValues(new Uint8Array(16)));
     savePlayerSecret({ player_id: localId, token: localToken });
-    const player = ensurePlayer(save);
-    player.id = localId;
-    player.name = name;
-    player.claimedAt = new Date().toISOString();
-    storeSave(save);
+    applyIdentity(save, { player_id: localId }, name);
     return { player_id: localId, name, token: localToken, isOffline: true };
   }
 }
@@ -60,11 +72,7 @@ export async function loginPlayer(save, name, password) {
   try {
     const result = await post('/auth/login', { name, password, device_key: deviceKey() });
     savePlayerSecret({ player_id: result.player_id, token: result.token });
-    const player = ensurePlayer(save);
-    player.id = result.player_id;
-    player.name = result.name;
-    player.claimedAt = new Date().toISOString();
-    storeSave(save);
+    applyIdentity(save, result, name);
     return result;
   } catch (error) {
     if (error.status === 400 || error.status === 401 || error.code === 'NAME_INVALID' || error.code === 'INVALID_CREDENTIALS') {
@@ -73,11 +81,7 @@ export async function loginPlayer(save, name, password) {
     const localId = 'local-' + b64url(crypto.getRandomValues(new Uint8Array(12)));
     const localToken = 'local-token-' + b64url(crypto.getRandomValues(new Uint8Array(16)));
     savePlayerSecret({ player_id: localId, token: localToken });
-    const player = ensurePlayer(save);
-    player.id = localId;
-    player.name = name;
-    player.claimedAt = new Date().toISOString();
-    storeSave(save);
+    applyIdentity(save, { player_id: localId }, name);
     return { player_id: localId, name, token: localToken, isOffline: true };
   }
 }
@@ -86,11 +90,7 @@ export async function claimName(save, name, runId = null) {
   try {
     const result = await post('/name/claim', { name, run_id: runId, device_key: deviceKey() });
     savePlayerSecret({ player_id: result.player_id, token: result.token });
-    const player = ensurePlayer(save);
-    player.id = result.player_id;
-    player.name = result.name;
-    player.claimedAt = new Date().toISOString();
-    storeSave(save);
+    applyIdentity(save, result, name);
     return result;
   } catch (error) {
     if (error.status === 400 || error.status === 409 || error.code === 'NAME_TAKEN' || error.code === 'NAME_BLOCKED') {
@@ -99,11 +99,7 @@ export async function claimName(save, name, runId = null) {
     const localId = 'local-' + b64url(crypto.getRandomValues(new Uint8Array(12)));
     const localToken = 'local-token-' + b64url(crypto.getRandomValues(new Uint8Array(16)));
     savePlayerSecret({ player_id: localId, token: localToken });
-    const player = ensurePlayer(save);
-    player.id = localId;
-    player.name = name;
-    player.claimedAt = new Date().toISOString();
-    storeSave(save);
+    applyIdentity(save, { player_id: localId }, name);
     return { player_id: localId, name, token: localToken, isOffline: true };
   }
 }
@@ -113,17 +109,13 @@ export async function renamePlayer(save, name) {
   if (!secret) throw new Error('This browser does not hold the name token.');
   try {
     const result = await post('/name/rename', { ...secret, name, device_key: deviceKey() });
-    const player = ensurePlayer(save);
-    player.name = result.name;
-    storeSave(save);
+    applyIdentity(save, result, name);
     return result;
   } catch (error) {
     if (error.status === 400 || error.status === 409 || error.code === 'NAME_TAKEN' || error.code === 'NAME_BLOCKED') {
       throw error;
     }
-    const player = ensurePlayer(save);
-    player.name = name;
-    storeSave(save);
+    applyIdentity(save, {}, name);
     return { name, isOffline: true };
   }
 }
@@ -137,11 +129,7 @@ export async function startTransfer(save) {
 export async function redeemTransfer(save, code) {
   const result = await post('/name/transfer/redeem', { code, device_key: deviceKey() });
   savePlayerSecret({ player_id: result.player_id, token: result.token });
-  const player = ensurePlayer(save);
-  player.id = result.player_id;
-  player.name = result.name;
-  player.claimedAt = new Date().toISOString();
-  storeSave(save);
+  applyIdentity(save, result);
   return result;
 }
 
@@ -150,7 +138,10 @@ export async function removePlayer(save) {
   if (!secret) throw new Error('This browser does not hold the name token.');
   await post('/player/remove', secret);
   try { localStorage.removeItem(PLAYER_KEY); } catch { /* ignored */ }
+  // Their published identity is gone, but the device is still a player: hand it
+  // a fresh automatic name rather than a blank one, or every surface that prints
+  // a name renders empty until they sign in again.
   const player = ensurePlayer(save);
-  player.id = null; player.name = null; player.claimedAt = null;
-  storeSave(save);
+  player.id = null; player.name = null; player.claimedAt = null; player.nameSource = 'auto';
+  playerName(save);
 }

@@ -1,15 +1,15 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-17T12:19:23+00:00",
+    "generatedAt": "2026-08-17T14:25:40+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
-      "files": 138,
+      "files": 140,
       "symbols": 6,
       "edges": 1,
       "modules": 4,
-      "reusedFromCache": 127
+      "reusedFromCache": 131
     }
   },
   "files": {
@@ -183,16 +183,16 @@
     },
     "js/audio/music.js": {
       "lang": "javascript",
-      "hash": "48121ba4eb0485a4db424f18854234e627020df12bac04eaab10ace1edd83c7f",
-      "loc": 341,
+      "hash": "add9a2ad72d94ab4e05ea3f8da988e5fc543eab053df6670998595de07bab6a7",
+      "loc": 384,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/audio/music.test.mjs": {
       "lang": "javascript",
-      "hash": "086cceedcd8fbf58d4ba5cbd57344828a96b7bada2827bf7122cf54358babe19",
-      "loc": 117,
+      "hash": "4787f2f129c7696cd95888f78bfb5ec9fd3edc4d6a887679b23641c88c7e57d4",
+      "loc": 162,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -201,6 +201,14 @@
       "lang": "javascript",
       "hash": "a2a99cc54316ec83aae4e9ceb3f1f171a5a632016b3a5a6864a12f2a0aac92eb",
       "loc": 9,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/board/names.js": {
+      "lang": "javascript",
+      "hash": "e7becf9ad371df06ab9b8ab1f4f8cce901af8da7541d03cc84f056669475a57a",
+      "loc": 133,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -303,8 +311,8 @@
     },
     "js/main.js": {
       "lang": "javascript",
-      "hash": "c490c610012175a6d1d6620bf16acba8dcd6077586e79444bfee88983faad99d",
-      "loc": 1911,
+      "hash": "7463fb4afa83df5e0ec841f3f56c0479d8f106864703ba4547c889d452a3f4cd",
+      "loc": 1920,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -554,8 +562,8 @@
     },
     "js/ui/screens.js": {
       "lang": "javascript",
-      "hash": "ecb70971ca5327f5740351c19ae847a83746f0bb08e250e2fbf794e08170434a",
-      "loc": 1816,
+      "hash": "e6cfeb454ca00c55738ff243e436cf8cd50b3375ddfff5d093d046a11eb337d1",
+      "loc": 1839,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -914,8 +922,8 @@
     },
     "tools/economy-consistency.test.mjs": {
       "lang": "javascript",
-      "hash": "1eec6fb803bfc3cddb8c947bf7b2fafb4316f8789edfb8aaa027c16da9f60ebd",
-      "loc": 328,
+      "hash": "69798d0025c21acec7a7960ed8702da8d21555e325f56ac6bbb4f6eba44cfc4b",
+      "loc": 500,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -938,8 +946,8 @@
     },
     "tools/import-all-modules.mjs": {
       "lang": "javascript",
-      "hash": "b913f0144369e69b5054074426a476aee571c54b10e7d51bb7cac323bf004a60",
-      "loc": 19,
+      "hash": "7844e1ffafd8e63e4bc1d6c4005f5b0254aa5295e414c07fe7e31b883cfb259a",
+      "loc": 20,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1056,6 +1064,14 @@
       "symbols": [],
       "imports": []
     },
+    "tools/names.test.mjs": {
+      "lang": "javascript",
+      "hash": "fa03214346ef98131304f89774bb91ca75ab4bec95d9ef31c9a5b43989e9726e",
+      "loc": 260,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/perf/lib.cjs": {
       "lang": "javascript",
       "hash": "922e756bb69a5a62571e842b793b79da8ab794fa20eca8f7dc669f0d26fcd1ea",
@@ -1154,8 +1170,8 @@
     },
     "tools/validate.mjs": {
       "lang": "javascript",
-      "hash": "d555435cb245e6c0a772c8ac81925cbd51d4e6077d019b730686bca0bfa6abcb",
-      "loc": 2811,
+      "hash": "9dd1764c11f64159c2c2f87b3504eb90a5ff54dbf230ed170031df589e7b55b7",
+      "loc": 2823,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1204,6 +1220,7 @@
         "js/audio/music.js",
         "js/audio/music.test.mjs",
         "js/board/config.js",
+        "js/board/names.js",
         "js/board/outbox.js",
         "js/board/player.js",
         "js/board/read.js",
@@ -1308,6 +1325,7 @@
         "tools/multiplayer-sim.test.mjs",
         "tools/music-assets-selftest.mjs",
         "tools/music-cue.test.mjs",
+        "tools/names.test.mjs",
         "tools/perf/lib.cjs",
         "tools/perf/t901-report.cjs",
         "tools/perf/t901-run.cjs",

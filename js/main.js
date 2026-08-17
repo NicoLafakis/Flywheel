@@ -5,7 +5,7 @@ import {
   RANKED_TICK_COUNT, VoxelSandboxSim, sandboxSizeProgress, loadScene,
 } from './voxelsim.js';
 import { getLevel, METROS } from './levels.js';
-import { loadSave, storeSave, recordLevelResult, recordSandboxResult, recordChallengeResult, isLevelUnlocked, buyUpgrade } from './save.js';
+import { loadSave, storeSave, recordLevelResult, recordSandboxResult, recordChallengeResult, isLevelUnlocked, buyUpgrade, playerName } from './save.js';
 import { upgradeMultiplier } from './upgrades.js';
 import { World3D } from './world3d.js';
 import { VoxelWorld3D } from './voxelworld.js';
@@ -875,7 +875,11 @@ function showMultiplayerHostModal() {
   stopMenuScene();
   ensureMultiplayerUI();
   mpUI.showHostCreateModal({
-    defaultName: save.player?.name || '',
+    // Every player has a name from their first frame (js/save.js), so the
+    // multiplayer prompts arrive pre-filled instead of demanding one. There is
+    // no 'Host' and no 'Player_417' fallback any more: those were three
+    // different answers to the question the save already answers once.
+    defaultName: playerName(save),
     onCancel: () => {
       screens.showTitle();
     },
@@ -893,7 +897,7 @@ function hostMultiplayerLobby({ scene = 'gallery', maxPlayers = 4 }) {
   stopMenuScene();
   const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
   const channel = new LiveBroadcastChannel(roomCode, 'host');
-  const playerName = save.player?.name || 'Host';
+  const hostName = playerName(save);
   const playerSkin = equippedSkinId();
 
   ensureMultiplayerUI();
@@ -901,7 +905,7 @@ function hostMultiplayerLobby({ scene = 'gallery', maxPlayers = 4 }) {
   mpLobby = new MultiplayerLobby({
     channel,
     isHost: true,
-    playerName,
+    playerName: hostName,
     playerSkin,
     scene,
     maxPlayers,
@@ -950,7 +954,7 @@ function joinMultiplayerLobby(roomCode, chosenName = null) {
   if (chosenName === null || chosenName === undefined) {
     mpUI.showJoinNamePrompt({
       roomCode: code,
-      defaultName: save.player?.name || '',
+      defaultName: playerName(save),
       onConfirm: (name) => joinMultiplayerLobby(code, name),
       onCancel: () => { state = 'menu'; screens.showTitle(); },
     });
@@ -959,7 +963,7 @@ function joinMultiplayerLobby(roomCode, chosenName = null) {
 
   const senderId = 'peer_' + Math.random().toString(36).substring(2, 7);
   const channel = new LiveBroadcastChannel(code, senderId);
-  const playerName = String(chosenName).trim() || save.player?.name || `Player_${Math.floor(Math.random() * 900 + 100)}`;
+  const peerName = String(chosenName).trim() || playerName(save);
   const playerSkin = equippedSkinId();
 
   // A full room answers the JOIN_REQUEST from inside the constructor below, so
@@ -978,7 +982,7 @@ function joinMultiplayerLobby(roomCode, chosenName = null) {
   joiningLobby = new MultiplayerLobby({
     channel,
     isHost: false,
-    playerName,
+    playerName: peerName,
     playerSkin,
     roomCode: code,
     // Constructor-supplied rather than assigned afterwards, for the reason above.

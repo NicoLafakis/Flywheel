@@ -1,22 +1,8 @@
-import blockedNames from '../data/blocked-names.json' with { type: 'json' };
 import {
   body, errorResponse, fail, hashPassword, isDeviceKey, newDeviceToken, normaliseName,
-  ok, rest, sha256Hex, originRateKey,
+  ok, rest, rpc, sha256Hex, originRateKey,
 } from '../_lib.mjs';
-
-const RESERVED = new Set(['admin', 'administrator', 'moderator', 'official', 'staff', 'support', 'system', 'flywheel', 'sprocket']);
-
-async function blocked(key) {
-  if (RESERVED.has(key) || blockedNames.some((row) => key.includes(row.pattern))) return true;
-  const rows = await rest(`blocked_names?select=pattern,is_exact&limit=500`);
-  return rows.some((row) => row.is_exact ? key === row.pattern : key.includes(row.pattern));
-}
-
-function suggestions(name, key) {
-  const suffixes = ['7', 'X', '27', 'GO', 'RUN'];
-  return suffixes.map((suffix) => `${name.slice(0, Math.max(1, 16 - suffix.length))}${suffix}`)
-    .filter((candidate) => candidate.toLowerCase().replace(/[^a-z0-9]/g, '') !== key);
-}
+import { blockedName as blocked, suggestions } from '../_names.mjs';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.setHeader('allow', 'POST'); fail(res, 405, 'METHOD_NOT_ALLOWED', 'Use POST.'); return; }
@@ -58,40 +44,54 @@ export default async function handler(req, res) {
     // holding a token that authenticated nothing.
     const token = newDeviceToken();
 
-    const inserted = await rest('players', {
-      method: 'POST',
-      body: {
-        name: parsed.name,
-        name_key: parsed.key,
-        token_hash: `\\x${passHashHex}`,
-        session_token_hash: `\\x${sha256Hex(token)}`,
-        token_version: 1,
-        moderation_state: 'ok',
-        last_seen_at: new Date().toISOString(),
-      },
-      headers: { prefer: 'return=representation' },
+    // Creating the account and inheriting what this device already played are
+    // one transaction, because they have to be. Two things were wrong with doing
+    // it in the handler:
+    //
+    // SECURITY. The old code was `PATCH runs?id=eq.<data.run_id>` with no
+    // ownership check of any kind - no device match, no `player_id is null`, no
+    // verdict check - so any run id a caller learned could be adopted by a name
+    // they had just created. The RPC gates every write on a join to
+    // `run_tickets`, which is the only record of which device was issued the
+    // run, exactly as `fw_claim_name` does. `p_run_id` is reported on and never
+    // authorises anything.
+    //
+    // CORRECTNESS. Re-pointing an already-VERIFIED run publishes nothing on its
+    // own: `fw_record_verdict` ran while `player_id` was null, took the
+    // `is not null` branch and skipped the board_public insert, and it will
+    // never run again for that run. The backfill inside the RPC is the only
+    // thing that puts an inherited score on the leaderboard.
+    //
+    // And since run/start now hands every device an auto-provisioned guest, the
+    // runs this device played usually are NOT unclaimed - they belong to that
+    // guest. So the RPC upgrades the guest in place (same row, same id, same
+    // scores, now with a name and a password) rather than creating a second
+    // player and stranding everything the device earned before signup.
+    const rows = await rpc('fw_register_device_player', {
+      p_name: parsed.name,
+      p_name_key: parsed.key,
+      p_password_hash_hex: passHashHex,
+      p_session_hash_hex: sha256Hex(token),
+      p_device_key: data.device_key,
+      p_run_id: data.run_id || null,
     });
-
-    const player = inserted && inserted[0];
+    const player = rows && rows[0];
     if (!player) throw new Error('Player creation failed');
-
-    // Link any recent runs for this device
-    if (data.run_id) {
-      await rest(`runs?id=eq.${encodeURIComponent(data.run_id)}`, {
-        method: 'PATCH',
-        body: { player_id: player.id },
-        headers: { prefer: 'return=minimal' },
-      });
-    }
 
     if (originKey) {
       await rest('submission_log', {
-        method: 'POST', body: { player_id: player.id, device_key: originKey, kind: 'claim-ip' },
+        method: 'POST', body: { player_id: player.player_id, device_key: originKey, kind: 'claim-ip' },
         headers: { prefer: 'return=minimal' },
       });
     }
 
-    ok(res, { player_id: player.id, name: player.name, token });
+    // `adopted_runs` / `published_runs` are the honest answer to "did creating
+    // this account keep what I played?", which the old bare PATCH could not give
+    // at all. `upgraded` says the device's guest identity became this account
+    // rather than a second row being created.
+    ok(res, { player_id: player.player_id, name: player.player_name, token,
+      upgraded: player.upgraded === true, adopted_runs: player.adopted || 0,
+      published_runs: player.published || 0, run_adopted: player.requested_run_adopted === true });
   } catch (error) {
     if (error.status === 409 || /duplicate key|unique/i.test(JSON.stringify(error.data || error.message))) {
       fail(res, 409, 'NAME_TAKEN', 'That name is taken.', false);
