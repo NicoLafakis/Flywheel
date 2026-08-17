@@ -305,11 +305,21 @@ to match (ADR-0015). In absolute terms Manhattan's SIZE 8 costs 2,694 raw mass
 the point: growth is a reward for eating, and the combo is a reward for eating
 *fast*. Re-check this whenever scene mass changes: the ladder re-paces silently
 up to the ×10 ceiling, and it drags the camera's SIZE-keyed zoom ramp with it.
-`tools/validate.mjs` pins a per-scene SIZE floor set to the level each scripted
-excursion reached on the OLD combo-mass ladder (Manhattan's WTC excursion ≥ 8,
-its expansion-district sweep ≥ 5, Upper Manhattan / Brooklyn / Boston ≥ 5,
-Cambridge ≥ 7, the gallery tour ≥ 8), so the rebase cannot quietly cost a scene
-a level; Upper Manhattan also floors `eatenCount ≥ 300`.
+`tools/validate.mjs` pins a per-scene SIZE floor, so the rebase cannot quietly
+cost a scene a level; Upper Manhattan also floors `eatenCount ≥ 300`. The
+convention is **floor = the level the excursion actually reached, minus one** —
+one level of margin, so ordinary noise does not go red but a real loss does.
+Current floors: gallery tour ≥ 8; Manhattan's WTC excursion ≥ 7 (this page said
+≥ 8 until 2026-08-17; the code has always said 7); its expansion-district sweep
+≥ 7; Upper Manhattan ≥ 5; Brooklyn ≥ 5; Boston ≥ 10; Cambridge ≥ 7 on the
+`FW_VALIDATE_SOAK=1` route and ≥ 3 on the default 240 s gate slice; Chicago ≥ 7.
+Manhattan-district (5 → 7) and Boston (5 → 10) rose on 2026-08-17 when the
+excursion driver stopped idling and the holes started eating what the routes
+actually pass over; Cambridge and Chicago were not re-measured in that pass and
+keep their shipped floors. Brooklyn sits at its floor with zero margin — if it
+slips, re-cut its route rather than lowering the number
+([RCA-2026-08-17](../findings/RCA-2026-08-17-chicago-excursion-red-since-speed-retune.md)
+section 8).
 
 ## Scenes
 
@@ -714,8 +724,19 @@ especially
   declared street's span, `sceneDecor` key order matching draw order,
   `sceneAmbient` present and render-only, 3 s spawn-idle stability, excursion
   determinism, an excursion `eatenCount ≥ 300` floor, a per-scene SIZE
-  progression floor (the level that scene reached on the pre-ADR-0015 ladder,
-  so 5 for most and 7 for Cambridge), and a finite-position guard. Per-scene differences (exported tables,
+  progression floor, an excursion idle-fraction ceiling, and a finite-position
+  guard. **Every excursion is driven by the one shared
+  `tools/route-driver.mjs`** (extracted 2026-08-17). Its waypoints advance on
+  ARRIVAL with `until` as a per-lap ceiling, and the route cycles to fill the
+  excursion's fixed time budget. It used to be nine copy-pasted drivers that
+  advanced on the CLOCK alone, so a hole fast enough to reach a waypoint early
+  stood still until the window expired and the probe measured idle time rather
+  than the scene — the whole of the 2026-08-17 `SPEED_MULT` 1.4 → 1.8 retune
+  went into idling, and Chicago's floor went red
+  ([RCA-2026-08-17](../findings/RCA-2026-08-17-chicago-excursion-red-since-speed-retune.md)).
+  `probeRouteSpent` now holds every excursion to ≤ 2% parked ticks, and a
+  `speedInvariance` section runs Chicago's route at x1.00 and x2.00 hole speed
+  and asserts the faster hole covers ≥ 1.25x the ground. Per-scene differences (exported tables,
   which `sceneAmbient` kinds exist, the slack threshold) are always a
   parameter to the shared probe, never a second implementation — duplicated
   probe bodies across the file went from 19 to 0 in the 2026-08-05 refactor.
@@ -729,7 +750,9 @@ especially
   solid-vs-mover and loose-body overlap separation probes. Chicago
   (`validateChicago()`) runs the full shared contract too, on its own tables,
   with the same `eatenCount >= 300` / `SIZE >= 7` excursion floor Cambridge
-  set.
+  set. That Chicago floor is the one the 2026-08-17 `SPEED_MULT` retune took
+  red — not because the scene changed but because the harness measured a parked
+  hole; see the SIZE-floor paragraph above and the RCA.
   The full `node tools/validate.mjs` run completes end to end again. The old
   stall — `validateCambridge()`'s 780 s scripted excursion hitting superlinear
   debris-churn cost for 1-2+ wall-hours

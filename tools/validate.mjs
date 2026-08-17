@@ -48,6 +48,7 @@ import {
 } from '../js/save.js';
 import { UPGRADES, UPGRADE_COST_TABLE, upgradeCost, upgradeMultiplier, defaultUpgrades, SHOP_CATEGORIES, getShopItemsByCategory } from '../js/upgrades.js';
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from '../js/fwmath.js';
+import { driveRoute, MAX_IDLE_FRAC } from './route-driver.mjs';
 import { runBoardSelftest } from './board-selftest.mjs';
 import { runHelpSelftest } from './help.test.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -148,7 +149,11 @@ const levelsToCheck = onlyIndex ? LEVELS.filter((l) => l.index === onlyIndex) : 
 // Scripted hole tour: hold south of the tower (locality probe), then drive
 // through every district and object type in the gallery.
 const VOXEL_PATH = [
-  { until: 3, x: 0, z: 16 },      // hold (stability probe)
+  // `hold` opts this leg out of arrival advance (see driveRoute): the 3 s idle
+  // is the point of it — `nonStatic3`/`eaten3` below assert that a hole sitting
+  // still collapses and consumes NOTHING — so reaching the spot early must not
+  // end it early.
+  { until: 3, x: 0, z: 16, hold: true },   // hold (stability probe)
   { until: 6, x: -6, z: 13 },     // street furniture, west half
   { until: 8, x: 8, z: 13 },      // street furniture, east half
   { until: 12, x: 0, z: 6 },      // tower south edge
@@ -171,29 +176,54 @@ const VOXEL_PATH = [
   { until: 53, x: 21, z: 11.5 },  // gas station
   { until: 56, x: 0, z: 22 },     // elevated track
 ];
-function voxelMoveAt(t, h) {
-  let wp = VOXEL_PATH[VOXEL_PATH.length - 1];
-  for (const w of VOXEL_PATH) if (t < w.until) { wp = w; break; }
-  const dx = wp.x - h.x, dz = wp.z - h.z;
-  const d = Math.hypot(dx, dz);
-  return d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 };
+
+// Every scripted excursion below is driven by `driveRoute` from
+// ./route-driver.mjs — a single module rather than a copy per scene, because
+// the copies are how RCA-2026-08-17 shipped: the driver advanced its waypoints
+// on the CLOCK, so any hole fast enough to arrive early stood still for the
+// rest of the window and the probe measured idle time instead of the scene.
+// That module's header carries the full argument and the A/B numbers; the
+// arrival-driven, looping replacement is what makes the excursions insensitive
+// to hole speed. `run.__route` is where it stashes laps/idle/distance.
+
+// The per-scene half of the speed-invariance pin, run on every excursion this
+// file drives at zero extra cost — the numbers come off the run that already
+// happened. `validateSpeedInvariance` below proves the ratio clause on one
+// scene at two speeds; this proves the absolute clause on ALL of them, which is
+// what stops the next scene degrading unwatched the way section 5 of the RCA
+// found brooklyn and cambridge already were.
+// MAX_IDLE_FRAC (2%) is a ceiling with margin, not a measurement: every shipped
+// excursion currently reports 0.0% parked, and the broken driver reported 71.4%
+// and 85.6% on the two pin arms. Anywhere in between is a route that has started
+// waiting on its own clock again. Pinning it at the measured 0% would fail on the
+// first legitimate route that has to pause for a lap boundary, and a pin that
+// cries wolf gets deleted rather than investigated.
+function probeRouteSpent(name, run, what = 'excursion') {
+  const r = run.__route;
+  if (!r) { fail(`${name}: ${what} was not driven through driveRoute — no route stats to check`); return; }
+  if (r.idleFrac > MAX_IDLE_FRAC) {
+    const overBy = (r.idleFrac - MAX_IDLE_FRAC) * r.steps;
+    fail(`${name}: the ${what} left the hole standing still for ${(r.idleFrac * 100).toFixed(1)}% of its ${r.steps} ticks (max ${(MAX_IDLE_FRAC * 100).toFixed(0)}%, over by ${overBy.toFixed(0)} ticks / ${(overBy / 60).toFixed(1)}s) — a parked hole measures the clock, not the scene`);
+  }
+  // Printed on every run, pass or fail. The absence of exactly this line is what
+  // let the 2026-08-17 regression ship: nothing reported how the excursion spent
+  // its time, so a hole that idled 85% of the run looked like a scene that had
+  // got harder. Route stats are free — they come off the run that already happened.
+  console.log(`    ${name} ${what}: laps=${r.laps} idle=${(r.idleFrac * 100).toFixed(1)}% dist=${r.dist.toFixed(0)}m over ${r.seconds}s`);
 }
 
 function runVoxelSandbox() {
-  const sim = new VoxelSandboxSim({ seed: 'validator' });
   const snap = {};
   let maxUnstable = 0;
-  const steps = 56 * 60;
-  for (let i = 0; i < steps; i++) {
-    sim.step(DT, voxelMoveAt(i * DT, sim.hole));
-    maxUnstable = Math.max(maxUnstable, sim.blocks.filter((b) => b.state === 'unstable').length);
-    if (i === 2.5 * 60) { // sample while the hole is definitely still idling (path moves at t=3)
-      snap.eaten3 = sim.hole.eatenCount;
-      snap.nonStatic3 = sim.blocks.filter((b) => b.state !== 'static').length;
+  const sim = driveRoute(new VoxelSandboxSim({ seed: 'validator' }), VOXEL_PATH, 56, (i, run) => {
+    maxUnstable = Math.max(maxUnstable, run.blocks.filter((b) => b.state === 'unstable').length);
+    if (i === 2.5 * 60) { // sample while the hole is definitely still idling (VOXEL_PATH[0] holds to t=3)
+      snap.eaten3 = run.hole.eatenCount;
+      snap.nonStatic3 = run.blocks.filter((b) => b.state !== 'static').length;
     }
-    if (i === 10 * 60) snap.eaten10 = sim.hole.eatenCount;
-    if (i === 20 * 60) snap.eaten20 = sim.hole.eatenCount;
-  }
+    if (i === 10 * 60) snap.eaten10 = run.hole.eatenCount;
+    if (i === 20 * 60) snap.eaten20 = run.hole.eatenCount;
+  });
   return { sim, snap, maxUnstable };
 }
 
@@ -260,6 +290,7 @@ function validateVoxelSandbox() {
   if (!(a.snap.eaten10 < a.snap.eaten20)) {
     fail(`voxel sandbox: collapse not progressive (eaten t=10s: ${a.snap.eaten10}, t=20s: ${a.snap.eaten20})`);
   }
+  probeRouteSpent('voxel sandbox', a.sim, 'gallery tour');
   if (a.sim.hole.eatenCount < 20) fail(`voxel sandbox: only ${a.sim.hole.eatenCount} blocks consumed in 30s tour (expected >=20)`);
   // progression attainable: the scripted tour must reach at least SIZE 8
   if (a.sim.hole.size < 8) fail(`voxel sandbox: tour reached only SIZE ${a.sim.hole.size} (expected >=8 — progression too steep?)`);
@@ -286,7 +317,7 @@ function validateVoxelSandbox() {
   probeDistrictDensity(fresh, 'voxel sandbox', [], VOXEL_PATH);   // no districts declared — vacuous
   probeHeroIdentity(fresh, 'voxel sandbox', []);                  // no hero pair declared — vacuous
 
-  console.log(`  voxel sandbox: eaten=${a.sim.hole.eatenCount}/${a.sim.totalBlocks} raw=${a.sim.hole.rawMass.toFixed(1)} score=${a.sim.hole.mass.toFixed(0)} peakChain=${a.sim.hole.bestCombo} radius=${a.sim.hole.radius.toFixed(2)} (t=10s: ${a.snap.eaten10}, t=20s: ${a.snap.eaten20})`);
+  console.log(`  voxel sandbox: eaten=${a.sim.hole.eatenCount}/${a.sim.totalBlocks} raw=${a.sim.hole.rawMass.toFixed(1)} score=${a.sim.hole.mass.toFixed(0)} peakChain=${a.sim.hole.bestCombo} size=${a.sim.hole.size} radius=${a.sim.hole.radius.toFixed(2)} (t=10s: ${a.snap.eaten10}, t=20s: ${a.snap.eaten20})`);
 }
 
 // The helpers replace the only implementation-approximated math in replayed
@@ -1034,12 +1065,8 @@ function validateManhattan() {
   probeHeroIdentity(sim, 'manhattan', []);          // no hero pair declared — vacuous
   probeIdleStability(sim, 'manhattan');
 
-  for (let i = 0; i < 39 * 60; i++) {
-    const t = i * DT, h = sim.hole;
-    const wp = t < WP[0].until ? WP[0] : WP[1];
-    const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
-    sim.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
-  }
+  driveRoute(sim, WP, 39);
+  probeRouteSpent('manhattan', sim, 'WTC excursion');
   if (sim.hole.eatenCount < 100) fail(`manhattan: only ${sim.hole.eatenCount} blocks eaten on the WTC excursion (expected >=100)`);
   // progression floor: the SIZE ladder is scaled by round(totalMass / 4200) —
   // ×10 for this scene's ~43.5k mass — so ANY content change silently re-paces
@@ -1062,16 +1089,19 @@ function validateManhattan() {
     { until: 30, x: -30, z: -14 },  // 7 WTC east face
     { until: 44, x: -34.5, z: -16 },// 7 WTC interior
   ];
-  for (let i = 0; i < 44 * 60; i++) {
-    const t = i * DT, h = sim2.hole;
-    let wp = WP2[WP2.length - 1];
-    for (const w of WP2) if (t < w.until) { wp = w; break; }
-    const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
-    sim2.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
-  }
+  driveRoute(sim2, WP2, 44);
+  probeRouteSpent('manhattan', sim2, 'expansion-district excursion');
   if (sim2.hole.eatenCount < 100) fail(`manhattan: only ${sim2.hole.eatenCount} blocks eaten on the expansion-district excursion (expected >=100)`);
   // Same rebase floor as the WTC excursion above, measured on HEAD.
-  if (sim2.hole.size < 5) fail(`manhattan: expansion-district excursion reached only SIZE ${sim2.hole.size} (expected >=5)`);
+  //
+  // Re-baselined 2026-08-17 with the arrival-driven driver (RCA-2026-08-17):
+  // this excursion used to reach SIZE 5 against a floor of 5 — the zero margin
+  // the RCA's section 5 flagged — because the hole spent most of the window
+  // parked. It now reaches SIZE 8, so the floor moves 5 -> 7. The convention
+  // across this file is floor = reached - 1 (see the gallery's 8 against 9,
+  // upper manhattan's 5 against 6): a tripwire with one level of slack, not a
+  // transcript of today's number.
+  if (sim2.hole.size < 7) fail(`manhattan: expansion-district excursion reached only SIZE ${sim2.hole.size} (expected >=7)`);
   console.log(`  manhattan district excursion: eaten=${sim2.hole.eatenCount} size=${sim2.hole.size} peakChain=${sim2.hole.bestCombo} score=${sim2.hole.mass.toFixed(0)}`);
 }
 
@@ -1159,22 +1189,13 @@ function validateUpperManhattan() {
   // at 37.8 s of 62 — 24 seconds of margin at 2.04x the gate. On the rebased
   // ladder the same route banks 1,398 raw and reaches SIZE 5, which is the
   // floor asserted below.
-  const runExcursion = () => {
-    const run = new VoxelSandboxSim({ seed: 'validator', scene: 'upper-manhattan' });
-    for (let i = 0; i < 62 * 60; i++) {
-      const t = i * DT, h = run.hole;
-      let wp = WP[WP.length - 1];
-      for (const w of WP) if (t < w.until) { wp = w; break; }
-      const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
-      run.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
-    }
-    return run;
-  };
+  const runExcursion = () => driveRoute(new VoxelSandboxSim({ seed: 'validator', scene: 'upper-manhattan' }), WP, 62);
   const a = runExcursion();
   const b = runExcursion();
   if (a.hole.eatenCount !== b.hole.eatenCount || a.hole.mass.toFixed(6) !== b.hole.mass.toFixed(6)) {
     fail(`upper manhattan: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
   }
+  probeRouteSpent('upper manhattan', a);
   // Held at Brooklyn's 300 through Pass 3. The Met orbit eats 721, so the floor
   // is loose against THIS route on purpose: its job is to catch a future pass
   // thinning the scene out, not to encode one route's yield.
@@ -1239,27 +1260,30 @@ function validateBrooklyn() {
   // the Brooklyn Museum rather than a tour of the boroughs: a straight sweep
   // spends most of its time crossing open plaza with nothing overhead, and a
   // moving path through dense structure is what keeps fresh mass falling in.
-  const runExcursion = () => {
-    const run = new VoxelSandboxSim({ seed: 'validator', scene: 'brooklyn' });
-    for (let i = 0; i < 62 * 60; i++) {
-      const t = i * DT, h = run.hole;
-      let wp = WP[WP.length - 1];
-      for (const w of WP) if (t < w.until) { wp = w; break; }
-      const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
-      run.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
-    }
-    return run;
-  };
+  const runExcursion = () => driveRoute(new VoxelSandboxSim({ seed: 'validator', scene: 'brooklyn' }), WP, 62);
   const a = runExcursion();
   const b = runExcursion();
   if (a.hole.eatenCount !== b.hole.eatenCount || a.hole.mass.toFixed(6) !== b.hole.mass.toFixed(6)) {
     fail(`brooklyn: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
   }
+  probeRouteSpent('brooklyn', a);
   if (a.hole.eatenCount < 300) fail(`brooklyn: only ${a.hole.eatenCount} blocks eaten on the museum excursion (expected >=300)`);
-  // Progression floor, held to the SAME >=4 as manhattan and upper manhattan.
-  // The ladder is capped at ×10 in voxelsim.js precisely so the largest scenes
-  // are not held to a lower standard than the ones they were built to surpass.
-  // Floor = the SIZE reached on HEAD's combo-mass ladder (see ADR-0015).
+  // Progression floor. (The comment here used to claim ">=4, the same as
+  // manhattan and upper manhattan" while the assertion said 5; the assertion was
+  // right and the prose was stale.) The ladder is capped at ×10 in voxelsim.js
+  // precisely so the largest scenes are not held to a lower standard than the
+  // ones they were built to surpass.
+  //
+  // Held at 5 through the 2026-08-17 driver fix. Brooklyn is the ONE scene the
+  // fix costs consumption: 767 eaten / SIZE 6 before, 558 / SIZE 5 after. That is
+  // not a regression in the fix, it is the gravity-time-gated yield of RCA
+  // section 6a showing up where it bites hardest — this route is a five-point
+  // orbit with ~7 m legs inside the museum, so its old yield was dwell-dominated
+  // rather than travel-dominated, and a driver that refuses to park collects less
+  // on it. The chain went the other way and is now intact (651 of 767 broken
+  // before, 558 of 558 after), i.e. the hole is fed continuously now. Floor stays
+  // 5 and it clears with zero margin: if this scene moves again, re-cut the ROUTE
+  // to be worth 62 s under a moving hole rather than moving the floor.
   if (a.hole.size < 5) fail(`brooklyn: excursion reached only SIZE ${a.hole.size} (expected >=5 — SIZE ladder too steep?)`);
 
   probeFinitePositions(a.blocks, 'brooklyn', 'after excursion');
@@ -1318,29 +1342,26 @@ function validateBoston() {
   // legs run END TO END rather than orbiting a point, so each one drags the
   // opening onto footprint it has not already taken. The spawn lot itself is
   // surface car park by design, so the first leg is transit, not harvest.
-  const runExcursion = () => {
-    const run = new VoxelSandboxSim({ seed: 'validator', scene: 'boston' });
-    for (let i = 0; i < 62 * 60; i++) {
-      const t = i * DT, h = run.hole;
-      let wp = WP[WP.length - 1];
-      for (const w of WP) if (t < w.until) { wp = w; break; }
-      const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
-      run.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
-    }
-    return run;
-  };
+  const runExcursion = () => driveRoute(new VoxelSandboxSim({ seed: 'validator', scene: 'boston' }), WP, 62);
   const a = runExcursion();
   const b = runExcursion();
   if (a.hole.eatenCount !== b.hole.eatenCount || a.hole.mass.toFixed(6) !== b.hole.mass.toFixed(6)) {
     fail(`boston: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
   }
+  probeRouteSpent('boston', a);
   if (a.hole.eatenCount < 300) fail(`boston: only ${a.hole.eatenCount} blocks eaten on the BCEC excursion (expected >=300)`);
   // Progression floor, held to the same >=5 as every other big sandbox. Boston
   // is the heaviest map on the ladder (141k mass puts the multiplier at its ×10
   // cap, so the SIZE 4 gate is 414 raw mass), which is exactly why it is not
   // granted a lower bar than the scenes it was built to surpass.
   // Floor = the SIZE reached on HEAD's combo-mass ladder (see ADR-0015).
-  if (a.hole.size < 5) fail(`boston: excursion reached only SIZE ${a.hole.size} (expected >=5 — SIZE ladder too steep?)`);
+  //
+  // Re-baselined 2026-08-17 (RCA-2026-08-17): 5 -> 10. This route is the one
+  // the arrival-driven driver helps most — it is ten legs run end to end, so
+  // the old time-gated version idled at nine of them. Reached SIZE 7 parked,
+  // SIZE 11 driven, eaten 1096 -> 4545. Floor = reached - 1, per the
+  // convention noted on manhattan's district excursion.
+  if (a.hole.size < 10) fail(`boston: excursion reached only SIZE ${a.hole.size} (expected >=10 — SIZE ladder too steep?)`);
 
   probeFinitePositions(a.blocks, 'boston', 'after excursion');
   console.log(`  boston sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} peakChain=${a.hole.bestCombo} score=${a.hole.mass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -1407,22 +1428,13 @@ function validateCambridge() {
   // the SIZE >= 7 ladder floor is the opt-in soak: FW_VALIDATE_SOAK=1.
   const SOAK = !!process.env.FW_VALIDATE_SOAK;
   const DURATION = SOAK ? WP[WP.length - 1].until : 240;
-  const runExcursion = () => {
-    const run = new VoxelSandboxSim({ seed: 'validator', scene: 'cambridge' });
-    for (let i = 0; i < DURATION * 60; i++) {
-      const t = i * DT, h = run.hole;
-      let wp = WP[WP.length - 1];
-      for (const w of WP) if (t < w.until) { wp = w; break; }
-      const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
-      run.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
-    }
-    return run;
-  };
+  const runExcursion = () => driveRoute(new VoxelSandboxSim({ seed: 'validator', scene: 'cambridge' }), WP, DURATION);
   const a = runExcursion();
   const b = runExcursion();
   if (a.hole.eatenCount !== b.hole.eatenCount || a.hole.mass.toFixed(6) !== b.hole.mass.toFixed(6)) {
     fail(`cambridge: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
   }
+  probeRouteSpent('cambridge', a);
   if (SOAK) {
     if (a.hole.eatenCount < 300) fail(`cambridge: only ${a.hole.eatenCount} blocks eaten on the scripted excursion (expected >=300)`);
     // Floor = the SIZE this excursion reached on HEAD's combo-mass ladder, which
@@ -1430,7 +1442,27 @@ function validateCambridge() {
     // scene. Cambridge is not granted a lower bar for being newer (ADR-0015).
     if (a.hole.size < 7) fail(`cambridge: excursion reached only SIZE ${a.hole.size} (expected >=7 — SIZE ladder too steep?)`);
   } else {
-    // Gate floors, measured on this tree at the 240 s cut: eaten 1724, SIZE 3.
+    // Gate floors. The figures they were set from — eaten 1724, SIZE 3 at the
+    // 240 s cut — were measured under the OLD time-gated driver, i.e. against a
+    // hole that spent most of the window parked. They are left here as the
+    // provenance of the numbers, NOT as a description of this tree: the arrival
+    // driver keeps the hole moving, so both are now underestimates. The floors
+    // are deliberately NOT raised to match, because raising a floor to a value
+    // nobody has measured is how a gate starts asserting a guess.
+    //
+    // To re-measure and re-baseline (~30+ min of CPU on its own, see the cost
+    // note below): FW_VALIDATE_SECTIONS=cambridge node tools/validate.mjs
+    //
+    // Cost warning, added 2026-08-17: this 240 s gate is no longer cheap. Under
+    // the old driver the hole idled through most of it; now it eats continuously,
+    // and debris churn is superlinear (RCA-2026-08-11). A run of this section was
+    // observed at 30+ CPU-minutes and still going, so the "~29 wall-MINUTES for
+    // the remaining 540 s" figure in the comment above now understates the whole
+    // section. If this section becomes the validator's long pole, the fix is to
+    // cut DURATION — under an arrival-driven loop the route repeats, so a shorter
+    // budget costs laps rather than coverage — and re-baseline these two floors
+    // in the same change. Do not cut it without re-measuring them.
+    //
     // The ladder-steepness clause stays with the soak, where the full route
     // actually reaches the top of it.
     if (a.hole.eatenCount < 1000) fail(`cambridge: only ${a.hole.eatenCount} blocks eaten on the 240 s gate excursion (expected >=1000)`);
@@ -1469,27 +1501,117 @@ function validateChicago() {
   probeHeroIdentity(sim, 'chicago', CHICAGO_HEROES);
   probeIdleStability(sim, 'chicago');
 
-  const runExcursion = () => {
-    const run = new VoxelSandboxSim({ seed: 'validator', scene: 'chicago' });
-    for (let i = 0; i < DURATION * 60; i++) {
-      const t = i * DT, h = run.hole;
-      let wp = WP[WP.length - 1];
-      for (const w of WP) if (t < w.until) { wp = w; break; }
-      const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
-      run.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
-    }
-    return run;
-  };
+  const runExcursion = () => driveRoute(new VoxelSandboxSim({ seed: 'validator', scene: 'chicago' }), WP, DURATION);
   const a = runExcursion();
   const b = runExcursion();
   if (a.hole.eatenCount !== b.hole.eatenCount || a.hole.mass.toFixed(6) !== b.hole.mass.toFixed(6)) {
     fail(`chicago: non-deterministic excursion (eaten ${a.hole.eatenCount} vs ${b.hole.eatenCount}, mass ${a.hole.mass.toFixed(3)} vs ${b.hole.mass.toFixed(3)})`);
   }
+  probeRouteSpent('chicago', a);
   if (a.hole.eatenCount < 300) fail(`chicago: only ${a.hole.eatenCount} blocks eaten on the scripted excursion (expected >=300)`);
   if (a.hole.size < 7) fail(`chicago: excursion reached only SIZE ${a.hole.size} (expected >=7)`);
 
   probeFinitePositions(a.blocks, 'chicago', 'after excursion');
   console.log(`  chicago sandbox: blocks=${a.totalBlocks} mass=${a.totalMass.toFixed(0)} eaten=${a.hole.eatenCount} size=${a.hole.size} peakChain=${a.hole.bestCombo} score=${a.hole.mass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// --- speed-invariance pin -----------------------------------------------------
+// The assertion whose absence let RCA-2026-08-17 ship. It pins the property the
+// HARNESS owns: a faster hole must SPEND its speed on ground covered. It does
+// not pin consumption, and the reason is measured, not conceded — see below.
+//
+// The speed knob is `upgrades.speed`, not SPEED_MULT. It is the same
+// multiplicative term in the same expression — voxelsim.js's hole speed is
+// `playerSpeedForRadius(r) * tune.speed * ramp * speedBoost * h.speedMult` — so
+// varying rank 0 -> 20 (x1.00 -> x2.00) is arithmetically identical to varying
+// SPEED_MULT 1.8 -> 3.6, and it needs no edit to a shipped module. It is also
+// the stronger statement: this is the speed upgrade a player actually buys.
+//
+// WHY THIS IS NOT "CONSUMPTION MUST NOT FALL". The RCA specified a consumption
+// monotonicity check. That target is unwinnable from this file, and the reason
+// is in the sim: a block is consumed only when it FALLS below SINK_Y while the
+// void is still overhead (js/voxelsim.js:3221, :3397). Fall time is fixed by
+// gravity, so yield is time-over-content, not distance-over-content, and
+// crossing the same metre twice as fast halves the void's dwell over the debris
+// it just undermined. Measured on the identical geometric route, sampled by
+// DISTANCE travelled rather than by time, so the driver is out of the
+// comparison entirely:
+//
+//   travelled     50 m    100 m   200 m   400 m   800 m
+//   x1.00 eaten     27      27      27     163     351
+//   x2.00 eaten      7       7       7      40     111
+//
+// Both arms are SIZE 1 through the first three marks, so this is not the growth
+// feedback loop — it is the per-metre yield itself, and the feedback loop then
+// amplifies it (a hole that banks less stays small, and a small hole sweeps a
+// narrower void). Every driver inherits it: the arrival-driven loop below
+// measures 2533 vs 639 over 90 s, and an arrival+dwell variant 1723 vs 1017.
+// A consumption pin could only be met by making the fast arm slower, which is
+// undoing the work rather than testing it. The finding is written up in
+// .wiki/findings/RCA-2026-08-17-*.md §6a for the owner to retire the target.
+//
+// What the harness DOES own, and what actually broke, is whether the extra
+// speed reaches the ground. Under the old time-gated driver it did not: 360 m
+// vs 361 m covered, a ratio of 1.00, with 71.4% and 85.6% of ticks parked.
+// Under the driver above: 1467 m vs 2442 m, ratio 1.66, 0.0% parked in both.
+//
+// Chicago is the arm because chicago is the RCA's proof case — the scene whose
+// gate the idling actually took red. 90 s of its 135 s route, one run per arm.
+const SPEED_PIN_SECONDS = 90;
+// Doubling the speed knob moves the hole 1.66x further, NOT 2.00x, and that is
+// correct rather than a bug to chase. Hole speed is
+//
+//   playerSpeedForRadius(h.radius) * tune.speed * (1 + SANDBOX_SPEED_RAMP * sizeT)
+//     * speedBoost * h.speedMult                              js/voxelsim.js:4464
+//
+// and `upgrades.speed` only multiplies the LAST term. Two of the other four —
+// `playerSpeedForRadius(h.radius)` and the `SANDBOX_SPEED_RAMP` (2.72) growth
+// ramp — are functions of how much the hole has already eaten. The x2.00 arm
+// eats less per metre (yield is gravity-time-gated; see the note above), so it
+// stays smaller, so both growth terms stay lower and it hands part of its own
+// speed advantage back. Expect this ratio to sit below 2.00 forever. If someone
+// "fixes" it up to 2.00, the growth ramp has stopped working, which is a
+// different bug.
+//
+// 1.25 is the floor, not the measurement, and it has margin on BOTH sides: it
+// clears the broken driver's 1.00 by 0.25 and sits 0.41 under the fixed 1.66.
+// The broken value is 1.00 BY CONSTRUCTION — a time-gated schedule caps how far
+// a leg can carry the hole however fast it is — so this separates "the speed
+// reached the ground" from "the speed was idled away", which is the whole claim.
+// A bare `fast > slow` would not: the broken driver scores 361 m vs 360 m and
+// passes it.
+const MIN_SPEED_DISTANCE_RATIO = 1.25;
+function validateSpeedInvariance() {
+  console.log('Validating hole-speed invariance...');
+  const arm = (rank) => driveRoute(
+    new VoxelSandboxSim({ seed: 'validator', scene: 'chicago', upgrades: { speed: rank } }),
+    CHICAGO_ROUTE, SPEED_PIN_SECONDS,
+  );
+  const slow = arm(0);    // x1.00
+  const fast = arm(20);   // x2.00
+
+  // Park-the-value guard: if `upgrades` ever stops reaching the hole, both arms
+  // become the same run and the pin passes on a dead instrument. Assert the knob
+  // is live BEFORE reading anything off it.
+  if (slow.hole.speedMult !== 1.0 || fast.hole.speedMult !== 2.0) {
+    fail(`speed invariance: the upgrades.speed knob is not reaching the hole (slow ${slow.hole.speedMult}, fast ${fast.hole.speedMult}) — the pin would be vacuous`);
+  }
+  if (slow.__route.dist === fast.__route.dist) {
+    fail(`speed invariance: both arms covered exactly ${slow.__route.dist.toFixed(1)} m — the two speeds are not producing two different runs, so nothing is being compared`);
+  }
+
+  // Clause 1, absolute: neither arm may stand still.
+  probeRouteSpent('speed invariance x1.00', slow, 'x1.00 arm');
+  probeRouteSpent('speed invariance x2.00', fast, 'x2.00 arm');
+
+  // Clause 2, relative: the extra speed has to reach the ground.
+  const ratio = fast.__route.dist / slow.__route.dist;
+  if (!(ratio >= MIN_SPEED_DISTANCE_RATIO)) {
+    const shortfall = slow.__route.dist * MIN_SPEED_DISTANCE_RATIO - fast.__route.dist;
+    fail(`speed invariance: doubling the hole's speed moved it ${fast.__route.dist.toFixed(0)} m vs ${slow.__route.dist.toFixed(0)} m over the same ${SPEED_PIN_SECONDS}s — ratio ${ratio.toFixed(3)}, need >=${MIN_SPEED_DISTANCE_RATIO}, short by ${shortfall.toFixed(0)} m (${((MIN_SPEED_DISTANCE_RATIO - ratio) / MIN_SPEED_DISTANCE_RATIO * 100).toFixed(1)}%). The route is idling the extra speed away rather than spending it. Parked ticks: x1.00 ${(slow.__route.idleFrac * 100).toFixed(1)}%, x2.00 ${(fast.__route.idleFrac * 100).toFixed(1)}% (a time-gated advance drives this ratio to 1.00 by construction)`);
+  }
+  console.log(`  speed invariance: x1.00 dist=${slow.__route.dist.toFixed(0)}m laps=${slow.__route.laps} idle=${(slow.__route.idleFrac * 100).toFixed(1)}% eaten=${slow.hole.eatenCount} size=${slow.hole.size} | x2.00 dist=${fast.__route.dist.toFixed(0)}m laps=${fast.__route.laps} idle=${(fast.__route.idleFrac * 100).toFixed(1)}% eaten=${fast.hole.eatenCount} size=${fast.hole.size} | distance ratio ${ratio.toFixed(2)} (>=${MIN_SPEED_DISTANCE_RATIO})`);
+  console.log(`  speed invariance: consumption is REPORTED, not gated — see the note above (yield is gravity-time-gated in the sim, so it falls with speed under every driver).`);
 }
 
 // --- save schema guard --------------------------------------------------------
@@ -2621,6 +2743,7 @@ function validateMultiplayer() {
     'tools/multiplayer-fixes.test.mjs',
     'tools/multiplayer-lifecycle.test.mjs',
     'tools/multiplayer-clock-coins.test.mjs',
+    'tools/lobby-start-control.test.mjs',
     // Not multiplayer-specific, but this is the section that already spawns
     // standalone suites, and the only two defects of its class so far were both
     // in the multiplayer game-over handlers of js/main.js.
@@ -2643,6 +2766,20 @@ function validateMultiplayer() {
     // cue registry (bytes and SHA-256 per MP3) but only ran under
     // tools/diagnostics.mjs, so soundtrack drift never failed a gate.
     'tools/music-assets-selftest.mjs',
+    // The effects side of the same seam the three music entries above cover.
+    // RCA-2026-08-17: a multiplayer refactor deleted js/main.js's one
+    // `audio.handleEvent(ev)` and took the gulps, the combo ladder, every
+    // stinger, the derailment and the tornado with it, for a day, with ALL PASS
+    // printing throughout. js/audio/game-audio.test.mjs asserts the
+    // event-to-sound mapping but calls handleEvents() itself, so it owns both
+    // sides of the seam and can never see it break; sfx-event-guard watches the
+    // seam (and executes the shipped guard text rather than re-implementing it),
+    // and the two suites below watch the behaviour behind it. Both of those were
+    // reachable only through tools/diagnostics.mjs until now, which is why a
+    // suite already asserting `eq(eng.count('eat-1'), 1)` never failed the build.
+    'tools/sfx-event-guard.test.mjs',
+    'js/audio/game-audio.test.mjs',
+    'js/audio/engine.test.mjs',
     // Same class again, across the network seam this time: api/ handlers cannot
     // be imported headlessly (they want Supabase env and a live database), so a
     // browser posting `token` at a handler reading `player_token` had nothing
@@ -2787,6 +2924,10 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     ['boston', 'boston'],
     ['cambridge', 'cambridge'],
     ['chicago', 'chicago'],
+    // Its own child rather than folded into `chicago`: it is two more full
+    // chicago excursions, so sharing that child would serialise ~3x the work
+    // into the group that is already the wall-clock long pole.
+    ['speedInvariance', 'speedInvariance'],
   ];
   const self = fileURLToPath(import.meta.url);
   const t0 = performance.now();
@@ -2871,6 +3012,7 @@ section('brooklyn', validateBrooklyn);
 section('boston', validateBoston);
 section('cambridge', validateCambridge);
 section('chicago', validateChicago);
+section('speedInvariance', validateSpeedInvariance);
 
 console.log('---');
 // The margin summary is only meaningful when the campaign section actually ran.

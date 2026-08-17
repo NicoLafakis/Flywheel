@@ -14,6 +14,7 @@ import {
   CHICAGO_STREETS, CHICAGO_VEHICLES, CHICAGO_XW_LEN,
 } from '../js/voxelscene-chicago.js';
 import { vehicleBBox } from '../js/voxelkit.js';
+import { driveRoute, MAX_IDLE_FRAC } from './route-driver.mjs';
 
 const DT = 1 / 60;
 let failures = 0;
@@ -302,27 +303,25 @@ if (sim.blocks.length < 35000 || sim.blocks.length > 80000) {
 
   const WP = CHICAGO_ROUTE;
   const DURATION = WP[WP.length - 1].until;
-  const run = () => {
-    const r = new VoxelSandboxSim({ seed: 'validator', scene: 'chicago' });
-    for (let i = 0; i < DURATION * 60; i++) {
-      const t = i * DT, h = r.hole;
-      let wp = WP[WP.length - 1];
-      for (const w of WP) if (t < w.until) { wp = w; break; }
-      const dx = wp.x - h.x, dz = wp.z - h.z, d = Math.hypot(dx, dz);
-      r.step(DT, d > 0.3 ? { x: dx / d, z: dz / d } : { x: 0, z: 0 });
-    }
-    return r;
-  };
+  // Same driver as tools/validate.mjs, from the same module — the point of the
+  // extraction. This probe carried its own copy of the time-gated loop until
+  // 2026-08-17, so it degraded identically and silently when SPEED_MULT rose
+  // (RCA-2026-08-17-chicago-excursion-red-since-speed-retune). A probe that is
+  // red while the validator is green teaches the reader that red is normal here.
+  const run = () => driveRoute(new VoxelSandboxSim({ seed: 'validator', scene: 'chicago' }), WP, DURATION);
   const A = run(), B = run();
   if (A.hole.eatenCount !== B.hole.eatenCount || A.hole.mass.toFixed(6) !== B.hole.mass.toFixed(6)) {
     fail(`non-deterministic excursion (${A.hole.eatenCount} vs ${B.hole.eatenCount})`);
+  }
+  if (A.__route.idleFrac > MAX_IDLE_FRAC) {
+    fail(`the tour left the hole standing still for ${(A.__route.idleFrac * 100).toFixed(1)}% of its ${A.__route.steps} ticks (max ${(MAX_IDLE_FRAC * 100).toFixed(0)}%) — a parked hole measures the clock, not the scene`);
   }
   if (A.hole.eatenCount < 300) fail(`only ${A.hole.eatenCount} blocks eaten on the tour (need >=300)`);
   if (A.hole.size < 7) fail(`tour reached only SIZE ${A.hole.size} (need >=7)`);
   let nan = 0;
   for (const bl of A.blocks) if (!Number.isFinite(bl.x) || !Number.isFinite(bl.y) || !Number.isFinite(bl.z)) nan++;
   if (nan > 0) fail(`${nan} non-finite positions after the tour`);
-  console.log(`  excursion: eaten=${A.hole.eatenCount} raw=${A.hole.rawMass.toFixed(0)} size=${A.hole.size} peakChain=${A.hole.bestCombo} score=${A.hole.mass.toFixed(0)}`);
+  console.log(`  excursion: eaten=${A.hole.eatenCount} raw=${A.hole.rawMass.toFixed(0)} size=${A.hole.size} peakChain=${A.hole.bestCombo} score=${A.hole.mass.toFixed(0)} laps=${A.__route.laps} idle=${(A.__route.idleFrac * 100).toFixed(1)}% dist=${A.__route.dist.toFixed(0)}m`);
 
   // district gap/density — the validator's clauses on the fresh scene.
   const arc = (() => {
