@@ -1479,14 +1479,24 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
 @media (max-width: 430px) {
   .shop-tab-bar { padding-left: 3px; padding-right: 3px; gap: 1px; }
   .shop-tab { padding: 4px 1px; border-radius: 10px; }
-  .shop-tab .tab-label { font-size: 9px; letter-spacing: 0; }
+  /* Fluid, not a flat 9px. Inside this query the bar IS the viewport width, so
+     vw is a faithful proxy for the label box, and the constraint is continuous.
+     A flat 9px left the longest label (CREATURES/INDICATORS) 2.2px of headroom
+     in a 57.6px tab at 320px — 4%, which is a fit here and a clip on a real
+     phone: the stack is "Segoe UI", system-ui, -apple-system, so this renders
+     in SF or Roboto there, with different metrics than the browser it was
+     measured in. 2.5vw drops to 8px at 320 for 8.4px of headroom (17%), and
+     reaches the authored 9px by 360 (19%); headroom then climbs to 30% at 390
+     and 44% at 430, so there is no width where it gets tighter than 320. */
+  .shop-tab .tab-label { font-size: clamp(8px, 2.5vw, 9px); letter-spacing: 0; }
   .shop-tab .tab-badge { font-size: 8px; padding: 1px 4px; }
 }
 
 /* Phone landscape. The shell's two chrome rows were eating 38% of a 360px-tall
    screen — header 72px + nav 65px = 137px, leaving 223px of shop, which is less
    than one card. Every trim below is measured on 640x360 and lands the pair at
-   ~109px (30%). The progress line goes because its two numbers are the sum of
+   110px (30.6%, against 28.2% at 844x390), handing 27px back to the list.
+   The progress line goes because its two numbers are the sum of
    the per-tab badges, which are still on screen a row below; it is the only
    thing here that is information rather than padding, and it is not lost.
    Same query as the three other phone-landscape blocks in this file, kept
