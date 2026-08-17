@@ -1564,7 +1564,31 @@ export class Screens {
     // shelf and no map exists (showWorldMap is an alias for showTitle). The
     // old label promised a reorientation hub and delivered the front door.
     const quit = armable('CITIES', () => this.actions.quitToMap());
-    s.append(resume, settings, help, restart, quit);
+    s.append(resume, settings, help);
+    // MUSIC picker: the session override from js/audio/tracklist.js — the
+    // default pool plus one row per unlocked city. Selecting a track starts
+    // it immediately (that doubles as the preview), and the choice holds
+    // until the run ends. Buttons update in place rather than re-rendering
+    // via showPause(), which would re-request the pause theme over the
+    // track the player just asked to hear.
+    if (this.actions.musicTracks && this.actions.musicSelect) {
+      const nowPlaying = this.actions.nowPlaying ? this.actions.nowPlaying() : null;
+      const musicBox = el(`<div class="pause-music"><h3>MUSIC</h3></div>`);
+      const list = el(`<div class="pause-music-list"></div>`);
+      for (const track of this.actions.musicTracks()) {
+        const b = el(`<button class="btn secondary pause-music-track">${track.label}</button>`);
+        if (track.cue === nowPlaying) b.classList.add('playing');
+        b.onclick = () => {
+          if (!this.actions.musicSelect(track.cue)) return;
+          list.querySelectorAll('.pause-music-track').forEach((x) => x.classList.remove('playing'));
+          b.classList.add('playing');
+        };
+        list.appendChild(b);
+      }
+      musicBox.appendChild(list);
+      s.appendChild(musicBox);
+    }
+    s.append(restart, quit);
     this.root.appendChild(s);
     this.current = 'pause';
   }

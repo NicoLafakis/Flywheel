@@ -1,4 +1,4 @@
-// Streamed state-aware music. Unlike short SFX, the 47.49 MiB soundtrack is
+// Streamed state-aware music. Unlike short SFX, the 82.65 MiB soundtrack is
 // never decoded as one WebAudio pool: one HTMLAudioElement loads only the cue
 // the current screen or scene requests.
 
@@ -29,7 +29,20 @@ export const MUSIC_CUES = Object.freeze({
   manhattan: 'lower-manhattan.mp3',
   'upper-manhattan': 'upper-manhattan.mp3',
   tokyo: 'lower-manhattan.mp3',
-  gallery: null,   // Owner decision: the dev physics gallery stays music-free.
+  // The Lab's own theme. The gallery was deliberately music-free until the
+  // track shipped; the owner reversed that call when it did.
+  gallery: 'the-lab.mp3',
+  // The always-available default pool: selectable from the pause-menu picker
+  // (js/audio/tracklist.js) in any mode, no unlock required. Cue ids are
+  // namespaced so a city named like a track can never collide with one.
+  'flywheel-afterhours-static': 'Flywheel-music-Afterhours Static.mp3',
+  'flywheel-basement-bloom': 'Flywheel-music-Basement Bloom.mp3',
+  'flywheel-block-drift': 'Flywheel-music-Block Drift.mp3',
+  'flywheel-falling-skies': 'Flywheel-music-Falling Skies.mp3',
+  'flywheel-i-wonder': 'Flywheel-music-I Wonder.mp3',
+  'flywheel-slow-down': 'Flywheel-music-Slow Down.mp3',
+  'flywheel-slow-smokey-vinyl': 'Flywheel-music-Slow Smokey Vinyl.mp3',
+  'flywheel-smoke-on-wax': 'Flywheel-music-Smoke On Wax.mp3',
 });
 
 // Where an unrecognised cue name lands. A player cannot tell "this screen has a
@@ -260,7 +273,7 @@ export class MusicDirector {
    */
   _arm(cue) {
     const file = MUSIC_CUES[cue];
-    if (!file) return;                       // `gallery` is deliberately silent.
+    if (!file) return;                       // a cue may deliberately map to no track.
     const src = this.base + file;
     if (this._armedSrc === src) return;      // already buffering these bytes
     this._current = cue;

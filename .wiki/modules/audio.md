@@ -195,10 +195,33 @@ moved forward by `reseedAudioMix()` — which is the right mechanism precisely
 because it also reaches the save-less surfaces a migration could never touch.
 
 `js/audio/music.js` owns the cue registry and one reusable `HTMLAudioElement`:
-menu, shop, pause, results, victory, and one cue per authored city. Gallery maps
-to deliberate silence. Only the requested file loads; pause/shop retain the
+menu, shop, pause, results, victory, one cue per authored city, and the
+`flywheel-*` default pool (eight `Flywheel-music-*.mp3` tracks). Gallery — The
+Lab — maps to `the-lab.mp3`; it was deliberate silence until the track shipped
+(2026-08-17). Only the requested file loads; pause/shop retain the
 previous cue's position, background tabs pause playback, and major stingers duck
 music through `GameAudio`.
+
+## The pause-menu track picker
+
+`js/audio/tracklist.js` (pure data + logic, validator-importable) catalogs every
+player-selectable track in two groups: the eight-track `flywheel` default pool,
+always available, and one `city` row per city that has its own theme, available
+only while `isCityUnlocked(save, scene)` says the city is unlocked — the same
+gate the map screen uses, so the picker can never offer music from a city the
+player has not reached. City rows reuse the scene cues (`gallery`, `manhattan`,
+…) the run-start paths already request; Tokyo is deliberately absent because it
+aliases Lower Manhattan's MP3.
+
+The picker itself is the MUSIC section of `showPause()` in `js/ui/screens.js`,
+reachable mid-run in single player and multiplayer alike. A selection sets
+`musicOverride` in `js/main.js` and starts the track immediately (that doubles
+as the preview; the pause theme is not re-requested over it). The override is
+session-scoped and never persisted: every run-start path (campaign, sandbox,
+multiplayer match) clears it, so a new city returns to its own theme, while
+resume (`actions.resume()` and the Escape handler) requests
+`playCue() === musicOverride || activePlayMusicCue`. A cue the save may not
+select is refused at `actions.musicSelect()`.
 
 **Arming vs. playing.** The browser's autoplay policy gates `play()` and nothing
 else — assigning `src`, setting `preload='auto'` and calling `load()` are all
@@ -265,9 +288,13 @@ end-of-match podium dead quiet in every multiplayer match.
   `cue` per file, not every alias, so an aliased cue adds no manifest row.
   Lifecycle behavior (including the unknown-cue fallback, pre-gesture arming,
   and a static check that `index.html`'s preload link still says `as="audio"`)
-  is covered by `js/audio/music.test.mjs` — which now runs in the `multiplayer`
-  section of `tools/validate.mjs`; before 2026-08-17 it was listed only in
-  `tools/diagnostics.mjs`, so no gate ever ran it. The bus/level split and the one-time re-seed (fresh
+  is covered by `js/audio/music.test.mjs`; picker availability gating (default
+  pool always, city tracks behind the real `isCityUnlocked`, every row's cue
+  resolving to a real file) by `js/audio/tracklist.test.mjs`. Both run in the
+  `multiplayer` section of `tools/validate.mjs`, as does
+  `tools/music-assets-selftest.mjs` since 2026-08-17 — before that it was
+  listed only in `tools/diagnostics.mjs`, so no gate ever ran it, and
+  `js/audio/music.test.mjs` had the same gap until the same day. The bus/level split and the one-time re-seed (fresh
   install, un-stamped old install, stamped install with chosen levels, and a
   second boot after a re-seed) by `js/audio/engine.test.mjs`; and the collapse
   pooling — one tower to one voice, pieces falling to silence, two simultaneous

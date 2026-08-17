@@ -28,8 +28,11 @@ const CAM_FAR = 600;             // gameplay far plane; the intro stretches it a
 // they are not tracking the same kind of signal.
 //
 // SPATIAL rates (the target filter, the occlusion standoff filter) chase a
-// signal that moves in METRES. The sandbox hole now runs 9.96 m/s at SIZE 1 and
-// 26.12 m/s at SIZE 12, so a fixed per-second rate lags 2.6x further at the top
+// signal that moves in METRES. The sandbox hole runs 12.81 m/s at SIZE 1 and
+// 30.13 m/s at the top of the ladder (9.96 / 26.12 before the 2026-08-17
+// SPEED_MULT 1.8 retune — the multiplier scales every size uniformly, so the
+// RATIO this paragraph is about does not move with it), so a fixed per-second
+// rate lags 2.6x further at the top
 // of the ladder — measured, the target filter's lag would go 0.545 m -> 1.43 m
 // and the standoff filter would spend 2.6x more metres catching up, which is
 // exactly the window in which the camera ends up inside geometry. Scaling them
@@ -52,8 +55,11 @@ const CAM_FAR = 600;             // gameplay far plane; the intro stretches it a
 // number a big displacement actually costs is 1.25 s, and that is the one to
 // beat. The recentre retune cannot reach any of this — every case here runs
 // with _yawOffset at 0 — and measured identically before and after it.
-// End-to-end measured hole speed is 9.96 m/s at SIZE 1 and 26.12 m/s at SIZE 12,
-// a ratio of 2.62. Rounded UP to 2.71 on purpose: this multiplies filter rates,
+// End-to-end measured hole speed is 12.81 m/s at SIZE 1 and 30.13 m/s at the
+// top of the ladder. The 2.62 ratio this constant was rounded up from was
+// measured on the old 12-SIZE ladder at SPEED_MULT 1.4 (9.96 / 26.12); the
+// multiplier cancels in the ratio, so the retune to 1.8 does not move it.
+// Rounded UP to 2.71 on purpose: this multiplies filter rates,
 // and a first-order filter that is marginally too fast lags slightly less than
 // asked, while one that is too slow lags more — of the two roundings only one
 // fails in the direction of the complaint this work exists to fix.
@@ -65,8 +71,9 @@ const FOLLOW_MAX_RATE_RAMP = 1.667;
 // Clearance above a roof the camera has been forced to climb over. Matches the
 // 2.5 m floor on cy — the same "do not sit level with a surface" margin.
 const ROOF_CLEAR = 2.5;
-// Heading deadzone, in m/s of hole velocity. The sandbox hole runs 9.96 m/s at
-// SIZE 1 and 26.1 m/s at SIZE 12, so 1.5 m/s is ~15% of the slowest real speed:
+// Heading deadzone, in m/s of hole velocity. The sandbox hole runs 12.81 m/s at
+// SIZE 1 (9.96 before the 1.8 retune) and 30.1 m/s at the top of the ladder,
+// so 1.5 m/s is ~12% of the slowest real speed:
 // far above the numerical noise of a parked hole (which is exactly 0 — the sim
 // only integrates when `move` is non-zero) and far below anything the player
 // can produce on purpose. Below it the yaw target simply stops updating, so a
@@ -926,7 +933,8 @@ export class ChaseCamera {
     //
     // Sandbox: a HEADING, and the per-axis clamp is poison for a heading. The
     // old code reused lookAhead (clamped to +/-1.5 m) for the yaw chase, and at
-    // 9.96 m/s the hole saturates that clamp on both axes — a heading of
+    // 12.81 m/s (9.96 before the 1.8 retune) the hole saturates that clamp on
+    // both axes — a heading of
     // (4.98, 8.63) m/s clamps to (1.5, 1.5) and reads as 45 deg. Every
     // off-axis direction collapsed onto the nearest diagonal, which is a large
     // part of "the camera lags behind actual positioning". So the chase gets its

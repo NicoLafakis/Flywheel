@@ -19,6 +19,7 @@ import { TIERS, defaultTierForDevice } from './quality.js';
 
 import { GameAudio } from './audio/game-audio.js';
 import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MASTER_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME, reseedAudioMix } from './audio/mix.js';
+import { getAvailableTracks } from './audio/tracklist.js';
 import { createInputBuffer, encodeTrace, inputAt, writeInput } from './replay.js';
 
 import { LiveBroadcastChannel } from './multiplayer/channel.js';
@@ -104,7 +105,12 @@ let lastSandboxScene = 'gallery'; // for pause-menu RESTART in the sandbox
 let lastSandboxMode = 'freeplay';
 let rankedRun = null; // { inputs, ticks, ticket, move }; only allocated before a RUN starts
 let rankedLaunch = 0; // rejects a stale ticket response after a fast double-tap
-let activePlayMusicCue = 'gallery'; // owner decision: gallery stays music-free
+let activePlayMusicCue = 'gallery'; // The Lab's theme since the-lab.mp3 shipped
+// Pause-menu picker override: session-scoped (never persisted), cleared at
+// every run start so entering a new city returns to that city's own theme.
+// js/audio/tracklist.js owns which cues the picker may offer.
+let musicOverride = null;
+const playCue = () => musicOverride || activePlayMusicCue;
 let accumulator = 0;
 let lastTs = 0;
 let shopBonus = { clock: 0, growth: 0 };
@@ -261,7 +267,7 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
   resume() {
     if (state === 'paused') {
       state = 'playing';
-      audio.setMusicCue(activePlayMusicCue);
+      audio.setMusicCue(playCue());
       screens.clear();
     }
   },
@@ -308,6 +314,18 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     else stopMenuScene();
   },
   music(cue, opts) { audio.setMusicCue(cue, opts); },
+  // Pause-menu track picker: the catalog is availability-gated by save, and a
+  // selection both takes effect immediately (it doubles as a preview while
+  // paused — resume re-requests the same cue, which the director dedupes) and
+  // persists until the run ends. A cue the save may not select is refused.
+  musicTracks() { return getAvailableTracks(save); },
+  nowPlaying() { return playCue(); },
+  musicSelect(cue) {
+    if (!getAvailableTracks(save).some((t) => t.cue === cue)) return false;
+    musicOverride = cue;
+    audio.setMusicCue(cue);
+    return true;
+  },
   masterVolume() { return audio.masterVolume; },
   setMasterVolume(v) { audio.setMasterVolume(v); },
   musicVolume() { return audio.musicVolume; },
@@ -549,6 +567,7 @@ function startLevel() {
     neon: 'chicago',
     industrial: 'cambridge',
   };
+  musicOverride = null; // a new run always starts on its own theme
   activePlayMusicCue = metroCueMap[metroKey] || metroKey || 'brooklyn';
   audio.setMusicCue(activePlayMusicCue, { restart: true });
   accumulator = 0;
@@ -792,6 +811,7 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
     hud.show();
     screens.clear();
     state = 'playing';
+    musicOverride = null; // a new run always starts on its own theme
     activePlayMusicCue = scene;
     audio.setMusicCue(activePlayMusicCue, { restart: true });
     accumulator = 0;
@@ -1186,6 +1206,7 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
     hud.show();
     screens.clear();
     state = 'playing';
+    musicOverride = null; // a new match always starts on the scene's own theme
     activePlayMusicCue = scene;
     audio.setMusicCue(activePlayMusicCue, { restart: true });
     accumulator = 0;
@@ -1862,7 +1883,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && state === 'playing') { state = 'paused'; screens.showPause(); }
   else if (e.code === 'Escape' && state === 'paused') {
     state = 'playing';
-    audio.setMusicCue(activePlayMusicCue);
+    audio.setMusicCue(playCue());
     screens.clear();
   }
 });

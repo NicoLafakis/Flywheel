@@ -354,7 +354,7 @@ const SIZE_MASS = [
 ];
 const MAX_SIZE = SIZE_MASS.length;
 const MAX_RADIUS = START_RADIUS + (MAX_SIZE - 1) * 0.5; // 12.6 m at SIZE 24 (13.1 m at sizeFrac 1)
-const SPEED_MULT = 1.4;      // sandbox hole runs at 1.4× the campaign speed curve
+const SPEED_MULT = 1.8;      // sandbox hole runs at 1.8× the campaign speed curve (retuned from 1.4 on 2026-08-17)
 // Size ramp on sandbox movement. Was 0.75, and 0.75 was not enough to notice:
 // `playerSpeedForRadius` DECREASES with radius (7.12 m/s at r=1.1 down to
 // 5.19 at r=6.6), so it spent most of the ramp cancelling itself out and the
@@ -372,6 +372,11 @@ const SPEED_MULT = 1.4;      // sandbox hole runs at 1.4× the campaign speed cu
 // demand ~50 m/s at max radius and is uncontrollable in a street grid — it also
 // outruns what the chase camera can frame. This leaves the decline at
 // 9.06 -> 3.68 radii/s, well under half the old slide. Linear in sizeT rather
+//
+// (Those quoted speeds date from the 12-SIZE ladder at SPEED_MULT 1.4. After
+// the 2026-08-17 retune to 1.8 — and with the ladder now 24 sizes — the same
+// expression measures 12.81 m/s at SIZE 1 and 30.13 m/s at the r=12.6 m cap,
+// via sandboxSpeedForRadius below.)
 // than shaped, because the camera's own distance ramp (camera.js, r=2.6 -> 5.6)
 // pulls back over the middle of the same range, so apparent screen speed stays
 // far flatter than the world speed — measured 0.62 -> 0.53 rad/s of angular
@@ -559,11 +564,13 @@ export function getCityCoinTier(scene) {
 // THE RUN's complete physics contract. This is separate from display quality:
 // every ranked client and the server verifier use these values, so a phone can
 // draw less without creating a different score trajectory.
-export const RANKED_TUNE_ID = 'ranked-v1';
+export const RANKED_TUNE_ID = 'ranked-v2';
 // Increment only when the deterministic RUN's gameplay behaviour changes.
 // The verifier keeps old rows as `unverifiable`; it must never label a
 // cross-version replay as a cheat merely because a physics bug was fixed.
-export const RANKED_SIM_VERSION = 1;
+// v2 (2026-08-17): SPEED_MULT 1.4 -> 1.8 — a replay under one does not
+// reproduce the other's score trajectory.
+export const RANKED_SIM_VERSION = 2;
 export const RANKED_TICK_COUNT = 90 * 60;
 export const CHALLENGE_COIN_MULTIPLIER = 2;
 

@@ -90,8 +90,8 @@ music.request('menu');
 assert.equal(media.currentTime, 42, 'menu position survives a shop visit');
 
 music.request('gallery');
-assert.equal(media.src, '');
-assert.equal(media.paused, true, 'gallery is deliberately music-free');
+assert.equal(media.src, 'assets/music/the-lab.mp3',
+  'The Lab (gallery) plays its own theme since the-lab.mp3 shipped');
 
 music.setMasterVolume(0.8);
 music.setVolume(0.5);

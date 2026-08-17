@@ -9,7 +9,7 @@ import { isEdible } from '../js/tiers.js';
 import {
   VoxelSandboxSim, COMBO_THRESHOLDS, COMBO_STEP, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES,
   MILESTONES, MILESTONE_TIERS, RANKED_TICK_COUNT, SCENE_GOALS, comboLevel, comboMult,
-  CHALLENGE_COIN_MULTIPLIER,
+  CHALLENGE_COIN_MULTIPLIER, RANKED_TUNE, RANKED_SIM_VERSION,
   loadScene,
 } from '../js/voxelsim.js';
 import { POWERUP_TYPES, POWERUP_SPECS, activatePowerUp, createPowerUp } from '../js/powerups.js';
@@ -199,6 +199,19 @@ function runVoxelSandbox() {
 
 function validateVoxelSandbox() {
   console.log('Validating voxel sandbox...');
+
+  // 2026-08-17 feel retune: the sandbox hole-speed default moved 1.4 -> 1.8.
+  // The ranked contract (RANKED_TUNE) reads the SAME constant, so the retune
+  // is also a ranked-physics change: a replay under 1.8 does not reproduce the
+  // 1.4 score trajectory. RANKED_SIM_VERSION must therefore be off 1 — the
+  // verifier marks cross-version rows unverifiable rather than cheating, and
+  // an unbumped version would let a 1.4 replay be judged against 1.8 physics.
+  if (RANKED_TUNE.speed !== 1.8) {
+    fail(`ranked tune speed is ${RANKED_TUNE.speed}, expected the 1.8 retune`);
+  }
+  if (RANKED_SIM_VERSION < 2) {
+    fail(`RANKED_SIM_VERSION is ${RANKED_SIM_VERSION} — the 1.8 speed retune changed ranked physics and must bump it`);
+  }
 
   // Invariant guard: pure sim files must never use Math.random (rng.js only).
   //
@@ -801,7 +814,10 @@ function projectOnRoute(arc, px, pz) {
 //
 //   1. Mean gap between consecutive eatable pieces along the scene's own
 //      scripted route stays under 15 m, per district. 15 is not arbitrary: the
-//      combo window is 1.5 s and SIZE 1 speed is 9.96 m/s, so 14.9 m of travel
+//      combo window is 1.5 s and SIZE 1 speed was 9.96 m/s when this floor was
+//      set (12.81 m/s after the 2026-08-17 1.8 retune — the faster hole only
+//      makes the 15 m budget easier to spend, so the floor still binds), so
+//      14.9 m of travel
 //      is exactly one chain's worth of patience. A district may declare itself
 //      TIGHTER via `gapFloor` and the probe holds it to that; it can never
 //      declare itself looser, because a contract a scene can widen is not one.
@@ -1551,6 +1567,23 @@ function validateSaveSchema() {
   if (v18.version !== 18 || chi18.completions !== 3 || chi18.runs !== 3 || chi18.bestPercent !== 0
     || chi18.bestSize !== 7 || chi18.bestTime !== 92 || chi18.bestCombo !== 11 || chi18.bestScore !== 8123) {
     fail(`save schema: v17->v18 mishandled a real sandbox record (${JSON.stringify(chi18)})`);
+  }
+
+  // v23 feel retune (2026-08-17): the sandbox hole-speed default moved
+  // 1.4 -> 1.8. Pin both ends of it: a save born today carries 1.8, and the
+  // v22->v23 migration moves an existing player onto it — feel retunes reset
+  // the key for the installed base, the same precedent as v8's creak reset
+  // and v9's gravity/wave/attract pass — without touching anything else.
+  if (fresh.settings.voxSpeed !== 1.8) {
+    fail(`save schema: fresh save voxSpeed is ${fresh.settings.voxSpeed}, expected the 1.8 retune`);
+  }
+  const v22save = { version: 22, coins: 7, settings: { ...fresh.settings, voxSpeed: 1.4, voxGravity: 42 } };
+  const v23save = __MIGRATIONS[22] ? __MIGRATIONS[22](v22save) : null;
+  if (!v23save || v23save.version !== 23 || !v23save.settings || v23save.settings.voxSpeed !== 1.8) {
+    fail(`save schema: v22->v23 must reset voxSpeed to the 1.8 retune (got ${v23save && v23save.settings && v23save.settings.voxSpeed})`);
+  }
+  if (v23save && (v23save.coins !== 7 || v23save.settings.voxGravity !== 42)) {
+    fail('save schema: v22->v23 must preserve everything except the retuned voxSpeed');
   }
 
   console.log(`  save schema: v1->v${CURRENT_VERSION} chain and freshSave() agree on ${freshKeys.size} top-level key(s), ${freshSettingKeys.size} setting(s), and ${freshPlayerKeys.size} player key(s)`);
@@ -2591,6 +2624,15 @@ function validateMultiplayer() {
     // the pre-gesture arming that stops the first tap costing a download)
     // could regress with ALL PASS still printing.
     'js/audio/music.test.mjs',
+    // The pause-menu track picker's catalog: availability gating must match the
+    // real isCityUnlocked, and every selectable cue must resolve to a real file
+    // — the picker passes cues as variables, so tools/music-cue.test.mjs's
+    // lexical scanner cannot see a bad row.
+    'js/audio/tracklist.test.mjs',
+    // Same blind spot one layer down: this selftest pins disk == manifest ==
+    // cue registry (bytes and SHA-256 per MP3) but only ran under
+    // tools/diagnostics.mjs, so soundtrack drift never failed a gate.
+    'tools/music-assets-selftest.mjs',
     // Same class again, across the network seam this time: api/ handlers cannot
     // be imported headlessly (they want Supabase env and a live database), so a
     // browser posting `token` at a handler reading `player_token` had nothing

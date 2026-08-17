@@ -2,17 +2,26 @@
   "schemaVersion": 1,
   "provenance": "Original Flywheel music created by Nico with Suno",
   "rights": "Copyright owned by the project owner. All rights reserved.",
-  "totalBytes": 49798924,
+  "totalBytes": 86668977,
   "files": [
     { "path": "boston.mp3", "cue": "boston", "bytes": 5689580, "sha256": "A4B5FFD77B70DB64A90E152FA42E3926B406B9055F74DD4561E0404AA49A98F3" },
     { "path": "brooklyn.mp3", "cue": "brooklyn", "bytes": 3719620, "sha256": "4D434F33DD54EF1C1DD9D67B1E5F73A449DAF83E581C59CD9C9A42143069B9FC" },
     { "path": "cambridge.mp3", "cue": "cambridge", "bytes": 4101281, "sha256": "D7A186F849F99108AC7F08A618576B942F59106208B5FC4D42B877800A0B1497" },
     { "path": "chicago.mp3", "cue": "chicago", "bytes": 5792533, "sha256": "45D10A02B915337C7FFAEA7935FD16E7F0A3D3BAA60539E3BD515E57CA4E6E9B" },
+    { "path": "Flywheel-music-Afterhours Static.mp3", "cue": "flywheel-afterhours-static", "bytes": 4638006, "sha256": "401589A2C0748BEB12CBF0CAFC60722A4AD4D9C9E335D3E9239F159D0A360C96" },
+    { "path": "Flywheel-music-Basement Bloom.mp3", "cue": "flywheel-basement-bloom", "bytes": 4354230, "sha256": "95C466FD39C4433B311E23CDBC7B81DDFCA8E3B0A0D4261890DA8A3CBF1C3CB7" },
+    { "path": "Flywheel-music-Block Drift.mp3", "cue": "flywheel-block-drift", "bytes": 3944454, "sha256": "273A032383BD73B6CB6A9407676F5F8E9882BA462A3621725BB909A4D85EAFF2" },
+    { "path": "Flywheel-music-Falling Skies.mp3", "cue": "flywheel-falling-skies", "bytes": 5342646, "sha256": "3B12DAF410484C43EC0BA3A030688134D26B03CD03A18BF65076C73F2C0E6037" },
+    { "path": "Flywheel-music-I Wonder.mp3", "cue": "flywheel-i-wonder", "bytes": 4279297, "sha256": "F80D487A1AA43578269D0FEB2D9B9C06A8EFCD45E5A8ED60BCE4D868E457A95F" },
+    { "path": "Flywheel-music-Slow Down.mp3", "cue": "flywheel-slow-down", "bytes": 3754865, "sha256": "E956343BC273899BBBB5ABF1264DE4B952A1BCCF1DF47E7D91EEE7F20F2A7631" },
+    { "path": "Flywheel-music-Slow Smokey Vinyl.mp3", "cue": "flywheel-slow-smokey-vinyl", "bytes": 2988561, "sha256": "547A638446EC9153A5453D4D6FEC9FCF576CDFD56717FB10239FAEE84FAA857E" },
+    { "path": "Flywheel-music-Smoke On Wax.mp3", "cue": "flywheel-smoke-on-wax", "bytes": 3566936, "sha256": "2281B50B8B30595784A864B8C2603CD79B172E0D1C4D79285E7BD9DEBC5F29CD" },
     { "path": "lower-manhattan.mp3", "cue": "manhattan", "bytes": 5738708, "sha256": "4A1637A3953AC2332A94F00D7D499F7C822B170F1A160C8786442B09C672ED73" },
     { "path": "main-menu.mp3", "cue": "menu", "bytes": 3955117, "sha256": "EFEF379687C06D8F0F28B6CDF1952F702297129A7F8A0A0DEADEB6E851F59BDF" },
     { "path": "pause.mp3", "cue": "pause", "bytes": 3914903, "sha256": "678CE7D70B629214ED9F49E3561F665EE7EFD765CDD285F31D26D9BC4DE9E495" },
     { "path": "post-game.mp3", "cue": "results", "bytes": 4014634, "sha256": "DC408A171CD2104E8D233D2274DF666F31E04381903D9AF928DD94091FB069C0" },
     { "path": "shop.mp3", "cue": "shop", "bytes": 7235562, "sha256": "B530F9A0C027E1D835B1CCEDAE2CD23C25F2E9E7252BA0CF04FD59AEF1AF9BA0" },
+    { "path": "the-lab.mp3", "cue": "gallery", "bytes": 4001058, "sha256": "3EF92B4D41E6968464FFEBD376BA7CDE6874958AF25A4DB192D0939831082869" },
     { "path": "upper-manhattan.mp3", "cue": "upper-manhattan", "bytes": 5636986, "sha256": "F138F6FD49D56975610DE963C64CF31C6354754481C079D9B1D56A701CF870FC" }
   ]
 }

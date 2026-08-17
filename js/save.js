@@ -18,10 +18,10 @@ import { generateName } from './board/names.js';
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 22;
+export const CURRENT_VERSION = 23;
 
 // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
-export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.4, voxAttract: 2 };
+export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.8, voxAttract: 2 };
 
 function defaultSettings() {
   return {
@@ -417,6 +417,24 @@ const MIGRATIONS = {
         nameSource: prev.claimedAt ? 'claimed' : 'auto',
       };
     })(),
+  }),
+  // v23: hole-speed retune, 1.4 -> 1.8. The key is reset for the installed
+  // base rather than left at whatever the old default wrote: this is a feel
+  // retune, and the precedent is v8's creak reset and v9's gravity/wave/
+  // attract pass — a player who never asked for slow should not keep slow
+  // forever because a default happened to be stored under their feet. Every
+  // other setting is preserved, including a deliberately moved slider: only
+  // voxSpeed is owned by this migration. Ranked runs are unaffected (their
+  // tune is locked, see RANKED_TUNE in voxelsim.js — the bump there is
+  // RANKED_SIM_VERSION 2, not this migration).
+  22: (s) => ({
+    ...s,
+    version: 23,
+    settings: {
+      ...defaultSettings(),
+      ...(s.settings || {}),
+      voxSpeed: 1.8,
+    },
   }),
 };
 

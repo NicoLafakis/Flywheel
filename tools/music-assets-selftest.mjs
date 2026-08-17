@@ -11,7 +11,7 @@ const cueMp3 = [...new Set(Object.values(MUSIC_CUES).filter(Boolean))].sort();
 
 assert.deepEqual(diskMp3, manifestMp3, 'manifest must list every shipped MP3 exactly once');
 assert.deepEqual(diskMp3, cueMp3, 'cue registry and shipped MP3 set must match');
-assert.equal(MUSIC_CUES.gallery, null, 'Gallery must remain deliberately music-free');
+assert.equal(MUSIC_CUES.gallery, 'the-lab.mp3', 'The Lab (gallery) plays its own track');
 
 let total = 0;
 for (const row of manifest.files) {

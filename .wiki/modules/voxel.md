@@ -754,13 +754,16 @@ especially
 - Chunk grouping only uses blocks detached within `FRESH_WINDOW` (0.6 s);
   settled debris (`fallT = -1`) never re-groups — prevents rest-on-ground
   split/reform loops.
-- Hole speed is `playerSpeedForRadius(radius) × SPEED_MULT` (1.4×) with a
+- Hole speed is `playerSpeedForRadius(radius) × SPEED_MULT` (1.8×, retuned from
+  1.4× on 2026-08-17 — a ranked-physics change, so `RANKED_SIM_VERSION` bumped
+  to 2 and `RANKED_TUNE_ID` to `ranked-v2`) with a
   sandbox SIZE ramp of `1 + SANDBOX_SPEED_RAMP × sizeProgress`
   (`SANDBOX_SPEED_RAMP = 2.72`, raised from 0.75 on 2026-08-05): unlike campaign
   movement, the grown hole gets faster so the late ladder can cover the larger
-  scene. Measured end to end: **9.96 m/s at SIZE 1 (unchanged — the SIZE 1 feel
-  is the thing being held) and 26.12 m/s at SIZE 12, against 12.29 m/s before.**
-  Upper Manhattan's 297 m diagonal therefore takes 11.4 s instead of 24.2 s.
+  scene. Measured end to end at the current tune: **12.81 m/s at SIZE 1 and
+  30.13 m/s at the r=12.6 m cap** (9.96 / 26.12 on the old 12-SIZE ladder at
+  1.4×). The player-facing default is `settings.voxSpeed` (1.8, save schema
+  v23), applied via `applyVoxTuning()`; ranked runs ignore it (locked tune).
   The landing number is not "constant body-lengths per second" — that rule would
   demand ~50 m/s at SIZE 12 (9.06 radii/s × 6.6 m), which is uncontrollable in a
   street grid and outruns what the chase camera can frame. It is set instead so
