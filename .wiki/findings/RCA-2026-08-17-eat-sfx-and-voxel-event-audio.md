@@ -166,32 +166,52 @@ All line numbers are HEAD `29e0dfd`. If the partner-gating working-tree changes 
 
 ### 7.1 Restore the pump (the fix proper)
 
-**File: `js/main.js`. Insert one statement immediately after line 1350** (the `const isLocalHole = ...` line, inside `for (const ev of events) {` at line 1349, before the `if (ev.type === 'combo')` at line 1351):
+> **Revised 2026-08-17 after review.** The first version of this section prescribed a bare `if (isLocalHole) audio.handleEvent(ev);`. That is wrong, and wrong in this document's own subject class: it fixes single player completely and leaves five sound families still silent in multiplayer. The corrected guard and the reasoning are below. Anyone who read the earlier revision should re-read this subsection.
+
+**File: `js/main.js`. Anchor on the `const isLocalHole = ...` statement inside `for (const ev of events) {` in the `if (isVoxelSandbox)` branch, and insert one statement immediately after it**, before the `if (ev.type === 'combo')` arm. Anchor on that line, not on a number: it is 1350 at HEAD `29e0dfd`, 1374 with the partner-gating working tree applied, and it will move again.
 
 ```js
         // Every sim event gets its voice. Restored 2026-08-17: 8c3c85d deleted
         // this line while introducing isLocalHole above it, which silenced the
         // gulps, the combo ladder, SIZE stings, milestones, the derailment and
         // the tornado in every city run. See .wiki/findings/RCA-2026-08-17-eat-sfx-and-voxel-event-audio.md
-        // Gated on isLocalHole because that IS the coin isolation 8c3c85d was
-        // adding, and it matches the legacy branch's own rule at line 1574:
-        // only the local player's mouth is mic'd.
-        if (isLocalHole) audio.handleEvent(ev);
+        //
+        // `ev.hole == null` IS the world-event marker: a tornado, a derailment,
+        // a collapse or a power-up spawning belongs to everybody in the match,
+        // while a gulp belongs to whoever took the bite. Gating a world event on
+        // hole ownership is what would leave it silent in multiplayer, because
+        // isLocalHole is false whenever there is no hole to own. Single player is
+        // unaffected either way: `!isMultiplayer` short-circuits it true.
+        if (!ev.hole || isLocalHole) audio.handleEvent(ev);
 ```
 
 Do NOT use the bare `audio.handleEvent(ev)` that was deleted. It predates multiplayer isolation and would voice a rival's coins and gulps at full level, reintroducing the exact defect `8c3c85d` set out to fix. If rival gulps are wanted at a reduced level later, `GameAudio` already supports it: `handleEvent(ev, { quiet: true })` scales the eat to 0.25 (`js/audio/game-audio.js:488`). That is a design call for the owner, not part of this fix.
 
+And do NOT use `isLocalHole` alone. `js/main.js:1350` reads `!isMultiplayer || ev.hole === sim.localHole || (ev.hole && ev.hole.slot === (sim.localSlot ?? 0))`, so in a multiplayer match an event carrying no `hole` fails every arm and evaluates false. Six of the emitters whose sound this fix is restoring are world-scoped and carry no hole, so `isLocalHole` alone ships the tornado, the derailment, the collapse pool and power-up spawns still silent in every match: the same defect one scope narrower.
+
+**Which events carry a `hole`, brace-matched from every `events.push({` in `js/voxelsim.js` at HEAD `29e0dfd`.** Read this table before touching the guard; two of these are counterintuitive.
+
+| Hole-scoped (gated by `isLocalHole`) | World-scoped (always voiced) |
+| --- | --- |
+| `eat` :4368, `coin` :1303, `combo` :4378, `growth` :4371, `milestone` :4392, `goal` :4704, `powerup_collect` :1640, `clock` :4733, `pvp_respawn` :4438, `timeup` :4742 | `crash` :3259, `derail` :4231, `storm_warning` :132, `storm_active` :154, `storm_cleared` :182, `powerup_spawn` :958 and :4495, `disaster` :1540 and :1602, `dragonball_aura` :1420, `powerup_despawn` :4483 |
+
+**Two events look world-scoped and are not.** `quake` (`js/voxelsim.js:1426`) carries `hole,` at `:1435` even though it also carries bare `x`/`z` copied off that hole at `:1429-1430`, and `disaster_teleport` (`:1464`) carries `hole,` at `:1466`. Both are therefore gated by ownership under the corrected guard. For `disaster_teleport` that is right: the warp whoosh is personal. **For `quake` it is an open question the owner should settle**, because the fault-line quake tears up the shared city and a rival triggering it arguably should shake everyone's speakers. Leaving it hole-gated is the conservative default and matches the intent of `8c3c85d`; changing it means special-casing `quake` in the guard, which is a design decision, not a bug fix. Do not decide it silently in either direction.
+
+Note that `crash` being world-scoped is correct and deliberate: the collapse pool's distance attenuation (`js/audio/game-audio.js:255-256, 461-462`) is exactly the mechanism for hearing a rival's tower come down across the map at the right level, and it only works if the events reach the pool at all.
+
 ### 7.2 Remove the duplicates the restored pump creates
 
-Restoring the pump makes three hand-written calls fire twice. Each must be deleted in the same edit, or the player hears a doubled, phase-smeared version of that sound.
+Restoring the pump makes three hand-written calls fire twice. Each must be deleted in the same edit, or the player hears a doubled, phase-smeared version of that sound. First column line numbers are HEAD `29e0dfd`; add 24 for the partner-gating working tree (independently confirmed against that tree during review: 1446, 1465, 1471, 1454).
 
-| Delete | At | Because `GameAudio.handleEvent` now covers it |
+| Delete | At (HEAD / working tree) | Because `GameAudio.handleEvent` now covers it |
 | --- | --- | --- |
-| `audio.playCoin();` | `js/main.js:1422` | `case 'coin'` at `game-audio.js:491` |
-| `audio.playPowerUpCollect();` | `js/main.js:1441` | `case 'powerup_collect'` at `game-audio.js:494` |
-| `audio.playFaultLineQuake();` | `js/main.js:1447` | the sim emits a separate `quake` event (`js/voxelsim.js:1426`) on the same fault-line effect, and `case 'quake'` at `game-audio.js:500` plays the same `earthquake` master plus ducking |
+| `audio.playCoin();` | `js/main.js:1422` / 1446 | `case 'coin'` at `game-audio.js:491` |
+| `audio.playPowerUpCollect();` | `js/main.js:1441` / 1465 | `case 'powerup_collect'` at `game-audio.js:494` |
+| `audio.playFaultLineQuake();` | `js/main.js:1447` / 1471 | the sim emits a separate `quake` event (`js/voxelsim.js:1426`) on the same fault-line effect, and `case 'quake'` at `game-audio.js:500` plays the same `earthquake` master plus ducking |
 
-**Keep** `audio.countdownTick();` at `js/main.js:1430` (no `clock` case exists), **keep** `if (isChrono) audio.playChronoFreeze(...)` at `js/main.js:1445` (no chrono case on the `powerup_collect` path), and **keep** `if (audio.playPowerUpCollect) audio.playPowerUpCollect();` at `js/main.js:1537` (that is the `pvp_kill` arm, an event `GameAudio` has no case for).
+**Keep** `audio.countdownTick();` at `js/main.js:1430` / 1454 (no `clock` case exists, so nothing would replace it), **keep** `if (isChrono) audio.playChronoFreeze(...)` at `js/main.js:1445` / 1469 (no chrono case on the `powerup_collect` path), and **keep** `if (audio.playPowerUpCollect) audio.playPowerUpCollect();` at `js/main.js:1537` / 1561 (that is the `pvp_kill` arm, an event `GameAudio` has no case for).
+
+**One deliberate behaviour change, and it must not be discovered later as a regression.** `audio.playPowerUpCollect()` at `:1441` is today called unconditionally, before the `isMultiplayer` split, so a RIVAL's power-up pickup is currently audible at full level in a match. `powerup_collect` is hole-scoped (`js/voxelsim.js:1640` carries `hole`), so under the corrected guard it becomes local-only. That is consistent with the coin-isolation intent of `8c3c85d` and is the right default, but it IS a change in multiplayer behaviour: state it in the commit message.
 
 Verify by ear or by counting `window.__audio.engine` buffer starts: after the edit, collecting a coin must produce exactly one chime and collecting the quake power-up exactly one earthquake.
 
@@ -207,6 +227,7 @@ Per the repo's non-negotiable invariant 1, the failing test comes first. Two pie
 4. Assert the same for the legacy `} else {` branch, so a future refactor cannot silence the campaign path the same way.
 5. Anti-vacuity, mandatory (the music guard's own precedent at its lines 119-127, and the tautology defect recorded in `RCA-2026-08-13-scoring-and-combo-audit.md` section B5): assert the extracted case set is non-empty and contains `'eat'`, and assert the emitted set is non-empty and contains `'eat'`. A scanner that found zero of either would pass forever against any code.
 6. Report, as a non-fatal listing rather than a failure, the two set differences: cases with no emitter (currently the seven dead arms in section 6) and emitted types with no case (currently nine). Making either of those fatal today would block on design decisions that are the owner's, not the implementer's. Print them so they cannot keep hiding.
+7. **Pin the guard's scoping in BOTH directions, as two separate assertions.** In a simulated multiplayer batch: a hole-scoped event belonging to a rival hole must NOT reach `handleEvent`, AND a world-scoped event carrying no `hole` MUST reach it. A suite that checks only the first half passes against the `isLocalHole`-only spec that review caught, which would have shipped the tornado and the derailment silent in every match. One-directional checking is how the original deletion survived three guards; do not repeat the shape here. The natural place for the behavioural half is `js/audio/game-audio.test.mjs`, driving a `GameAudio` with a batch containing one rival-hole `eat` and one hole-less `derail`, and asserting `eng.count(...)` on each. The lexical half belongs in the new guard: assert the inserted statement's condition is not the bare `isLocalHole`, so a future simplification back to it fails the build.
 
 **b. Register the effects suites in the gate.** In `tools/validate.mjs`, add to the `suites` array in `validateMultiplayer()` (the list running from line 2612 to 2681), alongside the music entries at lines 2630-2645 and following their comment convention:
 
