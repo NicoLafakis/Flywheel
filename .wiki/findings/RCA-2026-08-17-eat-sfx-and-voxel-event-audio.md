@@ -204,27 +204,46 @@ And do NOT use `isLocalHole` alone. `js/main.js:1350` reads `!isMultiplayer || e
 
 **Two events look world-scoped and are not.** `quake` (`js/voxelsim.js:1426`) carries `hole,` at `:1435` even though it also carries bare `x`/`z` copied off that hole at `:1429-1430`, and `disaster_teleport` (`:1464`) carries `hole,` at `:1466`. Both are therefore gated by ownership under the corrected guard. For `disaster_teleport` that is right: the warp whoosh is personal.
 
-**`quake` was escalated to the owner and is now DECIDED (2026-08-17): world-audible, attenuated for rivals.** The deciding argument is `crash`. Collapses are world-scoped and always voiced, so under a hole-gated `quake` a player would hear a rival's fault line demolish buildings across the map while the rumble that caused it stayed silent — the consequence without the cause, which reads as a missing sound rather than as isolation. Attenuating rather than muting also keeps the event doing useful work ("something big just happened over there") without masking the player's own feedback the way full volume would.
+**`quake` was escalated to the owner and is now DECIDED (2026-08-17): world-audible, attenuated for rivals.** The deciding argument is `crash`. Collapses are world-scoped and always voiced, so under a hole-gated `quake` a player would hear a rival's fault line demolish buildings across the map while the rumble that caused it stayed silent: the consequence without the cause, which reads as a missing sound rather than as isolation. Attenuating rather than muting also keeps the event doing useful work ("something big just happened over there") without masking the player's own feedback the way full volume would.
 
-That makes the guard a **three-way**, not a two-way:
+That is the `else if` arm already shown in the guard above. There is one authoritative snippet for this fix, the block at the top of 7.1; do not copy a second version from anywhere else in this document.
+
+#### The `quiet` flag does not reach this sound, and making it do so is part of the fix
+
+This is not an assumption to carry forward, and it is the half of the change most likely to be waved through. `handleEvent` destructures `{ quiet = false }` (`js/audio/game-audio.js:479`), but `quiet` is read in exactly ONE place in the whole file, `:488`, the eat case. `case 'quake'` (`:500-502`) calls `this.playFaultLineQuake()` with no argument, and `playFaultLineQuake()` (`:311-315`) takes no parameters at all:
 
 ```js
-        if (!ev.hole || isLocalHole) audio.handleEvent(ev);
-        // The fault-line quake is the one hole-scoped event everybody hears.
-        // Its consequences (`crash`) are world-scoped and always voiced, so
-        // muting the rumble under audible collapses reads as a bug. Quiet, not
-        // silent: loud enough to inform, not loud enough to mask your own hole.
-        else if (ev.type === 'quake') audio.handleEvent(ev, { quiet: true });
+  playFaultLineQuake() {
+    this.engine.play('earthquake', { vol: 1.0 });
+    this.engine.duckAmbience(3.5, 0.2);
+    this.music.duck(3.5, 0.3);
+  }
 ```
 
-**The `quiet` flag does not currently reach this sound, and that is part of the fix — not an assumption to carry forward.** `handleEvent` destructures `{ quiet = false }` (`js/audio/game-audio.js:479`) and only the `eat` case honours it (`:488`, 0.25 vs 0.65). `case 'quake'` (`:500-502`) calls `this.playFaultLineQuake()` with no argument, and `playFaultLineQuake()` (`:311-315`) takes no parameters at all — it hardcodes `vol: 1.0` plus a `duckAmbience(3.5, 0.2)` and a `music.duck(3.5, 0.3)`. Passing `{ quiet: true }` against today's code therefore changes nothing and would ship a rival's quake at FULL volume while looking correct in review. The implementer must:
+So `handleEvent(ev, { quiet: true })` against today's code changes nothing and ships a rival's quake at FULL volume. Worse than the volume, and this is the part that survives review because nobody looks past the `vol:` line: it also **ducks the local player's ambience to 20 percent and their music to 30 percent for 3.5 seconds**. A rival's quake would dip your score on a timer you did not cause, in every match, which is precisely the "re-ducked the bed every few frames" failure the collapse pooling was built to eliminate (`js/audio/game-audio.js:96-101`).
 
-1. Give `playFaultLineQuake` a `{ quiet = false } = {}` parameter.
-2. Drop the rival level explicitly — `vol: quiet ? 0.35 : 1.0`. State the number in code, do not leave it to a caller.
-3. Soften the ducks too. A rival's quake has no business ducking *your* music and ambience as hard as your own does; the duck depth is what makes it feel like it happened to you.
-4. Thread `quiet` from the `case 'quake'` arm into the call.
+The required shape, with the current values kept as defaults so the existing no-argument call sites are untouched:
 
-Test it in both directions, per requirement 7's shape: a rival-hole `quake` must REACH `handleEvent` (not be filtered out) **and** must arrive attenuated. A test asserting only that it fires passes against a build that plays it at full volume, which is exactly the failure this note exists to prevent.
+```js
+  /** `quiet` is a rival's quake in a multiplayer match: audible, because the
+   *  collapses it causes are world-scoped and already audible, but subordinate
+   *  and non-ducking. The ducks exist to clear space for the LOCAL player's big
+   *  moment, and they are most of what makes it feel like it happened to YOU;
+   *  spending them on a rival's event is the jarring re-duck this module's
+   *  collapse pooling already rejects. */
+  playFaultLineQuake({ quiet = false } = {}) {
+    this.engine.play('earthquake', { vol: quiet ? 0.35 : 1.0 });
+    if (quiet) return;
+    this.engine.duckAmbience(3.5, 0.2);
+    this.music.duck(3.5, 0.3);
+  }
+```
+
+then thread it at the case: `case 'quake': this.playFaultLineQuake({ quiet }); break;`
+
+**Both numbers stated explicitly rather than left to the implementer.** Rival level `0.35`: it follows the only existing precedent in the file, the eat case's 0.25 against a 0.65 base (a 0.385 ratio), applied to the quake's 1.0 base and rounded. Rival ducking: **none at all**, per the reasoning in the doc comment above, rather than a shallower duck. Both are judgement calls rather than derivations, so they are the two things to tune by ear; the level is the single constant to change if the owner wants it louder or softer.
+
+**Sibling finding, same root, recorded so it is not rediscovered later as a bug.** Because `quiet` is honoured only at `:488`, the option is silently inert for all twenty other cases in `handleEvent`. A future caller passing `{ quiet: true }` for a rival's combo, milestone, growth, goal or coin gets full volume with no warning: the same "silent by construction" class this entire RCA is about, sitting one layer inside the audio module. Fixing it wholesale is out of scope here because it needs a per-case level decision nobody has been asked for, but the quake change above establishes the pattern, and the guard suite in 7.3 should print which cases actually read `quiet` so the gap stays visible instead of latent.
 
 Note that `crash` being world-scoped is correct and deliberate: the collapse pool's distance attenuation (`js/audio/game-audio.js:255-256, 461-462`) is exactly the mechanism for hearing a rival's tower come down across the map at the right level, and it only works if the events reach the pool at all.
 
@@ -257,6 +276,7 @@ Per the repo's non-negotiable invariant 1, the failing test comes first. Two pie
 5. Anti-vacuity, mandatory (the music guard's own precedent at its lines 119-127, and the tautology defect recorded in `RCA-2026-08-13-scoring-and-combo-audit.md` section B5): assert the extracted case set is non-empty and contains `'eat'`, and assert the emitted set is non-empty and contains `'eat'`. A scanner that found zero of either would pass forever against any code.
 6. Report, as a non-fatal listing rather than a failure, the two set differences: cases with no emitter (currently the seven dead arms in section 6) and emitted types with no case (currently nine). Making either of those fatal today would block on design decisions that are the owner's, not the implementer's. Print them so they cannot keep hiding.
 7. **Pin the guard's scoping in BOTH directions, as two separate assertions.** In a simulated multiplayer batch: a hole-scoped event belonging to a rival hole must NOT reach `handleEvent`, AND a world-scoped event carrying no `hole` MUST reach it. A suite that checks only the first half passes against the `isLocalHole`-only spec that review caught, which would have shipped the tornado and the derailment silent in every match. One-directional checking is how the original deletion survived three guards; do not repeat the shape here. The natural place for the behavioural half is `js/audio/game-audio.test.mjs`, driving a `GameAudio` with a batch containing one rival-hole `eat` and one hole-less `derail`, and asserting `eng.count(...)` on each. The lexical half belongs in the new guard: assert the inserted statement's condition is not the bare `isLocalHole`, so a future simplification back to it fails the build.
+8. **Pin the rival quake in both directions too, and for the same reason.** A rival-hole `quake` must REACH `handleEvent` (it must not be filtered out by the guard) AND must arrive attenuated. A test that asserts only that it fires passes against a build that plays a rival's quake at full volume, which is the exact failure mode 7.1 documents: the `quiet` flag is accepted and then discarded, so the wiring looks correct and sounds wrong. Assert the level, not merely the count. While there, assert `playFaultLineQuake({ quiet: true })` performs no ambience or music duck, since the ducking is the larger intrusion and the easier one to reintroduce by accident.
 
 **b. Register the effects suites in the gate.** In `tools/validate.mjs`, add to the `suites` array in `validateMultiplayer()` (the list running from line 2612 to 2681), alongside the music entries at lines 2630-2645 and following their comment convention:
 
