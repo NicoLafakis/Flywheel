@@ -462,13 +462,15 @@ mutates sim state.
      cannot fail (there is always sky) and the only one that leaves `cx/cz` — and
      therefore the framing — untouched. Applied as a hard max on the way up,
      eased at `BLOCKER_T_OUT` on the way down so leaving a building does not drop
-     the camera. Runs in every intro phase EXCEPT `hold`: the establishing shot
-     is fitted to frame the whole city from outside it, so there is provably no
-     roof above the camera and excluding it keeps the held pose bit-identical by
-     construction rather than by measurement.
+     the camera. Runs in every intro phase EXCEPT `hold` and `rise`: both frame
+     the whole city from outside it against a fitted standoff, so there is
+     provably no roof above the camera and excluding them keeps those poses
+     bit-identical by construction rather than by measurement. (`rise` joined
+     the exclusion 2026-08-17 with the four-phase machine below; it climbs
+     further OUT of the city, so the same proof covers it.)
 
   4. **Dive pitch bump (2026-08-06, persona-playtest fix).** The guards above
-     keep the camera out of walls, but the intro ZOOM's geometric dist lerp
+     keep the camera out of walls, but the intro dive's geometric dist lerp
      still crossed the city low over the rooftops around `_introK ≈ 0.5`,
      which the playtest caught as ~1 s of blank wall right after GO!. The fix
      adds `diveBump = _introK(1 - _introK) × 1.4` to `effPitch` — zero during
@@ -488,6 +490,112 @@ mutates sim state.
   lift did the work on 323 of those 2036 SIZE 1 frames and 0 at SIZE 12 — the
   large-hole camera is already above the skyline, so this is a small-hole,
   dense-low-rise problem, which is exactly where the complaint came from.
+- **The level-start intro is a FOUR-phase machine (2026-08-17).**
+  `cam.introPhase` is `'off' | 'hold' | 'rise' | 'dive'`; it was
+  `'off' | 'hold' | 'zoom'`. `beginIntro()` enters `hold`, `releaseIntro()`
+  (GO!) enters `rise`, the rise self-advances to `dive` after
+  `INTRO_RISE_DUR = 0.8` s, and the dive ends in `skipIntro()` → `off`.
+
+  | beat | what moves | sim | duration |
+  |---|---|---|---|
+  | `hold` | nothing — the fitted establishing pose | frozen | until GO! |
+  | `rise` | pitch only, base → `INTRO_OVERHEAD_PITCH` | **frozen** | 0.8 s |
+  | `dive` | pitch back to base + the existing geometric dolly | running | `_introDur` |
+
+  This is what the owner asked for: *"go from the angle when you're on the city
+  menu to directly overhead, then zoom into the player position."* The three
+  beats now read as numbers in a live trace — manhattan `hold` 79 f / 1.32 s
+  (pitch 0.540, height 84.6 m) → `rise` 47 f / 0.77 s (pitch 0.540 → 1.400,
+  height 84.6 → 147.8 m) → `dive` 85 f / 1.40 s (pitch 1.400 → 0.540, range
+  153 → 6.0 m).
+
+  - **Overhead is capped at `INTRO_OVERHEAD_PITCH = 1.40` rad, deliberately not
+    `π/2`.** At exactly vertical the yaw basis is singular: `cos(pitch) → 0`
+    collapses the `sin(yaw)`/`cos(yaw)` offsets to zero, so the camera's
+    heading becomes undefined and the frame it comes out of the top on is
+    arbitrary. 1.40 rad is 80.2°, and the placement's own `(1 - effT) × 0.5`
+    term adds ~0.04 rad at `BLOCKER_EASE`, so the effective pitch peaks near
+    1.44 rad / 82.5° — reads as overhead, stays a well-conditioned basis.
+  - **`rise` freezes the sim.** `introHolding()` returns true for `hold` **and**
+    `rise` (it is the predicate `main.js` gates the fixed step on), because the
+    rise is part of the establishing shot — the player has not been handed
+    control yet. Only the dive runs live.
+  - **Pitch ownership.** CONVENTION: the intro owns `this.pitch` only while
+    `introPhase !== 'off'`. `beginIntro()` latches `_introPitchBase` from the
+    live pitch, every phase writes pitch from that base, and `skipIntro()`
+    restores it. A cinematic that takes the camera mid-intro calls
+    `_yieldIntroToCinematic()` first, which ends the intro rather than letting
+    two owners write the same field on alternating frames.
+  - **`_overviewDist()` is cached on aspect AND pitch**, because `_fitAt()`
+    reads `this.pitch` and the rise moves it. Keyed on aspect alone it would
+    serve the shallow-pitch fit for the whole climb. It is constant through the
+    hold, so the established pose is unchanged bit-for-bit.
+  - **The menu's own camera angle is NOT plumbed through.** The intro resolves
+    its azimuth from `_introYaw0` (`_bestIntroYaw()`, sun-scored per level), not
+    from `menuscene.js`'s `lastMenuYaw`. Handing the menu's yaw to the level
+    would discard the level's own sun-scored azimuth — a real loss of the shot
+    the fit exists to produce. Left as an open product decision rather than
+    taken silently.
+- **The blocker-standoff filter now covers the `dive` (2026-08-17).** The gate
+  was `introPhase === 'off'`; it is `!== 'hold' && !== 'rise'`. The original
+  exclusion's reasoning — the intro FITS its distance against `BLOCKER_EASE`, so
+  a lagging standoff un-frames the shot — holds for the two beats that frame the
+  city from OUTSIDE it, and neither has anything to smooth (the sweep sits
+  pinned at `BLOCKER_EASE` from an overview standoff). The dive is the opposite
+  case: it descends THROUGH the skyline, which is exactly what the filter exists
+  for, and `_introK` has already eased the fitted framing away by the time the
+  camera reaches roof height. Measured on Brooklyn at ~25 m, unsmoothed, the
+  sweep chattered `0.9200 / 0.4309 / 0.1500 / 0.9200 / 1.0000 / 0.2678 / 0.9200`
+  on seven consecutive frames, each step an 8–11 m camera jump inside one 17 ms
+  frame against a ~4.5 m trend. Smoothed, the same window reads `0.9200 /
+  0.8473 / 0.7418 / 0.9200 / 0.9247 / 0.2289 / 0.9200` and the worst
+  `dt ≤ 50 ms` step over the whole transition falls **10.9 m → 7.6 m** (Brooklyn)
+  with Manhattan at **5.1 m**. The far plane stays safe: it reads the same
+  `effT` the placement uses, so the two cannot disagree.
+  - **Residual, by design.** The two frames that still step ~7.5 m are the
+    `_insideBlocker` hard fallback (`camera.js`, `this._effT = effT = rawT`)
+    firing as the camera passes a Brooklyn roofline. That is the safety
+    guarantee working: it trades a jump for not standing inside a building, and
+    guarding only the pull-in direction previously left 38–83 frames per 90 s
+    route buried in geometry. Not defeated.
+- **Arm the cinematic BEFORE you show the presentation.** See
+  `.wiki/conventions.md`. `startPokemonSpawnCinematic` / `startEarthquake-
+  Cinematic` now RETURN a token, and `skipPokemonSpawnCinematic(token)` /
+  `skipEarthquakeCinematic(token)` are identity-checked (`if (token != null &&
+  pc !== token) return;`), so a stale completion callback cannot cancel a
+  cinematic it did not arm. This was the level-start defect: the presentation
+  called its own `onSkip` synchronously, which ran the cancel BEFORE the arm, so
+  the cinematic was left armed with nothing able to retire it — 185 of 350
+  manhattan frames ran with a cinematic holding the camera.
+  - `queuePokemonSpawnIntro` is gated on `reason === 'initial'` and on
+    `camInstance.introActive()`: a power-up that exists because the level just
+    started, or that spawns while the establishing shot is running, gets the
+    **toast only** (`announcePowerUpSpawn` → `showOrbitalBeaconNotification`).
+    The "ORBITAL DROP DETECTED" announcement is preserved in every case; only
+    the camera cinematic is suppressed.
+  - Cinematic release is continuous in all five channels (look x/z, distance,
+    pitch, yaw). Distance blends **geometrically** (`ex.dist × pow(dist/ex.dist,
+    easeU)`), matching the intro dolly's own precedent — a linear blend's true
+    worst step sits early in the window, not at its midpoint, and measured 34.2%
+    per frame. Yaw interpolates on the shortest signed angle
+    (`atan2(sin d, cos d)`) and is capped at `FOLLOW_MAX_RATE ×
+    FOLLOW_MAX_RATE_RAMP` = 7.0014 rad/s (400°/s), the rig's own ceiling. The
+    return window is wall-clock-aware (`RETURN_S = 0.36` s, clamped to 30% of
+    duration) rather than a fixed fraction, because smoothness is a function of
+    FRAMES, not of proportion: at the 1.1 s duration floor a fixed-fraction
+    window measured 29.6%.
+  - **Known open item — the quake cutscene's INTERNAL cuts are not gated.** The
+    hit-stop → three arcade close-ups → launch sequence is authored as hard
+    cuts; shot 0 → 1 alone is a 2.76 rad yaw change in one frame. Whole-sequence
+    worst is **285.3% distance and 165.88 rad/s yaw at progress 0.261**, against
+    a release-window (progress ≥ 0.90) worst of 21.3% and 1.00 rad/s. Applying
+    the rate cap across all phases would turn those deliberate cuts into ~0.4 s
+    pans, so the cap is scoped to `progress >= 0.94` and the guard suite asserts
+    only the release. Retiring or keeping the hard cuts is a shot-design call.
+  - **Deviation from the RCA:** `savedDist` is not restored. The cinematics only
+    ever write the frame-local `dist`, never `this.dist`, so restoring it could
+    only undo a player's own zoom. `savedPitch` IS read, on both the completion
+    and the cancel path.
 - `cam.fovKick(v)` adds a decaying FOV punch (growth/milestone juice);
   respects Reduced Motion, eases back at ~6/s in `update`.
 - Player settings (`save.settings`: invertX/Y, shadows, camDist, reducedMotion,

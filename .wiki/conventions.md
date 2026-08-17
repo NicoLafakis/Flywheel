@@ -47,6 +47,34 @@
    every version below `CURRENT_VERSION` has a migration returning exactly
    the next version, so a gap can't silently quarantine a real save.
 
+8. **Arm before you announce.** When a UI presentation and a camera cinematic
+   are two halves of one beat, ARM THE CINEMATIC FIRST, then show the
+   presentation — never the reverse. A presentation is free to invoke its
+   completion callback synchronously (a modal that no-ops under Reduced Motion,
+   a toast with no dismiss affordance, an early return), and if that callback's
+   job is to cancel the cinematic, calling it before the arm inverts the
+   contract: the cancel runs against nothing, then the cinematic arms with its
+   only retirement path already spent. It then holds the camera until some
+   unrelated event clears it. This is not hypothetical — it is the 2026-08-17
+   level-start defect, where 185 of 350 frames ran with an unretireable
+   cinematic owning the camera (see
+   `.wiki/findings/RCA-2026-08-17-level-start-camera-transition.md`).
+
+   Two rules make the seam safe, and both are required:
+
+   - **The arm returns a token; the cancel is identity-checked against it.**
+     `startPokemonSpawnCinematic()` / `startEarthquakeCinematic()` return the
+     cinematic object; `skipPokemonSpawnCinematic(token)` /
+     `skipEarthquakeCinematic(token)` begin with
+     `if (token != null && pc !== token) return;`. A stale callback holding a
+     retired token then cannot cancel a *later* cinematic it never armed.
+   - **The token variable is declared before the callback that closes over it**
+     (`let token = null;` above the `finish…` function), so the ordering above
+     is expressible at all.
+
+   Enforced by `tools/cinematic-arming-guard.test.mjs`, which drives the
+   shipped callers against a deliberately synchronous adversary presentation.
+
 ## Style
 
 - ES modules, one class or cohesive function set per file, no build tooling.

@@ -2815,6 +2815,12 @@ function validateMultiplayer() {
     // spawns standalone suites. There is no build step, linter or formatter
     // here, so without this nothing reads a `.md` file before it ships.
     'tools/conflict-markers.test.mjs',
+    // Also repo-wide rather than multiplayer. The cinematic arming seam spans
+    // js/camera.js, js/main.js and js/ui/screens.js — a presentation's callback
+    // contract in one file deciding whether a camera cutscene in another is
+    // cancellable — so no single-module section owns it either. See
+    // .wiki/findings/RCA-2026-08-17-level-start-camera-transition.md.
+    'tools/cinematic-arming-guard.test.mjs',
     'js/multiplayer/multiplayer.test.mjs',
   ];
   let passed = 0;

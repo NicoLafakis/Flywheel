@@ -407,8 +407,32 @@ function applyVoxTuning() {
 let pokeSpawnQueue = [];
 let isShowingPokeSpawn = false;
 
-function queuePokemonSpawnIntro(pu, simInstance, camInstance) {
+// The ANNOUNCE half. Every power-up spawn says so; only an ARRIVAL earns a
+// cutscene. Split out of queuePokemonSpawnIntro so that suppressing the camera
+// takeover does not silently take the toast with it — the toast is information
+// the player needs, the cutscene is a flourish that costs them the shot they
+// were looking at.
+function announcePowerUpSpawn(pu) {
   if (!pu) return;
+  screens.showOrbitalBeaconNotification(pu);
+}
+
+function queuePokemonSpawnIntro(pu, simInstance, camInstance, reason) {
+  if (!pu) return;
+  // The two map power-ups are placed by the sim CONSTRUCTOR and their events are
+  // drained on the first frame of the level, before a single tick has run
+  // (js/voxelsim.js, js/main.js's event pump). They are level furniture, not an
+  // arrival, and announcing them with a cutscene costs the establishing shot —
+  // measured overriding it 20 ms before the first cam.update of the level, which
+  // is the whole of "the camera is jerky between hitting start and following the
+  // player".
+  if (reason === 'initial') { announcePowerUpSpawn(pu); return; }
+  // Belt and braces for every other reason: the intro owns the camera until it
+  // says otherwise. introActive() existed for exactly this and had no callers.
+  if (camInstance && camInstance.introActive && camInstance.introActive()) {
+    announcePowerUpSpawn(pu);
+    return;
+  }
   pokeSpawnQueue.push({ pu, sim: simInstance, cam: camInstance });
   if (isShowingPokeSpawn) return;
   playNextPokemonSpawn();
@@ -435,32 +459,39 @@ function playNextPokemonSpawn() {
   state = 'powerup_encounter';
 
   let finished = false;
+  let token = null;
   const finishPokeIntro = () => {
     if (finished) return;
     finished = true;
     screens.dismissPokemonEncounterModal();
-    if (c && c.skipPokemonSpawnCinematic) c.skipPokemonSpawnCinematic();
+    // Identity-checked: this handler cancels ITS OWN cinematic and no other. A
+    // bare cancel here would let a stale completion reach through and kill a
+    // newer cutscene the queue had already started.
+    if (c && c.skipPokemonSpawnCinematic) c.skipPokemonSpawnCinematic(token);
     pokeSpawnQueue.shift();
     if (pokeSpawnQueue.length > 0) {
       playNextPokemonSpawn();
     } else {
       isShowingPokeSpawn = false;
       state = prevState === 'powerup_encounter' ? 'playing' : prevState;
-      lastTs = performance.now();
       if (sim && (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0))) {
         if (isVoxelSandbox) endSandbox(); else endLevel();
       }
     }
   };
 
-  screens.showPokemonEncounterModal({
-    powerup: pu,
-    onSkip: finishPokeIntro,
-    reducedMotion: save.settings.reducedMotion,
-  });
-
+  // ARM BEFORE YOU ANNOUNCE. The presentation's completion callback cancels the
+  // cinematic, so the cinematic has to exist before the presentation can run. If
+  // the presentation ever completes synchronously — and showPokemonEncounterModal
+  // did exactly that for months — the announce-first order makes the cancel run
+  // before its own arm: it finds nothing to cancel, latches `finished`, and the
+  // cinematic that is armed a line later is ORPHANED, seizing the camera for its
+  // full 1.5 s with no path anywhere that can stop it. Ordering it this way makes
+  // the function correct under BOTH contracts, which is the point: it must not
+  // silently depend on the presentation being asynchronous again.
+  // See .wiki/conventions.md, "arm before you announce".
   if (c && c.startPokemonSpawnCinematic) {
-    c.startPokemonSpawnCinematic({
+    token = c.startPokemonSpawnCinematic({
       dropX: pu.x,
       dropZ: pu.z,
       playerX: hX,
@@ -472,6 +503,12 @@ function playNextPokemonSpawn() {
   } else {
     setTimeout(finishPokeIntro, 1500);
   }
+
+  screens.showPokemonEncounterModal({
+    powerup: pu,
+    onSkip: finishPokeIntro,
+    reducedMotion: save.settings.reducedMotion,
+  });
 }
 
 // The quake is resolved by the pure sim before this is called.  This is only a
@@ -485,6 +522,7 @@ function playEarthquakeCinematic(ev) {
     || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const duration = reducedMotion ? 2.4 : 5.8;
   let finished = false;
+  let token = null;
   const finish = (skipped = false) => {
     if (finished) return;
     finished = true;
@@ -493,12 +531,11 @@ function playEarthquakeCinematic(ev) {
     // leaves the fissure and its delayed collapses to finish in the live world.
     if (skipped && world && world.skipQuakeCinematic) world.skipQuakeCinematic();
     screens.dismissEarthquakeCinematic();
-    if (skipped && cam && cam.skipEarthquakeCinematic) cam.skipEarthquakeCinematic();
+    if (skipped && cam && cam.skipEarthquakeCinematic) cam.skipEarthquakeCinematic(token);
 
     if (state === 'quake_cinematic') {
       state = previousState === 'quake_cinematic' ? 'playing' : previousState;
       accumulator = 0;
-      lastTs = performance.now();
     }
     if (sim && (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0))) {
       if (isVoxelSandbox) endSandbox(); else endLevel();
@@ -508,12 +545,11 @@ function playEarthquakeCinematic(ev) {
   controls?.cancelPointer();
   state = 'quake_cinematic';
   audio.playAnimeHitStop();
-  screens.showEarthquakeCinematic({
-    onSkip: () => finish(true),
-    reducedMotion,
-    duration,
-  });
-  cam.startEarthquakeCinematic({
+  // Arm before announce, same as playNextPokemonSpawn. This one works today only
+  // because showEarthquakeCinematic is still a real asynchronous overlay; it is
+  // one cleanup commit away from the identical failure, with 5.8 s of
+  // uncancellable camera and eight hard-cut phases behind it.
+  token = cam.startEarthquakeCinematic({
     x0: ev.x0,
     z0: ev.z0,
     x1: ev.x1,
@@ -523,6 +559,11 @@ function playEarthquakeCinematic(ev) {
     duration,
     reducedMotion,
     onComplete: () => finish(false),
+  });
+  screens.showEarthquakeCinematic({
+    onSkip: () => finish(true),
+    reducedMotion,
+    duration,
   });
 }
 
@@ -538,7 +579,6 @@ function playPowerUpCollectCinematic(powerup) {
   state = 'powerup_pause';
   screens.showPowerUpShowcase(powerup, () => {
     state = prevState;
-    lastTs = performance.now();
   });
 }
 
@@ -1276,8 +1316,20 @@ function frame(ts) {
   // rather than leave a throttled one running in a hidden tab. Re-armed first,
   // as it always was, so a throw anywhere below cannot kill the game loop.
   loopHandle = requestAnimationFrame(frame);
+  // The frame delta, clamped at BOTH ends. Math.min alone caps the ceiling and
+  // leaves the floor open, and a NEGATIVE delta is not a theoretical case: three
+  // handlers used to rewrite `lastTs = performance.now()` from inside the event
+  // loop, AFTER the line below had already advanced lastTs in the same frame,
+  // which can only under-measure the next delta. Measured at -6.246 s on a
+  // Brooklyn start taken across a multi-second build block. It drove a cinematic's
+  // clock backwards (pinning it in phase 0 for the whole READY hold with shake
+  // stuck at its cap) and turned `_fovKick *= Math.max(0, 1 - dt * 6)` into a
+  // multiply by 38.2, for a field of view of 344 degrees. Those rewrites are gone;
+  // the floor stays, because the class of bug is "something moved the clock" and
+  // the next one will not announce itself. Kept on one line with rawDt so the
+  // derivation reads as the single expression it is.
   const rawDt = (ts - lastTs) / 1000 || 0;
-  const realDt = Math.min(0.1, rawDt);
+  const realDt = Math.max(0, Math.min(0.1, rawDt));
   lastTs = ts;
 
   if (state === 'playing' && sim) {
@@ -1531,7 +1583,7 @@ function frame(ts) {
             }
           }
         } else if (ev.type === 'powerup_spawn') {
-          if (!isMultiplayer) queuePokemonSpawnIntro(ev.powerup, sim, cam);
+          if (!isMultiplayer) queuePokemonSpawnIntro(ev.powerup, sim, cam, ev.reason);
         } else if (ev.type === 'disaster') {
           if (!isMultiplayer) cam.triggerShake(1.2);
           triggerHaptic(100);
@@ -1702,7 +1754,7 @@ function frame(ts) {
           }
           if (!isQuake) playPowerUpCollectCinematic(ev.powerup);
         } else if (ev.type === 'powerup_spawn') {
-          queuePokemonSpawnIntro(ev.powerup, sim, cam);
+          queuePokemonSpawnIntro(ev.powerup, sim, cam, ev.reason);
         } else if (ev.type === 'disaster') {
           cam.triggerShake(1.2);
           triggerHaptic(100);

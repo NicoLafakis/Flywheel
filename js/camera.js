@@ -187,6 +187,21 @@ const BLOCKER_T_OUT = 3.5;
 // and halves the apparent dolly speed on the way in.
 const INTRO_FOV = 65;
 const INTRO_ZOOM_DUR = 1.4;      // s, overview -> normal framing
+// The overhead beat between the establishing hold and the dive. 0.8 s is long
+// enough to read as a deliberate camera move and short enough that nobody sitting
+// on the GO button feels it as a delay — and the sim stays frozen through it, so
+// it costs the player no clock either way (see introHolding).
+const INTRO_RISE_DUR = 0.8;
+// How far "directly overhead" is allowed to go. NOT pi/2, deliberately. At a true
+// 90 deg pitch cos(effPitch) is 0, so the camera's XZ offset from the pivot
+// collapses to zero and camera.lookAt has its view direction parallel to the
+// default up vector: three.js r160 does not NaN there (it nudges _z.z by 1e-4,
+// js/vendor/three.module.js) but the resulting ROLL is arbitrary and spins
+// rapidly as the pole is approached. 1.40 rad is 80.2 deg, and the placement code
+// adds (1 - BLOCKER_EASE) * 0.5 = 0.04 on top, so the effective pitch peaks at
+// 1.44 rad / 82.5 deg — reads as straight down, leaves the roll governed by yaw,
+// and keeps 0.13 rad of clearance from the singularity.
+const INTRO_OVERHEAD_PITCH = 1.40;
 const INTRO_ORBIT_RATE = 0.08;   // rad/s establishing drift (~78 s / revolution)
 const INTRO_FALLBACK_R = 30;     // framed radius (m) when the scene has no blockers
 const INTRO_MARGIN = 1.04;       // air around the fitted box
@@ -270,9 +285,24 @@ export class ChaseCamera {
 
     // Level intro. Inert until beginIntro() is called: introK stays 0, which
     // makes every term below an exact identity.
-    this.introPhase = 'off';  // 'off' | 'hold' | 'zoom'
+    //
+    // Three beats, not one, since 2026-08-17: the establishing HOLD the player
+    // presses GO on, a RISE to directly overhead, then the DIVE onto the hole.
+    // A separate phase per beat rather than sub-ranges inside one, because the
+    // sim gate, the roof lift and the standoff filter all have to answer
+    // "which beat is this" and a phase name is the only thing all three can read.
+    this.introPhase = 'off';  // 'off' | 'hold' | 'rise' | 'dive'
     this._introK = 0;         // 1 = full overview, 0 = normal framing
-    this._introT = 0;         // elapsed zoom time (s)
+    this._introT = 0;         // elapsed time in the current beat (s)
+    // Fraction of the overhead pitch offset currently applied: 0 through the
+    // hold, eased 0 -> 1 across the rise, then back down with _introK across the
+    // dive. Separate from _introK because they move on different beats — _introK
+    // is pinned at 1 for the whole rise, and one scalar cannot drive both.
+    this._introPitchK = 0;
+    // The pitch the intro borrowed, and the single value skipIntro() returns it
+    // to. CONVENTION: the intro owns this.pitch only while introPhase !== 'off',
+    // and skipIntro is the one place that hands it back.
+    this._introPitchBase = null;
     this._fitX = null;        // (x extent, z extent, height) frontier, from the pivot
     this._fitZ = null;
     this._fitH = null;
@@ -289,6 +319,7 @@ export class ChaseCamera {
     this._introOscYaw = 0;    // yaw the orbit is currently contributing
     this._introDistCache = null;
     this._introDistAspect = 0;
+    this._introDistPitch = 0;
     this._blockerBox = null;  // raw XZ bounds of the blocker list, or null
     this.quakeCinematic = null; // active Dragon Ball earthquake cinematic cutscene state
     this.pokeSpawnCinematic = null; // active Pokemon powerup spawn cinematic state
@@ -382,8 +413,13 @@ export class ChaseCamera {
 
   setReducedMotion(val) {
     this._settingReduced = !!val;
-    // Turning it on mid-dolly must not leave the player mid-flight.
-    if (this.reducedMotion && this.introPhase === 'zoom') this.skipIntro();
+    // Turning it on mid-move must not leave the player mid-flight. Both MOVING
+    // beats count, not just the dive: switching it on during the rise would
+    // otherwise strand the camera part-way to overhead. The hold is deliberately
+    // excluded — the establishing shot is fine under reduced motion, it is the
+    // flight through it that is not, and releaseIntro() already lands that case
+    // on the final framing directly.
+    if (this.reducedMotion && (this.introPhase === 'rise' || this.introPhase === 'dive')) this.skipIntro();
   }
   setFollowDirection(val) { this.followDir = !!val; }
 
@@ -435,27 +471,59 @@ export class ChaseCamera {
     this._fovKick = Math.min(24, this._fovKick + v);
   }
 
+  // Two writers must never own the rig's pitch at once. The intro holds it from
+  // beginIntro() until skipIntro(); a cinematic holds it from its arm until its
+  // completion. If a cinematic arms while the intro is still running, the intro
+  // yields FIRST and cleanly — landing the camera on its final framing — so that
+  // the pitch the cinematic saves is a real settled value rather than a frame of
+  // someone else's animation. Called before savedPitch is read, deliberately.
+  //
+  // The poke spawn is additionally gated at its caller (js/main.js
+  // queuePokemonSpawnIntro) and never reaches this; the quake can, because
+  // collecting the quake power-up needs sim steps and the sim runs during the
+  // dive.
+  _yieldIntroToCinematic() {
+    if (this.introPhase !== 'off') this.skipIntro();
+  }
+
   // ---------------------------------------------------------- earthquake cinematic
+  // Returns the cinematic it armed. That return value is a TOKEN: pass it back to
+  // skipEarthquakeCinematic and the cancel applies only to this cinematic, so a
+  // stale completion handler from a previous one cannot reach through and cancel
+  // a newer cutscene. See .wiki/conventions.md, "arm before you announce".
   startEarthquakeCinematic({ x0, z0, x1, z1, angle, length, duration = 5.8, onComplete, reducedMotion = false }) {
+    this._yieldIntroToCinematic();
     this.quakeCinematic = {
       x0, z0, x1, z1, angle, length,
       duration: Math.max(1.4, duration),
       time: 0,
       onComplete,
       reducedMotion: this.reducedMotion || reducedMotion,
+      // The pitch this cutscene borrows, returned by its own phase-7 blend and
+      // by skipEarthquakeCinematic. There is deliberately no savedDist: the
+      // cutscene overrides the frame's LOCAL distance and never touches
+      // this.dist, so a saved copy could only ever be used to undo a zoom the
+      // player performed while it was running.
       savedPitch: this.pitch,
-      savedDist: this.dist,
+      // Phase-7 exit pose, latched on the first frame of the release. See update().
+      exit: null,
     };
     if (!this.reducedMotion) {
       this.triggerShake(1.2);
       this.fovKick(12);
     }
+    return this.quakeCinematic;
   }
 
-  skipEarthquakeCinematic() {
-    if (!this.quakeCinematic) return;
-    const cb = this.quakeCinematic.onComplete;
+  skipEarthquakeCinematic(token) {
+    const qc = this.quakeCinematic;
+    if (!qc) return;
+    // A null/absent token still means "cancel whatever is armed", so every caller
+    // that predates the token keeps working.
+    if (token != null && qc !== token) return;
     this.quakeCinematic = null;
+    if (qc.savedPitch != null) this.pitch = qc.savedPitch;
+    const cb = qc.onComplete;
     if (typeof cb === 'function') cb();
   }
 
@@ -464,7 +532,9 @@ export class ChaseCamera {
   }
 
   // ---------------------------------------------------------- pokemon spawn cinematic
+  // Returns the armed cinematic as a cancel token — see startEarthquakeCinematic.
   startPokemonSpawnCinematic({ dropX, dropZ, playerX, playerZ, duration = 1.5, onComplete, reducedMotion = false }) {
+    this._yieldIntroToCinematic();
     this.pokeSpawnCinematic = {
       dropX, dropZ, playerX, playerZ,
       duration: Math.max(1.1, duration),
@@ -472,18 +542,23 @@ export class ChaseCamera {
       onComplete,
       reducedMotion: this.reducedMotion || reducedMotion,
       savedPitch: this.pitch,
-      savedDist: this.dist,
+      panFrom: null,   // phase-1 start yaw, latched once
+      exit: null,      // phase-2 exit pose, latched once
     };
     if (!this.reducedMotion) {
       this.triggerShake(0.6);
       this.fovKick(8);
     }
+    return this.pokeSpawnCinematic;
   }
 
-  skipPokemonSpawnCinematic() {
-    if (!this.pokeSpawnCinematic) return;
-    const cb = this.pokeSpawnCinematic.onComplete;
+  skipPokemonSpawnCinematic(token) {
+    const pc = this.pokeSpawnCinematic;
+    if (!pc) return;
+    if (token != null && pc !== token) return;
     this.pokeSpawnCinematic = null;
+    if (pc.savedPitch != null) this.pitch = pc.savedPitch;
+    const cb = pc.onComplete;
     if (typeof cb === 'function') cb();
   }
 
@@ -538,6 +613,14 @@ export class ChaseCamera {
     this._introOsc = 0;
     this._introOscYaw = 0;
     this._introDistCache = null;
+    // Latch the pitch the rig had BEFORE the intro borrows it. Everything the
+    // intro does to pitch is an offset from here, and skipIntro() puts exactly
+    // this value back — so a level that starts, is skipped, and is replayed
+    // never accumulates drift. Re-latched on every beginIntro rather than kept
+    // from construction so that a scene which legitimately changed the base
+    // pitch (settings, a different level) is honoured.
+    this._introPitchBase = this.pitch;
+    this._introPitchK = 0;
 
     // The pivot moves when minBox adds content the blockers never saw, so the
     // fit has to be rebuilt against it before anything reads a distance.
@@ -645,12 +728,15 @@ export class ChaseCamera {
   }
 
 
-  // Player hit the CTA. Reduced Motion lands on the final framing directly —
-  // the establishing shot is fine, the flight through it is not.
+  // Player hit the CTA. The shot answers in two beats — RISE to overhead, then
+  // DIVE to the player — so the transition reads as one deliberate move from the
+  // angle the player was looking at into the angle they will play from, rather
+  // than as a cut. Reduced Motion lands on the final framing directly: the
+  // establishing shot is fine, the flight through it is not.
   releaseIntro() {
     if (this.introPhase !== 'hold') return;
     if (this.reducedMotion) { this.skipIntro(); return; }
-    this.introPhase = 'zoom';
+    this.introPhase = 'rise';
     this._introT = 0;
   }
 
@@ -664,11 +750,20 @@ export class ChaseCamera {
     this.yaw -= this._introOscYaw;
     this._introOscYaw = 0;
     this._introOsc = 0;
+    // Hand pitch back. The intro owns this.pitch only while introPhase !== 'off'
+    // and this is the one place it is returned, so every exit — completion,
+    // reduced motion, replay, a cinematic pre-empting the intro — lands on the
+    // same value rather than wherever the rise happened to have got to.
+    if (this._introPitchBase !== null) this.pitch = this._introPitchBase;
+    this._introPitchK = 0;
     this._introDistCache = null;
   }
 
   introActive() { return this.introPhase !== 'off'; }
-  introHolding() { return this.introPhase === 'hold'; }
+  // Beats during which the sim must stay frozen. The rise is part of the
+  // establishing shot — the player has not been handed control yet — so it holds
+  // exactly as the hold does; only the dive runs live.
+  introHolding() { return this.introPhase === 'hold' || this.introPhase === 'rise'; }
 
   // Radial distance that frames the scene from the pivot through the intro's
   // wide lens. Fits height as well as footprint: a hero landmark far taller than
@@ -685,8 +780,15 @@ export class ChaseCamera {
   // out as the city turns (that reads as breathing). Bounding the arc is what
   // makes the anisotropic fit pay — a full 360 sweep has to cover the long axis
   // laterally and is no better than a radius.
+  // Cached on aspect AND pitch, because _fitAt() reads this.pitch: the rise
+  // steepens it, and a cache keyed on aspect alone would keep returning the
+  // shallow-pitch fit for the whole climb. Constant through the hold, so the
+  // established pose is unchanged bit-for-bit; it recomputes only on the frames
+  // pitch is actually moving.
   _overviewDist() {
-    if (this._introDistCache !== null && this._introDistAspect === this.camera.aspect) {
+    if (this._introDistCache !== null
+      && this._introDistAspect === this.camera.aspect
+      && this._introDistPitch === this.pitch) {
       return this._introDistCache;
     }
     const d = Math.min(
@@ -695,6 +797,7 @@ export class ChaseCamera {
     );
     this._introDistCache = d;
     this._introDistAspect = this.camera.aspect;
+    this._introDistPitch = this.pitch;
     return d;
   }
 
@@ -897,14 +1000,50 @@ export class ChaseCamera {
     this.dist = Math.min(maxZoomOut, Math.max(0.5, this.dist + zoomDelta));
 
     // Level intro timeline (inert unless beginIntro() was called).
+    //
+    // Three beats, and the shape of them is the answer to "the transition from
+    // the menu angle to the chase camera is jerky and makes no sense":
+    //
+    //   hold — the establishing pose, at the sun-scored azimuth, sim frozen.
+    //          The angle the player is looking at when they press GO.
+    //   rise — 0.8 s tilt from that angle up to (near) overhead, still frozen,
+    //          still framing the whole city. This is the beat that was missing:
+    //          without it the shot has to get from an oblique establishing angle
+    //          to a close chase pose in one move, and doing two things at once
+    //          over one curve is what reads as jerk.
+    //   dive — the existing zoom in to the player, easing pitch back DOWN to the
+    //          base chase elevation on the same curve, sim running.
+    //
+    // Pitch and framing are therefore deliberately out of phase: _introPitchK
+    // goes 0 -> 1 -> 0 while _introK goes 1 -> 1 -> 0. One curve each, and the
+    // camera is only ever doing one legible thing at a time.
     if (this.introPhase !== 'off') {
-      if (this.introPhase === 'zoom') {
+      if (this.introPhase === 'rise') {
+        this._introT += dt;
+        const u = Math.min(1, this._introT / INTRO_RISE_DUR);
+        this._introPitchK = u * u * u * (u * (u * 6 - 15) + 10);
+        if (u >= 1) { this.introPhase = 'dive'; this._introT = 0; }
+      } else if (this.introPhase === 'dive') {
         this._introT += dt;
         const u = Math.min(1, this._introT / this._introDur);
         // smootherstep: leaves the hold gently instead of snapping to full
         // speed, and settles rather than arriving hot.
-        this._introK = 1 - u * u * u * (u * (u * 6 - 15) + 10);
+        const s = 1 - u * u * u * (u * (u * 6 - 15) + 10);
+        this._introK = s;
+        // Same curve, so the descent to the player and the return to chase
+        // elevation are one motion rather than two overlapping ones. It also
+        // guarantees pitch is back at base on the exact frame _introK reaches 0,
+        // which is what makes skipIntro()'s restore a no-op on the happy path
+        // instead of a visible correction.
+        this._introPitchK = s;
         if (u >= 1) this.skipIntro();
+      }
+      // Pitch is an offset from the latched base, capped well short of vertical
+      // (see INTRO_OVERHEAD_PITCH). Written every frame of the two moving beats
+      // and never during the hold, so the established pose is untouched.
+      if (this._introPitchK > 0) {
+        this.pitch = this._introPitchBase
+          + (INTRO_OVERHEAD_PITCH - this._introPitchBase) * this._introPitchK;
       }
       // Slow establishing drift, bounded to the arc the distance was fitted to
       // — an unbounded sweep would eventually reach a pose the fit does not
@@ -1181,31 +1320,67 @@ export class ChaseCamera {
           cineYaw = qc.angle + Math.sin(u * Math.PI * 5) * 0.045;
           this.triggerShake(0.34);
         } else {
-          // Phase 7: Smooth return to the live chase camera.
-          const u = (progress - 0.94) / 0.06;
+          // Phase 7: return to the live chase camera. Same defect and same fix
+          // as the poke's phase 3 — an eased return computed for five channels
+          // and applied to two. Its window is already 0.06 of 5.8 s (~21 frames),
+          // long enough for the distance blend, so unlike the poke it needed no
+          // boundary change: only the missing channels.
+          const u = Math.min(1, (progress - 0.94) / 0.06);
           const easeU = u * u * (3 - 2 * u);
           const blendOut = 1 - easeU;
-          cineLookX = qc.x0 * blendOut + tx * easeU;
-          cineLookZ = qc.z0 * blendOut + tz * easeU;
-          cineDist = dist;
-          cinePitch = this.pitch;
+          if (!qc.exit) {
+            qc.exit = {
+              x: qc.x0,
+              z: qc.z0,
+              dist: qc.appliedDist != null ? qc.appliedDist : dist,
+              pitch: this.pitch,
+            };
+          }
+          const ex = qc.exit;
+          cineLookX = ex.x * blendOut + tx * easeU;
+          cineLookZ = ex.z * blendOut + tz * easeU;
+          // Geometric, same reasoning as the poke's phase 3.
+          cineDist = ex.dist > 0 && dist > 0
+            ? ex.dist * Math.pow(dist / ex.dist, easeU)
+            : ex.dist * blendOut + dist * easeU;
+          cinePitch = ex.pitch * blendOut + (qc.savedPitch != null ? qc.savedPitch : this.pitch) * easeU;
           cineYaw = this.yaw;
-          tx = cineLookX;
-          tz = cineLookZ;
         }
 
+        // One write point for all five channels, so no phase can apply a partial
+        // pose.
+        //
+        // The yaw rate cap is scoped to the RELEASE only, and that scope is the
+        // decision rather than an oversight. Phases 0-6 are authored hard cuts —
+        // "three hard-cut arcade close-ups", each attacking from a distinct
+        // angle — and a cut is a discontinuity on purpose. Capping them would
+        // turn shot 0 -> shot 1 (2.76 rad) into a ~0.4 s pan and quietly rewrite
+        // a deliberate sequence nobody asked to change. The cut OUT to live play
+        // is the opposite: nothing authored it, it is where the camera stops
+        // being the director's and becomes the player's, and that is the seam
+        // this fix exists to close. Measured numbers for the internal cuts, and
+        // the standing open item, are in .wiki/modules/render.md.
+        tx = cineLookX;
+        tz = cineLookZ;
+        dist = cineDist;
+        this.pitch = cinePitch;
         if (progress < 0.94) {
-          tx = cineLookX;
-          tz = cineLookZ;
-          dist = cineDist;
-          this.pitch = cinePitch;
           this.yaw = cineYaw;
+        } else {
+          const maxYawStep = FOLLOW_MAX_RATE * FOLLOW_MAX_RATE_RAMP * dt;
+          const dYaw0 = cineYaw - this.yaw;
+          const dYaw = Math.atan2(Math.sin(dYaw0), Math.cos(dYaw0));
+          this.yaw = Math.abs(dYaw) > maxYawStep
+            ? this.yaw + (dYaw < 0 ? -maxYawStep : maxYawStep)
+            : cineYaw;
         }
+        qc.appliedDist = dist;
       }
 
       if (progress >= 1.0) {
         const cb = qc.onComplete;
         this.quakeCinematic = null;
+        if (qc.savedPitch != null) this.pitch = qc.savedPitch;
         if (typeof cb === 'function') cb();
       }
     }
@@ -1224,26 +1399,66 @@ export class ChaseCamera {
         tz = tz + (midZ - tz) * blend;
         dist = dist + (28 - dist) * blend;
       } else {
+        // Phase boundaries. The RETURN window's length is a design value, not a
+        // magic number: it was 0.88 -> 1.0, which is 0.18 s at the shipped
+        // duration — far too short for the distance channel to travel from the
+        // cutscene's 16 m framing back to a chase distance that can legitimately
+        // be hundreds of metres on a large city at a large SIZE.
+        //
+        // Sized in SECONDS, then converted, because smoothness is a function of
+        // how many FRAMES the change is spread over and a fixed fraction of the
+        // duration is not. INTRO-adjacent lesson learned the hard way here: a
+        // 0.24 fraction measured a clean 21.0% per-frame step at the 1.5 s
+        // js/main.js passes and 29.6% at the 1.1 s floor this same method
+        // enforces two screens up (`Math.max(1.1, duration)`), because the same
+        // fraction of a shorter shot is fewer frames.
+        //
+        // The remaining three boundaries scale into whatever is left, so the
+        // table is EXACTLY the tuned 0.25 / 0.70 / 0.76 at duration 1.5 and
+        // degrades proportionally rather than by starving one beat.
+        //
+        // The 0.12 taken from the beacon hold costs less than it reads: the
+        // return still LOOKS at the beacon through the first third of its own
+        // window (easeU is near zero there), so the beacon stays framed to about
+        // progress 0.85 either way. What changes is that the camera starts moving
+        // while it is still looking at it, which is a better shot than a hard
+        // hold followed by a rush.
+        const RETURN_S = 0.36;
+        const RET = Math.min(0.30, RETURN_S / Math.max(0.1, pc.duration));
+        const head = 1 - RET;
+        const P_PAN = head * (0.25 / 0.76);      // hero freeze ends
+        const P_TOUCH = head * (0.70 / 0.76);    // whip-pan ends, beacon framing begins
+        const P_RETURN = head;                   // beacon framing ends, return to chase begins
         let cineLookX, cineLookZ, cineDist, cinePitch, cineYaw;
-        if (progress < 0.25) {
+        if (progress < P_PAN) {
           // Phase 0: Dramatic hero freeze frame on player
           cineLookX = pc.playerX;
           cineLookZ = pc.playerZ;
           cineDist = 9.0;
           cinePitch = 0.38;
           cineYaw = this.yaw;
-          this.triggerShake(0.3 * (1 - progress / 0.25));
-        } else if (progress < 0.70) {
+          this.triggerShake(0.3 * (1 - progress / P_PAN));
+        } else if (progress < P_TOUCH) {
           // Phase 1: High-speed whip-pan zoom to power-up drop site
-          const u = (progress - 0.25) / 0.45;
+          const u = (progress - P_PAN) / (P_TOUCH - P_PAN);
           const easeU = u * u * (3 - 2 * u);
           cineLookX = pc.playerX + (pc.dropX - pc.playerX) * easeU;
           cineLookZ = pc.playerZ + (pc.dropZ - pc.playerZ) * easeU;
           cineDist = 9.0 + (16.0 - 9.0) * easeU;
           cinePitch = 0.38 + (0.52 - 0.38) * easeU;
           const angleToDrop = Math.atan2(pc.dropX - pc.playerX, pc.dropZ - pc.playerZ);
-          cineYaw = this.yaw + (angleToDrop - this.yaw) * easeU;
-        } else if (progress < 0.88) {
+          // Latch the pan's origin ONCE. Interpolating against a live `this.yaw`
+          // that this same line rewrote each frame is not an ease at all — it is
+          // a first-order chase whose gain climbs with easeU, and it reached
+          // 1076 deg/s against a module ceiling of 400. Latched, the pan is the
+          // eased arc it was written to be.
+          if (pc.panFrom == null) pc.panFrom = this.yaw;
+          // Shortest signed arc. The drop site frequently sits almost directly
+          // behind the camera, and an unwrapped difference there picks the long
+          // way round on the wrong side of an arbitrary sign.
+          const d = angleToDrop - pc.panFrom;
+          cineYaw = pc.panFrom + Math.atan2(Math.sin(d), Math.cos(d)) * easeU;
+        } else if (progress < P_RETURN) {
           // Phase 2: Dynamic touchdown framing on the skyfall beacon
           cineLookX = pc.dropX;
           cineLookZ = pc.dropZ;
@@ -1253,31 +1468,73 @@ export class ChaseCamera {
           cineYaw = angleToDrop;
           this.triggerShake(0.35);
         } else {
-          // Phase 3: Smooth return to player chase camera
-          const u = (progress - 0.88) / 0.12;
+          // Phase 3: return to the live chase camera, in EVERY channel it took.
+          // The old version computed an eased return for five and applied it to
+          // two: `dist`, `pitch` and `yaw` were assigned under `progress < 0.88`,
+          // so at the boundary they reverted to their live values in one frame.
+          // Measured at 213.1 m of camera travel in a 16.3 ms frame.
+          const u = Math.min(1, (progress - P_RETURN) / (1 - P_RETURN));
           const easeU = u * u * (3 - 2 * u);
           const blendOut = 1 - easeU;
-          cineLookX = pc.dropX * blendOut + tx * easeU;
-          cineLookZ = pc.dropZ * blendOut + tz * easeU;
-          cineDist = dist;
-          cinePitch = this.pitch;
+          // Latch the pose the cutscene is leaving FROM, once, from what was
+          // actually applied last frame rather than from the authored constants
+          // — so the two cannot drift apart if the shot is ever retuned.
+          if (!pc.exit) {
+            pc.exit = {
+              x: pc.dropX,
+              z: pc.dropZ,
+              dist: pc.appliedDist != null ? pc.appliedDist : dist,
+              pitch: this.pitch,
+            };
+          }
+          const ex = pc.exit;
+          cineLookX = ex.x * blendOut + tx * easeU;
+          cineLookZ = ex.z * blendOut + tz * easeU;
+          // Distance blends GEOMETRICALLY, for the reason the intro dolly gives
+          // in _overviewDist's caller: "a linear dolly across a 20x range crawls
+          // at the far end and slams at the near end; blending the exponent
+          // holds the apparent rate steady". Here the near end is where the
+          // cutscene starts (16 m) and the far end is the live chase framing, so
+          // a linear return spends its worst per-frame RELATIVE step in the
+          // first fifth of the window — measured at 34.2% against a 25% bound,
+          // versus 21.0% for the same window in log space.
+          cineDist = ex.dist > 0 && dist > 0
+            ? ex.dist * Math.pow(dist / ex.dist, easeU)
+            : ex.dist * blendOut + dist * easeU;
+          cinePitch = ex.pitch * blendOut + (pc.savedPitch != null ? pc.savedPitch : this.pitch) * easeU;
+          // Yaw is handed straight back to the chase spring, which is already
+          // rate-limited and is the thing that knows where the player is heading.
+          // Blending it here would be a second authority on the same channel.
           cineYaw = this.yaw;
-          tx = cineLookX;
-          tz = cineLookZ;
         }
 
-        if (progress < 0.88) {
-          tx = cineLookX;
-          tz = cineLookZ;
-          dist = cineDist;
-          this.pitch = cinePitch;
-          this.yaw = cineYaw;
-        }
+        // ONE write point for all five channels, so no phase can apply a partial
+        // pose. The yaw step is capped at the rig's own ceiling
+        // (FOLLOW_MAX_RATE * FOLLOW_MAX_RATE_RAMP, whose own comment calls
+        // 545 deg/s "a nausea machine"), measured on the shortest signed arc.
+        // A guarantee rather than a tuning: no authored shot, present or future,
+        // can turn the camera faster than the player's own inputs may.
+        const maxYawStep = FOLLOW_MAX_RATE * FOLLOW_MAX_RATE_RAMP * dt;
+        const dYaw0 = cineYaw - this.yaw;
+        const dYaw = Math.atan2(Math.sin(dYaw0), Math.cos(dYaw0));
+        tx = cineLookX;
+        tz = cineLookZ;
+        dist = cineDist;
+        this.pitch = cinePitch;
+        this.yaw = Math.abs(dYaw) > maxYawStep
+          ? this.yaw + (dYaw < 0 ? -maxYawStep : maxYawStep)
+          : cineYaw;
+        pc.appliedDist = dist;
       }
 
       if (progress >= 1.0) {
         const cb = pc.onComplete;
         this.pokeSpawnCinematic = null;
+        // Hand back what the shot borrowed. savedPitch was captured at the arm
+        // and read nowhere, which is why a 0.52 cutscene pitch used to leak into
+        // the rest of the level permanently. Yaw is deliberately NOT restored —
+        // the chase spring owns it and forcing it would be a second cut.
+        if (pc.savedPitch != null) this.pitch = pc.savedPitch;
         if (typeof cb === 'function') cb();
       }
     }
@@ -1351,12 +1608,24 @@ export class ChaseCamera {
     // withdrawn only when it is not, rather than being traded away everywhere for
     // a case that occurs on a handful of frames.
     //
-    // Sandbox-only. The campaign and the establishing shot keep the raw value
-    // bit-for-bit: the intro FITS its distance against BLOCKER_EASE (see
-    // _fitAt), so a standoff that lagged would un-frame the shot it was fitted
-    // for, and the far-plane term below reads effT directly.
+    // Sandbox-only, and NOT during the two beats that hold the fitted shot.
+    // 'hold' and 'rise' keep the raw value bit-for-bit: both frame the whole
+    // city from outside it, the intro FITS its distance against BLOCKER_EASE
+    // (see _fitAt), so a standoff that lagged would un-frame the shot it was
+    // fitted for, and the far-plane term below reads effT directly. Neither has
+    // anything to smooth — from an overview standoff the sweep sits pinned at
+    // BLOCKER_EASE.
+    //
+    // 'dive' is the opposite case and is smoothed like ordinary play. It
+    // descends THROUGH the skyline rather than framing it, which is the exact
+    // situation this filter exists for, and _introK has already eased the
+    // fitted framing away by the time the camera reaches roof height. Measured
+    // on brooklyn (see .wiki/modules/render.md): unsmoothed, the sweep chatters
+    // 0.92 / 0.43 / 0.15 / 0.92 / 1.00 / 0.27 on consecutive frames as the
+    // camera drops into the tower cluster at ~25 m, and each of those steps is
+    // a 8-11 m camera jump inside one 17 ms frame against a ~4.5 m trend.
     let effT = rawT;
-    if (this.followDir && this.introPhase === 'off') {
+    if (this.followDir && this.introPhase !== 'hold' && this.introPhase !== 'rise') {
       if (this._effT === null) this._effT = rawT;
       const rate = this._spatialRate(rawT < this._effT ? BLOCKER_T_IN : BLOCKER_T_OUT);
       this._effT += (rawT - this._effT) * Math.min(1, dt * rate);
@@ -1423,11 +1692,15 @@ export class ChaseCamera {
     // inside a Brooklyn tower. _roofOver reads the placed point directly, so it
     // cannot be wrong about it.
     //
-    // Runs in every phase EXCEPT 'hold'. The establishing shot is fitted to
-    // frame the entire city from outside it, so there is provably no roof above
-    // the camera and the lift would be a no-op — excluding it costs nothing and
-    // keeps the held pose bit-identical by construction rather than by measurement.
-    if (this.introPhase !== 'hold') {
+    // Runs in every phase EXCEPT 'hold' and 'rise'. The establishing shot is
+    // fitted to frame the entire city from outside it, so there is provably no
+    // roof above the camera and the lift would be a no-op — excluding it costs
+    // nothing and keeps the held pose bit-identical by construction rather than
+    // by measurement. The rise only ever moves that camera UP and IN over the
+    // same footprint, so the same proof covers it, and excluding it also
+    // guarantees _lift is pinned at 0 on the frame the dive begins rather than
+    // carrying an eased remainder into it.
+    if (this.introPhase !== 'hold' && this.introPhase !== 'rise') {
       const roof = this._roofOver(cx, cz);
       const need = roof > 0 ? roof + ROOF_CLEAR : 0;
       if (need > this._lift) this._lift = need;

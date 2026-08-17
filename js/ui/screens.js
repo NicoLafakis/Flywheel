@@ -1502,13 +1502,33 @@ export class Screens {
     }, 2800);
   }
 
+  // The spawn announcement. Once a full-screen modal, now a toast — but the
+  // CONTRACT did not change with the presentation: `onSkip` means "the player
+  // dismissed this early", and it must never fire before this method returns.
+  //
+  // A bare synchronous `onSkip()` here is the RCA-2026-08-17 root cause. Its
+  // caller pairs "show the presentation" with "arm a camera cinematic", and the
+  // presentation's completion is what CANCELS that cinematic; firing it inline
+  // ran the cancel before the arm, orphaning a 1.5 s camera takeover that then
+  // seized the level's establishing shot on every single start.
+  //
+  // A toast is not dismissible, so nothing here can complete the beat and
+  // nothing here tries to. Completion belongs to the cinematic that the caller
+  // armed (or to its fallback timer). What IS stored is the early-out, so the
+  // one real early exit — teardown — can still run it exactly once.
   showPokemonEncounterModal({ powerup, onSkip } = {}) {
     this.showOrbitalBeaconNotification(powerup);
-    if (typeof onSkip === 'function') onSkip();
+    this._pokeEncounterSkip = typeof onSkip === 'function' ? onSkip : null;
   }
 
+  // The teardown path (js/main.js teardownWorld) and any other early exit. Was a
+  // no-op stub, which meant a torn-down level left its spawn queue latched.
+  // Nulls before it calls, so a re-entrant dismiss from inside the callback
+  // cannot loop.
   dismissPokemonEncounterModal() {
-    // Legacy stub — orbital beacon toast auto-dismisses
+    const cb = this._pokeEncounterSkip;
+    this._pokeEncounterSkip = null;
+    if (typeof cb === 'function') cb();
   }
 
   showResults(level, sim, onContinue) {
