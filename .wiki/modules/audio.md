@@ -23,37 +23,63 @@ loads `name + '.ogg'` unless the constructor's `ext` map says otherwise —
 `GameAudio`'s `FILE_EXT` carries the three `eat-N` names, so no call site,
 event name or test knows the files changed.
 
-## Levels: three independent buses, one mute
+## Levels: one master over three buses, one mute
 
-There is no master volume. `AudioEngine`'s master gain carries mute and nothing
-else (`muted ? 0 : MASTER_GAIN`); the player's levels live one layer down, one
-per bus, and none of them scales another:
+Four player-facing levels. Master scales all three of the others; the three
+below it are independent of each other and none of them scales another:
 
 | Level | Default | Rides | Covers | Persisted as |
 | --- | --- | --- | --- | --- |
-| Effects | 0.7 | `sfx` bus gain | crashes, gulps, combo/milestone stingers, UI taps | `flywheel.audio.volume` |
-| Ambience | 0.4 | `amb` bus gain (`AMB_GAIN 0.55 × level`) | per-city beds, Chicago el-train rattle | `flywheel.audio.ambVolume` |
-| Music | 0.3 | `HTMLAudioElement.volume` | the streamed soundtrack | `flywheel.audio.musicVolume` |
+| Master | 0.50 | `master` gain node (`MASTER_GAIN 0.9 × level`) **and** `MusicDirector._master` | everything | `flywheel.audio.masterVolume` |
+| Effects | 0.30 | `sfx` bus gain | crashes, gulps, combo/milestone stingers, UI taps | `flywheel.audio.volume` |
+| Music | 0.25 | `HTMLAudioElement.volume` | the streamed soundtrack | `flywheel.audio.musicVolume` |
+| Ambience | 0.15 | `amb` bus gain (`AMB_GAIN 0.55 × level`) | per-city beds, Chicago el-train rattle | `flywheel.audio.ambVolume` |
 
-The mix descends deliberately: crashes lead, the city sits under them, the score
+The mix descends deliberately: crashes lead, the score sits under them, the city
 sits under both.
 
-Music is not on the WebAudio graph at all, so it is unreachable from the two bus
-gains by construction. `MusicDirector._master` exists as a separate multiplier
-but stays at 1 in the game: nothing calls `setMasterVolume()`, so music answers
-only to its own slider, its ducking, and mute.
+Master is the one level that crosses the WebAudio boundary, and it has to be
+reached twice to do it. Music is not on the WebAudio graph at all — it is an
+`HTMLAudioElement`, so the master gain node cannot touch it — which is why
+`GameAudio.setMasterVolume()` fans out to both sides:
+
+```js
+// js/audio/game-audio.js
+setMasterVolume(v) { this.engine.setMasterVolume(v); this.music.setMasterVolume(v); }
+```
+
+`MusicDirector` then folds it in alongside its own slider, its ducking and its
+fades (`this.audio.volume = muted ? 0 : clamp01(_master * _music * _duck * _fade)`).
+Anything added to the music path later must be reached the same way or master
+will silently stop covering it.
+
+**These levels multiply, and the product is small.** A nominal `vol: 0.65` gulp
+arrives at roughly `0.65 × 0.30 (effects) × 0.9 × 0.50 (master) ≈ 0.088`. That
+is the number to reason against when picking a level for a new sound — not the
+`vol:` literal at the call site, which is a share of the effects bus and not of
+the output. Two consequences worth holding onto: headroom for stacking is far
+tighter than the call-site numbers suggest, and a level chosen by ear on a
+desktop at master 1.0 will not survive the shipped default.
+
+The one thing master deliberately does NOT do is get wired up in the `GameAudio`
+constructor. The effects level used to be pushed into `MusicDirector`'s master
+multiplier at boot, which meant turning effects down turned the score down with
+it; the constructor comment at `js/audio/game-audio.js:138` marks that seam so
+it does not get re-introduced. Master reaches music through the setter above and
+through `main.js`'s boot and `applySettings()` calls, never through the
+constructor.
 
 ## `js/audio/mix.js`: one description of the shipped mix
 
-The three defaults above, the three keys they persist under, and the mix-version
+The four defaults above, the four keys they persist under, and the mix-version
 stamp all live in `js/audio/mix.js`, which is deliberately dependency-free — it
-is three numbers and four strings, not the engine. Four unrelated layers need
+is four numbers and five strings, not the engine. Four unrelated layers need
 the same values and all four import them from there rather than restating a
-literal: `engine.js` (constructor fallbacks for effects and ambience, plus
-`VOL_KEY`/`AMB_VOL_KEY`), `music.js` (which re-exports `DEFAULT_MUSIC_VOLUME`
-and `MUSIC_VOLUME_KEY` so every existing importer keeps its import path),
-`save.js` (`defaultSettings()`), and `js/ui/screens.js` (the three slider rows'
-resting positions). `js/main.js` imports the effects and ambience numbers for
+literal: `engine.js` (constructor fallbacks for master, effects and ambience,
+plus `MASTER_VOLUME_KEY`/`VOL_KEY`/`AMB_VOL_KEY`), `music.js` (which re-exports
+`DEFAULT_MUSIC_VOLUME` and `MUSIC_VOLUME_KEY` so every existing importer keeps
+its import path), `save.js` (`defaultSettings()`), and `js/ui/screens.js` (the
+four slider rows' resting positions). `js/main.js` imports all four numbers for
 its boot and `applySettings()` fallbacks. Retuning the mix is one edit in
 `mix.js`; a bare literal anywhere else is a drift bug waiting to happen, which
 is why `save.js` imports a constants module rather than the audio engine —
@@ -62,12 +88,12 @@ persistence never points at render-side code.
 ## Re-seeding an existing install
 
 Changing the defaults alone would be inaudible to anyone who has already played:
-`main.js` writes all three levels back to localStorage on every boot, so a
+`main.js` writes all four levels back to localStorage on every boot, so a
 stored older mix wins forever. `reseedAudioMix(storage)` closes that:
 
 - `flywheel.audio.mixVersion` holds an integer stamp; `MIX_VERSION` is the
   current one.
-- Missing, unparseable, or lower than `MIX_VERSION` → all three levels are
+- Missing, unparseable, or lower than `MIX_VERSION` → all four levels are
   overwritten with the shipped defaults and the stamp is written last, so a
   store that fails partway through (quota, private mode) simply retries next
   boot instead of recording a half-done re-seed. A stamp from a future build is
@@ -75,7 +101,7 @@ stored older mix wins forever. `reseedAudioMix(storage)` closes that:
 - Equal or higher → nothing happens, forever. Every slider drag after the
   re-seed is the player's and is never touched again.
 
-It fires from the `AudioEngine` constructor (before the two levels are read) and
+It fires from the `AudioEngine` constructor (before its three levels are read) and
 from the `MusicDirector` constructor (against that director's own storage), not
 only from `main.js` — that is what puts any saveless surface (`tools/scene-view.html`
 today) on the new mix, since it has no save to consult. It is
@@ -84,8 +110,9 @@ and the rest find nothing to do.
 
 `main.js` calls it explicitly BEFORE constructing `GameAudio`, and that ordering
 is load-bearing: it makes the main game the one caller that sees `reseeded ===
-true`, which is its cue to mirror the new levels into `save.settings.sfxVol` and
-`save.settings.ambVol`. Without that, the save's old levels would be written
+true`, which is its cue to mirror the new levels into `save.settings.masterVol`,
+`sfxVol`, `ambVol` and `musicVol` (`js/main.js:61-67` — all four, despite the
+comment above it still saying "two keys"). Without that, the save's old levels would be written
 straight back over the freshly seeded keys a few lines later and nothing would
 change. It only stores the save when a value actually moved, so a brand-new
 player — who is also stamped on first boot, so the next retune knows where they
@@ -147,8 +174,12 @@ The layer delays inside a voice (glass at 0.25 s, debris at 0.45 s) are
 deliberately *not* compensated for the hold: they are the shape of the sound,
 and the hold moves only where that shape starts.
 
-The pool is pumped by `tick()`, which is reached from both `updateListener()`
-and `handleEvents()` (an empty drained-event batch still ripens the pool), so
+The pool is pumped by `tick()`, which is reached from `updateListener()`, from
+the batch helper `handleEvents()` (an empty drained-event batch still ripens the
+pool), and from `handleEvent()` itself — so every drained event pumps it too.
+`js/main.js` drains its own batch and calls the singular form per event, which
+is why the listener call at `js/main.js:1372` is the one that matters: it runs
+every frame whether or not any event was drained. So
 any surface that runs inside `js/main.js`'s frame loop — the main game and
 `js/multiplayer/` matches alike — needs no extra wiring; a caller with no live
 listener position (nothing today) would still need its own `tick()` call, but
