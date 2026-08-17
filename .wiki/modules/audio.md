@@ -193,10 +193,21 @@ moved forward by `reseedAudioMix()` — which is the right mechanism precisely
 because it also reaches the save-less surfaces a migration could never touch.
 
 `js/audio/music.js` owns the cue registry and one reusable `HTMLAudioElement`:
-menu, shop, pause, results, and one cue per authored city. Gallery maps to
-deliberate silence. Only the requested file loads after the first gesture;
+menu, shop, pause, results, victory, and one cue per authored city. Gallery maps
+to deliberate silence. Only the requested file loads after the first gesture;
 pause/shop retain the previous cue's position, background tabs pause playback,
 and major stingers duck music through `GameAudio`.
+
+Several cues are aliases onto one file rather than separate tracks: `title` and
+`menu` share `main-menu.mp3`, `tokyo` and `manhattan` share `lower-manhattan.mp3`,
+and `victory` (the multiplayer podium) shares `post-game.mp3` with `results` —
+the podium is a post-game screen, so it gets the post-game track without a second
+copy on disk. `MUSIC_FALLBACK_CUE` (`menu`) is where an unrecognised cue name
+lands: `request()` still returns `false`, and still warns once, but the screen
+plays the signature theme instead of nothing. A player cannot distinguish "this
+screen has a bug" from "this screen is quiet on purpose", so an unknown cue must
+never be answered with silence — that defect shipped once, leaving the
+end-of-match podium dead quiet in every multiplayer match.
 
 ## Gotchas
 
@@ -213,8 +224,18 @@ and major stingers duck music through `GameAudio`.
 - `debris-metal.ogg` is preloaded but currently has no event mapping.
 - A missing or not-yet-decoded sound is deliberately silent; audio loading is
   never awaited by the game loop.
+- Cue names are asked for by string literal from DOM-only modules (`js/main.js`,
+  `js/ui/screens.js`) that the headless validator can never import, so a name the
+  registry does not define cannot be caught at runtime. `tools/music-cue.test.mjs`
+  is the guard: it scans every `.js` under `js/` for `setMusicCue('…')`,
+  `actions.music('…')` and `music.request('…')`, and fails if any literal cue is
+  not a key of the imported `MUSIC_CUES`. It runs in the `multiplayer` section of
+  `tools/validate.mjs`. Adding a new way to request music means adding its shape
+  to that file's `CALL_SITE_PATTERNS`, or the new call sites go unguarded.
 - Music assets and their hashes are pinned by `assets/music/MANIFEST.json` and
-  `tools/music-assets-selftest.mjs`; lifecycle behavior is covered by
+  `tools/music-assets-selftest.mjs`. `MANIFEST.json` lists one representative
+  `cue` per file, not every alias, so an aliased cue adds no manifest row.
+  Lifecycle behavior (including the unknown-cue fallback) is covered by
   `js/audio/music.test.mjs`; the bus/level split and the one-time re-seed (fresh
   install, un-stamped old install, stamped install with chosen levels, and a
   second boot after a re-seed) by `js/audio/engine.test.mjs`; and the collapse

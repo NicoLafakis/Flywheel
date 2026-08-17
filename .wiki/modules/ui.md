@@ -20,7 +20,8 @@ tying everything together.
 |------|---------|
 | `js/main.js` | Boot, state machine (menu/intro/playing/paused/results), loop, audio; branches campaign vs voxel sandbox (`isVoxelSandbox`). Its separate `run90` path quantizes and records each fixed-tick input before stepping the pinned RUN tune; it lazy-loads board code and drains a durable outbox only at boot/reconnect/focus/timer boundaries, never in the sim loop |
 | `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, the announcement queue and its three backends (`#toast`, `#big-pop`, `#hype-band`); `updateSandbox()` variant for the voxel mode (live `CLEARED x% OF THE CITY · SIZE n` readout, the `#level-clock` countdown pill via `_updateClock()`, dimmed coin pill via `body.mode-sandbox`, the score plate's count-up, and the combo ring — chain, window drain and the multiplier read from `voxelsim.js`'s exported ladder, never re-derived; see [ADR-0015](../adr/0015-scoring-ladder-is-a-table-the-hud-reads.md)) |
-| `js/ui/screens.js` | 2-Stage Menu Flow: Stage 1 Title (branded landing over live city backdrop: sprocket + `FLYWHEEL` wordmark + tagline plate, prominent `PLAY` CTA, always-visible player status strip with Player Login / profile, Highest Score overall, and graphic segmented coin progress meter toward next skin level; THE RUN Chicago 90s, RECORDS, SHOP, SETTINGS utilities, and `.fw-foot` CC0 sound manifest + PRIVACY/TERMS legal line); Stage 2 City Selection Carousel (`showCitySelect`: 3D featured city card, `<`/`>` navigation arrows, touch swipe gestures, dynamic block count size-ascending ordering via `getSortedCityCatalog()`, gated progression unlocking via `isCityUnlocked()`, and bottom dot rail); Modern Mobile Game Shop (`showShop`: 5 icon-based category tabs `🕳️ Skins`, `👾 Creatures`, `🤝 Partners`, `🧭 Indicators`, `⚡ Upgrades`, sticky header with collection stats `14/31 Cosmetics · 12/80 Upgrade Ranks` and live coin capsule, 4 incremental stat tracks with 20-segment pip progress meters and +5%..+100% power boost ladders, responsive item card grid with baked 3D previews), results, pause (two-step confirms for run-discarding buttons), mechanic intro |
+| `js/ui/screens.js` | 2-Stage Menu Flow: Stage 1 Title (branded landing over live city backdrop: sprocket + `FLYWHEEL` wordmark + tagline plate, prominent `PLAY` CTA, always-visible player status strip with Player Login / profile, Highest Score overall, and graphic segmented coin progress meter toward next skin level; THE RUN Chicago 90s, RECORDS, SHOP, SETTINGS, and HELP & FAQ utilities, and `.fw-foot` CC0 sound manifest + PRIVACY/TERMS legal line); Stage 2 City Selection Carousel (`showCitySelect`: 3D featured city card, `<`/`>` navigation arrows, touch swipe gestures, dynamic block count size-ascending ordering via `getSortedCityCatalog()`, gated progression unlocking via `isCityUnlocked()`, and bottom dot rail); Modern Mobile Game Shop (`showShop`: 5 icon-based category tabs `🕳️ Skins`, `👾 Creatures`, `🤝 Partners`, `🧭 Indicators`, `⚡ Upgrades`, sticky header with collection stats `14/31 Cosmetics · 12/80 Upgrade Ranks` and live coin capsule, 4 incremental stat tracks with 20-segment pip progress meters and +5%..+100% power boost ladders, responsive item card grid with baked 3D previews), results, pause (two-step confirms for run-discarding buttons), mechanic intro |
+| `js/ui/help.js` | Interactive Help, Walkthrough, FAQ, and Tips 'n Tricks system (`renderHelp`): 3 tabbed views (`WALKTHROUGH`, `FAQ`, `TIPS 'N TRICKS`), real-time search & filter engine across all chapters and tags, collapsible animated accordion cards, and comprehensive documentation covering all 8 cities, 6 power-ups, controls, menus, upgrades, combos, multiplayer mechanics, and pro strategies |
 | `js/ui/boards.js` + `js/board/` | Lazy optional board layer: accessible public record tables and profile/claim/transfer/remove actions; direct PostgREST reads use only the publishable key, while every mutation goes through a Vercel Function with a timeout and offline fallback |
 | `js/ui/menuscene.js` | The live city behind the landing screen — the same `VoxelSandboxSim` + `VoxelWorld3D` + `ChaseCamera` trio the sandbox mounts, on the same canvas, on autopilot (held establishing orbit, never released; a scripted heading sweep drives the hole so the skyline is actively being eaten). Scheduled, never blocking: `startMenuScene` only arms a timer, `tickMenuScene` is folded into `main.js`'s single rAF loop, and `stopMenuScene` disposes from `teardownWorld` before any game world claims the canvas |
 | `js/ui/ready.js` | Level-start "READY?" gate overlay (`mountReadyGate`) — the visual reference for the brand layer; renders the shared wordmark at gate scale over the live 3D establishing shot |
@@ -28,7 +29,7 @@ tying everything together.
 | `js/ui/sprocket.js` | Brand mark builder (`buildSprocket`) — rotating 12-tooth wheel with an empty center (the hole/protagonist), used on the landing screen |
 | `index.html` | Canvas, HUD skeleton, importmap (three vendored same-origin, `js/vendor/three.module.js` — see `architecture.md`'s Boot section and [ADR-0014](../adr/0014-vendored-same-origin-runtime.md)), inline boot watchdog |
 | `privacy.html` + `terms.html` | The two legal documents, linked from the landing footer. Standalone pages that must render for someone arriving on a shared link with the game never booting, so they carry their own inlined stylesheet rather than linking `css/main.css` (whose `overflow: hidden` / `user-select: none` / `touch-action: none` body rules are right for a game surface and wrong for a scrollable, copyable document). Palette tokens are copied from `main.css`'s `:root` by value; the typographic register is deliberately different — long-form reading at a ~65ch measure, not dense uppercase HUD furniture. Pinch-zoom stays enabled, unlike the game surfaces. Every factual claim in the privacy copy is sourced from code, not drafted: the device key is 24 random bytes from `js/board/player.js` and is not a fingerprint, the IP is a keyed HMAC digest never stored raw (`api/_lib.mjs:107-115`), and only the SHA-256 hash of a name token is stored (`token_hash bytea`). Changing any of those behaviours means changing this copy in the same commit |
-| `css/main.css` | HUD + screen styling, plus the unscoped `--fw-*`/`.fw-*` brand layer (tokens, wordmark/sprocket/glow/spark/CTA-pill primitives, keyframes) consumed by both `screens.js` and `ready.js` |
+| `css/main.css` + `css/help.css` | HUD + screen styling, help modal styling, plus the unscoped `--fw-*`/`.fw-*` brand layer (tokens, wordmark/sprocket/glow/spark/CTA-pill primitives, keyframes) consumed by both `screens.js` and `ready.js` |
 | `js/rival/` | Rival-visibility HUD surfaces for the arena/hot-seat pages (2026-08-11, `.wiki/features/rival-visibility/`): `identity.js` (THE per-slot color table — every surface reads it, none defines its own), `attribution.js` (block → eater record + tallies), `tugbar.js` (coarse possession bar, no digits during play), `offscreen.js` (rival chevron), `beats.js` + `announce.js` (milestone callouts through one priority channel), `reveal.js` (end-of-match territory reveal). Not loaded by `js/main.js`; consumed by `js/demo/arena.js` and `js/demo/demo.js` |
 
 ## Gotchas
@@ -49,6 +50,17 @@ tying everything together.
   catches the next one: **count the visible countdowns, do not read one of
   them** — a probe reading `#timer`'s text passes just as happily with a second
   contradictory clock beside it.
+- The `#timer` coin readout says something different in a match than it does
+  solo, and the split lives in one pure exported function, `formatCoinReadout()`
+  (T-636). Solo: `🪙 3/40`, the personal tally, unchanged. Multiplayer
+  (`sim.isMultiplayer`): `🪙 31 LEFT`, the SHARED pool remaining — the same
+  number on every player's screen, ticking down whoever took the coin, read from
+  the host-authoritative `sim.coinsRemaining`. The `n/total` shape is
+  deliberately dropped with it, because a fraction reads as a personal score
+  while the point is that a rival is draining a finite pool. Presentation only:
+  `hole.coinsCollected` / `hole.coins` still drive the podium breakdown and the
+  banking into `save.coins`. The function is exported so the copy is asserted
+  headlessly (`tools/multiplayer-clock-coins.test.mjs`) instead of in a browser.
 - The goal line reads `sim.won`, never `cleared >= sim.goal.targetFraction`.
   At `targetFraction` 1.0 that comparison is the exact expression the sim needs
   a 1e-9 epsilon for, so a real full clear would sit on "CLEARED 99%" forever.
@@ -199,12 +211,15 @@ emoji to `🔇`/`🔊` immediately after `audio.setMuted()`. No gameplay code
 touched.
 
 
-**Planned, not built:** the online-Flywheel package
-(`.wiki/features/online-flywheel/`) proposes new sign-in, leaderboard, and
-trophy-room screens on top of this module. See
-[05-identity-and-accounts.md](../features/online-flywheel/05-identity-and-accounts.md)
-and [06-belts-and-achievements.md](../features/online-flywheel/06-belts-and-achievements.md).
-None of these screens exist yet.
+**Planned, not built:** the online-Flywheel package proposed new sign-in,
+leaderboard, and trophy-room screens on top of this module, designed in its
+identity-and-accounts and belts-and-achievements documents. That package was
+retired along with the legacy multiplayer stack on 2026-08-16 and neither
+document has a replacement yet; the identity/sign-in question has been
+narrowed and partly superseded by
+[scoreboards-and-profiles](../features/scoreboards-and-profiles/00-objective-overview.md)'s
+simpler device-token names, but the trophy-room/belts screens remain
+undesigned. None of these screens exist yet.
 
 **Built (2026-08-10):** the score-combo-and-hype package
 (`.wiki/features/score-combo-and-hype/`). Three vocabularies, deliberately not

@@ -58,7 +58,7 @@ worthwhile — and is never displayed, compared as truth, or stored as a result.
 - **Belts, reigns, championships, achievements.** Deferred; a belt is a board with
   a claim rule and boards have to exist and be trusted first.
 - **Ranking the live arena.** Host-authoritative
-  ([ADR-0010](../../adr/0010-host-authoritative-arena.md)), so a peer's score is
+  ([ADR-0019](../../adr/0019-six-player-invite-lobby-multiplayer.md)), so a peer's score is
   computed on another player's machine. Arena results stay arena results.
 - **Ghost replays, daily challenges, seasons, friend boards.** Doors held open in
   the schema ([03](03-technical-design.md) §3.2), built later.
@@ -329,9 +329,10 @@ Named so the implementer extends rather than duplicates:
   name blocklist is a vendored MIT-licensed JSON file, not a service.
 - **Depended on by:** ghost replays, daily challenges, seasons, friend boards, and
   any future belt system — all of which read this schema.
-- **Note:** `.wiki/features/online-flywheel/` describes a different, larger design
-  for the same territory. [00](00-objective-overview.md) has the reconciliation
-  table; that package is not deleted and its threat model is cited here.
+- **Note:** `online-flywheel` described a different, larger design for the
+  same territory. [00](00-objective-overview.md) has the reconciliation
+  table; that package was retired along with the legacy multiplayer stack on
+  2026-08-16, including the threat model this note used to cite.
 
 ## 21. Open questions
 

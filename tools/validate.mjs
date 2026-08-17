@@ -49,6 +49,7 @@ import {
 import { UPGRADES, UPGRADE_COST_TABLE, upgradeCost, upgradeMultiplier, defaultUpgrades, SHOP_CATEGORIES, getShopItemsByCategory } from '../js/upgrades.js';
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from '../js/fwmath.js';
 import { runBoardSelftest } from './board-selftest.mjs';
+import { runHelpSelftest } from './help.test.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -2550,6 +2551,59 @@ function validateCityChallenges() {
   }
 }
 
+// The multiplayer suites are standalone top-level ESM scripts: they assert with
+// node:assert/strict and throw out of the module body on the first failure. That
+// is why they are spawned rather than imported and called like every other
+// validate* helper here — an import would execute the suite at import time, and
+// its throw would abort the whole validator instead of being counted as one
+// failure with the rest of the run continuing.
+//
+// spawnSync, not spawn, because section() calls fn() synchronously and times it;
+// it never awaits. An async section would return a pending promise, log 0.0s,
+// and let the run print ALL PASS before a single suite had answered — a gate
+// that always passes is worse than no gate.
+function validateMultiplayer() {
+  console.log('Validating multiplayer suites...');
+  // Paths are resolved off import.meta.url rather than cwd so the section behaves
+  // the same whether it is run directly or as an orchestrator child.
+  const suites = [
+    'tools/multiplayer-config.test.mjs',
+    'tools/multiplayer-protocol.test.mjs',
+    'tools/multiplayer-lobby.test.mjs',
+    'tools/multiplayer-sim.test.mjs',
+    'tools/multiplayer-session.test.mjs',
+    'tools/multiplayer-e2e.test.mjs',
+    'tools/multiplayer-livechannel.test.mjs',
+    'tools/multiplayer-security.test.mjs',
+    'tools/multiplayer-fixes.test.mjs',
+    'tools/multiplayer-lifecycle.test.mjs',
+    'tools/multiplayer-clock-coins.test.mjs',
+    // Not multiplayer-specific, but this is the section that already spawns
+    // standalone suites, and the only two defects of its class so far were both
+    // in the multiplayer game-over handlers of js/main.js.
+    'tools/main-undefined-identifiers.test.mjs',
+    // Same reasoning, same handlers: the silent-podium defect was a music cue
+    // requested there that the registry never defined.
+    'tools/music-cue.test.mjs',
+    'js/multiplayer/multiplayer.test.mjs',
+  ];
+  let passed = 0;
+  for (const suite of suites) {
+    const file = fileURLToPath(new URL(`../${suite}`, import.meta.url));
+    const res = spawnSync(process.execPath, [file], { stdio: 'pipe' });
+    // A suite that could not be spawned at all (missing file, exec error) has a
+    // null status, so it must fail loudly rather than slip through the !== 0 test.
+    if (res.error || res.status !== 0) {
+      const out = `${res.stdout ?? ''}${res.stderr ?? ''}`.trim();
+      fail(`multiplayer suite ${suite} exited ${res.status}${res.error ? ` (${res.error.message})` : ''}:\n${out}`);
+      continue;
+    }
+    passed++;
+    console.log(`  ${suite}: passed.`);
+  }
+  if (passed === suites.length) console.log(`  multiplayer: passed ${suites.length} suites.`);
+}
+
 function validateSyntax() {
   console.log('Validating JS syntax...');
   const scanDir = (dir) => {
@@ -2627,7 +2681,11 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
   // gets its own child.
   const groups = [
     ['syntax', 'syntaxCheck'],
-    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,fwMath,runBoard,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges'],
+    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,fwMath,runBoard,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges'],
+    // Its own child rather than folded into `core`: every suite in it is itself
+    // a spawned process, so it is the one group whose cost is process startup
+    // instead of CPU, and it finishes long before the scenes either way.
+    ['multiplayer', 'multiplayer'],
     ['campaignLevels', 'campaignLevels'],
     ['scenesWinnable', 'scenesWinnable'],
     ['manhattan', 'manhattan'],
@@ -2704,6 +2762,7 @@ section('offlineBoot', validateOfflineBoot);
 section('saveSchema', validateSaveSchema);
 section('rewardLadders', validateRewardLadders);
 section('shopAndUpgrades', validateShopAndUpgrades);
+section('helpAndWalkthrough', () => console.log(`Validating Help, Walkthrough & FAQ (${runHelpSelftest()} assertions)...`));
 section('fwMath', validateFwMath);
 section('runBoard', () => console.log(`Validating THE RUN trace/replay (${runBoardSelftest()} assertions)...`));
 section('levelClock', validateLevelClock);
@@ -2712,6 +2771,7 @@ section('voxelSandbox', validateVoxelSandbox);
 section('voxelCollisions', validateVoxelCollisions);
 section('gameplayEnhancements', validateGameplayEnhancements);
 section('cityChallenges', validateCityChallenges);
+section('multiplayer', validateMultiplayer);
 section('manhattan', validateManhattan);
 section('upperManhattan', validateUpperManhattan);
 section('brooklyn', validateBrooklyn);

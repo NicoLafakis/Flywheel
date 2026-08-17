@@ -1,8 +1,10 @@
 # PRD 0004 — AI Players
 
 **Status:** planning · **Depends on:** nothing external. This package is
-sim-side and offline; it is **not** blocked on the backend credentials that
-block [online-flywheel](../online-flywheel/).
+sim-side and offline; unlike the original online-flywheel design it descends
+from, it was never blocked on backend credentials — and
+[multiplayer](../multiplayer/README.md), that design's shipped replacement,
+turned out not to need this package as a precursor either.
 
 > [Objective overview](00-objective-overview.md) ·
 > [Requirements](02-requirements.md)
@@ -24,8 +26,8 @@ Everything below is downstream of this. If a bot's decision consults
 `Math.random()`, the wall clock, the DOM, or the renderer, three things break
 at once and none of them break loudly: replay validation
 ([ADR-0012](../../adr/0012-replay-validated-leaderboard-trust.md)) stops being
-sound, the future arena's clients silently disagree about where the bots are
-([ADR-0010](../../adr/0010-host-authoritative-arena.md)), and balance work
+sound, the shared arena's clients silently disagree about where the bots are
+([ADR-0019](../../adr/0019-six-player-invite-lobby-multiplayer.md)), and balance work
 becomes unrepeatable so no tuning result can be trusted. This is the one
 failure this feature cannot survive, and it is worse than the bots never
 shipping.
@@ -84,9 +86,11 @@ untouched and must remain byte-identically behaved.
   compatibility overload accepting `move` may exist only during P1 and must be
   removed before P2 lands.
 - **FR-006** Three drivers must be sanctioned: `human`, `bot`, `peer`. `peer`
-  is declared in the interface and **not implemented** here — it is
-  [online-flywheel](../online-flywheel/)'s to write. No code in this package
-  may assume the driver list is closed.
+  is declared in the interface and **not implemented** here — it was
+  [multiplayer](../multiplayer/README.md)'s to write, though the shipped
+  package implemented its own host-authoritative equivalent independently
+  rather than through this interface. No code in this package may assume the
+  driver list is closed.
 - **FR-007** Drivers must be constructed from a `matchConfig` describing the
   slot roster (count, per-slot driver kind, per-slot difficulty, per-slot name
   and skin). The roster is data, not code.
@@ -345,14 +349,16 @@ bounds widening, and the balance pass. Exit gate: a five-bot mixed match in
 Cambridge is playable, performant, and the standings are not a foregone
 conclusion in either direction.
 
-**P5 — The peer-input seam handoff.**
-No new gameplay. Confirm `peerDriver` can be implemented against the interface
-without sim changes; write the handoff note into
-[online-flywheel/04-netcode-design.md](../online-flywheel/04-netcode-design.md)
-recording which of its assumptions this package satisfied and which it did not;
-create ADR-0016 from the draft in [00](00-objective-overview.md). Exit gate:
-online-flywheel's netcode work can begin without reopening `js/voxelsim.js`'s
-hole model.
+**P5 — The peer-input seam handoff (superseded).**
+No new gameplay was planned here. This milestone intended to confirm
+`peerDriver` could be implemented against the interface without sim changes,
+write a handoff note into the online-flywheel netcode design, and create
+ADR-0016 from the draft in [00](00-objective-overview.md). That netcode work
+happened independently: [multiplayer](../multiplayer/README.md) shipped its
+own host-authoritative netcode
+([04-netcode-protocol.md](../multiplayer/04-netcode-protocol.md)) without
+going through this package's driver interface, so this milestone's exit gate
+is moot.
 
 ---
 
@@ -462,8 +468,8 @@ from a value that has been driving campaign levels to a win for months.
   FR-048.
 - **`AGENTS.md`:** the sim invariants gain "no hole state is written outside
   `sim.step()`", which is the checkable form of this package's load-bearing
-  invariant and the precondition
-  [ADR-0010](../../adr/0010-host-authoritative-arena.md)'s invariants 7–10
-  assume.
+  invariant and the same precondition host-authoritative multiplayer
+  ([ADR-0019](../../adr/0019-six-player-invite-lobby-multiplayer.md))
+  depends on.
 - **New:** ADR-0016, drafted in [00](00-objective-overview.md), created at P5.
 </content>

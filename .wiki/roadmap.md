@@ -136,9 +136,10 @@ as the one to prove before committing.
 ### 3c. The achievements — half blocked, and only the half you would expect
 
 **What a player gets.** A trophy list. Ninety-six of them across the whole
-game: fifty-eight designed in the online package
-([features/online-flywheel/06-belts-and-achievements.md](features/online-flywheel/06-belts-and-achievements.md)
-§6) and thirty-eight more for Cambridge, numbered 59–96, twenty of them secret
+game: fifty-eight designed in the online-flywheel package's
+belts-and-achievements document (§6 — that package was retired along with
+the legacy multiplayer stack on 2026-08-16 and has no replacement yet) and
+thirty-eight more for Cambridge, numbered 59–96, twenty of them secret
 — shown as a locked `???` slot with no hint, because on a discovery level the
 secrets are the pitch. They range from "clear the hero building to nothing" to
 "eat the police cruiser's licence plate without eating the cruiser".
@@ -176,9 +177,9 @@ move a goalpost. Nobody has decided.
 
 ## 4. Championship belts
 
-Designed in
-[features/online-flywheel/06-belts-and-achievements.md](features/online-flywheel/06-belts-and-achievements.md).
-**Nothing built.**
+Designed in the online-flywheel package's belts-and-achievements document,
+which was retired along with the legacy multiplayer stack on 2026-08-16 and
+has no replacement yet. **Nothing built.**
 
 **What a player gets.** Not one leaderboard with one winner, but a roster of
 named championships held simultaneously by different people — the framing is

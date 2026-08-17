@@ -3,10 +3,51 @@
 import {
   COUNTDOWN_SECONDS,
   MAX_PLAYERS,
+  MAX_PLAYER_NAME_LENGTH,
   MIN_PLAYERS,
   MULTIPLAYER_SCENES,
+  MULTIPLAYER_SCENE_META,
   PLAYER_PALETTES,
 } from './config.js';
+// Names, chat text, colours and leaderboard stats all arrive over an open
+// broadcast channel. Nothing from the wire reaches innerHTML or a style attribute
+// without going through these first.
+import { escapeHtml, safeColor, safeNumber } from './sanitize.js';
+
+/** Same clamp the lobby and the wire validator apply, applied at the keyboard. */
+function clampPlayerName(raw) {
+  return String(raw || '').trim().slice(0, MAX_PLAYER_NAME_LENGTH);
+}
+
+// Why a join failed, in words a player can act on. Keyed by the reason the lobby
+// surfaces through onJoinRejected.
+const JOIN_ERROR_COPY = Object.freeze({
+  ROOM_FULL: {
+    title: 'ROOM IS FULL',
+    body: 'Every slot in this match is taken. Ask the host to start a bigger room, or wait for this match to finish and try the code again.',
+  },
+  NO_ROOM: {
+    title: 'NO SUCH ROOM',
+    body: 'Nobody answered on that room code. Check the 5 characters with the host. A room also disappears once its match has ended.',
+  },
+  JOIN_FAILED: {
+    title: 'COULD NOT JOIN',
+    body: 'The match could not be joined. Check the room code with the host and try again.',
+  },
+  HOST_LEFT: {
+    title: 'HOST LEFT',
+    body: 'The player who set up this room closed it. Start your own room, or ask for a new code.',
+  },
+});
+
+// How the podium headline explains the ending. GAME_OVER carries the reason, and
+// "the host walked out" has to read differently from a clean finish or nobody
+// understands why the clock stopped early.
+const PODIUM_REASON_COPY = Object.freeze({
+  CITY_CLEARED: 'METROPOLIS 100% DEMOLISHED',
+  HOST_LEFT: 'HOST LEFT THE MATCH · FINAL STANDINGS',
+  TIME_EXPIRED: 'MATCH COMPLETE · TIME EXPIRED',
+});
 
 export class MultiplayerUI {
   constructor({ rootElement, audio, onHostCreate, onPeerJoin, onLeaveLobby }) {
@@ -20,7 +61,7 @@ export class MultiplayerUI {
     this._countdownEl = null;
   }
 
-  showHostCreateModal({ onCancel, onCreate, onJoin }) {
+  showHostCreateModal({ onCancel, onCreate, onJoin, defaultName = '' }) {
     this.clear();
     const modal = document.createElement('div');
     modal.className = 'screen mp-screen';
@@ -28,8 +69,22 @@ export class MultiplayerUI {
     modal.style.pointerEvents = 'auto';
 
     let activeTab = 'host';
-    let selectedScene = 'gallery';
+    let selectedScene = MULTIPLAYER_SCENES[0];
     let selectedPlayers = 4;
+
+    // One source for which cities multiplayer offers and how they read (config.js),
+    // rather than three hand-written chips that drift from the list.
+    const sceneChips = MULTIPLAYER_SCENES.map((scene, idx) => {
+      const meta = MULTIPLAYER_SCENE_META[scene] || { name: scene.toUpperCase(), sub: '', level: `LEVEL ${idx + 1}` };
+      return `
+            <div class="mp-scene-chip${idx === 0 ? ' active' : ''}" data-scene="${escapeHtml(scene)}">
+              <div class="mp-scene-info">
+                <span class="mp-scene-name">${escapeHtml(meta.name)}</span>
+                <span class="mp-scene-sub">${escapeHtml(meta.sub)}</span>
+              </div>
+              <div class="mp-scene-pill-badge">${escapeHtml(meta.level)}</div>
+            </div>`;
+    }).join('');
 
     modal.innerHTML = `
       <div class="mp-card">
@@ -46,28 +101,7 @@ export class MultiplayerUI {
         <!-- Host Section -->
         <div id="mp-host-section" class="mp-tab-panel">
           <div class="mp-section-title">CHOOSE METROPOLIS</div>
-          <div class="mp-scene-grid">
-            <div class="mp-scene-chip active" data-scene="gallery">
-              <div class="mp-scene-info">
-                <span class="mp-scene-name">THE LAB</span>
-                <span class="mp-scene-sub">Stage 1 · 12,213 Blocks · Warmup Grid</span>
-              </div>
-              <div class="mp-scene-pill-badge">LEVEL 1</div>
-            </div>
-            <div class="mp-scene-chip" data-scene="manhattan">
-              <div class="mp-scene-info">
-                <span class="mp-scene-name">LOWER MANHATTAN</span>
-                <span class="mp-scene-sub">Stage 2 · 25,875 Blocks · Financial Grid</span>
-              </div>
-              <div class="mp-scene-pill-badge">LEVEL 2</div>
-            </div>
-            <div class="mp-scene-chip" data-scene="brooklyn">
-              <div class="mp-scene-info">
-                <span class="mp-scene-name">BROOKLYN</span>
-                <span class="mp-scene-sub">Stage 3 · 39,984 Blocks · Waterfront Metropolis</span>
-              </div>
-              <div class="mp-scene-pill-badge">LEVEL 3</div>
-            </div>
+          <div class="mp-scene-grid">${sceneChips}
           </div>
 
           <div class="mp-section-title" style="margin-top: 14px;">PLAYER CAPACITY (2 TO 6 PLAYERS)</div>
@@ -98,6 +132,7 @@ export class MultiplayerUI {
           <div class="mp-section-title">ENTER 5-LETTER ROOM CODE</div>
           <div class="mp-join-box">
             <input id="mp-room-input" class="mp-room-input" type="text" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false" />
+            <input id="mp-join-name" class="mp-name-input" type="text" maxlength="${MAX_PLAYER_NAME_LENGTH}" placeholder="YOUR NAME" autocomplete="off" spellcheck="false" value="${escapeHtml(defaultName)}" />
             <p class="mp-join-hint">Ask the match host for their 5-character room code or open their invite link directly.</p>
           </div>
 
@@ -216,12 +251,14 @@ export class MultiplayerUI {
 
     const joinSubmitBtn = modal.querySelector('#mp-btn-join-submit');
     const roomInput = modal.querySelector('#mp-room-input');
+    const nameInput = modal.querySelector('#mp-join-name');
     const handleJoin = () => {
       const code = (roomInput.value || '').trim().toUpperCase();
+      const playerName = clampPlayerName(nameInput ? nameInput.value : '');
       if (code.length >= 3) {
         if (this.audio?.ui?.playConfirm) this.audio.ui.playConfirm();
-        if (onJoin) onJoin(code);
-        else if (this.onPeerJoin) this.onPeerJoin(code);
+        if (onJoin) onJoin({ code, playerName });
+        else if (this.onPeerJoin) this.onPeerJoin(code, playerName);
       } else {
         roomInput.focus();
       }
@@ -229,6 +266,113 @@ export class MultiplayerUI {
     joinSubmitBtn.addEventListener('click', handleJoin);
     roomInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') handleJoin();
+    });
+    if (nameInput) {
+      nameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleJoin();
+      });
+    }
+  }
+
+  /**
+   * REQ-MP-05: an invite link drops the player straight into a lobby, so the name
+   * prompt the code-entry panel provides has to exist on that path too — two of
+   * the three PRD personas arrive by link and never see the join tab.
+   * Pre-filled from the saved profile so a returning player just taps through.
+   */
+  showJoinNamePrompt({ roomCode = '', defaultName = '', onConfirm, onCancel }) {
+    this.clear();
+    const modal = document.createElement('div');
+    modal.className = 'screen mp-screen';
+    modal.id = 'mp-name-modal';
+    modal.style.pointerEvents = 'auto';
+
+    modal.innerHTML = `
+      <div class="mp-card mp-card-narrow">
+        <div class="mp-header">
+          <div class="mp-title">JOIN MATCH</div>
+          <div class="mp-badge">ROOM ${escapeHtml(String(roomCode).toUpperCase())}</div>
+        </div>
+
+        <div class="mp-section-title">YOUR DISPLAY NAME</div>
+        <div class="mp-join-box">
+          <input id="mp-name-input" class="mp-name-input" type="text" maxlength="${MAX_PLAYER_NAME_LENGTH}"
+                 placeholder="YOUR NAME" autocomplete="off" spellcheck="false"
+                 enterkeyhint="go" value="${escapeHtml(defaultName)}" />
+          <p class="mp-join-hint">This is the name the other players see on the roster and the podium. Up to ${MAX_PLAYER_NAME_LENGTH} characters.</p>
+        </div>
+
+        <div class="mp-actions" style="margin-top: 18px;">
+          <button id="mp-btn-name-go" class="btn primary mp-btn-primary" type="button">JOIN ROOM</button>
+          <button id="mp-btn-name-back" class="btn secondary" type="button">BACK</button>
+        </div>
+      </div>
+    `;
+
+    this.root.appendChild(modal);
+    this._container = modal;
+
+    const input = modal.querySelector('#mp-name-input');
+    const confirm = () => {
+      if (this.audio?.ui?.playConfirm) this.audio.ui.playConfirm();
+      if (onConfirm) onConfirm(clampPlayerName(input ? input.value : ''));
+    };
+
+    modal.querySelector('#mp-btn-name-go').addEventListener('click', confirm);
+    modal.querySelector('#mp-btn-name-back').addEventListener('click', () => {
+      this.clear();
+      if (onCancel) onCancel();
+    });
+    if (input) {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') confirm();
+      });
+      // A returning player's name is already there; select it so retyping is one
+      // action rather than a backspace-16-times chore.
+      input.focus();
+      if (input.value) input.select();
+    }
+  }
+
+  /**
+   * A join that cannot succeed must say so and offer a way out. Before this, a
+   * full room dropped its JOIN_REJECT on the floor and a mistyped code sat on
+   * "Waiting for players..." forever.
+   */
+  showJoinError({ reason = 'JOIN_FAILED', roomCode = '', onBack, onRetry }) {
+    this.clear();
+    const copy = JOIN_ERROR_COPY[reason] || JOIN_ERROR_COPY.JOIN_FAILED;
+
+    const modal = document.createElement('div');
+    modal.className = 'screen mp-screen';
+    modal.id = 'mp-join-error';
+    modal.style.pointerEvents = 'auto';
+
+    modal.innerHTML = `
+      <div class="mp-card mp-card-narrow">
+        <div class="mp-header">
+          <div class="mp-title mp-error-title">${escapeHtml(copy.title)}</div>
+          <div class="mp-badge">ROOM ${escapeHtml(String(roomCode).toUpperCase())}</div>
+        </div>
+        <p class="mp-error-msg">${escapeHtml(copy.body)}</p>
+        <div class="mp-actions" style="margin-top: 18px;">
+          <button id="mp-btn-err-retry" class="btn primary mp-btn-primary" type="button">TRY ANOTHER CODE</button>
+          <button id="mp-btn-err-back" class="btn secondary" type="button">MAIN MENU</button>
+        </div>
+      </div>
+    `;
+
+    this.root.appendChild(modal);
+    this._container = modal;
+
+    modal.querySelector('#mp-btn-err-retry').addEventListener('click', () => {
+      if (this.audio?.ui?.playTap) this.audio.ui.playTap();
+      if (onRetry) onRetry();
+      else if (onBack) onBack();
+    });
+    modal.querySelector('#mp-btn-err-back').addEventListener('click', () => {
+      this.clear();
+      if (onBack) onBack();
     });
   }
 
@@ -239,16 +383,21 @@ export class MultiplayerUI {
     lobbyView.id = 'mp-lobby-screen';
     lobbyView.style.pointerEvents = 'auto';
 
+    // roomCode / scene / maxPlayers reach a peer through ROOM_STATE, i.e. off the wire.
+    const roomCodeText = escapeHtml(String(lobby.roomCode || '').toUpperCase());
+    const sceneText = escapeHtml(String(lobby.scene || '').toUpperCase());
+    const capacity = safeNumber(lobby.maxPlayers, MAX_PLAYERS);
+
     lobbyView.innerHTML = `
       <div class="mp-lobby-container">
         <!-- Lobby Header -->
         <div class="mp-lobby-header">
           <div class="mp-room-pill">
             <span class="mp-room-lbl">ROOM:</span>
-            <span class="mp-room-code">${lobby.roomCode}</span>
+            <span class="mp-room-code">${roomCodeText}</span>
           </div>
           <div class="mp-scene-pill">
-            <span class="mp-scene-badge">${lobby.scene.toUpperCase()} · ${lobby.maxPlayers} PLAYERS</span>
+            <span class="mp-scene-badge">${sceneText} · ${capacity} PLAYERS</span>
           </div>
           <button id="mp-lobby-leave" class="btn secondary mp-leave-btn" type="button">LEAVE</button>
         </div>
@@ -269,16 +418,14 @@ export class MultiplayerUI {
           <!-- Left: Player Roster -->
           <div class="mp-roster-column">
             <div class="mp-column-header">
-              <span>PLAYERS (<span id="mp-roster-count">${lobby.connectedCount}</span>/${lobby.maxPlayers})</span>
+              <span>PLAYERS (<span id="mp-roster-count">${lobby.connectedCount}</span>/${capacity})</span>
               <span id="mp-lobby-status" class="mp-status-pulse">Waiting for players...</span>
             </div>
-            <div id="mp-roster-grid" class="mp-roster-grid">
-              ${this._renderRosterHTML(lobby)}
-            </div>
+            <div id="mp-roster-grid" class="mp-roster-grid"></div>
             ${lobby.isHost ? `
               <div class="mp-host-ctrls">
                 <button id="mp-force-start" class="btn primary mp-start-btn" type="button">
-                  START NOW (${lobby.connectedCount}/${lobby.maxPlayers})
+                  START NOW (${lobby.connectedCount}/${capacity})
                 </button>
               </div>
             ` : ''}
@@ -315,6 +462,10 @@ export class MultiplayerUI {
     this._container = lobbyView;
     this._chatContainer = lobbyView.querySelector('#mp-chat-feed');
     this._countdownEl = lobbyView.querySelector('#mp-countdown-modal');
+
+    // Roster is built as DOM nodes (never markup) so a player name can only ever
+    // be text — see _renderRosterInto.
+    this._renderRosterInto(lobbyView.querySelector('#mp-roster-grid'), lobby);
 
     // Hook copy button with native navigator.clipboard + toast
     const copyBtn = lobbyView.querySelector('#mp-copy-link-btn');
@@ -368,13 +519,13 @@ export class MultiplayerUI {
       const rosterGrid = this.root.querySelector('#mp-roster-grid');
       const rosterCount = this.root.querySelector('#mp-roster-count');
       const statusPill = this.root.querySelector('#mp-lobby-status');
-      if (rosterGrid) rosterGrid.innerHTML = this._renderRosterHTML(lobby);
+      if (rosterGrid) this._renderRosterInto(rosterGrid, lobby);
       if (rosterCount) rosterCount.textContent = lobby.connectedCount;
       if (statusPill) {
         statusPill.textContent = lobby.isFull ? 'Lobby Full! Starting...' : 'Waiting for players...';
       }
       if (forceStartBtn) {
-        forceStartBtn.textContent = `START NOW (${lobby.connectedCount}/${lobby.maxPlayers})`;
+        forceStartBtn.textContent = `START NOW (${lobby.connectedCount}/${safeNumber(lobby.maxPlayers, MAX_PLAYERS)})`;
       }
     };
 
@@ -382,25 +533,33 @@ export class MultiplayerUI {
       this._appendChatMessage(msg);
     };
 
+    // The countdown ticker polls the wall clock several times a second so every
+    // screen agrees on the digit; the overlay must only react when the DISPLAYED
+    // number changes, or one beep per second becomes ten.
+    let lastCountdownDigit = null;
+
     lobby.onCountdownStart = (sec) => {
       if (this._countdownEl) {
         this._countdownEl.classList.remove('hidden');
         const num = this._countdownEl.querySelector('#mp-countdown-num');
-        if (num) num.textContent = Math.ceil(sec);
+        lastCountdownDigit = Math.max(1, Math.ceil(sec));
+        if (num) num.textContent = lastCountdownDigit;
         if (this.audio?.ui?.playConfirm) this.audio.ui.playConfirm();
       }
     };
 
     lobby.onCountdownTick = (sec) => {
-      if (this._countdownEl) {
-        const num = this._countdownEl.querySelector('#mp-countdown-num');
-        if (num) {
-          num.textContent = Math.max(1, Math.ceil(sec));
-          num.classList.add('pop');
-          setTimeout(() => num.classList.remove('pop'), 200);
-        }
-        if (this.audio?.ui?.playTap) this.audio.ui.playTap();
+      if (!this._countdownEl) return;
+      const digit = Math.max(1, Math.ceil(sec));
+      if (digit === lastCountdownDigit) return;
+      lastCountdownDigit = digit;
+      const num = this._countdownEl.querySelector('#mp-countdown-num');
+      if (num) {
+        num.textContent = digit;
+        num.classList.add('pop');
+        setTimeout(() => num.classList.remove('pop'), 200);
       }
+      if (this.audio?.ui?.playTap) this.audio.ui.playTap();
     };
 
     lobby.onCountdownCancel = (reason) => {
@@ -410,39 +569,66 @@ export class MultiplayerUI {
     };
   }
 
-  _renderRosterHTML(lobby) {
-    let html = '';
-    for (let i = 0; i < lobby.maxPlayers; i++) {
-      const p = lobby.players[i];
-      const color = PLAYER_PALETTES[i] || '#00f0ff';
+  /**
+   * Build the roster out of elements with textContent rather than a markup string:
+   * a player name arrives over the wire, so it must never be parsed as HTML. Class
+   * names and nesting are identical to the previous markup so css/multiplayer.css
+   * still applies unchanged.
+   */
+  _renderRosterInto(container, lobby) {
+    if (!container) return;
+    container.textContent = '';
+    const capacity = safeNumber(lobby.maxPlayers, MAX_PLAYERS);
+    const players = Array.isArray(lobby.players) ? lobby.players : [];
+
+    for (let i = 0; i < capacity; i++) {
+      const p = players[i];
+      const color = safeColor(PLAYER_PALETTES[i], i);
+      const card = document.createElement('div');
+      const avatar = document.createElement('div');
+      const meta = document.createElement('div');
+      meta.className = 'mp-player-meta';
+      const nameEl = document.createElement('span');
+      const tagEl = document.createElement('span');
+
       if (p) {
-        html += `
-          <div class="mp-roster-card filled" style="--p-color: ${color}">
-            <div class="mp-player-avatar" style="background: ${color}">
-              <span>${p.isHost ? 'H' : (i + 1)}</span>
-            </div>
-            <div class="mp-player-meta">
-              <span class="mp-player-name">${p.name}</span>
-              <span class="mp-player-tag">${p.isHost ? 'HOST' : 'PLAYER'}</span>
-            </div>
-            <div class="mp-player-dot" style="background: ${color}"></div>
-          </div>
-        `;
+        card.className = 'mp-roster-card filled';
+        card.style.setProperty('--p-color', color);
+        avatar.className = 'mp-player-avatar';
+        avatar.style.background = color;
+        const initial = document.createElement('span');
+        initial.textContent = p.isHost ? 'H' : String(i + 1);
+        avatar.appendChild(initial);
+
+        nameEl.className = 'mp-player-name';
+        nameEl.textContent = String(p.name ?? `Player ${i + 1}`);
+        tagEl.className = 'mp-player-tag';
+        tagEl.textContent = p.isHost ? 'HOST' : 'PLAYER';
+
+        const dot = document.createElement('div');
+        dot.className = 'mp-player-dot';
+        dot.style.background = color;
+
+        meta.append(nameEl, tagEl);
+        card.append(avatar, meta, dot);
       } else {
-        html += `
-          <div class="mp-roster-card empty">
-            <div class="mp-player-avatar empty">
-              <span>+</span>
-            </div>
-            <div class="mp-player-meta">
-              <span class="mp-player-name empty">Open Slot</span>
-              <span class="mp-player-tag empty">WAITING...</span>
-            </div>
-          </div>
-        `;
+        card.className = 'mp-roster-card empty';
+        avatar.className = 'mp-player-avatar empty';
+        const plus = document.createElement('span');
+        plus.textContent = '+';
+        avatar.appendChild(plus);
+
+        nameEl.className = 'mp-player-name empty';
+        nameEl.textContent = 'Open Slot';
+        tagEl.className = 'mp-player-tag empty';
+        tagEl.textContent = 'WAITING...';
+
+        meta.append(nameEl, tagEl);
+        card.append(avatar, meta);
       }
+
+      container.appendChild(card);
     }
-    return html;
   }
 
   _appendChatMessage(msg) {
@@ -451,13 +637,23 @@ export class MultiplayerUI {
     const msgEl = document.createElement('div');
     msgEl.className = isSys ? 'mp-chat-msg system' : 'mp-chat-msg';
 
+    // textContent, never innerHTML: chat text and author names are attacker-controlled.
     if (isSys) {
-      msgEl.innerHTML = `<span class="mp-chat-sys-text">${msg.text}</span>`;
+      const sysEl = document.createElement('span');
+      sysEl.className = 'mp-chat-sys-text';
+      sysEl.textContent = String(msg.text ?? '');
+      msgEl.appendChild(sysEl);
     } else {
-      msgEl.innerHTML = `
-        <span class="mp-chat-author" style="color: ${msg.color || '#fff'}">${msg.name}:</span>
-        <span class="mp-chat-body">${msg.text}</span>
-      `;
+      const authorEl = document.createElement('span');
+      authorEl.className = 'mp-chat-author';
+      authorEl.style.color = safeColor(msg.color, msg.slot);
+      authorEl.textContent = `${String(msg.name ?? 'Player')}:`;
+
+      const bodyEl = document.createElement('span');
+      bodyEl.className = 'mp-chat-body';
+      bodyEl.textContent = String(msg.text ?? '');
+
+      msgEl.append(authorEl, document.createTextNode(' '), bodyEl);
     }
 
     this._chatContainer.appendChild(msgEl);
@@ -496,7 +692,7 @@ export class MultiplayerUI {
     const lb = gameOverData?.finalLeaderboard || [];
     const winner = lb[0] || { name: 'Player 1', score: 0, slot: 0 };
     const isLocalWinner = winner.slot === localSlot;
-    const reason = gameOverData?.reason === 'CITY_CLEARED' ? 'METROPOLIS 100% DEMOLISHED' : 'MATCH COMPLETE · TIME EXPIRED';
+    const reason = PODIUM_REASON_COPY[gameOverData?.reason] || PODIUM_REASON_COPY.TIME_EXPIRED;
 
     let cardsHTML = '';
     lb.forEach((p, idx) => {
@@ -506,6 +702,10 @@ export class MultiplayerUI {
       const rankDisplay = rankLabels[idx] || `#${p.rank}`;
       const medal = rankMedals[idx] || '🎖️';
 
+      // Every value below came off the wire in GAME_OVER.finalLeaderboard.
+      const nameText = escapeHtml(String(p.name ?? 'Player'));
+      const rowColor = escapeHtml(safeColor(p.color, p.slot));
+
       cardsHTML += `
         <div class="mp-podium-card ${idx === 0 ? 'winner' : ''} ${isLocal ? 'local-player' : ''}">
           <div class="mp-card-top">
@@ -514,38 +714,41 @@ export class MultiplayerUI {
               <span class="mp-rank-badge">${rankDisplay}</span>
             </div>
             <div class="mp-player-info">
-              <div class="mp-row-color" style="background: ${p.color || '#00f0ff'}"></div>
-              <span class="mp-player-name">${p.name}</span>
+              <div class="mp-row-color" style="background: ${rowColor}"></div>
+              <span class="mp-player-name">${nameText}</span>
               ${isLocal ? '<span class="mp-you-badge">YOU</span>' : ''}
+              ${p.departed ? '<span class="mp-you-badge mp-left-badge">LEFT</span>' : ''}
             </div>
-            <div class="mp-player-score">${(p.score || 0).toLocaleString()} <span class="mp-score-unit">PTS</span></div>
+            <div class="mp-player-score">${safeNumber(p.score).toLocaleString()} <span class="mp-score-unit">PTS</span></div>
           </div>
 
           <div class="mp-stats-breakdown-grid">
             <div class="mp-breakdown-cell">
               <span class="mp-cell-label">DEVOURED</span>
-              <span class="mp-cell-val">${p.percentCleared || 0}% <span class="mp-cell-sub">(${p.mass || 0} kg)</span></span>
+              <span class="mp-cell-val">${safeNumber(p.percentCleared)}% <span class="mp-cell-sub">(${safeNumber(p.mass)} kg)</span></span>
             </div>
             <div class="mp-breakdown-cell">
               <span class="mp-cell-label">BEST COMBO</span>
-              <span class="mp-cell-val">${p.bestChain || 0} <span class="mp-cell-sub">EATS</span></span>
+              <span class="mp-cell-val">${safeNumber(p.bestChain)} <span class="mp-cell-sub">EATS</span></span>
             </div>
             <div class="mp-breakdown-cell">
               <span class="mp-cell-label">TAKEDOWNS</span>
-              <span class="mp-cell-val mp-val-kills">${p.kills || 0} <span class="mp-cell-sub">(${p.timesEaten || 0} eaten)</span></span>
+              <span class="mp-cell-val mp-val-kills">${safeNumber(p.kills)} <span class="mp-cell-sub">(${safeNumber(p.timesEaten)} eaten)</span></span>
             </div>
             <div class="mp-breakdown-cell">
               <span class="mp-cell-label">COINS EARNED</span>
-              <span class="mp-cell-val mp-val-coins">🪙 +${p.coins || 0} <span class="mp-cell-sub">(${p.coinsCollected || 0} found)</span></span>
+              <span class="mp-cell-val mp-val-coins">🪙 +${safeNumber(p.coins)} <span class="mp-cell-sub">(${safeNumber(p.coinsCollected)} found)</span></span>
             </div>
           </div>
         </div>
       `;
     });
 
+    // Uppercase BEFORE escaping: escaping first would let an entity like &lt;
+    // be uppercased into &LT;, which browsers still decode.
     const headerTitle = isLocalWinner
       ? '🎉 VICTORY! YOU WIN! 🎉'
-      : `${winner.name.toUpperCase()} WINS!`;
+      : `${escapeHtml(String(winner.name ?? 'Player').toUpperCase())} WINS!`;
 
     podiumView.innerHTML = `
       <div class="mp-podium-container">

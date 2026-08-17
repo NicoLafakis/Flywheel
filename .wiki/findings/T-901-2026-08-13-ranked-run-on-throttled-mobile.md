@@ -47,7 +47,7 @@ predeclared fallback recovers it.
 > - **Pass:** a steerable frame rate throughout. Ship the tune.
 > - **Fail:** set `contactRounds: 1` for **everyone, verifier included**, re-measure,
 >   record the new constant in `js/voxelsim.js` next to the defaults, and update
->   [04](04-anti-cheat.md) §5.2. The tune must never differ between players.
+>   [04](../features/scoreboards-and-profiles/04-anti-cheat.md) §5.2. The tune must never differ between players.
 
 `SPEC.md` "Open questions" records the standing caveat:
 

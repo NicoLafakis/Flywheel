@@ -134,10 +134,12 @@ Where this goes if it works, and what today's shape must not foreclose:
    never as "me vs. the rival": the bar is N segments, the craters are N
    colors, the chevrons are N−1 edges. The two-phone test is just N=2. Any
    design that hardcodes a duel is the dead end here.
-2. **Party mode inherits the whole layer.** [party-mode](../party-mode/) is a
-   room of people watching each other's screens; its "BOTTOMS UP!" callout is
-   pattern 5's queue discipline, and its social legibility assumes rivals are
-   already visible. This package is the substrate that plan stands on.
+2. **Party mode inherited the whole layer.** Party mode was a room of people
+   watching each other's screens; its "BOTTOMS UP!" callout was pattern 5's
+   queue discipline, and its social legibility assumed rivals were already
+   visible. That design was retired along with the legacy multiplayer stack,
+   but the shipped [multiplayer](../multiplayer/README.md) package inherits
+   the same substrate this package built.
 3. **The UNBOUND booth is a spectator of exactly this.** A booth screen
    showing a match is showing patterns 1, 2 and 6 — territory, bar, reveal —
    to people who are not holding a controller. Everything here must render

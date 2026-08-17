@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { DEFAULT_MUSIC_VOLUME, MUSIC_VOLUME_KEY, MusicDirector } from './music.js';
+import { DEFAULT_MUSIC_VOLUME, MUSIC_CUES, MUSIC_FALLBACK_CUE, MUSIC_VOLUME_KEY, MusicDirector } from './music.js';
 import { MIX_VERSION, MIX_VERSION_KEY } from './mix.js';
 
 class FakeAudio {
@@ -95,6 +95,13 @@ assert.equal(music.request('not-a-cue'), false);
 assert.equal(warnings.length, 1);
 music.request('not-a-cue');
 assert.equal(warnings.length, 1, 'unknown cue warns once');
+// An unknown cue is still REFUSED (`false` above — the caller did not get what
+// it asked for) but must never leave the screen dead quiet: the multiplayer
+// podium shipped silent for exactly that reason. So the director lands on the
+// fallback and keeps playing while the console carries the warning.
+assert.equal(music.cue, MUSIC_FALLBACK_CUE, 'an unknown cue lands on the fallback');
+assert.equal(media.src, `assets/music/${MUSIC_CUES[MUSIC_FALLBACK_CUE]}`, 'and loads its track');
+assert.equal(media.paused, false, 'and actually plays it, rather than going silent');
 
 // An install already stamped keeps the music level its player chose: the
 // re-seed is one-shot, not a policy that re-applies on every boot.
@@ -107,4 +114,4 @@ const stamped = new MusicDirector({
 assert.equal(stamped.volume, 0.5, 'a stamped install keeps its chosen music level');
 assert.equal(stampedData.get(MUSIC_VOLUME_KEY), '0.5', 'and is not rewritten');
 
-console.log('PASS music director: 26 assertions');
+console.log('PASS music director: 29 assertions');

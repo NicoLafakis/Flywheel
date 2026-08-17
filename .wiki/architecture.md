@@ -3,6 +3,7 @@ covers:
   - "js/**"
   - "index.html"
   - "tools/**"
+  - "old_voxelsim.js"
 ---
 # Architecture
 
@@ -31,9 +32,13 @@ replay.js ──► Vercel API ──► voxelsim.js replay ──► Supabase p
 ## Boundaries
 
 - **Pure sim** (`rng.js`, `tiers.js`, `citygen.js`, `levels.js`, `sim.js`,
-  `voxelsim.js`, plus the voxel authoring layers `voxelforms.js` and
-  `voxelkit.js` and the scene files `voxelscene-*.js`, among them
-  `voxelscene-cambridge.js`): no three.js imports, no DOM, no `Math.random()`.
+  `voxelsim.js`, `fwmath.js` (Taylor-polynomial transcendentals so a browser
+  and the Node verifier round the same way — see the "Boot" section's replay
+  note), `citycatalog.js` (city metadata and unlock ordering, headless
+  Node-safe), `powerups.js` (power-up catalog and deterministic state
+  updates), plus the voxel authoring layers `voxelforms.js` and `voxelkit.js`
+  and the scene files `voxelscene-*.js`, among them `voxelscene-cambridge.js`
+  and `voxelscene-tokyo.js`): no three.js imports, no DOM, no `Math.random()`.
   This is what `tools/validate.mjs` proves beatable (and deterministic).
 - **Render** (`world3d.js`, `voxelworld.js`, `camera.js`): reads sim state,
   never writes it. Eat/tide/unlock arrive as drained event lists.
@@ -47,6 +52,14 @@ replay.js ──► Vercel API ──► voxelsim.js replay ──► Supabase p
   Vercel only. Server replay is another `voxelsim.js` caller; it cannot write
   gameplay state, and the fixed loop never waits on a request.
 
+**`old_voxelsim.js` (repo root) is dead code, not a boundary.** It is an
+earlier, now-superseded snapshot of the voxel sandbox sim — `index.html` does
+not reference it, no `js/` module imports it, and no tool or test path touches
+it (confirmed by a repository-wide search). It is not part of the pure-sim
+boundary above and should not be edited or imported; it is slated for deletion
+whenever a change touches the repo root, but removing it is out of scope for a
+documentation-only pass.
+
 **Multi-hole sim & presentation alignment:** `VoxelSandboxSim` (`js/voxelsim.js`) runs a multi-hole roster `sim.holes[]`.
 - `sim.localSlot`: Identifies which hole index belongs to the local machine (default `0`).
 - `sim.localHole`: Getter returning `sim.holes[this.localSlot]`. Presentation code across `main.js` (controls, camera, audio listener, heading indicator), `hud.js` (mass, SIZE, cleared %, combo), and `voxelworld.js` strictly reads `sim.localHole`, eliminating peer desync and camera jumping.
@@ -57,40 +70,35 @@ replay.js ──► Vercel API ──► voxelsim.js replay ──► Supabase p
 
 **6-Player Synchronized Multiplayer (`js/multiplayer/`):** Built clean-slate on Supabase Realtime Broadcast ([ADR-0019](adr/0019-six-player-invite-lobby-multiplayer.md)), directly integrated into the single-player engine in `js/main.js`:
 - `channel.js`: Wraps Supabase Realtime Broadcast (`js/vendor/supabase-realtime.module.js`) with an outbound message queue that buffers transmissions until `SUBSCRIBED` confirmation, eliminating join race conditions.
-- `protocol.js`: Fast binary-compatible message definitions (`JOIN_REQUEST`, `ROOM_STATE`, `START_GAME`, `PLAYER_MOVE`, `STATE_SYNC`, `PVP_KILL`, `CHAT_MESSAGE`, `GAME_OVER`).
+- `protocol.js`: Message type registry and validation gate — `JOIN_REQUEST`, `JOIN_ACCEPT`/`JOIN_REJECT`, `ROOM_STATE`, `PLAYER_JOIN`/`PLAYER_LEAVE`, `LOBBY_CHAT`, `COUNTDOWN_START`/`COUNTDOWN_CANCEL`, `GAME_START`, `INPUT_TICK`, `STATE_SYNC`, `PVP_KILL`, `POWERUP_EVENT`, `GAME_OVER`. `HOST_ONLY_TYPES` lists which of these only the authoritative host may originate — a peer that accepted a forged `STATE_SYNC` or `GAME_OVER` from an arbitrary sender could be told the match ended or handed a fake roster. `PLAYER_LEAVE` is deliberately the one exception: both the host (detecting a drop via presence) and a client announcing its own graceful exit are honest senders, so `isAuthorizedLeave` gates it on sender-equals-leaver rather than on host-only. `validateMessage()` is the single point every inbound message passes through: unknown types, out-of-range slot indices, non-array roster/leaderboard fields and any non-finite number anywhere in the payload are all dropped before a listener sees them.
+- `config.js`: The shared constants both host and peer read rather than each carrying its own copy — `MAX_PLAYERS` (6), room-code length, `COUNTDOWN_TICKS` (180 = 3.0s at 60 Hz, derived so the tick count and the seconds can never silently disagree), `HOST_SILENCE_TIMEOUT_MS` (5000, roughly 300 missed `STATE_SYNC` messages), `HOST_HEARTBEAT_MS` (1000, so an alt-tabbed host whose render loop is cancelled still proves it is alive), `PVP_RESPAWN_TIMEOUT_SECONDS` (10), chat length/rate limits, and `PLAYER_PALETTES` (the one per-slot color table every surface reads).
+- `roster.js`: The slot-indexed roster — spawn geometry, hole configs, and the one leaderboard shape both podium paths render. Deliberately never compacted: `INPUT_TICK`/`STATE_SYNC` key by slot and `sim.holes[slot]`/`sim.localSlot` index by slot, so a filtered array would silently reassign a departed player's slot to someone else's hole.
+- `sanitize.js`: Escapes names, chat text and slot colors arriving off the open broadcast channel before they can reach `innerHTML` or a `style="…"` attribute — anyone holding the 5-letter room code can write to it, so every value from the wire is treated as hostile input.
 - `lobby.js`: Pre-game room management (2..6 players), 5-character alphanumeric room codes, shareable invite links (`?room=CODE`), ephemeral in-memory chat, and an unskippable 3.0s auto-countdown when the lobby fills.
-- `host.js`: Authoritative host simulation running `sim.step(1/60, moves)` at 60 Hz, broadcasting state syncs, detecting PvP hole swallowing ($r_\text{killer} > r_\text{victim} \times 1.05$), awarding +50% mass bounties, and managing 10s perimeter respawns.
-- `peer.js`: Follower loop sending steering intents and reconciling authoritative state syncs with local interpolation.
-- `ui.js`: DOM-based multiplayer lobby, room code sharing, ephemeral chat view, in-game 10s respawn timeout overlays, and post-match victory podium rankings.
+- `host.js`: Authoritative host simulation running `sim.step(1/60, moves)` at 60 Hz, broadcasting state syncs, detecting PvP hole swallowing ($r_\text{killer} > r_\text{victim} \times 1.05$), awarding +50% mass bounties, and managing 10s perimeter respawns. Also owns connection lifecycle: a heartbeat proves the host is alive while its render loop is suspended (backgrounded tab), and `PLAYER_LEAVE` handling is idempotent because presence detection and an explicit leave message routinely both fire for the same departure.
+- `peer.js`: Follower loop sending steering intents and reconciling authoritative state syncs with local interpolation; runs its own host-silence watchdog so a peer whose host disappeared (closed tab, dead connection) ends the match locally rather than staring at a frozen city.
+- `ui.js`: DOM-based multiplayer lobby, room code sharing, ephemeral chat view, in-game 10s respawn timeout overlays, and post-match per-player victory podium rankings.
+
+Full detail — the host-authoritative match clock (T-635), the shared coin pool (T-636), per-player coin isolation, and the podium music fix — lives in `modules/multiplayer.md`.
 
 **Zero-storage networking guarantee:** Multiplayer is completely ephemeral and does not write state to database tables or localStorage during matches. Matches run directly within the standard engine and deposit only the local player's earned match coins into `save.coins` upon victory podium display.
 
-**Rival visibility, phases A-D shipped (2026-08-11), new `js/rival/` ring:**
-out of a live two-phone playtest complaint ("no sense of whose blocks were
-eaten"), a render-only layer sits on top of the net/sim boundary without
-writing sim state — `js/rival/identity.js` (per-slot color identity),
-`attribution.js` (per-object eater record — `cityRawMassOf(sim)` is the one
-raw-mass lookup over the whole object-id space, blocks and mover units alike,
-so a swallowed el-train car credits its declared raw mass to the eater's
-tug-bar/reveal tally exactly as the solo sim scores it, not the 0 a
-blocks-only lookup used to return), `territory.js` +
-`territory-layer.js` (crater tinting), `tugbar.js` (coarse-until-the-end
-tug-of-war bar), `offscreen.js` (off-screen/apart rival chevron),
-`beats.js`/`announce.js` (milestone callouts), and `reveal.js` (end-of-match
-territory reveal, paired with a new follow-zoom arena camera that only pulls
-back to a full-city view at that reveal). This closed the one real wire gap
-the package found: **protocol v3** (`js/net/protocol.js`) adds per-slot eaten
-RLE streams to keyframe payloads, so a client healing from a keyframe (a late
-joiner, or any peer that fell behind) learns *who* ate a block, not just that
-it was eaten — previously the keyframe's eaten bitset was anonymous. The wire is now at **protocol v4**, which widened
-the per-hole `mass_q` field from u16 to u32 — the u16 hard-clamped a peer's
-readable score at 16383.75, within 11% of the shipped Chicago route's own
-maximum (T-307). Craters
-and the tug bar are also shared onto the hot-seat `multiplayer.html` demo.
-Headless coverage: `js/rival/rival.test.mjs`. Two patterns from the package's
-seven (size-as-threat legibility and its own tasks T11/T12) are deliberately
-deferred until 8-player support lands, per the package's build order — see
-[features/rival-visibility/README.md](features/rival-visibility/README.md).
+**Rival visibility, phases A-D shipped 2026-08-11, retired 2026-08-16:** a
+render-only `js/rival/` ring (per-slot color identity, per-object eater
+attribution, crater tinting, a coarse tug-of-war bar, an off-screen chevron,
+milestone callouts, and an end-of-match territory reveal) shipped on top of
+the original `js/net/` prototype arena. It was removed wholesale in the
+2026-08-16 legacy-multiplayer purge alongside `js/net/`, `js/demo/`,
+`arena.html`, `multiplayer.html` and `netdemo.html` (see STATUS.md's "Scrapped
+Legacy Multiplayer" entry and "Key decisions" below) — `js/rival/` does not
+exist in the current tree. The clean-slate `js/multiplayer/` replacement kept
+only the PvP takedown announcement (`hud.announce`, via `host.js`'s PvP
+detection) from that package; per-slot craters, the tug bar, the off-screen
+chevron and the territory reveal have no equivalent today. [The
+rival-visibility feature package](features/rival-visibility/README.md) is
+kept as a historical design record of what phases A-D built and why (the
+two-phone playtest complaint that motivated it, the protocol changes it
+required), not as a description of anything currently running.
 
 **Train derail/ground-run/eatable, shipped 2026-08-11:** the render-only mover
 seam (`sim.sceneMovers` + `moverArc`/`moverPose`) gained a simulated half in
@@ -103,17 +111,20 @@ a grounded car keeps driving its route at street level as a runaway, and a
 derailed (falling/grounded) car becomes eatable through the real consumption
 path (`_award`, extracted from `_consume`) — elevated cars on intact track
 are deliberately not eatable. Unit ids extend the block id space
-(`sim.objectIdSpace`, adopted by `js/net/host.js`), so a swallowed car needs
-zero new wire format: the keyframe eaten bitset already covers it, and a
-peer's derived train state converges on the same keyframe heal every other
-consumed object does. `js/voxelscene-chicago.js`'s CTA train is the only
-mover using it today; `tools/train-derail-selftest.mjs` (39 checks, expanded
-2026-08-11) pins determinism, consumption attribution, host/peer convergence
-over lossy loopback, and **arena scoring parity** — a car swallowed inside a
-live `ArenaHost` match now credits its full 75 raw mass to the eater's
-attribution record (`js/demo/arena.js` builds that record over
-`cityRawMassOf`), converging host and peer the same way block eats do. Full
-detail lives in `modules/voxel.md`'s chicago section.
+(`sim.objectIdSpace`), so a swallowed car is just another consumed object as
+far as any caller iterating that space is concerned.
+`js/voxelscene-chicago.js`'s CTA train is the only mover using it today;
+`tools/train-derail-selftest.mjs` (39 checks, expanded 2026-08-11) pins
+determinism and consumption attribution against the pure sim directly. Its
+header comment still describes a host/peer convergence pass over an
+`ArenaHost`/`ArenaPeer` pair and `cityRawMassOf(sim)` — both were part of the
+`js/net/`/`js/demo/arena.js` prototype removed 2026-08-16 (`cityRawMassOf` no
+longer exists anywhere in `js/`), so that part of the file's own header is
+stale; `js/multiplayer/host.js` and `peer.js` do not currently reference
+`objectIdSpace`, `sceneMovers` or the derail mover system at all, so train
+consumption inside a live `js/multiplayer/` match is unverified rather than
+covered. Full derail/ground-run/eatable detail lives in `modules/voxel.md`'s
+chicago section.
 
 **Game audio, shipped 2026-08-11, main-game wiring landed the same day; split
 into independent Effects/Ambience/Music levels 2026-08-12:**
@@ -130,8 +141,8 @@ retuned mix without a schema bump all live in the dependency-free
 `js/audio/mix.js`; `engine.js`, `music.js`, `save.js`, and
 `js/ui/screens.js` import from there instead of restating the numbers, and
 the reseed itself runs from both the `AudioEngine` and `MusicDirector`
-constructors so the arena, hot-seat demo, and scene viewer land on the new
-mix too. `duckAmbience()`
+constructors so any saveless surface (`tools/scene-view.html` today) lands on
+the new mix too, not only the main game. `duckAmbience()`
 ducks to and restores from the live ambience level rather than a hardcoded
 constant, so a slider change during a duck ramp still wins. `js/audio/game-audio.js`
 is the facade over the engine and `MusicDirector` (the themed event map — eat
@@ -149,14 +160,14 @@ files ship in `assets/audio/` (1.25 MB); `CREDITS.md` +
 `assets/audio/CREDITS.json` carry the per-file source/author/license
 manifest, and both landing screens show the small-type credit line. Wired
 into `js/main.js` (the `blip()` oscillator is deleted: sandbox + campaign
-events, scene beds, win/lose, and a delegated menu-click listener),
-`arena.html`, the hot-seat `multiplayer.html` demo, and
-`tools/scene-view.html`. The settings screen's mute toggle now sits above
-three independent sliders — Effects, Ambience, Music — each of which drives
-only its own bus (`save` mirrors all of it into the engine's localStorage
-keys, so the arena — which has no save — inherits the same choices). Known
-gaps: the arena PEER feeds no mover positions (its sim never steps), so its
-el bed stays flat; `debris-metal.ogg` is preloaded but has no call site yet.
+events, scene beds, win/lose, and a delegated menu-click listener — this same
+path covers both single-player and `js/multiplayer/` matches, since both read
+`sim.localHole`) and `tools/scene-view.html`. The settings screen's mute
+toggle now sits above three independent sliders — Effects, Ambience, Music —
+each of which drives only its own bus (`save` mirrors all of it into the
+engine's localStorage keys, so a saveless surface like the scene viewer
+inherits the same choices via `reseedAudioMix()` instead). Known gap:
+`debris-metal.ogg` is preloaded but has no call site yet.
 Collapse sounds are pooled per BUILDING rather than per falling chunk: the
 sim's `crash` event fires once per chunk that lands hard, so nearby impacts are
 gathered render-side into one collapse, voiced once on their combined block
@@ -167,13 +178,16 @@ coverage lives in `js/audio/engine.test.mjs` and collapse pooling in
 **Original game music, built 2026-08-11:** `js/audio/music.js` streams one of
 ten proprietary MP3s from `assets/music/` through a reusable media element,
 rather than decoding the 47.49 MiB library into the SFX pool. A data registry
-maps menu, shop, pause, results, Brooklyn, Boston, Cambridge, Chicago, Lower
-Manhattan and Upper Manhattan; Gallery is deliberately silent. Cue offsets
-survive pause/shop detours, visibility changes pause/resume the appropriate
-cue, and `GameAudio` ducks music beneath major stingers. Music volume persists
-independently at `flywheel.audio.musicVolume` under mute only — since the
-2026-08-12 split, neither the Effects nor the Ambience slider reaches it.
-The main game and arena both use the same facade and registry. Lifecycle
+maps each city plus menu, shop, pause and results (`title` and `victory` are
+aliases onto the menu and results tracks respectively, and `tokyo` aliases
+onto `lower-manhattan.mp3` — full alias list in `modules/audio.md`); Gallery
+is deliberately silent. Cue offsets survive pause/shop detours, visibility
+changes pause/resume the appropriate cue, and `GameAudio` ducks music beneath
+major stingers. Music volume persists independently at
+`flywheel.audio.musicVolume` under mute only — since the 2026-08-12 split,
+neither the Effects nor the Ambience slider reaches it. Every surface that
+plays music — the main game, `js/multiplayer/` matches (same `main.js` loop),
+and `tools/scene-view.html` — uses this one facade and registry. Lifecycle
 behavior (cue selection, offset retention, visibility pause/resume, ducking)
 is covered by `js/audio/music.test.mjs`; the ten committed MP3s and their
 hashes are pinned against `assets/music/MANIFEST.json` by
@@ -181,17 +195,16 @@ hashes are pinned against `assets/music/MANIFEST.json` by
 `tools/validate.mjs`'s pure-sim chain since it checks shipped binary assets,
 not sim determinism.
 
-**Also built (2026-08-10), separate surface:** `multiplayer.html` + `js/demo/`
-is a hot-seat two-player demo — two holes sharing one gallery sim, rendered by
-its own overhead camera (`js/demo/view.js`) and its own loop
-(`js/demo/demo.js`), entirely outside `main.js`'s screen state machine, HUD
-and chase camera. It does not use `js/net/` — both players are local input on
-one machine. `js/demo/duel.js` is now a thin wrapper over the sim's native
-multi-hole roster (see above) rather than a dt-slicing hack, so the artifact
-this section used to describe (each hole's support recalc partially
-re-healing the rim the other hole was undermining) is gone — the union-based
-support recalc in `voxelsim.js` fixed it at the source, for every caller of
-multiple holes, not just this demo.
+**Retired 2026-08-16:** a separate hot-seat two-player demo (`multiplayer.html`
++ `js/demo/` — its own overhead camera in `view.js`, its own loop in
+`demo.js`, a thin `duel.js` wrapper over the sim's multi-hole roster, entirely
+outside `main.js`'s screen state machine) shared the union-based multi-hole
+support-recalc fix documented above with the rest of the engine, but ran
+outside `main.js` on its own page. It was removed in the same purge as
+`js/net/`, `arena.html` and `netdemo.html` (see "Key decisions" below); there
+is no standalone hot-seat surface today. Local multi-hole play now happens
+only through `js/multiplayer/`, which is always networked (host + peers over
+Supabase Realtime), even when every peer happens to be on the same machine.
 
 **Built, and still in progress:** [ADR-0013](adr/0013-anisotropic-voxel-primitives.md)
 widened a voxel block from a cube (`fs`/`s`) to an axis-aligned box with
@@ -246,11 +259,14 @@ ship `max-age=300` with a week of `stale-while-revalidate`, so a redeploy
 reaches players in minutes while a repeat visit never re-downloads the module
 graph in the critical path.
 
-**The six city scene modules are fetched on demand, not at boot (2026-08-12).**
-`voxelsim.js` keeps an importer registry (`loadScene`/`sceneReady`); the title
-screen, the menu backdrop, the single-player start path and the arena each
-await exactly the one city they are about to build. The six are 1.19 MB of
-source between them and a session plays one, so static imports put most of an
+**The city scene modules are fetched on demand, not at boot (2026-08-12).**
+`voxelsim.js` keeps an importer registry (`loadScene`/`sceneReady`) for the
+seven authored scenes that are not the gallery (Manhattan, Upper Manhattan,
+Brooklyn, Boston, Cambridge, Chicago, Tokyo — the gallery is built inline in
+`_buildScene` and needs no import); the title screen, the menu backdrop, the
+single-player start path and `js/multiplayer/`'s scene selection each await
+exactly the one city they are about to build. The seven are ~1.11 MB of source
+between them and a session plays one, so static imports would put most of an
 18.6 s throttled cold load in front of the title screen for nothing. The
 sim constructor stays synchronous and throws by name if a city was not awaited
 first — see `.wiki/modules/voxel.md`'s module table.
@@ -303,14 +319,14 @@ graph in a browser — see `runbooks/run-and-validate.md`.
 See `adr/`: 0002 sim/render split, 0003 deterministic seeded generation,
 0004 formula-driven levels with validator-enforced margins. Planned (not yet
 wired into the game): 0009 Supabase backend, 0011 guest-first identity with
-deferred claim, 0012 replay-validated leaderboard trust — see
-[features/online-flywheel/](features/online-flywheel/README.md). 0010
-host-authoritative arena is **shipped as a standalone product** (`js/net/host.js`
-+ `peer.js` + `arena.js`, live over Supabase Realtime at
-https://flywheel-woad.vercel.app/arena.html, and discoverable from the title
-screen's MULTIPLAYER plate since 2026-08-11 — see "Boundaries" above) but not
-called from `js/main.js` or any campaign/sandbox screen, so it is proven,
-playable, and a click away, not yet integrated. Accepted and shipped: 0013 anisotropic voxel
+deferred claim, 0012 replay-validated leaderboard trust. The original
+host-authoritative arena design (0010) and its `features/online-flywheel/`
+design package were scrapped on 2026-08-16 along with the standalone
+`js/net/` prototype (`host.js` + `peer.js` + `arena.js`) it shipped as; see
+STATUS.md's "Scrapped Legacy Multiplayer" entry. 0019 six-player invite-link
+lobby multiplayer is its accepted, clean-slate replacement and is shipped and
+integrated (`js/multiplayer/`) — see
+[features/multiplayer/](features/multiplayer/README.md). Accepted and shipped: 0013 anisotropic voxel
 primitives — see [features/cambridge-sandbox/](features/cambridge-sandbox/README.md);
 0014 vendored, same-origin runtime code and the no-build constraint — see
 "Boot" above (now also the pattern `js/vendor/supabase-realtime.module.js`

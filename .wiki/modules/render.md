@@ -21,8 +21,7 @@ mutates sim state.
 | `js/voxelworld.js` | Voxel sandbox rendering, block instance synchronization, ambient layers (`atmosphere`, `gulls`, `pigeons`, `steam`, `neon`, `surf`, `ferries`), and particle systems |
 | `js/camera.js` | `ChaseCamera`: near-isometric perspective (56° pitch, 45° FOV), follow, orbit, zoom, building-occlusion pull-in, opt-in follow-direction yaw, and juice FOV kicks |
 | `js/controls.js` | Keyboard + touch joystick/orbit + optional world-space point-to-move → camera-relative move intents |
-| `js/skins.js` | Hole skin registry (25 skins) + heading-indicator registry (`INDICATOR_SKINS`, 6 rows) + geometry primitives + per-frame runtime; consumed by `world3d.js`/`voxelworld.js` for the mesh and re-exported by `js/ui/screens.js` for the shop |
-| `js/rival/territory-layer.js` | Rival-visibility crater tint (2026-08-11): one InstancedMesh of ground tiles colored per eater slot — written once on the eat, zero per-frame work; the pure bookkeeping half lives in `js/rival/territory.js` (see `.wiki/features/rival-visibility/`) |
+| `js/skins.js` | Hole skin registry (32 skins as of 2026-08-16: the 25 below plus 7 free baseline color skins added for multiplayer slot identity) + heading-indicator registry (`INDICATOR_SKINS`, 6 rows) + geometry primitives + per-frame runtime; consumed by `world3d.js`/`voxelworld.js` for the mesh and re-exported by `js/ui/screens.js` for the shop |
 
 ## Talks To
 
@@ -555,7 +554,11 @@ mutates sim state.
   stops costing anything.
 - **Skins (`js/skins.js`, 2026-08-05): 25 hole skins replacing the single
   circle** — 12 core, 5 creature, 8 partner (agency) skins — themed on
-  marketing/B2B without borrowing branding. A skin is a registry row plus at
+  marketing/B2B without borrowing branding. Seven more were added 2026-08-16
+  (`baseline-cyan`, `-crimson`, `-amber`, `-emerald`, `-purple`, `-orange`,
+  `-magenta`, all built from `buildBaseline`, 0 coins, owned by every player
+  by default) to give `js/multiplayer/` distinct free per-slot colors without
+  gating a match on the shop — 32 total today. A skin is a registry row plus at
   most one small builder (the `DECOR_LAYERS` idiom from `voxelworld.js` —
   adding one is a row, not a code change), built from four shared geometry
   primitives (`ringPart`/`tickPart`/`barTeeth`/`worldQuads`/`lidPart`) with

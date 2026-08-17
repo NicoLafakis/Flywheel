@@ -32,13 +32,17 @@ beatable headlessly.
   change safe. Never hand-edit a single level's target without re-running the
   full proof.
 - `clock` is NO LONGER a formula (2026-08-13). Every level carries exactly
-  `LEVEL_CLOCK_SECONDS` from `js/levelclock.js` — 180 s, one declaration shared
-  with the sandbox — and `validateLevelClock()` asserts all 100 levels agree.
-  The old `75 + g * 0.75 + metroIndex * 3` ladder gave 75–160 s. Consequence
-  worth knowing: `js/citygen.js` times tides at `level.clock * (0.35 + i*0.25)`,
-  a value DERIVED from the clock, so tides now fire later in absolute seconds on
-  every campaign level. That is a campaign sim-output change; it does not touch
-  `sim_version`, which covers only the ranked `run90` path.
+  `LEVEL_CLOCK_SECONDS` from `js/levelclock.js` — one declaration shared with
+  the sandbox — and `validateLevelClock()` asserts all 100 levels agree. It
+  shipped at 180 s and was extended to **300 s (5:00)** on 2026-08-14 to give
+  speed-boost routing and full clears more room; `js/levels.js`'s own code
+  comment still says "every playable level is 180 s" — read the constant, not
+  the comment. The old `75 + g * 0.75 + metroIndex * 3` ladder that predates
+  both gave 75–160 s. Consequence worth knowing: `js/citygen.js` times tides at
+  `level.clock * (0.35 + i*0.25)`, a value DERIVED from the clock, so tides
+  fire later in absolute seconds whenever the clock constant moves. That is a
+  campaign sim-output change; it does not touch `sim_version`, which covers
+  only the ranked `run90` path.
 - Mechanic rollout schedule: golden L6, rivals L21, tide L41, landmark L20;
   landmark also on all metro finales + L91–100.
 - Save version bumps need a `MIGRATIONS[oldV]` entry; future-version saves
@@ -59,14 +63,14 @@ beatable headlessly.
 - `starsForResult`: 1★ win, 2★ ≥20% time left, 3★ ≥35%.
 
 **Reconciled 2026-08-10:** the full day's commits — `js/voxelkit.js`'s twelve
-new gallery builders, the multi-hole sim roster (`sim.holes[]`), and the
-`js/net/**`/`js/demo/**` work that took multiplayer from a wire-layer skeleton
-to a live two-device arena over Supabase Realtime (see `architecture.md`) —
+new gallery builders, the multi-hole sim roster (`sim.holes[]`), and that
+day's `js/net/**`/`js/demo/**` multiplayer work (both retired 2026-08-16 and
+replaced by `js/multiplayer/`; see `architecture.md`'s "Key decisions") —
 don't touch `js/save.js` or `tools/validate.mjs`; this page's save-schema and
 validator description stand as written.
 
-**Planned, not built:** the online-Flywheel package
-(`.wiki/features/online-flywheel/`) proposes a path from `save.js`'s local
-schema to a cloud profile, so a guest's progress survives signing in. See
-[12-migration-plan.md](../features/online-flywheel/12-migration-plan.md).
+**Planned, not built:** the online-Flywheel package proposed a path from
+`save.js`'s local schema to a cloud profile, so a guest's progress survives
+signing in (see its migration plan, §12). That package was retired along
+with the legacy multiplayer stack on 2026-08-16 and has no replacement yet.
 `save.js` itself is unchanged.

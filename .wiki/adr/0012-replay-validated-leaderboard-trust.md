@@ -103,9 +103,9 @@ Concretely:
      is the point.
    - **The all-time and per-level scopes, and every solo-fed belt, are fed only
      by replay-validated single-player runs.** An arena round never sets an
-     all-time record. The two arena-only belts —
-     [06-belts-and-achievements.md](../features/online-flywheel/06-belts-and-achievements.md)
-     §2.6 The Main Event Belt and §2.7 The Tag Team Titles — exist precisely to
+     all-time record. The two arena-only belts — the Main Event Belt and the
+     Tag Team Titles, specified in the belts-and-achievements design that was
+     retired along with the legacy multiplayer stack — exist precisely to
      rank arena play and nothing else, and they are fed by arena rounds; they
      are the carve-out, they are named here so the rule stays stateable, and
      nothing else may join them without superseding this ADR.
@@ -114,12 +114,12 @@ Concretely:
      feed the event (UNBOUND) and per-city scopes and the two arena belts. A
      peer that never attested ⇒ `attested`, which may feed event and city and
      **never** a belt. A digest that disagrees ⇒ the round is voided and
-     nothing is written. Verdict semantics and the per-board `min_verdict`
-     column live in
-     [03-technical-design.md](../features/online-flywheel/03-technical-design.md)
-     §2; the netcode side is
-     [04-netcode-design.md](../features/online-flywheel/04-netcode-design.md)
-     §10.2.
+     nothing is written. This verdict scheme and the per-board `min_verdict`
+     column were specified in the arena technical and netcode design that was
+     retired along with the legacy multiplayer stack; the current multiplayer
+     package ([features/multiplayer/](../features/multiplayer/README.md),
+     [ADR-0019](0019-six-player-invite-lobby-multiplayer.md)) has not yet
+     re-specified an arena verdict system.
    - The host submits the whole round — room seed and the per-tick intent stream
      of *every* participant as it applied them — and the Edge Function replays
      the entire room, recomputing all scores. Peers corroborate by submitting
@@ -131,7 +131,7 @@ Concretely:
    This also bounds a fairness problem that has nothing to do with cheating: the
    host has zero latency to its own authoritative sim while peers eat a round
    trip. That advantage is inherent to host-authoritative peer networking
-   ([ADR-0010](0010-host-authoritative-arena.md)), and it is an independent
+   ([ADR-0019](0019-six-player-invite-lobby-multiplayer.md)), and it is an independent
    reason arena outcomes must never reach the all-time scope. It is tolerable on
    the event and city scopes, which are about the room and the day, and on the
    two arena belts, which are explicitly about arena play — where the advantage
@@ -140,8 +140,9 @@ Concretely:
 7. **Historical local bests are excluded.** Existing players' `bestMass` and
    `bestSize` predate trace recording and cannot be replayed. They are imported
    as personal history and seed progress achievements; they never touch a ranked
-   scope. Reasoning in
-   [12-migration-plan.md §6](../features/online-flywheel/12-migration-plan.md#6-retroactive-seeding-of-leaderboards-and-achievements).
+   scope. The retroactive-seeding reasoning for this was written up in the
+   online-Flywheel migration plan, which was retired along with the legacy
+   multiplayer stack.
 
 ## Consequences
 
@@ -198,8 +199,10 @@ branches (`isEdible`, `inMouth`, the speed gates) where a last-bit difference ca
 cascade. Determinism has only ever been tested V8-to-V8. A run recorded in Safari
 and replayed in Node must produce the same score, or the defence starts rejecting
 honest players on iPhones — which at a booth is the more likely failure than any
-attack. See
-[09-threat-model.md §3.4](../features/online-flywheel/09-threat-model.md#34-modified-client-sim).
+attack. This scenario (§3.4, modified-client-sim) was catalogued in the
+online-Flywheel threat model, which was retired along with the legacy
+multiplayer stack; no replacement threat-model document exists yet for the
+current architecture.
 
 ## Alternatives Considered
 
@@ -234,8 +237,8 @@ attack. See
   server can agree on a score at all.
 - [ADR-0003 deterministic seeded generation](0003-deterministic-seeded-generation.md)
   — the invariant this rests on entirely.
-- [09-threat-model.md](../features/online-flywheel/09-threat-model.md) — the full
-  cheating taxonomy and where this defence leaks.
-- [12-migration-plan.md](../features/online-flywheel/12-migration-plan.md) — the
-  retroactive-seeding decision and the save-schema work that precedes it.
+- The online-Flywheel threat model (full cheating taxonomy and where this
+  defence leaks) and migration plan (retroactive-seeding decision and the
+  save-schema work that precedes it) were both retired along with the rest of
+  the legacy multiplayer design package; neither has a replacement yet.
 - `tools/validate.mjs` — the existing headless replay harness this reuses.

@@ -18,12 +18,12 @@ whose. This package is the plan for making a rival's progress *visible* —
 seven ranked patterns from genre research, ordered by value against that exact
 complaint.
 
-Unlike [party-mode](../party-mode/), this is not blocked on anything unbuilt:
-the `js/net/` layer is live end to end (two-device arena at
-flywheel-woad.vercel.app/arena.html), the sim already attributes every eaten
-block to the hole that ate it, and the wire already carries eat events with
-the eater's slot. Most of this package is render-side tinting and HUD work on
-top of data that already flows.
+This was never blocked on anything unbuilt, unlike the original party-mode
+design (retired along with the legacy multiplayer stack; see
+[multiplayer](../multiplayer/README.md) for the shipped replacement): the sim
+already attributes every eaten block to the hole that ate it, and the wire
+already carries eat events with the eater's slot. Most of this package is
+render-side tinting and HUD work on top of data that already flows.
 
 ## Start here
 
@@ -78,7 +78,7 @@ keyframe tail — and everything else in the package is client-side.
   pattern here is dressing. Nothing in this package writes sim state; craters,
   bars, chevrons and callouts are all read-only consumers of events and
   snapshots.
-- [ADR-0010 host-authoritative arena](../../adr/0010-host-authoritative-arena.md)
+- [ADR-0019 six-player invite-lobby multiplayer](../../adr/0019-six-player-invite-lobby-multiplayer.md)
   — attribution is whatever the host's sim said, carried on the wire. A peer
   never infers "whose block" from its own ghost positions.
 - [ADR-0012 replay-validated leaderboard trust](../../adr/0012-replay-validated-leaderboard-trust.md)
@@ -94,5 +94,8 @@ keyframe tail — and everything else in the package is client-side.
 - The directional-indicator work (commit 552f290) — the off-screen rival
   chevron (pattern 4) extends the shipped indicator vocabulary rather than
   inventing a new pointer.
-- [online-flywheel/04-netcode-design](../online-flywheel/04-netcode-design.md)
-  — the snapshot/keyframe layout this package's one wire change amends.
+- [multiplayer/04-netcode-protocol](../multiplayer/04-netcode-protocol.md)
+  — the snapshot/keyframe layout this package's one wire change amended. That
+  wire change was written against the legacy `js/net/` protocol, which has
+  since been scrapped; it has not been reconciled against the current
+  multiplayer package's netcode.

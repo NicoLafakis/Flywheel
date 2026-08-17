@@ -1,9 +1,11 @@
 # AI Players — planning package
 
-**Status: planning.** Nothing here is built. Unlike
-[party-mode](../party-mode/), this package is **not blocked on a backend** — it
-is entirely sim-side, entirely offline, and could start today. It is the
-package that turns Flywheel from a solo demolition toy into a match.
+**Status: planning.** Nothing here is built. It is entirely sim-side, entirely
+offline, and could start today — it was never blocked on a backend, unlike
+the original party-mode/online-flywheel design it was contrasted against
+(both retired along with the legacy multiplayer stack; see
+[multiplayer](../multiplayer/README.md) for the shipped replacement). It is
+the package that turns Flywheel from a solo demolition toy into a match.
 
 Five or more AI-driven holes share the city with the player. Bigger holes eat
 smaller ones. Every scene's goal becomes 100% consumption, and the question
@@ -11,9 +13,11 @@ stops being *can you finish* and becomes *how much can you take before the
 clock runs out, with five rivals taking it from you*.
 
 The whole design turns on one seam: **a hole is an entity with a driver, and a
-driver is human, bot, or peer.** Build the fleet of bots correctly and
-[online-flywheel](../online-flywheel/) fills those same slots with networked
-humans later without touching the sim.
+driver is human, bot, or peer.** The plan was that building the fleet of bots
+correctly would let networked humans fill those same slots later without
+touching the sim; in practice, [multiplayer](../multiplayer/README.md) shipped
+its own host-authoritative equivalent independently, so that handoff never
+happened.
 
 ## Start here
 
@@ -54,7 +58,7 @@ ADR (draft)", deliberately *not* created as a file here.
 ## What this package is not
 
 - Not multiplayer. No network, no backend, no accounts, no credentials. Human
-  multiplayer is [online-flywheel](../online-flywheel/) and stays there.
+  multiplayer is [multiplayer](../multiplayer/README.md) and stays there.
 - Not pathfinding, navmeshes, or bot personalities with names and voices.
 - Not matchmaking, skill rating, difficulty auto-tuning, or a bot that learns.
   Score-coupled rubber-banding is explicitly **rejected**, with a source — see
@@ -75,10 +79,10 @@ ADR (draft)", deliberately *not* created as a file here.
   — the hard constraint on this whole package. A bot that consults
   `Math.random()` ends replay validation, which ends
   [ADR-0012](../../adr/0012-replay-validated-leaderboard-trust.md).
-- [ADR-0010 host-authoritative arena](../../adr/0010-host-authoritative-arena.md)
+- [ADR-0019 six-player invite-lobby multiplayer](../../adr/0019-six-player-invite-lobby-multiplayer.md)
   — the reason the driver seam is shaped the way it is. The host already
-  intends to apply "every player's steering"; a bot driver is one more source
-  of steering on the machine that already owns authority.
+  applies every player's steering; a bot driver would be one more source of
+  steering on the machine that already owns authority.
 - [ADR-0015 the scoring ladder is a table the HUD reads](../../adr/0015-scoring-ladder-is-a-table-the-hud-reads.md)
   and [score-combo-and-hype](../score-combo-and-hype/) (shipped 2026-08-10) —
   every field this package multiplies by N (`mass`, `rawMass`, `chain`,

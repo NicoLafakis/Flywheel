@@ -110,6 +110,11 @@ let lastTs = 0;
 let shopBonus = { clock: 0, growth: 0 };
 
 let isMultiplayer = false;
+// Module scope on purpose: the render loop needs the role to decide whether it
+// may end the match, and reading the `isHost` parameter of startMultiplayerMatch
+// from inside frame() was a ReferenceError thrown on every frame at the end of a
+// joiner's match.
+let mpIsHost = false;
 let mpHost = null;
 let mpPeer = null;
 let mpLobby = null;
@@ -830,19 +835,21 @@ function teardownWorld() {
   if (mpPeer) { mpPeer.destroy(); mpPeer = null; }
   if (mpUI) { mpUI.hideRespawnOverlay(); }
   isMultiplayer = false;
+  mpIsHost = false;
   sim = null;
   audio.stopScene();   // a level teardown silences the city bed with the city
 }
 
-function showMultiplayerHostModal() {
-  screens.clear();
-  stopMenuScene();
+// One construction site for the multiplayer UI. It used to be copy-pasted into
+// each of the three entry points, which is how a fourth entry point ends up with
+// a subtly different set of callbacks.
+function ensureMultiplayerUI() {
   if (!mpUI) {
     mpUI = new MultiplayerUI({
       rootElement: document.getElementById('screen-root'),
       audio,
       onHostCreate: (opts) => hostMultiplayerLobby(opts),
-      onPeerJoin: (code) => joinMultiplayerLobby(code),
+      onPeerJoin: (code, playerName) => joinMultiplayerLobby(code, playerName),
       onLeaveLobby: () => {
         if (mpLobby) { mpLobby.destroy(); mpLobby = null; }
         teardownWorld();
@@ -851,15 +858,23 @@ function showMultiplayerHostModal() {
       },
     });
   }
+  return mpUI;
+}
+
+function showMultiplayerHostModal() {
+  screens.clear();
+  stopMenuScene();
+  ensureMultiplayerUI();
   mpUI.showHostCreateModal({
+    defaultName: save.player?.name || '',
     onCancel: () => {
       screens.showTitle();
     },
     onCreate: ({ scene, maxPlayers }) => {
       hostMultiplayerLobby({ scene, maxPlayers });
     },
-    onJoin: (roomCode) => {
-      joinMultiplayerLobby(roomCode);
+    onJoin: ({ code, playerName }) => {
+      joinMultiplayerLobby(code, playerName);
     },
   });
 }
@@ -872,20 +887,7 @@ function hostMultiplayerLobby({ scene = 'gallery', maxPlayers = 4 }) {
   const playerName = save.player?.name || 'Host';
   const playerSkin = equippedSkinId();
 
-  if (!mpUI) {
-    mpUI = new MultiplayerUI({
-      rootElement: document.getElementById('screen-root'),
-      audio,
-      onHostCreate: (opts) => hostMultiplayerLobby(opts),
-      onPeerJoin: (code) => joinMultiplayerLobby(code),
-      onLeaveLobby: () => {
-        if (mpLobby) { mpLobby.destroy(); mpLobby = null; }
-        teardownWorld();
-        state = 'menu';
-        screens.showTitle();
-      },
-    });
-  }
+  ensureMultiplayerUI();
 
   mpLobby = new MultiplayerLobby({
     channel,
@@ -899,7 +901,10 @@ function hostMultiplayerLobby({ scene = 'gallery', maxPlayers = 4 }) {
 
   mpUI.showLobby(mpLobby, {
     onLeave: () => {
-      if (mpLobby) { mpLobby.destroy(); mpLobby = null; }
+      // Announce, THEN close the socket: closing it is what makes presence tell
+      // the room, and a room that is never told keeps the seat occupied forever.
+      if (mpLobby) { mpLobby.leave('LEFT'); mpLobby.destroy(); mpLobby = null; }
+      channel.close();
       screens.showTitle();
     },
     onForceStart: () => {
@@ -913,51 +918,101 @@ function hostMultiplayerLobby({ scene = 'gallery', maxPlayers = 4 }) {
       scene: startMsg.scene,
       matchSeed: startMsg.matchSeed,
       durationSeconds: startMsg.durationSeconds,
-      players: mpLobby.players.filter(Boolean),
+      // The FULL slot-indexed roster, empty slots and all. Compacting it here
+      // put a slot-3 player at array index 2, which made `sim.holes[3]`
+      // undefined and silently fell back to holes[0] - that peer then steered
+      // the host's hole. See js/multiplayer/roster.js.
+      players: mpLobby.players.slice(),
       mySlot: 0,
       channel,
     });
   };
 }
 
-function joinMultiplayerLobby(roomCode) {
+function joinMultiplayerLobby(roomCode, chosenName = null) {
   screens.clear();
   stopMenuScene();
   const code = String(roomCode || '').toUpperCase();
-  const senderId = 'peer_' + Math.random().toString(36).substring(2, 7);
-  const channel = new LiveBroadcastChannel(code, senderId);
-  const playerName = save.player?.name || `Player_${Math.floor(Math.random() * 900 + 100)}`;
-  const playerSkin = equippedSkinId();
+  ensureMultiplayerUI();
 
-  if (!mpUI) {
-    mpUI = new MultiplayerUI({
-      rootElement: document.getElementById('screen-root'),
-      audio,
-      onHostCreate: (opts) => hostMultiplayerLobby(opts),
-      onPeerJoin: (code) => joinMultiplayerLobby(code),
-      onLeaveLobby: () => {
-        if (mpLobby) { mpLobby.destroy(); mpLobby = null; }
-        teardownWorld();
-        state = 'menu';
-        screens.showTitle();
-      },
+  // REQ-MP-05: an invite link lands here with no name, and the player was simply
+  // assigned one (Player_417). Ask first — pre-filled from the saved profile, so
+  // a returning player taps straight through rather than retyping.
+  if (chosenName === null || chosenName === undefined) {
+    mpUI.showJoinNamePrompt({
+      roomCode: code,
+      defaultName: save.player?.name || '',
+      onConfirm: (name) => joinMultiplayerLobby(code, name),
+      onCancel: () => { state = 'menu'; screens.showTitle(); },
     });
+    return;
   }
 
-  mpLobby = new MultiplayerLobby({
+  const senderId = 'peer_' + Math.random().toString(36).substring(2, 7);
+  const channel = new LiveBroadcastChannel(code, senderId);
+  const playerName = String(chosenName).trim() || save.player?.name || `Player_${Math.floor(Math.random() * 900 + 100)}`;
+  const playerSkin = equippedSkinId();
+
+  // A full room answers the JOIN_REQUEST from inside the constructor below, so
+  // `joiningLobby` is still null at that moment — whichever of the two paths can
+  // actually see the failed lobby is the one that releases it.
+  let joiningLobby = null;
+  const releaseJoin = () => {
+    if (joiningLobby) {
+      if (mpLobby === joiningLobby) mpLobby = null;
+      joiningLobby.destroy();
+      joiningLobby = null;
+    }
+    channel.close();
+  };
+
+  joiningLobby = new MultiplayerLobby({
     channel,
     isHost: false,
     playerName,
     playerSkin,
     roomCode: code,
+    // Constructor-supplied rather than assigned afterwards, for the reason above.
+    onJoinRejected: (reason) => {
+      releaseJoin();
+      mpUI.showJoinError({
+        reason,
+        roomCode: code,
+        onRetry: () => showMultiplayerHostModal(),
+        onBack: () => { state = 'menu'; screens.showTitle(); },
+      });
+    },
   });
+  mpLobby = joiningLobby;
+
+  // Rejected during construction: the error screen is already up and only the
+  // lobby object itself is still to be released.
+  if (joiningLobby.joinRejectedReason) {
+    releaseJoin();
+    return;
+  }
 
   mpUI.showLobby(mpLobby, {
     onLeave: () => {
-      if (mpLobby) { mpLobby.destroy(); mpLobby = null; }
+      // Announce, THEN close the socket — see the host path above.
+      if (mpLobby) { mpLobby.leave('LEFT'); mpLobby.destroy(); mpLobby = null; }
+      channel.close();
       screens.showTitle();
     },
   });
+
+  // The host abandoning the room is terminal for a peer: no roster, no
+  // countdown and no GAME_START will ever arrive again, and the room code still
+  // looks perfectly valid. Say so instead of leaving them on "Waiting...".
+  mpLobby.onHostLeft = () => {
+    releaseJoin();
+    mpUI.showJoinError({
+      reason: 'HOST_LEFT',
+      roomCode: code,
+      onRetry: () => showMultiplayerHostModal(),
+      onBack: () => { state = 'menu'; screens.showTitle(); },
+    });
+  };
 
   mpLobby.onGameStart = (startMsg) => {
     startMultiplayerMatch({
@@ -965,7 +1020,11 @@ function joinMultiplayerLobby(roomCode) {
       scene: startMsg.scene,
       matchSeed: startMsg.matchSeed,
       durationSeconds: startMsg.durationSeconds,
-      players: mpLobby.players.filter(Boolean),
+      // The FULL slot-indexed roster, empty slots and all. Compacting it here
+      // put a slot-3 player at array index 2, which made `sim.holes[3]`
+      // undefined and silently fell back to holes[0] - that peer then steered
+      // the host's hole. See js/multiplayer/roster.js.
+      players: mpLobby.players.slice(),
       mySlot: mpLobby.mySlot >= 0 ? mpLobby.mySlot : 1,
       channel,
     });
@@ -976,8 +1035,9 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
   screens.showLoading('MULTIPLAYER · ' + scene.toUpperCase());
   requestAnimationFrame(() => requestAnimationFrame(async () => {
     await loadScene(scene);
-    teardownWorld();
+    teardownWorld();  // clears mpIsHost, so publish the role AFTER it
     isMultiplayer = true;
+    mpIsHost = Boolean(isHost);
     isVoxelSandbox = true;
     document.body.classList.add('mode-sandbox');
     computeShopBonus();
@@ -1000,13 +1060,16 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
         const earned = (sim.localHole && typeof sim.localHole.coins === 'number') ? sim.localHole.coins : 0;
         if (earned > 0) {
           save.coins = (save.coins || 0) + earned;
-          writeSave(save);
+          storeSave(save);
         }
         mpUI.showMultiplayerPodium(gameOverData, {
           localSlot: sim.localSlot ?? 0,
           onPlayAgain: () => {
             if (mpHost) { mpHost.destroy(); mpHost = null; }
             if (mpPeer) { mpPeer.destroy(); mpPeer = null; }
+            // Closing the socket is what tells the room this client is gone;
+            // leaving it open keeps a ghost in every other player's roster.
+            channel.close();
             teardownWorld();
             screens.clear();
             mpUI.clear();
@@ -1015,6 +1078,9 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
           onExit: () => {
             if (mpHost) { mpHost.destroy(); mpHost = null; }
             if (mpPeer) { mpPeer.destroy(); mpPeer = null; }
+            // Closing the socket is what tells the room this client is gone;
+            // leaving it open keeps a ghost in every other player's roster.
+            channel.close();
             teardownWorld();
             screens.clear();
             mpUI.clear();
@@ -1030,6 +1096,7 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
         matchSeed,
         players,
         mySlot,
+        durationSeconds,
       });
       sim = mpPeer.sim;
       mpPeer.onGameOver = (gameOverData) => {
@@ -1041,13 +1108,16 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
         const earned = (sim.localHole && typeof sim.localHole.coins === 'number') ? sim.localHole.coins : 0;
         if (earned > 0) {
           save.coins = (save.coins || 0) + earned;
-          writeSave(save);
+          storeSave(save);
         }
         mpUI.showMultiplayerPodium(gameOverData, {
           localSlot: sim.localSlot ?? mySlot,
           onPlayAgain: () => {
             if (mpHost) { mpHost.destroy(); mpHost = null; }
             if (mpPeer) { mpPeer.destroy(); mpPeer = null; }
+            // Closing the socket is what tells the room this client is gone;
+            // leaving it open keeps a ghost in every other player's roster.
+            channel.close();
             teardownWorld();
             screens.clear();
             mpUI.clear();
@@ -1056,6 +1126,9 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
           onExit: () => {
             if (mpHost) { mpHost.destroy(); mpHost = null; }
             if (mpPeer) { mpPeer.destroy(); mpPeer = null; }
+            // Closing the socket is what tells the room this client is gone;
+            // leaving it open keeps a ghost in every other player's roster.
+            channel.close();
             teardownWorld();
             screens.clear();
             mpUI.clear();
@@ -1452,7 +1525,7 @@ function frame(ts) {
       if (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0)) {
         if (state !== 'quake_cinematic' && state !== 'powerup_pause' && state !== 'powerup_encounter') {
           if (isMultiplayer) {
-            if (isHost && mpHost && !mpHost.over) {
+            if (mpIsHost && mpHost && !mpHost.over) {
               mpHost.finishMatch(sim.won ? 'CITY_CLEARED' : 'TIME_EXPIRED');
             }
           } else {

@@ -23,3 +23,12 @@ Clean-slate 6-player synchronized shared-city multiplayer with invite links, pre
 - **Lobby Start**: Automatic 3s countdown the instant room capacity is reached ($N/N$)
 - **Chat**: Ephemeral in-lobby only; zero disk/DB storage; zero in-game chat UI
 - **ADR Reference**: [ADR-0019](../../adr/0019-six-player-invite-lobby-multiplayer.md)
+
+## Outstanding: no threat model
+
+The legacy multiplayer stack's threat model (`09-threat-model.md`) was deleted
+with the rest of the online-flywheel package on 2026-08-16 and never replaced.
+This package's own docs above cover architecture and netcode, not an
+adversarial analysis, so the current shipped multiplayer stack (`js/multiplayer/`)
+has no security or cheating threat-model document at all. Writing one is
+outstanding work.

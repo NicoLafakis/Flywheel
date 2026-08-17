@@ -16,6 +16,39 @@ const CM_CIRCUM = 2 * Math.PI * 42;
 // not be buried under a consumption phrase, but nothing outranks the run ending.
 export const ANN = { COIN: 10, COMBO: 30, SIZE: 50, MILESTONE: 70, CLOCK: 80, GOAL: 90 };
 
+/**
+ * The coin readout, which says something different in a match than it does solo
+ * (T-636).
+ *
+ * SOLO it is a personal tally against the map: `🪙 3/40`, unchanged.
+ *
+ * IN A MATCH the pool is finite and a rival is draining it, which the personal
+ * tally hid completely — a player could be losing every coin on the map and the
+ * number would only ever climb. So the match shows the SHARED remaining count,
+ * identical on every screen and counting down whoever took the coin. The
+ * `n/total` shape is deliberately dropped with it: a fraction reads as a score.
+ *
+ * Per-player attribution is untouched by this — `hole.coinsCollected` /
+ * `hole.coins` still drive the podium breakdown and the coin banking on match
+ * end. This is presentation only.
+ *
+ * Pure and exported so the copy is asserted headlessly rather than in a browser.
+ */
+export function formatCoinReadout(sim, hole) {
+  const total = (sim && Array.isArray(sim.coins)) ? sim.coins.length : 0;
+  if (sim && sim.isMultiplayer) {
+    // Host truth on a peer (see VoxelSandboxSim.coinsRemaining) — never a local sum.
+    const left = (typeof sim.coinsRemaining === 'number' && !isNaN(sim.coinsRemaining))
+      ? sim.coinsRemaining
+      : total;
+    return `🪙 ${left} LEFT`;
+  }
+  const collected = (hole && typeof hole.coinsCollected === 'number' && !isNaN(hole.coinsCollected))
+    ? hole.coinsCollected
+    : ((sim && typeof sim.coinsCollected === 'number' && !isNaN(sim.coinsCollected)) ? sim.coinsCollected : 0);
+  return `🪙 ${collected}/${total}`;
+}
+
 export class HUD {
   constructor() {
     this.root = document.getElementById('hud');
@@ -309,11 +342,8 @@ export class HUD {
     this.massLabel.textContent = sim.won
       ? `${sim.goal.name} · GOAL REACHED · SIZE ${h.size}`
       : `CLEARED ${Math.floor(cleared * 100)}%${targetSuffix} OF THE CITY · SIZE ${h.size}`;
-    const coinsCol = (h && typeof h.coinsCollected === 'number' && !isNaN(h.coinsCollected))
-      ? h.coinsCollected
-      : ((typeof sim.coinsCollected === 'number' && !isNaN(sim.coinsCollected)) ? sim.coinsCollected : 0);
-    const totalCoins = (sim.coins && Array.isArray(sim.coins)) ? sim.coins.length : 0;
-    this.timer.textContent = `🪙 ${coinsCol}/${totalCoins}`;
+    // Solo: the personal tally. In a match: the shared pool draining (T-636).
+    this.timer.textContent = formatCoinReadout(sim, h);
     this.timer.classList.remove('low');
     // THE RUN's countdown belongs in the countdown pill, not in this one (T-504).
     // It used to overwrite #timer, which index.html's own comment says cannot be
@@ -340,7 +370,11 @@ export class HUD {
     this._updateClock(clockSeconds);
     this._updateScore(h.rawMass);
     this._updateCombo(sim, h);
-    this._updatePowerUps(sim.activePowerUps);
+    // A voxel sandbox has NO sim-level buff list — power-ups are per hole, so a
+    // multi-hole match can only attribute them there. Reading `sim.activePowerUps`
+    // handed the badge renderer `undefined` on every frame, which is why no
+    // power-up countdown pill has ever appeared in a city, single-player included.
+    this._updatePowerUps(h.activePowerUps || sim.activePowerUps);
     this._updateScreenHeat(h.chain, h.activePowerUps || sim.activePowerUps);
 
     // Endgame remaining blocks counter (displays when <= 100 blocks remain or <= 30s left)

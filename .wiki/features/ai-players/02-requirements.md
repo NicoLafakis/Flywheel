@@ -11,8 +11,11 @@ verified. Each criterion is tagged:
 - **[V]** checkable in `tools/validate.mjs` or a headless Node run of the sim
 - **[L]** live-verify only — a human, or a browser-driven pass, looking at it
 
-Unlike [party-mode](../party-mode/), nothing here is blocked: every **[V]**
-criterion can be executed today with the existing headless harness.
+This package was never blocked on a backend: every **[V]** criterion can be
+executed today with the existing headless harness. (The original contrast
+here was with party-mode, which was retired along with the legacy
+multiplayer stack; see [multiplayer](../multiplayer/README.md) for its
+shipped replacement.)
 
 ---
 

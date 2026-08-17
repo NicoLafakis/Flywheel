@@ -286,11 +286,11 @@ which is a denser feed than any leg of the Cambridge line.
 5. **"Score on the results screen too."** The results screen currently reports
    coins and percentage cleared and never mentions the score the run was
    actually accumulating.
-6. **"Put it on the leaderboard."** The online package
-   ([online-flywheel](../online-flywheel/00-objective-overview.md)) already
-   specifies belts keyed on `longest_chain`. A combo meter that displays a
-   different number from the one the belt is scored on would be a live bug the
-   day both ship.
+6. **"Put it on the leaderboard."** The belts-and-achievements design once
+   specified belts keyed on `longest_chain`, but that design was retired
+   along with the legacy multiplayer stack and has no replacement yet. A
+   combo meter that displays a different number from whatever a future belt
+   is scored on would be a live bug the day both ship.
 
 ### Breaks at scale / edges — what concedes first, in order
 
@@ -406,16 +406,18 @@ it, and each is cheap, co-located and removable.
 
 These are new nouns. Each gets a clean seam and a mention here, and no code.
 
-- **Achievements, easter eggs, hidden glyphs, championship belts.** All designed
-  elsewhere (`.wiki/features/cambridge-sandbox/04-easter-eggs-and-achievements.md`,
-  `.wiki/features/online-flywheel/06-belts-and-achievements.md`), all unbuilt,
-  all out of scope here. The seam they get is the announcement queue and the
+- **Achievements, easter eggs, hidden glyphs, championship belts.** Easter eggs
+  and glyphs are designed in
+  `.wiki/features/cambridge-sandbox/04-easter-eggs-and-achievements.md`; belts
+  were designed in the online-flywheel package, which was retired along with
+  the legacy multiplayer stack and has no replacement yet. All unbuilt, all
+  out of scope here. The seam they get is the announcement queue and the
   persisted `bestCombo`.
 - **Per-city phrase sets.** The data shape allows it; day one ships one set.
 - **A score multiplier the player can buy in the shop.** The shop exists
   (`js/ui/screens.js:163`) and already sells a `+5% Growth` item, so the idea is
   one step away. Not now.
-- **Online score comparison.** [online-flywheel](../online-flywheel/) owns it.
+- **Online score comparison.** [multiplayer](../multiplayer/README.md) owns it.
 - **A campaign-mode score display.** Different mode, different sim, not asked
   for.
 

@@ -29,10 +29,10 @@ device fingerprint, no analytics, and no third-party tag.** The lawful basis for
 holding a name is that the player typed it into a field whose one stated purpose,
 in the label above it, is to put that name on a public board.
 
-This is a much smaller surface than
-[`online-flywheel/09-threat-model.md`](../online-flywheel/09-threat-model.md) §6.4
-had to cover, and the reason is the owner's decision: no accounts means no PII.
-The one rule that package got right and this one inherits — **PII lives behind a
+This is a much smaller surface than the online-flywheel package's threat
+model (§6.4, retired along with the legacy multiplayer stack) had to cover,
+and the reason is the owner's decision: no accounts means no PII. The one
+rule that package got right and this one inherits — **PII lives behind a
 table boundary, not a column-level view filter** — has nothing to guard here,
 because there is no private column to leak. If that ever changes, restore the
 boundary first.

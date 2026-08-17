@@ -24,9 +24,10 @@
   [ADR-0014](../../adr/0014-vendored-same-origin-runtime.md)
 
 **Note on location and numbering.** The repo has no `.wiki/prds/` directory;
-the one existing numbered PRD lives inside its feature package as
-`.wiki/features/online-flywheel/01-prd.md` and is `PRD 0001`. This one follows
-that pattern and continues the sequence.
+numbered PRDs live inside their feature package. `PRD 0001` lived at
+`.wiki/features/online-flywheel/01-prd.md` until that package was retired
+along with the legacy multiplayer stack. This one follows that pattern and
+continues the sequence.
 
 ---
 
@@ -110,12 +111,16 @@ This invariant depends on and inherits two existing ones:
 
 ## 4. Non-goals (out of scope)
 
-- **Achievements, easter eggs, hidden glyphs, championship belts.** Designed in
-  `.wiki/features/cambridge-sandbox/04-easter-eggs-and-achievements.md` and
-  `.wiki/features/online-flywheel/06-belts-and-achievements.md`. This package
-  builds the announcement channel they will use and none of their content.
+- **Achievements, easter eggs, hidden glyphs, championship belts.** Easter
+  eggs and glyphs are designed in
+  `.wiki/features/cambridge-sandbox/04-easter-eggs-and-achievements.md`;
+  belts were designed in the online-flywheel package, retired along with the
+  legacy multiplayer stack and not yet replaced. This package builds the
+  announcement channel they will use and none of their content.
 - **Online leaderboards, score submission, any backend.**
-  [online-flywheel](../online-flywheel/) owns all of it.
+  [multiplayer](../multiplayer/README.md) and
+  [scoreboards-and-profiles](../scoreboards-and-profiles/00-objective-overview.md)
+  own it.
 - **The campaign HUD.** `js/sim.js` has its own combo formula
   (`js/sim.js:11-13`) that reaches 3× at a chain of 21 and its own label
   (`js/ui/hud.js:74`). Both are left exactly as they are. The divergence is
@@ -382,7 +387,9 @@ check above. It is the one line that would have caught `js/ui/hud.js:104`.
 ## 13. Observability & logging
 
 **N/A for production telemetry** — there is no backend on this path and none is
-being added ([online-flywheel](../online-flywheel/) owns that question).
+being added ([multiplayer](../multiplayer/README.md) and
+[scoreboards-and-profiles](../scoreboards-and-profiles/00-objective-overview.md)
+own that question).
 
 What exists instead, and what should be used: `tools/validate.mjs` already
 prints a per-scene summary line (`tools/validate.mjs:1324` and siblings) with
@@ -532,11 +539,11 @@ glyphs and belts, all of which need a place to appear on screen and all of which
 are specified elsewhere.
 
 **Integrates with:** `js/skins.js`, which consumes the same event stream and
-must keep working; `tools/validate.mjs`, which gains assertions;
-[online-flywheel](../online-flywheel/), whose belts are scored on
-`longest_chain` — if both ship, the number this package displays and the number
-that package ranks must be the same one, or the first player to notice will be
-right.
+must keep working; `tools/validate.mjs`, which gains assertions; and, if the
+retired belts design is ever rebuilt, whatever package owns it — its belts
+were scored on `longest_chain`, so the number this package displays and the
+number that package ranks must be the same one, or the first player to notice
+will be right.
 
 **No new dependency of any kind, paid or free.**
 

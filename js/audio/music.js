@@ -16,6 +16,12 @@ export const MUSIC_CUES = Object.freeze({
   shop: 'shop.mp3',
   pause: 'pause.mp3',
   results: 'post-game.mp3',
+  // The multiplayer podium is a post-game screen, so it shares the post-game
+  // track by alias rather than by a second copy on disk — the same way `title`
+  // shares the menu theme and `tokyo` shares lower Manhattan's. Registered here
+  // because js/main.js's two game-over handlers ask for it by this name, and an
+  // unregistered name used to leave the loudest moment in the game silent.
+  victory: 'post-game.mp3',
   brooklyn: 'brooklyn.mp3',
   boston: 'boston.mp3',
   cambridge: 'cambridge.mp3',
@@ -25,6 +31,16 @@ export const MUSIC_CUES = Object.freeze({
   tokyo: 'lower-manhattan.mp3',
   gallery: null,   // Owner decision: the dev physics gallery stays music-free.
 });
+
+// Where an unrecognised cue name lands. A player cannot tell "this screen has a
+// bug" from "this screen is quiet on purpose" — both are silence — so a name the
+// registry does not know plays the signature theme instead of nothing, while the
+// console still warns so the mismatch stays visible in development. The menu
+// theme is the choice because it is the one track that is always tonally
+// defensible as "Flywheel is running". tools/music-cue.test.mjs is the real
+// guard: it fails the build on any caller/registry mismatch, so in shipped code
+// this path should never run.
+export const MUSIC_FALLBACK_CUE = 'menu';
 
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
 
@@ -153,7 +169,12 @@ export class MusicDirector {
 
   request(cue, { restart = false } = {}) {
     if (!Object.prototype.hasOwnProperty.call(MUSIC_CUES, cue)) {
-      this._warnOnce(`unknown:${cue}`, `music: unknown cue "${cue}"`);
+      this._warnOnce(`unknown:${cue}`, `music: unknown cue "${cue}" — falling back to "${MUSIC_FALLBACK_CUE}"`);
+      // Still `false`: the caller did not get the cue it asked for, and that
+      // contract is what the unknown-cue test asserts. But it does get music.
+      // The self-comparison guards against a stack overflow in the audio path
+      // if the fallback itself is ever unregistered.
+      if (cue !== MUSIC_FALLBACK_CUE) this.request(MUSIC_FALLBACK_CUE, { restart });
       return false;
     }
     if (restart) this._offsets.delete(cue);

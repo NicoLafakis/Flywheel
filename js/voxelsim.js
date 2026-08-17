@@ -38,6 +38,16 @@ import {
   CHALLENGE_CLOCK_TICKS, SECRET_CHALLENGE_CLOCK_TICKS,
 } from './levelclock.js';
 import { fwCbrt, fwCos, fwHypot2, fwHypot3, fwSin } from './fwmath.js';
+// The PvP respawn penalty is a multiplayer rule of record, and the wire protocol
+// already reads it from there. Importing keeps ONE source; `multiplayer/config.js`
+// is a pure constants module with no imports of its own, so the headless
+// validator still loads this file cleanly.
+import { PVP_RESPAWN_TIMEOUT_SECONDS } from './multiplayer/config.js';
+// The PvP respawn ring and the multiplayer spawn ring must be ONE expression:
+// host and peer place a slot from js/multiplayer/roster.js, and a hole that
+// respawns somewhere else has effectively teleported for every other client.
+// Pure module (fwmath only), so the headless validator still loads this file.
+import { spawnAngleForSlot } from './multiplayer/roster.js';
 import { playerSpeedForRadius } from './tiers.js';
 import { upgradeMultiplier } from './upgrades.js';
 import {
@@ -53,6 +63,27 @@ import {
   MAX_MAP_POWERUPS, MIN_POWERUP_SEPARATION, findSpacedPowerUpLocation,
 } from './powerups.js';
 
+// The second scheduled storm used to be a hard-coded 180.0 s, which is exactly
+// the length of a 3-minute match — so in multiplayer, and in the 180 s city
+// challenges, it triggered at or past the final tick and never played at all.
+// Same class of defect the meteor had (see `disasterTwoTimeSeconds`).
+//
+// The 300 s clock keeps its 180 s beat EXACTLY (0.6 x 300 = 180), which is the
+// hard constraint here: single-player pacing must not move. Shorter clocks scale
+// with the clock instead, leaving room for the 4 s warning plus the 16 s storm
+// (a 180 s match fires at 108 s and is clear by 128 s) and staying off the
+// meteor's own two-thirds beat so the two cataclysms do not land together.
+export const STORM_TWO_FRACTION = 0.6;
+
+/**
+ * When the second scheduled storm fires, in seconds of elapsed match time.
+ * Pure and exported so the schedule is assertable without running a match.
+ */
+export function stormTwoTimeSeconds(mode, clockLimit) {
+  if (!clockLimit) return 180.0; // no level clock: the historical value stands
+  return (clockLimit / 60) * STORM_TWO_FRACTION;
+}
+
 // --- dynamic cataclysm storm system (tornado & hurricane events) -------------
 export class StormSystem {
   constructor(sim) {
@@ -65,7 +96,7 @@ export class StormSystem {
       { triggerT: 28.0, duration: 12.0, done: false },
     ] : [
       { triggerT: 60.0,  duration: 16.0, done: false },
-      { triggerT: 180.0, duration: 16.0, done: false },
+      { triggerT: stormTwoTimeSeconds(sim.mode, sim.clockLimit), duration: 16.0, done: false },
     ]);
     this.state = 'idle'; // 'idle' | 'warning' | 'active' | 'clearing'
     this.stateTimer = 0;
@@ -466,6 +497,30 @@ export const SANDBOX_COIN_COUNT = 60;
 export const SANDBOX_COIN_VALUE = 2;
 export const SANDBOX_GOAL_BONUS = 35;
 
+// --- the host-authoritative match clock (T-635) -----------------------------
+// A multiplayer match used to run a SEPARATE clock on every client, each one
+// counting its own `step()` calls. Any client that cannot sustain 60 steps per
+// second — heavy scene, slow phone, backgrounded tab — falls behind permanently
+// and nothing pulls it back: measured at 38 s of divergence over a 180 s match,
+// with the peer's HUD reading 0:38 at the instant the host ended it.
+//
+// So a peer's sim FOLLOWS the host's tick count instead of trusting its own.
+// Two dials govern how that correction is spent, because a clock that simply
+// assigned itself the host's number every sync would stutter and jump:
+//
+//   SNAP  — beyond this much error the lag is no longer a stutter, it is a
+//           wrong clock, and one visible jump beats staying 38 s wrong.
+//   RATE/MAX — inside the snap window the error is closed a fraction at a time,
+//           capped so the countdown never runs faster than ~5x while catching
+//           up. The fraction (not a flat rate) is what gives the reconciler a
+//           restoring force: a peer stuck at half speed settles a few ticks
+//           behind instead of drifting without bound.
+//
+// Corrections only ever run the clock FORWARD. See `applyClockAuthority`.
+export const CLOCK_AUTHORITY_SNAP_TICKS = 120;         // 2 s
+export const CLOCK_AUTHORITY_CATCHUP_RATE = 0.25;      // close 25% of the error per step
+export const CLOCK_AUTHORITY_MAX_CATCHUP_TICKS = 4;    // ...but never above ~5x speed
+
 // Tiered Metropolis Coin Economy:
 // Higher-tier cities spawn more ground coins with higher individual value,
 // and reward exponentially higher coin bonuses for 100% full clears.
@@ -498,6 +553,30 @@ export const RANKED_TUNE_ID = 'ranked-v1';
 export const RANKED_SIM_VERSION = 1;
 export const RANKED_TICK_COUNT = 90 * 60;
 export const CHALLENGE_COIN_MULTIPLIER = 2;
+
+// Fraction of the clock at which the scheduled late-match meteor lands, used as
+// the FLOOR of the schedule below.
+export const DISASTER_TWO_FRACTION = 2 / 3;
+
+/**
+ * When the second scheduled natural disaster (the meteor shower) fires, in
+ * seconds of elapsed match time.
+ *
+ * This used to floor at a literal 180 s — the exact length of a 3-minute match,
+ * so a 180 s clock scheduled its "late-match" meteor on the final tick, i.e.
+ * never. The floor is a FRACTION of the clock now, so every clock length gets
+ * its disaster with time left to play around it: 300 s keeps 240 s, 180 s lands
+ * at 120 s, and the 90 s clocks keep their own hand-tuned 70 s beat.
+ *
+ * Pure and exported so the schedule is assertable without running a match.
+ */
+export function disasterTwoTimeSeconds(mode, clockLimit) {
+  if (mode === 'run90' || clockLimit === SECRET_CHALLENGE_CLOCK_TICKS) return 70.0;
+  if (!clockLimit) return 240.0;
+  const clockSeconds = clockLimit / 60;
+  return Math.max(clockSeconds * DISASTER_TWO_FRACTION, clockSeconds - 60.0);
+}
+
 // This table must name EVERY key `step()` reads off `this.tune`, not merely the
 // ones something happens to write today. `perfMode` was missing until 2026-08-13
 // and that single omission was a release blocker (audit A5.1): the ranked tune
@@ -633,10 +712,18 @@ export class VoxelSandboxSim {
     const opts = typeof optionsOrScene === 'string'
       ? { scene: optionsOrScene, ...maybeOptions }
       : (optionsOrScene || {});
-    const { seed = 'voxel-sandbox', scene = 'gallery', mode = 'freeplay', upgrades = null, holes = null } = opts;
+    const {
+      seed = 'voxel-sandbox', scene = 'gallery', mode = 'freeplay', upgrades = null, holes = null,
+      clockLimitTicks = null, clockFollower = false, multiplayer = false,
+    } = opts;
     this.rng = new RNG(seed);
     this.scene = scene;
     this.mode = mode;
+    // A live match, as opposed to a solo run that happens to have several holes.
+    // Read by the HUD to decide whether the coin readout is a personal tally or
+    // the shared pool every player is draining (T-636); nothing in the physics
+    // branches on it, so it cannot change how a city plays.
+    this.isMultiplayer = Boolean(multiplayer);
     this.upgrades = upgrades;
     this.speedMult = upgradeMultiplier(upgrades?.speed);
     this.vortexMult = upgradeMultiplier(upgrades?.vortex);
@@ -652,7 +739,15 @@ export class VoxelSandboxSim {
     // 3-minute challenges use CHALLENGE_CLOCK_TICKS (10,800 ticks / 180s).
     // Secret 90s challenges use SECRET_CHALLENGE_CLOCK_TICKS (5,400 ticks / 90s).
     // Standard sandbox freeplay uses LEVEL_CLOCK_TICKS (18,000 ticks / 300s).
-    if (mode === 'run90') {
+    //
+    // `clockLimitTicks` overrides all of that when a caller owns the match length
+    // itself — multiplayer does, and its 180 s match was previously built on
+    // `mode: 'freeplay'`, so the HUD counted down from 5:00 while the host ended
+    // the match at the 2:00 mark. It cannot instead be built on 'challenge3m':
+    // that mode also flips `isChallenge`, which doubles every coin payout.
+    if (Number.isFinite(clockLimitTicks) && clockLimitTicks > 0) {
+      this.clockLimit = Math.round(clockLimitTicks);
+    } else if (mode === 'run90') {
       this.clockLimit = null;
     } else if (mode === 'challenge3m' || mode === 'challenge') {
       this.clockLimit = CHALLENGE_CLOCK_TICKS;
@@ -669,6 +764,19 @@ export class VoxelSandboxSim {
     // Set when the clock, rather than the goal, ended the run. `over` alone
     // cannot tell the two apart and the results screen needs to.
     this.timedOut = false;
+    // THIS SIM DOES NOT OWN ITS CLOCK (T-635). A multiplayer peer counts ticks
+    // locally so the countdown stays smooth between syncs, but the host's count
+    // is the truth and the host's GAME_OVER is the only thing that ends the
+    // match — so a follower never latches `timedOut`/`over` off its own clock,
+    // however far its device has fallen behind.
+    this.clockFollows = Boolean(clockFollower);
+    // The host tick count last published, extrapolated forward one tick per
+    // local step between syncs (the host is running too). `null` until the first
+    // STATE_SYNC lands, which is why a follower still counts on its own until then.
+    this._clockAuthorityTicks = null;
+    // The shared coin pool's authoritative drain count (T-636). `null` on a host
+    // or a solo run, which own the number outright.
+    this._coinAuthorityCollected = null;
     this._clockMarks = this.clockLimit === null ? [] : [
       LEVEL_CLOCK_WARN_SECONDS, LEVEL_CLOCK_URGENT_SECONDS,
     ].map((at) => ({ at, tick: this.clockLimit - at * 60 }));
@@ -912,6 +1020,92 @@ export class VoxelSandboxSim {
    */
   get localHole() { return this.holes[this.localSlot] || this.holes[0]; }
 
+  // --- host-authoritative clock & coin pool (T-635, T-636) --------------------
+
+  /**
+   * Adopt the host's tick count as the truth behind this client's countdown.
+   *
+   * Corrections are ONE-WAY: the clock is ratcheted forward, never rewound. A
+   * countdown that hands time back is worse than one that is briefly a beat
+   * slow — the player watches 0:12 become 0:14 and stops believing the number.
+   * When this client is instead AHEAD of the host, the error is absorbed by
+   * HOLDING (see `step`), which converges just as fast and never rewinds.
+   *
+   * A gross error snaps outright: past CLOCK_AUTHORITY_SNAP_TICKS the number on
+   * screen is not stuttering, it is wrong, and one jump beats staying wrong.
+   * Everything smaller is closed a fraction per step by `step`.
+   */
+  applyClockAuthority(hostClockTicks) {
+    if (!Number.isFinite(hostClockTicks)) return;
+    // Latest wins rather than the maximum ever seen: a HOST that is itself
+    // running slow must be able to pull this clock back to a hold, and an
+    // out-of-order sync can only ever cost a few frames of holding.
+    this._clockAuthorityTicks = Math.max(0, Math.round(hostClockTicks));
+    if (this._clockAuthorityTicks - this.clockTicks > CLOCK_AUTHORITY_SNAP_TICKS) {
+      this._setClockTicks(this._clockAuthorityTicks);
+    }
+  }
+
+  /**
+   * How many ticks this step is worth. One, unless a host is publishing its own
+   * clock and this client has drifted from it.
+   *
+   *   behind the host -> run a fraction of the error extra, capped, so the
+   *                      countdown accelerates smoothly instead of teleporting;
+   *   ahead of it     -> HOLD at the current second until the host catches up,
+   *                      because the honest correction would be a rewind.
+   *
+   * The authority is extrapolated forward one tick per step because the host is
+   * running too; each STATE_SYNC replaces the estimate with the real number.
+   */
+  _clockAdvanceTicks() {
+    if (this._clockAuthorityTicks === null) return 1;
+    const err = this._clockAuthorityTicks - this.clockTicks;
+    this._clockAuthorityTicks += 1;
+    if (err < 0) return 0;
+    if (err === 0) return 1;
+    const catchUp = Math.min(
+      err,
+      Math.max(1, Math.min(CLOCK_AUTHORITY_MAX_CATCHUP_TICKS, Math.ceil(err * CLOCK_AUTHORITY_CATCHUP_RATE))),
+    );
+    return 1 + catchUp;
+  }
+
+  /** The one place `clockTicks` moves out of band, and the ratchet that keeps it forward-only. */
+  _setClockTicks(ticks) {
+    this.clockTicks = Math.max(this.clockTicks, Math.max(0, Math.round(ticks)));
+    if (this.clockLimit !== null) {
+      this.timeLeft = Math.max(0, (this.clockLimit - this.clockTicks) / 60);
+    }
+  }
+
+  /**
+   * Adopt the host's count of coins taken out of the shared pool.
+   *
+   * Monotonic by construction: the pool only ever drains, so a stale sync can
+   * never put coins back on the map. A peer keeps collecting locally for its own
+   * feel and visuals, but that local sum is never what the readout shows —
+   * computing it independently on each client is exactly how the clock drifted.
+   */
+  applyCoinAuthority(collected) {
+    if (!Number.isFinite(collected)) return;
+    const c = Math.max(0, Math.round(collected));
+    this._coinAuthorityCollected = this._coinAuthorityCollected === null
+      ? c
+      : Math.max(this._coinAuthorityCollected, c);
+  }
+
+  /** Coins taken out of the pool by EVERY player — host truth on a peer, local truth otherwise. */
+  get coinsTaken() {
+    return this._coinAuthorityCollected !== null ? this._coinAuthorityCollected : this.coinsCollected;
+  }
+
+  /** What is still out there for anyone to grab. The number the match HUD shows. */
+  get coinsRemaining() {
+    const total = Array.isArray(this.coins) ? this.coins.length : 0;
+    return Math.max(0, total - this.coinsTaken);
+  }
+
   // Every field the single-hole build kept on `this.hole`, plus:
   //   index        the hole's identity for the life of the match (slot mapping
   //                in js/net/snapshot.js reads it)
@@ -929,6 +1123,13 @@ export class VoxelSandboxSim {
       skin: config.skin || 'default',
       color: config.color || (index === 0 ? '#00f0ff' : '#ff0054'),
       alive: true,
+      // DEPARTED is not ALIVE. `alive: false` means "eaten in PvP, respawning in
+      // 10 s" — a temporary state the sim itself resolves. `departed` means the
+      // human is GONE: their client disconnected, or the slot was never filled.
+      // A departed hole never moves, eats, scores, collects, or takes part in
+      // PvP, and it never comes back on its own. Conflating the two would make a
+      // vanished player respawn ten seconds later and coast into the boundary.
+      departed: config.departed === true,
       respawnTimer: 0,
       kills: 0,
       timesEaten: 0,
@@ -961,11 +1162,23 @@ export class VoxelSandboxSim {
   // are per-block scratch used inside _stepDebris/_stepChunks.
   _holeParams() {
     const H = this.holes;
+    // Two arrays: a POOL that only ever grows (so nothing is re-allocated per
+    // step) and the returned list of references into it.
+    const pool = this._hpPool || (this._hpPool = []);
+    while (pool.length < H.length) pool.push({});
     const hp = this._hp || (this._hp = []);
-    while (hp.length < H.length) hp.push({});
-    hp.length = H.length;
+    // A departed hole is excluded here, which is what removes it from EVERY pass
+    // that reads hole geometry in one place: support removal, the attraction
+    // zone, rim instability, chunks, debris and movers. `hp` is not index-aligned
+    // with `holes` (no caller assumes that — all four call sites walk it by its
+    // own length), so leaving the gap out is safe.
+    let n = 0;
     for (let i = 0; i < H.length; i++) {
-      const h = H[i], p = hp[i];
+      const h = H[i];
+      if (h.departed) continue;
+      const p = pool[n];
+      hp[n] = p;
+      n++;
       p.h = h;
       const titan = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.TITAN);
       const effectiveRadius = titan ? MAX_RADIUS : h.radius;
@@ -980,6 +1193,7 @@ export class VoxelSandboxSim {
       p.hangScale = effectiveRadius / MAX_RADIUS;
       p._dx = 0; p._dz = 0; p._d2 = 0;
     }
+    hp.length = n;
     return hp;
   }
 
@@ -990,6 +1204,7 @@ export class VoxelSandboxSim {
     const H = this.holes;
     let best = Infinity;
     for (let i = 0; i < H.length; i++) {
+      if (H[i].departed) continue;
       const dx = x - H[i].x, dz = z - H[i].z;
       const d2 = dx * dx + dz * dz;
       if (d2 < best) best = d2;
@@ -1033,6 +1248,7 @@ export class VoxelSandboxSim {
     // resolve deterministically to the lower index.
     for (let hi = 0; hi < this.holes.length; hi++) {
       const h = this.holes[hi];
+      if (h.departed) continue; // nobody is driving it; it must not bank coins
       this._collectCoinsFor(h);
     }
   }
@@ -1089,6 +1305,7 @@ export class VoxelSandboxSim {
   _collectPowerups() {
     for (let hi = 0; hi < this.holes.length; hi++) {
       const h = this.holes[hi];
+      if (h.departed) continue;
       this._collectPowerupsFor(h);
     }
   }
@@ -1285,6 +1502,7 @@ export class VoxelSandboxSim {
     // Check if any hole was struck by the seismic fault fissure
     for (let hi = 0; hi < this.holes.length; hi++) {
       const h = this.holes[hi];
+      if (h.departed) continue; // a disaster cannot displace a player who is gone
       const dx = h.x - cx;
       const dz = h.z - cz;
       const longDist = dx * cosA + dz * sinA;
@@ -1349,6 +1567,7 @@ export class VoxelSandboxSim {
     for (const strike of strikes) {
       for (let hi = 0; hi < this.holes.length; hi++) {
         const h = this.holes[hi];
+        if (h.departed) continue;
         const dist = fwHypot2(h.x - strike.x, h.z - strike.z);
         if (dist <= strike.radius + h.radius) {
           this._teleportHoleFromDisaster(h, 'meteor');
@@ -4164,7 +4383,12 @@ export class VoxelSandboxSim {
 
     for (let hi = 0; hi < holes.length; hi++) {
       const h = holes[hi];
-      
+
+      // Nobody is at the controls. Skipped BEFORE the respawn countdown, so a
+      // player who left mid-death never comes back to life and coasts on their
+      // last steering input until the boundary clamp catches them.
+      if (h.departed) continue;
+
       // If hole was eaten in PvP, count down 10s respawn timeout
       if (h.alive === false) {
         if (h.respawnTimer > 0) {
@@ -4175,7 +4399,10 @@ export class VoxelSandboxSim {
             h.radius = START_RADIUS;
             h.size = 1;
             h.sizeFrac = 0;
-            const angle = (h.slot || h.index) * (6.283185 / Math.max(1, holes.length));
+            // `h.slot ?? h.index`, never `||`: slot 0 is a REAL slot, and the
+            // falsy-zero form silently substituted the array index for it — the
+            // host respawned wherever its index happened to put it.
+            const angle = spawnAngleForSlot(h.slot ?? h.index, holes.length);
             const dist = Math.min(25, (this.bounds || 30) * 0.7);
             h.x = fwCos(angle) * dist;
             h.z = fwSin(angle) * dist;
@@ -4249,8 +4476,7 @@ export class VoxelSandboxSim {
 
     // Scheduled Natural Disasters (Meteors & Storms):
     const elapsed = this.time;
-    const is90s = this.mode === 'run90' || this.clockLimit === 5400;
-    const disaster2Time = is90s ? 70.0 : (this.clockLimit ? Math.max(180.0, (this.clockLimit / 60) - 60.0) : 240.0);
+    const disaster2Time = disasterTwoTimeSeconds(this.mode, this.clockLimit);
 
     if (this.scene !== 'gallery' && !this.disastersTriggered.has('disaster2') && elapsed >= disaster2Time) {
       this.disastersTriggered.add('disaster2');
@@ -4353,6 +4579,9 @@ export class VoxelSandboxSim {
     // no short-circuit: OR is accumulated across the roster in index order.
     let covChanged = false;
     for (let hi = 0; hi < holes.length; hi++) {
+      // A departed hole is already out of `_holeParams()`, so it removes no
+      // support; running its coverage swap as well would only be work.
+      if (holes[hi].departed) continue;
       if (this._coverageChanged(holes[hi])) covChanged = true;
     }
     let recalc = covChanged || this._graphDirty;
@@ -4461,7 +4690,11 @@ export class VoxelSandboxSim {
     // stays false and `timedOut` says which of the two happened.
     const chronoActive = holes.some((h) => hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.CHRONO));
     if (this.clockLimit !== null && !chronoActive) {
-      this.clockTicks++;
+      // Normally one tick per step. A client FOLLOWING a remote clock (T-635)
+      // instead spends this step closing whatever error it has against the host:
+      // it may run several ticks to catch up, or stand still to let the host come
+      // to it, but it never runs backwards — see `applyClockAuthority`.
+      this.clockTicks += this._clockAdvanceTicks();
       this.timeLeft = Math.max(0, (this.clockLimit - this.clockTicks) / 60);
       // The 30 s and 10 s endgame states, monotonic by index so a mark can only
       // ever fire once (the same rule the milestone ladder runs on).
@@ -4470,7 +4703,11 @@ export class VoxelSandboxSim {
         const mark = this._clockMarks[this._clockMarkIdx++];
         this.events.push({ type: 'clock', at: mark.at, timeLeft: this.timeLeft, hole: this.hole });
       }
-      if (!this.over && (this.clockTicks >= this.clockLimit || this.timeLeft <= 0)) {
+      // A FOLLOWER never ends its own match. Its clock reaching 0:00 means only
+      // that the host's GAME_OVER is a frame or two away; latching here would end
+      // the match under a player whose device was merely slow, which is the
+      // 38-second desync seen from the other side.
+      if (!this.over && !this.clockFollows && (this.clockTicks >= this.clockLimit || this.timeLeft <= 0)) {
         this.timedOut = true;
         this.over = true;
         this.events.push({ type: 'timeup', ticks: this.clockTicks, hole: this.hole });
@@ -4484,12 +4721,15 @@ export class VoxelSandboxSim {
 
     for (let i = 0; i < holes.length; i++) {
       const hA = holes[i];
-      if (!hA.alive) continue;
+      // A departed hole is neither an attacker nor a target: eating a hole whose
+      // player left is a free kill, and being eaten by one is an unanswerable
+      // death. `alive` cannot express this — see `departed` in _newHole.
+      if (!hA.alive || hA.departed) continue;
 
       for (let j = 0; j < holes.length; j++) {
         if (i === j) continue;
         const hB = holes[j];
-        if (!hB.alive) continue;
+        if (!hB.alive || hB.departed) continue;
 
         const dx = hA.x - hB.x;
         const dz = hA.z - hB.z;
@@ -4499,7 +4739,7 @@ export class VoxelSandboxSim {
         if (dist < hA.radius && hA.radius > hB.radius * 1.05) {
           // Hole A eats Hole B!
           hB.alive = false;
-          hB.respawnTimer = 10.0;
+          hB.respawnTimer = PVP_RESPAWN_TIMEOUT_SECONDS;
           hB.timesEaten = (hB.timesEaten || 0) + 1;
           hA.kills = (hA.kills || 0) + 1;
 
@@ -4513,7 +4753,7 @@ export class VoxelSandboxSim {
             killer: hA,
             victim: hB,
             awardMass: award,
-            respawnDelaySeconds: 10.0,
+            respawnDelaySeconds: PVP_RESPAWN_TIMEOUT_SECONDS,
           };
           this.events.push(ev);
           if (this.onPvPKill) this.onPvPKill(ev);

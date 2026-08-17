@@ -291,6 +291,53 @@
   box-shadow: 0 0 24px rgba(0, 240, 255, 0.35);
 }
 
+/* Display-name field. Same family as the room-code field, but sized for words
+   rather than a 5-character code: normal tracking, wider box, 16px minimum so
+   iOS does not zoom the viewport when it is focused. */
+.mp-name-input {
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-align: center;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(0, 240, 255, 0.28);
+  border-radius: 12px;
+  padding: 12px 14px;
+  width: min(320px, 100%);
+  max-width: 100%;
+}
+
+.mp-name-input::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+  letter-spacing: 1.5px;
+}
+
+.mp-name-input:focus {
+  outline: none;
+  border-color: #00f0ff;
+  box-shadow: 0 0 24px rgba(0, 240, 255, 0.3);
+}
+
+/* Narrow variant for the single-question cards (name prompt, join error). */
+.mp-card-narrow {
+  max-width: 420px;
+  width: min(420px, 94vw);
+}
+
+.mp-error-title {
+  color: #ff0054;
+}
+
+.mp-error-msg {
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0;
+  text-align: center;
+}
+
 .mp-join-hint {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.55);
@@ -854,6 +901,13 @@
   border-radius: 999px;
   background: #00f0ff;
   color: #121722;
+}
+
+/* A player who walked out mid-match still holds their row and their stats; the
+   badge is muted so it reads as a footnote rather than as a second "YOU". */
+.mp-left-badge {
+  background: rgba(255, 255, 255, 0.22);
+  color: #eaf2ff;
 }
 
 .mp-player-score {

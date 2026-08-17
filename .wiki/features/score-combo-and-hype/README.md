@@ -43,13 +43,14 @@ in `css/main.css`; the event dressing in `js/main.js`; the persisted per-scene
 
 ## What this package is not
 
-Achievements, the 44 easter eggs, the 11 hidden glyphs, and championship belts
-are designed elsewhere
-([cambridge-sandbox/04](../cambridge-sandbox/04-easter-eggs-and-achievements.md),
-[online-flywheel/06](../online-flywheel/06-belts-and-achievements.md)) and are
-all out of scope here. What they get from this package is the announcement
-channel they will all need and a persisted best-combo record. Online
-leaderboards and any backend belong to [online-flywheel](../online-flywheel/).
+Achievements and the easter eggs and hidden glyphs are designed elsewhere
+([cambridge-sandbox/04](../cambridge-sandbox/04-easter-eggs-and-achievements.md)).
+Championship belts were designed in the online-flywheel package, retired
+along with the legacy multiplayer stack and not yet replaced. All are out of
+scope here. What they get from this package is the announcement channel they
+will all need and a persisted best-combo record. Online leaderboards and any
+backend belong to [multiplayer](../multiplayer/README.md) and
+[scoreboards-and-profiles](../scoreboards-and-profiles/00-objective-overview.md).
 The campaign HUD is untouched.
 
 ## Existing decisions this package builds on

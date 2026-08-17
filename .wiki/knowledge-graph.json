@@ -1,94 +1,265 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-12T15:07:05+00:00",
+    "generatedAt": "2026-08-17T00:50:28+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
-      "files": 79,
-      "symbols": 27,
-      "edges": 8,
-      "modules": 2,
-      "reusedFromCache": 79
+      "files": 135,
+      "symbols": 6,
+      "edges": 1,
+      "modules": 4,
+      "reusedFromCache": 135
     }
   },
   "files": {
+    "api/_lib.mjs": {
+      "lang": "javascript",
+      "hash": "f17e9818afb22f4ba6573900fb33527cbad8716b5846902a6d07eb3ad80ce695",
+      "loc": 205,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/_verify.mjs": {
+      "lang": "javascript",
+      "hash": "80f74af90682bb3c526e1e2eddfbad8a8865c5ef097bdd8cbc58da46a991c5a0",
+      "loc": 127,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/auth/login.mjs": {
+      "lang": "javascript",
+      "hash": "3c0c4eb0af6a3758c83365dc43311fdaca23e80aea1ad027cd55a67c48d28c53",
+      "loc": 41,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/auth/register.mjs": {
+      "lang": "javascript",
+      "hash": "788902aff2aadc1cc54f01bd9e4319f4ab09c88efab76ed12395a6f9b54b240e",
+      "loc": 96,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/health.mjs": {
+      "lang": "javascript",
+      "hash": "218847e36f45f8da5819764bfff26899d97e66748d8c3bcf59fc342bf5a2bc27",
+      "loc": 8,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/name/claim.mjs": {
+      "lang": "javascript",
+      "hash": "fea3a7c2ba4c1279d44b5ac9a0c865814daa9e776ee6d8e857f0541b174d8ae0",
+      "loc": 60,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/name/rename.mjs": {
+      "lang": "javascript",
+      "hash": "210a6e269bff42204a5821716817357b5ed35478a2c21491c3e18b016049b381",
+      "loc": 56,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/name/transfer/redeem.mjs": {
+      "lang": "javascript",
+      "hash": "fc097c410db4aeb60eaaa4f535fbeb865232c7b67e1a1ac632e7746ae7a13a76",
+      "loc": 27,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/name/transfer/start.mjs": {
+      "lang": "javascript",
+      "hash": "72609fe61ff37dd19331bcaad27ffc2f7b9eb43cef3b12cbc14e13564d1ccfe7",
+      "loc": 31,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/operator.mjs": {
+      "lang": "javascript",
+      "hash": "914635b30883c88d9ac843a75150fadbb05b0b8949359278d15af392afd27773",
+      "loc": 22,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/player/remove.mjs": {
+      "lang": "javascript",
+      "hash": "4d9e3f3a7b174248e850c36d3c601f8582a47ef082b1d9b1f8cdc3c0c448a41e",
+      "loc": 13,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/report.mjs": {
+      "lang": "javascript",
+      "hash": "0c59f2278e819730e18b1c1e9c22e2909a529067cd433bdb86cd45352363a764",
+      "loc": 21,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/run/start.mjs": {
+      "lang": "javascript",
+      "hash": "2293473c6c03f8a20b46a057435182f524313c6df15189cc778129a4255d1499",
+      "loc": 57,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/run/status.mjs": {
+      "lang": "javascript",
+      "hash": "cb6c3278168d4067a8286db611a8b28d43cdd121508da79052a187f1dbff06db",
+      "loc": 18,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/run/submit.mjs": {
+      "lang": "javascript",
+      "hash": "a24e30b14923c62e6719b4275c6170dbd7f6576e2abc9cc23c1cc7804b42402b",
+      "loc": 109,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/run/verify.mjs": {
+      "lang": "javascript",
+      "hash": "1ab5076136c39cb3a9af87fa887521d1ddc0f3f9efda51f661ab55206dd3459b",
+      "loc": 11,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
     "js/audio/engine.js": {
       "lang": "javascript",
-      "hash": "22bf77bd7f3a3c3fe5259c776a8e51585e67e7c88df803b43d980b195f334e38",
-      "loc": 279,
+      "hash": "b312eacf14f34b803dddb672e0e4a57b07d9f708594fae056c4a694655813b9c",
+      "loc": 987,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/audio/engine.test.mjs": {
       "lang": "javascript",
-      "hash": "c2f51e10aae3d757642a8a05a01843e882d43255f19524ba7802f96e8678fa73",
-      "loc": 235,
+      "hash": "9652b066baabf9eb42bdd9f9c2fb86b2d06b3ee481cf9dca8dbe546ec43bffff",
+      "loc": 237,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/audio/game-audio.js": {
       "lang": "javascript",
-      "hash": "bc0d5e13e482bc573e6bee782504a0db87c51f2bb10f24f8bb3255ca9b3081cc",
-      "loc": 377,
+      "hash": "6940dfe4fe63bdf8e581b43d9ff78a34f936aec0ff0ba52c8b4be50d9c7372e5",
+      "loc": 603,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/audio/game-audio.test.mjs": {
       "lang": "javascript",
-      "hash": "4ba2a75b196234f37d694bad56c54b278907b56aa0d7e5d24eebb24a0abb01b4",
-      "loc": 253,
+      "hash": "decac54098d59a942695876f23c26bc4221770e0b5ca4dc606bfee2819605a6d",
+      "loc": 256,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/audio/mix.js": {
       "lang": "javascript",
-      "hash": "29ab01fef4b610ceea07d78e1a6aafad5e68467cd8b159d64b7e1de74c5ac4e8",
-      "loc": 94,
+      "hash": "52d93dd25c6e8937694f67e951184c98a6d840ab5ac8788bca01185443f61fe8",
+      "loc": 64,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/audio/music.js": {
       "lang": "javascript",
-      "hash": "3eb428daddf3070f0faf0a91bead17fed3a0a280d40761ff44a0a122cc12c423",
-      "loc": 304,
+      "hash": "48121ba4eb0485a4db424f18854234e627020df12bac04eaab10ace1edd83c7f",
+      "loc": 341,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/audio/music.test.mjs": {
       "lang": "javascript",
-      "hash": "9dd1099db797ce288238ca0015b761d633ffe7e04ec13a4b66080577216886f2",
-      "loc": 110,
+      "hash": "086cceedcd8fbf58d4ba5cbd57344828a96b7bada2827bf7122cf54358babe19",
+      "loc": 117,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/board/config.js": {
+      "lang": "javascript",
+      "hash": "a2a99cc54316ec83aae4e9ceb3f1f171a5a632016b3a5a6864a12f2a0aac92eb",
+      "loc": 9,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/board/outbox.js": {
+      "lang": "javascript",
+      "hash": "f1601b11d24ea61726197dd4047498a7b6fe50071d57e5828b1ae780c2f3bbd3",
+      "loc": 46,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/board/player.js": {
+      "lang": "javascript",
+      "hash": "730734c68f51b232bdfe5564dab69ffe5dffbebbadf8c900e8741c3df5e9a82e",
+      "loc": 156,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/board/read.js": {
+      "lang": "javascript",
+      "hash": "4223e99fa4e25f752498cca51bb3ef3f1a39351a8ff6b9c34ad1424276c39848",
+      "loc": 38,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/board/request.js": {
+      "lang": "javascript",
+      "hash": "ea18b82e1caff8d29c3dba42550f44d54f5a381afbdaa787a392c1750a196d03",
+      "loc": 19,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/board/run.js": {
+      "lang": "javascript",
+      "hash": "426fceb7558e3b0a95eb6cb40104a221742ecc091d5583b33b3633b05bd427cd",
+      "loc": 40,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/camera.js": {
       "lang": "javascript",
-      "hash": "c4f0d9807856fd26483736df01b5242d44ef3657a29970a5900f0c7c01eaeff2",
-      "loc": 1210,
+      "hash": "9ebf1520ad315e74a82d4c195e0d7a907639b44aa6dc1a9db30710c09e7cdb21",
+      "loc": 1457,
       "module": "js",
-      "symbols": [
-        {
-          "name": "ChaseCamera",
-          "kind": "class",
-          "line": 223,
-          "exported": true
-        }
-      ],
-      "imports": [
-        {
-          "raw": "three",
-          "resolved": null,
-          "external": true
-        }
-      ]
+      "symbols": [],
+      "imports": []
+    },
+    "js/citycatalog.js": {
+      "lang": "javascript",
+      "hash": "c7011620b857327bb938152e3992d1ff7b016aa43e8b6b839688b82290f08355",
+      "loc": 191,
+      "module": "js",
+      "symbols": [],
+      "imports": []
     },
     "js/citygen.js": {
       "lang": "javascript",
@@ -106,234 +277,146 @@
       "symbols": [],
       "imports": []
     },
-    "js/demo/arena.js": {
+    "js/fwmath.js": {
       "lang": "javascript",
-      "hash": "4d487b0d2024dff681b747dccd797d1e55ec567aab45707bbc2724877484038b",
-      "loc": 909,
+      "hash": "0e54b062c23cbe0de487ee24e0e3e6cb391d32653e0bbf48a2db8d6d030c7eaf",
+      "loc": 46,
       "module": "js",
       "symbols": [],
       "imports": []
     },
-    "js/demo/demo.js": {
+    "js/levelclock.js": {
       "lang": "javascript",
-      "hash": "22a2dcdcf6ed53f929d9d29c8ff60bfcee3d03b41e27facc092b549ed6d4fbd7",
-      "loc": 229,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/demo/duel.js": {
-      "lang": "javascript",
-      "hash": "dc2cde7e1962bb7f49200324d9a9e2975197b25f7ecd4577993097d25445a4cb",
-      "loc": 76,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/demo/duel.test.mjs": {
-      "lang": "javascript",
-      "hash": "bceb81cc80aabecda39238b77287bfe127f44e23c81c098c13b880f6a8e4c0b8",
-      "loc": 75,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/demo/netdemo.js": {
-      "lang": "javascript",
-      "hash": "d3fc2ba2005b2af4af299d7016392290092269e7647a65fdae719ebbf43161dd",
-      "loc": 267,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/demo/view.js": {
-      "lang": "javascript",
-      "hash": "486329c16487f928ca3e8fb892280d40a11924fb82dc3fcf92ab335a58d6be1d",
-      "loc": 458,
+      "hash": "1212c0351808f64d05cf84418e1f50b44c23e5dd3deef0041323683037c17670",
+      "loc": 35,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/levels.js": {
       "lang": "javascript",
-      "hash": "82277991495dcfc63e9a3f473ff78e12d03d2ffe1cb319b96a7b0fa9bff5849d",
-      "loc": 90,
+      "hash": "f3ec598e7d9f156fead71a5ff611e9757c78e386bb2d3e8241965a942aebf329",
+      "loc": 100,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/main.js": {
       "lang": "javascript",
-      "hash": "4abc98e04d02b18f4623c5eba0ae84f08caccff8f8504b304b84ed45caf9e1c3",
-      "loc": 739,
+      "hash": "c490c610012175a6d1d6620bf16acba8dcd6077586e79444bfee88983faad99d",
+      "loc": 1911,
       "module": "js",
       "symbols": [],
       "imports": []
     },
-    "js/net/arena.js": {
+    "js/multiplayer/channel.js": {
       "lang": "javascript",
-      "hash": "2f34695fb5ac4f108dab837888072acaad7b9c662ecaac75b0440da9f920d948",
-      "loc": 344,
+      "hash": "50e687a1e3aadf91830db606ccfc2e31d9ca31c29cc614726bc89c6c00602283",
+      "loc": 312,
       "module": "js",
       "symbols": [],
       "imports": []
     },
-    "js/net/client.js": {
+    "js/multiplayer/config.js": {
       "lang": "javascript",
-      "hash": "010e0b34361085294f679b23c649839c1e183c7f12a4f5acdea6f22949044592",
-      "loc": 51,
+      "hash": "cd2cf122c21e066de53bb284bc922dc5881a90b869ba6d4f98d9c853c26b44fa",
+      "loc": 94,
       "module": "js",
       "symbols": [],
       "imports": []
     },
-    "js/net/driver.js": {
+    "js/multiplayer/host.js": {
       "lang": "javascript",
-      "hash": "fbfff7d34d0341d51210ac5a434fd29ed4bd443f48e54147577a6693fdf91ebf",
-      "loc": 160,
+      "hash": "29494cd3e027d1af5837882047ad7e458a056d4de957ee8d6c8e91123e4281b6",
+      "loc": 295,
       "module": "js",
       "symbols": [],
       "imports": []
     },
-    "js/net/host.js": {
+    "js/multiplayer/lobby.js": {
       "lang": "javascript",
-      "hash": "16997f88dd78812f8c47fb6d10d099f15042ae259cb0a37c569b02dcef20a709",
-      "loc": 350,
+      "hash": "448cd69a64deac0e5fba3f7dcf0e8b0a0b208c488a5c08b6aaeae77cdeee639b",
+      "loc": 564,
       "module": "js",
       "symbols": [],
       "imports": []
     },
-    "js/net/peer.js": {
+    "js/multiplayer/multiplayer.test.mjs": {
       "lang": "javascript",
-      "hash": "e0d078c240ea60b8ecc37b8d2dfda9830507d20d76ae43eeeaacced43df915d7",
-      "loc": 384,
+      "hash": "3b08cdac5cd7177283d110991065f69a81c621e22ce4084856a590baaf87ae70",
+      "loc": 420,
       "module": "js",
       "symbols": [],
       "imports": []
     },
-    "js/net/protocol.js": {
+    "js/multiplayer/peer.js": {
       "lang": "javascript",
-      "hash": "66245da2e257c80bc37c8d2fced40458ef13d9d3186dcda56723d58221378db8",
-      "loc": 588,
+      "hash": "8f946559f72274e6ed4fd2f4d48e6307202548b0c533381e529181bf72ef4a9a",
+      "loc": 286,
       "module": "js",
       "symbols": [],
       "imports": []
     },
-    "js/net/snapshot.js": {
+    "js/multiplayer/protocol.js": {
       "lang": "javascript",
-      "hash": "75f3fd8c97834134edcff0214288d7d42c446aa20d7a0a9b7eec15d9e3e8ead7",
-      "loc": 406,
+      "hash": "134f9f66fe00a2ca1a4599dc5660f00a012cc9a8cc5f651ba092f13936818159",
+      "loc": 317,
       "module": "js",
       "symbols": [],
       "imports": []
     },
-    "js/net/supabase-config.js": {
+    "js/multiplayer/roster.js": {
       "lang": "javascript",
-      "hash": "fa5015b5dced2f89deef143d63d2b7f90415517e901a81f2fb45bbca79392a8a",
-      "loc": 14,
+      "hash": "69dc15855b756c9804ebac26e5bcdfa5c963ae5bdd7b3e5a98cdcc04f4381c2d",
+      "loc": 131,
       "module": "js",
       "symbols": [],
       "imports": []
     },
-    "js/net/transport.js": {
+    "js/multiplayer/sanitize.js": {
       "lang": "javascript",
-      "hash": "cf34e310b7ba61b6e2c702ac729d245d41706507dad2cbe9df498ee36c0a5448",
-      "loc": 239,
+      "hash": "40de06053e6de51432f72b3e155b4c3630cff313d6079c7b05d86b5998c3b8d9",
+      "loc": 60,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/multiplayer/ui.js": {
+      "lang": "javascript",
+      "hash": "50b1044fdbccab7557ff7550e38d5b0c742fdce6546df997544cdd975043b996",
+      "loc": 791,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/operator.js": {
+      "lang": "javascript",
+      "hash": "2ca7e40a4acb047130bfe6d1e28baa8272b5fcc90b50bb52f1f8dafa62741fad",
+      "loc": 56,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/powerups.js": {
+      "lang": "javascript",
+      "hash": "d3ad4c09aa9d35c66dac09f246b80a8aee370807ea8ff31543940051446f04c5",
+      "loc": 353,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/quality.js": {
       "lang": "javascript",
-      "hash": "cff0d7720df128278f3f7f063b79ecdb65baded44c4ce25b172e21b5b9465cc3",
-      "loc": 57,
+      "hash": "1cef3897cf5400abd870f7499c5999836477a7be9bed2b9cb1c47ceac94124cb",
+      "loc": 102,
       "module": "js",
       "symbols": [],
       "imports": []
     },
-    "js/rival/announce.js": {
+    "js/replay.js": {
       "lang": "javascript",
-      "hash": "5b8952449acaf7f1b08e79ff51b1c8ba600b8435ae8e85c1c6df7e9357e0ad9a",
-      "loc": 65,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/rival/attribution.js": {
-      "lang": "javascript",
-      "hash": "34a2371063b71d48b767d7606aae919309c83977f44cfb5dae825980a1a0e639",
-      "loc": 130,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/rival/beats.js": {
-      "lang": "javascript",
-      "hash": "865ec8be15a31c38d2f5d39675a5bfd183edcaf5b9ed71dde2bcd9ecaf115fec",
-      "loc": 108,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/rival/constants.js": {
-      "lang": "javascript",
-      "hash": "b421e41d1366f8f9b94ce6f9b8f9b2a13f893982c1f83fd7cc74a4e060842e87",
-      "loc": 60,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/rival/identity.js": {
-      "lang": "javascript",
-      "hash": "d92a8205c6c378bf80ebe2ba4b7b1640c6344c5de9627a297a13c07e0f457272",
-      "loc": 40,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/rival/offscreen.js": {
-      "lang": "javascript",
-      "hash": "58571702cf194e2822020dcdc9d91cb417872efd084a555178b36c50f354974a",
-      "loc": 112,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/rival/reveal.js": {
-      "lang": "javascript",
-      "hash": "4815a3e678d3d357f83e631dacb4f64e7185e22a3f4273376c3ea8ccff5317cd",
-      "loc": 72,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/rival/rival.test.mjs": {
-      "lang": "javascript",
-      "hash": "7bfa08f33a2586b2deb58ac0552adfaeb4311d37b07147d5902f39daf4f1fc5a",
-      "loc": 319,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/rival/territory-layer.js": {
-      "lang": "javascript",
-      "hash": "783e4994a25bf73c4d7a9da0418a9fc6777b511794187b4cc772133cba34d131",
-      "loc": 62,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/rival/territory.js": {
-      "lang": "javascript",
-      "hash": "d7c87b09e9a6fe3b10baea1a7f37f88a68c90ed53a1ad2ad0d97486819ab9c7d",
+      "hash": "5c3546b5e4f17d451d3ddfa11915ba6827deb4e9c95ffd9efcb2d9c26d0d6d6e",
       "loc": 67,
-      "module": "js",
-      "symbols": [],
-      "imports": []
-    },
-    "js/rival/tugbar.js": {
-      "lang": "javascript",
-      "hash": "9f942b89500dc66508e301d67caf657247cd3e3082e69ef5249e7f1bb9686235",
-      "loc": 71,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -348,31 +431,31 @@
     },
     "js/save.js": {
       "lang": "javascript",
-      "hash": "feadb13fadd1793ad4ba0149358387d74e524107fc9e7c66e797c301d70c6913",
-      "loc": 377,
+      "hash": "9add9184d149636e934cb1e115799d46b6494a325533e6b6232164b8ed33e35c",
+      "loc": 573,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/sim.js": {
       "lang": "javascript",
-      "hash": "e392d0899f64a2d194cf5056259fb6e76ee688171683236efc44d34727b39960",
-      "loc": 281,
+      "hash": "1694c08c954fc70ff7ba55d3970df6e61d8e4f49f6b1ee4b90214325c09c9527",
+      "loc": 540,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/skins.js": {
       "lang": "javascript",
-      "hash": "7d80f8ae62658e39ab11094a57c90a7e94ce3bb7660eb89d23a988a4e2c819eb",
-      "loc": 2341,
+      "hash": "a28ef345ecccfff05a1a85932a98ac5e0c57ec63ebd7fc53f328c84fc8500da0",
+      "loc": 2355,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/tiers.js": {
       "lang": "javascript",
-      "hash": "7262b995edd398d33edce5d228c4f5821e0bf48e1caa391e52e75400285ada3f",
+      "hash": "91159918b6dd0e26c90adcda948ac5006546060603667da2572de3b246732fbb",
       "loc": 52,
       "module": "js",
       "symbols": [],
@@ -386,10 +469,34 @@
       "symbols": [],
       "imports": []
     },
+    "js/ui/boards.js": {
+      "lang": "javascript",
+      "hash": "ad8010877c5a11e4154bb19bb7315dda0524612b73cf8413b5a584125e5ad413",
+      "loc": 619,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/ui/help.js": {
+      "lang": "javascript",
+      "hash": "116506a03d37e1a998ed4adee378b2b31686aa8fb9dc79064ff2dbeff6178248",
+      "loc": 775,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
     "js/ui/hud.js": {
       "lang": "javascript",
-      "hash": "1ee2a39877cee075b84e00e4d71af28e3743db1d116db71b8d98faba834d9f97",
-      "loc": 340,
+      "hash": "d81c9664ebff5868ac6594233a4b3a4b60140acea6c61d45c634da7a115525bb",
+      "loc": 720,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/ui/menuscene.js": {
+      "lang": "javascript",
+      "hash": "3d0b36acc0504b86247bdca95f7007424f6922331c27aed17122009abd1ccd7c",
+      "loc": 240,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -447,8 +554,8 @@
     },
     "js/ui/screens.js": {
       "lang": "javascript",
-      "hash": "7fe4304684e9f5a391167c94b7c0a51e1411f3ced1d5e43bf91dc1dc4887414c",
-      "loc": 570,
+      "hash": "ecb70971ca5327f5740351c19ae847a83746f0bb08e250e2fbf794e08170434a",
+      "loc": 1816,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -457,6 +564,14 @@
       "lang": "javascript",
       "hash": "cf1c79bddffd4699dc9f97442faa3d47297b0e5aac2dc31fce1ecbbc69b6aa40",
       "loc": 46,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/upgrades.js": {
+      "lang": "javascript",
+      "hash": "d1018bbf69ed9056f79572fe74957a8317e0144b4a4bbb2bd5bdeeecced8590a",
+      "loc": 190,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -479,23 +594,23 @@
     },
     "js/voxelforms.js": {
       "lang": "javascript",
-      "hash": "ef83aa0f3f6c27f419307495434a48460160666124f920139f70cb100114dc19",
-      "loc": 291,
+      "hash": "ec910f7d0cd23b284ae540eae58b0ac7143c300164f05e67b9aa4b3c2424f6b4",
+      "loc": 296,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/voxelkit.js": {
       "lang": "javascript",
-      "hash": "482630c827b6bb60fb432f0f9afb3c8f9203fae9d09804cac07c3063601588a3",
-      "loc": 3183,
+      "hash": "39d3484d16a9f087e4e811f8cd47f1b4ed8b53777b06f6761eca0d9ff2929390",
+      "loc": 3310,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/voxelscene-boston.js": {
       "lang": "javascript",
-      "hash": "9b77a3c99f134b7afc185d17bb0787b225e654cdf0dbcf5fed14d1a8878dea03",
+      "hash": "ba4d60e22fca0553bcd5e3527d4f03800b5726e8084dc0f7181b874c85fc42b7",
       "loc": 2219,
       "module": "js",
       "symbols": [],
@@ -503,87 +618,72 @@
     },
     "js/voxelscene-brooklyn.js": {
       "lang": "javascript",
-      "hash": "f5ae1a803bd8daf206e2ec2997b83c0ce61caf9f0f80d62af37588ffbe34e718",
-      "loc": 911,
+      "hash": "4e9bc331d0d56e8aa2ff64fa2908bcd9ab189968c749e8f8fcec19dd525db3a9",
+      "loc": 923,
       "module": "js",
-      "symbols": [
-        {
-          "name": "buildBrooklyn",
-          "kind": "function",
-          "line": 206,
-          "exported": true
-        }
-      ],
-      "imports": [
-        {
-          "raw": "./voxelkit.js",
-          "resolved": "js/voxelkit.js",
-          "external": false
-        },
-        {
-          "raw": "./voxelkit.js",
-          "resolved": "js/voxelkit.js",
-          "external": false
-        }
-      ]
+      "symbols": [],
+      "imports": []
     },
     "js/voxelscene-cambridge.js": {
       "lang": "javascript",
-      "hash": "649d5020cd7ca6f9064e757d962aabcc023c0f514a112bdb71120a813a2e38d6",
-      "loc": 11052,
+      "hash": "c0c9403cd85461f46cee35c16f45439cc89c9feda2426eb63b566e2dada71716",
+      "loc": 11048,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/voxelscene-chicago.js": {
       "lang": "javascript",
-      "hash": "457c3c86282d194f0974d0db9d35aba1f0788195300e10f93ebb22e3c3811cba",
-      "loc": 1217,
+      "hash": "ba775c478af604c892f0fa1c7090f6a0d50328a2ef27caf3498f851a3bc0f622",
+      "loc": 1229,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/voxelscene-manhattan.js": {
       "lang": "javascript",
-      "hash": "9a299006fe3fa9ae878ee8044e2c5866053173126b78c2137bfe979b59ae7e9e",
-      "loc": 531,
+      "hash": "d7db4f683cff83ae29da87e837940e61de68d706b15055c7687308781170363b",
+      "loc": 543,
       "module": "js",
-      "symbols": [
-        {
-          "name": "buildManhattan",
-          "kind": "function",
-          "line": 31,
-          "exported": true
-        }
-      ],
-      "imports": [
-        {
-          "raw": "./voxelkit.js",
-          "resolved": "js/voxelkit.js",
-          "external": false
-        }
-      ]
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-tokyo.js": {
+      "lang": "javascript",
+      "hash": "8d08e6397b6076bd92fe2d47f143f6484656cd723d2407e63f3c06acdd6bca2a",
+      "loc": 807,
+      "module": "js",
+      "symbols": [],
+      "imports": []
     },
     "js/voxelscene-upper-manhattan.js": {
       "lang": "javascript",
-      "hash": "f1ad4df5769b189bd1a45911e4b1d7ec4cb041dd4868c6f749a2b306702b76e7",
-      "loc": 2590,
+      "hash": "679b212cd2c0517b28921453671621b86825e06ecbd44b4c41f2c6805621c61a",
+      "loc": 2602,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelsim.drain.test.mjs": {
+      "lang": "javascript",
+      "hash": "292ae55955e9d2473f2a21508d0dc079dcec8cbb10b236ae3af5b762da9d0c6e",
+      "loc": 214,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/voxelsim.gravity.test.mjs": {
       "lang": "javascript",
-      "hash": "d59e75c215a100810e2d5ed2d5894e4c68f585644211e85417d5c73c01dffe21",
-      "loc": 108,
+      "hash": "469dc4860d26129bd66d95a9c60ee1d8d6223b77f43fd026dfccd24ec6a9cfe6",
+      "loc": 114,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/voxelsim.js": {
       "lang": "javascript",
-      "hash": "258376fbee3d418e9957c65eefa709ba41847629195725a10d428b0eb607ac3e",
-      "loc": 3222,
+      "hash": "cd0cd048f7fda77200c114cdc34dea958e2d98f994065e6f1f45f23dece3c79c",
+      "loc": 4770,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -598,178 +698,200 @@
     },
     "js/voxelsurfaces.js": {
       "lang": "javascript",
-      "hash": "597c58379f5a798ad1e4ed9d7820bc1a9fd8ea653b978517e3f24321d818d363",
-      "loc": 216,
+      "hash": "b9a4936013575797779be4445d62f2e2b7a04b56a5d45164e6e9e55504a0c816",
+      "loc": 390,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/voxeltiles.js": {
       "lang": "javascript",
-      "hash": "3a63dc50b75625efc375ba4ee4add0186e3589a43a73f425b310a31fc1042fab",
-      "loc": 470,
+      "hash": "9807b79336e85111b34ec47b21362fb905d2824eca7598c54fb49be6b3c695ae",
+      "loc": 581,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/voxelworld.js": {
       "lang": "javascript",
-      "hash": "e711af8ceca0a00e3805ef167a84e69e92c3674f6e14f5b589932956067fbc19",
-      "loc": 2705,
+      "hash": "4f5fb35b8d6fc6104d6eb58eac691070ed4f6afe446fbc325030dd6ef77b16c4",
+      "loc": 4155,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/world3d.js": {
       "lang": "javascript",
-      "hash": "40fcd14271165e321b7c01c16307a9f7e5b221c95d6e7219b1e61558eb808f86",
-      "loc": 817,
+      "hash": "4c54da081f2df030eb2d2e04a5ab8b4dfff37a3f0f95228a02b826b72e825a93",
+      "loc": 2238,
       "module": "js",
-      "symbols": [
-        {
-          "name": "pseudoRand",
-          "kind": "function",
-          "line": 10,
-          "exported": false
-        },
-        {
-          "name": "boxGeo",
-          "kind": "function",
-          "line": 16,
-          "exported": false
-        },
-        {
-          "name": "cylGeo",
-          "kind": "function",
-          "line": 17,
-          "exported": false
-        },
-        {
-          "name": "coneGeo",
-          "kind": "function",
-          "line": 18,
-          "exported": false
-        },
-        {
-          "name": "sphereGeo",
-          "kind": "function",
-          "line": 19,
-          "exported": false
-        },
-        {
-          "name": "circleGeo",
-          "kind": "function",
-          "line": 20,
-          "exported": false
-        },
-        {
-          "name": "ringGeo",
-          "kind": "function",
-          "line": 21,
-          "exported": false
-        },
-        {
-          "name": "mat",
-          "kind": "function",
-          "line": 24,
-          "exported": false
-        },
-        {
-          "name": "gableGeo",
-          "kind": "function",
-          "line": 40,
-          "exported": false
-        },
-        {
-          "name": "facadeTexture",
-          "kind": "function",
-          "line": 55,
-          "exported": false
-        },
-        {
-          "name": "facadeMat",
-          "kind": "function",
-          "line": 80,
-          "exported": false
-        },
-        {
-          "name": "buildingBoxMats",
-          "kind": "function",
-          "line": 93,
-          "exported": false
-        },
-        {
-          "name": "addBox",
-          "kind": "function",
-          "line": 99,
-          "exported": false
-        },
-        {
-          "name": "makeBuildingMesh",
-          "kind": "function",
-          "line": 112,
-          "exported": false
-        },
-        {
-          "name": "makePropMesh",
-          "kind": "function",
-          "line": 184,
-          "exported": false
-        },
-        {
-          "name": "roadTexture",
-          "kind": "function",
-          "line": 249,
-          "exported": false
-        },
-        {
-          "name": "makeHoleMesh",
-          "kind": "function",
-          "line": 275,
-          "exported": false
-        },
-        {
-          "name": "World3D",
-          "kind": "class",
-          "line": 304,
-          "exported": true
-        }
-      ],
-      "imports": [
-        {
-          "raw": "./levels.js",
-          "resolved": "js/levels.js",
-          "external": false
-        },
-        {
-          "raw": "./skins.js",
-          "resolved": "js/skins.js",
-          "external": false
-        },
-        {
-          "raw": "./tiers.js",
-          "resolved": "js/tiers.js",
-          "external": false
-        },
-        {
-          "raw": "three",
-          "resolved": null,
-          "external": true
-        }
-      ]
+      "symbols": [],
+      "imports": []
     },
-    "tools/arena-selftest.mjs": {
+    "old_voxelsim.js": {
       "lang": "javascript",
-      "hash": "10315cfdfc160c854cdf2bff93fc9fd3f886c57dea4b691625ac26a7d4d5edd7",
-      "loc": 345,
+      "hash": "7e6169b86b592f9667ef28895c353656cddd5ae83b0db0582b696995548bd80c",
+      "loc": 4490,
+      "module": ".",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/board-live-selftest.mjs": {
+      "lang": "javascript",
+      "hash": "5b4256d05600658d999584ed330c7017447927b210f1ba78081ec0350651cfb0",
+      "loc": 80,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/board-selftest.mjs": {
+      "lang": "javascript",
+      "hash": "c00a129fca4314cd25432d08911babbad49f91eec541f03049c19b34c3ebe3ad",
+      "loc": 81,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/check_imports.mjs": {
+      "lang": "javascript",
+      "hash": "12f98c1be84415a836fb891e6f4c5b441af75f6846c1df5a88d6bf10fd3807e7",
+      "loc": 116,
       "module": "tools",
       "symbols": [],
       "imports": []
     },
     "tools/chicago-probe.mjs": {
       "lang": "javascript",
-      "hash": "cb4b21d3fa17e0d97d27cdd3bb8712eb3d96bd55a3bd92f9f0b8ef672873b314",
-      "loc": 402,
+      "hash": "b4a0e333acd29c286eb9898ea752fa5eddedb85e21a682b5cbc70597d2ddb6ce",
+      "loc": 403,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/cinematic-vfx-selftest.mjs": {
+      "lang": "javascript",
+      "hash": "9b682699e50fd15477098371bd348b99c7ae17f714369787b1ce434d7168aa79",
+      "loc": 101,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/debug-gravity.mjs": {
+      "lang": "javascript",
+      "hash": "c2d056f28f2f041b2cb962f02687c0065cece8f79210bb5a7f4175ba6f0407b2",
+      "loc": 28,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/debug-phantom.mjs": {
+      "lang": "javascript",
+      "hash": "ea7b9d05336568571137a66455f52a7c8bd8530575b10187e270a22820de7cf4",
+      "loc": 26,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/debug-steel.mjs": {
+      "lang": "javascript",
+      "hash": "0fb4c0fde9c60c629307f4dd1bacd892f00a9bfad42277ac5bdf7d24d0994b8a",
+      "loc": 10,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/debug-trap.mjs": {
+      "lang": "javascript",
+      "hash": "d83c6ae704ec7970d697db85018247a5727d1d732b62dc7e9480df690ee55d4c",
+      "loc": 30,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/debug-trap2.mjs": {
+      "lang": "javascript",
+      "hash": "62877568c1dc4d1580a282c5db72d1c648bae998df5fa7302bae0b9229fcf8da",
+      "loc": 30,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/debug-trap3.mjs": {
+      "lang": "javascript",
+      "hash": "0bb87360cc69ce6857b63884d0b87fd065d04e27f7a8d71951ede7b19415c489",
+      "loc": 33,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/debug-trap4.mjs": {
+      "lang": "javascript",
+      "hash": "4858623522b6997d2a3c4fb85f757ff0ffad48e3df981eb60cfd78bb5a1ad002",
+      "loc": 31,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/debug-trap5.mjs": {
+      "lang": "javascript",
+      "hash": "fd054fcece1ac7c881409c3ca958ba892484fcca44aa9d2816d90054350779fa",
+      "loc": 33,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/debug-trap6.mjs": {
+      "lang": "javascript",
+      "hash": "86ed0386980744131dd3b35877e492e9c5919f6af3f6cdbe28282717d4ba46bb",
+      "loc": 30,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/debug-trap7.mjs": {
+      "lang": "javascript",
+      "hash": "2b5f817d56b66599a1daa4cd738d7f50fbbef30721ae4f21566a78f23b7056df",
+      "loc": 44,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/debug-trap8.mjs": {
+      "lang": "javascript",
+      "hash": "31c68e61a1a6feec9af769851a313aefa867ec91e30ca919cda9e4ec7e45a416",
+      "loc": 44,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/debug-trap9.mjs": {
+      "lang": "javascript",
+      "hash": "1af0743f37a8d0f2a546b69d19fbd50a38436520630bb7d239134e69d82aa2a0",
+      "loc": 31,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/demographic-playtest.mjs": {
+      "lang": "javascript",
+      "hash": "02f59caac721feb6dbd5e5033c617a27a2e1eef1e8bfbbaf50633a109463f47f",
+      "loc": 229,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/diagnostics.mjs": {
+      "lang": "javascript",
+      "hash": "0bc0a042f5ba624332a36657d3a612a060eb3d6dd6777cc9f06aa61346693817",
+      "loc": 345,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/earthquake-cinematic-selftest.mjs": {
+      "lang": "javascript",
+      "hash": "2f7d35f9ffd9a730ac941da396d00b42018dafcc5778bfa2aea325284c58f447",
+      "loc": 94,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -782,34 +904,162 @@
       "symbols": [],
       "imports": []
     },
+    "tools/help.test.mjs": {
+      "lang": "javascript",
+      "hash": "186846ab8289527776d32437ace2039f58a82ad8b139fa8884c2da567a9aa4f6",
+      "loc": 123,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/import-all-modules.mjs": {
+      "lang": "javascript",
+      "hash": "b913f0144369e69b5054074426a476aee571c54b10e7d51bb7cac323bf004a60",
+      "loc": 19,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/main-undefined-identifiers.test.mjs": {
+      "lang": "javascript",
+      "hash": "fa41fc48f750ff3b5f641d1b98a118d2568bde5c0145795a9216c1a66942565a",
+      "loc": 255,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/multiplayer-clock-coins.test.mjs": {
+      "lang": "javascript",
+      "hash": "3867331884f807b8e729cf5b4fd70013107cb3a1fb8e78416b6ca08879254e37",
+      "loc": 344,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/multiplayer-config.test.mjs": {
+      "lang": "javascript",
+      "hash": "ebf20b66d62547078063843c2c77f9b5a6285b861a3a41191a45ab99f6440f88",
+      "loc": 43,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/multiplayer-e2e.test.mjs": {
+      "lang": "javascript",
+      "hash": "6ac0d43ac4a207e410c7bc3df93c441fb38a99bac82394f6e9e1c7665172994e",
+      "loc": 104,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/multiplayer-fixes.test.mjs": {
+      "lang": "javascript",
+      "hash": "705f929d6ca171dfb9fd7656c7b2a3579e8957c31ba58d8a27b6f28fc8a334f5",
+      "loc": 451,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/multiplayer-lifecycle.test.mjs": {
+      "lang": "javascript",
+      "hash": "395246f4a6429dcbb1b4f50c2fb3e4c9ae2dd38a3777bcf66bcb584ecb21a6e3",
+      "loc": 652,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/multiplayer-livechannel.test.mjs": {
+      "lang": "javascript",
+      "hash": "7b5bac2258271f0678ec717ba637208d9c986a4759f489c1b4b4730f3c4c349a",
+      "loc": 57,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/multiplayer-lobby.test.mjs": {
+      "lang": "javascript",
+      "hash": "bcb2df7782c4a982e4405fab88fdc85173aa2e364f4befb1cbfae13ea906fa9a",
+      "loc": 72,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/multiplayer-protocol.test.mjs": {
+      "lang": "javascript",
+      "hash": "2c13119fd20aa27ccbf37c6872a962dff22fd3024718089cd7e1042de454d401",
+      "loc": 84,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/multiplayer-security.test.mjs": {
+      "lang": "javascript",
+      "hash": "8b519a3e051db40b5775c2a590207d9511dc90cae64d603feaf3d2610bec72c6",
+      "loc": 413,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/multiplayer-session.test.mjs": {
+      "lang": "javascript",
+      "hash": "f9e6bb5dc664e58b1c1c994ec9dc69df19ad41e90b9d41221d83c61b1a4490b5",
+      "loc": 86,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/multiplayer-sim.test.mjs": {
+      "lang": "javascript",
+      "hash": "cd4fbbaa34a4ca151c8c8eda75b06d7e260cb450ae1102d85fc50ab48002ebb5",
+      "loc": 74,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/music-assets-selftest.mjs": {
       "lang": "javascript",
-      "hash": "b5538ff9072fd750a46f5ec84afbd8cf699e17419ec2526829b48f7c058c418c",
+      "hash": "8713ba39f1a8900e3c774bceea532370a4c4cc5eff2acfe0fb06919fec7aafb2",
       "loc": 28,
       "module": "tools",
       "symbols": [],
       "imports": []
     },
-    "tools/net-live-selftest.mjs": {
+    "tools/music-cue.test.mjs": {
       "lang": "javascript",
-      "hash": "6b4b3164f3953d3cf04503fd463971197bad775eb6f3e987078c08231c755d4f",
-      "loc": 206,
+      "hash": "268dcb3f1eab2fb09f5b47fac6a8915280cf5c3981037676a3015d22262f0195",
+      "loc": 172,
       "module": "tools",
       "symbols": [],
       "imports": []
     },
-    "tools/net-match-selftest.mjs": {
+    "tools/perf/lib.cjs": {
       "lang": "javascript",
-      "hash": "ef8b62e57d4a4afb57ee6e6b505675a84e0c5185efa1c1a3325b9ba0304f41d0",
-      "loc": 327,
+      "hash": "922e756bb69a5a62571e842b793b79da8ab794fa20eca8f7dc669f0d26fcd1ea",
+      "loc": 203,
       "module": "tools",
       "symbols": [],
       "imports": []
     },
-    "tools/net-selftest.mjs": {
+    "tools/perf/t901-report.cjs": {
       "lang": "javascript",
-      "hash": "0a2ed8c3690d991e77de75bdf5267b226dabf81bfef2f99111816b24b7395966",
-      "loc": 481,
+      "hash": "b267c265d3cfbb86dc301384f0394a2327604b8e0a88245976ea98aa8081810e",
+      "loc": 213,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/perf/t901-run.cjs": {
+      "lang": "javascript",
+      "hash": "6e6ba4dee029d23e3f233bd74741c2e40e2b1c258bb5545848bdfb6edeb6641c",
+      "loc": 304,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/perf/t901.cjs": {
+      "lang": "javascript",
+      "hash": "1cf89466eeed63520a5f9157afab17ca4ce56270f0fb5e7e8b0d7fbc42b84ecf",
+      "loc": 148,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -824,8 +1074,16 @@
     },
     "tools/probe-buildcost2.mjs": {
       "lang": "javascript",
-      "hash": "93daffbf374f3aa1f87870e1cb38460aa00e41e6b04576c7e561e9942a319a0e",
-      "loc": 265,
+      "hash": "50b2ae2ce6baad5d3dd41fbab0e182508bf3ea31fe4eb8d784ef1a2865bbf116",
+      "loc": 271,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/pw/test.mjs": {
+      "lang": "javascript",
+      "hash": "c5fc271e89e322975123f428c621613867883e175f9d248e92ee6a4252ff0c92",
+      "loc": 99,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -846,18 +1104,34 @@
       "symbols": [],
       "imports": []
     },
+    "tools/test-live-profile.mjs": {
+      "lang": "javascript",
+      "hash": "7abd368fb1079eca13f7ba350b6144f7ce31370f6d3b6883a7878a130a801fe7",
+      "loc": 77,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/train-derail-selftest.mjs": {
       "lang": "javascript",
-      "hash": "a0ce33632530d6d161a2874ca96e2dbe14f188b4812cb5f33079ffdd32625494",
-      "loc": 395,
+      "hash": "004906df622bf4e58121af4ad20799c037c0b6d11816c084855b18db51869530",
+      "loc": 223,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/validate-tmp.mjs": {
+      "lang": "javascript",
+      "hash": "0530298be4a59542025cd6d5546d1d6d65d788d8233641b6c9248ac1d61fd986",
+      "loc": 2588,
       "module": "tools",
       "symbols": [],
       "imports": []
     },
     "tools/validate.mjs": {
       "lang": "javascript",
-      "hash": "259b21d4bcedaeb92e4732ce46c313528d18ffa8eaae0081fa4897e3c94ce526",
-      "loc": 1698,
+      "hash": "e364cd015a616d2a5fc1e517f6d944d8a86728fd2c16247d4f94ef065d42c485",
+      "loc": 2797,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -865,47 +1139,37 @@
   },
   "edges": [
     {
-      "from": "js/camera.js",
-      "to": "ext:three",
-      "kind": "imports"
-    },
-    {
       "from": "js/ui/ready.js",
       "to": "js/ui/blockword.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/voxelscene-brooklyn.js",
-      "to": "js/voxelkit.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/voxelscene-manhattan.js",
-      "to": "js/voxelkit.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/world3d.js",
-      "to": "ext:three",
-      "kind": "imports"
-    },
-    {
-      "from": "js/world3d.js",
-      "to": "js/levels.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/world3d.js",
-      "to": "js/skins.js",
-      "kind": "imports"
-    },
-    {
-      "from": "js/world3d.js",
-      "to": "js/tiers.js",
       "kind": "imports"
     }
   ],
   "modules": {
+    ".": {
+      "files": [
+        "old_voxelsim.js"
+      ]
+    },
+    "api": {
+      "files": [
+        "api/_lib.mjs",
+        "api/_verify.mjs",
+        "api/auth/login.mjs",
+        "api/auth/register.mjs",
+        "api/health.mjs",
+        "api/name/claim.mjs",
+        "api/name/rename.mjs",
+        "api/name/transfer/redeem.mjs",
+        "api/name/transfer/start.mjs",
+        "api/operator.mjs",
+        "api/player/remove.mjs",
+        "api/report.mjs",
+        "api/run/start.mjs",
+        "api/run/status.mjs",
+        "api/run/submit.mjs",
+        "api/run/verify.mjs"
+      ]
+    },
     "js": {
       "files": [
         "js/audio/engine.js",
@@ -915,48 +1179,48 @@
         "js/audio/mix.js",
         "js/audio/music.js",
         "js/audio/music.test.mjs",
+        "js/board/config.js",
+        "js/board/outbox.js",
+        "js/board/player.js",
+        "js/board/read.js",
+        "js/board/request.js",
+        "js/board/run.js",
         "js/camera.js",
+        "js/citycatalog.js",
         "js/citygen.js",
         "js/controls.js",
-        "js/demo/arena.js",
-        "js/demo/demo.js",
-        "js/demo/duel.js",
-        "js/demo/duel.test.mjs",
-        "js/demo/netdemo.js",
-        "js/demo/view.js",
+        "js/fwmath.js",
+        "js/levelclock.js",
         "js/levels.js",
         "js/main.js",
-        "js/net/arena.js",
-        "js/net/client.js",
-        "js/net/driver.js",
-        "js/net/host.js",
-        "js/net/peer.js",
-        "js/net/protocol.js",
-        "js/net/snapshot.js",
-        "js/net/supabase-config.js",
-        "js/net/transport.js",
+        "js/multiplayer/channel.js",
+        "js/multiplayer/config.js",
+        "js/multiplayer/host.js",
+        "js/multiplayer/lobby.js",
+        "js/multiplayer/multiplayer.test.mjs",
+        "js/multiplayer/peer.js",
+        "js/multiplayer/protocol.js",
+        "js/multiplayer/roster.js",
+        "js/multiplayer/sanitize.js",
+        "js/multiplayer/ui.js",
+        "js/operator.js",
+        "js/powerups.js",
         "js/quality.js",
-        "js/rival/announce.js",
-        "js/rival/attribution.js",
-        "js/rival/beats.js",
-        "js/rival/constants.js",
-        "js/rival/identity.js",
-        "js/rival/offscreen.js",
-        "js/rival/reveal.js",
-        "js/rival/rival.test.mjs",
-        "js/rival/territory-layer.js",
-        "js/rival/territory.js",
-        "js/rival/tugbar.js",
+        "js/replay.js",
         "js/rng.js",
         "js/save.js",
         "js/sim.js",
         "js/skins.js",
         "js/tiers.js",
         "js/ui/blockword.js",
+        "js/ui/boards.js",
+        "js/ui/help.js",
         "js/ui/hud.js",
+        "js/ui/menuscene.js",
         "js/ui/ready.js",
         "js/ui/screens.js",
         "js/ui/sprocket.js",
+        "js/upgrades.js",
         "js/vendor/supabase-realtime.module.js",
         "js/vendor/three.module.js",
         "js/voxelforms.js",
@@ -966,7 +1230,9 @@
         "js/voxelscene-cambridge.js",
         "js/voxelscene-chicago.js",
         "js/voxelscene-manhattan.js",
+        "js/voxelscene-tokyo.js",
         "js/voxelscene-upper-manhattan.js",
+        "js/voxelsim.drain.test.mjs",
         "js/voxelsim.gravity.test.mjs",
         "js/voxelsim.js",
         "js/voxelsim.multihole.test.mjs",
@@ -978,18 +1244,55 @@
     },
     "tools": {
       "files": [
-        "tools/arena-selftest.mjs",
+        "tools/board-live-selftest.mjs",
+        "tools/board-selftest.mjs",
+        "tools/check_imports.mjs",
         "tools/chicago-probe.mjs",
+        "tools/cinematic-vfx-selftest.mjs",
+        "tools/debug-gravity.mjs",
+        "tools/debug-phantom.mjs",
+        "tools/debug-steel.mjs",
+        "tools/debug-trap.mjs",
+        "tools/debug-trap2.mjs",
+        "tools/debug-trap3.mjs",
+        "tools/debug-trap4.mjs",
+        "tools/debug-trap5.mjs",
+        "tools/debug-trap6.mjs",
+        "tools/debug-trap7.mjs",
+        "tools/debug-trap8.mjs",
+        "tools/debug-trap9.mjs",
+        "tools/demographic-playtest.mjs",
+        "tools/diagnostics.mjs",
+        "tools/earthquake-cinematic-selftest.mjs",
         "tools/gen-partner-logo.mjs",
+        "tools/help.test.mjs",
+        "tools/import-all-modules.mjs",
+        "tools/main-undefined-identifiers.test.mjs",
+        "tools/multiplayer-clock-coins.test.mjs",
+        "tools/multiplayer-config.test.mjs",
+        "tools/multiplayer-e2e.test.mjs",
+        "tools/multiplayer-fixes.test.mjs",
+        "tools/multiplayer-lifecycle.test.mjs",
+        "tools/multiplayer-livechannel.test.mjs",
+        "tools/multiplayer-lobby.test.mjs",
+        "tools/multiplayer-protocol.test.mjs",
+        "tools/multiplayer-security.test.mjs",
+        "tools/multiplayer-session.test.mjs",
+        "tools/multiplayer-sim.test.mjs",
         "tools/music-assets-selftest.mjs",
-        "tools/net-live-selftest.mjs",
-        "tools/net-match-selftest.mjs",
-        "tools/net-selftest.mjs",
+        "tools/music-cue.test.mjs",
+        "tools/perf/lib.cjs",
+        "tools/perf/t901-report.cjs",
+        "tools/perf/t901-run.cjs",
+        "tools/perf/t901.cjs",
         "tools/probe-aniso.mjs",
         "tools/probe-buildcost2.mjs",
+        "tools/pw/test.mjs",
         "tools/shimmer.mjs",
         "tools/skinsheet.mjs",
+        "tools/test-live-profile.mjs",
         "tools/train-derail-selftest.mjs",
+        "tools/validate-tmp.mjs",
         "tools/validate.mjs"
       ]
     }

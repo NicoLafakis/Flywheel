@@ -195,28 +195,38 @@ them):**
   board resets at midnight. Cheap on this schema; a genuine new mode.
 - **Seasons.** Worth doing when the first board goes stale, not before.
 - **Ranking the live arena.** The arena is host-authoritative
-  ([ADR-0010](../../adr/0010-host-authoritative-arena.md)) so a peer's score is
+  ([ADR-0019](../../adr/0019-six-player-invite-lobby-multiplayer.md)) so a peer's score is
   computed on somebody else's machine and cannot be self-verified. Arena results
   stay arena results. Changing that is a separate design.
 
 **Dropping (the parchment workshop):**
 
-- Belts, reigns, championships, the Titantron, and the 58-achievement catalogue
-  from [06-belts-and-achievements.md](../online-flywheel/06-belts-and-achievements.md).
-  Good design, wrong order. A belt is a board with a claim rule; boards have to
-  exist and be trusted first.
+- Belts, reigns, championships, the Titantron, and the 58-achievement
+  catalogue from the belts-and-achievements design, which was retired along
+  with the legacy multiplayer stack and has no replacement yet. Good design,
+  wrong order. A belt is a board with a claim rule; boards have to exist and
+  be trusted first.
 - Email OTP, Google, HubSpot sign-in, lead capture, consent ledgers, kiosk mode.
   All of it is downstream of accounts, and accounts were ruled out.
 - Event scoping (`events` table, UNBOUND). No event is on the calendar in this
   package's scope; the board scope filter can express one later as a row.
 
-## Relationship to the `online-flywheel` package
+## Relationship to the (retired) `online-flywheel` package
 
-[`.wiki/features/online-flywheel/`](../online-flywheel/README.md) is a 9,865-line
-planning package covering the same territory, written 2026-08-06 for a conference
-booth. It is not superseded wholesale and it is not to be deleted — its threat
-model, RLS discipline, and merge semantics are still the best thinking in this
-repo and this package cites them rather than restating them.
+The `online-flywheel` package was a 9,865-line planning package covering the
+same territory, written 2026-08-06 for a conference booth. At the time this
+package was written, online-flywheel was not superseded wholesale and was
+not to be deleted — its threat model, RLS discipline, and merge semantics
+were the best thinking in this repo, and this package cited them rather than
+restating them. **That has since changed: online-flywheel was scrapped on
+2026-08-16 along with the legacy multiplayer prototype it described,
+including its threat model.** The comparison below is retained as a
+historical record of what this package changed and why; the online-flywheel
+citations for threat model, RLS discipline, and merge semantics no longer
+resolve to anything, and no replacement threat model exists yet for
+arena/multiplayer play — this package's own
+[07-threat-model.md](07-threat-model.md) covers only the solo-run
+leaderboard, a different scope.
 
 What this package **changes**, with the reason:
 

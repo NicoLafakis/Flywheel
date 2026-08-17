@@ -39,13 +39,14 @@ something for the first time.
 shape of the sim.** Right now `js/voxelsim.js` line 252 says `this.hole = {...}`,
 singular, and roughly forty call sites downstream say `const h = this.hole`.
 That singular is a structural commitment: it says *this game has one
-participant, forever*. [online-flywheel](../online-flywheel/) is a fully
-designed, ADR-backed multiplayer package that cannot begin its first line of
-sim work until that singular becomes a plural, and it is blocked on backend
-credentials it does not control. This package does the plural — the hardest,
-most invasive, least glamorous refactor in the project — **while the thing that
-proves it works is a bot, not a server.** When the credentials arrive,
-online-flywheel starts at the netcode instead of at a refactor.
+participant, forever*. This package's original strategic argument was that
+the fully designed, ADR-backed [multiplayer](../multiplayer/README.md)
+package could not begin its first line of sim work until that singular
+became a plural, and it was blocked on backend credentials it did not
+control. Multiplayer has since shipped its own multi-hole sim independently
+([ADR-0019](../../adr/0019-six-player-invite-lobby-multiplayer.md)), so this
+refactor is no longer multiplayer's blocker; the remaining value of this
+package is the AI-opponent gameplay itself.
 
 That is the whole strategic argument for building this now: the multi-hole
 refactor is on the critical path of a blocked project, and this package is the
@@ -73,13 +74,13 @@ Three implementations, one interface:
 |---|---|---|
 | `humanDriver` | the input latch already in `js/main.js` | today (this is the current game) |
 | `botDriver` | sim state + its own seeded RNG stream + a difficulty parameter set | this package, P1 |
-| `peerDriver` | the last steering intent received over Realtime | [online-flywheel](../online-flywheel/), unchanged from its existing design |
+| `peerDriver` | the last steering intent received over Realtime | [multiplayer](../multiplayer/README.md), which already ships its own host-authoritative equivalent |
 
-This is not speculative architecture. [ADR-0010](../../adr/0010-host-authoritative-arena.md)
-already commits the arena host to "runs the one true `Sim`, applies every
-player's steering" — a multi-slot sim with pluggable steering sources is
-*exactly* what that ADR presumed would exist by the time netcode started. This
-package is that presumption, delivered early, with bots as the load.
+This is not speculative architecture. [ADR-0019](../../adr/0019-six-player-invite-lobby-multiplayer.md)'s
+host-authoritative model has the arena host run the canonical sim and apply
+every player's steering — a multi-slot sim with pluggable steering sources is
+exactly what that architecture presumes. This package's driver abstraction
+covers the same ground for bots specifically.
 
 The seam earns its keep four ways at once:
 
@@ -176,11 +177,10 @@ elsewhere in this package.
 3. **Five or more AI opponents per map, mixed difficulty.**
 4. **Target maps are Boston and Cambridge specifically.** The Sandbox (the
    `gallery` scene) is the development launching pad.
-5. **Human multiplayer is a separate, already-planned package**
-   ([online-flywheel](../online-flywheel/), blocked on backend credentials).
-   AI players must be built so a bot's driver slot can later be filled by a
-   networked peer — same hole entity, different input source. **That seam is
-   the whole point.**
+5. **Human multiplayer is a separate, already-shipped package**
+   ([multiplayer](../multiplayer/README.md)). AI players must be built so a
+   bot's driver slot can later be filled by a networked peer — same hole
+   entity, different input source. **That seam is the whole point.**
 
 ## Where the genre disagreed with us — all three now resolved
 
@@ -251,10 +251,9 @@ and are reflected in the decisions block above and in [01](01-prd.md).
 
 ### Unlocks — the adjacent capability this opens
 
-- **The multiplayer sim, unblocked.** The single highest-value item here. When
-  credentials arrive, [online-flywheel](../online-flywheel/) starts at
-  `peerDriver` and the netcode, not at a refactor of the most delicate file in
-  the repo.
+- **The multiplayer sim, already unblocked.** [multiplayer](../multiplayer/README.md)
+  shipped its own host-authoritative multi-hole sim independently of this
+  package, so this item has already happened by another route.
 - **A leaderboard that means something offline.** A ranked finish against five
   bots is a score with a context, which is the first score in this game that
   could go on a board without a network.
@@ -347,9 +346,9 @@ removable.
 | **Bots in the campaign** | The campaign is a different sim file with a different content model and a tuned difficulty curve that opponents would invalidate. Seam: `js/sim.js` already has the greedy driver in the validator; the driver interface could be lifted there later. |
 | **Attract mode / booth demo (zero human drivers)** | Nearly free once this ships, but it is a *presentation* product with its own camera direction, and camera work is not in this package. Seam: a match with zero human drivers already runs. |
 | **Bot personalities, taunts, chat** | New content and a moderation surface at a public booth. Seam: names and skins exist. |
-| **Difficulty auto-selection from the player's history** | Needs a player-history store, which is [online-flywheel](../online-flywheel/). Seam: difficulty is a per-slot parameter set, so the selector is a function that returns rows. |
+| **Difficulty auto-selection from the player's history** | Needs a player-history store, which is [multiplayer](../multiplayer/README.md)'s territory. Seam: difficulty is a per-slot parameter set, so the selector is a function that returns rows. |
 | **Team modes (2v2, humans + bot allies)** | A new noun (a team), new scoring, new HUD. Seam: a hole could carry a `teamId` field; it does not today and should not until asked. |
-| **Server-side bot simulation for fairness in arenas** | Only meaningful once [ADR-0010](../../adr/0010-host-authoritative-arena.md)'s arena exists, and it is that ADR's call, not this one's. Seam: bots are deterministic from the seed, so every client can compute the same bots without any of them being sent over the wire — which is a genuinely valuable property and the reason determinism is non-negotiable here. |
+| **Server-side bot simulation for fairness in arenas** | Only meaningful for [multiplayer](../multiplayer/README.md)'s arena ([ADR-0019](../../adr/0019-six-player-invite-lobby-multiplayer.md)), and it is that package's call, not this one's. Seam: bots are deterministic from the seed, so every client can compute the same bots without any of them being sent over the wire — which is a genuinely valuable property and the reason determinism is non-negotiable here. |
 
 ### Dropping — the parchment workshop
 
@@ -372,7 +371,7 @@ consults a model at runtime.
 **Context.** `js/voxelsim.js` models exactly one participant (`this.hole`), and
 ~40 downstream sites read `const h = this.hole`. Three separate initiatives all
 need more than one: AI opponents (this package), the live shared arena
-([ADR-0010](../../adr/0010-host-authoritative-arena.md)), and any future
+([ADR-0019](../../adr/0019-six-player-invite-lobby-multiplayer.md)), and any future
 attract or ghost-replay mode. Each of them, taken alone, would justify a
 bespoke solution — a "bot hole" special case, a "remote hole" special case —
 and three bespoke solutions in the same file is how the sim becomes
@@ -394,9 +393,12 @@ network). `holes[0]` is the local human by convention. A hole's index is its
 identity for the life of a match, including across death and respawn.
 
 **Consequences.** The pure-sim boundary gains a precise definition of "outside
-influence", which makes [ADR-0010](../../adr/0010-host-authoritative-arena.md)'s
-new invariants 7–10 checkable: any write to hole state outside `sim.step()` is
-a violation regardless of which driver made it. Bots cost nothing on the wire,
+influence": any write to hole state outside `sim.step()` is a violation
+regardless of which driver made it, the same invariant CLAUDE.md states
+plainly ("Gameplay state changes only in `sim.step(1/60)`") and that
+host-authoritative multiplayer
+([ADR-0019](../../adr/0019-six-player-invite-lobby-multiplayer.md)) depends
+on. Bots cost nothing on the wire,
 because every client can derive them from the seed. Replay stores only human
 input traces. The cost is that the refactor touches the most delicate file in
 the repo, and that per-hole proximity/support recomputation is now a union over

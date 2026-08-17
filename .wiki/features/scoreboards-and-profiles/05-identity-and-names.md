@@ -55,7 +55,7 @@ be trusted with the one secret in the system.
 
 | Key | Contents | Why here |
 |---|---|---|
-| `localStorage['fw-player']` | `{ player_id, token }` | **Separate from the save, on purpose.** [`online-flywheel/12-migration-plan.md`](../online-flywheel/12-migration-plan.md) §1.3 already rules that no auth token may live in `hole-city-save`, and it is right: the save is quarantined on corruption, exported for a data request, and hand-edited by curious players. A bearer secret must not be in any of those paths. |
+| `localStorage['fw-player']` | `{ player_id, token }` | **Separate from the save, on purpose.** The online-flywheel package's migration plan (§1.3, retired along with the legacy multiplayer stack) already ruled that no auth token may live in `hole-city-save`, and it was right: the save is quarantined on corruption, exported for a data request, and hand-edited by curious players. A bearer secret must not be in any of those paths. |
 | `hole-city-save` → `player: { id, name, claimedAt }` | Public facts only | So the HUD and the title screen can render a name offline with no network call, and so the name survives a `fw-player` read failure as a *display* value even though the ability to submit does not. |
 
 Both are set in the same transaction on the client. If `fw-player` is missing but
@@ -92,8 +92,8 @@ limitation is stated, and it must not be softened.
 
 ### 3.2 Constraints on the name
 
-Inherited from [`online-flywheel/09-threat-model.md`](../online-flywheel/09-threat-model.md)
-§6.1, which got this right:
+Inherited from the online-flywheel package's threat model (§6.1), which got
+this right and was retired along with the legacy multiplayer stack:
 
 - **3 to 16 characters.**
 - Charset `[A-Za-z0-9 _-]` only. No leading or trailing space, no repeated

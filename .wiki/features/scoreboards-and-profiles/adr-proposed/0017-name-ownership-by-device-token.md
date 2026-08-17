@@ -67,12 +67,11 @@ surface anywhere in the game.**
    `{ player_id, token }`; the save holds only the public facts
    (`player: { id, name, claimedAt }`), so the title screen can render a name
    offline with no network call. The separation is on purpose and predates this
-   package
-   ([`online-flywheel/12-migration-plan.md`](../../../features/online-flywheel/12-migration-plan.md)
-   §1.3): the save is quarantined on corruption, exported for data requests,
-   and hand-edited by curious players, and a bearer secret belongs in none of
-   those paths. Board rows point at the stable player id, never at the name
-   string.
+   package — the online-flywheel package's migration plan (§1.3, retired
+   along with the legacy multiplayer stack) established it first: the save is
+   quarantined on corruption, exported for data requests, and hand-edited by
+   curious players, and a bearer secret belongs in none of those paths. Board
+   rows point at the stable player id, never at the name string.
 
 4. **Names are first-come first-served on a folded key.** Uniqueness is
    case-insensitive and confusable-insensitive — NFKC, default-ignorables
@@ -221,7 +220,8 @@ part of this decision and must not be softened.
   sourcing, the one-tap hide, and deletion.
 - [03-technical-design.md](../03-technical-design.md) — the `players` table
   this entire system fits into, and the claim/transfer endpoints.
-- [`online-flywheel/05-identity-and-accounts.md`](../../../features/online-flywheel/05-identity-and-accounts.md)
-  — the superseded design, kept for its reasoning.
-- [`online-flywheel/12-migration-plan.md`](../../../features/online-flywheel/12-migration-plan.md)
-  — §1.3, the rule that no auth token lives in the save.
+- The online-flywheel package's `05-identity-and-accounts.md` — the
+  superseded design, kept for its reasoning until the package was retired
+  along with the legacy multiplayer stack; no replacement document exists.
+- The online-flywheel package's migration plan — §1.3, the rule that no auth
+  token lives in the save; also retired with no replacement.

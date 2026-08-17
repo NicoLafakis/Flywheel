@@ -719,6 +719,7 @@ Per the discipline this package is held to:
   any board goes live; a city whose 90-second replay busts the budget is simply
   not offered as a ranked city until it does.
 - That the RLE encoding compresses a human 90-second trace to 1–4 KB. That figure
-  is carried over from `online-flywheel` [03 §2.3](../online-flywheel/03-technical-design.md)
-  and has never been measured against real human input.
+  is carried over from the online-flywheel package's technical design (§2.3),
+  which was retired along with the legacy multiplayer stack, and has never
+  been measured against real human input.
 - Cross-engine float agreement (§3.3) — unproven in either direction.
