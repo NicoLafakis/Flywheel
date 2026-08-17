@@ -50,12 +50,21 @@ export default async function handler(req, res) {
     const passDigest = hashPassword(data.password);
     const passHashHex = passDigest.toString('hex');
 
+    // Minted BEFORE the insert so its hash lands in the same row. The two hashes
+    // mean different things and live in different columns: `token_hash` is the
+    // password verifier this account logs in with, `session_token_hash` is what
+    // playerForToken() compares the bearer token against on every later
+    // authenticated call. Writing only the first is what left password accounts
+    // holding a token that authenticated nothing.
+    const token = newDeviceToken();
+
     const inserted = await rest('players', {
       method: 'POST',
       body: {
         name: parsed.name,
         name_key: parsed.key,
         token_hash: `\\x${passHashHex}`,
+        session_token_hash: `\\x${sha256Hex(token)}`,
         token_version: 1,
         moderation_state: 'ok',
         last_seen_at: new Date().toISOString(),
@@ -65,9 +74,6 @@ export default async function handler(req, res) {
 
     const player = inserted && inserted[0];
     if (!player) throw new Error('Player creation failed');
-
-    // Mint a bearer token for this device session
-    const token = newDeviceToken();
 
     // Link any recent runs for this device
     if (data.run_id) {

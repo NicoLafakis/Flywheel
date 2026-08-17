@@ -157,10 +157,30 @@ export function byteaHex(value) {
 
 export async function playerForToken(id, token) {
   if (!isUuid(id) || typeof token !== 'string' || token.length < 32) return null;
-  const rows = await rest(`players?select=id,name,token_hash,token_version,moderation_state&id=eq.${encodeURIComponent(id)}`);
+  // `select=*` rather than a column list, deliberately. PostgREST answers a
+  // select naming a column the database does not have with a 400 for the WHOLE
+  // request, and `session_token_hash` arrives in a migration applied by hand
+  // (there is no CI that runs it) while this code deploys on push. A star keeps
+  // the function every bearer-gated endpoint depends on working on both sides of
+  // that migration, instead of taking device auth down if the code lands first.
+  // Nothing echoes this row to a client - callers read `id` and `name` only.
+  const rows = await rest(`players?select=*&id=eq.${encodeURIComponent(id)}`);
   const player = rows && rows[0];
   if (!player || player.moderation_state === 'hidden') return null;
-  const expected = Buffer.from(byteaHex(player.token_hash), 'hex');
+  // Two account kinds, one comparison, and the precedence is exclusive rather
+  // than "whichever hash matches":
+  //   * password accounts (auth/register, auth/login) keep HMAC-SHA256(password)
+  //     in `token_hash` as the password verifier, and sha256(session token) in
+  //     `session_token_hash`;
+  //   * device-token accounts (name/claim, name/transfer/redeem) have no
+  //     password and keep sha256(token) in `token_hash`, with no session hash.
+  // Checking only the column that belongs to the account kind is what stops a
+  // password digest from ever standing in as a bearer target, and it is what
+  // makes `session_token_hash = null` - which fw_remove_player and
+  // fw_transfer_redeem now set - an actual revocation rather than a quiet
+  // fall-through to the other column.
+  const sessionHash = player.session_token_hash ? byteaHex(player.session_token_hash) : '';
+  const expected = Buffer.from(sessionHash || byteaHex(player.token_hash), 'hex');
   const actual = sha256Bytes(token);
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
   await rest(`players?id=eq.${encodeURIComponent(id)}`, {

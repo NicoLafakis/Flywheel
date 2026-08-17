@@ -73,20 +73,31 @@ Every sandbox is a complete replayable level. `VoxelSandboxSim` owns the
 authored SIZE goal and deterministic coin scatter, collects coins during
 `step()`, and emits coin/goal events. The renderer only mirrors those events.
 `SANDBOX_COIN_COUNT`/`VALUE`/`SANDBOX_GOAL_BONUS` (60 coins / 2 each / 35
-bonus) are the fallback only — since the 2026-08-15 tiered coin economy,
-`CITY_COIN_TIERS` in `js/voxelsim.js` scales per scene (`getCityCoinTier`):
-manhattan 70×2/+50 up through tokyo 200×5/+500, matching the difficulty
-ladder in `js/citycatalog.js`. **Except `gallery`, which does not match:**
-`CITY_COIN_TIERS.gallery` is `{ coinCount: 200, coinValue: 5, goalBonus: 500 }`
-— byte-identical to `tokyo`'s apex entry — while `js/citycatalog.js`'s gallery
-row (`THE LAB`, `TIER 1 · CASUAL`, `STARTER` badge, the UI's cheapest tier)
-declares `{ coinCount: 60, coinValue: 1, goalBonus: 25 }` for the same scene.
-`getCityCoinTier('gallery')` is what the running sim actually reads, so the
-smallest, easiest, first-unlocked scene currently pays out coins at the same
-rate as the hardest one, while every shop/city-select surface that reads
-`citycatalog.js` displays it as the starter tier. Not fixed here — read the
-code before trusting either table. The save-side `recordSandboxResult()`
-persists completion history and rewards.
+bonus) are the fallback for any scene with no catalog row. Every authored city
+takes its payout from the 2026-08-15 tiered coin economy: `getCityCoinTier`
+reads `CITY_COIN_TIERS` in `js/voxelsim.js`, and the constructor copies the
+result onto `sim.coinCount` / `coinValue` / `goalBonus`, which is what the
+scatter and the results screen spend. The ladder runs gallery 60×1/+25 (an 85
+-coin full clear) through tokyo 200×5/+500 (1500), rising with the block-count
+difficulty order.
+
+**There is exactly one ladder** (T-701, 2026-08-16): `CITY_COIN_TIERS` is now
+*derived* from `CITY_CATALOG` with `Object.fromEntries`, not transcribed from
+it, so the table the sim pays from and the table the city-select card prints
+are the same three numbers by construction. They were two hand-written copies
+until this pass, and they had silently drifted: 08d104b — a power-up / boot /
+audio commit that rewrote most of `voxelsim.js` and never mentions the economy
+— replaced the `gallery` row with a byte-for-byte copy of `tokyo`'s apex row.
+From that commit until T-701, `THE LAB` (`TIER 1 · CASUAL`, `STARTER` badge,
+the first and always-unlocked scene) paid 200×5/+500 = 1500 coins for a full
+clear while its own card advertised 60×1/+25 = 85, making the tutorial the
+single most lucrative city in the game and every later unlock a pay cut.
+`tools/economy-consistency.test.mjs` pins the agreement for all eight cities,
+rejects orphan tier rows, asserts the ladder is monotonic in block-count order,
+and constructs a live gallery sim to prove the sim reads what the card shows.
+Changing a city's payout now means editing its catalog row and nothing else.
+The save-side `recordSandboxResult()` persists completion history and rewards;
+the tier values themselves are never persisted, so a retune needs no migration.
 All authored city sandboxes use the READY establishing-shot path in `main.js`.
 
 Sandbox mode (title screen → VOXEL SANDBOX, NYC: LOWER MANHATTAN, or NYC: UPPER

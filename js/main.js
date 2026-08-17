@@ -209,7 +209,16 @@ function computeShopBonus() {
     growth: save.ownedItems.includes('growth5') ? 0.05 : 0,
     speedMult: upgradeMultiplier(save.upgrades?.speed),
     vortexMult: upgradeMultiplier(save.upgrades?.vortex),
-    growthBonus: (upgradeMultiplier(save.upgrades?.growth) - 1.0) + (save.ownedItems.includes('growth5') ? 0.05 : 0),
+    // T-703: the growth rank is the WHOLE growth bonus, and `growth5` must not
+    // be added on top of it. The v20 migration (`__MIGRATIONS[19]` in save.js)
+    // converts owning the legacy 500-coin item into `upgrades.growth >= 1`, and
+    // rank 1 already IS the item's +5% — so the migration is the single source
+    // of truth and a second term here paid one purchase twice. It went unseen
+    // while nothing read `growthBonus`; T-702 wired it into campaign mass gain,
+    // which would have shipped a pre-v20 player +10% in the campaign against
+    // the +5% the sandbox gives them, since VoxelSandboxSim derives its
+    // `growthMult` from `save.upgrades` alone and never looks at `ownedItems`.
+    growthBonus: (upgradeMultiplier(save.upgrades?.growth) - 1.0),
     durationMult: upgradeMultiplier(save.upgrades?.duration),
   };
 }

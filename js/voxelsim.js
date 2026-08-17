@@ -50,6 +50,11 @@ import { PVP_RESPAWN_TIMEOUT_SECONDS } from './multiplayer/config.js';
 import { spawnAngleForSlot } from './multiplayer/roster.js';
 import { playerSpeedForRadius } from './tiers.js';
 import { upgradeMultiplier } from './upgrades.js';
+// The coin economy is DECLARED in the city catalog — that is the table the
+// city-select card prints and the validator computes expected payouts from — so
+// the sim reads it rather than keeping a second copy. Pure data module with no
+// imports of its own, so the headless validator still loads this file cleanly.
+import { CITY_CATALOG } from './citycatalog.js';
 import {
   bench, bigTruck, bikeRack, bollard, boxVan, brownstone, bus, cafeTable,
   crateStack, hotDogCart, hydrant, lampPost, laneDashes, mailbox, marketStall, motorcycle,
@@ -521,19 +526,27 @@ export const CLOCK_AUTHORITY_SNAP_TICKS = 120;         // 2 s
 export const CLOCK_AUTHORITY_CATCHUP_RATE = 0.25;      // close 25% of the error per step
 export const CLOCK_AUTHORITY_MAX_CATCHUP_TICKS = 4;    // ...but never above ~5x speed
 
-// Tiered Metropolis Coin Economy:
+// Tiered Metropolis Coin Economy (T-701):
 // Higher-tier cities spawn more ground coins with higher individual value,
 // and reward exponentially higher coin bonuses for 100% full clears.
-export const CITY_COIN_TIERS = {
-  gallery: { coinCount: 200, coinValue: 5, goalBonus: 500 },
-  manhattan: { coinCount: 70, coinValue: 2, goalBonus: 50 },
-  brooklyn: { coinCount: 80, coinValue: 2, goalBonus: 75 },
-  chicago: { coinCount: 100, coinValue: 2, goalBonus: 100 },
-  cambridge: { coinCount: 120, coinValue: 3, goalBonus: 150 },
-  'upper-manhattan': { coinCount: 140, coinValue: 3, goalBonus: 200 },
-  boston: { coinCount: 160, coinValue: 4, goalBonus: 300 },
-  tokyo: { coinCount: 200, coinValue: 5, goalBonus: 500 },
-};
+//
+// DERIVED, not transcribed. This used to be a hand-written literal that
+// duplicated `js/citycatalog.js`'s three coin fields, and the two copies drifted
+// exactly as you would expect: 08d104b — a power-up/boot/audio commit that
+// rewrote most of this file and never mentions the economy — replaced the
+// `gallery` row with a byte-for-byte copy of `tokyo`'s apex row, three hours
+// after 6902032 shipped the ladder with `gallery: 60 x 1 / +25`. From then until
+// this fix the first, easiest, always-unlocked scene paid 200 x 5 / +500 while
+// every surface reading the catalog advertised the 60 x 1 / +25 STARTER tier.
+// Projecting the catalog makes that drift unrepresentable: there is one ladder,
+// the one the player is shown.
+export const CITY_COIN_TIERS = Object.freeze(Object.fromEntries(
+  CITY_CATALOG.map((c) => [c.scene, Object.freeze({
+    coinCount: c.coinCount,
+    coinValue: c.coinValue,
+    goalBonus: c.goalBonus,
+  })]),
+));
 
 export function getCityCoinTier(scene) {
   return CITY_COIN_TIERS[scene] || {
@@ -997,9 +1010,12 @@ export class VoxelSandboxSim {
     // simulation section). Consumes ids from `_blockId`, so it runs after every
     // block exists and before the id space is published.
     this._initMoverSim();
-    // The full object-id space: blocks + mover units. The net layer's keyframe
-    // bitset covers this, so a consumed train car heals over the wire exactly
-    // like a consumed block (js/net/host.js prefers this over its own scan).
+    // The full object-id space: blocks + mover units, one counter so a consumed
+    // train car is indistinguishable from a consumed block to anything iterating
+    // it. Nothing in js/ reads this today — the net layer that did was removed
+    // with the prototype stack — so its only consumers are
+    // tools/train-derail-selftest.mjs and tools/chicago-probe.mjs. Kept because
+    // it is the seam any future mover replication would publish through.
     this.objectIdSpace = this._blockId;
   }
 
@@ -3998,17 +4014,23 @@ export class VoxelSandboxSim {
   // derail ticks, landing heights and unit poses, which is what the replay
   // defense (04 §10.1) needs and what tools/train-derail-selftest.mjs pins.
   //
-  // MULTIPLAYER. A riding unit is still the old pure function of the clock. A
-  // derailed unit's state derives from the eaten/collapse history, which a peer
-  // learns through eat events and the keyframe's eaten bitset — so a peer-side
-  // derivation converges once the keyframe heals its consumed set. The
-  // transient where a peer has not yet healed an eaten track block means its
-  // train derails a beat late (worst case: one keyframe interval, then it
-  // reaches the same gap next lap); that divergence is presentation-only and
-  // bounded, never permanent — the HOST is the only authority on consumption,
-  // and a consumed unit's id rides the same wire events/keyframe as a block id
-  // (`objectIdSpace` covers both), so who ate what never diverges at all.
-  // ('chicago' is on ARENA_SCENES now; this note is that seam's contract.)
+  // MULTIPLAYER. Movers are NOT replicated. `js/multiplayer/host.js` and
+  // `peer.js` never touch `sceneMovers`, `moverSim` or `objectIdSpace`, and the
+  // consumption arbiter this note used to promise was `js/net/host.js`, deleted
+  // with the rest of the prototype stack on 2026-08-16. Two things would diverge
+  // if a mover-bearing city became selectable: riding pose reads `this.time`, a
+  // per-client accumulator that `applyClockAuthority()` does not reconcile (it
+  // ratchets `clockTicks` only), so a peer running slow sees the unit further
+  // back on the track and derails it at a different moment; and
+  // `_consumeMoverUnit` is decided locally on each client, with `eatenDelta`
+  // declared on STATE_SYNC but never populated by the host nor read by the peer.
+  // Blocks survive that because every client re-derives them from host-published
+  // hole positions. A mover would not.
+  //
+  // This is latent, not live: MULTIPLAYER_SCENES is gallery/manhattan/brooklyn
+  // and none of them declares `sceneMovers`, so `moverSim` is null in every match
+  // that can be started. `tools/multiplayer-fixes.test.mjs` fails the build if a
+  // mover-bearing city is ever added to that list, and says what to build first.
   //
   // ELEVATED CARS ARE NOT EATABLE ON INTACT TRACK — decided for play feel: the
   // fun loop is undermine the posts → the deck crumbles → the train stumbles,

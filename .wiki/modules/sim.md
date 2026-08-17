@@ -60,24 +60,38 @@ validator can prove levels beatable on the exact shipping code.
 - Events: `enter` (swallow start → tip-fall anim), `eat` (completion → mass),
   `bounce` (rim rejection → position sync + hop). Rivals emit them too;
   sound/toast is player-only.
-- `growthBonus` (shop `growth5` item, plus 2026-08-15's `growth` stat-upgrade
-  track via `upgradeMultiplier(save.upgrades?.growth)`) is computed in
-  `main.js` and passed into the `Sim` constructor as `options.growthBonus`,
-  which stores it on `this.growthBonus` (`sim.js:135`) — beatability proof
-  assumes it's absent; keep it that way. **As of this pass, `this.growthBonus`
-  is written and never read anywhere else in `sim.js`.** The mass gained per
-  eat (`completeEat`) is `obj.mass * goldenMult * comboMult * frenzyMult` —
-  no `growthBonus` term. The old dead `* (1 + this.growthBonus * 0)` speed
-  line this gotcha used to describe is gone from the file entirely, not fixed
-  into a live multiplier; the net effect (no growth bonus in campaign play) is
-  unchanged, but the "intentionally zeroed" framing no longer matches what is
-  on disk. Contrast `js/voxelsim.js`, where the equivalent upgrade IS wired
-  (`h.growthMult` from the same `upgradeMultiplier(upgrades?.growth)`,
-  multiplied into `effectiveRaw` in the consumption path) — so the shop's
-  growth item and the growth stat-upgrade rank currently do something in the
-  voxel sandbox and nothing in the 100-level campaign, which is a real
-  asymmetry worth checking before trusting either surface's growth-upgrade
-  copy in the shop UI.
+- **Growth bonus** (T-702/T-703, 2026-08-16): the `growth` stat-upgrade track
+  (`Mass Assimilator`, 20 ranks, 27,195 coins to max) is the whole of this
+  number. `main.js` computes it as
+  `(upgradeMultiplier(save.upgrades?.growth) - 1.0)` — a FRACTION, not a
+  multiplier — and passes it as `options.growthBonus`; the constructor stores
+  it on `this.growthBonus` (default 0). The legacy `growth5` shop item (500
+  coins) is **not** a second, independent term: the v20 migration
+  (`__MIGRATIONS[19]` in `js/save.js`) converts owning it into
+  `upgrades.growth >= 1`, and rank 1 already IS its +5%, so a `growth5` clause
+  added on top paid one purchase twice — +10% in the campaign against the +5%
+  the same save gets in a city, since `VoxelSandboxSim` derives `growthMult`
+  from `save.upgrades` alone and never reads `ownedItems`. The migration is the
+  single source of truth for that item; see `.wiki/modules/campaign.md`.
+  `completeEat` reads the bonus:
+  `effectiveRaw = obj.mass * goldenMult * (1 + sim.growthBonus)`, then
+  `gained = effectiveRaw * comboMult * frenzyMult`. Four properties are load-
+  bearing and each has an assertion in `tools/economy-consistency.test.mjs`:
+  (1) growth scales the RAW bite BEFORE the combo, the same shape as
+  `_award`'s `effectiveRaw = raw * h.growthMult` in `js/voxelsim.js`, so a
+  combo multiplies an already-boosted bite instead of compounding a second
+  bonus; (2) it is gated on `hole.isPlayer`, matching the sandbox's
+  `isPlayer ? this.growthMult : 1.0` — rivals never inherit a purchase;
+  (3) at `growthBonus === 0` the run is bit-identical to `new Sim(level)`, so
+  the beatability proof still measures an un-upgraded game; (4) a migrated
+  `growth5` owner gets +5% total, equal at every rank to what the same save
+  grows by in the sandbox. Until this pass `this.growthBonus` was written and
+  never read, so the growth purchase was live in the voxel sandbox and a pure
+  coin sink across all 100 campaign levels; the shop copy ("Mass gained is 5%
+  higher", "+% Mass Boost") described the sandbox only. Nothing about the bonus
+  is persisted — it is recomputed from the save's `upgrades` on every
+  `startLevel()`, so an existing save needed no migration and an
+  already-purchased rank started working the moment this shipped.
 - `COMBO_WINDOW = 10.0` (`sim.js`, shared value with `voxelsim.js`) is the
   window a chain survives without a new eat before it resets; it was 1.5 s at
   the score-combo-and-hype package's original 2026-08-10 ship and widened to

@@ -1,22 +1,22 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-17T01:21:02+00:00",
+    "generatedAt": "2026-08-17T12:19:23+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
-      "files": 135,
+      "files": 138,
       "symbols": 6,
       "edges": 1,
       "modules": 4,
-      "reusedFromCache": 135
+      "reusedFromCache": 127
     }
   },
   "files": {
     "api/_lib.mjs": {
       "lang": "javascript",
-      "hash": "f17e9818afb22f4ba6573900fb33527cbad8716b5846902a6d07eb3ad80ce695",
-      "loc": 205,
+      "hash": "55bef29baa2a328ca18a7a732b29a02159d14fd7e262c2537cbc0262ea722d6e",
+      "loc": 225,
       "module": "api",
       "symbols": [],
       "imports": []
@@ -31,16 +31,16 @@
     },
     "api/auth/login.mjs": {
       "lang": "javascript",
-      "hash": "3c0c4eb0af6a3758c83365dc43311fdaca23e80aea1ad027cd55a67c48d28c53",
-      "loc": 41,
+      "hash": "7c5f9a715b8412ba23f6bf8c178b508673e0456676dd6b653a76f252d85f3cff",
+      "loc": 51,
       "module": "api",
       "symbols": [],
       "imports": []
     },
     "api/auth/register.mjs": {
       "lang": "javascript",
-      "hash": "788902aff2aadc1cc54f01bd9e4319f4ab09c88efab76ed12395a6f9b54b240e",
-      "loc": 96,
+      "hash": "a60880d4a6267822d11e6dbac6f258f06e6101e6beac4af1f4be7ad0c9e6c6b3",
+      "loc": 102,
       "module": "api",
       "symbols": [],
       "imports": []
@@ -95,8 +95,8 @@
     },
     "api/player/remove.mjs": {
       "lang": "javascript",
-      "hash": "4d9e3f3a7b174248e850c36d3c601f8582a47ef082b1d9b1f8cdc3c0c448a41e",
-      "loc": 13,
+      "hash": "401efcaf92968bdcf01fe1a96d34f16f1e6928db7f610e208a808dbbae34df1f",
+      "loc": 20,
       "module": "api",
       "symbols": [],
       "imports": []
@@ -439,8 +439,8 @@
     },
     "js/sim.js": {
       "lang": "javascript",
-      "hash": "1694c08c954fc70ff7ba55d3970df6e61d8e4f49f6b1ee4b90214325c09c9527",
-      "loc": 540,
+      "hash": "c7a87acaf911a4bfe2156eaba9219b9b41ffaa49f8a12bab52ed1ef6336b425b",
+      "loc": 555,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -682,8 +682,8 @@
     },
     "js/voxelsim.js": {
       "lang": "javascript",
-      "hash": "cd0cd048f7fda77200c114cdc34dea958e2d98f994065e6f1f45f23dece3c79c",
-      "loc": 4770,
+      "hash": "3e0a8d028ef879893c58a3fd9741fbd9776cac16288ed1bef476305415f40b8b",
+      "loc": 4792,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -736,6 +736,14 @@
       "symbols": [],
       "imports": []
     },
+    "tools/api-auth.test.mjs": {
+      "lang": "javascript",
+      "hash": "1f6cac2ea4b24c55280da7a5b74719a23a0e8bc5b72c0a1d4a8ed2e55deb4f11",
+      "loc": 478,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/board-live-selftest.mjs": {
       "lang": "javascript",
       "hash": "5b4256d05600658d999584ed330c7017447927b210f1ba78081ec0350651cfb0",
@@ -772,6 +780,14 @@
       "lang": "javascript",
       "hash": "9b682699e50fd15477098371bd348b99c7ae17f714369787b1ce434d7168aa79",
       "loc": 101,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/conflict-markers.test.mjs": {
+      "lang": "javascript",
+      "hash": "477fac774439504b3240e2bf6e0a4534c9fb3a44174fd1b6cfea59e65b6dd328",
+      "loc": 188,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -896,6 +912,14 @@
       "symbols": [],
       "imports": []
     },
+    "tools/economy-consistency.test.mjs": {
+      "lang": "javascript",
+      "hash": "1eec6fb803bfc3cddb8c947bf7b2fafb4316f8789edfb8aaa027c16da9f60ebd",
+      "loc": 328,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/gen-partner-logo.mjs": {
       "lang": "javascript",
       "hash": "1bb724027a25dfb5dff9236335583111592240d007aee082ba84462e5ca988f6",
@@ -954,8 +978,8 @@
     },
     "tools/multiplayer-fixes.test.mjs": {
       "lang": "javascript",
-      "hash": "705f929d6ca171dfb9fd7656c7b2a3579e8957c31ba58d8a27b6f28fc8a334f5",
-      "loc": 451,
+      "hash": "9b01c6f1afa69cacb44afe437fcc3d5daee2bc19fb75b75e4219621d50820d87",
+      "loc": 551,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1130,8 +1154,8 @@
     },
     "tools/validate.mjs": {
       "lang": "javascript",
-      "hash": "e364cd015a616d2a5fc1e517f6d944d8a86728fd2c16247d4f94ef065d42c485",
-      "loc": 2797,
+      "hash": "d555435cb245e6c0a772c8ac81925cbd51d4e6077d019b730686bca0bfa6abcb",
+      "loc": 2811,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1244,11 +1268,13 @@
     },
     "tools": {
       "files": [
+        "tools/api-auth.test.mjs",
         "tools/board-live-selftest.mjs",
         "tools/board-selftest.mjs",
         "tools/check_imports.mjs",
         "tools/chicago-probe.mjs",
         "tools/cinematic-vfx-selftest.mjs",
+        "tools/conflict-markers.test.mjs",
         "tools/debug-gravity.mjs",
         "tools/debug-phantom.mjs",
         "tools/debug-steel.mjs",
@@ -1264,6 +1290,7 @@
         "tools/demographic-playtest.mjs",
         "tools/diagnostics.mjs",
         "tools/earthquake-cinematic-selftest.mjs",
+        "tools/economy-consistency.test.mjs",
         "tools/gen-partner-logo.mjs",
         "tools/help.test.mjs",
         "tools/import-all-modules.mjs",

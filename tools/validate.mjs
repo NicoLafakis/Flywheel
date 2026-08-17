@@ -2585,6 +2585,20 @@ function validateMultiplayer() {
     // Same reasoning, same handlers: the silent-podium defect was a music cue
     // requested there that the registry never defined.
     'tools/music-cue.test.mjs',
+    // Same class again, across the network seam this time: api/ handlers cannot
+    // be imported headlessly (they want Supabase env and a live database), so a
+    // browser posting `token` at a handler reading `player_token` had nothing
+    // watching it. This suite cross-checks both sides as text.
+    'tools/api-auth.test.mjs',
+    // Same reasoning again, one layer down: the coin ladder and the growth
+    // upgrade are cross-file agreements (citycatalog <-> voxelsim, main.js ->
+    // sim.js) that no single-module section owns, and both drifted silently.
+    'tools/economy-consistency.test.mjs',
+    // Repo-wide rather than multiplayer, but the one merge-conflict marker that
+    // ever shipped rode in on a multiplayer commit, and this is the section that
+    // spawns standalone suites. There is no build step, linter or formatter
+    // here, so without this nothing reads a `.md` file before it ships.
+    'tools/conflict-markers.test.mjs',
     'js/multiplayer/multiplayer.test.mjs',
   ];
   let passed = 0;

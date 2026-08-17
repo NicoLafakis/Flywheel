@@ -89,9 +89,24 @@ function personalBest(save) {
   return { score: score || null, runs };
 }
 
-// The shelf the landing screen's goal meter points at — built from the three
-// real registries, so the menu can never advertise a price the shop does not
-// charge or an item the shop does not stock.
+// The shelf the landing screen's goal meter points at — read back out of
+// `getShopItemsByCategory`, the same call `showShop` renders from, so the menu
+// can never advertise a price the shop does not charge or an item the shop does
+// not stock. It used to walk `SKINS`, `INDICATOR_SKINS` and the module-local
+// `ITEMS` instead, and that third list drifted: no category branch has ever
+// returned it, so a player who owned everything at or below 400 was told their
+// next unlock was "+5s Clock — 400 coins" and could then open every tab in the
+// shop without finding it. Deleting the legacy rows was not an option (saves
+// still reference them and an owner keeps what they own) and an exclusion list
+// here would only rot the same way, so the shelf is derived rather than
+// restated. Anything a future category starts selling is teased automatically;
+// anything it stops selling stops being teased.
+//
+// `kind` is the caption the locked card prints, one per category. The upgrade
+// tracks come through this loop too and are filtered out below by the same
+// `!row.price` guard that skips free skins — their rows carry a per-rank `cost`,
+// not a fixed `price`, so there is no single number to aim a goal meter at. If
+// they ever gain one, they join the shelf with no change here.
 //
 // The goal is the cheapest thing the player does not own AND cannot yet afford.
 // A meter aimed at a price the bank already covers is a progress bar for a
@@ -101,6 +116,11 @@ function personalBest(save) {
 // unbought row come back, as a READY TO BUY offer; when nothing is left, there
 // is no next unlock and the caller renders neither the bar nor the locked card.
 function nextUnlock(save) {
+  // Local rather than module-scope so the whole shelf rule reads in one place
+  // (and so the headless guard in tools/economy-consistency.test.mjs, which
+  // lifts this function out of the source text because js/skins.js drags in
+  // three.js, is testing the shipped captions and not its own copy of them).
+  const SHELF_KIND = { skins: 'HOLE SKIN', creatures: 'HOLE SKIN', partners: 'HOLE SKIN', indicators: 'NAV INDICATOR', upgrades: 'UPGRADE' };
   const owned = save.ownedItems || [];
   let goal = null;   // cheapest unowned row priced above the bank
   let ready = null;  // cheapest unowned row the bank already covers
@@ -110,9 +130,12 @@ function nextUnlock(save) {
     if (row.price > save.coins) { if (!goal || row.price < goal.price) goal = entry; }
     else if (!ready || row.price < ready.price) ready = entry;
   };
-  for (const s of SKINS) consider(s, 'HOLE SKIN');
-  for (const i of INDICATOR_SKINS) consider(i, 'NAV INDICATOR');
-  for (const it of ITEMS) consider(it, 'UPGRADE');
+  for (const cat of SHOP_CATEGORIES) {
+    const kind = SHELF_KIND[cat.id] || cat.name;
+    for (const row of getShopItemsByCategory(cat.id, { save, skins: SKINS, indicatorSkins: INDICATOR_SKINS })) {
+      consider(row, kind);
+    }
+  }
   return goal || ready;
 }
 

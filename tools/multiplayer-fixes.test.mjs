@@ -430,6 +430,106 @@ console.log('\n--- T-625: one source per constant ---');
 }
 
 // ---------------------------------------------------------------------------
+// TRIPWIRE — no multiplayer-selectable scene may declare `sceneMovers`
+//
+// Movers (kinematic props on a closed path — today, Chicago's CTA train) are
+// simulated per client and are NOT replicated by `js/multiplayer/`. That is fine
+// right now only because MULTIPLAYER_SCENES offers gallery/manhattan/brooklyn and
+// none of them has a mover, so `sim.moverSim` is null in every match that can be
+// started. The exposure is zero by accident of the scene roster, not by design —
+// adding one city to a frozen array in config.js would ship two live desyncs with
+// nothing else in the repo objecting. This is that objection.
+//
+// It lives in this suite rather than a new file because the section above already
+// pins the scene list, and a guard on the same constant belongs with it.
+// ---------------------------------------------------------------------------
+console.log('\n--- tripwire: no MULTIPLAYER_SCENES entry declares sceneMovers ---');
+{
+  const voxelsimSrc = src('../js/voxelsim.js');
+
+  // scene -> the module whose builder runs, read out of the LOADER'S OWN table
+  // (`SCENE_IMPORTERS` in js/voxelsim.js) rather than a hand-written copy. A
+  // renamed scene file has to be renamed there too or the game cannot load the
+  // city at all, so this mapping cannot drift out from under the guard and leave
+  // it silently scanning a file that no longer exists. A scene with NO entry is
+  // authored inline in `_buildScene`, so its source is voxelsim.js itself.
+  const importerTable = voxelsimSrc.match(/const SCENE_IMPORTERS\s*=\s*\{([\s\S]*?)\n\};/);
+  assert.ok(importerTable,
+    'js/voxelsim.js must still declare SCENE_IMPORTERS — the tripwire reads its scene->module map');
+  const sceneModule = new Map();
+  for (const m of importerTable[1].matchAll(/['"]([\w-]+)['"]\s*:\s*\(\)\s*=>\s*import\(\s*['"]\.\/([\w.-]+)['"]/g)) {
+    sceneModule.set(m[1], `../js/${m[2]}`);
+  }
+  assert.ok(sceneModule.size >= 6,
+    `SCENE_IMPORTERS parsed to only ${sceneModule.size} entr(ies) — the parser has drifted from the loader`);
+  const sourceFor = (scene) => sceneModule.get(scene) || '../js/voxelsim.js';
+
+  // "Declares movers" = assigns `.sceneMovers` to something other than null, on a
+  // line that is not prose (no `/` or `*` may precede the assignment, which rules
+  // out `//`, `/*` and jsdoc ` * ` lines). The non-null clause is load-bearing:
+  // gallery's builder lives in voxelsim.js, which is also where the constructor's
+  // `this.sceneMovers = null` default sits, and that default is not a declaration.
+  const MOVER_ASSIGN = /^[^\n/*]*\.sceneMovers\s*=\s*(?!null\b|undefined\b)\S/;
+  const declaresMovers = (rel) => src(rel).split('\n').filter((line) => MOVER_ASSIGN.test(line));
+
+  // POSITIVE CONTROL, permanent. Chicago's CTA train is the only mover in the
+  // game, so the detector must SEE it on every single run. Without this a regex
+  // that matched nothing would issue a clean bill of health forever.
+  const chicagoSrc = sourceFor('chicago');
+  const chicagoHits = declaresMovers(chicagoSrc);
+  assert.ok(chicagoHits.length > 0,
+    `detector is blind: ${chicagoSrc} declares sceneMovers and the scan did not see it`);
+
+  // NEGATIVE CONTROL. The `this.sceneMovers = null` default and the prose that
+  // discusses movers must not read as declarations, or every scene "fails".
+  assert.equal(declaresMovers('../js/voxelsim.js').length, 0,
+    'the `sceneMovers = null` default in the VoxelSandboxSim constructor must not count as declaring movers');
+
+  // Anti-vacuity: an empty list, or a list whose sources did not resolve, must
+  // not be able to pass.
+  assert.ok(MULTIPLAYER_SCENES.length > 0, 'MULTIPLAYER_SCENES must not be empty');
+  const scenesUnderGuard = MULTIPLAYER_SCENES;
+  const offenders = [];
+  for (const scene of scenesUnderGuard) {
+    const rel = sourceFor(scene);
+    // readFileSync throws if the module is gone, so a scene can never be skipped.
+    assert.ok(src(rel).length > 0,
+      `scene "${scene}" resolved to ${rel}, which is empty — the tripwire would be scanning nothing`);
+    const hits = declaresMovers(rel);
+    if (hits.length) offenders.push({ scene, rel, hit: hits[0].trim() });
+  }
+
+  if (offenders.length > 0) {
+    const detail = offenders
+      .map((o) => `    · "${o.scene}"  ->  ${o.rel.replace('../', '')}   ${o.hit}`)
+      .join('\n');
+    assert.fail(
+      `${offenders.length} scene(s) in MULTIPLAYER_SCENES declare sceneMovers:\n${detail}\n\n`
+      + 'Movers are NOT replicated by js/multiplayer/. Making a mover-bearing city selectable\n'
+      + 'ships two player-visible defects on the same day:\n\n'
+      + '  1. NOTHING ARBITRATES WHO ATE THE TRAIN. `eatenDelta` exists on STATE_SYNC\n'
+      + '     (js/multiplayer/protocol.js) but host.js never populates it and peer.js never reads\n'
+      + '     it, so `_consumeMoverUnit()` in js/voxelsim.js is decided locally on every client.\n'
+      + '     A rival eats a train car on their screen and not on yours, and the unit mass is\n'
+      + '     credited to a different hole on each machine. Blocks get away with this because\n'
+      + '     every client re-derives them from host-published hole positions; a mover does not.\n\n'
+      + '  2. THE TRAIN IS SOMEWHERE ELSE ON EVERY SCREEN. Riding pose is\n'
+      + '     `u.s = this.time * rt.speed + u.off`, and `this.time` is a per-client accumulator\n'
+      + '     (`this.time += dt`) that `applyClockAuthority()` does NOT reconcile — it ratchets\n'
+      + '     `clockTicks` only. A peer that cannot hold 60 steps a second sees the train further\n'
+      + '     back on the track and derails it at a different moment. That is the T-635 match-clock\n'
+      + '     defect one layer down, and it was measured at 38 s of drift over a 180 s match.\n\n'
+      + 'FIX IT, do not delete this assertion: make mover state host-published (units carried on\n'
+      + 'STATE_SYNC, or populate eatenDelta and have the peer apply it) and drive mover pose off\n'
+      + 'host-authoritative time. Then update this guard and .wiki/modules/multiplayer.md together.',
+    );
+  }
+
+  console.log(`  ok: ${scenesUnderGuard.length} selectable scene(s) (${scenesUnderGuard.join(', ')}), none declaring sceneMovers`);
+  console.log(`  ok: detector proven live against ${chicagoSrc.replace('../', '')} (${chicagoHits.length} declaration)`);
+}
+
+// ---------------------------------------------------------------------------
 // T-626 — invite-link joiners were never asked their name (REQ-MP-05)
 // ---------------------------------------------------------------------------
 console.log('\n--- T-626: the direct-link join flow asks for a display name ---');

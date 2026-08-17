@@ -103,7 +103,19 @@ function completeEat(hole, obj, sim) {
   const baseMult = comboMultiplier(hole.chain);
   const currentMult = isFrenzy ? (baseMult + extraFrenzyMult) : baseMult;
   const frenzyMult = isFrenzy ? 2.0 : 1.0;
-  const gained = obj.mass * (obj.golden ? GOLDEN_MULTIPLIER : 1) * currentMult * frenzyMult;
+  // T-702: the `growth` upgrade (Mass Assimilator, 20 ranks) and the `growth5`
+  // shop item both fund `sim.growthBonus`, which was stored by the constructor
+  // and then read by nothing — so up to 27,695 coins of purchases moved no
+  // number at all in the 100-level campaign while the identical purchase worked
+  // in the voxel sandbox. Wired here in the sandbox's own shape (`_award` in
+  // js/voxelsim.js): growth scales the RAW mass BEFORE the combo and frenzy
+  // multipliers, so a combo still multiplies an already-boosted bite rather than
+  // compounding into a second, larger bonus. Player-only, matching the sandbox's
+  // `isPlayer ? this.growthMult : 1.0` gate — an upgrade the player bought must
+  // never also arm the rivals racing them.
+  const growthMult = hole.isPlayer ? 1 + (sim.growthBonus || 0) : 1;
+  const effectiveRaw = obj.mass * (obj.golden ? GOLDEN_MULTIPLIER : 1) * growthMult;
+  const gained = effectiveRaw * currentMult * frenzyMult;
   hole.mass += gained;
   const isTitan = hole.isPlayer && hasActivePowerUp(sim.activePowerUps, POWERUP_TYPES.TITAN);
   hole.radius = isTitan ? PLAYER_MAX_RADIUS : holeRadius(hole);
@@ -127,7 +139,10 @@ function completeEat(hole, obj, sim) {
 }
 
 export class Sim {
-  // level: from levels.js. options.growthBonus: shop item hook (default 0).
+  // level: from levels.js. options.growthBonus: the fractional mass boost bought
+  // in the shop (growth upgrade rank + the `growth5` item), 0 when nothing is
+  // owned — read in `completeEat`. Default 0 keeps the validator's beatability
+  // proof measuring an un-upgraded run.
   constructor(level, options = {}) {
     this.level = level;
     this.city = generateCity(level);

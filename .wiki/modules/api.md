@@ -28,13 +28,13 @@ start and finish a city or a RUN, and a failed ranked submission is queued
 | `api/_lib.mjs` | — | Shared primitives: JSON envelope helpers (`ok`/`fail`/`json`), request-body reader with a 64 KB cap, Supabase REST/RPC client (service-role key, server-only), HMAC ticket signing, device/player token hashing, name normalisation + leet-speak collision key, origin rate-limit key (HMAC of the forwarded IP, never stored raw), and `errorResponse()` (maps a thrown error to 400/503 without leaking internals) |
 | `api/_verify.mjs` | — | Server-side replay verification: `verifyReplay()` decodes a stored input trace, rebuilds a `VoxelSandboxSim` for the claimed scene/seed, asserts the ranked tune was not silently swapped, steps it tick-for-tick, and floors `sim.hole.mass` into the score that actually gets published. `drainOnePendingRun()` is the unit the cron endpoint calls |
 | `api/health.mjs` | GET | Deployment smoke probe. Reveals no environment state; a 200 means the function bundle booted, nothing more |
-| `api/auth/register.mjs` | POST | Password-based account creation: validates the name (blocklist + reserved words + per-IP daily cap of 8), stores `token_hash = HMAC-SHA256(password)` under `FW_TICKET_SECRET`, mints a bearer `token` for the response, optionally links a just-played `run_id` to the new player |
-| `api/auth/login.mjs` | POST | Password check against the stored `token_hash`, mints a fresh bearer `token` for the response. See **Known gaps** below — this token is not usable the way the name-claim token is |
+| `api/auth/register.mjs` | POST | Password-based account creation: validates the name (blocklist + reserved words + per-IP daily cap of 8), stores `token_hash = HMAC-SHA256(password)` under `FW_TICKET_SECRET` as the password verifier and `session_token_hash = sha256(token)` as the bearer credential, mints that `token` for the response, optionally links a just-played `run_id` to the new player |
+| `api/auth/login.mjs` | POST | Password check against the stored `token_hash`, then mints a fresh bearer `token` and writes `session_token_hash = sha256(token)`. `token_hash` is deliberately left alone — it is the password verifier, and overwriting it would lock the account out of every future login. One session hash per account, so logging in on a second device signs the first out |
 | `api/name/claim.mjs` | POST | The guest-first path (ADR-0011): mints a device token, sends only its SHA-256 hash to `fw_claim_name` (Postgres RPC), links the run that earned the claim. No password |
 | `api/name/rename.mjs` | POST | Renames an already-claimed player; gated by `playerForToken(player_id, token)`, then patches both `players` and the `board_public` view's cached name |
 | `api/name/transfer/start.mjs` | POST | Mints a 6-character, unambiguous-alphabet transfer code (rejection-sampled to avoid modulo bias) with a 10-minute TTL, for moving a claimed name to a second device |
-| `api/name/transfer/redeem.mjs` | POST | Consumes a transfer code via `fw_transfer_redeem`, mints a new bearer token, hashes it server-side before returning it — this is the pattern `auth/login.mjs` is missing |
-| `api/player/remove.mjs` | POST | Deletes a claimed name via `fw_remove_player`, gated by `playerForToken`. See **Known gaps** — the field name it reads does not match what the client sends |
+| `api/name/transfer/redeem.mjs` | POST | Consumes a transfer code via `fw_transfer_redeem`, mints a new bearer token, hashes it server-side into `token_hash` before returning it. Redeeming hands ownership to the redeeming device, so the RPC also nulls `session_token_hash`: a password login on the previous device does not outlive the transfer |
+| `api/player/remove.mjs` | POST | Deletes a claimed name via `fw_remove_player`, gated by `playerForToken(player_id, token)` — the browser posts its stored secret verbatim, so `token` is the field that carries the credential (`player_token` is accepted as an alias) |
 | `api/run/start.mjs` | POST | Ranked-run ticket issuance: requires `FW_BOARDS_ACCEPTING=true`, checks the scene is in `RANKED_SCENES`, rate-limits per device (12/hr) and per hashed origin (60/hr), returns an HMAC ticket (`makeTicket`) binding run id + seed + scene + tune + issuer + timestamp |
 | `api/run/submit.mjs` | POST | Ranked-run submission: validates the ticket signature, re-authenticates the claimed player if the ticket has one, checks the trace shape (tick count, tune id, sim version), is idempotent on `run_id`, rate-limits (20/hr device and origin), and — this is invariant 8 — stores the trace via `fw_accept_run` and returns only a `verdict`, never a browser-computed score |
 | `api/run/status.mjs` | POST | Polls a stored run's verdict for a `(run_id, device_key)` pair the caller must already hold |
@@ -90,11 +90,26 @@ lets a client set its own verdict.
 - **Bearer-token-scoped:** `name/rename`, `name/transfer/start`,
   `player/remove`, and the optional player binding on `run/start`/`run/submit`
   — gated by `playerForToken(player_id, token)` in `api/_lib.mjs`, which
-  compares `sha256Bytes(token)` against the `players.token_hash` column.
+  compares `sha256Bytes(token)` against **one of two columns, never both**:
+  `players.session_token_hash` when it is non-null, otherwise
+  `players.token_hash`. The precedence is exclusive rather than "whichever
+  matches", and that is what makes the split safe — see **Two account kinds**
+  below. The
+  credential arrives under **two different field names**, and which one a
+  handler must read is decided by its caller, not by preference: the `name/*`
+  and `player/*` handlers are called with the stored secret spread verbatim
+  (`{...playerSecret()}` in `js/board/player.js`, i.e. `player_id` + `token`),
+  so they read `data.token`; `run/start` and `run/submit` are called with the
+  same value explicitly renamed `player_token` (`js/board/run.js`), so they read
+  `data.player_token`. `player/remove` and `name/transfer/start` accept either
+  spelling. Nothing enforces this by types — a handler reading the name its
+  caller does not send gets `undefined` and answers `401 PLAYER_TOKEN_INVALID`,
+  which is indistinguishable from a genuine ownership failure, so both sides are
+  cross-checked as text by `tools/api-auth.test.mjs` (see **Guards** below).
 - **Password-scoped:** `auth/register`, `auth/login` — compares
   `HMAC-SHA256(password)` under the server-only `FW_TICKET_SECRET` against the
-  same `token_hash` column. See **Known gaps**: this is a second, incompatible
-  meaning for one column.
+  `token_hash` column, which for these accounts holds the password verifier and
+  nothing else.
 - **Shared-secret-scoped:** `run/verify` (`CRON_SECRET`, Vercel Cron only),
   `operator` (`FW_OPERATOR_SECRET`, timing-safe header compare).
 - Every rate limit and lookup key that could otherwise be a raw IP is HMACed
@@ -102,36 +117,104 @@ lets a client set its own verdict.
   device/player id — `api/_lib.mjs` has no code path that stores a plaintext
   address.
 
-## Known gaps (read the code before trusting these paths)
+## Two account kinds, two credential columns
 
-- **`api/player/remove.mjs` reads the wrong field.** It calls
-  `playerForToken(data.player_id, data.player_token)`, but
-  `js/board/player.js`'s `removePlayer()` posts `secret` verbatim — a
-  `{player_id, token}` object, never `player_token`. `data.player_token` is
-  therefore always `undefined` and every remove request fails with
-  `401 PLAYER_TOKEN_INVALID`. Compare `api/name/rename.mjs`, which reads
-  `data.token` and works with the same client shape. Not fixed here — this is
-  a wiki, and `api/` is out of this pass's scope — but it means "remove my
-  claimed name" is currently unreachable from the shipped client.
-- **`auth/register.mjs`/`auth/login.mjs` mint a token that cannot later
-  authenticate.** Both store/check `token_hash` as `HMAC-SHA256(password)`
-  and then hand back an unrelated random `token = newDeviceToken()` for the
-  browser to keep. `js/board/player.js` saves that token as the player's
-  bearer secret (`savePlayerSecret`) and later calls (`name/rename`,
-  `name/transfer/start`, `player/remove`, the optional player binding on
-  `run/start`/`run/submit`) all present it to `playerForToken()`, which
-  hashes it with plain `sha256Bytes` and compares to `token_hash` — the
-  *password's* digest, computed with a different (keyed HMAC) function over a
-  different input. No token value satisfies both, so a player who registers
-  or logs in with a password, rather than the device-token `name/claim` path,
-  gets `PLAYER_TOKEN_INVALID` on every subsequent authenticated call. The
-  `name/claim` → `name/transfer/redeem` pair does this correctly (mints a
-  token, stores `sha256Hex(token)`, later checks match) — it is the pattern
-  the password pair should follow.
+`players` carries two hashes because a player can arrive by two doors, and the
+credentials those doors issue are not the same kind of thing.
+
+| | Created by | `token_hash` holds | `session_token_hash` holds |
+|---|---|---|---|
+| **Device-token account** | `name/claim`, re-issued by `name/transfer/redeem` | `sha256(bearer token)` | null |
+| **Password account** | `auth/register`, re-issued by `auth/login` | `HMAC-SHA256(password)` under `FW_TICKET_SECRET` — the password verifier | `sha256(bearer token)` |
+
+`playerForToken()` picks **one** column by account kind: `session_token_hash`
+when it is non-null, `token_hash` otherwise. Never "either one matches". Two
+things depend on that being exclusive rather than permissive. A password
+account's `token_hash` is a password digest, and it must never be reachable as
+a bearer target. And nulling `session_token_hash` has to *revoke* a session
+rather than quietly fall through to the other column — which is exactly what
+`fw_remove_player` and `fw_transfer_redeem` now rely on when they clear it
+(`supabase/migrations/20260816214501_add_player_session_token_hash.sql`), so a
+retired or transferred name cannot leave the old device holding a token that
+still validates.
+
+Before that migration there was only `token_hash`, and it was carrying both
+meanings at once. It could not: `auth/register` wrote the password digest and
+then handed the browser a random token whose hash was stored nowhere, so
+`playerForToken()` was comparing `sha256(token)` against
+`HMAC-SHA256(password)` — different function, different input, no value
+satisfying both. Every password account was therefore created holding a
+credential that authenticated nothing. It could not rename itself, remove
+itself or start a transfer, and because `js/board/run.js`'s `startTicket()`
+sends the player binding whenever a secret exists and `run/start` rejects an
+invalid one outright, it could not get a ranked ticket at all — every run those
+players finished was silently `unranked`. The `name/claim` →
+`name/transfer/redeem` pair was always correct and is the pattern the password
+pair now follows.
+
+Two consequences worth knowing rather than rediscovering:
+
+- **One session hash per account**, so a password login on a second device
+  signs the first one out. Deliberate: it is the only way a bearer token the
+  browser keeps forever can be revoked.
+- **Redeeming a transfer code retires the password.** `fw_transfer_redeem`
+  overwrites `token_hash` with the new device token's hash, and for a password
+  account that value *was* the password verifier. This predates the session
+  column and is unchanged by it, but it means transfer-redeem converts a
+  password account into a device-token account.
+
+`playerForToken()` reads the row with `select=*` rather than a column list, and
+that is load-bearing: PostgREST rejects an entire request that names a column
+the database does not have, so a narrowed list would have taken **device** auth
+down on any deployment that reached production before the migration was applied
+by hand. Widening the projection is free here — nothing echoes the row to a
+client, and callers read `id` and `name` only.
+
+## Known gaps (read the code before trusting these paths)
 - `RANKED_SCENES` is declared identically in `api/_lib.mjs` and
   `js/board/config.js` — necessarily, since one ships to the server bundle
   and the other to the browser, but a scene added to one and not the other is
   a silent drift risk with no test catching it today.
+
+## Guards
+
+`api/` cannot be exercised by the headless validator: the handlers want
+`SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `FW_TICKET_SECRET` plus a live
+Postgres before they do anything, and their callers (`js/board/*.js`,
+`js/ui/boards.js`, `js/operator.js`) touch `localStorage` and `document` at
+module scope. `tools/api-auth.test.mjs` — spawned by `validateMultiplayer()` in
+`tools/validate.mjs`, so it runs under plain `node tools/validate.mjs` — closes
+that hole lexically instead. It reads both sides as text and asserts, for every
+endpoint and the client call that targets it, that the field names agree in both
+directions: no field the browser posts is ignored by the handler, and no
+`data.<field>` the handler reads goes unsent. Tolerated reads (the
+`player_token` alias) must be declared with a reason, and the table is checked
+against a walk of `api/` itself, so a new endpoint cannot ship without declaring
+its caller. Its second half asserts that any handler minting a bearer token with
+`newDeviceToken()` also persists `sha256Hex(token)` — all four do — and that the
+migration adding `session_token_hash` exists, is `if not exists`, clears the
+column in both `fw_remove_player` and `fw_transfer_redeem`, and is matched by a
+`playerForToken()` that still falls back to `token_hash` for device accounts.
+Its `BLOCKED_ON_SCHEMA` list is empty and expected to stay so; entries there
+require a stated reason and clear themselves once the endpoint starts
+persisting.
+
+## Applying a migration
+
+There is **no automated path**. The repo has no `.github/` workflow, no
+`supabase/config.toml`, and no `package.json`, so nothing runs SQL on push;
+`vercel.json` deploys the static site and the functions and never touches the
+database. The only tooling evidence is `supabase/.temp/`, the link state written
+by a manual `supabase link` (project ref `zrsrvhrkgfuqhcjnjezw`, Postgres 17.6).
+A migration is applied by a human running `supabase db push` from a linked
+checkout, or by pasting the file into the Supabase SQL editor.
+
+The ordering consequence is the part worth remembering: **code deploys itself,
+schema does not.** Push a commit and Vercel serves the new `api/` within a
+minute, while the migration sits unapplied until someone runs it. Everything in
+`api/` therefore has to survive its own schema arriving late — which is why
+`playerForToken()` uses `select=*` and why every other `players?select=` names
+only long-standing columns.
 
 ## Gotchas
 

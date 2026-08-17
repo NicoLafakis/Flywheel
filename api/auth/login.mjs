@@ -26,11 +26,21 @@ export default async function handler(req, res) {
       fail(res, 401, 'WRONG_PASSWORD', 'Incorrect password for this player name.'); return;
     }
 
-    // Mint fresh session token for this device
+    // Mint a fresh session token for this device and store its hash, which is
+    // the value playerForToken() will compare against on every later
+    // authenticated call. `token_hash` is deliberately left alone: it is the
+    // password verifier checked above, and overwriting it here would lock this
+    // account out of every future login.
+    //
+    // One session hash per account, so logging in on a second device signs the
+    // first one out. That is the intended behaviour rather than an accident of
+    // the single column: it makes a leaked token revocable by logging in again,
+    // which is otherwise impossible for a credential the browser keeps forever.
     const token = newDeviceToken();
     await rest(`players?id=eq.${encodeURIComponent(player.id)}`, {
       method: 'PATCH',
       body: {
+        session_token_hash: `\\x${sha256Hex(token)}`,
         last_seen_at: new Date().toISOString(),
       },
       headers: { prefer: 'return=minimal' },

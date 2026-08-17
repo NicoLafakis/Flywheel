@@ -81,8 +81,12 @@ tying everything together.
   overflowing content outside the scroll viewport (world map bug; fixed).
 - `window.__sim` / `window.__cam` are exposed as debug/smoke-test hooks; fine
   to use in tests, never in gameplay code.
-- Shop effects: `clock5`/`growth5` applied to a *clone* of the level in
-  `startLevel` so `levels.js` data stays pristine.
+- Shop effects: `clock5`'s +5s is applied to a *clone* of the level in
+  `startLevel` so `levels.js` data stays pristine. The campaign growth bonus
+  passed alongside it is the `growth` upgrade rank and nothing else —
+  `computeShopBonus()` has no legacy `growth5` term, because the v20 save
+  migration already turns that purchase into rank 1. See
+  `.wiki/modules/campaign.md`.
 - Brand layer (`.fw-*` in `css/main.css`, `blockword.js`, `sprocket.js`) is
   unscoped by design — `#ready-gate` and `.fw-landing` both consume it rather
   than each owning a copy. Edit the shared primitives, not a per-screen fork;
@@ -106,8 +110,14 @@ tying everything together.
 - Everything the landing screen says about the player comes from
   `personalBest()`/`nextUnlock()` in `screens.js`, which read only the save. A
   record that was never set renders no cell rather than a zero, and the locked
-  card is the cheapest unowned row across `SKINS`/`INDICATOR_SKINS`/`ITEMS` —
-  cities are never locked, so shop content is the only thing that is.
+  card is the cheapest unowned row the shop itself sells: `nextUnlock()` walks
+  `SHOP_CATEGORIES` and `getShopItemsByCategory(...)`, the same catalogue source
+  the shop screen renders from, so the teaser can only ever name something the
+  player has a tab to buy it on. The legacy `ITEMS` rows (`clock5`, `growth5`)
+  are still exported and owners keep what they bought, but no category renders
+  them, so the teaser no longer sweeps them — it was pointing at a "next
+  unlock" with no screen behind it. Cities are never locked, so shop content is
+  the only thing that is.
 - That next-unlock row has TWO states and one flag (`save.coins >= price`)
   decides both halves, so the strip and the card can never disagree. Short: the
   strip is a goal (bar + `N to go`) and the card is `.fw-chip--locked`, dashed,

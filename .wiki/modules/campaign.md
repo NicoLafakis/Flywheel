@@ -61,6 +61,39 @@ beatable headlessly.
   stamp so the save-less surfaces get the same treatment. See
   `.wiki/modules/audio.md`.
 - `starsForResult`: 1★ win, 2★ ≥20% time left, 3★ ≥35%.
+- **Economy values are derived, and none of them are persisted**
+  (T-701/T-702/T-703, 2026-08-16). Three economy defects were closed together
+  and none needed a save migration, for the same reason: `save.js` stores what
+  the player OWNS (`coins`, `ownedItems`, `upgrades` ranks, `sandbox` records)
+  and never a price, payout, or multiplier, so a retune takes effect on the
+  next run without a version bump or re-seed. (1) `CITY_COIN_TIERS` in
+  `js/voxelsim.js` is now projected from `CITY_CATALOG` instead of duplicating
+  its three coin fields — the two copies had drifted, and `gallery` was paying
+  `tokyo`'s apex rate; see `.wiki/modules/voxel.md`. (2) `options.growthBonus`
+  is now read by `sim.js`'s `completeEat`, so the `growth` upgrade rank finally
+  does in the campaign what it already did in the sandbox; an already-purchased
+  rank started working immediately because the bonus is recomputed from the
+  save on every `startLevel()`. See `.wiki/modules/sim.md`. (3) That bonus is
+  the growth RANK and nothing else. The legacy `growth5` shop item is not a
+  second, independent term: the v20 migration (`__MIGRATIONS[19]` in
+  `js/save.js`) converts owning it into `upgrades.growth >= 1`, and rank 1 IS
+  its +5%, so `computeShopBonus()` adding `0.05` again for the same
+  `ownedItems` marker paid one purchase twice. Harmless while nothing read
+  `growthBonus`; (2) would have made it live, handing a pre-v20 save +10% in
+  the campaign against the +5% it gets in a city, since `VoxelSandboxSim`
+  derives `growthMult` from `save.upgrades` alone and never reads
+  `ownedItems`. The migration is the single source of truth for that item, so
+  the redundant `main.js` term is deleted rather than subtracted back out.
+
+  All three are pinned by `tools/economy-consistency.test.mjs`, spawned from
+  the `multiplayer` section of `validate.mjs` alongside the other standalone
+  cross-file suites. It asserts that a `growthBonus: 0` run is bit-identical to
+  `new Sim(level)`, so the greedy-bot beatability proof is still measuring an
+  un-upgraded game, and — because `js/main.js` cannot be imported headlessly
+  (`document.getElementById` at module scope, three.js in its import graph) —
+  it lifts the `computeShopBonus()` object literal out of the source text and
+  evaluates it, so the campaign/sandbox parity check is on the number the
+  shipped line produces rather than on the shape of the text producing it.
 
 **Reconciled 2026-08-10:** the full day's commits — `js/voxelkit.js`'s twelve
 new gallery builders, the multi-hole sim roster (`sim.holes[]`), and that
