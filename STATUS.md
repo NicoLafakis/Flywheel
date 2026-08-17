@@ -13,11 +13,26 @@ Last updated: 2026-08-17
 - **Scoreboards & Offline Fallback**: Live ranked boards + server-replayed trace verification and local profile fallback (`js/board/`).
 - **Cambridge Phase 7 Secrets & Belts**: Cambridge 44 hidden easter eggs, 11 ground glyphs, and championship belts.
 
+### Open decisions (owner's call, papered not parked)
+
+- **Menu-angle inheritance for the level intro** — the establishing beat uses the level's own sun-scored `_introYaw0`. Adopting the title backdrop's live yaw instead is a two-line change but discards that scoring, and the backdrop is hard-coded to Brooklyn regardless of city. `.wiki/modules/render.md`.
+- **Mid-play power-up spawn cutscene** — still fires on every ~30s intermittent respawn, now smooth and cancellable rather than removed. Suppressing it entirely is a one-line change to the same gate that already suppresses it at level start.
+- **Quake cutscene's authored internal hard cuts** — shot 0→1 turns 2.76 rad in one frame (285.3% distance, 165.88 rad/s whole-sequence). Deliberately outside the release-continuity gate; keeping or retiring them is shot design. `.wiki/modules/render.md`.
+- **Cambridge 2** — the map was specced to *look* as detailed as 73k voxels, not to contain them. Rebuild at perceived density; the existing map stays. Root cause of the validator's runtime.
+
 ---
 
 ## Shipped state
 
-- 2026-08-17 — Mobile Shop Bottom Nav Undocked From Its Own Scroll Container (RCA-2026-08-17 backdrop-filter; 6087px drift → 0px, 241-check browser contract)
+- 2026-08-17 — Level Intro Camera: Establishing Hold → Overhead Rise → Dive To The Hole (RCA-2026-08-17 level-start camera; an orphaned power-up cinematic had hijacked frame 1 of every level since `8818c2d` — peak yaw 1220 → 42.5 °/s, cinematic-armed frames 185/350 → 0, pitch leak closed)
+
+- 2026-08-17 — Excursion Harness Advances On Arrival, Not On The Clock (RCA-2026-08-17 chicago; `tools/route-driver.mjs`, ≤2% parked ticks, new `speedInvariance` gate, four unregistered suites now gated)
+
+- 2026-08-17 — Inaudible Sounds No Longer Fatigue Their Sample (audibility floor moved between peek and deposit; the near tower 11.1 dB louder, rival `quiet` ladder made real)
+
+- 2026-08-17 — Multiplayer Match Start Is An Act, Not A Side Effect Of Capacity (host presses start, or non-hosts vote unanimously once the host is idle; vote unavailable below 3 players)
+
+- 2026-08-17 — Mobile Shop Bottom Nav Undocked From Its Own Scroll Container (RCA-2026-08-17 backdrop-filter; 6087px drift → 0px, 241-check browser contract, fluid tab labels)
 
 - 2026-08-17 — Voxel Event Audio Restored: Eat Gulps, Combo Ladder, Stingers, Derailment & Tornado (RCA-2026-08-17, three suites now gated)
 
