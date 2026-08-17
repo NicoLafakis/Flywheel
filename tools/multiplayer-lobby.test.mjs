@@ -52,13 +52,29 @@ assert.equal(hostLobby.chatMessages[0].text, 'Welcome to The Lab!');
 // Verify chat is not written to disk or storage (memory array only)
 assert.equal(typeof hostLobby.chatMessages, 'object');
 
-// 4. Peer 2 joins -> Room reaches full capacity (3/3) -> Auto-start countdown initiates!
+// 4. Peer 2 joins -> room reaches full capacity (3/3) and WAITS there.
+//
+// The auto-start on a full room was removed 2026-08-17 by owner decision: the
+// match had been beginning the instant the last player finished loading, before
+// anyone had picked a skin or read the chat. A countdown now has exactly two
+// entry points — the host pressing start, or a unanimous vote of the non-hosts
+// once the host has gone idle. See .wiki/modules/multiplayer.md "Start control"
+// for the contract, and tools/lobby-start-control.test.mjs for the vote gate.
 let countdownStarted = false;
 hostLobby.onCountdownStart = () => { countdownStarted = true; };
 
 hostLobby.handleJoinRequest({ name: 'Bob', skin: 'gold', senderId: 'peer-2' });
 assert.equal(hostLobby.connectedCount, 3);
-assert.equal(hostLobby.countdownActive, true, 'Countdown must automatically start when room is full (3/3)!');
+assert.equal(hostLobby.isFull, true, 'the room must genuinely be at capacity for the next line to mean anything');
+assert.equal(hostLobby.countdownActive, false, 'a full room must WAIT for the host, not start itself');
+assert.equal(countdownStarted, false, 'filling the room must not fire the countdown callback either');
+
+// 4b. ...and the host can still start it from exactly that state. This half is
+//     what keeps the assertion above honest: `countdownActive === false` on its
+//     own also passes on a lobby that seats nobody, or that can never start.
+hostLobby.startCountdown();
+assert.equal(hostLobby.countdownActive, true, 'the host must be able to start a full room');
+assert.equal(countdownStarted, true, 'the host start must fire the countdown callback the UI draws from');
 
 // 5. Peer leaves during countdown -> Countdown cancels and slot is freed
 hostLobby.handlePlayerLeave('peer-2');

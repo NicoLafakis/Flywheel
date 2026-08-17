@@ -46,16 +46,32 @@ for (let i = 0; i < 5; i++) {
 
 assert.equal(hostLobby.connectedCount, 6, 'All 6 players must be connected');
 assert.equal(hostLobby.isFull, true, 'Lobby must be full');
-assert.equal(hostLobby.countdownActive, true, 'Auto-start countdown must be active when 6/6 players connect');
+
+// Auto-start on a full room was removed 2026-08-17 by owner decision; a full
+// room now waits for the host to press start (or for the non-hosts to vote
+// unanimously once the host has gone idle). Contract:
+// .wiki/modules/multiplayer.md "Start control".
+assert.equal(hostLobby.countdownActive, false, 'a full 6/6 room must wait rather than start itself');
+peers.forEach((p, i) => assert.equal(p.countdownActive, false,
+  `peer ${i + 1} must not believe a countdown is running either`));
 
 // 3. Ephemeral Chat verification during lobby
 peers[0].sendChat('Hey everyone, good luck in The Lab!');
 assert.equal(hostLobby.chatMessages.length, 1);
 assert.equal(hostLobby.chatMessages[0].text, 'Hey everyone, good luck in The Lab!');
 
-// 4. Trigger game launch
+// 4. The host starts the match, and every peer follows it into the countdown.
+//    Driven through the real entry point rather than jumping straight to
+//    launchGame(): with the auto-start gone, the host press IS the path into a
+//    match, so it is the path this E2E has to walk.
 let matchStarted = false;
 hostLobby.onGameStart = () => { matchStarted = true; };
+
+hostLobby.startCountdown();
+assert.equal(hostLobby.countdownActive, true, 'the host press must arm the countdown');
+peers.forEach((p, i) => assert.equal(p.countdownActive, true,
+  `peer ${i + 1} must receive the host's countdown broadcast`));
+
 hostLobby.launchGame();
 
 assert.equal(matchStarted, true);

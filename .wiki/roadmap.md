@@ -225,7 +225,7 @@ Shipped in [features/multiplayer/](features/multiplayer/README.md), with the arc
    - Level 3: *Brooklyn* (`brooklyn`, 40k blocks)
 2. **Up to 6 Players (Host + 5)**: Configurable room capacity $N \in [2..6]$.
 3. **Invite Links**: 5-character alphanumeric room codes (`?room=CODE`) with 1-tap clipboard copying and automatic URL routing.
-4. **Staging Lobby & Auto-Start**: Pre-game staging room with real-time player roster; triggers an unskippable 3.0s synchronized countdown automatically when the room reaches target capacity ($N/N$).
+4. **Staging Lobby & Deliberate Start**: Pre-game staging room with real-time player roster. Reaching capacity ($N/N$) does not start the match — the host presses start, or the non-hosts vote unanimously once the host has been idle 45s (needs $\ge 3$ seated). Either arms the same unskippable 3.0s synchronized countdown.
 5. **Ephemeral Lobby Chat (Zero Storage / In-Memory Only)**: Real-time text messaging in the lobby. Zero database or disk persistence; completely unmounted on match launch with strictly zero in-game chat.
 6. **Authoritative Host Simulation**: Host machine integrates fixed-step physics (`sim.step(1/60)`) and broadcasts compressed `STATE_SYNC` at 60 Hz over Supabase Realtime Broadcast.
 7. **Authoritative PvP Hole Swallowing & Respawn Penalty**: Pairwise collision ($r_\text{large} > r_\text{small} \times 1.05$) consumes smaller rival, awards +50% mass bounty to killer, and puts victim into a 10.0-second timeout with fullscreen countdown overlay before perimeter respawn.

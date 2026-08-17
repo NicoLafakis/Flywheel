@@ -1,6 +1,6 @@
 # Multiplayer (6-Player Shared City Sandboxes)
 
-Clean-slate 6-player synchronized shared-city multiplayer with invite links, pre-game staging lobby, ephemeral non-persisted lobby chat, auto-start on full room, and direct 1:1 single-player map parity.
+Clean-slate 6-player synchronized shared-city multiplayer with invite links, pre-game staging lobby, ephemeral non-persisted lobby chat, host-controlled match start, and direct 1:1 single-player map parity.
 
 ## Document Index
 
@@ -20,7 +20,7 @@ Clean-slate 6-player synchronized shared-city multiplayer with invite links, pre
   - Level 2: Lower Manhattan (`manhattan`, 25k blocks)
   - Level 3: Brooklyn (`brooklyn`, 40k blocks)
 - **Access Model**: Shareable invite links (`?room=CODE`) & 5-character codes
-- **Lobby Start**: Automatic 3s countdown the instant room capacity is reached ($N/N$)
+- **Lobby Start**: Never automatic. The host presses start (any count $\ge 2$), or the non-hosts vote unanimously once the host has been idle $\ge 45$s and $\ge 3$ players are seated. Either way an unskippable 3s countdown follows, broadcast by the host
 - **Chat**: Ephemeral in-lobby only; zero disk/DB storage; zero in-game chat UI
 - **ADR Reference**: [ADR-0019](../../adr/0019-six-player-invite-lobby-multiplayer.md)
 

@@ -1,6 +1,6 @@
 # ADR-0019: 6-Player Invite-Link Lobby Multiplayer with Ephemeral Lobby Chat and 1:1 Single-Player City Copy
 
-- **Status:** accepted
+- **Status:** accepted; **decision 4 (auto-start on full room) superseded 2026-08-17** — see [Amendment 2026-08-17](#amendment-2026-08-17--the-full-lobby-auto-start-is-withdrawn) at the end of this file
 - **Date:** 2026-08-16
 - **Deciders:** Nico, Antigravity
 
@@ -69,3 +69,55 @@ A match concludes when either:
 - **Zero Privacy / Storage Liability**: Because lobby chats are strictly ephemeral broadcasts, zero user-generated text is stored on any server or database.
 - **Predictable Match Pacing**: Full-lobby auto-start eliminates staging delays and gets players into the action immediately.
 - **Focused Competitive Gameplay**: Clean gameplay HUD without distraction or clutter from in-game chat feeds.
+
+---
+
+## Amendment 2026-08-17 — the full-lobby auto-start is withdrawn
+
+**Status of this amendment:** accepted. **Decider:** Nico.
+
+Decision item 4 above ("Lobby Lifecycle & Auto-Start on Full Room"), the Context
+item 4 that motivated it, and the "Predictable Match Pacing" consequence are
+**superseded**. They are left in place unedited because this file is
+append-only; read them as history, not as the current contract.
+
+**What was wrong with it.** In play, the auto-start fired the instant the last
+player finished loading. Nobody had picked a skin, nobody had read the chat, and
+the host — who created the room and chose the city — had no say in when their
+own match began. "Eliminates staging delays" turned out to be the same thing as
+"eliminates staging", and the delay it removed was the part players wanted.
+
+**What replaces it.** Reaching $N/N$ now changes nothing. A countdown has
+exactly two entry points:
+
+1. **The host presses start**, at any seated count $\ge 2$.
+2. **The non-host players vote unanimously**, but only once the host has been
+   idle for $\ge 45$s. The vote additionally requires $\ge 3$ seated players:
+   in a 2-player room "unanimous among the non-hosts" is a single guest starting
+   somebody else's lobby, which is a second start button rather than a vote.
+   Any join, any leave, or any sign of life from the host resets both the idle
+   clock and the entire tally — a tally must never outlive the roster it was
+   counted against.
+
+**What this cost architecturally.** Two things worth recording, because both
+are load-bearing and neither is obvious:
+
+- `START_VOTE` is the second message type that is deliberately **not** in
+  `HOST_ONLY_TYPES`. A vote is by definition cast by a client, so host-only
+  would make it unsendable. It is bound to its caster by `senderId` (the
+  transport's stamp) rather than by the `slot` field, on exactly the same
+  reasoning as `isAuthorizedLeave` for `PLAYER_LEAVE`. The countdown that a
+  passing vote produces is still broadcast by the host alone, so the launch
+  stays host-authoritative.
+- The vote **gate** is host-declared, published on `ROOM_STATE.startVoteOpen`,
+  rather than each peer running its own idle clock. A peer can observe host
+  *traffic* but never host *silence*, so a peer-side clock counts straight
+  through everything the host does that does not reach the wire — in testing, a
+  host that acted at 30s still had every peer unlock the vote at 45s. Only the
+  host's own clock can gate the launch.
+
+Pinned by `tools/lobby-start-control.test.mjs`; the auto-start assertions in
+`tools/multiplayer-lobby.test.mjs`, `tools/multiplayer-e2e.test.mjs` and
+`tools/multiplayer-lifecycle.test.mjs` were rewritten to pin this contract
+instead. See `.wiki/modules/multiplayer.md` for the implementation detail and
+REQ-MP-06 in the feature package for the restated requirement.

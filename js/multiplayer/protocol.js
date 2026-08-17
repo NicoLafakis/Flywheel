@@ -15,6 +15,7 @@ export const MSG_TYPES = Object.freeze({
   PLAYER_JOIN: 'PLAYER_JOIN',
   PLAYER_LEAVE: 'PLAYER_LEAVE',
   LOBBY_CHAT: 'LOBBY_CHAT',
+  START_VOTE: 'START_VOTE',
   COUNTDOWN_START: 'COUNTDOWN_START',
   COUNTDOWN_CANCEL: 'COUNTDOWN_CANCEL',
   GAME_START: 'GAME_START',
@@ -48,6 +49,14 @@ export const HOST_ONLY_TYPES = Object.freeze([
   // seat itself, or a stranger, in any slot it liked.
   MSG_TYPES.PLAYER_JOIN,
 ]);
+
+// START_VOTE is DELIBERATELY NOT host-only.
+//
+// It is cast BY a client — that is the entire point of it — so host-only would
+// make it undeliverable. What stays host-only is the CONSEQUENCE: a unanimous
+// tally makes the HOST call startCountdown(), and COUNTDOWN_START/GAME_START
+// remain in the list above, so a client that forges either one is still ignored.
+// The vote asks for a start; it never performs one.
 
 // PLAYER_LEAVE is DELIBERATELY NOT host-only.
 //
@@ -172,7 +181,7 @@ export function createJoinRequest({ name, skin, clientVersion = 1 }) {
   };
 }
 
-export function createRoomState({ roomCode, scene, maxPlayers, matchSeed, players, hostSenderId = null }) {
+export function createRoomState({ roomCode, scene, maxPlayers, matchSeed, players, hostSenderId = null, startVoteOpen = false }) {
   const msg = {
     type: MSG_TYPES.ROOM_STATE,
     roomCode: String(roomCode || '').toUpperCase(),
@@ -180,6 +189,11 @@ export function createRoomState({ roomCode, scene, maxPlayers, matchSeed, player
     maxPlayers: Number(maxPlayers) || 4,
     matchSeed: Number(matchSeed) || 0,
     players: Array.isArray(players) ? players : [],
+    // Whether the AFK start vote is open. Host-declared on purpose: only the
+    // host can observe its own idleness, so a peer running a private idle clock
+    // would keep counting through everything the host did that never reached the
+    // wire, and open the vote on a host who was demonstrably active.
+    startVoteOpen: Boolean(startVoteOpen),
   };
   // Declares which sender id peers should trust for host-only messages from here on.
   if (hostSenderId !== null && hostSenderId !== undefined) msg.hostSenderId = String(hostSenderId);
@@ -234,11 +248,36 @@ export function createLobbyChat({ slot = 0, name = 'Player', color = '#ffffff', 
   };
 }
 
-export function createCountdownStart({ durationMs = 3000, serverStartTs = Date.now() }) {
+/**
+ * One seated non-host asking the room to start without the host.
+ *
+ * `slot` is carried for display only. The receiver binds the vote to a player
+ * through `senderId` — the stamp the transport applies — for the same reason
+ * PLAYER_LEAVE does: a slot number in the body is whatever the sender typed, so
+ * trusting it would let one client vote on another's behalf and complete a
+ * "unanimous" tally alone.
+ */
+export function createStartVote({ slot = 0, senderId = null, name = 'Player' }) {
+  const msg = {
+    type: MSG_TYPES.START_VOTE,
+    slot: Number(slot) || 0,
+    name: String(name || 'Player').slice(0, MAX_PLAYER_NAME_LENGTH),
+  };
+  if (senderId !== null && senderId !== undefined) msg.senderId = String(senderId);
+  return msg;
+}
+
+export function createCountdownStart({ durationMs = 3000, serverStartTs = Date.now(), viaVote = false }) {
   return {
     type: MSG_TYPES.COUNTDOWN_START,
     durationMs: Number(durationMs) || 3000,
     serverStartTs: Number(serverStartTs) || Date.now(),
+    // Which entry point produced this countdown, so a peer can narrate "vote
+    // passed" without having to infer it from its own state. It cannot infer it
+    // reliably: the host launches from inside its own START_VOTE handler, so on
+    // a synchronous transport the countdown reaches a peer BEFORE the vote that
+    // caused it, and the peer's tally is still mid-flight when it arrives.
+    viaVote: Boolean(viaVote),
   };
 }
 

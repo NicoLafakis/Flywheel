@@ -428,7 +428,9 @@ export class MultiplayerUI {
                   START NOW (${lobby.connectedCount}/${capacity})
                 </button>
               </div>
-            ` : ''}
+            ` : `
+              <div id="mp-vote-ctrls" class="mp-host-ctrls mp-vote-ctrls"></div>
+            `}
           </div>
 
           <!-- Right: Ephemeral Chat -->
@@ -448,10 +450,10 @@ export class MultiplayerUI {
         </div>
       </div>
 
-      <!-- Auto-Start Countdown Modal (Hidden by default) -->
+      <!-- Countdown Modal (Hidden by default) -->
       <div id="mp-countdown-modal" class="mp-countdown-overlay hidden">
         <div class="mp-countdown-card">
-          <div class="mp-countdown-title">ALL PLAYERS JOINED</div>
+          <div class="mp-countdown-title">GET READY</div>
           <div id="mp-countdown-num" class="mp-countdown-num">3</div>
           <div class="mp-countdown-sub">MATCH STARTING...</div>
         </div>
@@ -489,17 +491,60 @@ export class MultiplayerUI {
       if (onLeave) onLeave();
     });
 
-    // Force start button (if host)
+    // Force start button (if host). This is the ONLY ordinary way into a
+    // countdown — a full room no longer starts itself.
     const forceStartBtn = lobbyView.querySelector('#mp-force-start');
     if (forceStartBtn) {
       forceStartBtn.addEventListener('click', () => {
-        if (lobby.connectedCount >= 2) {
+        if (lobby.connectedCount >= MIN_PLAYERS) {
           if (this.audio?.ui?.playConfirm) this.audio.ui.playConfirm();
           lobby.startCountdown();
           if (onForceStart) onForceStart();
         }
       });
     }
+
+    // Anything the host actually does in the lobby proves it is not AFK, which
+    // re-locks the start vote. Pointer and key only: a mouse drifting across a
+    // window is not somebody making a decision.
+    if (lobby.isHost) {
+      const noteActivity = () => lobby.noteHostActivity();
+      lobbyView.addEventListener('pointerdown', noteActivity);
+      lobbyView.addEventListener('keydown', noteActivity);
+    }
+
+    // The start vote. It does not exist until the host has been idle long enough
+    // in a room of at least three — no greyed-out button, no countdown bar, no
+    // hint that hurrying the host is a thing you can do. Then it appears.
+    const renderStartVote = (state) => {
+      // Re-queried rather than closed over, like the roster callback below: the
+      // lobby outlives any one view, and a stale node would silently swallow
+      // every redraw after the screen was rebuilt.
+      const voteBox = this.root.querySelector('#mp-vote-ctrls');
+      if (!voteBox) return;
+      voteBox.textContent = '';
+      if (!state || !state.available) return;
+
+      const hint = document.createElement('div');
+      hint.className = 'mp-chat-note mp-vote-hint';
+      hint.textContent = 'HOST IS IDLE — ALL OTHER PLAYERS MUST AGREE';
+
+      const btn = document.createElement('button');
+      btn.id = 'mp-vote-start';
+      btn.type = 'button';
+      btn.className = 'btn primary mp-start-btn mp-vote-btn';
+      btn.textContent = state.hasVoted
+        ? `VOTED (${state.votes}/${state.required})`
+        : `VOTE TO START (${state.votes}/${state.required})`;
+      btn.disabled = Boolean(state.hasVoted);
+      btn.addEventListener('click', () => {
+        if (lobby.castStartVote() && this.audio?.ui?.playConfirm) this.audio.ui.playConfirm();
+      });
+
+      voteBox.append(hint, btn);
+    };
+    lobby.onStartVoteChange = renderStartVote;
+    renderStartVote(lobby.startVoteState);
 
     // Chat form submit
     const chatForm = lobbyView.querySelector('#mp-chat-form');
@@ -522,7 +567,15 @@ export class MultiplayerUI {
       if (rosterGrid) this._renderRosterInto(rosterGrid, lobby);
       if (rosterCount) rosterCount.textContent = lobby.connectedCount;
       if (statusPill) {
-        statusPill.textContent = lobby.isFull ? 'Lobby Full! Starting...' : 'Waiting for players...';
+        // "Lobby Full! Starting..." was a promise the lobby no longer keeps: a
+        // full room sits still until somebody starts it.
+        if (lobby.connectedCount < MIN_PLAYERS) {
+          statusPill.textContent = 'Waiting for players...';
+        } else if (lobby.isHost) {
+          statusPill.textContent = lobby.isFull ? 'Lobby full — start when ready' : 'Ready — start when you are';
+        } else {
+          statusPill.textContent = 'Waiting for the host to start...';
+        }
       }
       if (forceStartBtn) {
         forceStartBtn.textContent = `START NOW (${lobby.connectedCount}/${safeNumber(lobby.maxPlayers, MAX_PLAYERS)})`;

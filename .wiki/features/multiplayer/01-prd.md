@@ -85,10 +85,13 @@
   - Chat input box with `Send` button (and `Enter` key support).
   - Character limit: 140 characters per message.
   - Rate limiting: max 3 messages per second per client.
-  - System notices: `Player Joined`, `Player Left`, `Countdown Started`.
+  - System notices: `Player Joined`, `Player Left`, `Countdown Started`, plus the start-vote narration (vote unlocked, each vote landing as `n/m`, vote passed).
   - Notice text: `🔒 Ephemeral Chat — Messages are never stored and disappear when match begins.`
-- **Auto-Start Countdown Overlay**:
-  - Triggers immediately when active players == max players.
+- **Start Controls**:
+  - Host: a start button, enabled at any count $\ge 2$. Reaching capacity changes nothing on its own.
+  - Non-hosts: no start affordance at all until the host has been idle $\ge 45$s and $\ge 3$ players are seated — the vote UI is *absent*, not greyed out. Once unlocked it needs every non-host to agree.
+- **Countdown Overlay**:
+  - Triggers on the host's start or on a passed vote, never on room capacity.
   - Full-screen dramatic translucent glass modal with bold scale-in countdown numbers (`3`, `2`, `1`, `GO!`) and sound effects.
 
 ### 3.3 Live Gameplay Screen

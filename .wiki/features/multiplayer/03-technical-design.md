@@ -17,7 +17,7 @@
 │  ┌─────────────────────────────────▼─────────────────────────────────┐  │
 │  │                     MULTIPLAYER CONTROLLER                        │  │
 │  │                      (js/multiplayer/manager.js)                  │  │
-│  │  - Room Lifecycle (create/join)   - Auto-Start Countdown Trigger  │  │
+│  │  - Room Lifecycle (create/join)   - Host Start + AFK Start Vote   │  │
 │  │  - Ephemeral In-Memory Chat Log   - Input Sampling & Dispatch     │  │
 │  └──────────────────┬───────────────────────────────┬────────────────┘  │
 │                     │                               │                   │

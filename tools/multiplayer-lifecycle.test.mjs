@@ -229,7 +229,13 @@ console.log('\n--- T-631: a lobby slot is freed when its player disappears ---')
   });
 
   assert.equal(hostLobby.connectedCount, 3, '3/3 must fill the room');
-  assert.equal(hostLobby.countdownActive, true, 'a full room auto-starts its countdown');
+  // Auto-start on a full room was removed 2026-08-17 by owner decision; a full
+  // room waits for the host. Started explicitly here because everything below
+  // is about CANCELLING a running countdown — with nothing counting down, those
+  // assertions would pass just as well on a lobby that can never start at all.
+  assert.equal(hostLobby.countdownActive, false, 'a full room must not start itself');
+  hostLobby.startCountdown();
+  assert.equal(hostLobby.countdownActive, true, 'the host must be able to start a full room');
   const chatBefore = hostLobby.chatMessages.length;
 
   const roomStates = [];
@@ -256,7 +262,14 @@ console.log('\n--- T-631: a lobby slot is freed when its player disappears ---')
   });
   assert.equal(hostLobby.players[2] && hostLobby.players[2].name, 'Carol',
     'the freed slot must be reusable');
-  assert.equal(hostLobby.countdownActive, true, 'refilling to N/N must re-arm the auto-start countdown');
+  // Both halves. Refilling must not start the match by itself...
+  assert.equal(hostLobby.countdownActive, false, 'refilling to N/N must not start the match by itself');
+  // ...but the room must still be startable afterwards. A room that quietly
+  // became unstartable once somebody left and rejoined would strand everyone in
+  // it — a worse failure than the auto-start this replaced.
+  hostLobby.startCountdown();
+  assert.equal(hostLobby.countdownActive, true, 'a refilled room must still be startable by the host');
+  assert.equal(carol.countdownActive, true, 'and the player who rejoined must see that countdown');
 
   hostLobby.destroy(); alice.destroy(); bob.destroy(); carol.destroy();
   hostCh.close(); aliceCh.close(); carolCh.close();

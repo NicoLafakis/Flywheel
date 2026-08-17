@@ -11,7 +11,7 @@
 | **REQ-MP-03** | **Configurable Player Capacity** | Host selects match size between 2 and 6 players inclusive. | Stepper control allows values $N \in [2, 3, 4, 5, 6]$; lobby rejects join attempts when room has $N$ players. |
 | **REQ-MP-04** | **Invite Link Generation** | Generating a room creates a unique URL with a 5-character alphanumeric room code. | URL format matches `?room=XXXXX`; clicking copy places URL into clipboard and triggers toast confirmation. |
 | **REQ-MP-05** | **Direct Link Join Flow** | Navigating to an invite link automatically connects the browser to that lobby. | Client parses `?room=` parameter on load, bypasses manual code entry, and prompts for player display name. |
-| **REQ-MP-06** | **Full Lobby Auto-Start** | Game automatically initiates countdown and starts when connected count equals target capacity. | The instant player count reaches $N/N$, an unskippable 3.0s synchronized countdown begins, followed immediately by level spawn. |
+| **REQ-MP-06** | **Deliberate Lobby Start** | Reaching capacity does **not** start the match. A countdown has exactly two entry points: the host presses start, or the non-host players unanimously vote to start a host who has gone idle. | A full $N/N$ room sits waiting indefinitely. The host's start button arms an unskippable 3.0s synchronized countdown at any count $\ge 2$. The vote is unavailable until the host has been idle $\ge 45$s, requires $\ge 3$ seated players, must be unanimous among the non-hosts, and is reset in full by any join, any leave, or any host activity. The host alone broadcasts the resulting countdown. |
 | **REQ-MP-07** | **Ephemeral Lobby Chat** | Real-time text messaging within the staging lobby only. | Messages broadcast instantly to all room occupants via WebSocket/Realtime broadcast; max 140 chars. |
 | **REQ-MP-08** | **Strict Chat Non-Persistence** | Chat messages are never saved to disk, database, or client storage. | Zero database insert calls; zero entries in localStorage/IndexedDB; memory is discarded on lobby exit. |
 | **REQ-MP-09** | **Zero In-Game Chat** | Chat UI is completely excluded from the in-game HUD and match state. | No chat box, hotkey, or DOM element exists in `#hud-left`, `#hud-right`, or the screen root during gameplay. |
@@ -30,7 +30,7 @@
 2. **Deterministic Geometry**:
    - Both host and peer build the city with `VoxelSandboxSim(scene, { seed: matchSeed })`. Block IDs, dimensions, and materials match bit-for-bit.
 3. **Resilience & Disconnection**:
-   - If a peer disconnects in the lobby, their slot becomes available again and the auto-start countdown pauses/resets if it was running.
+   - If a peer disconnects in the lobby, their slot becomes available again, a running countdown is cancelled, and the start-vote tally and host-idle clock are both reset (a tally must never outlive the roster it was counted against).
    - If a peer disconnects during gameplay, their hole is frozen or retired cleanly without crashing the host or remaining peers.
 4. **Mobile Responsiveness & Touch Ergonomics**:
    - Staging lobby and chat inputs adapt fluidly to portrait and landscape viewports on iOS Safari and Android Chrome.

@@ -26,8 +26,21 @@ The host selects the exact target player capacity ($N \in [2..6]$) when creating
 ### 3. One-Click Invite Links
 Hosting generates a clean invite link containing a unique 5-character alphanumeric room code (e.g. `https://flywheel.app/?room=K7QM3`). Joiners clicking or pasting the link are immediately routed directly into the host's lobby.
 
-### 4. Zero-Friction Auto-Start
-No confusion over when to press "Start". When the lobby reaches full capacity ($N/N$ players connected), an unskippable 3-second visual and audio countdown initiates across all connected clients, seamlessly launching everyone into the city at the exact same tick.
+### 4. Deliberate Start, With an AFK Escape Hatch
+Filling the room does not begin the match. The original zero-friction auto-start
+launched the instant the last player finished loading, which meant nobody had
+picked a skin, nobody had read the chat, and the host had no say — so it was
+removed on 2026-08-17 by owner decision. Starting is now an act:
+
+- The **host presses start**, at any count $\ge 2$.
+- Or, if the host has gone idle for $\ge 45$s, the **non-host players vote
+  unanimously** to start without them. The vote needs $\ge 3$ seated players
+  (with two, "unanimous among non-hosts" is one guest unilaterally starting
+  somebody else's lobby), and any join, leave, or sign of life from the host
+  resets both the idle clock and the whole tally.
+
+Either path produces the same unskippable 3-second visual and audio countdown,
+broadcast by the host, launching everyone into the city on the exact same tick.
 
 ### 5. Ephemeral Lobby Chat (Zero Storage / Zero In-Game Clutter)
 - Real-time bidirectional chat is available exclusively in the staging lobby for bantering, agreeing on rules, and coordinating.
