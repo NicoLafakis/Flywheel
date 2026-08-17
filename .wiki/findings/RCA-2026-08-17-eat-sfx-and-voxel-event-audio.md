@@ -182,7 +182,14 @@ All line numbers are HEAD `29e0dfd`. If the partner-gating working-tree changes 
         // hole ownership is what would leave it silent in multiplayer, because
         // isLocalHole is false whenever there is no hole to own. Single player is
         // unaffected either way: `!isMultiplayer` short-circuits it true.
+        //
+        // Three scopes, not two. The fault-line quake is hole-scoped but its
+        // CONSEQUENCES are not: `crash` is world-scoped, so a hole-gated quake
+        // would let a player hear a rival's fault line demolish buildings while
+        // the rumble that caused it stayed silent. That reads as a missing
+        // sound, not as isolation. Rivals get it quiet, not muted.
         if (!ev.hole || isLocalHole) audio.handleEvent(ev);
+        else if (ev.type === 'quake') audio.handleEvent(ev, { quiet: true });
 ```
 
 Do NOT use the bare `audio.handleEvent(ev)` that was deleted. It predates multiplayer isolation and would voice a rival's coins and gulps at full level, reintroducing the exact defect `8c3c85d` set out to fix. If rival gulps are wanted at a reduced level later, `GameAudio` already supports it: `handleEvent(ev, { quiet: true })` scales the eat to 0.25 (`js/audio/game-audio.js:488`). That is a design call for the owner, not part of this fix.
@@ -195,7 +202,29 @@ And do NOT use `isLocalHole` alone. `js/main.js:1350` reads `!isMultiplayer || e
 | --- | --- |
 | `eat` :4368, `coin` :1303, `combo` :4378, `growth` :4371, `milestone` :4392, `goal` :4704, `powerup_collect` :1640, `clock` :4733, `pvp_respawn` :4438, `timeup` :4742 | `crash` :3259, `derail` :4231, `storm_warning` :132, `storm_active` :154, `storm_cleared` :182, `powerup_spawn` :958 and :4495, `disaster` :1540 and :1602, `dragonball_aura` :1420, `powerup_despawn` :4483 |
 
-**Two events look world-scoped and are not.** `quake` (`js/voxelsim.js:1426`) carries `hole,` at `:1435` even though it also carries bare `x`/`z` copied off that hole at `:1429-1430`, and `disaster_teleport` (`:1464`) carries `hole,` at `:1466`. Both are therefore gated by ownership under the corrected guard. For `disaster_teleport` that is right: the warp whoosh is personal. **For `quake` it is an open question the owner should settle**, because the fault-line quake tears up the shared city and a rival triggering it arguably should shake everyone's speakers. Leaving it hole-gated is the conservative default and matches the intent of `8c3c85d`; changing it means special-casing `quake` in the guard, which is a design decision, not a bug fix. Do not decide it silently in either direction.
+**Two events look world-scoped and are not.** `quake` (`js/voxelsim.js:1426`) carries `hole,` at `:1435` even though it also carries bare `x`/`z` copied off that hole at `:1429-1430`, and `disaster_teleport` (`:1464`) carries `hole,` at `:1466`. Both are therefore gated by ownership under the corrected guard. For `disaster_teleport` that is right: the warp whoosh is personal.
+
+**`quake` was escalated to the owner and is now DECIDED (2026-08-17): world-audible, attenuated for rivals.** The deciding argument is `crash`. Collapses are world-scoped and always voiced, so under a hole-gated `quake` a player would hear a rival's fault line demolish buildings across the map while the rumble that caused it stayed silent — the consequence without the cause, which reads as a missing sound rather than as isolation. Attenuating rather than muting also keeps the event doing useful work ("something big just happened over there") without masking the player's own feedback the way full volume would.
+
+That makes the guard a **three-way**, not a two-way:
+
+```js
+        if (!ev.hole || isLocalHole) audio.handleEvent(ev);
+        // The fault-line quake is the one hole-scoped event everybody hears.
+        // Its consequences (`crash`) are world-scoped and always voiced, so
+        // muting the rumble under audible collapses reads as a bug. Quiet, not
+        // silent: loud enough to inform, not loud enough to mask your own hole.
+        else if (ev.type === 'quake') audio.handleEvent(ev, { quiet: true });
+```
+
+**The `quiet` flag does not currently reach this sound, and that is part of the fix — not an assumption to carry forward.** `handleEvent` destructures `{ quiet = false }` (`js/audio/game-audio.js:479`) and only the `eat` case honours it (`:488`, 0.25 vs 0.65). `case 'quake'` (`:500-502`) calls `this.playFaultLineQuake()` with no argument, and `playFaultLineQuake()` (`:311-315`) takes no parameters at all — it hardcodes `vol: 1.0` plus a `duckAmbience(3.5, 0.2)` and a `music.duck(3.5, 0.3)`. Passing `{ quiet: true }` against today's code therefore changes nothing and would ship a rival's quake at FULL volume while looking correct in review. The implementer must:
+
+1. Give `playFaultLineQuake` a `{ quiet = false } = {}` parameter.
+2. Drop the rival level explicitly — `vol: quiet ? 0.35 : 1.0`. State the number in code, do not leave it to a caller.
+3. Soften the ducks too. A rival's quake has no business ducking *your* music and ambience as hard as your own does; the duck depth is what makes it feel like it happened to you.
+4. Thread `quiet` from the `case 'quake'` arm into the call.
+
+Test it in both directions, per requirement 7's shape: a rival-hole `quake` must REACH `handleEvent` (not be filtered out) **and** must arrive attenuated. A test asserting only that it fires passes against a build that plays it at full volume, which is exactly the failure this note exists to prevent.
 
 Note that `crash` being world-scoped is correct and deliberate: the collapse pool's distance attenuation (`js/audio/game-audio.js:255-256, 461-462`) is exactly the mechanism for hearing a rival's tower come down across the map at the right level, and it only works if the events reach the pool at all.
 
