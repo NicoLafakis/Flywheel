@@ -234,4 +234,63 @@ assert.equal(blockedRes.reseeded, false, 'a blocked store never claims a re-seed
 assert.equal(blockedRes.sfxVol, DEFAULT_SFX_VOLUME, 'and still reports the shipped mix');
 assert.equal(reseedAudioMix(null).reseeded, false, 'no storage at all is survivable');
 
-console.log('PASS audio engine: 55 assertions');
+// ------------------------------------------------------- per-name fatigue
+// RCA-2026-08-17 §9.4. Fatigue models LISTENER fatigue, so a sound nobody could
+// hear must not cause any. `_fatigueScale()` used to deposit energy before
+// `play()` applied its audibility floor, and to deposit a flat `+= 1` that never
+// read `vol` — so a collapse 150 m away, attenuated by `_att()` to nothing and
+// then dropped as inaudible, still charged `crash-big` full price. With a ~4 s
+// half-life the tower coming down BESIDE the player moments later was ducked by
+// rubble they never heard: the exact "the tower that mattered arrived
+// pre-fatigued" failure the collapse pooling was built to remove, re-entering
+// behind it. Pooling fixed how many times a building speaks, not what an
+// inaudible play costs.
+//
+// Every assertion below is on the NEXT play, never on the quiet one. Asserting
+// that a below-floor play stayed silent passes against the broken code and
+// proves nothing, because it was always silent — the energy it wrongly deposited
+// is invisible until something else tries to sound.
+// Bind the context off the engine under test rather than using the module-level
+// `ctx`: the facade's `game.engine.unlock()` at :153 built a SECOND context and
+// rebound `ctx` to it, so `ctx` and `engine.ctx` are different objects down here
+// and reading the module-level one silently watches the wrong graph.
+const ectx = engine.ctx;
+const gainOfLastPlay = () => ectx.sources[ectx.sources.length - 1].dest.gain.value;
+const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg} (got ${a}, want ${b})`);
+
+// (a) A play discarded as inaudible charges nothing at all.
+engine.buffers.set('fatigue-floor', {});
+const sourcesBefore = ectx.sources.length;
+engine.play('fatigue-floor', { vol: 0.01 });   // 0.01 < the 0.02 floor: never sounds
+assert.equal(ectx.sources.length, sourcesBefore,
+  'precondition: a below-floor play really is dropped and creates no node');
+engine.play('fatigue-floor', { vol: 1 });
+near(gainOfLastPlay(), 1,
+  'a sound nobody could hear must not fatigue the sample: the next play is unscaled');
+
+// (b) An audible but quiet play costs proportionally less than a loud one.
+engine.buffers.set('fatigue-quiet', {});
+engine.play('fatigue-quiet', { vol: 0.1 });
+near(gainOfLastPlay(), 0.1, 'the first play of a name is never scaled');
+engine.play('fatigue-quiet', { vol: 1 });
+near(gainOfLastPlay(), 1 / (1 + 0.1 * 0.7),
+  'the deposit is the volume actually played (0.1), not a flat 1');
+
+// (c) A full-volume repeat is still damped exactly as it was, which is what
+// keeps this an ordering fix rather than a retune of the shipped mix: the real
+// job of fatigue, damping a second and third tower, is untouched.
+engine.buffers.set('fatigue-loud', {});
+engine.play('fatigue-loud', { vol: 1 });
+engine.play('fatigue-loud', { vol: 1 });
+near(gainOfLastPlay(), 1 / (1 + 0.7), 'a full-volume repeat is damped as before');
+
+// (d) Decay still works, and it works on the corrected deposit: after two
+// half-lives the 1.0 unit left by (c) is down to a quarter.
+engine.buffers.set('fatigue-decay', {});
+engine.play('fatigue-decay', { vol: 1 });
+ectx.currentTime += 8;                         // two ~4 s half-lives
+engine.play('fatigue-decay', { vol: 1 });
+near(gainOfLastPlay(), 1 / (1 + 0.25 * 0.7), 'energy still decays exponentially');
+ectx.currentTime -= 8;
+
+console.log('PASS audio engine: 62 assertions');

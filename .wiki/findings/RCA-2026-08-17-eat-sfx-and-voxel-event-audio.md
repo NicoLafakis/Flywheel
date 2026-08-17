@@ -280,6 +280,22 @@ Per the repo's non-negotiable invariant 1, the failing test comes first. Two pie
 
 **b. Register the effects suites in the gate.** In `tools/validate.mjs`, add to the `suites` array in `validateMultiplayer()` (the list running from line 2612 to 2681), alongside the music entries at lines 2630-2645 and following their comment convention:
 
+> **RESOLVED 2026-08-17.** Landed by the owner of `tools/validate.mjs` (the file
+> was under single-writer lock while this fix was in flight, so the snippet below
+> was handed over rather than applied here). All three entries are now in the
+> `validateMultiplayer()` suite list at `tools/validate.mjs:2760-2762`, with the
+> comment expanded to name the tornado and to record why the two behaviour suites
+> were reachable only from `tools/diagnostics.mjs` until now. Verified executing
+> under the gate rather than merely present in the list:
+> `FW_VALIDATE_SECTIONS=multiplayer node tools/validate.mjs` reports
+> `multiplayer: passed 27 suites` in 39.3 s, naming all three. The registration is
+> load-bearing and not decorative: the runner at `tools/validate.mjs:2821-2829`
+> fails on `res.error || res.status !== 0`, and carries an explicit branch for the
+> null status of a suite that could not be spawned at all, so a deleted or renamed
+> suite file goes red instead of silently dropping out of the list. That last
+> property matters here more than the pass: a guard that vanishes quietly is the
+> same class of defect as the deleted caller this whole document is about.
+
 ```js
     // The effects side of the same seam. RCA-2026-08-17: a multiplayer refactor
     // deleted js/main.js's one `audio.handleEvent(ev)` and took the gulps, the
@@ -386,6 +402,18 @@ written, so the ladder does not spend rows on arms that cannot fire.
 **9.4 An inaudible sound still fatigues its sample. This one is live today, in
 single player, and it is a defect rather than a note.**
 
+> **RESOLVED 2026-08-17.** Fixed as specified: `_fatigueScale()` split into
+> `_fatiguePeek()` (reads, charges nothing) and `_fatigueDeposit(name, played)`
+> (charges, proportional to the gain that actually sounded), with `play()`'s
+> audibility floor sitting between them. A full-volume play still deposits
+> exactly 1, so the damping of a second and third tower is unchanged and this
+> stayed an ordering fix rather than a retune. Measured A/B on the scenario
+> below (six collapses at 145-158 m over 3 s, then a tower at 12 m, with the old
+> behaviour monkey-patched back in for the control arm): the near tower came
+> back **11.1 dB louder, a factor of 3.58**, and the energy on `crash-big` fell
+> from 5.479 to 1.001. Regression test in `js/audio/engine.test.mjs`, asserting
+> the NEXT play after a below-floor play is unscaled, exactly as required here.
+
 `AudioEngine._fatigueScale(name)` (`js/audio/engine.js:224-235`) computes the
 scale from the current energy at `:232` and then deposits at `:233`:
 
@@ -433,6 +461,22 @@ asserting only that the quiet one did not sound would pass against today's code.
 
 **9.5 The batch entry point can route every arm at once, and its docstring
 describes the bug as if it were the design.**
+
+> **RESOLVED 2026-08-17, by refusing batch-level `quiet` rather than deriving
+> it.** `handleEvents()` strips `quiet` and warns once. The reasoning: `quiet`
+> is a per-EVENT property, and a drained batch is precisely where that question
+> has more than one answer, mixing ownerless world events with hole-scoped ones
+> from several holes. The caller that knows ownership decides, and that is
+> `js/main.js`, the only place `sim.localHole` is in scope. Stripping rather
+> than throwing, because audio must never break a frame loop, and because the
+> resulting mistake is a rival event at full level (loud, noticed) instead of a
+> silenced city-wide event (subtle, not noticed). The docstring no longer
+> describes `quiet` as an eats-only flag. The per-case ladder that made `quiet`
+> real (a `RIVAL_RATIO x _att()` scale on all nine hole-scoped arms, rather than
+> a table of per-event constants) landed the same day; it is documented in
+> `.wiki/modules/audio.md` under "Who hears which event", and
+> `tools/sfx-event-guard.test.mjs` now gates it by executing every hole-scoped
+> arm both ways instead of grepping for the word `quiet`.
 
 `handleEvents(events, opts = {})` (`js/audio/game-audio.js:417-419`) forwards one
 `opts` object to every event in the batch. Today `js/main.js` drains its own

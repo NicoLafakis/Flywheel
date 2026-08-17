@@ -89,6 +89,20 @@ const FILE_EXT = {
 // districts over reads as a distant thud rather than a point-blank bang.
 const ATT_FULL = 25;
 const ATT_ZERO = 160;
+// How loud someone ELSE's event is, before distance. A rival's feedback has to
+// be legible as theirs without competing with your own, and 0.35 is where the
+// two already-shipped quiet levels sat (the eat gulp at 0.25/0.65 and the
+// fault-line quake at 0.35/1.0), so adopting it unifies them instead of
+// retuning them: the gulp moves 0.25 -> 0.2275, which is 0.8 dB and inaudible.
+//
+// This is a RATIO, never a level. It is always multiplied by `_att()` against
+// the rival's own hole position, because a flat scalar would make a rival
+// quaking 150 m away exactly as loud as one 10 m from you — which inverts the
+// goal, since the near rival is the one you need to hear and the far one is
+// pure mix tax. It is also what keeps N rivals from stacking: five of them only
+// stack at full ratio when all five are on top of you, which is precisely the
+// moment that information is worth the headroom.
+const RIVAL_RATIO = 0.35;
 // El-train bed level BEFORE distance scaling (0.5 constant read as plainly
 // LOUD — the rattle now also fades as the train circles away from the hole).
 const TRAIN_VOL = 0.3;
@@ -148,6 +162,10 @@ export class GameAudio {
     this._lx = 0; this._lz = 0; this._hasListener = false;
     // event-class throttles (seconds of AudioContext time)
     this._lastEat = -1;
+    // A rival's gulps run on their OWN throttle. One shared limiter would let a
+    // rival eating nearby swallow the local player's feedback 55 ms at a time —
+    // the rival would be eating your gulps, not merely making noise.
+    this._lastRivalEat = -1;
     this._lastScreech = -10;
     this._lastDerailCrash = -10;
     // Live collapses: impacts still pooling, plus the ones that have spoken and
@@ -255,23 +273,50 @@ export class GameAudio {
   _attD(d) { return Math.max(0, Math.min(1, (ATT_ZERO - d) / (ATT_ZERO - ATT_FULL))); }
   _att(x, z) { return this._hasListener ? this._attD(Math.hypot(x - this._lx, z - this._lz)) : 1; }
 
+  /** The level multiplier for one event: 1 if it is the local player's, and
+   * `RIVAL_RATIO x distance` if it belongs to someone else.
+   *
+   * The listener is the local hole, fed every frame by `updateListener()`, so
+   * `_att()` against the RIVAL's hole is exactly "how far away from me did this
+   * happen". Only hole-scoped events go through here. World-scoped ones (the
+   * tornado, the derailment, collapses, a power-up spawning) have no owner to be
+   * a rival of, and the two that care about position already attenuate
+   * themselves — running them through this as well would double-attenuate them.
+   *
+   * `ratio x att` falls under the engine's 0.02 audibility floor somewhere past
+   * ~145 m, and that is CORRECT, not a bug to tune out: a rival that far away
+   * should be gone rather than faint. Raising RIVAL_RATIO to lift them back over
+   * the floor would also raise every near rival, which is the mix this exists to
+   * protect. A hole with no coordinates degrades to the flat ratio rather than
+   * to silence. */
+  _rivalScale(ev, quiet) {
+    if (!quiet) return 1;
+    const h = ev && ev.hole;
+    return RIVAL_RATIO * (h && h.x != null ? this._att(h.x, h.z) : 1);
+  }
+
   // ---------------------------------------------------------------- UI
   uiTap() { this.engine.playRandom(['ui-tap', 'ui-tap-2'], { vol: 0.7 }); }
   uiBack() { this.engine.play('ui-back', { vol: 0.7 }); }
   uiConfirm() { this.engine.play('ui-confirm', { vol: 0.8 }); }
   countdownTick() { this.engine.play('combo-tick', { vol: 0.8, rate: 0.9 }); }
   countdownGo() { this.engine.play('ui-confirm', { vol: 1.0, rate: 1.2 }); }
-  playCoin(opts) {
-    this.engine.play('coin', opts || { vol: 0.75 });
+  // `opts || { vol }` rather than a default parameter was a trap: any caller
+  // passing a PARTIAL options object (a rate, or the rival `scale` below) took
+  // the truthy branch and silently lost the base level, playing at the engine's
+  // default of 1 instead. Real defaults keep the base and let one option be
+  // overridden on its own.
+  playCoin({ vol = 0.75, ...rest } = {}) {
+    this.engine.play('coin', { vol, ...rest });
   }
-  playPowerUpCollect(opts) {
-    this.engine.play('powerup-collect', opts || { vol: 0.9 });
+  playPowerUpCollect({ vol = 0.9, ...rest } = {}) {
+    this.engine.play('powerup-collect', { vol, ...rest });
   }
-  playPowerUpSpawn(opts) {
-    this.engine.play('powerup-spawn', opts || { vol: 0.85 });
+  playPowerUpSpawn({ vol = 0.85, ...rest } = {}) {
+    this.engine.play('powerup-spawn', { vol, ...rest });
   }
-  playChronoFreeze(opts) {
-    this.engine.play('powerup-chrono', opts || { vol: 0.95 });
+  playChronoFreeze({ vol = 0.95, ...rest } = {}) {
+    this.engine.play('powerup-chrono', { vol, ...rest });
   }
   playDragonballHit1(opts) {
     this.engine.play('ui-tap', opts || { vol: 0.8 });
@@ -315,8 +360,8 @@ export class GameAudio {
    * event feel like it happened to you, and spending them on someone else's
    * quake dips the local bed and score on a timer the player did not cause —
    * the same re-ducking the collapse pooling above exists to stop. */
-  playFaultLineQuake({ quiet = false } = {}) {
-    this.engine.play('earthquake', { vol: quiet ? 0.35 : 1.0 });
+  playFaultLineQuake({ quiet = false, scale = quiet ? RIVAL_RATIO : 1 } = {}) {
+    this.engine.play('earthquake', { vol: 1.0, scale });
     if (quiet) return;
     this.engine.duckAmbience(3.5, 0.2);
     this.music.duck(3.5, 0.3);
@@ -412,23 +457,36 @@ export class GameAudio {
   stopScene() { this._sceneWanted = null; this._stopScene(); }
 
   // ---------------------------------------------------------------- events
-  /** Feed a drained sim event batch. `opts` is forwarded verbatim to every
-   * `handleEvent` below.
+  /** Feed a drained sim event batch.
    *
-   * `opts.quiet` marks the event as SOMEONE ELSE'S: it should still be heard,
-   * because its consequences are audible either way, but it must not sit at the
-   * local player's level or spend the local player's ducks. Read it as "not
-   * mine", not as "an eat" — describing it as an eats-only flag is what kept
-   * the gap below invisible.
+   * **`quiet` is refused here, deliberately, and stripped if passed.** It is a
+   * per-EVENT property — "does this one belong to me" — and a drained batch is
+   * exactly the place that question has more than one answer: it mixes
+   * world-scoped events that have no owner at all (the tornado, the derailment,
+   * collapses) with hole-scoped ones belonging to several different holes. One
+   * flag over the whole batch cannot be right for all of them, and the way it
+   * would be wrong is the dangerous direction: `handleEvents(rivalEvents,
+   * { quiet: true })` reads as an obvious future call and would attenuate the
+   * tornado and the derailment for everybody, which is the same class of mistake
+   * as gating world events on hole ownership in `js/main.js`.
    *
-   * KNOWN GAP: only `case 'eat'` and `case 'quake'` actually read `quiet`. Every
-   * other case accepts it and plays at full level anyway, so passing it is not
-   * yet a guarantee. `tools/sfx-event-guard.test.mjs` prints the live ratio on
-   * each run rather than leaving it to be rediscovered; the per-case ladder that
-   * closes it is separate, approved work. */
+   * The caller that knows ownership decides. `js/main.js` drains its own batch
+   * and calls the singular `handleEvent` per event with its own three-way scope
+   * test, which is the only place `sim.localHole` is in scope. If a batch helper
+   * ever does need this, it must take the local hole and derive `quiet` per
+   * event from `ev.hole`, never accept it pre-decided for the whole array.
+   *
+   * Stripping rather than throwing: audio must never break a frame loop. The
+   * resulting mistake is a rival event at full level, which is loud and gets
+   * noticed, instead of a silent city-wide event, which does not. */
   handleEvents(events, opts = {}) {
+    if (opts && opts.quiet && !this._warnedBatchQuiet) {
+      this._warnedBatchQuiet = true;
+      console.warn('audio: handleEvents() ignores `quiet` — decide scope per event and call handleEvent()');
+    }
+    const { quiet: _ignored, ...perEvent } = opts || {};
     this.tick();   // an empty batch is still a frame: pooled collapses ripen
-    for (const ev of events) this.handleEvent(ev, opts);
+    for (const ev of events) this.handleEvent(ev, perEvent);
   }
 
   /** Per-frame pump for the collapse pool. Free to call with nothing pending,
@@ -500,19 +558,25 @@ export class GameAudio {
     const e = this.engine;
     const now = e.ctx ? e.ctx.currentTime : 0;
     this._tickCollapses(now);
+    // 1 for the local player, RIVAL_RATIO x distance for somebody else. Applied
+    // to every HOLE-SCOPED arm below; world-scoped arms (crash, derail, storm_*,
+    // powerup_spawn) deliberately ignore it, because an event with no owner
+    // cannot belong to a rival and the positional ones already attenuate.
+    const scale = this._rivalScale(ev, quiet);
     switch (ev.type) {
       case 'eat': {
-        if (now - this._lastEat < 0.055) return;   // a plowed row is one mouthful
-        this._lastEat = now;
+        const throttle = quiet ? '_lastRivalEat' : '_lastEat';
+        if (now - this[throttle] < 0.055) return;   // a plowed row is one mouthful
+        this[throttle] = now;
         const radius = ev.hole ? ev.hole.radius : undefined;
-        e.playRandom(EATS, { vol: quiet ? 0.25 : 0.65, rate: gulpRate(radius) });
+        e.playRandom(EATS, { vol: 0.65, scale, rate: gulpRate(radius) });
         break;
       }
       case 'coin':
-        this.playCoin();
+        this.playCoin({ scale });
         break;
       case 'powerup_collect':
-        this.playPowerUpCollect();
+        this.playPowerUpCollect({ scale });
         break;
       case 'powerup_spawn':
         this.playPowerUpSpawn();
@@ -520,7 +584,7 @@ export class GameAudio {
       case 'quake':
         // Threaded, not dropped: this arm used to call the no-argument form, so
         // `quiet` was accepted by handleEvent and silently discarded here.
-        this.playFaultLineQuake({ quiet });
+        this.playFaultLineQuake({ quiet, scale });
         break;
       case 'time_freeze_start':
         this.playChronoFreeze();
@@ -551,7 +615,7 @@ export class GameAudio {
         this.playMeteorImpact();
         break;
       case 'disaster_teleport':
-        this.playDisasterTeleport();
+        this.playDisasterTeleport({ scale });
         break;
       case 'siren':
       case 'police_siren':
@@ -560,11 +624,11 @@ export class GameAudio {
       case 'combo': {
         const lvl = ev.level || 1;
         if (lvl % 3 === 0) {
-          e.play('combo-alt', { vol: 0.75, rate: 1 + lvl * 0.05 });
+          e.play('combo-alt', { vol: 0.75, scale, rate: 1 + lvl * 0.05 });
         } else {
-          e.play('combo-tick', { vol: 0.75, rate: 1 + lvl * 0.08 });
+          e.play('combo-tick', { vol: 0.75, scale, rate: 1 + lvl * 0.08 });
         }
-        if (lvl >= 5) e.play('combo-big', { vol: 0.85, rate: 1 + (lvl - 5) * 0.04 });
+        if (lvl >= 5) e.play('combo-big', { vol: 0.85, scale, rate: 1 + (lvl - 5) * 0.04 });
         break;
       }
       case 'crash': {
@@ -584,20 +648,25 @@ export class GameAudio {
         break;
       }
       case 'growth':
-        e.play('milestone', { vol: 0.9, rate: 1.05 });
+        e.play('milestone', { vol: 0.9, scale, rate: 1.05 });
         break;
       case 'milestone':
         if (ev.tier === 'roar') {
-          e.play('milestone-roar', { vol: 1.0 });
-          e.duckAmbience(2.5, 0.35);
-          this.music.duck(2.5, 0.45);
+          e.play('milestone-roar', { vol: 1.0, scale });
+          // A rival's roar is heard but spends none of YOUR ducks: dipping the
+          // local bed and score on someone else's timer is the same re-ducking
+          // the collapse pooling exists to stop.
+          if (!quiet) {
+            e.duckAmbience(2.5, 0.35);
+            this.music.duck(2.5, 0.45);
+          }
         } else {
-          e.play('milestone', { vol: 0.85 });
+          e.play('milestone', { vol: 0.85, scale });
         }
         break;
       case 'goal':
-        e.play('goal', { vol: 1.0 });
-        this.music.duck(2.5, 0.35);
+        e.play('goal', { vol: 1.0, scale });
+        if (!quiet) this.music.duck(2.5, 0.35);
         break;
       case 'derail': {
         // THE derailment. Screech leads with people screaming, the crash lands a beat later, and

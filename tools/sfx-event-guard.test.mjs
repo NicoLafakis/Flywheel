@@ -210,16 +210,85 @@ const unvoiced = [...emitted].filter((t) => !voiced.has(t)).sort();
 if (deadArms.length) console.log(`  note: ${deadArms.length} handleEvent case(s) nothing emits: ${deadArms.join(', ')}`);
 if (unvoiced.length) console.log(`  note: ${unvoiced.length} emitted type(s) handleEvent has no case for: ${unvoiced.join(', ')}`);
 
-// The `quiet` option is destructured once and read per case. Any case that does
-// not read it silently ignores it, so a caller asking for a quiet rival event
-// gets full volume with no warning. Printed rather than asserted: closing it
-// needs a per-case level decision the owner has not been asked for.
-const caseBlocks = [...handleEventSrc.matchAll(/case '([a-z_]+)':([\s\S]*?)(?=\n\s{6}case '|\n\s{6}default:)/g)];
-const readsQuiet = caseBlocks.filter((m) => /\bquiet\b/.test(m[2])).map((m) => m[1]);
-console.log(`  note: 'quiet' is honoured by ${readsQuiet.length} of ${caseBlocks.length} handleEvent case(s): ${readsQuiet.join(', ') || '(none)'}`);
-if (readsQuiet.length < caseBlocks.length) {
-  console.log("  note: every other case accepts { quiet: true } and plays at full level anyway (RCA-2026-08-17 section 7.1, sibling finding)");
+// --- does `quiet` actually do anything, per case? --------------------------
+// EXECUTED, not grepped. This used to count cases whose source mentioned the
+// word `quiet`, which was a fair proxy while the only implementation was a
+// literal `quiet ? a : b` inside each arm. It stopped being one the moment the
+// rival ladder moved the mechanism to a `scale` computed once at the top of
+// handleEvent: the arms stopped naming `quiet` and the lexical count read 4 of
+// 22 while nine arms were honouring it correctly. A metric that measures the
+// old implementation rather than the property is worse than no metric, because
+// it prints a confident number that is wrong.
+//
+// So: derive the hole-scoped voiced set from the scan above, then actually run
+// each one through a real GameAudio twice, and compare what a player hears.
+// Deriving the list from `emissions` rather than hard-coding it is what stops
+// this drifting when a new hole-scoped event is added.
+const { GameAudio } = await import('../js/audio/game-audio.js');
+
+// Scope is a property of the EMISSION, not of the type, and at least one type is
+// emitted both ways: `powerup_spawn` carries no hole from the voxel sim or the
+// campaign's initial/intermittent spawns, but DOES carry one from the campaign's
+// two reward spawns (js/sim.js:437 `score_100k`, :442 `mult_500`). A type like
+// that is WORLD-scoped for audio, because the ownerless emissions are real and
+// have to reach everybody; treating it as hole-scoped because one emission
+// happens to name a hole would gate a city-wide sound on hole ownership, which
+// is the exact mistake the three-way guard in js/main.js exists to prevent.
+// Hole-scoped therefore means EVERY emission of that type carries a hole.
+const byType = new Map();
+for (const e of emissions) {
+  const cur = byType.get(e.type) || { all: true, any: false };
+  cur.all = cur.all && e.hasHole;
+  cur.any = cur.any || e.hasHole;
+  byType.set(e.type, cur);
 }
+const mixedScope = [...byType].filter(([, v]) => v.any && !v.all).map(([t]) => t).sort();
+if (mixedScope.length) {
+  console.log(`  note: emitted BOTH with and without a hole (treated as world-scoped): ${mixedScope.join(', ')}`);
+}
+const holeScopedVoiced = [...byType].filter(([t, v]) => v.all && voiced.has(t)).map(([t]) => t).sort();
+
+const SAMPLE = { x: 0, z: 0, radius: 2, slot: 3 };
+const evFor = (type) => ({
+  type, hole: SAMPLE, level: 2, value: 5, tier: 'roar', powerup: { type: 'quake' },
+});
+const levelsFor = (type, quiet) => {
+  const plays = [];
+  const stub = {
+    ctx: { currentTime: 0 },
+    play: (name, o = {}) => plays.push((o.vol ?? 1) * (o.scale ?? 1)),
+    playRandom: (names, o) => stub.play(names[0], o),
+    playCoin: (o) => stub.play('coin', o),
+    playPowerUpCollect: (o) => stub.play('powerup-collect', o),
+    playPowerUpSpawn: (o) => stub.play('powerup-spawn', o),
+    playDisasterTeleport: (o) => stub.play('disaster-teleport', o),
+    duckAmbience: () => {}, loop: () => null,
+  };
+  const g = new GameAudio({ musicDirector: { setMuted() {}, init() {}, request() {}, setVolume() {}, duck() {}, get volume() { return 1; } } });
+  g.engine = stub;
+  g.updateListener(0, 0, null);            // listener on the local hole
+  g.handleEvent(evFor(type), quiet ? { quiet: true } : undefined);
+  return plays;
+};
+
+const honoursQuiet = [];
+const ignoresQuiet = [];
+for (const type of holeScopedVoiced) {
+  const loud = levelsFor(type, false);
+  const soft = levelsFor(type, true);
+  if (!loud.length) continue;              // nothing sounded either way
+  const attenuated = soft.length === loud.length && soft.every((v, i) => v < loud[i] - 1e-9);
+  (attenuated ? honoursQuiet : ignoresQuiet).push(type);
+}
+console.log(`  note: 'quiet' measurably attenuates ${honoursQuiet.length} of ${holeScopedVoiced.length} hole-scoped voiced case(s): ${honoursQuiet.join(', ') || '(none)'}`);
+if (ignoresQuiet.length) {
+  console.log(`  note: still full level for a rival: ${ignoresQuiet.join(', ')} (RCA-2026-08-17 §9.5)`);
+}
+// Now that the ladder has landed this is a gate, not a note: a new hole-scoped
+// arm that forgets `scale` is a rival event playing at the local player's level.
+check(ignoresQuiet.length === 0,
+  `every hole-scoped voiced case must attenuate for a rival, but ${ignoresQuiet.join(', ')} `
+  + 'play(s) at full level — the arm is missing `scale` from _rivalScale()');
 
 // ---------------------------------------------------------------------------
 // 7. Scope bookkeeping, printed so the guard's own table stays honest.

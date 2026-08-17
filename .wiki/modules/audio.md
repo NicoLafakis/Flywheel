@@ -208,7 +208,30 @@ sound name with a ~4 s half-life; twenty impacts drove `crash-big` to roughly a
 tenth of its level within one collapse, so the tower that mattered arrived
 pre-fatigued and the tail was inaudible mush. A single play lands at full weight
 and still leaves fatigue doing its real job — damping a second and third tower
-felled in quick succession. No change was needed there.
+felled in quick succession.
+
+That was not the whole story, though, and the rest of it was a live defect until
+2026-08-17. **An inaudible sound still fatigued its sample.** `_fatigueScale()`
+returned the scale and deposited a flat `+= 1` in the same call, before `play()`
+applied its 0.02 audibility floor, so two things were wrong at once: a play
+dropped as inaudible had already been charged, and the charge ignored `vol`
+entirely, so a sound at 0.02 fatigued as hard as the same sound at 1.0. Collapse
+voices are distance-attenuated before they reach `play()`, so a demolition 150 m
+away arrived at nothing, got dropped, and still deposited a full unit on
+`crash-big` — and the tower coming down beside the player four seconds later was
+ducked by rubble they never heard. Pooling fixed how many times a building
+speaks; it never touched what an inaudible play costs, so the same
+"the tower that mattered arrived pre-fatigued" failure walked back in behind it.
+
+The fix is an ordering change, not a retune: `_fatiguePeek()` reads,
+`_fatigueDeposit(name, v)` charges, and the floor sits between them, charging
+only for a sound that actually sounds and only in proportion to the gain it
+sounded at. A full-volume play still deposits exactly 1, so the damping of a
+second and third tower is unchanged. Measured on the reported scenario (six
+collapses at 145-158 m over 3 s, then a tower at 12 m), the tower that mattered
+came back **11.1 dB louder, a factor of 3.58**. This also composes with the rival
+ladder above: a rival event scaled down by distance now costs proportionally
+less fatigue than your own, which is why the fatigue fix had to land first.
 
 `js/main.js` reads the same raw `crash` events for camera shake and is
 deliberately left per-fragment: a small additive nudge per piece reads as ground
@@ -232,6 +255,50 @@ business (`js/main.js:1390`):
 | **World** | `ev.hole == null` | everybody, full level | A tornado, a derailment, a collapse or a power-up spawning happened to the *city*. Nobody owns it, so ownership cannot gate it — and `isLocalHole` is false whenever there is no hole to own, which is why gating world events on it silences them outright. |
 | **Mine** | `ev.hole` is the local hole | me, full level | Ordinary hole-scoped feedback: gulps, my combo ladder, my SIZE stings. |
 | **A rival's** | `ev.hole` is someone else's | nothing, *except* `quake` | Their gulps and their combo are their business; mine would be unreadable under five other holes' worth of it. |
+
+**The rival level is a distance, not a constant.** A `quiet` event plays at
+`base x RIVAL_RATIO x _att(their hole)`, where `RIVAL_RATIO` is 0.35
+(`js/audio/game-audio.js`) and `_att` is the same listener model the collapses
+already use, measured from the local hole to the rival's. A flat scalar would
+make a rival quaking 150 m away exactly as loud as one 10 m from you, which
+inverts the goal: the near rival is the one you need to hear, the far one is
+pure mix tax. It also dissolves most of the N-rival stacking worry, since five
+rivals only stack at full ratio when all five are on top of you, which is the
+one moment that information is worth the headroom.
+
+`ratio x att` drops under the engine's 0.02 audibility floor somewhere past
+~145 m. **That is correct and deliberate**: a rival that far away should be
+gone, not faint. Do not raise `RIVAL_RATIO` to lift them back over the floor,
+because that raises every near rival too, which is the mix this protects.
+
+`quiet` also spends none of your ducks. The ambience and music dips are most of
+what makes an event feel like it happened to you, so a rival's roar, goal or
+quake is heard without dipping your bed or your score on someone else's timer.
+And a rival's gulps run on their own throttle (`_lastRivalEat`), because the
+0.055 s "a plowed row is one mouthful" limiter is per-`GameAudio`: one shared
+limiter would let a rival eating nearby swallow your own gulps.
+
+Nine hole-scoped arms carry the ladder: eat, coin, powerup_collect, combo,
+growth, milestone, goal, disaster_teleport, quake. World-scoped arms
+deliberately do not, and the two positional ones (crash, derail) already
+attenuate themselves, so running them through it as well would double-attenuate.
+`tools/sfx-event-guard.test.mjs` derives that list from the emitters and
+**executes** each arm both ways, so an arm added later that forgets `scale`
+fails the gate rather than shipping a rival event at your own level.
+
+One subtlety the guard surfaced: **scope is a property of the emission, not of
+the type.** `powerup_spawn` carries no hole from the voxel sim or from the
+campaign's initial and intermittent spawns, but does carry one from the
+campaign's two reward spawns (`js/sim.js:437` `score_100k`, `:442` `mult_500`).
+A type emitted both ways counts as world-scoped for audio, because the ownerless
+emissions are real and have to reach everybody.
+
+**Batch-level `quiet` is refused.** `handleEvents()` strips it and warns once.
+It is a per-event property, and a drained batch mixes ownerless world events
+with hole-scoped ones from several holes, so one flag over the array cannot be
+right; `handleEvents(rivalEvents, { quiet: true })` would have attenuated the
+tornado for everybody. The caller that knows ownership decides, which is
+`js/main.js`, the only place `sim.localHole` is in scope.
 
 `quake` is the one hole-scoped event that crosses the line, because its
 **consequences** do not respect the line: a fault-line quake topples buildings,

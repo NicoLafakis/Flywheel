@@ -76,9 +76,12 @@ export class AudioEngine {
       const v = parseFloat(localStorage.getItem(AMB_VOL_KEY));
       if (Number.isFinite(v)) this._ambVol = Math.min(1, Math.max(0, v));
     } catch { /* private mode */ }
-    // Listener fatigue: every play of a name deposits "energy" that decays
-    // over ~4 s; repeats land quieter the hotter the name is. Three minutes
-    // of continuous demolition stays audible without staying LOUD.
+    // Listener fatigue: every AUDIBLE play of a name deposits "energy" equal to
+    // the gain it actually sounded at, decaying over ~4 s; repeats land quieter
+    // the hotter the name is. Three minutes of continuous demolition stays
+    // audible without staying LOUD. A play dropped by the audibility floor
+    // deposits nothing, and a quiet play costs proportionally less than a loud
+    // one — see `_fatiguePeek` / `_fatigueDeposit` for why that ordering matters.
     this._fatigue = new Map();   // name -> { at: seconds, energy }
     // Audio variation stays presentation-only, but still uses the repository's
     // one seeded randomness source so no new Math.random() exception leaks in.
@@ -221,7 +224,18 @@ export class AudioEngine {
     return p;
   }
 
-  _fatigueScale(name) {
+  /** Read a name's current fatigue scale WITHOUT charging for it.
+   *
+   * Split from the deposit so `play()` can decide audibility before paying.
+   * This used to be one `_fatigueScale()` that returned the scale and deposited
+   * a flat `+= 1` in the same breath, which made two things wrong at once: a
+   * play dropped by the audibility floor below had already been charged, and the
+   * charge ignored `vol` entirely, so a sound at 0.02 fatigued its sample as
+   * hard as the same sound at 1.0. Collapse voices are distance-attenuated
+   * before they reach `play()`, so a demolition 150 m away arrived inaudible,
+   * got dropped, and still ducked the tower that came down beside the player
+   * four seconds later. See RCA-2026-08-17 §9.4. */
+  _fatiguePeek(name) {
     if (!this.ctx) return 1;
     const now = this.ctx.currentTime;
     let f = this._fatigue.get(name);
@@ -229,18 +243,37 @@ export class AudioEngine {
     // exponential decay, ~4 s half-life
     f.energy *= Math.pow(0.5, (now - f.at) / 4);
     f.at = now;
-    const scale = 1 / (1 + f.energy * 0.7);
-    f.energy += 1;
-    return scale;
+    return 1 / (1 + f.energy * 0.7);
   }
 
-  /** One-shot through the SFX bus. Fatigue-ducked per name. */
-  play(name, { vol = 1, rate = 1, delay = 0 } = {}) {
+  /** Charge a name for a play that actually sounded, proportional to the gain it
+   * sounded at. Call only after the audibility floor has been cleared, and only
+   * with the final post-fatigue gain: a whisper costs a whisper. A full-volume
+   * play still deposits exactly 1, so the real job of fatigue — damping the
+   * second and third tower — is unchanged by this. */
+  _fatigueDeposit(name, played) {
+    const f = this._fatigue.get(name);
+    if (f) f.energy += played;
+  }
+
+  /** One-shot through the SFX bus. Fatigue-ducked per name.
+   *
+   * `vol` is the sound's own base level; `scale` is a situational multiplier on
+   * top of it, kept separate so the two never have to be pre-multiplied at a
+   * call site and drift apart. Today its only user is the rival ladder in
+   * `GameAudio` (someone else's event, quieter with distance), and because the
+   * fatigue deposit below is taken from the FINAL gain, a scaled-down rival
+   * event also costs proportionally less fatigue than your own. */
+  play(name, { vol = 1, rate = 1, delay = 0, scale = 1 } = {}) {
     if (this._muted) return;
     const buf = this.buffers.get(name);
     if (!buf || !this.ctx || this.ctx.state !== 'running') return;
-    const v = vol * this._fatigueScale(name);
-    if (v < 0.02) return;   // fully fatigued — skip the node churn
+    // Peek, decide, then charge. The floor has to come between the read and the
+    // deposit: a play that never sounds must not fatigue the sample, because
+    // listener fatigue is what this models and nobody listened.
+    const v = vol * scale * this._fatiguePeek(name);
+    if (v < 0.02) return;   // inaudible — skip the node churn, and charge nothing
+    this._fatigueDeposit(name, v);
     try {
       const src = this.ctx.createBufferSource();
       src.buffer = buf;
@@ -258,8 +291,9 @@ export class AudioEngine {
   }
 
   /** Authentic bright metallic coin double-chime (B5 -> E6). Always audible and distinct. */
-  playCoin({ vol = 0.85 } = {}) {
+  playCoin({ vol = 0.85, scale = 1 } = {}) {
     if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    vol *= scale;   // the rival ladder; 1 for anything the local player did
     try {
       const now = this.ctx.currentTime;
       const osc1 = this.ctx.createOscillator();
@@ -294,8 +328,9 @@ export class AudioEngine {
   }
 
   /** Shimmering ascending arpeggio fanfare for power-up collections. */
-  playPowerUpCollect({ vol = 0.95 } = {}) {
+  playPowerUpCollect({ vol = 0.95, scale = 1 } = {}) {
     if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    vol *= scale;   // the rival ladder; 1 for anything the local player did
     try {
       const now = this.ctx.currentTime;
       const notes = [349.23, 440.00, 523.25, 659.25, 880.00, 1046.50]; // F4, A4, C5, E5, A5, C6
@@ -595,8 +630,9 @@ export class AudioEngine {
   }
 
   /** Dramatic warp whoosh + electric zap for disaster penalty teleportation */
-  playDisasterTeleport({ vol = 1.0 } = {}) {
+  playDisasterTeleport({ vol = 1.0, scale = 1 } = {}) {
     if (this._muted || !this.ctx || this.ctx.state !== 'running') return;
+    vol *= scale;   // the rival ladder; 1 for anything the local player did
     try {
       const now = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();

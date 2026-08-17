@@ -29,13 +29,18 @@ class SpyEngine {
     this.ducks = [];
     this.muted = false;
   }
-  play(name, { vol = 1, rate = 1, delay = 0 } = {}) { this.plays.push({ name, vol, rate, delay }); }
+  // `scale` is the rival ladder: recorded separately from `vol` so an assertion
+  // can tell "this arm applied the wrong ratio" from "this arm has the wrong
+  // base level". What a player hears is the product — see `eff()` below.
+  play(name, { vol = 1, rate = 1, delay = 0, scale = 1 } = {}) { this.plays.push({ name, vol, rate, delay, scale }); }
   // Deterministic pick: the variant chosen is irrelevant to every assertion
   // here, the fact that a debris/glass layer fired at all is not.
   playRandom(names, opts) { this.play(names[0], opts); }
   playCoin(opts) { this.play('coin', opts); }
   playPowerUpCollect(opts) { this.play('milestone', opts); }
   playPowerUpSpawn(opts) { this.play('coin', opts); }
+  playDisasterTeleport(opts) { this.play('disaster-teleport', opts); }
+  playTrainScream(opts) { this.play('train-scream', opts); }
   duckAmbience(sec, depth) { this.ducks.push({ sec, depth }); }
   loop() { return null; }
   count(name) { return this.plays.filter((p) => p.name === name).length; }
@@ -56,6 +61,10 @@ function makeGame() {
   g.engine = eng;   // swap AFTER construction: nothing has been played yet
   return { g, eng, music };
 }
+
+/** What a player actually hears from a recorded play: base level times the
+ * rival ladder. Assertions about loudness must use this, never `.vol` alone. */
+const effLevel = (p) => (p ? p.vol * (p.scale ?? 1) : null);
 
 let n = 0;
 const check = (cond, msg) => { n++; assert.ok(cond, msg); };
@@ -269,7 +278,7 @@ const eq = (a, b, msg) => { n++; assert.equal(a, b, msg); };
   const { g, eng, music } = makeGame();
   g.playFaultLineQuake();
   eq(eng.count('earthquake'), 1, 'the local quake plays');
-  eq(eng.find('earthquake').vol, 1.0, 'the local quake plays at full level');
+  eq(effLevel(eng.find('earthquake')), 1.0, 'the local quake plays at full level');
   eq(eng.ducks.length, 1, 'the local quake ducks the ambience bed');
   eq(music.ducks.length, 1, 'and ducks the music: it happened to YOU');
 }
@@ -277,7 +286,7 @@ const eq = (a, b, msg) => { n++; assert.equal(a, b, msg); };
   const { g, eng, music } = makeGame();
   g.playFaultLineQuake({ quiet: true });
   eq(eng.count('earthquake'), 1, "a rival's quake is still heard, not muted");
-  eq(eng.find('earthquake').vol, 0.35, "a rival's quake is attenuated, not full level");
+  eq(effLevel(eng.find('earthquake')), 0.35, "a rival's quake is attenuated, not full level");
   eq(eng.ducks.length, 0, "a rival's quake must NOT duck the local ambience bed");
   eq(music.ducks.length, 0, "a rival's quake must NOT duck the local player's music");
 }
@@ -285,7 +294,7 @@ const eq = (a, b, msg) => { n++; assert.equal(a, b, msg); };
   // The same, threaded through handleEvent, which is how main.js reaches it.
   const { g, eng, music } = makeGame();
   g.handleEvent({ type: 'quake', hole: {} }, { quiet: true });
-  eq(eng.find('earthquake') && eng.find('earthquake').vol, 0.35,
+  eq(eng.find('earthquake') && effLevel(eng.find('earthquake')), 0.35,
     "handleEvent must thread `quiet` to the quake, not accept it and drop it");
   eq(eng.ducks.length, 0, 'and a quiet quake ducks nothing through handleEvent either');
   eq(music.ducks.length, 0, 'including the music');
@@ -293,8 +302,160 @@ const eq = (a, b, msg) => { n++; assert.equal(a, b, msg); };
 {
   const { g, eng } = makeGame();
   g.handleEvent({ type: 'quake', hole: {} });
-  eq(eng.find('earthquake') && eng.find('earthquake').vol, 1.0,
+  eq(eng.find('earthquake') && effLevel(eng.find('earthquake')), 1.0,
     'and an unqualified quake is still the full local one');
+}
+
+// ------------------------------------------- the rival ladder is a DISTANCE
+// `quiet` marks an event as someone else's. The level it plays at is not a flat
+// constant: it is `base * RIVAL_RATIO * _att(their hole)`, because a flat
+// scalar makes a rival quaking 150 m away exactly as loud as one 10 m from your
+// hole, which inverts the point. The near rival is the one you need to hear;
+// the far one is pure mix tax. It also dissolves most of the N-rival stacking
+// problem, since five rivals only stack at full ratio when all five are on top
+// of you, which is the one moment that information is worth the headroom.
+//
+// RIVAL_RATIO is written out here rather than imported: a test that imports the
+// constant it is checking asserts nothing.
+const RATIO = 0.35;
+const ATT_FULL = 25, ATT_ZERO = 160;
+const att = (d) => Math.max(0, Math.min(1, (ATT_ZERO - d) / (ATT_ZERO - ATT_FULL)));
+const eff = (p) => (p ? p.vol * (p.scale ?? 1) : null);
+const near = (a, b, msg) => { n++; assert.ok(Math.abs(a - b) < 1e-9, `${msg} (got ${a}, want ${b})`); };
+
+// (h) Distance, not a constant.
+{
+  const { g, eng } = makeGame();
+  g.updateListener(0, 0, null);
+
+  // Right on top of you: the loudest a rival ever gets, still well under yours.
+  g.handleEvent({ type: 'eat', hole: { x: 0, z: 0, radius: 2 } }, { quiet: true });
+  eq(eng.plays.length, 1, "a rival eating next to you is heard");
+  near(eff(eng.plays[0]), 0.65 * RATIO, "...at RIVAL_RATIO of the local gulp");
+
+  // Half a city away: quieter by the same model the collapses already use.
+  const { g: g2, eng: e2 } = makeGame();
+  g2.updateListener(0, 0, null);
+  g2.handleEvent({ type: 'eat', hole: { x: 150, z: 0, radius: 2 } }, { quiet: true });
+  near(eff(e2.plays[0]), 0.65 * RATIO * att(150), 'a rival 150 m away is attenuated too');
+  check(eff(e2.plays[0]) < 0.02,
+    'and lands under the engine audibility floor, which is CORRECT: a rival that '
+    + 'far should be gone, not faint. Do not "fix" this by raising the ratio.');
+
+  // Past ATT_ZERO there is nothing left, exactly as for a distant collapse.
+  const { g: g3, eng: e3 } = makeGame();
+  g3.updateListener(0, 0, null);
+  g3.handleEvent({ type: 'eat', hole: { x: 200, z: 0, radius: 2 } }, { quiet: true });
+  near(eff(e3.plays[0]), 0, 'a rival past ATT_ZERO is silent, not faint');
+}
+
+// (i) The local player is untouched by any of it.
+{
+  const { g, eng } = makeGame();
+  g.updateListener(0, 0, null);
+  g.handleEvent({ type: 'eat', hole: { x: 90, z: 0, radius: 2 } });
+  near(eff(eng.plays[0]), 0.65,
+    'your own gulp is never distance-scaled: the listener IS your hole');
+}
+
+// (j) Every hole-scoped arm carries the ladder, not just the two that already
+// read `quiet`. This is the defect: 2 of 22 cases honoured it and the rest
+// accepted the flag and played at full level anyway.
+{
+  const HOLE = { x: 0, z: 0, radius: 2, slot: 3 };
+  const cases = [
+    ['coin', { type: 'coin', hole: HOLE, value: 5 }],
+    ['powerup_collect', { type: 'powerup_collect', hole: HOLE, powerup: { type: 'quake' } }],
+    ['combo', { type: 'combo', hole: HOLE, level: 2 }],
+    ['growth', { type: 'growth', hole: HOLE }],
+    ['milestone', { type: 'milestone', hole: HOLE }],
+    ['goal', { type: 'goal', hole: HOLE }],
+    ['disaster_teleport', { type: 'disaster_teleport', hole: HOLE }],
+    ['quake', { type: 'quake', hole: HOLE }],
+  ];
+  for (const [label, ev] of cases) {
+    const { g: gl, eng: el } = makeGame();
+    gl.updateListener(0, 0, null);
+    gl.handleEvent(ev);
+    const loud = el.plays.map(eff);
+
+    const { g: gq, eng: eq2 } = makeGame();
+    gq.updateListener(0, 0, null);
+    gq.handleEvent(ev, { quiet: true });
+    const soft = eq2.plays.map(eff);
+
+    eq(soft.length, loud.length, `${label}: a rival's event still sounds, it is not dropped`);
+    check(loud.length > 0, `${label}: precondition, the local event sounds at all`);
+    for (let i = 0; i < loud.length; i++) {
+      near(soft[i], loud[i] * RATIO, `${label}: layer ${i} plays at RIVAL_RATIO of local`);
+    }
+  }
+}
+
+// (k) A rival never spends YOUR ducks. The ambience and music dips are most of
+// what makes an event feel like it happened to you; spending them on someone
+// else's timer dips your own bed and score for something you did not do.
+{
+  const { g, eng, music } = makeGame();
+  g.updateListener(0, 0, null);
+  g.handleEvent({ type: 'milestone', hole: { x: 0, z: 0 }, tier: 'roar' }, { quiet: true });
+  eq(eng.ducks.length, 0, "a rival's roar does not duck your ambience");
+  eq(music.ducks.length, 0, "a rival's roar does not duck your music");
+
+  const { g: g2, music: m2 } = makeGame();
+  g2.updateListener(0, 0, null);
+  g2.handleEvent({ type: 'goal', hole: { x: 0, z: 0 } }, { quiet: true });
+  eq(m2.ducks.length, 0, "a rival's goal does not duck your music");
+
+  // ...and the local versions still do, so this is a scope fix, not a removal.
+  const { g: g3, eng: e3, music: m3 } = makeGame();
+  g3.updateListener(0, 0, null);
+  g3.handleEvent({ type: 'milestone', hole: { x: 0, z: 0 }, tier: 'roar' });
+  check(e3.ducks.length > 0 && m3.ducks.length > 0, 'your own roar still ducks both');
+}
+
+// (l) A rival cannot starve your gulps through the shared eat throttle. The
+// 0.055 s "a plowed row is one mouthful" limiter is per-GameAudio, so if a
+// rival's eat consumed it, your next gulp inside that window would be dropped —
+// the rival would be eating your feedback, not just making noise.
+{
+  const { g, eng } = makeGame();
+  g.updateListener(0, 0, null);
+  g.handleEvent({ type: 'eat', hole: { x: 0, z: 0, radius: 2, slot: 3 } }, { quiet: true });
+  eng.ctx.currentTime = 0.01;   // well inside the 0.055 s window
+  g.handleEvent({ type: 'eat', hole: { x: 0, z: 0, radius: 2 } });
+  eq(eng.plays.length, 2, "a rival's gulp must not consume the local player's eat throttle");
+  near(eff(eng.plays[1]), 0.65, 'and the local gulp that follows it is full strength');
+}
+
+// (m) The batch entry point REFUSES `quiet`. One flag cannot be right for a
+// drained batch: it mixes ownerless world events with hole-scoped ones from
+// several holes, and the obvious future call `handleEvents(rivalEvents,
+// { quiet: true })` would attenuate the tornado and the derailment for
+// everybody. The caller that knows ownership decides, per event.
+{
+  const { g, eng } = makeGame();
+  g.updateListener(0, 0, null);
+  const warns = [];
+  const realWarn = console.warn;
+  console.warn = (m) => warns.push(m);
+  // Past the derail screech's 2 s re-trigger guard so the world event really fires.
+  eng.ctx.currentTime = 5;
+  try {
+    g.handleEvents([
+      { type: 'eat', hole: { x: 0, z: 0, radius: 2, slot: 3 } },
+      { type: 'derail', x: 0, z: 0 },
+    ], { quiet: true });
+  } finally { console.warn = realWarn; }
+
+  near(effLevel(eng.plays.find((p) => p.name === 'eat-1')), 0.65,
+    'handleEvents must NOT attenuate through a batch-level quiet');
+  const screech = eng.plays.find((p) => p.name === 'derail-screech');
+  check(screech, 'precondition: the world event in the batch actually sounded');
+  near(effLevel(screech), 1.0,
+    'and a world event in that batch is certainly not attenuated for everybody');
+  eq(warns.length, 1, 'the refusal is announced once, not silently swallowed');
+  check(/handleEvents\(\) ignores `quiet`/.test(warns[0] || ''), 'and it says what to do instead');
 }
 
 console.log(`PASS game audio: ${n} assertions`);
