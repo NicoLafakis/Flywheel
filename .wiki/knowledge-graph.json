@@ -1,22 +1,30 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-17T14:25:40+00:00",
+    "generatedAt": "2026-08-17T15:16:50+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
-      "files": 140,
+      "files": 142,
       "symbols": 6,
       "edges": 1,
       "modules": 4,
-      "reusedFromCache": 131
+      "reusedFromCache": 123
     }
   },
   "files": {
     "api/_lib.mjs": {
       "lang": "javascript",
-      "hash": "55bef29baa2a328ca18a7a732b29a02159d14fd7e262c2537cbc0262ea722d6e",
-      "loc": 225,
+      "hash": "3740ae0eeae43feb0965d8fd896d8a0353f9a7aac24f7445aef8f8519f604357",
+      "loc": 229,
+      "module": "api",
+      "symbols": [],
+      "imports": []
+    },
+    "api/_names.mjs": {
+      "lang": "javascript",
+      "hash": "660b19b05bc796898e486353e99f4931970f84d51d806c309da45eb567115cc3",
+      "loc": 151,
       "module": "api",
       "symbols": [],
       "imports": []
@@ -39,7 +47,7 @@
     },
     "api/auth/register.mjs": {
       "lang": "javascript",
-      "hash": "a60880d4a6267822d11e6dbac6f258f06e6101e6beac4af1f4be7ad0c9e6c6b3",
+      "hash": "21321eade7bc7ca32ccd4bc78072457994517cab0080573f461bfac78b09e606",
       "loc": 102,
       "module": "api",
       "symbols": [],
@@ -55,16 +63,16 @@
     },
     "api/name/claim.mjs": {
       "lang": "javascript",
-      "hash": "fea3a7c2ba4c1279d44b5ac9a0c865814daa9e776ee6d8e857f0541b174d8ae0",
-      "loc": 60,
+      "hash": "8ef79c05edd56f2dbd8b0255714f2c93cc53196e1a4cccf5478d694759b05287",
+      "loc": 49,
       "module": "api",
       "symbols": [],
       "imports": []
     },
     "api/name/rename.mjs": {
       "lang": "javascript",
-      "hash": "210a6e269bff42204a5821716817357b5ed35478a2c21491c3e18b016049b381",
-      "loc": 56,
+      "hash": "5b7102693ff3d82e2519b1e5c7f18cc11a17144375c23459bd56487be40d5911",
+      "loc": 49,
       "module": "api",
       "symbols": [],
       "imports": []
@@ -111,8 +119,8 @@
     },
     "api/run/start.mjs": {
       "lang": "javascript",
-      "hash": "2293473c6c03f8a20b46a057435182f524313c6df15189cc778129a4255d1499",
-      "loc": 57,
+      "hash": "3edccdc383d91ed677ad020af86eb1ac003242eb4de5cead2280375369a8323b",
+      "loc": 83,
       "module": "api",
       "symbols": [],
       "imports": []
@@ -127,8 +135,8 @@
     },
     "api/run/submit.mjs": {
       "lang": "javascript",
-      "hash": "a24e30b14923c62e6719b4275c6170dbd7f6576e2abc9cc23c1cc7804b42402b",
-      "loc": 109,
+      "hash": "a148d5af05b1b4231b4a07fedc6a541f4133b4f3c61699149f619954b9c2438e",
+      "loc": 144,
       "module": "api",
       "symbols": [],
       "imports": []
@@ -207,8 +215,8 @@
     },
     "js/board/names.js": {
       "lang": "javascript",
-      "hash": "e7becf9ad371df06ab9b8ab1f4f8cce901af8da7541d03cc84f056669475a57a",
-      "loc": 133,
+      "hash": "1ef82272a63f6db8274c479d53b6498465f21f8dd29eb4bd722d42421b977219",
+      "loc": 164,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -223,16 +231,16 @@
     },
     "js/board/player.js": {
       "lang": "javascript",
-      "hash": "730734c68f51b232bdfe5564dab69ffe5dffbebbadf8c900e8741c3df5e9a82e",
-      "loc": 156,
+      "hash": "26592703a3b0592b79989341c12ecccc000409e6fe5a51dc27baca95df4d6729",
+      "loc": 147,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/board/read.js": {
       "lang": "javascript",
-      "hash": "4223e99fa4e25f752498cca51bb3ef3f1a39351a8ff6b9c34ad1424276c39848",
-      "loc": 38,
+      "hash": "7b09f5a5638acdcae1ee340edfb3ed9be090465ea69e613f7b56fa9110d28a82",
+      "loc": 78,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -311,8 +319,8 @@
     },
     "js/main.js": {
       "lang": "javascript",
-      "hash": "7463fb4afa83df5e0ec841f3f56c0479d8f106864703ba4547c889d452a3f4cd",
-      "loc": 1920,
+      "hash": "9e3b32eaffee064b216ad9cd9f7459809fa2ebacf76f45e99b973110ee642928",
+      "loc": 1924,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -439,8 +447,8 @@
     },
     "js/save.js": {
       "lang": "javascript",
-      "hash": "9add9184d149636e934cb1e115799d46b6494a325533e6b6232164b8ed33e35c",
-      "loc": 573,
+      "hash": "20e6f6de03ead00eca4945e5594a7bf7c7e87a483dd0769d589ad93b912dd947",
+      "loc": 675,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -479,8 +487,8 @@
     },
     "js/ui/boards.js": {
       "lang": "javascript",
-      "hash": "ad8010877c5a11e4154bb19bb7315dda0524612b73cf8413b5a584125e5ad413",
-      "loc": 619,
+      "hash": "bebc000e14b55df8e31f7f401d6754adb7a049ebdb6a20744d944f0dced73474",
+      "loc": 799,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -562,8 +570,8 @@
     },
     "js/ui/screens.js": {
       "lang": "javascript",
-      "hash": "e6cfeb454ca00c55738ff243e436cf8cd50b3375ddfff5d093d046a11eb337d1",
-      "loc": 1839,
+      "hash": "a7a7f8dd8e7aac37be669dd11d3211553b22f355b6935628b1161294e5ebf83a",
+      "loc": 1848,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -746,8 +754,8 @@
     },
     "tools/api-auth.test.mjs": {
       "lang": "javascript",
-      "hash": "1f6cac2ea4b24c55280da7a5b74719a23a0e8bc5b72c0a1d4a8ed2e55deb4f11",
-      "loc": 478,
+      "hash": "08d091850188898689386f4d7b5a9f7f2f5f1b91d5055e44b5fea78f33b9f24b",
+      "loc": 721,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -986,8 +994,8 @@
     },
     "tools/multiplayer-fixes.test.mjs": {
       "lang": "javascript",
-      "hash": "9b01c6f1afa69cacb44afe437fcc3d5daee2bc19fb75b75e4219621d50820d87",
-      "loc": 551,
+      "hash": "f5623e0ecf75d88bb8ab3ab25bbc166df5e4fa6b7ec546ccfe74a569ecbe5f8c",
+      "loc": 557,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1066,8 +1074,8 @@
     },
     "tools/names.test.mjs": {
       "lang": "javascript",
-      "hash": "fa03214346ef98131304f89774bb91ca75ab4bec95d9ef31c9a5b43989e9726e",
-      "loc": 260,
+      "hash": "aac52d7478bdde3a1e080ac8414b692488787fa4204baa02087efb07ad79710a",
+      "loc": 365,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1128,6 +1136,14 @@
       "symbols": [],
       "imports": []
     },
+    "tools/records-and-names.test.mjs": {
+      "lang": "javascript",
+      "hash": "62e8d754dad08e91cba4b9988a1fca2a69a0088d356fe9a7b0c6a15128b8cdd1",
+      "loc": 326,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/shimmer.mjs": {
       "lang": "javascript",
       "hash": "55ae44931f4c4653bd16eee8bce26df3bdc7b8ba88539899523958347b45abc7",
@@ -1170,8 +1186,8 @@
     },
     "tools/validate.mjs": {
       "lang": "javascript",
-      "hash": "9dd1764c11f64159c2c2f87b3504eb90a5ff54dbf230ed170031df589e7b55b7",
-      "loc": 2823,
+      "hash": "890c766b5fc81a1e9f7075eb6240b2b90fe80fff47aec58bbab8a6979ddb80d3",
+      "loc": 2831,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1193,6 +1209,7 @@
     "api": {
       "files": [
         "api/_lib.mjs",
+        "api/_names.mjs",
         "api/_verify.mjs",
         "api/auth/login.mjs",
         "api/auth/register.mjs",
@@ -1333,6 +1350,7 @@
         "tools/probe-aniso.mjs",
         "tools/probe-buildcost2.mjs",
         "tools/pw/test.mjs",
+        "tools/records-and-names.test.mjs",
         "tools/shimmer.mjs",
         "tools/skinsheet.mjs",
         "tools/test-live-profile.mjs",
