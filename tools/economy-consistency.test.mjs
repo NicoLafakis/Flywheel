@@ -51,6 +51,7 @@ import { Sim } from '../js/sim.js';
 import { getLevel } from '../js/levels.js';
 import { isEdible } from '../js/tiers.js';
 import { MAX_UPGRADE_RANK, upgradeCost, upgradeMultiplier, SHOP_CATEGORIES, getShopItemsByCategory } from '../js/upgrades.js';
+import { isSkinAvailable } from '../js/skinapproval.js';
 
 console.log('Testing economy consistency (T-701 coin ladder, T-702 growth upgrade)...');
 
@@ -373,6 +374,10 @@ console.log('\n--- T-704: the next-unlock teaser only advertises what the shop s
         price: price ? Number(price[1]) : null,
         css: css ? css[1] : undefined,
         family: family ? family[1] : undefined,
+        // A partner row only ships if we hold the agency's approval to show its
+        // logo (isSkinAvailable in js/skinapproval.js). Carry the flag or every
+        // partner parses as unapproved and the partners shelf reads as empty.
+        approved: /\bapproved:\s*true\b/.test(chunk) || undefined,
       };
     });
   };
@@ -410,7 +415,15 @@ console.log('\n--- T-704: the next-unlock teaser only advertises what the shop s
     assert.ok(rows.length > 0, `shop category '${cat.id}' rendered nothing — the category source did not resolve`);
     for (const r of rows) shopIds.add(r.id);
   }
-  assert.ok(shopIds.size >= SKINS.length + INDICATOR_SKINS.length, `the shop only renders ${shopIds.size} rows against ${SKINS.length + INDICATOR_SKINS.length} catalogued cosmetics`);
+  // Against the AVAILABLE catalog, not the raw one. Seven partner rows are
+  // withdrawn but deliberately still exported (the art and its trace are worth
+  // keeping), so "every catalogued row is reachable" is no longer the rule —
+  // "every row we are allowed to sell is reachable" is.
+  const sellable = SKINS.filter(isSkinAvailable);
+  assert.ok(shopIds.size >= sellable.length + INDICATOR_SKINS.length, `the shop only renders ${shopIds.size} rows against ${sellable.length + INDICATOR_SKINS.length} sellable cosmetics`);
+  for (const row of SKINS.filter((s) => !isSkinAvailable(s))) {
+    assert.ok(!shopIds.has(row.id), `withdrawn partner skin '${row.id}' is still rendered by the shop`);
+  }
   for (const id of LEGACY_IDS) {
     assert.ok(!shopIds.has(id), `'${id}' is now rendered by the shop — this suite's premise is stale and needs rewriting`);
   }
@@ -489,8 +502,17 @@ console.log('\n--- T-704: the next-unlock teaser only advertises what the shop s
   // Byte-identical for every row the shop CAN sell: the fix must subtract the
   // unbuyable rows and change nothing else — not an id, not a price, not the
   // kind label the card prints, not the order ties resolve in.
+  //
+  // TWO deliberate subtractions now, not one. The legacy `clock5`/`growth5` rows
+  // were the original defect; the seven withdrawn partner skins are the second,
+  // and they leave the teaser by the same route (the teaser reads the shop
+  // through `getShopItemsByCategory`, and the shop no longer offers them). Both
+  // are named here rather than folded into a looser assertion, so a THIRD row
+  // going quiet still fails.
+  const withdrawnIds = new Set(SKINS.filter((s) => !isSkinAvailable(s)).map((s) => s.id));
+  assert.equal(withdrawnIds.size, 7, `expected 7 withdrawn partner skins, found ${withdrawnIds.size}`);
   assert.deepEqual(
-    broke, legacySweep.filter((r) => !LEGACY_IDS.has(r.id)),
+    broke, legacySweep.filter((r) => !LEGACY_IDS.has(r.id) && !withdrawnIds.has(r.id)),
     'the teaser changed what it says about a row the shop really does sell',
   );
 

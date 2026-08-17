@@ -53,6 +53,10 @@
 // that looked different every run would not be a design.
 
 import * as THREE from 'three';
+// Imported AND re-exported below, for the reason js/ui/screens.js records at its
+// own SKINS import: a bare `export ... from` creates no local binding, and
+// skinRowFor()/indicatorRowFor() need one.
+import { isSkinAvailable, WITHDRAWN_PARTNER_SKIN_IDS, resolveAvailableRow } from './skinapproval.js';
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const smooth = (v) => { const d = clamp01(v); return d * d * (3 - 2 * d); };
@@ -608,6 +612,11 @@ export const SKINS = [
   // collision with the first 17 would silently swap a player's skin.
   { id: 'partner-supered', name: 'Supered', price: 750, color: 0xe5097f, accent: 0x252a4a,
     css: 'linear-gradient(90deg,#e5097f 50%,#252a4a 50%)', family: 'partner',
+    // The ONLY row carrying it: see isSkinAvailable() in js/skinapproval.js.
+    // Supered's permission to be featured is confirmed; the other seven rows
+    // stay in the catalog (the art, the trace and the reasoning are worth
+    // keeping) but ship unavailable until the same is true of them.
+    approved: true,
     // First row on the raster path. `logoTex` wins over `logo` when both are
     // present, so moving a partner across is a one-line row edit and the seven
     // still on `logo` are untouched by it.
@@ -688,6 +697,13 @@ export const SKINS = [
 
 export const SKIN_BY_ID = new Map(SKINS.map((s) => [s.id, s]));
 
+// The rule about who may be OFFERED, re-exported so the catalog is where you
+// find it. It is defined in js/skinapproval.js because this file imports
+// three.js and therefore cannot be imported by the validator, by tools/*.mjs,
+// or by js/upgrades.js on the pure side of the sim boundary. One predicate, one
+// definition, four consumers.
+export { isSkinAvailable, WITHDRAWN_PARTNER_SKIN_IDS };
+
 export const INDICATOR_SKINS = [
   { id: 'ind-default', name: 'Baseline Chevron', price: 0, color: 0x38bdf8, css: '#38bdf8',
     blurb: 'The classic sharp chevron pointer. Precise, high-contrast, dependable.' },
@@ -704,6 +720,29 @@ export const INDICATOR_SKINS = [
 ];
 
 export const INDICATOR_BY_ID = new Map(INDICATOR_SKINS.map((i) => [i.id, i]));
+
+// THE ONLY WAY an id becomes a row to render. Both of these used to be written
+// inline at their call sites as `BY_ID.get(id) || BY_ID.get(default)`, which
+// falls back for an id that does not EXIST — and a withdrawn partner row still
+// exists. The id is not always ours, either: it arrives over the multiplayer
+// wire from a peer (js/multiplayer/roster.js), so the renderer is the last place
+// that can refuse a mark we have no permission to show, and the local save
+// migration cannot help there at all.
+//
+// Both fallbacks are FREE rows, which is what makes them safe as a fallback: no
+// approval question can ever attach to them, so the resolution cannot recurse.
+export function skinRowFor(id) {
+  return resolveAvailableRow(SKIN_BY_ID, id, 'classic');
+}
+
+// Same rule, so a withdrawal on the indicator shelf is covered the day it
+// happens rather than needing this discovered a second time. Nothing is gated
+// here today — `ind-supered` is the only branded pointer and Supered is
+// approved — and that is exactly why the rule has to be shared rather than
+// re-derived when it is finally needed.
+export function indicatorRowFor(id) {
+  return resolveAvailableRow(INDICATOR_BY_ID, id, 'ind-default');
+}
 
 // ------------------------------------------------------------------- builders
 //
@@ -2157,7 +2196,9 @@ function buildPartner(row) {
 // stay where it was laid.
 
 export function makeSkin(id) {
-  const row = SKIN_BY_ID.get(id) || SKIN_BY_ID.get('classic');
+  // Availability, not existence — see skinRowFor(). `id` reaches here from a
+  // peer's roster entry as well as from the local save.
+  const row = skinRowFor(id);
   const impl = row.build(row);
   const local = new THREE.Group();
   for (const p of impl.parts) local.add(p);

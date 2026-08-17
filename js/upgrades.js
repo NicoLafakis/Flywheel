@@ -2,6 +2,11 @@
 //
 // Pure data & calculations module. Follows the pure-sim boundary (no DOM/three.js).
 
+// js/skinapproval.js is import-free by design, so taking the availability rule
+// from there rather than from js/skins.js (which imports three.js) is what keeps
+// this file importable by the Node validator.
+import { isSkinAvailable } from './skinapproval.js';
+
 export const MAX_UPGRADE_RANK = 20;
 export const UPGRADE_STEP_PERCENT = 5; // +5% per rank
 
@@ -149,7 +154,10 @@ export function getShopItemsByCategory(categoryId, { save = null, skins = [], in
       }));
 
     case 'partners':
-      return skins.filter((s) => s.family === 'partner').map((s) => ({
+      // The only shelf that asks permission as well as family: a partner row is
+      // a real agency's real logo, and isSkinAvailable() is the single place
+      // that decides whether we hold their approval to show it.
+      return skins.filter((s) => s.family === 'partner' && isSkinAvailable(s)).map((s) => ({
         ...s,
         category: 'partners',
         isEquipped: save?.equippedSkin === s.id,

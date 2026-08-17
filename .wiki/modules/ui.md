@@ -201,6 +201,16 @@ tying everything together.
   `INDICATOR_SKINS` (6 rows) is a separate shelf for the nav arrow's shape,
   read by `voxelworld.js`'s `indicatorShape()`/`INDICATOR_BY_ID`. Geometry/
   animation for both lives in `skins.js`; see `.wiki/modules/render.md`.
+- **The shelf is the registry FILTERED, as of 2026-08-17.** Every shop surface
+  now renders `SKINS.filter(isSkinAvailable)` (`js/skinapproval.js`): the
+  `partners` tab, all four collection counters, and `nextUnlock()`'s teaser.
+  The counters mattered as much as the tab — a hidden-but-counted row makes
+  the collection permanently uncompletable, which reads to a player as a bug
+  in their save rather than as a business decision about a logo. The guard is
+  enforced twice, because a shelf filter is a display and the shop is not the
+  only caller: `main.js`'s `buy()` and `equip()` both refuse an unavailable id
+  outright. See `.wiki/modules/campaign.md` for the v24 refund of the seven
+  rows that were purchasable before the gate existed.
 - Pause-screen buttons that discard the run (RESTART, CITIES) use a two-step
   inline confirm (`armable` in `showPause`): first click arms red, second
   acts, any other click disarms. No modals — the pause style is dialog-free.

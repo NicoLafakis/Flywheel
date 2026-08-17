@@ -13,6 +13,7 @@ import { ChaseCamera } from './camera.js';
 import { Controls } from './controls.js';
 import { HUD, ANN } from './ui/hud.js';
 import { Screens, SKINS, INDICATOR_SKINS } from './ui/screens.js';
+import { isSkinAvailable } from './skinapproval.js';
 import { mountReadyGate } from './ui/ready.js';
 import { startMenuScene, stopMenuScene, tickMenuScene, resizeMenuScene } from './ui/menuscene.js';
 import { TIERS, defaultTierForDevice } from './quality.js';
@@ -209,6 +210,19 @@ function startQuality() {
   applyQuality();
 }
 
+// The server-side check we do not have. `buy` and `equip` are the only two ways
+// an id ever reaches the save, and both are reachable without going through a
+// freshly rendered shop — a screen built before a withdrawal, a click already in
+// flight, or the console — so neither may trust that the UI offered the id.
+//
+// An id we do not recognise passes: `ownedItems` also holds indicator ids and
+// the legacy `clock5`/`growth5` items, and none of those are skins. This
+// answers only the one question isSkinAvailable() owns, for the rows it owns.
+function isPurchasableSkin(id) {
+  const row = SKINS.find((s) => s.id === id);
+  return !row || isSkinAvailable(row);
+}
+
 function computeShopBonus() {
   shopBonus = {
     clock: save.ownedItems.includes('clock5') ? 5 : 0,
@@ -280,6 +294,11 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
   },
   quitToMap() { teardownWorld(); state = 'menu'; hud.hide(); screens.showWorldMap(); },
   buy(id, price) {
+    // The catalog, not the UI, is the authority on what may be sold. The shop
+    // no longer lists an unapproved partner, but this path is reachable without
+    // it — a screen rendered before the withdrawal, a queued click, the console
+    // — and a purchase is what writes the id into `ownedItems` permanently.
+    if (!isPurchasableSkin(id)) return false;
     if (save.coins < price || save.ownedItems.includes(id)) return false;
     save.coins -= price;
     save.ownedItems.push(id);
@@ -296,8 +315,13 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     return res;
   },
   equip(id) {
+    // Refuse BEFORE the write: a withdrawn mark must not be wearable even by a
+    // player who already owns it, and returning early is what leaves
+    // `equippedSkin` on whatever they had on.
+    if (!isPurchasableSkin(id)) return false;
     save.equippedSkin = id;
     storeSave(save);
+    return true;
   },
   equipIndicator(id) {
     save.equippedIndicator = id;

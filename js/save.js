@@ -18,7 +18,33 @@ import { generateName } from './board/names.js';
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 23;
+export const CURRENT_VERSION = 24;
+
+// The partner skins withdrawn at v24, with the price each was SOLD at.
+//
+// This table is deliberately a LITERAL here and not a read of the SKINS catalog,
+// and that is the whole design of this migration rather than a shortcut. A
+// migration is permanent: it must still run correctly in a build shipped years
+// from now, and the most likely future for these rows is deletion — the marks
+// are withdrawn, so the rows have no reason to survive forever. A refund that
+// derived its price from the catalog would quietly become "refund 0 coins" on
+// the day someone deletes them, and there is no failure mode to notice: the
+// player just silently keeps neither the skin nor the money.
+//
+// The roster of withdrawn ids also lives in js/skinapproval.js, because "which
+// rows may be OFFERED" is a live question the shop asks every frame. That is not
+// duplication to be collapsed — importing it here would reintroduce exactly the
+// dependency this table exists to avoid. tools/partner-approval.test.mjs holds
+// the two in agreement by refunding every id on the roster and asserting 750.
+const WITHDRAWN_PARTNER_PRICES = Object.freeze({
+  'partner-newbreed': 750,
+  'partner-impulse': 750,
+  'partner-sixandflow': 750,
+  'partner-kuno': 750,
+  'partner-saltedstone': 750,
+  'partner-mediajunction': 750,
+  'partner-huble': 750,
+});
 
 // dev tuning for the voxel sandbox (sliders in SETTINGS); sim defaults live in voxelsim.js
 export const VOX_DEFAULTS = { voxGravity: 70, voxWaveK: 0.10, voxCreak: 0, voxSpeed: 1.8, voxAttract: 2 };
@@ -436,6 +462,45 @@ const MIGRATIONS = {
       voxSpeed: 1.8,
     },
   }),
+  // v24: seven partner skins are withdrawn, and everyone who bought one is paid
+  // back. Only Supered's permission to be featured is confirmed; the other seven
+  // rows wear a real agency's real logo without one, so they stop being sellable
+  // (see isSkinAvailable in js/skinapproval.js) and the shop no longer lists
+  // them.
+  //
+  // A refund rather than a silent removal, and rather than leaving them owned.
+  // The shelf became unbuyable for a reason that is entirely ours — the player
+  // did nothing wrong and cannot re-earn 750 coins by asking — so taking the
+  // item away without returning the price would be charging them for our
+  // mistake. Leaving the item owned-but-unavailable was the other option and is
+  // worse in a subtler way: `ownedItems` is what the shop reads to decide it has
+  // already been bought, so a row that comes back later would come back already
+  // paid for, and until then it is an entry the player owns and can never see.
+  //
+  // The precedent for rewriting a stored choice is v13's `pointMove` reset: it
+  // is allowed when the value cannot represent a decision the player would still
+  // be able to make. Nobody can go on wearing a mark we have no permission to
+  // show, so `equippedSkin` falls back to 'classic' — the free default every
+  // save already carries, so the fallback can never itself be unavailable.
+  //
+  // Supered is untouched by all three limbs: it is not in the price table, so it
+  // is not removed, not credited, and not un-equipped.
+  //
+  // No double-credit by construction: the credit is computed from the ids
+  // actually present in `ownedItems`, and the same statement removes them, so a
+  // second pass over the result finds nothing to pay for.
+  23: (s) => {
+    const owned = Array.isArray(s.ownedItems) ? s.ownedItems : [];
+    const withdrawn = owned.filter((id) => id in WITHDRAWN_PARTNER_PRICES);
+    const refund = withdrawn.reduce((sum, id) => sum + WITHDRAWN_PARTNER_PRICES[id], 0);
+    return {
+      ...s,
+      version: 24,
+      coins: (s.coins || 0) + refund,
+      ownedItems: owned.filter((id) => !(id in WITHDRAWN_PARTNER_PRICES)),
+      equippedSkin: s.equippedSkin in WITHDRAWN_PARTNER_PRICES ? 'classic' : s.equippedSkin,
+    };
+  },
 };
 
 export function loadSave() {

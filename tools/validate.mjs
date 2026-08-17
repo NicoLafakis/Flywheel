@@ -1980,6 +1980,11 @@ function validateShopAndUpgrades() {
     return {
       id,
       family: familyMatch ? familyMatch[1] : undefined,
+      // Partner rows ship only with a recorded approval to feature the agency's
+      // logo (isSkinAvailable in js/skinapproval.js). The static parser has to
+      // carry the flag or every partner reads as unapproved here, which would
+      // fail the shelf count for the wrong reason.
+      approved: /\bapproved:\s*true\b/.test(chunk) || undefined,
       price: id === 'classic' ? 0 : 100,
     };
   });
@@ -2005,12 +2010,17 @@ function validateShopAndUpgrades() {
 
   if (skinsItems.length !== 19) fail(`Category 'skins' should contain 19 standard skins, found ${skinsItems.length}`);
   if (creaturesItems.length !== 5) fail(`Category 'creatures' should contain 5 creature skins, found ${creaturesItems.length}`);
-  if (partnersItems.length !== 8) fail(`Category 'partners' should contain 8 partner skins, found ${partnersItems.length}`);
+  // ONE, not eight. Seven partner rows are still in the catalog but withdrawn:
+  // their marks ship without the agency's approval, so isSkinAvailable() keeps
+  // them off the shelf. This number going back up without a matching `approved`
+  // flag is a real company's logo being sold again. See
+  // tools/partner-approval.test.mjs.
+  if (partnersItems.length !== 1) fail(`Category 'partners' should contain 1 approved partner skin, found ${partnersItems.length}`);
   if (indicatorsItems.length !== 6) fail(`Category 'indicators' should contain 6 indicator skins, found ${indicatorsItems.length}`);
   if (upgradesItems.length !== 4) fail(`Category 'upgrades' should contain 4 stat upgrades, found ${upgradesItems.length}`);
 
   const totalCategorized = skinsItems.length + creaturesItems.length + partnersItems.length + indicatorsItems.length + upgradesItems.length;
-  if (totalCategorized !== 42) fail(`Total shop items should be 42 (19+5+8+6+4), got ${totalCategorized}`);
+  if (totalCategorized !== 35) fail(`Total shop items should be 35 (19+5+1+6+4), got ${totalCategorized}`);
 
   // 8. Shop Bottom Navigation Layout & Accessibility Assertions
   const screensSrc = readFileSync(new URL('../js/ui/screens.js', import.meta.url), 'utf8');
@@ -2656,6 +2666,13 @@ function validateMultiplayer() {
     // js/board/read.js, js/ui/boards.js, js/ui/screens.js and js/main.js, so no
     // single-module section owns it.
     'tools/records-and-names.test.mjs',
+    // Compliance rather than multiplayer, but the same reasoning as the suites
+    // above: partner approval spans js/skinapproval.js, js/skins.js (which no
+    // Node process can import — three.js at module scope), js/upgrades.js,
+    // js/ui/screens.js, js/main.js and a save migration, so no single-module
+    // section owns it, and the cost of a regression is a real company's logo
+    // shipping without permission.
+    'tools/partner-approval.test.mjs',
     // Repo-wide rather than multiplayer, but the one merge-conflict marker that
     // ever shipped rode in on a multiplayer commit, and this is the section that
     // spawns standalone suites. There is no build step, linter or formatter

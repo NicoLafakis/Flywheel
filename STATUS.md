@@ -17,6 +17,8 @@ Last updated: 2026-08-17
 
 ## Shipped state
 
+- 2026-08-17 — Partner Skin Approval Gating & Coin Refund (save schema v24)
+
 - 2026-08-17 — Hole Speed Retune: 1.4× → 1.8× (save schema v23, ranked v2)
 
 - 2026-08-17 — The Lab Theme & Pause-Menu Track Picker

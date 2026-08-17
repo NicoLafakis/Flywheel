@@ -32,7 +32,7 @@ import { POWERUP_SPECS } from '../powerups.js';
 // change, and so there is exactly one list of ids and prices in the codebase.
 // (Imported AND re-exported: a bare `export ... from` would not create the
 // local binding this file's own shop renderer needs.)
-import { SKINS, INDICATOR_SKINS, bakeSkinThumbnails } from '../skins.js';
+import { SKINS, INDICATOR_SKINS, bakeSkinThumbnails, isSkinAvailable } from '../skins.js';
 import { SHOP_CATEGORIES, getShopItemsByCategory, UPGRADES, upgradeCost, upgradeMultiplier, MAX_UPGRADE_RANK } from '../upgrades.js';
 export { SKINS, INDICATOR_SKINS };
 
@@ -977,8 +977,13 @@ export class Screens {
     if (this.actions.menuScene) this.actions.menuScene(false);
     if (this.actions.music) this.actions.music('shop');
 
-    const totalCosmetics = SKINS.length + INDICATOR_SKINS.length;
-    const ownedCosmetics = [...SKINS, ...INDICATOR_SKINS].filter(
+    // Every count on this screen runs off the AVAILABLE catalog, never the raw
+    // one. A withdrawn partner skin in a denominator is a completion figure no
+    // player can ever reach, and the seven are unbuyable — so `SKINS.length` is
+    // the wrong total the moment approval gating exists.
+    const availableSkins = SKINS.filter(isSkinAvailable);
+    const totalCosmetics = availableSkins.length + INDICATOR_SKINS.length;
+    const ownedCosmetics = [...availableSkins, ...INDICATOR_SKINS].filter(
       (item) => item.price === 0 || (this.save.ownedItems || []).includes(item.id)
     ).length;
     const totalUpgradeRanks = Object.values(this.save.upgrades || {}).reduce((a, b) => a + (b || 0), 0);
@@ -1006,7 +1011,10 @@ export class Screens {
     const categoryCounts = {
       skins: `${SKINS.filter((s) => !s.family && (s.price === 0 || (this.save.ownedItems || []).includes(s.id))).length}/${SKINS.filter((s) => !s.family).length}`,
       creatures: `${SKINS.filter((s) => s.family === 'creature' && (s.price === 0 || (this.save.ownedItems || []).includes(s.id))).length}/${SKINS.filter((s) => s.family === 'creature').length}`,
-      partners: `${SKINS.filter((s) => s.family === 'partner' && (s.price === 0 || (this.save.ownedItems || []).includes(s.id))).length}/${SKINS.filter((s) => s.family === 'partner').length}`,
+      // Both halves off `availableSkins`: the denominator used to be the whole
+      // partner shelf, so a gated shelf would have read 1/8 with seven rows the
+      // tab could never open.
+      partners: `${availableSkins.filter((s) => s.family === 'partner' && (s.price === 0 || (this.save.ownedItems || []).includes(s.id))).length}/${availableSkins.filter((s) => s.family === 'partner').length}`,
       indicators: `${INDICATOR_SKINS.filter((i) => i.price === 0 || (this.save.ownedItems || []).includes(i.id)).length}/${INDICATOR_SKINS.length}`,
       upgrades: `${totalUpgradeRanks}/${maxPossibleRanks}`,
     };

@@ -17,7 +17,7 @@ beatable headlessly.
 |------|---------|
 | `js/levels.js` | `METROS`, `MECHANICS`, `levelDef(i)` formulas, stars/coins |
 | `js/citycatalog.js` | Pure catalog metadata & progression rules for metropolis sandboxes, 3-minute challenges, and secret 90s unlock logic |
-| `js/save.js` | localStorage schema v21 (+settings, +upgrades, +challenges), migrations v1→v21, quarantine |
+| `js/save.js` | localStorage schema v24 (+settings, +upgrades, +challenges), migrations v1→v24, quarantine |
 | `tools/validate.mjs` | Overlap + snack-ring + greedy-bot margin proof for every campaign level, plus `validateCambridge()` (drives the voxel-sandbox Cambridge scene through the same kind of greedy bot) and `validateOfflineBoot()` (parses `index.html` and fails on any external-origin runtime dependency — see `architecture.md`'s Boot section) |
 
 ## Talks To
@@ -94,6 +94,35 @@ beatable headlessly.
   it lifts the `computeShopBonus()` object literal out of the source text and
   evaluates it, so the campaign/sandbox parity check is on the number the
   shipped line produces rather than on the shape of the text producing it.
+
+- **Partner-skin approval gating and the v24 refund (2026-08-17).** Only two of
+  the eight partner agencies have granted permission to use their mark, so
+  `js/skinapproval.js` adds `approved: true` as the entry condition for the
+  `partner` family and the other seven rows lose it. The predicate lives in its
+  own import-free module rather than in `js/skins.js`, which pulls three.js at
+  module scope and is therefore unreachable from the Node validator and from
+  `js/upgrades.js` on the pure-sim side of the boundary. It fails CLOSED
+  (`row.approved === true`), so a future partner row that forgets the field is
+  hidden rather than published.
+
+  Withdrawing a purchasable item is not the same as never shipping it: seven
+  rows were buyable for 750 coins each and some saves own them. The v24
+  migration refunds every withdrawn id at its price and un-equips it back to
+  `classic`. Its price table is a frozen LITERAL in `js/save.js`, deliberately
+  NOT a read of the live `SKINS` catalog — the rows it prices are expected to
+  be deleted from `js/skins.js` eventually, and a migration that stops paying
+  out when its subject disappears is a migration that silently breaks years
+  after anyone remembers it exists.
+
+  The save is not the only path a withdrawn id arrives on. `makeSkin()` now
+  resolves through `skinRowFor()`, which falls back to `classic` on
+  UNAVAILABLE rather than on UNKNOWN — a peer's roster entry
+  (`js/multiplayer/roster.js` → `js/world3d.js`) supplies a skin id straight
+  off the wire, where no local migration can reach it. Indicators resolve the
+  same way through `indicatorRowFor()`; `ind-supered` stays live because
+  Supered is approved, so no indicator row actually changes today.
+  `tools/partner-approval.test.mjs` pins the set at exactly seven withdrawn
+  ids, so an eighth going quiet fails rather than passing unnoticed.
 
 **Reconciled 2026-08-10:** the full day's commits — `js/voxelkit.js`'s twelve
 new gallery builders, the multi-hole sim roster (`sim.holes[]`), and that

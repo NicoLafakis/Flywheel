@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { moverArc, moverPose } from './voxelsim.js';
 import { loadSave } from './save.js';
 import { surfaceMaterial, isSurface, disposeSurfaces, surfaceArrayMaterial, surfaceArrayLayer, surfacePerMetre } from './voxelsurfaces.js';
-import { makeSkin, INDICATOR_BY_ID } from './skins.js';
+import { makeSkin, indicatorRowFor } from './skins.js';
 import { POWERUP_TYPES, hasActivePowerUp } from './powerups.js';
 
 // Read-only peek at the persisted SETTINGS block, so player preferences apply
@@ -798,7 +798,10 @@ export class VoxelWorld3D {
     // per-frame scale/rotation below is identical whichever one is equipped —
     // the skin only changes what the pointer LOOKS like, never where it sits
     // relative to the rim (see INDICATOR_LEAD / INDICATOR_SCALE above).
-    const indRow = INDICATOR_BY_ID.get(opts && opts.indicatorId) || INDICATOR_BY_ID.get('ind-default');
+    // Resolved by AVAILABILITY, not existence (js/skins.js indicatorRowFor):
+    // the same rule the hole skin uses, so a withdrawn pointer would fall back
+    // here automatically instead of needing this line found again.
+    const indRow = indicatorRowFor(opts && opts.indicatorId);
     const arrowShape = indicatorShape(indRow ? indRow.id : 'ind-default');
     const arrowGeo = new THREE.ShapeGeometry(arrowShape);
     const arrowBack = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0x0b0d14, depthTest: false }));

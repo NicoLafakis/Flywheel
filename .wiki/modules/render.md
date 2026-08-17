@@ -613,6 +613,17 @@ mutates sim state.
   bake shipped as a bare rim with no mark. The decode wait is capped at 2 s
   and then proceeds regardless, so a slow or missing asset costs the mark,
   never the boot.
+  **Six of these eight rows are dark as of 2026-08-17** — a partner mark now
+  needs `approved: true` (`js/skinapproval.js`) and only `supered` and the
+  not-yet-built Value First row have permission. Nothing about the render path
+  changed; the rows and their art stay in `js/skins.js` so restoring one is a
+  one-field edit, and every consumer instead resolves through `skinRowFor()` /
+  `indicatorRowFor()`, which fall back to `classic` on UNAVAILABLE rather than
+  on UNKNOWN. That distinction is the whole fix on this side of the boundary:
+  a withdrawn row is still IN `SKIN_BY_ID`, so the old
+  `SKIN_BY_ID.get(id) || classic` fallback happily rendered it — including
+  from a peer's roster entry off the multiplayer wire, which no local save
+  migration can reach. See `.wiki/modules/campaign.md` for the v24 refund.
 - **`nameText:` puts an agency's name on the mouth plate (2026-08-07).** Five
   previously icon-only rows (`newbreed`, `impulse`, `sixandflow`, `kuno`,
   `mediajunction`) now also carry `nameText:` — a canvas-texture label
