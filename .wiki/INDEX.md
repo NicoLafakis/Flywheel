@@ -46,11 +46,11 @@ what each is waiting on, and what could start today.
 | [conventions.md](conventions.md) | Coding standards, naming, determinism rules |
 | [glossary.md](glossary.md) | Domain terms (tier, snack ring, tide, ...) |
 | [visual-direction.md](visual-direction.md) | Art-target gap analysis: current vs reference |
-| [modules/](modules/) | Per-module docs with `covers:` globs: [audio](modules/audio.md), [campaign](modules/campaign.md), [citygen](modules/citygen.md), [multiplayer](modules/multiplayer.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
+| [modules/](modules/) | Per-module docs with `covers:` globs: [api](modules/api.md), [audio](modules/audio.md), [campaign](modules/campaign.md), [citygen](modules/citygen.md), [multiplayer](modules/multiplayer.md), [powerups](modules/powerups.md), [sim](modules/sim.md), [render](modules/render.md), [ui](modules/ui.md), [voxel](modules/voxel.md) |
 | [adr/](adr/) | Architecture Decision Records |
 | [runbooks/](runbooks/) | Run/validate/deploy playbooks |
 | [findings/](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md) | Root-cause analyses: [RCA-2026-08-11 skyscraper launch and hanging debris](findings/RCA-2026-08-11-skyscraper-launch-and-hanging-debris.md) (roof-snap teleport in the debris landing test, wall-scrape vy bounce, per-material gravity — **resolved, fixed by commit 235c82d the same day**); [RCA-2026-08-11 cambridge validator stall](findings/RCA-2026-08-11-cambridge-validator-stall.md) (the 780 s Cambridge excursion hits superlinear debris churn on the untiered physics — **resolved 2026-08-13**: root cause was unretirable jammed debris, fixed by T-402/[ADR-0018](adr/0018-debris-retires-on-proven-stationarity.md), and the validator is now a parallel orchestrator that completes end to end) |
-| [features/](features/) | Feature planning packages: [game-music](features/game-music/00-objective-overview.md) (implemented 2026-08-11), [upper-manhattan-park](features/upper-manhattan-park/overview.md), [multiplayer](features/multiplayer/README.md) (6-player synchronized shared-city sandboxes with invite links, pre-game lobby, ephemeral chat, auto-start on full room, and 1:1 single-player map parity across The Lab, Lower Manhattan, and Brooklyn), [scoreboards-and-profiles](features/scoreboards-and-profiles/00-objective-overview.md) (ADRs 0016/0017 accepted: bounded, server-replayed RUN scores; optional device-token profile names; implementation and applied schema), [rival-visibility](features/rival-visibility/README.md) (phases A-D shipped 2026-08-11 — craters, tug bar, off-screen chevron, callouts, end reveal), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary) |
+| [features/](features/) | Feature planning packages: [game-music](features/game-music/00-objective-overview.md) (implemented 2026-08-11), [upper-manhattan-park](features/upper-manhattan-park/overview.md), [multiplayer](features/multiplayer/README.md) (6-player synchronized shared-city sandboxes with invite links, pre-game lobby, ephemeral chat, auto-start on full room, and 1:1 single-player map parity across The Lab, Lower Manhattan, and Brooklyn), [scoreboards-and-profiles](features/scoreboards-and-profiles/00-objective-overview.md) (ADRs 0016/0017 accepted: bounded, server-replayed RUN scores; optional device-token profile names; implementation and applied schema), [rival-visibility](features/rival-visibility/README.md) (historical design record — phases A-D shipped 2026-08-11 on the original `js/net/` arena, then retired 2026-08-16 with the rest of that prototype), [cambridge-sandbox](features/cambridge-sandbox/README.md) (map complete and playable — sixth voxel scene + anisotropic voxel-primitive vocabulary) |
 
 ## Feature planning packages
 
@@ -65,16 +65,19 @@ what each is waiting on, and what could start today.
   the first 3 levels (The Lab, Lower Manhattan, Brooklyn), shareable invite
   links, pre-game lobby with ephemeral in-memory chat (zero storage, zero in-game
   chat), and automatic 3s countdown start on full room.
-- [features/rival-visibility/](features/rival-visibility/README.md) — making
-  a rival's progress visible in the live arena, out of a two-phone playtest
-  complaint that neither screen ever said who ate what. **Phases A-D shipped
-  2026-08-11:** per-slot color identity, per-block eater attribution, crater
+- [features/rival-visibility/](features/rival-visibility/README.md) — a
+  historical design record, not a currently-running system. Out of a
+  two-phone playtest complaint that neither screen ever said who ate what,
+  **Phases A-D shipped 2026-08-11** on the original `js/net/` prototype
+  arena: per-slot color identity, per-block eater attribution, crater
   tinting, a coarse tug-of-war bar, an off-screen chevron, milestone
   callouts, and an end-of-match territory reveal with a follow-zoom camera —
-  shared onto the hot-seat `multiplayer.html` demo too. Closed the one real
-  protocol gap the package found: keyframes now carry per-slot eaten
-  streams, so eater identity survives a late join or a missed snapshot.
-  Two patterns (size-as-threat legibility, and its paired task) are deferred
+  shared onto the hot-seat `multiplayer.html` demo too. **Retired 2026-08-16**
+  along with the rest of that prototype (`js/net/`, `js/demo/`, `arena.html`,
+  `multiplayer.html`) in the clean-slate rebuild; the current
+  `js/multiplayer/` only kept PvP takedown announcements from this package —
+  see `architecture.md`'s "Rival visibility" note. Two patterns (size-as-threat
+  legibility, and its paired task) were deferred
   until 8-player support lands.
 - [features/cambridge-sandbox/](features/cambridge-sandbox/README.md) — the
   plan for a sixth voxel sandbox scene centred on HubSpot's real Cambridge, MA

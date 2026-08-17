@@ -354,12 +354,6 @@ been scoped here.**
 - The list of files that require a validator run before committing is out of
   date: it omits three files the validator now exercises, including the whole
   Cambridge scene (`AGENTS.md:9-12`). *Small, and it protects everything else.*
-- The campaign/sandbox game (`js/main.js`) still uses placeholder oscillator
-  blips. A real WebAudio engine (`js/audio/`, 32 CC0 files) shipped
-  2026-08-11 but only into `arena.html`, the hot-seat demo, and the scene
-  viewer — main-game wiring is a separate, not-yet-done step, handed off via
-  `MESSAGES.md`; see `architecture.md`. *Small–medium, and mostly plumbing —
-  the sound design decisions are already made.*
 - Deferred by decision and still open: a 101 ms stutter on the single worst
   collapse in Upper Manhattan, shadow edges going ragged at the largest sizes,
   and a road colour that reads as near-black gashes through Central Park

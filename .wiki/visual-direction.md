@@ -61,7 +61,7 @@ awnings, towers with window grids and parapet roofs.
 
 ## Stage 5 — Camera & motion feel (completed 2026-08-14)
 
-- [x] **Near-Isometric Perspective**: Elevated base pitch to 0.98 rad (~56.1°) and tightened FOV to 45° for optical tilt-shift compression and enhanced street-grid readability.
+- [x] **Near-Isometric Perspective**: Elevated base pitch to 0.98 rad (~56.1°) and tightened FOV to 45° for optical tilt-shift compression and enhanced street-grid readability. **Superseded 2026-08-15**: default base pitch is now 0.54 rad (~31°), a more dynamic third-person action angle that frames skyscrapers and city depth rather than looking near-straight-down; FOV stayed at 45°. `camera.js`'s blocker-clearance margins (`_insideBlocker`, `_roofOver`) gained a small standoff (0.75 m XZ, 0.4 m Y) the same day so the lower angle's near-clipping plane does not slice into building geometry, and the hole/nav-indicator now render through occluding buildings via an always-visible depth-tested-off silhouette rim.
 - [x] **Squash-and-Stretch on Eats**: Elastic procedural scale deformation (compression along horizontal towards hole center, vertical elongation into the void) on falling objects in `world3d.js`.
 - [x] **Tactile Bite Pulse**: Hole mesh pulses/recoils on object ingestion.
 ## Stage 6 — Power-Up Auras & Atmospheric Screen Juiciness (completed 2026-08-14)

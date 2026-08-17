@@ -2,7 +2,7 @@
 covers:
   - js/audio/**
   - js/main.js
-  - js/demo/**
+  - js/multiplayer/**
   - js/ui/screens.js
   - tools/scene-view.html
 ---
@@ -77,8 +77,8 @@ stored older mix wins forever. `reseedAudioMix(storage)` closes that:
 
 It fires from the `AudioEngine` constructor (before the two levels are read) and
 from the `MusicDirector` constructor (against that director's own storage), not
-only from `main.js` — that is what puts the arena, the hot-seat demo and the
-scene viewer on the new mix, since none of them has a save to consult. It is
+only from `main.js` — that is what puts any saveless surface (`tools/scene-view.html`
+today) on the new mix, since it has no save to consult. It is
 stamped and therefore idempotent, so whichever caller runs first does the work
 and the rest find nothing to do.
 
@@ -95,7 +95,7 @@ defaults.
 A retune therefore costs two edits: the numbers in `mix.js`, and `MIX_VERSION`.
 
 `AudioEngine.volume`/`setVolume()` keep their pre-split names while meaning the
-EFFECTS level, because the arena, the hot-seat demo and the scene viewer already
+EFFECTS level, because the main game and `tools/scene-view.html` already
 call them; `flywheel.audio.volume` keeps its name for the same reason, so no
 existing player's slider resets. Ambience adds `ambienceVolume`/
 `setAmbienceVolume()` alongside them, mirrored on `GameAudio`.
@@ -147,11 +147,13 @@ The layer delays inside a voice (glass at 0.25 s, debris at 0.45 s) are
 deliberately *not* compensated for the hold: they are the shape of the sound,
 and the hold moves only where that shape starts.
 
-The pool is pumped by `tick()`, which is reached from `updateListener()` and
-from every drained event, so the main game and the arena need no extra wiring.
-The hot-seat demo feeds no listener position, so `js/demo/demo.js` calls
-`audio.tick()` from its frame loop — without it, the last building of a lull
-would sit pooled until the next event arrived. `_stopScene()` **drops** anything
+The pool is pumped by `tick()`, which is reached from both `updateListener()`
+and `handleEvents()` (an empty drained-event batch still ripens the pool), so
+any surface that runs inside `js/main.js`'s frame loop — the main game and
+`js/multiplayer/` matches alike — needs no extra wiring; a caller with no live
+listener position (nothing today) would still need its own `tick()` call, but
+none currently exists (the standalone hot-seat demo that once needed this,
+`js/demo/demo.js`, was removed 2026-08-16). `_stopScene()` **drops** anything
 still pooling rather than flushing it: the surface feeding impacts has gone
 away, and a collapse banging over the results reveal a beat after the city faded
 out is the same miss the pooling exists to fix.
@@ -182,8 +184,8 @@ the facade through `actions.applySettings()`; Music goes straight through
 The engine and director mirror all four values to `flywheel.audio.muted`,
 `flywheel.audio.volume`, `flywheel.audio.ambVolume`, and
 `flywheel.audio.musicVolume`, alongside the `flywheel.audio.mixVersion` stamp,
-allowing standalone surfaces such as the arena to inherit the same choices
-without importing the campaign save.
+allowing a standalone surface such as `tools/scene-view.html` to inherit the
+same choices without importing the campaign save.
 
 `settings.sfxVol` and `settings.ambVol` took no schema bump, and retuning their
 defaults does not need one either: the key is present and its stored value is

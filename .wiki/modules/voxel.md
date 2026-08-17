@@ -26,8 +26,9 @@ Docomo Tower in Yoyogi south of the terminal, Omoide Yokocho at the west exit.
 
 **The goal is the whole city, and the clock is what ends the run** (2026-08-13).
 `SCENE_GOALS` (exported from `js/voxelsim.js`, formerly the private `GOALS`)
-carries `targetFraction: 1.0` on all seven scenes. 100% is a **scoring ceiling**,
-not a pass/fail win condition: a free-play run ends when the 180 s clock expires
+carries `targetFraction: 1.0` on all eight scenes (gallery plus the seven
+authored cities, Tokyo included since 2026-08-14). 100% is a **scoring ceiling**,
+not a pass/fail win condition: a free-play run ends when the clock expires
 and the player is scored on the percentage reached. Flipping 100% into a hard
 win condition must remain a one-constant change.
 
@@ -35,7 +36,7 @@ Clock fields on a non-ranked `VoxelSandboxSim`:
 
 | Field | Meaning |
 |-------|---------|
-| `clockLimit` | `LEVEL_CLOCK_TICKS` (10,800), or `null` in `run90` |
+| `clockLimit` | `LEVEL_CLOCK_TICKS` — 18,000 ticks / 300 s (5:00) as of the 2026-08-14 clock extension, shared with the campaign via `js/levelclock.js`; was 10,800 / 180 s at ship — or `null` in `run90` |
 | `clockTicks` | ticks elapsed — the authority; `timeLeft` is derived from it every step |
 | `timeLeft` | seconds remaining, or `null` in `run90` (the HUD hides the pill on `null`) |
 | `timedOut` | set once, with `over`, on the tick the clock expires |
@@ -71,8 +72,21 @@ gate. Render quality and free-play tuning never modify this pinned mode.
 Every sandbox is a complete replayable level. `VoxelSandboxSim` owns the
 authored SIZE goal and deterministic coin scatter, collects coins during
 `step()`, and emits coin/goal events. The renderer only mirrors those events.
-Each run has 60 visible coins worth 2 coins each, plus a 35-coin goal bonus;
-the save-side `recordSandboxResult()` persists completion history and rewards.
+`SANDBOX_COIN_COUNT`/`VALUE`/`SANDBOX_GOAL_BONUS` (60 coins / 2 each / 35
+bonus) are the fallback only — since the 2026-08-15 tiered coin economy,
+`CITY_COIN_TIERS` in `js/voxelsim.js` scales per scene (`getCityCoinTier`):
+manhattan 70×2/+50 up through tokyo 200×5/+500, matching the difficulty
+ladder in `js/citycatalog.js`. **Except `gallery`, which does not match:**
+`CITY_COIN_TIERS.gallery` is `{ coinCount: 200, coinValue: 5, goalBonus: 500 }`
+— byte-identical to `tokyo`'s apex entry — while `js/citycatalog.js`'s gallery
+row (`THE LAB`, `TIER 1 · CASUAL`, `STARTER` badge, the UI's cheapest tier)
+declares `{ coinCount: 60, coinValue: 1, goalBonus: 25 }` for the same scene.
+`getCityCoinTier('gallery')` is what the running sim actually reads, so the
+smallest, easiest, first-unlocked scene currently pays out coins at the same
+rate as the hardest one, while every shop/city-select surface that reads
+`citycatalog.js` displays it as the starter tier. Not fixed here — read the
+code before trusting either table. The save-side `recordSandboxResult()`
+persists completion history and rewards.
 All authored city sandboxes use the READY establishing-shot path in `main.js`.
 
 Sandbox mode (title screen → VOXEL SANDBOX, NYC: LOWER MANHATTAN, or NYC: UPPER
@@ -86,7 +100,7 @@ bottom-up, along material bond strengths.
 
 | File | Purpose |
 |------|---------|
-| `js/voxelsim.js` | `VoxelSandboxSim`: support graph, instant-default stress response, chunk + debris physics, scoring, the `gallery` scene. Pure sim (no three.js, seeded RNG via `rng.js`). The six authored city builders are fetched ON DEMAND (2026-08-12): `await loadScene(scene)` resolves and caches a dynamic import (with in-flight dedupe, so a double-tap shares one fetch), and the constructor — deliberately still synchronous for its ~50 call sites — throws by name if a city was not awaited rather than silently building the gallery under a city's label. `sceneReady(scene)` reports load state; the gallery needs nothing loaded. The six cities are 1.19 MB of source between them (Cambridge alone 664 KB) and a session plays exactly one, so static imports put most of an 18.6 s throttled cold load in front of the title screen for nothing |
+| `js/voxelsim.js` | `VoxelSandboxSim`: support graph, instant-default stress response, chunk + debris physics, scoring, the `gallery` scene. Pure sim (no three.js, seeded RNG via `rng.js`). The seven authored city builders are fetched ON DEMAND (2026-08-12): `await loadScene(scene)` resolves and caches a dynamic import (with in-flight dedupe, so a double-tap shares one fetch), and the constructor — deliberately still synchronous for its ~50 call sites — throws by name if a city was not awaited rather than silently building the gallery under a city's label. `sceneReady(scene)` reports load state; the gallery needs nothing loaded. The seven cities are ~1.11 MB of source between them (Cambridge alone 664 KB) and a session plays exactly one, so static imports put most of an 18.6 s throttled cold load in front of the title screen for nothing |
 | `js/voxelkit.js` | The 5 object size classes (PROP 0.25 m / VEHICLE 0.5 m / SMALL_BLDG / LARGE_BLDG / MEGA) + their canonical builders (vehicles, trees, lamps, props, `tower()`), plus the streetscape/landmark kit (`setbackTower`, `streetWall`, `porticoFront`, `spiralRotunda`, `pathRibbon`, `stoneArch`, `basinRim`, and more — see the Upper Manhattan section below). Pure sim, shared by all three built-city scenes (Lower Manhattan, Upper Manhattan, Brooklyn). **Pass 4 (2026-08-10)** added twelve more gallery builders with no callers yet — `deliveryTruck`, `schoolBus`, `billboard`, `subwayStairEntrance`, `pierDeck`, `mooringBollard`, `dockCleat`, `motorLaunch`, `helipad`, `helicopter`, `fineTower`, `fineWarehouse` — the placement plan for wiring them into the gallery is staged for a follow-up commit. `subwayStairEntrance`, `pierDeck` and `helipad` reach for ADR-0013's anisotropic extents where a member is genuinely one piece; the rest stay on the cube ladder |
 | `js/voxelscene-manhattan.js` | `buildManhattan(sim)`: the full Lower Manhattan peninsula (~25.8k blocks). Sets `bounds`/`boundsRect`, `sceneDecor`, `cameraBlockers` |
 | `js/voxelscene-upper-manhattan.js` | `buildUpperManhattan(sim)`: the full Central Park + Upper Manhattan district (73,393 blocks / 86,083 mass). Sets its own bounds, landmarks, curb kit, decor, and camera blockers |
@@ -94,7 +108,8 @@ bottom-up, along material bond strengths.
 | `js/voxelscene-boston.js` | `buildBoston(sim)`: Seaport, Fort Point and the BCEC (82,894 blocks, 2.0 blocks/m²) — see the Boston section below |
 | `js/voxelforms.js` | The twelve anisotropic primitives ADR-0013 unlocked (`slab`, `column`, `beam`, `panel`, `mullion`, `cornice`, `pier`, `plinth`, `tread`, and the rest), sitting below `js/voxelkit.js`. Geometry only — no named buildings, no city semantics. Pure sim |
 | `js/voxelscene-cambridge.js` | `buildCambridge(sim)`: East Cambridge around 2 Canal Park, the first scene authored in the `voxelforms.js` vocabulary. All ten districts built and the map complete at 72,943 blocks with the dead-ground census at zero; wired into the sim's scene dispatch, `AUTHORED_SCENES` and `FREE_PLAY`, and validated by `validateCambridge()`. Phase 7's hidden content and the Phase 8 sign-off are still ahead |
-| `js/voxelscene-chicago.js` | `buildChicago(sim)`: the Loop and Chicago River map, ground-up rebuilt on the Cambridge method (44,578 blocks, SIZE 7 reachable via `tools/chicago-probe.mjs`). Real street grid single-sourced through `CHICAGO_STREETS`; the river wraps north and west with three bascule bridges (LaSalle, State, DuSable); the 'L' Loop is a full four-corner elevated circuit (Lake/Wabash/Van Buren/Wells) with three stations (State/Lake, Washington/Wabash, Quincy) and a four-car CTA train riding it continuously via the mover seam — simulated, not just drawn: it derails at eaten track, runs the streets as a runaway, and a derailed car is eatable (see the Chicago section below). ~15 named landmarks (Willis Tower, Board of Trade/Ceres, Marina City, the Chicago Theatre blade, Cloud Gate, Wrigley, Tribune, and more). **Fully menu-reachable as of 2026-08-11:** `chicago` joined `js/net/protocol.js`'s `ARENA_SCENES` allowlist and the arena's HOST A CITY picker, and, the same day, `js/main.js`'s `AUTHORED_SCENES` entry plus `js/ui/screens.js`'s FREE_PLAY card landed the scene in the single-player menu too (adopted from a concurrent session). `tools/validate.mjs`'s `validateChicago()` (9501241) now runs Chicago through the same 19-probe contract plus scripted-excursion gates as Cambridge (deterministic double excursion, `eatenCount >= 300`, `SIZE >= 7`). It now also proves green end to end in a full pass: the Cambridge stall that used to block every section after it in file order was rooted in unretirable jammed debris (superlinear contact cost), fixed engine-side by T-402 (ADR-0018), and the validator now runs all section groups as concurrent child processes so wall time is the slowest group rather than the serial sum. `tools/chicago-probe.mjs` remains the fast iteration loop for this scene |
+| `js/voxelscene-chicago.js` | `buildChicago(sim)`: the Loop and Chicago River map, ground-up rebuilt on the Cambridge method (44,578 blocks, SIZE 7 reachable via `tools/chicago-probe.mjs`). Real street grid single-sourced through `CHICAGO_STREETS`; the river wraps north and west with three bascule bridges (LaSalle, State, DuSable); the 'L' Loop is a full four-corner elevated circuit (Lake/Wabash/Van Buren/Wells) with three stations (State/Lake, Washington/Wabash, Quincy) and a four-car CTA train riding it continuously via the mover seam — simulated, not just drawn: it derails at eaten track, runs the streets as a runaway, and a derailed car is eatable (see the Chicago section below). ~15 named landmarks (Willis Tower, Board of Trade/Ceres, Marina City, the Chicago Theatre blade, Cloud Gate, Wrigley, Tribune, and more). **Menu-reachable since 2026-08-11** via `js/main.js`'s `AUTHORED_SCENES` entry and `js/ui/screens.js`'s FREE_PLAY card (the original wiring also joined the now-retired `js/net/` prototype's city picker, which no longer exists — see `architecture.md`'s "Key decisions"). `tools/validate.mjs`'s `validateChicago()` runs Chicago through the same 19-probe contract plus scripted-excursion gates as Cambridge (deterministic double excursion, `eatenCount >= 300`, `SIZE >= 7`). It now also proves green end to end in a full pass: the Cambridge stall that used to block every section after it in file order was rooted in unretirable jammed debris (superlinear contact cost), fixed engine-side by T-402 (ADR-0018), and the validator now runs all section groups as concurrent child processes so wall time is the slowest group rather than the serial sum. `tools/chicago-probe.mjs` remains the fast iteration loop for this scene |
+| `js/voxelscene-tokyo.js` | `buildTokyo(sim)`: Nishi-Shinjuku / Kabukicho & Golden Gai / JR Shinjuku Terminal / Shibuya Scramble / Meiji Jingu, the eighth scene and current size/difficulty apex (84,122 blocks per `js/citycatalog.js`, `TIER 8 · APEX`). Built on the Cambridge/Chicago method: a declared street table (`TOKYO_STREETS`, 5 named districts in `TOKYO_DISTRICTS`), real rail geography (JR Chūō Line runs E-W through the terminal, Yamanote Line runs its own elevated N-S track breaking at the station — no Shinkansen ever served Shinjuku), and five named hero landmarks (`TOKYO_HEROES`: the Tocho twin towers, Mode Gakuen Cocoon Tower, the NTT Docomo Yoyogi spire, Shibuya 109, and the Meiji Jingu Minami-Shinmon grand gate). See the Tokyo section below for the two accuracy passes (2026-08-14 daytime palette overhaul, 2026-08-15 geographic accuracy corrections) |
 | `js/voxelworld.js` | `VoxelWorld3D`: one `InstancedMesh` per material + brick size with per-instance paint colors, cached static transforms, and per-frame dynamic motion; renders `sceneDecor` (roads/sidewalks/parks/bike paths/markings/water) |
 | `js/voxelsurfaces.js` | three.js binding for `voxeltiles.js`'s procedural surface registry (canvas-generated textures for `sim.sceneSurfaces`); zero cost until a scene names a surface. On WebGL2 every surfaced block in a scene draws in ONE call via `surfaceArrayMaterial` (DataArrayTexture tile layers + per-instance surface/repeat attributes — the Tier-2 seam that took Cambridge's 938 block buckets to 1); the per-(surface × brick-size) bucket path remains as the no-WebGL2 fallback. Owns the metals-only PMREM-probe rule — see the Boston section below |
 
@@ -287,16 +302,16 @@ a level; Upper Manhattan also floors `eatenCount ≥ 300`.
 
 ## Scenes
 
-Seven scene files exist and the sim can boot any of them
+Eight scene files exist and the sim can boot any of them
 (`new VoxelSandboxSim({ scene })`, default `'gallery'`): `gallery`,
-`manhattan`, `upper-manhattan`, `brooklyn`, `boston`, `cambridge`, and
-`chicago`. All seven are reachable from the shipped title-screen menu today.
-Cambridge is the full ten-district East Cambridge map documented in
+`manhattan`, `upper-manhattan`, `brooklyn`, `boston`, `cambridge`,
+`chicago`, and `tokyo` (added 2026-08-14, the eighth and current size/
+difficulty apex). All eight are reachable from the shipped title-screen menu
+today. Cambridge is the full ten-district East Cambridge map documented in
 [features/cambridge-sandbox/](../features/cambridge-sandbox/README.md).
 Chicago is a complete, playable Loop map (see the Key Files table's entry for
-what it contains) and, as of 2026-08-11, is wired into both the single-player
-free-play menu and the live arena's HOST A CITY picker — see the chicago
-section below. `js/main.js`'s `AUTHORED_SCENES` table is the single source of truth for which
+what it contains) and, as of 2026-08-11, is wired into the single-player
+free-play menu — see the chicago section below. `js/main.js`'s `AUTHORED_SCENES` table is the single source of truth for which
 scenes are real places (label text, HUD text, and whether an `intro`
 establishing shot/READY-gate framing applies) — see Talks To below. Scene
 builders run inside the constructor, may set
@@ -335,15 +350,22 @@ street — or grinds the surviving deck first — and keeps running the Loop
 route at ground level as a runaway at 6.5 m/s. Once derailed (falling or
 grounded) a car is eatable: 75 raw mass through the real consumption path
 (`_award`, the scoring half of `_consume`), with the eat event carrying the
-unit's object id in the block id space so snapshots and the keyframe eaten
-bitset (`sim.objectIdSpace`, adopted by `ArenaHost`) need no new wire format.
-Elevated cars on intact track are deliberately NOT eatable — the crash is the
-show. Derail/ground-run/eatable are mover CAPABILITY FLAGS, not train code,
-so future movers (boats, streetcars) inherit them; the runtime draws nothing
-from the RNG, so every other scene's streams are untouched.
-`tools/train-derail-selftest.mjs` pins determinism (bit-identical derail
-ticks and poses across runs and replays), consumption attribution, and
-host/peer convergence over lossy loopback.
+unit's object id in the block id space, so any future caller iterating
+`sim.objectIdSpace` needs no new wire format to cover a swallowed car — a
+consumed object is a consumed object regardless of type. `sim.objectIdSpace`
+was originally adopted by `ArenaHost`, part of the `js/net/` prototype
+removed 2026-08-16; `js/multiplayer/host.js`/`peer.js` do not currently
+reference it (see the "Ranked RUN" note above and `architecture.md`'s train
+section), so train consumption inside a live `js/multiplayer/` match is
+unverified today. Elevated cars on intact track are deliberately NOT eatable
+— the crash is the show. Derail/ground-run/eatable are mover CAPABILITY
+FLAGS, not train code, so future movers (boats, streetcars) inherit them; the
+runtime draws nothing from the RNG, so every other scene's streams are
+untouched. `tools/train-derail-selftest.mjs` pins determinism (bit-identical
+derail ticks and poses across runs and replays) and consumption attribution
+against the pure sim directly; its header comment also describes a
+host/peer convergence pass over `ArenaHost`/`ArenaPeer`, which is now stale
+(see `architecture.md`'s train section for the detail).
 
 ~15 named landmarks at their real relative positions: Willis Tower's nine
 bundled setback tubes, the Board of Trade closing the LaSalle vista with
@@ -366,12 +388,74 @@ entry above and [RCA-2026-08-11-cambridge-validator-stall](../findings/RCA-2026-
 `tools/scene-view.html?scene=chicago` is a dev-only viewer for eyeballing an
 unwired scene against the deployed build without touching menu code.
 
-**Fully shipped and menu-reachable.** The scene joined the arena's HOST A
-CITY picker on 2026-08-11 (216be53) and, the same day, the single-player
-free-play menu (4f54c5a): see the Key Files table entry above for exactly
-which files carry the wiring. The dev tools above (`tools/scene-view.html`,
-`tools/chicago-probe.mjs`) remain useful for headless/visual checks outside
-the menu, but are no longer the only way to reach the scene.
+**Fully shipped and menu-reachable.** The scene joined the single-player
+free-play menu on 2026-08-11 (4f54c5a; it also joined the now-retired
+`js/net/` prototype's arena picker the same day, which does not exist in the
+current tree — see `architecture.md`'s "Key decisions"): see the Key Files
+table entry above for exactly which files carry the wiring. The dev tools
+above (`tools/scene-view.html`, `tools/chicago-probe.mjs`) remain useful for
+headless/visual checks outside the menu, but are no longer the only way to
+reach the scene.
+
+### tokyo (TOKYO SHINJUKU)
+
+84,122 blocks (`js/citycatalog.js`) over `x[-110,110] z[-100,100]`, the size
+and difficulty apex of the roster (`TIER 8 · APEX`) and the eighth scene,
+added 2026-08-14. Built ground-up on the Cambridge/Chicago method: a single
+declared street table (`TOKYO_STREETS`, 5 E-W arterials × 4 N-S avenues) and
+five named districts in `TOKYO_DISTRICTS` (Nishi-Shinjuku Skyscraper Ward,
+Kabukicho & Golden Gai Alleys, JR Shinjuku Terminal & Viaduct, Shibuya
+Crossing & 109 Fashion Ward, Meiji Jingu Sacred Shrine & Grand Gate).
+
+**Real rail geography, not generic transit dressing.** The JR Chūō Line runs
+east-west through the terminal (`TOKYO_ROAD_SPANS`' station-overpass entries)
+while the Yamanote Line runs its own elevated north-south track, breaking at
+the station rather than crossing through it — and no Shinkansen has ever
+served Shinjuku, so none is drawn. Five named landmarks in `TOKYO_HEROES`,
+each guarded to a bounding box so its accent color cannot leak: the Tokyo
+Metropolitan Government Building's twin towers (`tocho_twins`), the Mode
+Gakuen Cocoon Tower, the NTT Docomo Yoyogi Tower spire, Shibuya 109, and the
+Meiji Jingu Minami-Shinmon grand gate.
+
+**Two accuracy passes after the initial build, both product-owner-driven
+corrections against the real city:**
+
+- **2026-08-14, daytime palette overhaul:** the first pass shipped
+  neon/rainbow accents (magenta, cyan, hot pink, purple, bright yellow) on
+  every building. Replaced with realistic daytime architectural tones —
+  muted bronze/sandstone/grey-green patina on skyscrapers, traditional
+  cinnabar/indigo/ochre/pine-green on izakaya signage, warm cream/cool grey
+  on Harajuku boutiques, crimson on the Kabukicho gate and 109 signage. The
+  `neonMagenta`/`neonCyan`/etc. names in `js/voxelscene-tokyo.js`'s palette
+  table are a naming holdover from that first pass — read the hex values,
+  not the identifier names, which now hold the corrected daytime tones.
+- **2026-08-15, geographic accuracy pass:** the shrine originally carried a
+  fictional five-tier pagoda (Shinto shrines do not have pagodas — that is a
+  Buddhist form, and the pagoda most players would picture belongs to
+  Sensō-ji in Asakusa, a different district entirely) and painted its Great
+  Torii, Haiden and Kagura-den vermilion (vermilion is Fushimi Inari's
+  signature, not Meiji Jingu's). Replaced with the real Minami-Shinmon Grand
+  Gate in unpainted cypress with a copper-patina roof, and recolored the
+  shrine buildings to bare cypress/dark timber. Rail was also corrected in
+  this pass: the Shinkansen was removed (see above), the E-W viaduct was
+  relabeled the JR Chūō Line with orange-striped E233 rapid trains, and the
+  Yamanote Line's E235 moved onto its own new N-S elevated track breaking at
+  the terminal instead of sharing the Chūō right-of-way. The NTT Docomo
+  Yoyogi Tower moved south of the station to actual Yoyogi (it had been
+  placed in Nishi-Shinjuku); the Tochō twin towers were recolored to light
+  granite with flat observation roofs (the original had helipads, which the
+  real towers do not); Omoide Yokocho was separated into its own west-exit
+  alley strip by the tracks and Kabukicho relabeled "Kabukicho & Golden Gai";
+  and the arcades originally labeled "Akihabara SEGA" (Akihabara is a
+  different district) were relabeled as Kabukicho's real TAITO Station and
+  GiGO game centers.
+
+Menu-reachable from the shipped title screen via `js/citycatalog.js`'s
+size-ascending unlock ladder (largest scene, so last to unlock). No
+dedicated `validateTokyo()` exists in `tools/validate.mjs` — it is covered
+by the shared per-scene contract inside `validateScenesWinnable()` and the
+`js/voxelscene-*.js` glob (see Talks To below), not a named function like
+Chicago/Cambridge/Boston get.
 
 ### gallery (VOXEL SANDBOX)
 

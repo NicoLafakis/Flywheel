@@ -1,13 +1,20 @@
 # Rival Progress Visibility — planning package
 
-**Status: phases A–D shipped (2026-08-11); phase E (patterns 3 + 7) deferred
-until 8-player lands, per the build order.** Shipped: per-slot color identity
-(`js/rival/identity.js`), the attribution record (`js/rival/attribution.js`),
-the protocol v3 per-slot keyframe streams (the one wire gap, closed), crater
-tinting (`js/rival/territory.js` + `territory-layer.js`), the tug-of-war bar,
-the off-screen/apart rival chevron, milestone callouts, and the end-of-match
+**Status: phases A–D shipped 2026-08-11, then retired 2026-08-16 along with
+the `js/net/` prototype arena this package was built on — this page is now a
+historical design record, not a description of anything currently running.**
+At the time, shipped: per-slot color identity (`js/rival/identity.js`), the
+attribution record (`js/rival/attribution.js`), the protocol v3 per-slot
+keyframe streams (the one wire gap, closed), crater tinting
+(`js/rival/territory.js` + `territory-layer.js`), the tug-of-war bar, the
+off-screen/apart rival chevron, milestone callouts, and the end-of-match
 territory reveal — live on arena.html, with craters + bar shared onto the
-hot-seat page (multiplayer.html). Headless coverage: `js/rival/rival.test.mjs`.
+hot-seat page (multiplayer.html). Headless coverage was `js/rival/rival.test.mjs`.
+None of `js/rival/`, `arena.html` or `multiplayer.html` exist in the current
+tree; the clean-slate `js/multiplayer/` rebuild kept only PvP takedown
+announcements from this package. See `architecture.md`'s "Rival visibility"
+note and [modules/multiplayer.md](../../modules/multiplayer.md) for what
+actually ships today.
 
 The package comes
 directly out of a live playtest: Nico's two-phone test over the deployed arena

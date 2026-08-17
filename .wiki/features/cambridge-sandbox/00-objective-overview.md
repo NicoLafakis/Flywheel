@@ -26,7 +26,15 @@ A day later (2026-08-11) `js/voxelsim.js` gained a mover-simulation engine
 (derail/ground-run/eatable, opt-in capability flags on any scene mover) and
 `js/voxelscene-chicago.js`'s CTA train opted its own units into it — still
 Chicago-only, no Cambridge mover uses the seam, see `modules/voxel.md`.
-**Date:** 2026-08-06 (reconciled 2026-08-10, twice; 2026-08-11).
+**Reconciled 2026-08-14:** an eighth scene file, `js/voxelscene-tokyo.js`,
+landed and likewise matches this page's `js/voxelscene-*.js` cover glob
+incidentally, the same way Chicago did in 2026-08-10. Tokyo does import a
+handful of `js/voxelforms.js` primitives (`beam`, `column`, `panel`, `pier`,
+`plinth`, `slab`, `wedge`) alongside `js/voxelkit.js`, so it is not a
+cube-only scene the way Chicago is — but it has no Cambridge caller and
+authors nothing in Cambridge's own districts; nothing in this package
+changed.
+**Date:** 2026-08-06 (reconciled 2026-08-10, twice; 2026-08-11; 2026-08-14).
 **Reads with:** `01-voxel-primitive-vocabulary.md` (the toolkit),
 `02-cambridge-reference.md` (the facts), `03-level-design.md` (the design),
 `05-build-tasks.md` (the ordered work and its live state),

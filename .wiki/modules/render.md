@@ -19,7 +19,7 @@ mutates sim state.
 |------|---------|
 | `js/world3d.js` | Scene build from city data, 4 architectural facade styles (punched grid, ribbon glass, residential sash, mixed-use storefront), aggregate roads with curbs/sidewalks, detailed vehicle/tree/street props, eat squash-and-stretch anims, mesh caches, event sync, and FX particle systems |
 | `js/voxelworld.js` | Voxel sandbox rendering, block instance synchronization, ambient layers (`atmosphere`, `gulls`, `pigeons`, `steam`, `neon`, `surf`, `ferries`), and particle systems |
-| `js/camera.js` | `ChaseCamera`: near-isometric perspective (56° pitch, 45° FOV), follow, orbit, zoom, building-occlusion pull-in, opt-in follow-direction yaw, and juice FOV kicks |
+| `js/camera.js` | `ChaseCamera`: dynamic third-person chase perspective (base pitch 0.54 rad / ~31°, lowered from the original ~56° near-isometric tilt on 2026-08-15 for a more dynamic action angle; 45° FOV, unchanged), follow, orbit, zoom, building-occlusion pull-in, opt-in follow-direction yaw, and juice FOV kicks |
 | `js/controls.js` | Keyboard + touch joystick/orbit + optional world-space point-to-move → camera-relative move intents |
 | `js/skins.js` | Hole skin registry (32 skins as of 2026-08-16: the 25 below plus 7 free baseline color skins added for multiplayer slot identity) + heading-indicator registry (`INDICATOR_SKINS`, 6 rows) + geometry primitives + per-frame runtime; consumed by `world3d.js`/`voxelworld.js` for the mesh and re-exported by `js/ui/screens.js` for the shop |
 
