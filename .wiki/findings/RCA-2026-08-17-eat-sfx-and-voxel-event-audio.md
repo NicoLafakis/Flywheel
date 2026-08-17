@@ -319,3 +319,135 @@ The class is: **a caller deleted during a refactor, on a seam no gate watches, f
 3. **A suite that no gate runs is not a test.** `js/audio/game-audio.test.mjs` and `js/audio/engine.test.mjs` were reachable only through `tools/diagnostics.mjs`. The 2026-08-16 sweep that pulled `music.test.mjs`, `tracklist.test.mjs` and `music-assets-selftest.mjs` into `tools/validate.mjs` walked right past them. When a suite is written, it goes into `tools/validate.mjs` in the same commit, or it does not exist. Worth one grep during review: every `*.test.mjs` in the tree should appear in the validator's suite list or have a written reason at its call site for why it does not.
 
 4. **Refactor rule, narrow and cheap.** When a loop body is converted from unconditional to per-branch handling, statements that were unconditional have no branch to land in and are the ones that get dropped. Before landing such a change, list every statement in the old body that was not already inside a conditional and account for each one explicitly in the diff. In this case that list had exactly one entry.
+
+## 9. Residual findings — surfaced by the guard, not fixed here
+
+The guard prints a census on every run. None of the below is a regression from
+this fix; all of it predates it, and all of it was invisible before there was
+something printing it. Recorded so it is not rediscovered as a bug later.
+
+**9.1 Two dead synthesised methods on `AudioEngine`.** `js/audio/engine.js:691`
+defines `playFaultLineQuake({ vol = 1.0 } = {})` and `:661` defines
+`playSeismicRupture({ vol = 1.0 } = {})`, both hand-synthesised WebAudio
+routines. Neither has a caller anywhere in the tree. `GameAudio`'s
+same-named methods (`js/audio/game-audio.js:318` and `:307`) reach for the
+sampled master instead — `this.engine.play('earthquake', ...)` — which is what
+actually ships now that the 19 rendered audio masters landed. The engine
+versions are the pre-sample implementations, orphaned when the assets arrived
+and never removed.
+
+The trap is the shared name. `engine.playFaultLineQuake` takes `{ vol }` and
+`GameAudio.playFaultLineQuake` now takes `{ quiet }`, so the two have diverged
+in signature as well as in fate, and a future reader reaching for "the quake
+method" has an even chance of editing the one nothing calls. Deleting both is
+the right move; it was left out of this commit only because it is unrelated to
+the outage and would have widened a fix that needed to ship. Verified by name
+search across the tree, not assumed — the only hits are the definitions
+themselves, this document, and `CHANGELOG.md`.
+
+**9.2 `tools/scene-view.html:103` is a third audio surface.** It calls
+`audio.handleEvents(events)` directly, which the shipped game no longer does
+(`js/main.js` drains its own batch and calls the singular `handleEvent`). It is
+single-hole, so it needs no ownership guard and is correct as written. But note
+what that means for coverage: `tools/sfx-event-guard.test.mjs` works by lifting
+the guard text out of `js/main.js` and executing it, so it watches ONE of the
+three surfaces. A future change that breaks the scene viewer's audio would not
+be caught. That is an acceptable gap — the scene viewer is a developer tool —
+but it should be a known one rather than an assumed absence of risk.
+
+**9.3 The census is a list of candidates, not of confirmed-silent events.** The
+guard reports 13 emitted types with no `handleEvent` case (`bounce`, `clock`,
+`disaster`, `dragonball_aura`, `eject`, `enter`, `fail`, `powerup_despawn`,
+`pvp_respawn`, `tide`, `timeup`, `unlocked`, `win`) and 7 cases nothing emits
+(`meteor_impact`, `meteor_incoming`, `police_siren`, `siren`, `storm_end`,
+`time_freeze_end`, `time_freeze_start`).
+
+**Do not read the first list as "13 silent events."** At least one is voiced
+outside the switch: `clock` drives the kept `countdownTick` call in
+`js/main.js`, exactly as `pvp_kill` and the chrono sting do. The census cannot
+see a direct call, only a missing case, so the list needs walking by hand before
+any conclusion is drawn from it.
+
+Two entries do look worth a listen, and are raised as a question rather than a
+defect. `tide` (`js/main.js:1721`) announces "THE TIDE IS RISING!" and
+`unlocked` (`:1731`) announces "LANDMARK SHIELD DOWN!", both at announcement
+tier `hype`, both with a full-band HUD takeover — and neither has a case in the
+switch or an obvious direct call behind it. A `hype`-tier announcement playing
+in silence is the kind of thing that reads as a missing sound rather than as a
+deliberate quiet beat. Whether either should be voiced, and with what, is a
+design call for the owner, not something to invent here.
+
+The second list is the cheaper one to act on: seven cases that nothing can ever
+reach are dead branches in a switch that is about to grow a per-case `quiet`
+ladder. Confirming they are genuinely unreachable — rather than reachable from a
+surface the emitter scan does not cover — should happen before that ladder is
+written, so the ladder does not spend rows on arms that cannot fire.
+
+**9.4 An inaudible sound still fatigues its sample. This one is live today, in
+single player, and it is a defect rather than a note.**
+
+`AudioEngine._fatigueScale(name)` (`js/audio/engine.js:224-235`) computes the
+scale from the current energy at `:232` and then deposits at `:233`:
+
+```js
+    const scale = 1 / (1 + f.energy * 0.7);
+    f.energy += 1;
+    return scale;
+```
+
+`play()` (`:238-243`) calls it and only then applies the audibility floor:
+
+```js
+    const v = vol * this._fatigueScale(name);   // <- energy deposited here
+    if (v < 0.02) return;                       // <- dropped here, too late
+```
+
+Two things are wrong, and they compound.
+
+The deposit is a flat `+= 1` that does not read `vol` at all, so a sound played
+at 0.02 fatigues its sample exactly as hard as the same sound played at 1.0. And
+because the deposit happens inside the scale call, a play that is then discarded
+at `:243` for being inaudible has already charged full price. **A sound nobody
+could hear cannot cause listener fatigue** — that is what fatigue models — so
+this is not a tuning question.
+
+It bites hardest on the one path the module works hardest to protect.
+Collapse voices are distance-attenuated through `_att()` before reaching
+`play()`, so a demolition 150 m away arrives with a `vol` near zero, gets
+dropped as inaudible, and still deposits a full unit of energy on `crash-big`.
+Fatigue has a ~4 s half-life, so the tower that comes down right next to the
+player moments later is scaled by `1/(1 + energy*0.7)` because of collapses the
+player never heard. That is the same "the tower that mattered arrived
+pre-fatigued" failure the collapse pooling was built to eliminate, re-entering
+through the back door — pooling fixed the count of plays per building, not the
+cost of an inaudible one.
+
+The fix is an ordering change, not a retune: decide audibility first, and only
+charge fatigue for a sound that will actually sound. Splitting the read from the
+deposit (`_fatiguePeek(name)` / `_fatigueDeposit(name, v)`) keeps both call
+sites honest, and scaling the deposit by the played `v` rather than by 1 makes a
+quiet sound cost proportionally less. Either half is an improvement; both
+together are the correct model. Whichever is chosen, it needs a test that plays
+a sound below the floor and asserts the NEXT play of that name is unscaled —
+asserting only that the quiet one did not sound would pass against today's code.
+
+**9.5 The batch entry point can route every arm at once, and its docstring
+describes the bug as if it were the design.**
+
+`handleEvents(events, opts = {})` (`js/audio/game-audio.js:417-419`) forwards one
+`opts` object to every event in the batch. Today `js/main.js` drains its own
+batch and calls the singular `handleEvent` per event, so nothing exercises this —
+but the obvious future call is `handleEvents(rivalEvents, { quiet: true })`,
+which would apply `quiet` to all 23 arms simultaneously, including world-scoped
+ones that have no owner and should never be attenuated for anybody.
+
+Any per-case `quiet` work must therefore decide what the batch API means:
+derive quiet per event from `ev.hole`, or refuse batch-level quiet outright.
+Leaving it undecided means the ladder's world-scoped rows rest on "quiet cannot
+reach here", which is true of the per-event guard and false of the batch one.
+
+Its docstring is the more immediate problem: "`opts.quiet` plays another
+player's eats at reduced volume" is the twenty-of-twenty-two defect written down
+as documentation. It describes the flag as eat-only, which is exactly the
+assumption that kept the gap invisible, and it is what the next reader will
+believe. It must be corrected in the same change that makes the flag honest.
