@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-16
+Last updated: 2026-08-17
 
 ---
 
@@ -16,6 +16,13 @@ Last updated: 2026-08-16
 ---
 
 ## Shipped state
+
+- 2026-08-17 — Music Buffers Before The First Tap (T-704):
+  - **The first tap bought a download, not a song**: reported as "the music doesn't start until you touch something". Two things were conflated. PLAYING is gated by the browser's autoplay policy and is not fixable — `init()` already binds `pointerdown`, `touchstart`, `click` and `keydown`, so any first input unlocks. But DOWNLOADING was gated behind the same gesture: `js/audio/music.js` set `preload='none'` in the constructor and only ever assigned `this.audio.src` inside `_switchTo()`, which every caller (`unlock()`, `request()`, `resumeForPage()`) reached only once `_unlocked` was true. So the tap started a fetch of a multi-MB MP3 and the player heard nothing until it buffered.
+  - **Arming, not autoplay**: the autoplay policy gates `play()` alone — assigning `src`, setting `preload='auto'` and calling `load()` are all permitted while locked. `request()` now calls a new `_arm(cue)` when locked: the element takes the source, lifts `preload` off `none`, loads, and parks at `_fade = 0`. `unlock()` finds `_current === _wanted`, presses play and runs the fade-in a normal switch would have run — **no second `src` assignment and no second `load()`**. `_safePlay()`'s `!this._unlocked` early return, which the `loadedmetadata` handler passes through, is the single thing stopping this from becoming an autoplay attempt. `_armedSrc` tracks the assigned source string because reading `audio.src` back yields an absolute URL that never compares equal to the relative path.
+  - **The menu track was downloading three times**: `index.html`'s preload link used `as="fetch"`, and the preload cache is keyed by request destination, so the `<audio>` element could never match that entry — hence both a duplicate download and the console's "preloaded but not used" warning. It is now `as="audio"` with no `crossorigin` (the file is same-origin and the audio element issues no CORS request, so a crossorigin entry sits in a partition nothing reads). A third fetch — a throwaway `bgMusicPreload = new Audio()` in the boot script, playing into an element nothing ever read — is deleted. **The menu theme now downloads exactly once.**
+  - **The music suite was running in no gate at all**: `js/audio/music.test.mjs` was referenced only by `tools/diagnostics.mjs`, so the entire director state machine could regress with `ALL PASS` still printing. It is now spawned from `validateMultiplayer()` alongside the other standalone suites.
+  - **TDD coverage**: written red first — the arming assertion reported `'' !== 'assets/music/main-menu.mp3'` before any implementation. `js/audio/music.test.mjs` went 29 → 40 assertions: the fake audio element gained a counted `src` setter so "the gesture caused no further network work" is assertable, and the suite now pins that a locked request sets `src`/`preload='auto'`/`load()` and does **not** call `play()`, that `unlock()` then plays with no second `src` write and no second `load()`, and — statically, since no runtime test here reads the document — that `index.html`'s menu preload still says `as="audio"`, carries no `crossorigin`, and that `bgMusicPreload` has not come back.
 
 - 2026-08-16 — Economy Corrections: Coin Ladder, Campaign Growth Upgrade & Legacy Double-Count (T-701, T-702, T-703):
   - **THE LAB was paying TOKYO's apex rate (T-701)**: the coin ladder existed in two copies that had silently drifted. `js/citycatalog.js` is the DECLARED economy — it is what the city-select card prints (`60 COINS (+25 CLEAR)`) and what `validateCityChallenges` computes expected payouts from — while `CITY_COIN_TIERS` in `js/voxelsim.js` is the table the running sim actually reads. Commit `6902032` introduced both halves in agreement; commit `08d104b`, a power-up/boot/audio commit that rewrote most of `voxelsim.js` and never mentioned the economy, replaced the `gallery` row with a byte-for-byte copy of `tokyo`'s apex row. The first, easiest, always-unlocked scene therefore paid `200 x 5 / +500` while advertising `60 x 1 / +25` — a **1,500-coin full clear where the card promised 85**, making the tutorial city the most lucrative farm in the game. The fix is not "put 60 back": `CITY_COIN_TIERS` is now **projected from `CITY_CATALOG`**, so the displayed ladder and the paid ladder are one table and cannot disagree again.

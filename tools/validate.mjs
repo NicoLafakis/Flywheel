@@ -2585,6 +2585,12 @@ function validateMultiplayer() {
     // Same reasoning, same handlers: the silent-podium defect was a music cue
     // requested there that the registry never defined.
     'tools/music-cue.test.mjs',
+    // The director's own behaviour suite, which until now no gate ran at all —
+    // it was listed in tools/diagnostics.mjs and nowhere else, so the whole
+    // music state machine (cue switching, fades, offset restore, muting, and
+    // the pre-gesture arming that stops the first tap costing a download)
+    // could regress with ALL PASS still printing.
+    'js/audio/music.test.mjs',
     // Same class again, across the network seam this time: api/ handlers cannot
     // be imported headlessly (they want Supabase env and a live database), so a
     // browser posting `token` at a handler reading `player_token` had nothing

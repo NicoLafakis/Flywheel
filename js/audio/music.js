@@ -79,6 +79,11 @@ export class MusicDirector {
 
     this._wanted = null;
     this._current = null;
+    // The source string last handed to the element, tracked here rather than
+    // read back off `audio.src`: the DOM resolves that to an absolute URL, so
+    // comparing against the relative path we assigned never matches and the
+    // arming guard would re-fetch on every call.
+    this._armedSrc = null;
     this._offsets = new Map();
     this._unlocked = false;
     this._hidden = false;
@@ -159,12 +164,18 @@ export class MusicDirector {
   get volume() { return this._music; }
 
   unlock() {
+    const wasLocked = !this._unlocked;
     this._unlocked = true;
     if (this._wanted && this._current !== this._wanted) {
       this._switchTo(this._wanted, false);
-    } else {
-      this._safePlay();
+      return;
     }
+    this._safePlay();
+    // An armed cue was parked at silence so it could fade in like any other
+    // switch does; the first gesture is where that fade finally runs. Guarded on
+    // `wasLocked` because every later click re-fires this handler — the unlock
+    // listeners are never removed — and a ramp per click is pure churn.
+    if (wasLocked && this._fade < 1) this._ramp(this._fade, 1, this._fadeMs);
   }
 
   request(cue, { restart = false } = {}) {
@@ -184,6 +195,7 @@ export class MusicDirector {
     }
     this._wanted = cue;
     if (this._unlocked) this._switchTo(cue, restart);
+    else this._arm(cue);
     return true;
   }
 
@@ -231,6 +243,35 @@ export class MusicDirector {
     else this._safePlay();
   }
 
+  /**
+   * Buffer a cue while playback is still locked, WITHOUT trying to play it.
+   *
+   * The autoplay policy gates `play()` and nothing else: assigning `src`,
+   * setting `preload='auto'` and calling `load()` are all permitted before any
+   * user gesture. Before this existed, `src` was only assigned once `_unlocked`
+   * went true, so the first tap did not start music — it started a download,
+   * and the player heard silence for however long the fetch took. Arming here
+   * moves that fetch to boot, so the gesture only has to press play.
+   *
+   * The element is parked at silence (`_fade = 0`) exactly as a normal switch
+   * parks it, so `unlock()` can run the same fade-in rather than slamming in at
+   * full volume. `_safePlay()`'s `_unlocked` guard is what keeps the
+   * `loadedmetadata` handler from turning this into an autoplay attempt.
+   */
+  _arm(cue) {
+    const file = MUSIC_CUES[cue];
+    if (!file) return;                       // `gallery` is deliberately silent.
+    const src = this.base + file;
+    if (this._armedSrc === src) return;      // already buffering these bytes
+    this._current = cue;
+    this._armedSrc = src;
+    this._fade = this._fadeMs > 0 ? 0 : 1;
+    this._applyVolume();
+    this.audio.src = src;
+    this.audio.preload = 'auto';
+    try { this.audio.load(); } catch { /* browser starts from src assignment */ }
+  }
+
   _switchTo(cue, restart) {
     if (this._current === cue) {
       if (restart) {
@@ -248,12 +289,14 @@ export class MusicDirector {
       const file = MUSIC_CUES[cue];
       if (!file) {
         this.audio.removeAttribute('src');
+        this._armedSrc = null;
         this._fade = 1;
         this._applyVolume();
         return;
       }
       this._fade = this._fadeMs > 0 ? 0 : 1;
       this.audio.src = this.base + file;
+      this._armedSrc = this.base + file;
       this.audio.preload = 'auto';
       if (restart) this._offsets.delete(cue);
       // Browsers reset this on a source swap, but making it explicit gives the

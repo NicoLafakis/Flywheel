@@ -28,7 +28,15 @@
 <link rel="modulepreload" href="./js/main.js">
 <link rel="modulepreload" href="./js/vendor/three.module.js">
 <link rel="modulepreload" href="./js/ui/screens.js">
-<link rel="preload" href="./assets/music/main-menu.mp3" as="fetch" type="audio/mpeg" crossorigin="anonymous">
+<!-- The menu theme, warmed before any module evaluates. `as="audio"` is
+     load-bearing: the preload cache is keyed by request destination, so an
+     as="fetch" entry (what this used to be) is never matched by the <audio>
+     element js/audio/music.js arms, and the track downloaded twice while the
+     console warned "preloaded but not used". No `crossorigin` either — this
+     file is same-origin and the audio element issues no CORS request, so a
+     crossorigin entry lands in a cache partition nothing here reads.
+     js/audio/music.test.mjs asserts both attributes. -->
+<link rel="preload" href="./assets/music/main-menu.mp3" as="audio" type="audio/mpeg">
 <script type="importmap">
 { "imports": { "three": "./js/vendor/three.module.js" } }
 </script>
@@ -280,12 +288,12 @@
     }
   };
 
-  // Pre-warm title music streaming immediately on boot
-  try {
-    var bgMusicPreload = new Audio();
-    bgMusicPreload.src = 'assets/music/main-menu.mp3';
-    bgMusicPreload.preload = 'auto';
-  } catch (e) {}
+  // The menu theme used to be pre-warmed here with a throwaway Audio element.
+  // It is gone on purpose: this was a THIRD fetch of the same file (after the
+  // <link rel=preload> above and the director's own element), into an element
+  // nothing ever played from. js/audio/music.js now arms its real element the
+  // moment js/main.js requests the menu cue, which is the same boot instant,
+  // and that fetch is the one the preload link above serves. One download.
 
   function bootFailed(err) {
     if (done) return;

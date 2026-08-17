@@ -196,9 +196,35 @@ because it also reaches the save-less surfaces a migration could never touch.
 
 `js/audio/music.js` owns the cue registry and one reusable `HTMLAudioElement`:
 menu, shop, pause, results, victory, and one cue per authored city. Gallery maps
-to deliberate silence. Only the requested file loads after the first gesture;
-pause/shop retain the previous cue's position, background tabs pause playback,
-and major stingers duck music through `GameAudio`.
+to deliberate silence. Only the requested file loads; pause/shop retain the
+previous cue's position, background tabs pause playback, and major stingers duck
+music through `GameAudio`.
+
+**Arming vs. playing.** The browser's autoplay policy gates `play()` and nothing
+else — assigning `src`, setting `preload='auto'` and calling `load()` are all
+permitted before any user gesture. Downloading used to be gated behind the
+gesture too (`src` was only assigned inside `_switchTo`, which only ran once
+`_unlocked` was true), so the first tap did not start music, it started a
+download and the player heard silence for the length of that fetch. `request()`
+now calls `_arm(cue)` while locked: the element takes the source, switches
+`preload` to `auto`, loads, and parks at `_fade = 0`. `unlock()` then finds
+`_current === _wanted`, presses play and runs the fade-in that a normal switch
+would have run — no second `src` assignment, no second `load()`. The
+`loadedmetadata` handler still ends in `_safePlay()`, whose `!this._unlocked`
+early return is the single thing keeping arming from becoming an autoplay
+attempt; do not weaken that guard. `_armedSrc` tracks the last source string
+handed to the element, because reading `audio.src` back gives an absolute URL
+that never compares equal to the relative path assigned.
+
+The menu theme is warmed further by `<link rel="preload" … as="audio">` in
+`index.html`. `as="audio"` is load-bearing: the preload cache is keyed by
+request destination, so the previous `as="fetch"` entry could never be matched
+by the `<audio>` element and produced both a duplicate download and the
+"preloaded but not used" console warning. There is no `crossorigin` attribute
+for the same reason — the file is same-origin and the audio element issues no
+CORS request, so a crossorigin entry would sit in a partition nothing reads. A
+third fetch (a throwaway `bgMusicPreload = new Audio()` in the boot script) was
+removed on 2026-08-17; the menu track now downloads exactly once.
 
 Several cues are aliases onto one file rather than separate tracks: `title` and
 `menu` share `main-menu.mp3`, `tokyo` and `manhattan` share `lower-manhattan.mp3`,
@@ -237,8 +263,11 @@ end-of-match podium dead quiet in every multiplayer match.
 - Music assets and their hashes are pinned by `assets/music/MANIFEST.json` and
   `tools/music-assets-selftest.mjs`. `MANIFEST.json` lists one representative
   `cue` per file, not every alias, so an aliased cue adds no manifest row.
-  Lifecycle behavior (including the unknown-cue fallback) is covered by
-  `js/audio/music.test.mjs`; the bus/level split and the one-time re-seed (fresh
+  Lifecycle behavior (including the unknown-cue fallback, pre-gesture arming,
+  and a static check that `index.html`'s preload link still says `as="audio"`)
+  is covered by `js/audio/music.test.mjs` — which now runs in the `multiplayer`
+  section of `tools/validate.mjs`; before 2026-08-17 it was listed only in
+  `tools/diagnostics.mjs`, so no gate ever ran it. The bus/level split and the one-time re-seed (fresh
   install, un-stamped old install, stamped install with chosen levels, and a
   second boot after a re-seed) by `js/audio/engine.test.mjs`; and the collapse
   pooling — one tower to one voice, pieces falling to silence, two simultaneous

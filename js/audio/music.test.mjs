@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { DEFAULT_MUSIC_VOLUME, MUSIC_CUES, MUSIC_FALLBACK_CUE, MUSIC_VOLUME_KEY, MusicDirector } from './music.js';
 import { MIX_VERSION, MIX_VERSION_KEY } from './mix.js';
 
 class FakeAudio {
   constructor() {
-    this.src = '';
+    // `src` is a counted accessor, not a plain field: the whole point of arming
+    // the element before the first gesture is that the gesture costs NO further
+    // network work, and "no second src assignment" is the only way to say that
+    // in a fake that has no network.
+    this._src = '';
+    this.srcSets = 0;
     this.currentTime = 0;
     this.duration = 200;
     this.readyState = 1;
@@ -14,6 +20,8 @@ class FakeAudio {
     this.plays = 0;
     this.listeners = new Map();
   }
+  get src() { return this._src; }
+  set src(v) { this._src = v; this.srcSets++; }
   addEventListener(type, fn) { this.listeners.set(type, fn); }
   load() { this.loads++; const fn = this.listeners.get('loadedmetadata'); if (fn) fn(); }
   play() { this.paused = false; this.plays++; return Promise.resolve(); }
@@ -48,10 +56,28 @@ assert.equal(music.volume, DEFAULT_MUSIC_VOLUME);
 // the shipped mix rather than an older one.
 assert.equal(data.get(MUSIC_VOLUME_KEY), String(DEFAULT_MUSIC_VOLUME), 'a fresh store is seeded');
 assert.equal(data.get(MIX_VERSION_KEY), String(MIX_VERSION), 'and stamped');
+// ---------------------------------------------------------------------------
+// Pre-gesture ARMING.
+//
+// Browsers gate play() behind a user gesture and that is not ours to fix. What
+// WAS ours: the download was gated behind the same gesture, so the first tap
+// bought a network wait instead of sound. Assigning src, setting preload='auto'
+// and calling load() are all allowed while locked — only play() is not — so the
+// cue is fully buffered before the tap and the tap only has to start it.
+// ---------------------------------------------------------------------------
 assert.equal(music.request('menu'), true);
-assert.equal(media.src, '', 'pre-unlock request must not load music');
+assert.equal(media.src, 'assets/music/main-menu.mp3', 'a pre-gesture request must ARM the element');
+assert.equal(media.preload, 'auto', 'and lift preload off "none", or no bytes are fetched');
+assert.equal(media.loads, 1, 'and kick the fetch with load()');
+assert.equal(media.plays, 0, 'but must NOT attempt playback while locked');
+assert.equal(media.paused, true, 'so the element is still parked');
+const armedSrcSets = media.srcSets;
+const armedLoads = media.loads;
 music.unlock();
 assert.equal(media.src, 'assets/music/main-menu.mp3');
+assert.equal(media.srcSets, armedSrcSets, 'the gesture must not re-assign src — that would re-fetch');
+assert.equal(media.loads, armedLoads, 'nor call load() again: the bytes were already armed');
+assert.equal(media.plays, 1, 'the gesture only has to press play');
 assert.equal(media.paused, false);
 const firstLoads = media.loads;
 music.request('menu');
@@ -114,4 +140,23 @@ const stamped = new MusicDirector({
 assert.equal(stamped.volume, 0.5, 'a stamped install keeps its chosen music level');
 assert.equal(stampedData.get(MUSIC_VOLUME_KEY), '0.5', 'and is not rewritten');
 
-console.log('PASS music director: 29 assertions');
+// ---------------------------------------------------------------------------
+// Static guard on index.html's preload link. Invisible to any runtime test here
+// (the director never reads the document) and exactly the kind of thing that
+// rots silently: a preload whose `as` does not match the request the <audio>
+// element actually makes is a whole extra download of the menu track, plus the
+// "preloaded but not used" console warning. `as="audio"` is the media
+// destination; `crossorigin` would put the entry in the CORS cache partition,
+// which a same-origin <audio> without a crossorigin attribute never consults.
+// ---------------------------------------------------------------------------
+const indexHtml = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+const menuPreload = /<link\s+rel="preload"[^>]*main-menu\.mp3[^>]*>/i.exec(indexHtml);
+assert.ok(menuPreload, 'index.html must still preload the menu track');
+assert.match(menuPreload[0], /\bas="audio"/,
+  'the menu-track preload must use as="audio", or the <audio> element cannot reuse it');
+assert.doesNotMatch(menuPreload[0], /crossorigin/i,
+  'no crossorigin on a same-origin track — it partitions the entry away from the audio element');
+assert.doesNotMatch(indexHtml, /bgMusicPreload/,
+  'the boot script must not fetch the menu track a second time');
+
+console.log('PASS music director: 40 assertions');
