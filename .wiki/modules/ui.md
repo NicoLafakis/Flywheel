@@ -20,7 +20,7 @@ tying everything together.
 |------|---------|
 | `js/main.js` | Boot, state machine (menu/intro/playing/paused/results), loop, audio; branches campaign vs voxel sandbox (`isVoxelSandbox`). Its separate `run90` path quantizes and records each fixed-tick input before stepping the pinned RUN tune; it lazy-loads board code and drains a durable outbox only at boot/reconnect/focus/timer boundaries, never in the sim loop |
 | `js/ui/hud.js` | Mass/size bar, timer, combo, banner, minimap, the announcement queue and its three backends (`#toast`, `#big-pop`, `#hype-band`); `updateSandbox()` variant for the voxel mode (live `CLEARED x% OF THE CITY · SIZE n` readout, the `#level-clock` countdown pill via `_updateClock()`, dimmed coin pill via `body.mode-sandbox`, the score plate's count-up, and the combo ring — chain, window drain and the multiplier read from `voxelsim.js`'s exported ladder, never re-derived; see [ADR-0015](../adr/0015-scoring-ladder-is-a-table-the-hud-reads.md)) |
-| `js/ui/screens.js` | 2-Stage Menu Flow: Stage 1 Title (branded landing over live city backdrop: sprocket + `FLYWHEEL` wordmark + tagline plate, prominent `PLAY` CTA, always-visible player status strip with Player Login / profile, Highest Score overall, and graphic segmented coin progress meter toward next skin level; THE RUN Chicago 90s, RECORDS, SHOP, SETTINGS, and HELP & FAQ utilities, and `.fw-foot` CC0 sound manifest + PRIVACY/TERMS legal line); Stage 2 City Selection Carousel (`showCitySelect`: 3D featured city card, `<`/`>` navigation arrows, touch swipe gestures, dynamic block count size-ascending ordering via `getSortedCityCatalog()`, gated progression unlocking via `isCityUnlocked()`, and bottom dot rail); Modern Mobile Game Shop (`showShop`: 5 icon-based category tabs `🕳️ Skins`, `👾 Creatures`, `🤝 Partners`, `🧭 Indicators`, `⚡ Upgrades`, sticky header with collection stats `14/31 Cosmetics · 12/80 Upgrade Ranks` and live coin capsule, 4 incremental stat tracks with 20-segment pip progress meters and +5%..+100% power boost ladders, responsive item card grid with baked 3D previews), results, pause (two-step confirms for run-discarding buttons), mechanic intro |
+| `js/ui/screens.js` | 2-Stage Menu Flow: Stage 1 Title (branded landing over live city backdrop: sprocket + `FLYWHEEL` wordmark + tagline plate, prominent `PLAY` CTA, always-visible player status strip with Player Login / profile, Highest Score overall, and graphic segmented coin progress meter toward next skin level; THE RUN Chicago 90s, RECORDS, SHOP, SETTINGS, and HELP & FAQ utilities, and `.fw-foot` CC0 sound manifest + PRIVACY/TERMS legal line); Stage 2 City Selection Carousel (`showCitySelect`: 3D featured city card, `<`/`>` navigation arrows, touch swipe gestures, dynamic block count size-ascending ordering via `getSortedCityCatalog()`, gated progression unlocking via `isCityUnlocked()`, and bottom dot rail); Modern Mobile Game Shop (`showShop`: a three-row app shell — header / `.shop-scroll` / docked `.shop-tab-bar` — with 5 category tabs labelled from `cat.name` (`SKINS`, `CREATURES`, `PARTNERS`, `INDICATORS`, `UPGRADES`), a header carrying collection stats `14/31 Cosmetics · 12/80 Upgrade Ranks` and the live coin capsule, 4 incremental stat tracks with 20-segment pip progress meters and +5%..+100% power boost ladders, responsive item card grid with baked 3D previews), results, pause (two-step confirms for run-discarding buttons), mechanic intro |
 | `js/ui/help.js` | Interactive Help, Walkthrough, FAQ, and Tips 'n Tricks system (`renderHelp`): 3 tabbed views (`WALKTHROUGH`, `FAQ`, `TIPS 'N TRICKS`), real-time search & filter engine across all chapters and tags, collapsible animated accordion cards, and comprehensive documentation covering all 8 cities, 6 power-ups, controls, menus, upgrades, combos, multiplayer mechanics, and pro strategies |
 | `js/ui/boards.js` + `js/board/` | Lazy optional board layer, three tabs: **MY RECORDS** (this player, every city, all time — the local save's bests, with the server's verified per-city bests folded in on arrival), **LEADERBOARD** (every player, one global top ten, ranked by total score) and **MY NAME** (the generated name, its re-roll, and the sign-in door). Direct PostgREST reads use only the publishable key, while every mutation goes through a Vercel Function with a timeout and offline fallback |
 | `js/ui/menuscene.js` | The live city behind the landing screen — the same `VoxelSandboxSim` + `VoxelWorld3D` + `ChaseCamera` trio the sandbox mounts, on the same canvas, on autopilot (held establishing orbit, never released; a scripted heading sweep drives the hole so the skyline is actively being eaten). Scheduled, never blocking: `startMenuScene` only arms a timer, `tickMenuScene` is folded into `main.js`'s single rAF loop, and `stopMenuScene` disposes from `teardownWorld` before any game world claims the canvas |
@@ -211,6 +211,43 @@ tying everything together.
   only caller: `main.js`'s `buy()` and `equip()` both refuse an unavailable id
   outright. See `.wiki/modules/campaign.md` for the v24 refund of the seven
   rows that were purchasable before the gate existed.
+- **The shop is a three-row shell, and its bottom nav is NOT `position: fixed`**
+  (2026-08-17). `.shop-screen` is a non-scrolling flex column of exactly three
+  children: `.shop-header`, `.shop-scroll` (`flex: 1 1 auto; min-height: 0` —
+  the one and only scroller), and `.shop-tab-bar`. Nothing may be added to
+  `.shop-screen` that is not one of those three, and content belongs inside
+  `.shop-scroll`.
+  The nav *was* `position: fixed; bottom: 0`, and that can never work on a
+  `.screen`: `.screen` carries `backdrop-filter: blur(4px)`, and a
+  backdrop-filtered ancestor becomes the containing block for its fixed
+  descendants. The bar was therefore fixed to `.shop-screen` — which was also
+  the element that scrolled — so it travelled 1:1 with the list. Measured on a
+  390x844 phone: the nav left the screen after 65px of a 6087px scroll and
+  never returned, so four of the five categories were unreachable for the rest
+  of the list. Desktop had the same bug (781px of travel at 1440x900, ending up
+  over the header with ten cards behind it). A/B proof: forcing
+  `backdrop-filter: none` on `.shop-screen` took the travel to exactly 0.
+  Two consequences worth keeping: `min-height: 0` on `.shop-scroll` is
+  load-bearing (a flex item's default `min-height: auto` will not shrink below
+  its content and pushes the nav off the shell), and `.shop-header`'s
+  `max-width: min(1080px, calc(100% - 32px))` replaces the shell padding it
+  used to sit inside — without the `calc` term the header goes full-bleed below
+  1112px while the list stays inset.
+  `tools/pw/shop-nav-mobile.mjs` is the contract (needs a real browser, so it is
+  not part of `validate.mjs`): 241 checks over 8 viewports × touch and non-touch,
+  asserting the nav stays docked across a 34-point scroll sweep and a real
+  touch-drag/wheel gesture, never covers a visible card, keeps its labels
+  unclipped and its 44px tap targets, honours simulated notch insets, and keeps
+  the 720px centred desktop dock. It scores 118/241 against the pre-fix tree.
+- **Shop tab labels come from `cat.name`, not `cat.title`.** Five tabs split the
+  width of the phone — about 57px of label box at 320px — and the titles
+  ("Partner Agency Tributes", "Directional Chevrons") were rendering as an
+  ellipsis on every phone size, so the nav named none of its own destinations.
+  `cat.title` still leads the category banner, where there is room for it. The
+  banner also no longer interpolates `cat.icon`: `SHOP_CATEGORIES`
+  (`js/upgrades.js`) carries `id`/`name`/`title`/`desc` and never had an icon
+  field, so that line printed the literal string "undefined Hole Skins" at the
+  top of every category. Adding icons means adding the field first.
 - Pause-screen buttons that discard the run (RESTART, CITIES) use a two-step
   inline confirm (`armable` in `showPause`): first click arms red, second
   acts, any other click disarms. No modals — the pause style is dialog-free.

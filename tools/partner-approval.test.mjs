@@ -308,18 +308,30 @@ function v23Save({ ownedItems = [], coins = 0, equippedSkin = 'classic' } = {}) 
   const screensSrc = read('js/ui/screens.js');
   assert.ok(/import\s*\{[^}]*isSkinAvailable/.test(screensSrc),
     'js/ui/screens.js must import isSkinAvailable');
+  // The region is showShop()'s ACTUAL body, brace-matched from its declaration
+  // (the same technique as bodyOf() in block 13), not a fixed slice off the
+  // front. A character budget has to be re-guessed every time the method grows:
+  // a six-line comment plus a `.shop-scroll` wrapper pushed the `partners:`
+  // badge 99 chars past a 3000-char window, and this block started reporting
+  // "could not find" against code that was correct — a false negative, which is
+  // the one failure a guard must never produce.
   const shopStart = screensSrc.indexOf('showShop(categoryId');
   assert.ok(shopStart !== -1, 'could not find showShop() in js/ui/screens.js');
-  const shopHead = screensSrc.slice(shopStart, shopStart + 3000);
-  assert.ok(/const availableSkins\s*=\s*SKINS\.filter\(isSkinAvailable\)/.test(shopHead),
+  let shopBody = null;
+  for (let j = screensSrc.indexOf('{', shopStart), depth = 0; j < screensSrc.length; j++) {
+    if (screensSrc[j] === '{') depth++;
+    else if (screensSrc[j] === '}' && --depth === 0) { shopBody = screensSrc.slice(shopStart, j + 1); break; }
+  }
+  assert.ok(shopBody, 'unbalanced braces after showShop() in js/ui/screens.js');
+  assert.ok(/const availableSkins\s*=\s*SKINS\.filter\(isSkinAvailable\)/.test(shopBody),
     'showShop() must derive its counts from SKINS.filter(isSkinAvailable)');
-  const partnersBadge = shopHead.split('\n').find((l) => l.trim().startsWith('partners:'));
+  const partnersBadge = shopBody.split('\n').find((l) => l.trim().startsWith('partners:'));
   assert.ok(partnersBadge, "could not find the shop's `partners:` badge line");
   assert.ok(!/SKINS\.filter/.test(partnersBadge),
     "the `partners:` badge must not count the raw catalog in either half; got: " + partnersBadge.trim());
   assert.equal((partnersBadge.match(/availableSkins\.filter/g) || []).length, 2,
     'both halves of the `partners:` badge must come from the available subset');
-  assert.ok(/const totalCosmetics\s*=\s*availableSkins\.length/.test(shopHead),
+  assert.ok(/const totalCosmetics\s*=\s*availableSkins\.length/.test(shopBody),
     'the cosmetics total must exclude unavailable skins');
 }
 

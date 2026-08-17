@@ -17,6 +17,8 @@ Last updated: 2026-08-17
 
 ## Shipped state
 
+- 2026-08-17 — Mobile Shop Bottom Nav Undocked From Its Own Scroll Container (RCA-2026-08-17 backdrop-filter; 6087px drift → 0px, 241-check browser contract)
+
 - 2026-08-17 — Voxel Event Audio Restored: Eat Gulps, Combo Ladder, Stingers, Derailment & Tornado (RCA-2026-08-17, three suites now gated)
 
 - 2026-08-17 — Partner Skin Approval Gating & Coin Refund (save schema v24)

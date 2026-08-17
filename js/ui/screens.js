@@ -989,6 +989,12 @@ export class Screens {
     const totalUpgradeRanks = Object.values(this.save.upgrades || {}).reduce((a, b) => a + (b || 0), 0);
     const maxPossibleRanks = UPGRADES.length * MAX_UPGRADE_RANK;
 
+    // Three rows, in this order, and the middle one is the ONLY scroller. The
+    // banner and the item grid moved inside .shop-scroll so that the header and
+    // the bottom nav are pinned by layout instead of by `position: fixed` — the
+    // bar used to be fixed, got captured by .screen's backdrop-filter as its
+    // containing block, and scrolled off the phone with the list (see the
+    // .shop-screen comment block in css/main.css).
     const s = el(`<div class="screen shop-screen">
       <div class="shop-header">
         <button class="shop-back-btn" id="shop-back-btn">‹ BACK</button>
@@ -998,8 +1004,10 @@ export class Screens {
         </div>
         <div class="shop-coin-pill"><span class="coin-num">${(this.save.coins || 0).toLocaleString()}</span> COINS</div>
       </div>
-      <div class="shop-category-banner"></div>
-      <div class="shop-content-area" style="width:100%"></div>
+      <div class="shop-scroll">
+        <div class="shop-category-banner"></div>
+        <div class="shop-content-area" style="width:100%"></div>
+      </div>
       <nav class="shop-tab-bar" role="tablist" aria-label="Shop Categories"></nav>
     </div>`);
 
@@ -1025,8 +1033,13 @@ export class Screens {
       // block with higher specificity), but it lets the #screen-root delegated
       // click listener in main.js play audio.uiTap() on every tab switch —
       // the same sound every other secondary button produces. (ADR-0020)
+      // `cat.name` (SKINS, CREATURES, …), not `cat.title` ("Partner Agency
+      // Tributes"). Five tabs share the width of the phone, which is ~57px of
+      // label box at 320px — the long titles were rendering as an ellipsis on
+      // every phone size, so the nav named none of its own destinations. The
+      // long title still leads the category banner, where there is room for it.
       const tab = el(`<button class="shop-tab secondary ${isActive ? 'active' : ''}" role="tab" aria-selected="${isActive}" id="shop-tab-${cat.id}">
-        <span class="tab-label">${cat.title}</span>
+        <span class="tab-label">${cat.name}</span>
         <span class="tab-badge">${categoryCounts[cat.id] || ''}</span>
       </button>`);
       tab.onclick = () => {
@@ -1040,8 +1053,11 @@ export class Screens {
     // 2. Category Banner
     const banner = s.querySelector('.shop-category-banner');
     const currentCatObj = SHOP_CATEGORIES.find((c) => c.id === categoryId) || SHOP_CATEGORIES[0];
+    // No `${currentCatObj.icon}` here: SHOP_CATEGORIES carries id/name/title/desc
+    // and never had an icon field, so this line printed the literal string
+    // "undefined Hole Skins" at the top of every category, on every device.
     banner.innerHTML = `<div>
-      <h3>${currentCatObj.icon} ${currentCatObj.title}</h3>
+      <h3>${currentCatObj.title}</h3>
       <p>${currentCatObj.desc}</p>
     </div>`;
 

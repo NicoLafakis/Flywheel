@@ -1286,17 +1286,69 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
 .level-card .mech { font-size: 15px; }
 .level-card:hover:not(.locked) { border-color: var(--accent); }
 
-/* --- Modern Mobile Game Shop UI with Docked Bottom Navigation --- */
+/* --- Modern Mobile Game Shop UI with Docked Bottom Navigation ---
+   The shop is an app SHELL, not one long scrolling page: a header row, a
+   scroller that owns every pixel of overflow, and a nav row welded to the
+   bottom — three ordinary flex children of .shop-screen, none of them taken
+   out of flow.
+
+   The nav used to be `position: fixed; bottom: 0`, and that could never work
+   here. .screen carries `backdrop-filter: blur(4px)` (the frosted scrim over
+   the live 3D menu behind it), and a backdrop-filtered ancestor becomes the
+   containing block for its fixed descendants — so the bar was fixed to
+   .shop-screen, which was also the element that scrolled, and it scrolled with
+   the content. Measured on a 390x844 phone: the bar left the screen after 65px
+   of a 6087px scroll and never came back, so four of the five categories were
+   unreachable for 99% of the list. Desktop had the identical bug, just shorter
+   — 781px of travel at 1440x900, with the bar ending up near the top of the
+   window covering ten cards. Proven by A/B: forcing `backdrop-filter: none` on
+   .shop-screen took the travel from 6087px to 0.
+   Normal flow removes the whole class of failure at once: no containing block
+   to be captured by, nothing for a collapsing mobile URL bar to disagree with,
+   and no fixed compositing layer riding over a scrolling one. */
 .shop-screen {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; width: 100%;
   max-width: 100%; margin: 0 auto;
+  /* The shell must NOT scroll — .shop-scroll owns that. Without this the header
+     and the nav scroll away with the list and we are back where we started. */
+  overflow: hidden;
+  /* Only the inset terms live here, because the header and the nav span the
+     full shell and must clear a landscape notch. The 16px reading gutter is on
+     .shop-scroll, which is the only child that wants one. */
+  padding: 0 var(--sai-right, 0px) 0 var(--sai-left, 0px);
+}
+/* The one scrolling box in the shop. `min-height: 0` is load-bearing: a flex
+   item defaults to `min-height: auto`, which refuses to shrink below its
+   content, so without it the list would push the nav off the bottom of the
+   shell instead of scrolling inside it. */
+.shop-scroll {
+  flex: 1 1 auto; min-height: 0;
+  /* Full width, NOT capped at 1080px, and the cap stays on the children where
+     it already was. The 16px reading gutter is this element's padding, so a cap
+     here would subtract it from the 1080px column instead of sitting outside
+     it: measured at 1440x900 that took the grid from 1080px to 1048px, which is
+     under 5x200px and collapsed the desktop card grid from five columns to
+     four. A full-width scroller also puts the scrollbar and the drag region at
+     the edge of the screen rather than inset from it. */
+  width: 100%; max-width: 100%;
+  display: flex; flex-direction: column; align-items: center;
   overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: 0 16px calc(96px + var(--sai-bottom, 0px)) 16px;
+  /* A phone rubber-bands at the end of a list; without this that overscroll
+     chains outward and drags the shell (and on iOS the page) with it. */
+  overscroll-behavior: contain;
+  padding: 0 16px 16px 16px;
 }
 .shop-header {
-  position: sticky; top: 0; z-index: 40; width: 100%; max-width: min(1080px, 100%);
+  /* Was `position: sticky; top: 0` back when .shop-screen scrolled. It is a
+     flex row outside the scroller now, so it is pinned by layout rather than
+     by sticky, and stacking no longer needs a z-index to beat the list.
+     The `calc(100% - 32px)` term replaces the 16px of .shop-screen padding this
+     row used to sit inside — without it the header goes full-bleed below 1112px
+     while the list under it stays inset, which measured as a 16px step down
+     each side at 1024 and 834. Same rendered box as before at every width. */
+  flex: 0 0 auto; width: 100%; max-width: min(1080px, calc(100% - 32px));
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: calc(12px + var(--sai-top, 0px)) 16px 12px 16px;
   margin-bottom: 12px;
@@ -1354,14 +1406,24 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
   width: 100%; max-width: min(1080px, 100%);
 }
 
-/* Docked Floating Bottom Navigation Bar (On top of content) */
+/* Docked Bottom Navigation Bar — the last flex row of the shell.
+   No `position: fixed` and no translate: it is the last child of a column that
+   is exactly the height of the screen, so "the bottom" is where it lands by
+   construction. `margin-top: auto` is not needed either — .shop-scroll takes
+   all the free space.
+   `backdrop-filter` is gone with the fixed positioning that made it look
+   necessary. Nothing scrolls behind this bar any more, and its own background
+   is already 96% opaque, so the blur was compositing a full-width GPU layer
+   every frame for a change nobody can see: with the 3D menu scene frozen and
+   the scrim held flat, putting the blur back moves the nav strip by at most
+   3/255 on one channel, with 0% of its pixels differing by more than 2/255 —
+   measured at 390x844, 360x640 and 1440x900. On a mobile GPU that layer is the
+   expensive part of this element, so it buys nothing and costs every frame. */
 .shop-tab-bar {
-  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-  z-index: 50; width: 100%; max-width: min(720px, 100vw);
+  flex: 0 0 auto; width: 100%; max-width: min(720px, 100vw);
   display: flex; justify-content: space-around; align-items: stretch; gap: 4px;
   padding: 6px 8px calc(6px + var(--sai-bottom, 0px)) 8px;
   background: rgba(14, 18, 28, 0.96);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   border-top: 1.5px solid rgba(255, 255, 255, 0.14);
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
@@ -1388,9 +1450,10 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
   box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
   transform: translateY(-2px);
 }
-.shop-tab .tab-icon {
-  font-size: 20px; line-height: 1.1; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));
-}
+/* A `.tab-icon` rule used to sit here. Nothing has ever rendered one — the tab
+   template in screens.js emits a label and a badge, and SHOP_CATEGORIES has no
+   icon field to feed it (the same missing field is why the category banner used
+   to print the word "undefined"). Removed rather than left as a promise. */
 .shop-tab .tab-label {
   font-size: 10px; font-weight: 700; letter-spacing: 0.4px; line-height: 1;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
@@ -1402,6 +1465,39 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
 }
 .shop-tab.active .tab-badge {
   background: rgba(56, 189, 248, 0.35); color: #38bdf8;
+}
+
+/* Phone width ONLY, and the breakpoint is 430px for a measured reason: the bar
+   is capped at 720px, so at 431px and up it already has more room than the five
+   tabs need and its authored spacing must not move. Below that the tabs are
+   splitting the viewport itself, and the longest label stops fitting — measured
+   at 320px, a tab gave its label 45.6px of box for a word that wanted 66px, so
+   every label on every phone was rendering as an ellipsis. Recovering the
+   gutters is worth more than shrinking the type here (16px of bar padding and
+   16px of gaps is 6.4px per tab, against 320px of viewport), so both are spent,
+   type last. */
+@media (max-width: 430px) {
+  .shop-tab-bar { padding-left: 3px; padding-right: 3px; gap: 1px; }
+  .shop-tab { padding: 4px 1px; border-radius: 10px; }
+  .shop-tab .tab-label { font-size: 9px; letter-spacing: 0; }
+  .shop-tab .tab-badge { font-size: 8px; padding: 1px 4px; }
+}
+
+/* Phone landscape. The shell's two chrome rows were eating 38% of a 360px-tall
+   screen — header 72px + nav 65px = 137px, leaving 223px of shop, which is less
+   than one card. Every trim below is measured on 640x360 and lands the pair at
+   ~109px (30%). The progress line goes because its two numbers are the sum of
+   the per-tab badges, which are still on screen a row below; it is the only
+   thing here that is information rather than padding, and it is not lost.
+   Same query as the three other phone-landscape blocks in this file, kept
+   beside the shop rules so the shop's story stays in one place. */
+@media (orientation: landscape) and (max-height: 480px) {
+  .shop-header { padding-top: calc(6px + var(--sai-top, 0px)); padding-bottom: 6px; }
+  .shop-progress-summary { display: none; }
+  .shop-category-banner { padding: 6px 12px; margin-bottom: 10px; }
+  /* 44px is the floor, not a preference — it is the smallest tap target that
+     still reliably takes a thumb, so the row stops shrinking here. */
+  .shop-tab { min-height: 44px; }
 }
 
 /* Grid of Cosmetic Items */
