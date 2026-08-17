@@ -323,7 +323,6 @@ export class ChaseCamera {
     this._blockerBox = null;  // raw XZ bounds of the blocker list, or null
     this.quakeCinematic = null; // active Dragon Ball earthquake cinematic cutscene state
     this.pokeSpawnCinematic = null; // active Pokemon powerup spawn cinematic state
-    this.dragonballCinematic = null; // active Dragon Ball 3-step anime zoom powerup pickup state
   }
 
   setBlockers(list) {
