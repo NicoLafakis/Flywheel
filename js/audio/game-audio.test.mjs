@@ -253,4 +253,48 @@ const eq = (a, b, msg) => { n++; assert.equal(a, b, msg); };
   eq(eng.voices, 0, 'and none of them is mistaken for a collapse');
 }
 
+// -------------------------------------------- the rival quake is quiet, not off
+// Owner decision 2026-08-17 (RCA-2026-08-17 section 7.1): a rival's fault-line
+// quake is world-audible and attenuated. `crash` is world-scoped and always
+// voiced, so muting the rumble under audible collapses gives a player the
+// consequence without the cause, which reads as a missing sound.
+//
+// Both halves are asserted deliberately. `handleEvent` accepts `{ quiet }` and
+// used to DISCARD it on this path (the case called playFaultLineQuake() with no
+// argument, and that method took no parameters), so a test that checked only
+// that the quake fired would pass against a build playing a rival at full
+// volume. The ducking is the larger intrusion and the easier one to reintroduce
+// by accident: a rival's quake must not dip the local player's bed or score.
+{
+  const { g, eng, music } = makeGame();
+  g.playFaultLineQuake();
+  eq(eng.count('earthquake'), 1, 'the local quake plays');
+  eq(eng.find('earthquake').vol, 1.0, 'the local quake plays at full level');
+  eq(eng.ducks.length, 1, 'the local quake ducks the ambience bed');
+  eq(music.ducks.length, 1, 'and ducks the music: it happened to YOU');
+}
+{
+  const { g, eng, music } = makeGame();
+  g.playFaultLineQuake({ quiet: true });
+  eq(eng.count('earthquake'), 1, "a rival's quake is still heard, not muted");
+  eq(eng.find('earthquake').vol, 0.35, "a rival's quake is attenuated, not full level");
+  eq(eng.ducks.length, 0, "a rival's quake must NOT duck the local ambience bed");
+  eq(music.ducks.length, 0, "a rival's quake must NOT duck the local player's music");
+}
+{
+  // The same, threaded through handleEvent, which is how main.js reaches it.
+  const { g, eng, music } = makeGame();
+  g.handleEvent({ type: 'quake', hole: {} }, { quiet: true });
+  eq(eng.find('earthquake') && eng.find('earthquake').vol, 0.35,
+    "handleEvent must thread `quiet` to the quake, not accept it and drop it");
+  eq(eng.ducks.length, 0, 'and a quiet quake ducks nothing through handleEvent either');
+  eq(music.ducks.length, 0, 'including the music');
+}
+{
+  const { g, eng } = makeGame();
+  g.handleEvent({ type: 'quake', hole: {} });
+  eq(eng.find('earthquake') && eng.find('earthquake').vol, 1.0,
+    'and an unqualified quake is still the full local one');
+}
+
 console.log(`PASS game audio: ${n} assertions`);

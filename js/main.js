@@ -54,9 +54,10 @@ window.setInterval(drainSavedBoardOutbox, 60000);
 // levels are applied. Order is load-bearing in both directions: the engine runs
 // the same stamped call in its constructor (which is what covers the arena and
 // the scene viewer), so calling it here is what makes the main game the one
-// caller that sees `reseeded` and can therefore also move the save's two keys
-// onto the new mix. Without that, the lines below would write the save's old
-// levels straight back over the freshly seeded ones and nothing would change.
+// caller that sees `reseeded` and can therefore also move the save's four level
+// keys (master, sfx, amb, music) onto the new mix. Without that, the lines below
+// would write the save's old levels straight back over the freshly seeded ones
+// and nothing would change.
 const mix = reseedAudioMix();
 if (mix.reseeded && save.settings) {
   save.settings.masterVol = mix.masterVol;
@@ -1372,6 +1373,23 @@ function frame(ts) {
       audio.updateListener(sim.localHole.x, sim.localHole.z, sim.moverSim);
       for (const ev of events) {
         const isLocalHole = !isMultiplayer || ev.hole === sim.localHole || (ev.hole && ev.hole.slot === (sim.localSlot ?? 0));
+        // Every sim event gets its voice: gulps, combo ladder, SIZE stings,
+        // milestones, tiered collapses, the derailment. This line was deleted by
+        // 8c3c85d while isLocalHole above was being introduced in its place, and
+        // the city ran silent for a day because the only other caller sits in the
+        // legacy branch below. See .wiki/findings/RCA-2026-08-17-eat-sfx-and-voxel-event-audio.md
+        //
+        // THREE scopes, not two. `ev.hole == null` IS the world-event marker: a
+        // tornado, a derailment, a collapse or a power-up spawning belongs to
+        // everybody in the match, and gating those on hole ownership is what
+        // would leave them silent — isLocalHole is false whenever there is no
+        // hole to own. The fault-line quake is the exception in the other
+        // direction: it is hole-scoped, but its consequences (`crash`) are not,
+        // so muting a rival's rumble under audible collapses would give the
+        // player the consequence without the cause. Rivals get it quiet.
+        // Single player is unaffected: `!isMultiplayer` short-circuits true.
+        if (!ev.hole || isLocalHole) audio.handleEvent(ev);
+        else if (ev.type === 'quake') audio.handleEvent(ev, { quiet: true });
         if (ev.type === 'combo') {
           if (isLocalHole) {
             hud.pulseCombo();
@@ -1443,7 +1461,8 @@ function frame(ts) {
           if (isLocalHole) {
             hud.announce({ text: `COIN! +${ev.value}`, source: 'coin', priority: ANN.COIN, ms: 700 });
             triggerHaptic(15);
-            audio.playCoin();
+            // No audio.playCoin() here: the pump above already reached
+            // handleEvent's `case 'coin'`, and calling it again doubles the chime.
           }
         } else if (ev.type === 'clock') {
           // The endgame states (R-1.5). Fired by the sim at exact ticks, so both
@@ -1462,13 +1481,19 @@ function frame(ts) {
             channel: 'band',
           });
         } else if (ev.type === 'powerup_collect') {
-          audio.playPowerUpCollect();
+          // The collect fanfare comes from the pump above (handleEvent's
+          // `case 'powerup_collect'`). It used to be called here unconditionally,
+          // which also meant a RIVAL's pickup was audible at full level in a
+          // match; it is local-only now, which is the isolation 8c3c85d intended.
           if (!isMultiplayer) {
             const isQuake = ev.powerup.type === 'quake' || (ev.powerup.spec && ev.powerup.spec.id === 'quake');
             const isChrono = ev.powerup.type === 'chrono' || (ev.powerup.spec && ev.powerup.spec.id === 'chrono');
+            // Chrono stays: handleEvent has no chrono voice on the collect path.
             if (isChrono) audio.playChronoFreeze({ vol: 0.95, delay: 0.25 });
             if (isQuake) {
-              audio.playFaultLineQuake();
+              // No audio.playFaultLineQuake() here: the fault-line effect emits
+              // its own `quake` event, which the pump voices with the same
+              // master plus the ducking. Calling it here too played it twice.
               cam.triggerShake(1.2);
             } else {
               cam.triggerShake(0.35);

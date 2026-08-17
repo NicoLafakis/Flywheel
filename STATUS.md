@@ -17,6 +17,8 @@ Last updated: 2026-08-17
 
 ## Shipped state
 
+- 2026-08-17 — Voxel Event Audio Restored: Eat Gulps, Combo Ladder, Stingers, Derailment & Tornado (RCA-2026-08-17, three suites now gated)
+
 - 2026-08-17 — Partner Skin Approval Gating & Coin Refund (save schema v24)
 
 - 2026-08-17 — Hole Speed Retune: 1.4× → 1.8× (save schema v23, ranked v2)

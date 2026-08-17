@@ -181,13 +181,26 @@ pool), and from `handleEvent()` itself — so every drained event pumps it too.
 is why the listener call at `js/main.js:1372` is the one that matters: it runs
 every frame whether or not any event was drained. So
 any surface that runs inside `js/main.js`'s frame loop — the main game and
-`js/multiplayer/` matches alike — needs no extra wiring; a caller with no live
-listener position (nothing today) would still need its own `tick()` call, but
-none currently exists (the standalone hot-seat demo that once needed this,
-`js/demo/demo.js`, was removed 2026-08-16). `_stopScene()` **drops** anything
+`js/multiplayer/` matches alike — needs no extra wiring **for the pool**; a
+caller with no live listener position (nothing today) would still need its own
+`tick()` call, but none currently exists (the standalone hot-seat demo that once
+needed this, `js/demo/demo.js`, was removed 2026-08-16). `_stopScene()` **drops** anything
 still pooling rather than flushing it: the surface feeding impacts has gone
 away, and a collapse banging over the results reveal a beat after the city faded
 out is the same miss the pooling exists to fix.
+
+Read that "no extra wiring" narrowly: it is a claim about the collapse pool
+ripening, not about events reaching audio at all. Those are separate lines, and
+the second one is a single point of failure. Every sound that is not a collapse
+arrives only because some caller hands the event to `handleEvent()`, and in the
+voxel branch that caller is exactly one statement — `js/main.js:1390`. When a
+multiplayer refactor deleted it (`8c3c85d`) the pool kept ticking off
+`updateListener()` at `:1372` exactly as this section describes, the crashes
+kept sounding, and the gulps, the combo ladder, every stinger, the derailment
+and the tornado went silent for a day with `ALL PASS` printing throughout. See
+[RCA-2026-08-17](../findings/RCA-2026-08-17-eat-sfx-and-voxel-event-audio.md).
+`tools/sfx-event-guard.test.mjs` now watches that statement specifically,
+executing the shipped guard text rather than re-implementing it.
 
 One voice per collapse also fixes the engine's per-name fatigue ducking, which
 was working against the mix rather than for it. Fatigue deposits energy per
@@ -206,6 +219,35 @@ tremor, which is right, where a repeated bang does not.
 `js/main.js` creates one `GameAudio` instance, exposes it as `window.__audio`
 for smoke tests, feeds the local hole position each frame, and starts/stops city
 ambience with sandbox lifecycle. The old oscillator `blip()` path is gone.
+
+### Who hears which event: three scopes, not two
+
+The voxel frame loop drains the sim's events and decides, per event, whether the
+local player hears it. There are **three** answers, and reading it as two is the
+mistake that costs you either a silent city or a cacophony of other people's
+business (`js/main.js:1390`):
+
+| Scope | Marker | Who hears it | Why |
+| --- | --- | --- | --- |
+| **World** | `ev.hole == null` | everybody, full level | A tornado, a derailment, a collapse or a power-up spawning happened to the *city*. Nobody owns it, so ownership cannot gate it — and `isLocalHole` is false whenever there is no hole to own, which is why gating world events on it silences them outright. |
+| **Mine** | `ev.hole` is the local hole | me, full level | Ordinary hole-scoped feedback: gulps, my combo ladder, my SIZE stings. |
+| **A rival's** | `ev.hole` is someone else's | nothing, *except* `quake` | Their gulps and their combo are their business; mine would be unreadable under five other holes' worth of it. |
+
+`quake` is the one hole-scoped event that crosses the line, because its
+**consequences** do not respect the line: a fault-line quake topples buildings,
+and those `crash` events are world-scoped and already audible to everyone. Mute
+the rumble and a rival's quake gives you the consequence with no cause — towers
+falling across the map for no reason you can hear. So a rival's quake plays, at
+`vol 0.35`, and **without** either duck: the ambience and music dips are most of
+what makes the event feel like it happened *to you*, and spending them on
+someone else's timer dips your own bed and score for 3.5 s over something you
+did not do. That is the same re-ducking the collapse pooling above exists to
+stop. The level rides through `handleEvent(ev, { quiet: true })` →
+`playFaultLineQuake({ quiet })`; `quiet` is a real option on `handleEvent`, but
+only these two cases read it, so do not assume a new event honours it.
+
+Single player is untouched by all of this: `!isMultiplayer` short-circuits the
+ownership test true, so every event is "mine" and plays at full level.
 
 SETTINGS carries one Game sounds toggle (the global mute) and three sibling
 sliders in order: Effects volume, Ambience volume, Music volume. Effects and
@@ -332,3 +374,24 @@ end-of-match podium dead quiet in every multiplayer match.
   collapses to two voices, suppression expiry, one duck per voice, and the
   positionless surface — by `js/audio/game-audio.test.mjs` (all run with
   `node <path>`).
+- **The effects seam has the same shape as the music-cue seam above, and needed
+  the same kind of guard.** `js/audio/game-audio.test.mjs` asserts the whole
+  event-to-sound mapping, but it calls `handleEvent()` itself, so it owns both
+  sides of the seam and can never see the *caller* disappear — which is exactly
+  what happened in `8c3c85d` (see
+  [RCA-2026-08-17](../findings/RCA-2026-08-17-eat-sfx-and-voxel-event-audio.md)).
+  `tools/sfx-event-guard.test.mjs` watches the seam instead of the mapping: it
+  cross-checks every `case '…'` in `handleEvent` against the `events.push({…})`
+  sites in `js/voxelsim.js` and `js/sim.js` (brace-matched, because `hole,`
+  shorthand is invisible to a `hole:` grep), asserts both frame-loop branches
+  still pump, and **executes the shipped guard text** lifted out of `js/main.js`
+  via `new Function` rather than re-implementing it, so a guard that stops
+  delivering fails even though the test never restates what the guard should
+  say. It also prints which cases read `quiet`. Run it with
+  `node tools/sfx-event-guard.test.mjs`.
+- Registration status, 2026-08-17: `tools/sfx-event-guard.test.mjs`,
+  `js/audio/game-audio.test.mjs` and `js/audio/engine.test.mjs` are **not yet in
+  `validateMultiplayer()`'s `suites` array**. Until they are, they only run when
+  someone runs them by hand, which is contributing factor 2 of the RCA above —
+  `game-audio.test.mjs` asserted the eat gulp throughout the outage and stayed
+  green because nothing ran it.

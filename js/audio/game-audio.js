@@ -308,8 +308,16 @@ export class GameAudio {
     this.engine.play('earthquake', { vol: 1.0 });
   }
 
-  playFaultLineQuake() {
-    this.engine.play('earthquake', { vol: 1.0 });
+  /** `quiet` is a RIVAL's quake in a multiplayer match: audible, because the
+   * collapses it causes are world-scoped and already audible, so muting the
+   * rumble under them would give a player the consequence without the cause.
+   * Subordinate and NON-ducking, though: the ducks are most of what makes the
+   * event feel like it happened to you, and spending them on someone else's
+   * quake dips the local bed and score on a timer the player did not cause —
+   * the same re-ducking the collapse pooling above exists to stop. */
+  playFaultLineQuake({ quiet = false } = {}) {
+    this.engine.play('earthquake', { vol: quiet ? 0.35 : 1.0 });
+    if (quiet) return;
     this.engine.duckAmbience(3.5, 0.2);
     this.music.duck(3.5, 0.3);
   }
@@ -404,8 +412,20 @@ export class GameAudio {
   stopScene() { this._sceneWanted = null; this._stopScene(); }
 
   // ---------------------------------------------------------------- events
-  /** Feed a drained sim event batch. `opts.quiet` plays another player's
-   * eats at reduced volume (the arena: your rival chews in the distance). */
+  /** Feed a drained sim event batch. `opts` is forwarded verbatim to every
+   * `handleEvent` below.
+   *
+   * `opts.quiet` marks the event as SOMEONE ELSE'S: it should still be heard,
+   * because its consequences are audible either way, but it must not sit at the
+   * local player's level or spend the local player's ducks. Read it as "not
+   * mine", not as "an eat" — describing it as an eats-only flag is what kept
+   * the gap below invisible.
+   *
+   * KNOWN GAP: only `case 'eat'` and `case 'quake'` actually read `quiet`. Every
+   * other case accepts it and plays at full level anyway, so passing it is not
+   * yet a guarantee. `tools/sfx-event-guard.test.mjs` prints the live ratio on
+   * each run rather than leaving it to be rediscovered; the per-case ladder that
+   * closes it is separate, approved work. */
   handleEvents(events, opts = {}) {
     this.tick();   // an empty batch is still a frame: pooled collapses ripen
     for (const ev of events) this.handleEvent(ev, opts);
@@ -498,7 +518,9 @@ export class GameAudio {
         this.playPowerUpSpawn();
         break;
       case 'quake':
-        this.playFaultLineQuake();
+        // Threaded, not dropped: this arm used to call the no-argument form, so
+        // `quiet` was accepted by handleEvent and silently discarded here.
+        this.playFaultLineQuake({ quiet });
         break;
       case 'time_freeze_start':
         this.playChronoFreeze();
