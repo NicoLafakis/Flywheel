@@ -18,6 +18,7 @@ Last updated: 2026-08-17
 - **Menu-angle inheritance for the level intro** — the establishing beat uses the level's own sun-scored `_introYaw0`. Adopting the title backdrop's live yaw instead is a two-line change but discards that scoring, and the backdrop is hard-coded to Brooklyn regardless of city. `.wiki/modules/render.md`.
 - **Mid-play power-up spawn cutscene** — still fires on every ~30s intermittent respawn, now smooth and cancellable rather than removed. Suppressing it entirely is a one-line change to the same gate that already suppresses it at level start.
 - **Quake cutscene's authored internal hard cuts** — shot 0→1 turns 2.76 rad in one frame (285.3% distance, 165.88 rad/s whole-sequence). Deliberately outside the release-continuity gate; keeping or retiring them is shot design. `.wiki/modules/render.md`.
+- **Cloud progress sync** — coins, skins, stars and upgrades still live on one device; only the leaderboard identity is global. Full plan (schema, routes, merge, coin fence, phased tasks, ~46 h) in `.wiki/plans/cloud-progress-sync.md`. Not started; go/no-go is the owner's.
 - **Cambridge 2** — the map was specced to *look* as detailed as 73k voxels, not to contain them. Rebuild at perceived density; the existing map stays. Root cause of the validator's runtime.
 
 ---
