@@ -1,5 +1,10 @@
 import { ensurePlayer, storeSave, adoptServerName, playerName } from '../save.js';
 import { post } from './request.js';
+// Cloud progress follows the identity (js/cloud/sync.js): every identity change
+// pulls the account's document and merges it in; sign-out flushes first. The
+// import is circular (sync.js needs deviceKey/playerSecret) and safe because
+// both sides only call across it from inside functions.
+import { flushSync, onIdentityChanged, resetSyncForSignOut } from '../cloud/sync.js';
 
 const DEVICE_KEY = 'fw-board-device';
 const PLAYER_KEY = 'fw-player';
@@ -47,6 +52,9 @@ function applyIdentity(save, { player_id = null, name = null } = {}, chosen = nu
   player.claimedAt = new Date().toISOString();
   player.nameSource = 'claimed';
   storeSave(save);
+  // Progress follows the account: pull, merge, push. Fire-and-forget — the
+  // identity is already applied and a failed pull changes nothing (invariant 10).
+  void Promise.resolve(onIdentityChanged(save)).catch(() => {});
   return player.name;
 }
 
@@ -144,4 +152,25 @@ export async function removePlayer(save) {
   const player = ensurePlayer(save);
   player.id = null; player.name = null; player.claimedAt = null; player.nameSource = 'auto';
   playerName(save);
+}
+
+// Sign OUT, which is not removePlayer (that deletes the account). Order is
+// load-bearing: flush any progress this device still owes the account FIRST
+// (capped so a dead network cannot hold the button), THEN drop the token, then
+// hand the device a fresh automatic name. Local progress deliberately STAYS on
+// the device (§3.4 product default): a shared family tablet loses nothing, and
+// the next sign-in merges it into that account, which can only add.
+export async function signOutPlayer(save, { flushTimeoutMs = 5000 } = {}) {
+  try {
+    await Promise.race([
+      Promise.resolve(flushSync(save)).catch(() => null),
+      new Promise((resolve) => setTimeout(resolve, flushTimeoutMs)),
+    ]);
+  } catch { /* the flush is best-effort; signing out must not depend on it */ }
+  try { localStorage.removeItem(PLAYER_KEY); } catch { /* ignored */ }
+  resetSyncForSignOut(save);
+  const player = ensurePlayer(save);
+  player.id = null; player.name = null; player.claimedAt = null; player.nameSource = 'auto';
+  playerName(save);
+  storeSave(save);
 }

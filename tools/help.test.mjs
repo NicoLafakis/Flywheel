@@ -109,6 +109,17 @@ export function runHelpSelftest() {
   assert.equal(emptyResult.faq.length, 0); count();
   assert.equal(emptyResult.tips.length, 0); count();
 
+  // 7. Cloud progress sync (Phase C task 15): the FAQ must say that progress —
+  // not only the name and ranked scores — follows the account across devices.
+  const progressFaq = filterHelpContent('another device', 'faq');
+  assert.ok(progressFaq.length >= 1, 'FAQ must answer whether progress follows you to another device'); count();
+  const progressText = JSON.stringify(progressFaq).toLowerCase();
+  assert.ok(progressText.includes('coins, skins'), 'progress FAQ must say "coins, skins" follow the account'); count();
+  assert.ok(progressText.includes('stars'), 'progress FAQ must mention stars'); count();
+  const signInFaq = filterHelpContent('sign in', 'faq');
+  assert.ok(signInFaq.length >= 2, 'at least two FAQ entries must mention signing in (ranked + progress)'); count();
+  assert.ok(!JSON.stringify(filterHelpContent('', 'all')).includes('http://'), 'help copy must not contain http://'); count();
+
   // 6. Check renderHelp function exists
   assert.equal(typeof renderHelp, 'function', 'renderHelp must be an exported function'); count();
 

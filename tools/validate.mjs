@@ -1708,6 +1708,21 @@ function validateSaveSchema() {
     fail('save schema: v22->v23 must preserve everything except the retuned voxSpeed');
   }
 
+  // v25 (cloud progress sync, task 6): the save carries a `cloud` bookkeeping
+  // block with exactly the keys js/cloud/sync.js reads, on both the fresh path
+  // and the v24->v25 migration. Neither may drift from the other, and neither
+  // may leak into the synced blob (progressBlob guards that half).
+  const CLOUD_KEYS = ['lastPushedAt', 'lastPulledAt', 'dirty', 'revision', 'lastLocalChangeAt', 'firstNoteShownAt'];
+  if (CURRENT_VERSION < 25) fail(`save schema: CURRENT_VERSION is ${CURRENT_VERSION}, cloud sync needs v25`);
+  for (const k of CLOUD_KEYS) {
+    if (!fresh.cloud || !(k in fresh.cloud)) fail(`save schema: freshSave().cloud lacks ${k}`);
+  }
+  const v25 = __MIGRATIONS[24] ? __MIGRATIONS[24]({ version: 24, coins: 3, ownedItems: ['neon'] }) : null;
+  if (!v25 || v25.version !== 25) fail('save schema: no v24->v25 migration');
+  for (const k of CLOUD_KEYS) if (!v25 || !v25.cloud || !(k in v25.cloud)) fail(`save schema: v24->v25 must add cloud.${k}`);
+  if (v25 && (v25.coins !== 3 || !v25.ownedItems || v25.ownedItems[0] !== 'neon')) fail('save schema: v24->v25 must preserve everything else');
+  if (v25 && v25.cloud && (v25.cloud.dirty !== false || v25.cloud.revision !== 0)) fail('save schema: a migrated save starts clean at revision 0 (nothing pushed yet)');
+
   console.log(`  save schema: v1->v${CURRENT_VERSION} chain and freshSave() agree on ${freshKeys.size} top-level key(s), ${freshSettingKeys.size} setting(s), and ${freshPlayerKeys.size} player key(s)`);
 }
 
@@ -2867,6 +2882,148 @@ function validateSyntax() {
 }
 
 // --- execution modes -----------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Cloud progress sync (.wiki/plans/cloud-progress-sync.md, Phase A).
+// ---------------------------------------------------------------------------
+
+// Spawn a standalone async suite and fold its exit status into this process's
+// failure count. The handler tests under tools/progress*.test.mjs are async
+// (fake req/res driving real handlers) and section() calls fn() synchronously,
+// so they run as their own process — the same shape validateMultiplayer uses.
+function runSuite(rel) {
+  const file = fileURLToPath(new URL(`../${rel}`, import.meta.url));
+  const res = spawnSync(process.execPath, [file], { stdio: 'pipe' });
+  if (res.error || res.status !== 0) {
+    const out = `${res.stdout ?? ''}${res.stderr ?? ''}`.trim();
+    fail(`suite ${rel} exited ${res.status}${res.error ? ` (${res.error.message})` : ''}:\n${out}`);
+    return false;
+  }
+  console.log(`  ${rel}: passed.`);
+  return true;
+}
+
+// Task 1: the player_progress migration exists and has the shape 2.1 asks for.
+// Read as text because there is no database here; the live read-back happens
+// off the PostgREST OpenAPI doc when the file is applied.
+function validateProgressSchema() {
+  console.log('Validating player_progress migration...');
+  const dir = new URL('../supabase/migrations/', import.meta.url);
+  const files = readdirSync(dir).filter((f) => /_player_progress\.sql$/.test(f));
+  if (files.length !== 1) { fail(`expected exactly one supabase/migrations/*_player_progress.sql, found ${files.length}`); return; }
+  const sql = readFileSync(new URL(files[0], dir), 'utf8');
+  const stripSql = sql.replace(/--.*$/gm, '');
+  const must = [
+    [/create table (?:if not exists )?public\.player_progress/, 'create table public.player_progress'],
+    [/player_id\s+uuid\s+primary key\s+references public\.players\(id\)\s+on delete cascade/, 'player_id references players(id) on delete cascade'],
+    [/schema_version\s+integer\s+not null/, 'schema_version integer not null'],
+    [/blob\s+jsonb\s+not null/, 'blob jsonb not null'],
+    [/octet_length\(blob::text\)\s*<=\s*65536/, 'blob capped at 64 KB'],
+    [/coins_verified\s+bigint\s+not null default 0/, 'coins_verified ledger column'],
+    [/coins_ceiling\s+bigint\s+not null default 0/, 'coins_ceiling column'],
+    [/revision\s+integer\s+not null default 1/, 'revision column'],
+    [/alter table public\.player_progress enable row level security/, 'RLS enabled'],
+    [/create policy "raw progress deny browser" on public\.player_progress\s+for all to anon, authenticated using \(false\) with check \(false\)/, 'deny-browser policy'],
+    [/grant select, insert, update, delete on table public\.player_progress to service_role/, 'service_role grant (default privileges revoke everything, 20260812204210)'],
+    [/submission_log_kind_check[\s\S]*'progress'/, "'progress' in the submission_log kind constraint"],
+    [/create or replace function public\.fw_coins_verified\(p_player_id uuid\)/, 'fw_coins_verified RPC'],
+    [/coins_collected/, 'fw_coins_verified sums stats->>coins_collected'],
+    [/grant execute on function public\.fw_coins_verified\(uuid\)\s+to service_role/, 'fw_coins_verified executable by service_role'],
+  ];
+  for (const [re, what] of must) if (!re.test(stripSql)) fail(`${files[0]}: missing ${what}`);
+  if (!/ROLLBACK/.test(sql)) fail(`${files[0]}: no rollback note`);
+}
+
+// Task 3: mergeBlobs is pure and DOM-free; its behaviour suite is standalone.
+function validateProgressMerge() {
+  console.log('Validating cloud merge (js/cloud/merge.js)...');
+  const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\n'"`]*\/\/.*$/gm, '');
+  let src;
+  try { src = stripComments(readFileSync(new URL('../js/cloud/merge.js', import.meta.url), 'utf8')); }
+  catch { fail('js/cloud/merge.js does not exist'); return; }
+  if (/\b(document|window|localStorage|navigator)\b/.test(src)) fail('js/cloud/merge.js touches the DOM — it must stay pure (invariant 9)');
+  if (/from\s+['"]three['"]|three\.module/.test(src)) fail('js/cloud/merge.js imports three.js');
+  if (/Math\.random/.test(src)) fail('js/cloud/merge.js uses Math.random (invariant 2)');
+  runSuite('tools/progress-merge.test.mjs');
+}
+
+// Tasks 2, 4, 16: api/_progress.mjs and the two progress routes, driven with
+// fake req/res and a stubbed database.
+function validateProgressApi() {
+  console.log('Validating progress API (api/_progress.mjs, api/progress/*)...');
+  for (const rel of ['api/_progress.mjs', 'api/progress/pull.mjs', 'api/progress/push.mjs']) {
+    try { readFileSync(new URL(`../${rel}`, import.meta.url)); }
+    catch { fail(`${rel} does not exist`); }
+  }
+  runSuite('tools/progress-api.test.mjs');
+}
+
+// Task 7: js/cloud/blob.js is the boundary between what follows the player and
+// what stays on the device. Pure, DOM-free; behaviour suite is standalone.
+function validateProgressBlob() {
+  console.log('Validating cloud blob boundary (js/cloud/blob.js)...');
+  const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\n'"`]*\/\/.*$/gm, '');
+  let src;
+  try { src = stripComments(readFileSync(new URL('../js/cloud/blob.js', import.meta.url), 'utf8')); }
+  catch { fail('js/cloud/blob.js does not exist'); return; }
+  if (/\b(document|window|localStorage|navigator|fetch)\b/.test(src)) fail('js/cloud/blob.js touches the DOM/network — it must stay pure');
+  if (/from\s+['"]three['"]|three\.module/.test(src)) fail('js/cloud/blob.js imports three.js');
+  runSuite('tools/progress-blob.test.mjs');
+}
+
+// Tasks 8-11: js/cloud/sync.js plus its triggers. Source guards here (the
+// pure-sim modules must not import it, every write path must mark the save
+// dirty, the menu-return / reconnect / identity seams must be wired), then the
+// behaviour suite under a fake fetch and fake timers.
+function validateProgressSync() {
+  console.log('Validating cloud sync (js/cloud/sync.js) and its triggers...');
+  const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\n'"`]*\/\/.*$/gm, '');
+  const read = (rel) => { try { return stripComments(readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')); } catch { fail(`${rel} does not exist`); return ''; } };
+  const sync = read('js/cloud/sync.js');
+  if (/from\s+['"]three['"]|three\.module/.test(sync)) fail('js/cloud/sync.js imports three.js (invariant 9)');
+  if (/\bMath\.random\b/.test(sync)) fail('js/cloud/sync.js uses Math.random (invariant 2)');
+  for (const rel of ['js/rng.js', 'js/tiers.js', 'js/citygen.js', 'js/levels.js', 'js/sim.js', 'js/voxelsim.js']) {
+    if (/from\s+['"][^'"]*\/cloud\//.test(read(rel))) fail(`${rel} imports js/cloud/** (invariant 3)`);
+  }
+  // Task 9: every write path marks the save dirty.
+  const save = read('js/save.js');
+  for (const fn of ['recordLevelResult', 'recordSandboxResult', 'recordChallengeResult', 'buyUpgrade']) {
+    const at = save.indexOf(`export function ${fn}(`);
+    // `\n}\n`, not `\n}`: two of these have a destructured parameter list that
+    // closes with `}) {` on its own line.
+    const body = at === -1 ? '' : save.slice(at, save.indexOf('\n}\n', at));
+    if (!/\bmarkProgressDirty\s*\(\s*save\s*\)/.test(body)) fail(`js/save.js ${fn} does not call markProgressDirty(save)`);
+  }
+  const main = read('js/main.js');
+  for (const fn of ['buy', 'equip', 'equipIndicator', 'toggleMute']) {
+    const at = main.search(new RegExp(`^  ${fn}\\(`, 'm'));
+    const body = at === -1 ? '' : main.slice(at, main.indexOf('\n  }', at));
+    if (!/\bmarkProgressDirty\s*\(\s*save\s*\)/.test(body)) fail(`js/main.js ${fn} does not call markProgressDirty(save)`);
+  }
+  // The menu-return sites funnel through one backToTitle() that flushes; the
+  // plan's five sites (and a few siblings) must all go through it, and the
+  // visibilitychange->hidden branch flushes on its own.
+  const backAt = main.indexOf('function backToTitle()');
+  const backBody = backAt === -1 ? '' : main.slice(backAt, main.indexOf('\n}\n', backAt));
+  if (!/\bflushSync\s*\(\s*save\s*\)/.test(backBody)) fail('js/main.js backToTitle() does not flushSync(save)');
+  const backSites = (main.match(/\bbackToTitle\(\)/g) || []).length - 1;
+  if (backSites < 5) fail(`js/main.js routes ${backSites} menu-return site(s) through backToTitle(); the plan names five`);
+  if (/state = 'menu';\s*screens\.showTitle\(\)/.test(main)) fail("js/main.js still has a bare `state = 'menu'; screens.showTitle()` menu return that skips the flush");
+  const visAt = main.indexOf("addEventListener('visibilitychange'");
+  const visBody = visAt === -1 ? '' : main.slice(visAt, main.indexOf('\n});', visAt));
+  if (!/\bflushSync\s*\(\s*save\s*\)/.test(visBody)) fail('js/main.js visibilitychange handler does not flushSync(save) when the tab hides');
+  const drainAt = main.indexOf('function drainSavedBoardOutbox');
+  const drainBody = drainAt === -1 ? '' : main.slice(drainAt, main.indexOf('\n}', drainAt));
+  if (!/\bflushSync\s*\(/.test(drainBody)) fail('js/main.js drainSavedBoardOutbox does not piggyback flushSync (boot / online / 60 s tick)');
+  if (!/\bconfigureSync\s*\(/.test(main)) fail('js/main.js does not hand configureSync the isPlaying gate (invariant 4: applyBlob deferred while playing)');
+  const player = read('js/board/player.js');
+  const applyAt = player.indexOf('function applyIdentity(');
+  const applyBody = applyAt === -1 ? '' : player.slice(applyAt, player.indexOf('\n}', applyAt));
+  if (!/\bonIdentityChanged\s*\(\s*save\s*\)/.test(applyBody)) fail('js/board/player.js applyIdentity does not call onIdentityChanged(save)');
+  if (!/export async function signOutPlayer\(/.test(player)) fail('js/board/player.js has no signOutPlayer(save)');
+  runSuite('tools/progress-sync.test.mjs');
+}
+
 // TWO modes, one command:
 //
 //   node tools/validate.mjs          ORCHESTRATOR. Each section group below runs
@@ -2917,7 +3074,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
   // gets its own child.
   const groups = [
     ['syntax', 'syntaxCheck'],
-    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,fwMath,runBoard,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges'],
+    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges'],
     // Its own child rather than folded into `core`: every suite in it is itself
     // a spawned process, so it is the one group whose cost is process startup
     // instead of CPU, and it finishes long before the scenes either way.
@@ -2997,6 +3154,18 @@ for (const level of levelsToCheck) {
 }
 });
 
+
+// Phase C (cloud progress sync, tasks 12-14): the player-facing surface of the
+// sync — indicator states, first-time note, trimmed notice, sign-out. The body
+// lives in tools/progress-ui.test.mjs because it has to import the copy module
+// (async ESM) and this runner is synchronous; see that file for what it guards.
+function validateProgressUi() {
+  console.log('Validating cloud progress UI (indicator, notes, sign-out)...');
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL('./progress-ui.test.mjs', import.meta.url))], { encoding: 'utf8' });
+  if (r.stdout) process.stdout.write(r.stdout);
+  if (r.status !== 0) fail(`tools/progress-ui.test.mjs failed:
+${r.stderr || ''}`);
+}
 section('syntaxCheck', validateSyntax);
 section('offlineBoot', validateOfflineBoot);
 section('saveSchema', validateSaveSchema);
@@ -3004,7 +3173,23 @@ section('rewardLadders', validateRewardLadders);
 section('shopAndUpgrades', validateShopAndUpgrades);
 section('helpAndWalkthrough', () => console.log(`Validating Help, Walkthrough & FAQ (${runHelpSelftest()} assertions)...`));
 section('fwMath', validateFwMath);
-section('runBoard', () => console.log(`Validating THE RUN trace/replay (${runBoardSelftest()} assertions)...`));
+section('runBoard', () => {
+  console.log(`Validating THE RUN trace/replay (${runBoardSelftest()} assertions)...`);
+  // Task 5 (cloud progress sync): the server replay must record how many coins
+  // the run collected, from the sim's own counter, so fw_coins_verified has a
+  // ledger to sum. Same guard style as the best_chain guard in rewardLadders.
+  const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\n'"`]*\/\/.*$/gm, '');
+  const verifySrc = stripComments(readFileSync(new URL('../api/_verify.mjs', import.meta.url), 'utf8'));
+  if (!/\bcoins_collected:\s*sim\.hole\.coinsCollected\b/.test(verifySrc)) {
+    fail('api/_verify.mjs does not write stats.coins_collected from sim.hole.coinsCollected — the verified-coin ledger has nothing to sum');
+  }
+});
+section('progressSchema', validateProgressSchema);
+section('progressMerge', validateProgressMerge);
+section('progressApi', validateProgressApi);
+section('progressBlob', validateProgressBlob);
+section('progressSync', validateProgressSync);
+section('progressUi', validateProgressUi);
 section('levelClock', validateLevelClock);
 section('scenesWinnable', validateScenesWinnable);
 section('voxelSandbox', validateVoxelSandbox);

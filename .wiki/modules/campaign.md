@@ -17,7 +17,7 @@ beatable headlessly.
 |------|---------|
 | `js/levels.js` | `METROS`, `MECHANICS`, `levelDef(i)` formulas, stars/coins |
 | `js/citycatalog.js` | Pure catalog metadata & progression rules for metropolis sandboxes, 3-minute challenges, and secret 90s unlock logic |
-| `js/save.js` | localStorage schema v24 (+settings, +upgrades, +challenges), migrations v1→v24, quarantine |
+| `js/save.js` | localStorage schema v25 (+settings, +upgrades, +challenges, +v25 `cloud{}` sync bookkeeping), migrations v1→v25, quarantine |
 | `tools/validate.mjs` | Overlap + snack-ring + greedy-bot margin proof for every campaign level, plus `validateCambridge()` (drives the voxel-sandbox Cambridge scene through the same kind of greedy bot) and `validateOfflineBoot()` (parses `index.html` and fails on any external-origin runtime dependency — see `architecture.md`'s Boot section) |
 
 ## Talks To
@@ -131,8 +131,12 @@ replaced by `js/multiplayer/`; see `architecture.md`'s "Key decisions") —
 don't touch `js/save.js` or `tools/validate.mjs`; this page's save-schema and
 validator description stand as written.
 
-**Planned, not built:** the online-Flywheel package proposed a path from
-`save.js`'s local schema to a cloud profile, so a guest's progress survives
-signing in (see its migration plan, §12). That package was retired along
-with the legacy multiplayer stack on 2026-08-16 and has no replacement yet.
-`save.js` itself is unchanged.
+**Built 2026-08-17: cloud progress sync (save schema v25).** Coins, skins,
+stars and upgrades now follow the signed-in player across devices. Migration
+24 adds `cloud{}` bookkeeping (`dirty`, `revision`, `lastPushedAt`,
+`lastPulledAt`, `state`, `firstNoteShownAt`) to any save at v24 or older, and
+`freshSave()` carries the same shape — the local schema is otherwise
+untouched; nothing under `js/save.js`'s recorders changed shape. Full design
+(the `player_progress` table, the merge, the coin fence, the sync triggers) is
+in [cloud.md](cloud.md) and the server half in [api.md](api.md); the original
+proposal is `.wiki/plans/cloud-progress-sync.md`.

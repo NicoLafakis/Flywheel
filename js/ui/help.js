@@ -402,7 +402,7 @@ export const FAQ_ITEMS = Object.freeze([
   },
   {
     q: 'Can I play Flywheel offline without an internet connection?',
-    a: 'Yes! Flywheel is fully playable offline. All single-player cities, saves, and personal best records are saved locally in your browser. Ranked scores queue locally until an internet connection is restored.',
+    a: 'Yes! Flywheel is fully playable offline. All single-player cities, saves, and personal best records are saved locally in your browser. Ranked scores and account progress (coins, skins, stars) queue locally and sync when an internet connection is restored.',
     category: 'Technical',
     tags: ['offline', 'internet', 'saves', 'storage'],
   },
@@ -423,6 +423,18 @@ export const FAQ_ITEMS = Object.freeze([
     a: 'Sign in with a player name on the title screen, then launch a ranked RUN from the records screen. Runs record deterministic input traces verified by the server before posting.',
     category: 'Scoring',
     tags: ['records', 'leaderboard', 'ranked', 'profile', 'anti-cheat'],
+  },
+  {
+    q: 'Does my progress follow me to another device?',
+    a: 'Yes, once you sign in. Your coins, skins, stars and upgrades are saved to your account, so sign in on another phone, tablet or computer and they are there. The dot beside your name on the title screen shows SYNCED when everything is saved, and OFFLINE — WILL SYNC when it is waiting for a connection.',
+    category: 'Technical',
+    tags: ['sync', 'account', 'progress', 'devices', 'coins', 'skins', 'stars', 'cloud'],
+  },
+  {
+    q: 'What happens to my progress if I sign out, or sign in on another device?',
+    a: 'Signing out keeps everything on this device and hands it a guest name; your account keeps its own copy. If you sign in somewhere else, this device shows SIGNED OUT ELSEWHERE until you sign in again. Signing in on a device that already has progress adds it to your account; nothing is ever taken away.',
+    category: 'Technical',
+    tags: ['sign out', 'sign in', 'account', 'progress', 'devices', 'merge'],
   },
   {
     q: 'How can I improve frame rate and performance on low-spec devices?',

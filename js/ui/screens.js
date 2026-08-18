@@ -9,6 +9,8 @@ import { defaultTierForDevice } from '../quality.js';
 // numbers; this file only draws them.
 import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MASTER_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME } from '../audio/mix.js';
 import { BOARDS_ENABLED } from '../board/config.js';
+import { syncStatus } from '../cloud/sync.js';
+import { syncIndicator } from './sync-copy.js';
 // The sandbox payout constants, so the results screen cannot advertise a coin
 // value or a finish bonus the sim does not define. js/voxelsim.js owns both.
 // RANKED_TICK_COUNT joins them for the same reason: the run's length was typed
@@ -211,12 +213,22 @@ export class Screens {
     const id = el(`<button type="button" class="fw-stat fw-id">
       <span class="fw-stat-k">${claimed ? 'PLAYER' : 'YOU ARE'}</span>
       <span class="fw-stat-v"></span>
-      <span class="fw-stat-note">${claimed ? 'VIEW PROFILE' : 'SIGN IN TO KEEP IT'}</span>
+      <span class="fw-stat-note">${claimed ? 'VIEW PROFILE' : 'SIGN IN — KEEP COINS, SKINS & STARS EVERYWHERE'}</span>
     </button>`);
     const nameSlot = id.querySelector('.fw-stat-v');
     nameSlot.textContent = name;
     id.setAttribute('aria-label', `Profile for ${name}`);
     id.onclick = () => this.showProfile();
+    // The cloud dot: a colour and a word beside the name, and only when there
+    // is something to say (a fresh guest with nothing pushed yet sees no dot).
+    // It rides on the plate as a sibling of the note, never a control of its
+    // own, and it never blocks anything — the plate stays one tap to PROFILE.
+    const ind = syncIndicator(syncStatus(this.save));
+    if (ind) {
+      const dot = el(`<span class="fw-sync fw-sync--${ind.tone}" role="status"><i class="fw-sync-dot" aria-hidden="true"></i><span class="fw-sync-word"></span></span>`);
+      dot.querySelector('.fw-sync-word').textContent = ind.label;
+      id.appendChild(dot);
+    }
     idCell.appendChild(id);
 
     if (!claimed) {
@@ -1484,48 +1496,65 @@ export class Screens {
   }
 
   showOrbitalBeaconNotification(powerup) {
-    const spec = (powerup && powerup.spec) || (powerup && POWERUP_SPECS[powerup.type]) || {};
-    const name = spec.name || 'ORBITAL POWER-UP';
-    const colorHex = '#' + (spec.color != null ? spec.color.toString(16).padStart(6, '0') : '00f0ff');
+    const spec = (powerup && powerup.spec) || (typeof POWERUP_SPECS !== 'undefined' && POWERUP_SPECS[powerup && powerup.type]) || {};
+    const name = spec.name || 'POWER-UP';
+    const desc = spec.desc || spec.tagline || 'Supercharge active effect boost enabled!';
+    const puType = powerup && powerup.type;
+    const icon = spec.icon || (puType === 'vortex' ? '🌀' : puType === 'speed' ? '⚡' : puType === 'titan' ? '🍄' : puType === 'quake' ? '🌋' : puType === 'frenzy' ? '🔥' : puType === 'chrono' ? '⏳' : '⚡');
+    const colorHex = '#' + (spec.color != null ? spec.color.toString(16).padStart(6, '0') : 'ffd23f');
+    const glowHex = '#' + (spec.glowColor != null ? spec.glowColor.toString(16).padStart(6, '0') : 'ff9e00');
 
-    const toast = el(`<div class="orbital-beacon-toast" style="--pu-accent: ${colorHex};">
-      <div class="orbital-toast-badge">ORBITAL DROP DETECTED</div>
-      <div class="orbital-toast-name">${name}</div>
+    if (typeof document === 'undefined') return;
+
+    const overlay = el(`<div id="poke-encounter-overlay" style="--poke-color: ${colorHex}; --poke-glow: ${glowHex};">
+      <div class="poke-battle-wipe left"></div>
+      <div class="poke-battle-wipe right"></div>
+      <div class="poke-radial-burst"></div>
+      <div class="poke-encounter-card">
+        <div class="poke-card-header">
+          <div class="poke-wild-title" style="font-size:clamp(11px,2.2vw,14px);font-weight:900;letter-spacing:2px;color:var(--poke-color);text-shadow:0 0 12px var(--poke-glow);">⚡ A WILD ${name.toUpperCase()} HAS APPEARED! ⚡</div>
+          <div class="poke-rarity-badge">LEGENDARY</div>
+        </div>
+        <div class="poke-card-body">
+          <div class="poke-icon-circle">
+            <div class="poke-icon-aura"></div>
+            <div class="poke-icon">${icon}</div>
+          </div>
+          <div class="poke-info">
+            <div class="poke-name-row">
+              <h2 class="poke-powerup-name">${name}</h2>
+            </div>
+            <p class="poke-flavor-text" style="font-size:clamp(11px,2.2vw,13px);font-weight:600;color:rgba(255,255,255,0.9);margin-top:6px;line-height:1.4;">${desc}</p>
+          </div>
+        </div>
+      </div>
     </div>`);
 
-    document.body.appendChild(toast);
+    document.body.appendChild(overlay);
+    this._activePokeEncounter = overlay;
+
     setTimeout(() => {
-      toast.classList.add('fading-out');
+      overlay.classList.add('fading-out');
       setTimeout(() => {
-        if (toast.parentNode) toast.parentNode.removeChild(toast);
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        if (this._activePokeEncounter === overlay) this._activePokeEncounter = null;
       }, 350);
-    }, 2800);
+    }, 3650);
   }
 
-  // The spawn announcement. Once a full-screen modal, now a toast — but the
-  // CONTRACT did not change with the presentation: `onSkip` means "the player
-  // dismissed this early", and it must never fire before this method returns.
-  //
-  // A bare synchronous `onSkip()` here is the RCA-2026-08-17 root cause. Its
-  // caller pairs "show the presentation" with "arm a camera cinematic", and the
-  // presentation's completion is what CANCELS that cinematic; firing it inline
-  // ran the cancel before the arm, orphaning a 1.5 s camera takeover that then
-  // seized the level's establishing shot on every single start.
-  //
-  // A toast is not dismissible, so nothing here can complete the beat and
-  // nothing here tries to. Completion belongs to the cinematic that the caller
-  // armed (or to its fallback timer). What IS stored is the early-out, so the
-  // one real early exit — teardown — can still run it exactly once.
   showPokemonEncounterModal({ powerup, onSkip } = {}) {
     this.showOrbitalBeaconNotification(powerup);
     this._pokeEncounterSkip = typeof onSkip === 'function' ? onSkip : null;
   }
 
-  // The teardown path (js/main.js teardownWorld) and any other early exit. Was a
-  // no-op stub, which meant a torn-down level left its spawn queue latched.
-  // Nulls before it calls, so a re-entrant dismiss from inside the callback
-  // cannot loop.
+  // The teardown path (js/main.js teardownWorld) and any other early exit.
   dismissPokemonEncounterModal() {
+    if (this._activePokeEncounter) {
+      if (this._activePokeEncounter.parentNode) {
+        this._activePokeEncounter.parentNode.removeChild(this._activePokeEncounter);
+      }
+      this._activePokeEncounter = null;
+    }
     const cb = this._pokeEncounterSkip;
     this._pokeEncounterSkip = null;
     if (typeof cb === 'function') cb();

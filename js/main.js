@@ -5,7 +5,12 @@ import {
   RANKED_TICK_COUNT, VoxelSandboxSim, sandboxSizeProgress, loadScene,
 } from './voxelsim.js';
 import { getLevel, METROS } from './levels.js';
-import { loadSave, storeSave, recordLevelResult, recordSandboxResult, recordChallengeResult, isLevelUnlocked, buyUpgrade, playerName } from './save.js';
+import { loadSave, storeSave, recordLevelResult, recordSandboxResult, recordChallengeResult, isLevelUnlocked, buyUpgrade, playerName, markProgressDirty } from './save.js';
+// Cloud progress sync (js/cloud/sync.js): the save follows the signed-in
+// player. Imported here (not lazily) so its dirty-listener is registered before
+// the first recorder can run; every call it makes is async and outside the
+// fixed-step loop.
+import { configureSync, flushSync } from './cloud/sync.js';
 import { upgradeMultiplier } from './upgrades.js';
 import { World3D } from './world3d.js';
 import { VoxelWorld3D } from './voxelworld.js';
@@ -38,6 +43,10 @@ const save = loadSave();
 // work is deliberately outside the fixed simulation loop: reconnecting may
 // cause fetches, but it must never alter a completed replay.
 function drainSavedBoardOutbox() {
+  // Cloud progress shares every reconnect moment with the ranked outbox: a
+  // dirty save is pushed on the same boot / `online` / 60 s tick. No-op unless
+  // dirty and signed in; deferred by sync.js itself while a level is playing.
+  void Promise.resolve(flushSync(save)).catch(() => {});
   if (!Array.isArray(save.outbox) || !save.outbox.length) return;
   void import('./board/outbox.js').then(({ drain }) => drain(save)).catch(() => {});
 }
@@ -96,6 +105,18 @@ window.addEventListener('keydown', earlyUnlock, { passive: true });
 
 // ------------------------------------------------------------------ game state
 let state = 'menu'; // menu | intro | playing | powerup_pause | quake_cinematic | paused | results
+// Invariant 4: sync applies to the SAVE, never a live sim, and not even to the
+// save while a level is running — a merged document arriving mid-level would
+// change what the results screen writes over. sync.js holds it until the menu.
+configureSync({ isPlaying: () => state === 'playing' || state === 'intro' || state === 'powerup_pause' || state === 'quake_cinematic' });
+// The menu is the natural flush point: every path back to the title passes
+// here, so a level's coins and stars leave for the account within a beat of
+// the player seeing them, instead of waiting out the debounce.
+function backToTitle() {
+  state = 'menu';
+  void Promise.resolve(flushSync(save)).catch(() => {});
+  screens.showTitle();
+}
 let isVoxelSandbox = false;
 let level = null;
 let sim = null;
@@ -303,6 +324,7 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     if (save.coins < price || save.ownedItems.includes(id)) return false;
     save.coins -= price;
     save.ownedItems.push(id);
+    markProgressDirty(save);
     storeSave(save);
     computeShopBonus();
     return true;
@@ -321,14 +343,16 @@ const screens = new Screens(document.getElementById('screen-root'), save, {
     // `equippedSkin` on whatever they had on.
     if (!isPurchasableSkin(id)) return false;
     save.equippedSkin = id;
+    markProgressDirty(save);
     storeSave(save);
     return true;
   },
   equipIndicator(id) {
     save.equippedIndicator = id;
+    markProgressDirty(save);
     storeSave(save);
   },
-  toggleMute() { save.muted = !save.muted; storeSave(save); audio.setMuted(save.muted); },
+  toggleMute() { save.muted = !save.muted; markProgressDirty(save); storeSave(save); audio.setMuted(save.muted); },
   // The live city behind the title (js/ui/menuscene.js). Screens calls this
   // with `true` when the landing screen mounts and `false` for every takeover
   // that replaces it (loading, shop, settings), so the backdrop's lifetime is
@@ -947,8 +971,7 @@ function ensureMultiplayerUI() {
       onLeaveLobby: () => {
         if (mpLobby) { mpLobby.destroy(); mpLobby = null; }
         teardownWorld();
-        state = 'menu';
-        screens.showTitle();
+        backToTitle();
       },
     });
   }
@@ -1041,7 +1064,7 @@ function joinMultiplayerLobby(roomCode, chosenName = null) {
       roomCode: code,
       defaultName: playerName(save),
       onConfirm: (name) => joinMultiplayerLobby(code, name),
-      onCancel: () => { state = 'menu'; screens.showTitle(); },
+      onCancel: () => { backToTitle(); },
     });
     return;
   }
@@ -1077,7 +1100,7 @@ function joinMultiplayerLobby(roomCode, chosenName = null) {
         reason,
         roomCode: code,
         onRetry: () => showMultiplayerHostModal(),
-        onBack: () => { state = 'menu'; screens.showTitle(); },
+        onBack: () => { backToTitle(); },
       });
     },
   });
@@ -1108,7 +1131,7 @@ function joinMultiplayerLobby(roomCode, chosenName = null) {
       reason: 'HOST_LEFT',
       roomCode: code,
       onRetry: () => showMultiplayerHostModal(),
-      onBack: () => { state = 'menu'; screens.showTitle(); },
+      onBack: () => { backToTitle(); },
     });
   };
 
@@ -1182,8 +1205,7 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
             teardownWorld();
             screens.clear();
             mpUI.clear();
-            state = 'menu';
-            screens.showTitle();
+            backToTitle();
           },
         });
       };
@@ -1230,8 +1252,7 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
             teardownWorld();
             screens.clear();
             mpUI.clear();
-            state = 'menu';
-            screens.showTitle();
+            backToTitle();
           },
         });
       };
@@ -1297,7 +1318,7 @@ function endLevel() {
       won, coinsEarned: coins, elapsed,
     });
     if (navAction === 'menu') {
-      teardownWorld(); state = 'menu'; screens.showTitle();
+      teardownWorld(); backToTitle();
     } else if (navAction === 'cities' || navAction === 'map' || navAction === true) {
       teardownWorld(); state = 'menu'; screens.showCitySelect();
     } else if (won && level.index < 100) {
@@ -1840,7 +1861,7 @@ function endSandbox() {
     const completedRun = rankedRun;
     const resultScreen = screens.showRunResults(finished, trace, (toCities) => {
       rankedRun = null;
-      if (toCities) { teardownWorld(); state = 'menu'; screens.showTitle(); }
+      if (toCities) { teardownWorld(); backToTitle(); }
       else void startRankedRun(finished.scene);
     });
     if (trace && completedRun && completedRun.ticket) {
@@ -1875,7 +1896,7 @@ function endSandbox() {
       });
     }
     if (action === 'menu') {
-      teardownWorld(); state = 'menu'; screens.showTitle();
+      teardownWorld(); backToTitle();
     } else if (action === 'cities' || action === 'map' || action === true) {
       teardownWorld(); state = 'menu'; screens.showCitySelect();
     } else {
@@ -1953,6 +1974,10 @@ document.addEventListener('visibilitychange', () => {
     if (loopHandle) { cancelAnimationFrame(loopHandle); loopHandle = 0; }
     if (state === 'playing') { state = 'paused'; screens.showPause(); }
     accumulator = 0;
+    // The tab going away may be the last moment this device is online: push
+    // whatever the save owes the account now (paused is not playing, so a
+    // level's mid-run state is untouched — only the save leaves).
+    void Promise.resolve(flushSync(save)).catch(() => {});
   } else if (!loopHandle) {
     drainSavedBoardOutbox();
     lastTs = performance.now();

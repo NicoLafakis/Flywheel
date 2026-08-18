@@ -18,7 +18,7 @@ import { generateName } from './board/names.js';
 
 const KEY = 'hole-city-save';
 const QUARANTINE_KEY = 'hole-city-save.quarantine';
-export const CURRENT_VERSION = 24;
+export const CURRENT_VERSION = 25;
 
 // The partner skins withdrawn at v24, with the price each was SOLD at.
 //
@@ -128,6 +128,21 @@ function defaultPlayer() {
   return { id: null, name: generateName(), claimedAt: null, nameSource: 'auto' };
 }
 
+// Cloud-sync bookkeeping (js/cloud/sync.js). Local-only: none of this travels
+// in the progress blob (js/cloud/blob.js excludes it), and it is what lets a
+// device know whether it owes the server a push (`dirty`), which revision it
+// last agreed with (`revision`, 0 = never), and which side changed last
+// (`lastLocalChangeAt`, the tiebreaker for taste fields in the merge).
+// `state` is the last outcome the indicator shows ('idle' | 'syncing' |
+// 'synced' | 'offline' | 'signed-out'); it persists so a "signed out on
+// another device" notice survives a reload until the player signs in again.
+export function defaultCloud() {
+  return {
+    lastPushedAt: null, lastPulledAt: null, dirty: false, revision: 0,
+    lastLocalChangeAt: null, firstNoteShownAt: null, state: 'idle',
+  };
+}
+
 // The shape a brand-new player starts on. It is NOT the union of what the
 // migration chain produces — it has to be checked against it, because the two
 // drift silently and only the migrated path gets exercised during development.
@@ -167,6 +182,8 @@ function freshSave() {
     upgrades: defaultUpgrades(),
     // City challenges: scene id -> { completed3m, bestTime3m, bestScore3m, completed90s, bestTime90s, bestScore90s }
     challenges: {},
+    // Cloud-sync bookkeeping; added by migration 24. Local-only.
+    cloud: defaultCloud(),
   };
 }
 
@@ -501,6 +518,10 @@ const MIGRATIONS = {
       equippedSkin: s.equippedSkin in WITHDRAWN_PARTNER_PRICES ? 'classic' : s.equippedSkin,
     };
   },
+  // v25: cloud progress sync bookkeeping. A migrated save starts clean at
+  // revision 0 — nothing has been pushed yet — so the first sign-in pulls and
+  // merges rather than assuming the server already agrees with this device.
+  24: (s) => ({ ...s, version: 25, cloud: defaultCloud() }),
 };
 
 export function loadSave() {
@@ -549,6 +570,23 @@ export function storeSave(save) {
   try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* storage full/blocked */ }
 }
 
+// The one seam between the save and cloud sync. Every write path that changes
+// something the blob carries calls this BEFORE its storeSave(): it flags the
+// save as owing the server a push and stamps when the change happened, then
+// tells whoever registered (js/cloud/sync.js at import) so it can debounce a
+// push. The listener is a registration rather than an import so this module
+// stays free of anything that talks to the network — the Node validator imports
+// it, and a recorder must be able to run with no listener at all (offline is
+// the normal case, invariant 10).
+let progressListener = null;
+export function onProgressDirty(fn) { progressListener = typeof fn === 'function' ? fn : null; }
+export function markProgressDirty(save) {
+  if (!save.cloud) save.cloud = defaultCloud();
+  save.cloud.dirty = true;
+  save.cloud.lastLocalChangeAt = Date.now();
+  if (progressListener) { try { progressListener(save); } catch (e) { /* sync must never break a recorder */ } }
+}
+
 // Both recorders run as the FIRST statement of a results-screen callback, before
 // any navigation happens, so a throw in either one strands the player on a screen
 // whose buttons then do nothing at all. That is why each re-establishes its own
@@ -572,6 +610,7 @@ export function recordLevelResult(save, levelIndex, { stars, mass, bestCombo, wo
     fastestClear: newFastest,
   };
   save.coins += coinsEarned;
+  markProgressDirty(save);
   storeSave(save);
 }
 
@@ -605,6 +644,7 @@ export function recordSandboxResult(save, scene, {
     bestPercent: Math.max(prev.bestPercent || 0, Math.min(1, Math.max(0, percent))),
   };
   save.coins += coinsEarned;
+  markProgressDirty(save);
   storeSave(save);
 }
 
@@ -662,6 +702,7 @@ export function recordChallengeResult(save, scene, {
   };
 
   save.coins = (save.coins || 0) + (coinsEarned || 0);
+  markProgressDirty(save);
   storeSave(save);
 }
 
@@ -752,6 +793,7 @@ export function buyUpgrade(save, upgradeId) {
 
   save.coins -= cost;
   save.upgrades[upgradeId] = currentRank + 1;
+  markProgressDirty(save);
   storeSave(save);
   return { success: true, newRank: save.upgrades[upgradeId], coins: save.coins, cost };
 }

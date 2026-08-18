@@ -18,12 +18,20 @@ Last updated: 2026-08-17
 - **Menu-angle inheritance for the level intro** — the establishing beat uses the level's own sun-scored `_introYaw0`. Adopting the title backdrop's live yaw instead is a two-line change but discards that scoring, and the backdrop is hard-coded to Brooklyn regardless of city. `.wiki/modules/render.md`.
 - **Mid-play power-up spawn cutscene** — still fires on every ~30s intermittent respawn, now smooth and cancellable rather than removed. Suppressing it entirely is a one-line change to the same gate that already suppresses it at level start.
 - **Quake cutscene's authored internal hard cuts** — shot 0→1 turns 2.76 rad in one frame (285.3% distance, 165.88 rad/s whole-sequence). Deliberately outside the release-continuity gate; keeping or retiring them is shot design. `.wiki/modules/render.md`.
-- **Cloud progress sync** — coins, skins, stars and upgrades still live on one device; only the leaderboard identity is global. Full plan (schema, routes, merge, coin fence, phased tasks, ~46 h) in `.wiki/plans/cloud-progress-sync.md`. Not started; go/no-go is the owner's.
+- **Cloud progress sync — built 2026-08-17.** Coins, skins, stars and upgrades now follow the signed-in player across devices (`.wiki/plans/cloud-progress-sync.md` tasks 1–17 complete; `.wiki/modules/cloud.md`, `.wiki/modules/api.md`, ADR-0021). **On by default** — setting `FW_PROGRESS_SYNC=false` on Vercel pauses it (both routes answer `503 SERVER_NOT_READY` and the game plays exactly as before), an emergency switch rather than a deploy step.
 - **Cambridge 2** — the map was specced to *look* as detailed as 73k voxels, not to contain them. Rebuild at perceived density; the existing map stays. Root cause of the validator's runtime.
 
 ---
 
 ## Shipped state
+
+- 2026-08-17 — Cloud Progress Sync: Coins, Skins, Stars & Upgrades Follow The Signed-In Player (save schema v25; `player_progress` table with RLS deny-browser posture, `/api/progress/pull`+`push`, a merge that keeps the better of two records and never sums coins, a server-side coin plausibility fence, an 8s-debounced offline-safe sync queue, and a profile-tab sync indicator; behind `FW_PROGRESS_SYNC` — see `.wiki/modules/cloud.md`, ADR-0021)
+
+- 2026-08-17 — Keyboard Steering Angular Acceleration: Smooth Continuous Turn Ramp (replaces instantaneous fixed-step turn rate; short taps execute sub-degree micro-adjustments; holding A/D smoothly accelerates turn rate up to maximum speed across 0.45s; direction switches cleanly reset)
+
+- 2026-08-17 — Power-Up Wild Spawn Encounter & Overhead Camera: 4.0s Non-Interruptible Sequence ("A WILD [NAME] HAS APPEARED!" holographic battle card, name, icon and short description; overhead 1.20 rad pitch framing over drop beacon; 4.0s duration)
+
+- 2026-08-17 — The Lab Architectural & Scoring Overhaul: Anisotropic Forms, Texture-Free Solids, Size-Scaled Points & 6-Player Spawn Snack Rings (HUD score reads h.mass instead of rawMass; base points scale with object size; lightweight solid color rendering; subway hub, waterfront pier basin, helipad & helicopter, billboard, and balanced 6-player snack rings shipped)
 
 - 2026-08-17 — Level Intro Camera: Establishing Hold → Overhead Rise → Dive To The Hole (RCA-2026-08-17 level-start camera; an orphaned power-up cinematic had hijacked frame 1 of every level since `8818c2d` — peak yaw 1220 → 42.5 °/s, cinematic-armed frames 185/350 → 0, pitch leak closed)
 

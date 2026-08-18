@@ -12,7 +12,8 @@ It is the server half of [ADR-0012](../adr/0012-replay-validated-leaderboard-tru
 (guest-first identity, deferred claim): a browser may read public board views
 directly from Supabase with its publishable key (`js/board/read.js`), but every
 mutation — starting a ranked run, submitting one, claiming/renaming/transferring
-a name, removing a player, reporting one — goes through one of these 16
+a name, removing a player, reporting one, pulling or pushing cloud progress —
+goes through one of these 18
 functions, deployed from the same static repo (`vercel.json`).
 
 Nothing here is required to play. `js/board/**` (the client side of this
@@ -27,7 +28,8 @@ start and finish a city or a RUN, and a failed ranked submission is queued
 |------|--------|---------|
 | `api/_lib.mjs` | — | Shared primitives: JSON envelope helpers (`ok`/`fail`/`json`), request-body reader with a 64 KB cap, Supabase REST/RPC client (service-role key, server-only), HMAC ticket signing, device/player token hashing, name normalisation + leet-speak collision key, origin rate-limit key (HMAC of the forwarded IP, never stored raw), and `errorResponse()` (maps a thrown error to 400/503 without leaking internals) |
 | `api/_names.mjs` | — | The one name screen (`blockedLocally` = reserved words + the static pattern file; `blockedName` adds the live `blocked_names` table) plus automatic guest identity: `autoNameCandidates()` drives `js/board/names.js`'s retry ladder with `node:crypto` randomness, and `ensureDevicePlayer()` gives an unbound device a real `players` row. `register`/`claim`/`rename` import the screen from here instead of each keeping a copy |
-| `api/_verify.mjs` | — | Server-side replay verification: `verifyReplay()` decodes a stored input trace, rebuilds a `VoxelSandboxSim` for the claimed scene/seed, asserts the ranked tune was not silently swapped, steps it tick-for-tick, and floors `sim.hole.mass` into the score that actually gets published. `drainOnePendingRun()` is the unit the cron endpoint calls |
+| `api/_verify.mjs` | — | Server-side replay verification: `verifyReplay()` decodes a stored input trace, rebuilds a `VoxelSandboxSim` for the claimed scene/seed, asserts the ranked tune was not silently swapped, steps it tick-for-tick, and floors `sim.hole.mass` into the score that actually gets published. Its `stats` also record `coins_collected` from the replay, the one coin source the server can prove (see **Cloud progress**). `drainOnePendingRun()` is the unit the cron endpoint calls |
+| `api/_progress.mjs` | — | Cloud progress sync core: `SYNCED_KEYS` (the boundary between what follows the player and what stays on the device), `sanitiseBlob()` (strict allow-list over an untrusted save document; unknown keys, bad numbers and non-catalog or unapproved cosmetic ids never reach jsonb), `coinsCeiling()` / `spentCoins()` / `coinFence()` (the plausibility fence — the server never trusts a coin balance and never adds coins), and re-exports of `mergeBlobs` from `js/cloud/merge.js` and `CURRENT_VERSION` from `js/save.js`. Pure; no request, no database |
 | `api/health.mjs` | GET | Deployment smoke probe. Reveals no environment state; a 200 means the function bundle booted, nothing more |
 | `api/auth/register.mjs` | POST | Password-based account creation: validates the name (blocklist + reserved words + per-IP daily cap of 8), then hands the whole create-and-inherit step to `fw_register_device_player` — which upgrades this device's auto-provisioned guest in place if it has one, adopts every unclaimed run the device's tickets prove it played, and backfills `board_public` for each. `token_hash = HMAC-SHA256(password)` under `FW_TICKET_SECRET` is the password verifier, `session_token_hash = sha256(token)` the bearer credential |
 | `api/auth/login.mjs` | POST | Password check against the stored `token_hash`, then mints a fresh bearer `token` and writes `session_token_hash = sha256(token)`. `token_hash` is deliberately left alone — it is the password verifier, and overwriting it would lock the account out of every future login. One session hash per account, so logging in on a second device signs the first out |
@@ -41,6 +43,8 @@ start and finish a city or a RUN, and a failed ranked submission is queued
 | `api/run/status.mjs` | POST | Polls a stored run's verdict for a `(run_id, device_key)` pair the caller must already hold |
 | `api/run/verify.mjs` | GET (cron) | Invoked once a minute by Vercel Cron (`vercel.json`), gated on `CRON_SECRET`. Calls `drainOnePendingRun()` — one replay per invocation, bounding CPU per tick while pending submissions stay durable |
 | `api/report.mjs` | POST | Player-reports-player moderation intake; one report per reporter/target pair per 24h |
+| `api/progress/pull.mjs` | POST | Cloud progress read: `{player_id, token, device_key}` through `playerForToken()` (guests included), returns `{found, revision, schema_version, blob, coins_verified, coins_ceiling, updated_at}`; `found:false` is the normal first-sign-in answer, never a 404. Also exports the shared `gate()` both progress routes use: `FW_PROGRESS_SYNC` not `false` (on by default; `false` → `503 SERVER_NOT_READY`, retryable) → POST → body → `401 NOT_SIGNED_IN` |
+| `api/progress/push.mjs` | POST | Cloud progress write: `{…, base_revision, schema_version, blob}`. `schema_version > CURRENT_VERSION` → `409 CLIENT_TOO_NEW` (never overwrite what you cannot read); older than stored → `409 STALE_SCHEMA`; 60 pushes/hour/player via `submission_log` `kind='progress'` (`429 PROGRESS_RATE_LIMIT`, retryable); `sanitiseBlob()`; a stale `base_revision` is MERGED with the stored document rather than overwriting it; `coinFence()` against `fw_coins_verified` + the computed ceiling; upsert with `revision+1`; answers the CANONICAL `{revision, blob, trimmed, merged, coins_verified, coins_ceiling}` the server kept, which the client adopts. Both routes export `makeHandler(deps)` so `tools/progress-api.test.mjs` can drive them against an in-memory database |
 | `api/operator.mjs` | GET/POST | Moderator console API, gated on `FW_OPERATOR_SECRET` (`x-fw-operator` header, timing-safe compare). GET lists recent players + reports; POST applies `rename`/`hide` via `fw_moderate` |
 | `api/data/blocked-names.json` | — | Static blocklist patterns consulted by `register`/`claim`/`rename` alongside a live `blocked_names` table query |
 
@@ -364,12 +368,62 @@ minute, while the migration sits unapplied until someone runs it. Everything in
 `playerForToken()` uses `select=*` and why every other `players?select=` names
 only long-standing columns.
 
-Two migrations are currently written and **not yet applied**:
+The procedure that has held up: read the live schema off the PostgREST
+OpenAPI document first (`GET {SUPABASE_URL}/rest/v1/` with the secret key lists
+every exposed table, column and `/rpc/` function — read-only, no Docker, no
+psql), confirm the objects the new file creates are absent and the ones earlier
+files create are present, `supabase migration list` to check history lines up
+one-to-one with `supabase/migrations/`, `supabase db push --dry-run` to see
+exactly one file listed, push, then re-read the OpenAPI doc.
 
-| File | Adds | Behaviour until it is applied |
-|------|------|-------------------------------|
-| `20260817113000_add_all_time_leaderboard.sql` | `v_leaderboard` (the one global all-time board) + a supporting index | Reads of `v_leaderboard` 404; every existing board is unaffected |
-| `20260817124500_register_adopts_device_runs.sql` | `players.is_auto`, `fw_register_device_player`, and a re-created `fw_transfer_redeem` with its ambiguous reference qualified | `ensureDevicePlayer()` catches the PostgREST 400 on the unknown `is_auto` column and issues today's unbound guest ticket; `auth/register` answers `503 SERVICE_UNAVAILABLE` (retryable) on the missing RPC rather than creating a half-account. Degraded, never broken — but no board fills up until it is applied |
+As of 2026-08-17 every file in `supabase/migrations/` is applied to
+`zrsrvhrkgfuqhcjnjezw` and the history table matches one-to-one, including
+`20260817160000_player_progress.sql` (verified by read-back: `player_progress`
+with its eight columns and `/rpc/fw_coins_verified` present; anon read of the
+table answers 401; the RPC returns `0` for an unknown player).
+
+## Cloud progress (Phase A: schema + API)
+
+The server half of `.wiki/plans/cloud-progress-sync.md`. `player_progress`
+(`20260817160000_player_progress.sql`) holds one row per `players.id`: the
+syncable subset of the local save as `blob` (≤ 64 KB), `schema_version`,
+`revision`, and two ledger columns. RLS posture is the same as every raw table:
+enabled, explicit `raw progress deny browser` policy, no grants to
+`anon`/`authenticated`, only `service_role` through the two routes above.
+`on delete cascade` means `fw_remove_player` erases progress with the player.
+
+**Coins are fenced, not trusted.** `coins_verified` = `fw_coins_verified()`,
+the sum of `stats->>coins_collected` over the player's `verified` ranked runs
+(rows verified before the key existed sum as 0 — the ledger only widens the
+allowance). `coins_ceiling` = what the record could honestly have earned
+outside ranked play: Σ `coinsForResult(level, stars, bestCombo)` × 3 over
+campaign levels, plus per sandbox scene min(runs, 200) × (every coin at the
+scene's value + clear bonus) × the challenge multiplier. On every push
+`blob.coins = min(client, verified + ceiling − spent)` where `spent` is item
+prices + the upgrade cost ladder; if that is negative, upgrades unwind top rank
+first, then purchases newest-first, until it is not, and coins are 0. The
+response's `trimmed` names what went. Prices come from `js/skinprices.js` — a
+pure table the validator holds equal to `js/skins.js` (which imports three.js
+and cannot be loaded here).
+
+**Merge, never overwrite on a race.** A push whose `base_revision` is not the
+stored `revision` goes through `mergeBlobs()` (`js/cloud/merge.js`, the same
+function the client will run on pull): max of bests, min of times, OR of flags,
+union of owned, max of ranks, counters MAX not sum, coins max never sum, taste
+fields follow the newer side, equipped must be owned or free.
+
+**On by default, with an off-switch.** Sync runs unless `FW_PROGRESS_SYNC=false`
+is set on Vercel; when it is, both routes answer `503 SERVER_NOT_READY`
+(retryable) before touching the database, so cloud sync can be paused in an
+emergency without a deploy while the client keeps queueing.
+
+Guards: `progressSchema` (migration text), `progressMerge`
+(`tools/progress-merge.test.mjs`), `progressApi` (`tools/progress-api.test.mjs`,
+fake req/res against an in-memory database: flag, 401, `found:false`, revision
+bump, server-side merge, `CLIENT_TOO_NEW`, `STALE_SCHEMA`, the 61st push → 429,
+the fence on the wire, `js/skinprices.js` vs `js/skins.js`), and the `runBoard`
+section asserts `_verify.mjs` writes `coins_collected` from
+`sim.hole.coinsCollected`. All in the `core` group of `tools/validate.mjs`.
 
 ## Gotchas
 

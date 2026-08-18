@@ -32,7 +32,8 @@ this afternoon*. Most of what follows is not blocked.
 | Public scoreboards and player names | Ranked RUN leaderboards, replay verification, device-token profile management, offline fallback | **Yes — shipped & active** | Nothing | Done |
 | Cambridge map | A tenth-of-a-square-mile HubSpot Cambridge to drive around and eat | **Yes — complete and playable** | Nothing | Done |
 | Cambridge hidden content | 44 hidden things and 11 giant ground drawings to find | No | Nothing (Phase 7) | Large |
-| Achievements | A trophy list that remembers what you have done | No — 96 designed, 0 built | The online backend, for the *saving* half only | Medium (per batch) |
+| Cloud progress sync | Coins, skins, stars and upgrades follow you when you sign in on another phone | **Yes — shipped 2026-08-17** (behind `FW_PROGRESS_SYNC`) | Nothing | Done |
+| Achievements | A trophy list that remembers what you have done | No — 96 designed, 0 built | A rule engine and a saved bitmask field; cloud progress sync (above) proves out the per-player storage and RLS posture such a field would sit next to, but does not itself add one | Medium (per batch) |
 | Championship belts | Named titles somebody holds until you beat their number | No | The online backend | Large |
 | Known defects | Fewer ways for the game to break in front of somebody | Zero open | Nothing | Small each |
 
@@ -147,11 +148,14 @@ secrets are the pitch. They range from "clear the hero building to nothing" to
 **Exists today.** None. There is no achievement system in the game at all — no
 `js/meta/` directory, no rules evaluator, no storage, no locker-room screen.
 
-**Blocked on.** The place they get *saved*. An achievement is a permanent,
-personal record, and the design makes it a database row evaluated by one shared
-rule engine — which is the online backend, and the online backend is waiting on
-the three things listed in §5 below. That is an inherited blocker, not a
-Cambridge one; it would exist even if Cambridge did not.
+**Blocked on.** The rule engine and the storage field, not the account/storage
+layer generically — cloud progress sync (`.wiki/modules/cloud.md`, shipped
+2026-08-17) already gives every player a per-account, RLS-locked jsonb
+document (`player_progress`) and the bearer-auth/merge/offline-queue machinery
+an achievement bitmask would ride alongside; it just does not carry one today
+(`SYNCED_KEYS` in `js/cloud/blob.js` does not include it, and nothing
+evaluates the discovery bitmask into a row). That is an inherited blocker, not
+a Cambridge one; it would exist even if Cambridge did not.
 
 **But the earning conditions are not blocked.** The design's one load-bearing
 decision is that forty-four eggs do *not* become forty-four new things for the
@@ -202,7 +206,11 @@ the twelve are arena-only and so also depend on multiplayer.
 a holder and a reign, and — more importantly — the design says a run only takes
 a belt after the server has re-played it from its seed and inputs and agreed
 with the score. That replay check is the entire basis of trusting a leaderboard
-at a conference, and it cannot exist client-side.
+at a conference, and it cannot exist client-side. The replay check itself
+already exists (`api/_verify.mjs`, [api.md](modules/api.md)) and cloud
+progress sync (above) is the same shape of per-account server row a belt
+holder record would need, but belts are a shared singleton per belt type, not
+a per-player document, so neither is a belt table by itself.
 
 **Note for the Unbroken Chain belt specifically:** it ranks the longest chain,
 and the game currently neither shows nor saves your best chain outside the

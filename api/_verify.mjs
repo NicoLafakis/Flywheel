@@ -94,6 +94,13 @@ export async function verifyReplay(run, input) {
         raw_mass: Math.floor(sim.hole.rawMass), best_chain: sim.hole.bestCombo,
         eaten: sim.hole.eatenCount, size: sim.hole.size,
         consumed_fraction: sim.totalMass ? sim.hole.rawMass / sim.totalMass : 0,
+        // Cloud progress sync (.wiki/plans/cloud-progress-sync.md §2.4): a
+        // ranked run is the ONE coin source the server can prove, so the count
+        // the replay saw is stored here and `fw_coins_verified` sums it into the
+        // player's verified-coin ledger. Rows verified before this key existed
+        // simply sum as 0 — the ledger only ever widens the fence, never
+        // narrows it, so a missing key can dock nobody.
+        coins_collected: sim.hole.coinsCollected || 0,
       },
       // `claimed_score` is recorded on EVERY verified run, not only on the
       // failing ones. A divergence that only becomes visible once it trips a

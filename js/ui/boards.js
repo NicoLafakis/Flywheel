@@ -3,7 +3,9 @@
 // offline city session never pays for it.
 
 import { leaderboard, playerCityRecords, playerStanding } from '../board/read.js';
-import { claimName, deviceKey, removePlayer, startTransfer, redeemTransfer, renamePlayer, registerPlayer, loginPlayer, playerSecret } from '../board/player.js';
+import { claimName, deviceKey, removePlayer, startTransfer, redeemTransfer, renamePlayer, registerPlayer, loginPlayer, playerSecret, signOutPlayer } from '../board/player.js';
+import { syncStatus, lastTrimmed } from '../cloud/sync.js';
+import { SYNC_DETAIL, syncIndicator, shouldShowFirstNote, markFirstNoteShown, firstNoteText, trimmedNoticeText } from './sync-copy.js';
 import { post } from '../board/request.js';
 import { comboMult, comboLevel, COMBO_LEVEL_NAMES } from '../voxelsim.js';
 import { ensurePlayer, storeSave, playerName, rerollPlayerName } from '../save.js';
@@ -580,13 +582,56 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
       };
       plate.appendChild(reroll);
     }
+    // The cloud dot, same four states as the title screen, with a sentence of
+    // explanation under the plate because here there is room for one.
+    const status = syncStatus(save);
+    const ind = syncIndicator(status);
+    if (ind) {
+      const dot = element('span', `fw-sync fw-sync--${ind.tone}`);
+      dot.setAttribute('role', 'status');
+      const i = element('i', 'fw-sync-dot'); i.setAttribute('aria-hidden', 'true');
+      dot.append(i, element('span', 'fw-sync-word', ind.label));
+      plate.appendChild(dot);
+    }
     wrap.appendChild(plate);
 
     const desc = element('p', 'fw-board-note', claimed
-      ? `You are signed in as "${name}". Every verified score is credited to this name on all your devices.`
-      : 'This is the name beside your scores. Roll for another as many times as you like — it costs nothing and changes nothing else. Sign in below to keep it on every device you play on.');
+      ? (SYNC_DETAIL[status] || `You are signed in as "${name}". Your coins, skins, stars and verified scores follow this name to every device.`)
+      : 'This is the name beside your scores. Roll for another as many times as you like — it costs nothing and changes nothing else. Sign in below and your coins, skins and stars come with you to every device you play on.');
     desc.style.marginBottom = '16px';
     wrap.appendChild(desc);
+
+    // Signed out on another device: say so once, plainly, above the sign-in
+    // form. It is the same form as always — no new door to find.
+    if (!claimed && status === 'signed-out') {
+      const out = element('div', 'fw-sync-note fw-sync-note--out');
+      out.append(element('span', 'k', 'SIGNED OUT ELSEWHERE'), element('p', 'fw-board-note', SYNC_DETAIL['signed-out']));
+      wrap.appendChild(out);
+    }
+
+    // The one-time card: the first time this account has been saved to the
+    // cloud, say where the progress went. Stamped on render, not on dismiss, so
+    // it shows once even if they leave the tab without tapping.
+    if (shouldShowFirstNote(save)) {
+      markFirstNoteShown(save);
+      storeSave(save);
+      const card = element('div', 'fw-sync-note');
+      card.append(element('span', 'k', 'SAVED TO YOUR ACCOUNT'), element('p', 'fw-board-note', firstNoteText(name)));
+      const trimmed = trimmedNoticeText(lastTrimmed());
+      if (trimmed) card.appendChild(element('p', 'fw-board-note', trimmed));
+      const ok = button('GOT IT', true);
+      ok.style.alignSelf = 'flex-start';
+      ok.onclick = () => card.remove();
+      card.appendChild(ok);
+      wrap.appendChild(card);
+    } else if (claimed) {
+      const trimmed = trimmedNoticeText(lastTrimmed());
+      if (trimmed) {
+        const card = element('div', 'fw-sync-note fw-sync-note--trim');
+        card.append(element('span', 'k', 'SOME ITEMS COULD NOT BE VERIFIED'), element('p', 'fw-board-note', trimmed));
+        wrap.appendChild(card);
+      }
+    }
 
     // Section 1: Player Authentication & Account Status
     const idCard = element('div', 'fw-stat-card');
@@ -594,7 +639,7 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
     if (!claimed) {
       idCard.append(
         element('span', 'k', '🔐 KEEP THIS NAME ON EVERY DEVICE'),
-        element('p', 'fw-board-note', 'Add a password and this name is yours on your phone, tablet and computer. Already have an account? Sign in instead.')
+        element('p', 'fw-board-note', 'Add a password and this name — with your coins, skins and stars — is yours on your phone, tablet and computer. Already have an account? Sign in instead.')
       );
 
       const authToggleWrap = element('div');
@@ -696,7 +741,7 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
     } else {
       idCard.append(
         element('span', 'k', 'LOGGED IN ACCOUNT'),
-        element('p', 'fw-board-note', `Signed in as "${name}". All verified scores in ranked runs are credited to this account across your devices.`)
+        element('p', 'fw-board-note', `Signed in as "${name}". Your coins, skins, stars and verified scores are credited to this account on every device.`)
       );
 
       const actionRow = element('div');
@@ -705,21 +750,24 @@ export async function renderBoards(root, { onBack, onProfile, onStartCity, onSta
       actionRow.style.marginTop = '12px';
       actionRow.style.flexWrap = 'wrap';
 
-      const logoutBtn = button('LOG OUT / SWITCH USER', true);
-      logoutBtn.onclick = () => {
-        if (!window.confirm('Log out from this browser? Your account remains safe on the cloud.')) return;
-        const player = ensurePlayer(save);
-        // Signing out hands the device back a fresh automatic name rather than a
-        // blank one: a guest is still a player with a name, and every surface
-        // that prints one would otherwise be empty until they signed in again.
-        player.id = null; player.claimedAt = null; player.name = null; player.nameSource = 'auto';
-        try { localStorage.removeItem('fw-player'); } catch {}
-        playerName(save);
-        refresh();
+      // Sign out is not "remove identity" (the danger card below): the account
+      // stays, this device just stops being it. signOutPlayer flushes what the
+      // device still owes the account first, then hands it a fresh guest name;
+      // progress stays on the device on purpose (a shared tablet loses nothing).
+      const signOutBtn = button('SIGN OUT', true);
+      const signOutNote = element('p', 'fw-board-note', '');
+      signOutNote.style.fontSize = '12px';
+      signOutBtn.onclick = async () => {
+        if (!window.confirm('Sign out on this device? Your account and everything in it stay safe; this device keeps playing as a guest.')) return;
+        signOutBtn.disabled = true;
+        signOutNote.textContent = 'SAVING, THEN SIGNING OUT…';
+        signOutNote.style.color = 'var(--fw-gold)';
+        await signOutPlayer(save);
+        signOutNote.textContent = 'Signed out.';
+        setTimeout(refresh, 400);
       };
-
-      actionRow.appendChild(logoutBtn);
-      idCard.appendChild(actionRow);
+      actionRow.appendChild(signOutBtn);
+      idCard.append(actionRow, signOutNote);
     }
     wrap.appendChild(idCard);
 

@@ -204,6 +204,14 @@ const ROUTES = [
   { route: '/run/submit', handler: 'api/run/submit.mjs', caller: { file: 'js/board/outbox.js' } },
   { route: '/run/status', handler: 'api/run/status.mjs', caller: { file: 'js/board/run.js' } },
   { route: '/report', handler: 'api/report.mjs', caller: { file: 'js/ui/boards.js' } },
+  // Cloud progress sync (.wiki/plans/cloud-progress-sync.md). Both routes share
+  // one gate, `gate()` in api/progress/pull.mjs, which is where `const data =
+  // await body(req)` and the {player_id, token, device_key} reads live;
+  // `gateFile` folds that source into the handler's read set so push.mjs's own
+  // reads (base_revision, schema_version, blob) are cross-checked together with
+  // the credential fields the gate consumes.
+  { route: '/progress/pull', handler: 'api/progress/pull.mjs', caller: { file: 'js/cloud/sync.js' } },
+  { route: '/progress/push', handler: 'api/progress/push.mjs', caller: { file: 'js/cloud/sync.js' }, gateFile: 'api/progress/pull.mjs' },
   // The operator console is not on js/board/request.js's `post()` helper: it
   // sends the moderator secret as a header from its own `request()` wrapper.
   { route: '/operator', handler: 'api/operator.mjs',
@@ -240,7 +248,9 @@ const escapeRe = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const pairs = [];
 for (const entry of ROUTES) {
-  const handlerSrc = stripComments(read(entry.handler));
+  // A handler whose body parsing lives in a shared gate module (`gateFile`)
+  // is read as handler + gate: the gate's `data.<field>` reads are its reads.
+  const handlerSrc = stripComments(read(entry.handler)) + (entry.gateFile ? '\n' + stripComments(read(entry.gateFile)) : '');
   const reads = new Set();
   for (const match of handlerSrc.matchAll(/\bdata\s*\.\s*([A-Za-z_$][\w$]*)/g)) reads.add(match[1]);
 
