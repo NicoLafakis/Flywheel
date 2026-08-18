@@ -27,7 +27,10 @@ Last updated: 2026-08-17
 
 ## Shipped state
 
+- 2026-08-18 — Mobile-First UI & Navigation Architecture (overhauled mobile responsive layouts across Title Dashboard, City Selection Carousel, Shop Shell, and HUD overlays; thumb-friendly touch targets $\ge 48\text{px}$, notch safe-area insets, fluid horizontal pill navigation, and 2-column mobile item cards; covered by `tools/mobile-ui.test.mjs`)
+
 - 2026-08-18 — Mobile-First Clarity & Adaptive Portrait FOV Overhaul (shipped `computeAdaptiveFov` in `js/camera.js` with smooth aspect-compensation curve $V(\text{aspect}) = 45^\circ / \sqrt{\text{aspect}}$, eliminating mobile portrait tunnel-vision and locking horizontal FOV $\ge 68^\circ-72^\circ$; upgraded mobile quality tier in `js/quality.js` to crisp 1.5× DPR with directional shadows and ambient lighting for razor-sharp voxel edges and 3D depth perception; covered by `tools/mobile-camera.test.mjs`)
+
 
 - 2026-08-18 — Interactive In-Game Onboarding & Step-by-Step Walkthrough System (shipped `js/ui/tutorial.js` with 5-step progressive coachmark sequence in Level 1 / The Lab covering Steering/Snack Ring, Mass & Size 2, Combo Multipliers, Structural Foundation Collapse, and Orbital Power-Up Beacons; Pre-Flight Visual Cards on Level 1 Ready Gate; contextual tooltips for oversized objects & power-ups; auto-persisted save state with instant skip option; covered by `tools/tutorial.test.mjs`)
 
