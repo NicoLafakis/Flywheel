@@ -41,7 +41,9 @@ what each is waiting on, and what could start today.
 
 | Section | Purpose |
 |---------|---------|
+| [FLYWHEEL_MASTER_EXPANSION_BIBLE.md](FLYWHEEL_MASTER_EXPANSION_BIBLE.md) | **The Master Expansion Bible** — The unified single-document blueprint tying together the Creative North Star, Sprocket character design, 29-city Global Odyssey (Acts 0–VII), 5 universal district archetypes, Pocket Workshop Diorama, Momentum Friends, and kinetic world revival |
 | [roadmap.md](roadmap.md) | **What is real vs. what is only designed** — every planned system, whether it exists today, what it is blocked on, and rough size. Start here if you are wondering whether something is built |
+
 | [architecture.md](architecture.md) | System design, data flow, sim/render split |
 | [onboarding.md](onboarding.md) | Setup, run, validate |
 | [conventions.md](conventions.md) | Coding standards, naming, determinism rules |
