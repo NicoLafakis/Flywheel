@@ -98,5 +98,6 @@ export function defaultTierForDevice() {
 // and main.js's wantedTier).
 export const TIERS = {
   high: { dpr: 1.5, shadows: true, ambient: true, debrisCap: Infinity, contactBudget: Infinity, contactRounds: 2, supportEvery: 1, maxSubSteps: 2 },
-  low: { dpr: 1, shadows: false, ambient: false, debrisCap: 280, contactBudget: 200, contactRounds: 1, supportEvery: 2, maxSubSteps: 2 },
+  low: { dpr: 1.5, shadows: true, ambient: true, debrisCap: 350, contactBudget: 250, contactRounds: 1, supportEvery: 2, maxSubSteps: 2 },
 };
+

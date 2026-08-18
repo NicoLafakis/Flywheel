@@ -56,6 +56,7 @@ import { driveRoute, MAX_IDLE_FRAC } from './route-driver.mjs';
 import { runBoardSelftest } from './board-selftest.mjs';
 import { runHelpSelftest } from './help.test.mjs';
 import { runTutorialSelftest } from './tutorial.test.mjs';
+import { runMobileCameraSelftest } from './mobile-camera.test.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -3159,7 +3160,9 @@ section('rewardLadders', validateRewardLadders);
 section('shopAndUpgrades', validateShopAndUpgrades);
 section('helpAndWalkthrough', () => console.log(`Validating Help, Walkthrough & FAQ (${runHelpSelftest()} assertions)...`));
 section('tutorialOnboarding', () => console.log(`Validating Interactive Onboarding & Tutorial (${runTutorialSelftest()} assertions)...`));
+section('mobileCameraClarity', () => console.log(`Validating Adaptive Mobile Camera & Clarity (${runMobileCameraSelftest()} assertions)...`));
 section('fwMath', validateFwMath);
+
 section('runBoard', () => {
   console.log(`Validating THE RUN trace/replay (${runBoardSelftest()} assertions)...`);
   const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\n'"`]*\/\/.*$/gm, '');

@@ -242,12 +242,32 @@ try {
   }
 } catch (e) { /* no matchMedia (headless/older) — motion stays enabled */ }
 
+/**
+ * Aspect-aware vertical FOV compensation for mobile portrait screens.
+ * PerspectiveCamera measures FOV vertically. When aspect < 1.0 (portrait phone),
+ * a fixed 45 deg vertical FOV pinches horizontal FOV to ~21 deg (severe tunnel vision).
+ * We smoothly scale vertical FOV using an aspect compensation curve (baseFov * (1/aspect)^0.5),
+ * expanding the view to a comfortable 60°-70° on phones without fish-eye distortion.
+ * @param {number} aspect - width / height
+ * @param {number} [baseFov=45] - baseline landscape vertical FOV
+ * @returns {number} compensated vertical FOV in degrees
+ */
+export function computeAdaptiveFov(aspect, baseFov = 45) {
+  if (!aspect || aspect >= 1.0) return baseFov;
+  // Natural aspect compensation curve: fov = baseFov / sqrt(aspect)
+  const targetFov = baseFov / Math.sqrt(aspect);
+  return Math.min(75, Math.max(baseFov, targetFov));
+}
+
+
 export class ChaseCamera {
   constructor(aspect) {
-    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, CAM_FAR);
+    const fov = computeAdaptiveFov(aspect);
+    this.camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, CAM_FAR);
     this.yaw = 0;
     this.pitch = 0.54;           // base action elevation angle (rad, ~31 deg dynamic 3D third-person chase)
     this.dist = 16;
+
     this.distScale = 1;         // settings slider multiplier
     this.sandboxSizeProgress = 0;
     this.target = new THREE.Vector3();
@@ -878,8 +898,10 @@ export class ChaseCamera {
 
   resize(aspect) {
     this.camera.aspect = aspect;
+    this.camera.fov = computeAdaptiveFov(aspect);
     this.camera.updateProjectionMatrix();
   }
+
 
   // Ray (2D, XZ) vs AABB slab test. Returns the ENTRY and EXIT parameters of the
   // overlap, unclamped at the near end so a ray that starts INSIDE the box says
