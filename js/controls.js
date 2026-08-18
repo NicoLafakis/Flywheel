@@ -243,6 +243,11 @@ export class Controls {
     // first-run hint
     this._hintSettled = false;
     this._hintEl = null;
+    // steering & orbit key acceleration states
+    this._steerHoldTime = 0;
+    this._lastSteerDir = 0;
+    this._orbitKeyHoldTime = 0;
+    this._lastOrbitKeyDir = 0;
     // orbit touch state
     this.orbitId = null;
     this.orbitLastX = 0;
@@ -1156,9 +1161,25 @@ export class Controls {
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) iy += 1;
     if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) ix -= 1;
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) ix += 1;
-    const orbitRate = ORBIT_RATE * this._orbitSens();
-    if (this.keys.has('KeyQ')) this.orbitDelta += orbitRate * step;
-    if (this.keys.has('KeyE')) this.orbitDelta -= orbitRate * step;
+    let orbitKeyDir = 0;
+    if (this.keys.has('KeyQ')) orbitKeyDir += 1;
+    if (this.keys.has('KeyE')) orbitKeyDir -= 1;
+    if (orbitKeyDir !== 0) {
+      if (Math.sign(orbitKeyDir) !== Math.sign(this._lastOrbitKeyDir)) {
+        this._orbitKeyHoldTime = 0;
+        this._lastOrbitKeyDir = Math.sign(orbitKeyDir);
+      }
+      this._orbitKeyHoldTime += step;
+      const uOrbit = Math.min(1, this._orbitKeyHoldTime / 0.40);
+      const orbitRamp = uOrbit * uOrbit * (3 - 2 * uOrbit);
+      const minOrbitRate = 1.0 * this._orbitSens();
+      const maxOrbitRate = ORBIT_RATE * this._orbitSens();
+      const currentOrbitRate = minOrbitRate + (maxOrbitRate - minOrbitRate) * orbitRamp;
+      this.orbitDelta += orbitKeyDir * currentOrbitRate * step;
+    } else {
+      this._orbitKeyHoldTime = 0;
+      this._lastOrbitKeyDir = 0;
+    }
     // The stick is no longer folded into ix/iy — it steers a different scheme
     // now (see the header note), so it carries its own pair through. Invert
     // applies to both because it is a statement about the player's hands, not
@@ -1291,31 +1312,38 @@ export class Controls {
     // rotates forward from -z toward -x, which is screen-left for a camera
     // sitting behind the hole (regression history: a flipped basis made W go
     // backwards — see .wiki/modules/render.md).
-    //
-    // This scheme was reverted for a day (2026-08-07) because a W+A hold winds
-    // the heading past the view and a later D has to unwind it — the
-    // "roundabout". The player A/B-tested four schemes and picked THIS one;
-    // the actual flaw was that an unmarked circle never showed the heading, so
-    // the wind-up was invisible. The heading pointer in voxelworld.js is the
-    // fix; the wind-up is now something you can SEE happening.
     const steer = -ix;       // A (ix < 0) turns left = heading increases
     const throttle = -iy;    // W (iy < 0) drives forward
     if (steer || throttle) {
-      // A key is driving, so the tank scheme owns the camera again and the
-      // stick's hold is released. Deliberately NOT released the moment the
-      // thumb comes back to the middle: at rest the stick is still the scheme
-      // in play, the heading may be a long way off the yaw the player has been
-      // looking down, and re-engaging the chase there would swing the camera up
-      // to 180 deg for having briefly stopped steering. Last input wins, and
-      // "stopped pushing" is not an input.
       this._setChaseHold(null);
       if (this.heading === null) {
         // First input of a level: face up-screen so W reads as "drive away".
         this.heading = Math.atan2(Math.sin(camYaw), Math.cos(camYaw));
       }
-      this.heading += steer * ORBIT_RATE * this._steerSens() * step;
+      if (steer !== 0) {
+        if (Math.sign(steer) !== Math.sign(this._lastSteerDir)) {
+          this._steerHoldTime = 0;
+          this._lastSteerDir = Math.sign(steer);
+        }
+        this._steerHoldTime += step;
+        // Smooth continuous acceleration: starts from a gentle, responsive base rate
+        // (1.0 rad/s ~ 57 deg/s) for subtle micro-taps and ramps smoothly over 0.45s
+        // up to full maximum turning speed (ORBIT_RATE * 1.5 ~ 225-300 deg/s).
+        const u = Math.min(1, this._steerHoldTime / 0.45);
+        const ramp = u * u * (3 - 2 * u); // smoothstep ease
+        const minSteerRate = 1.0 * this._steerSens();
+        const maxSteerRate = ORBIT_RATE * this._steerSens() * 1.5;
+        const currentSteerRate = minSteerRate + (maxSteerRate - minSteerRate) * ramp;
+        this.heading += steer * currentSteerRate * step;
+      } else {
+        this._steerHoldTime = 0;
+        this._lastSteerDir = 0;
+      }
       // Wrap once per call so a held key cannot grow an unbounded angle.
       this.heading = Math.atan2(Math.sin(this.heading), Math.cos(this.heading));
+    } else {
+      this._steerHoldTime = 0;
+      this._lastSteerDir = 0;
     }
     if (!throttle) return { x: 0, z: 0 };
     return {

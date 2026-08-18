@@ -9,7 +9,7 @@ export const CITY_CATALOG = [
     sub: 'Physics playground & training yard',
     desc: 'Compact starter grid with ramps, street props, and training structures.',
     tagline: 'WARMUP & CALIBRATION',
-    blocks: 12213,
+    blocks: 11724,
     difficulty: 'TIER 1 · CASUAL',
     badge: 'STARTER',
     accentColor: '#00f0ff',

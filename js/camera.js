@@ -532,7 +532,7 @@ export class ChaseCamera {
 
   // ---------------------------------------------------------- pokemon spawn cinematic
   // Returns the armed cinematic as a cancel token — see startEarthquakeCinematic.
-  startPokemonSpawnCinematic({ dropX, dropZ, playerX, playerZ, duration = 1.5, onComplete, reducedMotion = false }) {
+  startPokemonSpawnCinematic({ dropX, dropZ, playerX, playerZ, duration = 4.0, onComplete, reducedMotion = false }) {
     this._yieldIntroToCinematic();
     this.pokeSpawnCinematic = {
       dropX, dropZ, playerX, playerZ,
@@ -1438,13 +1438,13 @@ export class ChaseCamera {
           cineYaw = this.yaw;
           this.triggerShake(0.3 * (1 - progress / P_PAN));
         } else if (progress < P_TOUCH) {
-          // Phase 1: High-speed whip-pan zoom to power-up drop site
+          // Phase 1: High-speed whip-pan zoom to overhead power-up drop site
           const u = (progress - P_PAN) / (P_TOUCH - P_PAN);
           const easeU = u * u * (3 - 2 * u);
           cineLookX = pc.playerX + (pc.dropX - pc.playerX) * easeU;
           cineLookZ = pc.playerZ + (pc.dropZ - pc.playerZ) * easeU;
-          cineDist = 9.0 + (16.0 - 9.0) * easeU;
-          cinePitch = 0.38 + (0.52 - 0.38) * easeU;
+          cineDist = 9.0 + (22.0 - 9.0) * easeU;
+          cinePitch = 0.38 + (1.20 - 0.38) * easeU;
           const angleToDrop = Math.atan2(pc.dropX - pc.playerX, pc.dropZ - pc.playerZ);
           // Latch the pan's origin ONCE. Interpolating against a live `this.yaw`
           // that this same line rewrote each frame is not an ease at all — it is
@@ -1458,11 +1458,11 @@ export class ChaseCamera {
           const d = angleToDrop - pc.panFrom;
           cineYaw = pc.panFrom + Math.atan2(Math.sin(d), Math.cos(d)) * easeU;
         } else if (progress < P_RETURN) {
-          // Phase 2: Dynamic touchdown framing on the skyfall beacon
+          // Phase 2: Dynamic touchdown overhead framing on the skyfall beacon
           cineLookX = pc.dropX;
           cineLookZ = pc.dropZ;
-          cineDist = 16.0;
-          cinePitch = 0.52;
+          cineDist = 22.0;
+          cinePitch = 1.20;
           const angleToDrop = Math.atan2(pc.dropX - pc.playerX, pc.dropZ - pc.playerZ);
           cineYaw = angleToDrop;
           this.triggerShake(0.35);

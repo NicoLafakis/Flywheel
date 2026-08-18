@@ -368,7 +368,7 @@ export class HUD {
     // the sim's own exported ladder. The pill stays hidden in the sandbox.
     this.comboLabel.classList.add('hidden');
     this._updateClock(clockSeconds);
-    this._updateScore(h.rawMass);
+    this._updateScore(h.mass);
     this._updateCombo(sim, h);
     // A voxel sandbox has NO sim-level buff list — power-ups are per hole, so a
     // multi-hole match can only attribute them there. Reading `sim.activePowerUps`

@@ -520,12 +520,12 @@ function playNextPokemonSpawn() {
       dropZ: pu.z,
       playerX: hX,
       playerZ: hZ,
-      duration: 1.5,
+      duration: 4.0,
       reducedMotion: save.settings.reducedMotion,
       onComplete: finishPokeIntro,
     });
   } else {
-    setTimeout(finishPokeIntro, 1500);
+    setTimeout(finishPokeIntro, 4000);
   }
 
   screens.showPokemonEncounterModal({
