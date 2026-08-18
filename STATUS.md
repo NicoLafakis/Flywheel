@@ -25,6 +25,8 @@ Last updated: 2026-08-17
 
 ## Shipped state
 
+- 2026-08-17 — The Lab Architectural Expansion: Monuments, Mid-Rises, Supertalls & Cantilever Villas (expanded sandbox with Arc de Triomphe corbel monument, Art Deco maritime lighthouse, Fallingwater modernist cantilever villa, Googie butterfly-roof diner, Brutalist civic cultural library, 24m Grand Clock Tower & obelisk plaza, 4-storey urban fire-escape apartments, sawtooth industrial lofts, 46m diagonal X-braced supertall skyscraper, cylindrical drum tower, suspension bridge anchor pylon, and luxury rooftop infinity pool villa; all authored in modular anisotropic single-piece structural forms)
+
 - 2026-08-17 — The Lab Modular Structural Sub-Division: 2m Bay Fragmentation & Detachment (subdivided oversized plinths, floor slabs, roofs, and walls in Modernist Pavilion, Grand Colonnade, and Skyscraper Alpha into modular 2m structural bays; complies with Grade and Bite clauses; enables fluid collapse, progressive crumbling, and consumption)
 
 - 2026-08-17 — Cloud Progress Sync: Coins, Skins, Stars & Upgrades Follow The Signed-In Player (save schema v25; `player_progress` table with RLS deny-browser posture, `/api/progress/pull`+`push`, a merge that keeps the better of two records and never sums coins, a server-side coin plausibility fence, an 8s-debounced offline-safe sync queue, and a profile-tab sync indicator; behind `FW_PROGRESS_SYNC` — see `.wiki/modules/cloud.md`, ADR-0021)
