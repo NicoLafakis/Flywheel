@@ -1,5 +1,4 @@
-// js/ui/tutorial.js — Interactive Step-by-Step Walkthrough & Onboarding System.
-// Pure state machine + DOM Coachmark renderer. Follows strict ES module architecture.
+import { getDeviceInputMode } from '../device.js';
 
 export const TUTORIAL_STEPS = Object.freeze([
   {
@@ -86,9 +85,44 @@ export const CONTEXTUAL_HINTS = Object.freeze({
   },
 });
 
-export function getTutorialStepDef(id) {
-  return TUTORIAL_STEPS.find((s) => s.id === id) || null;
+/**
+ * Returns the step definition adapted for the detected or specified device mode.
+ * @param {string | number} idOrIndex - step ID or index
+ * @param {'touch' | 'keyboard'} [deviceMode] - optional override
+ * @returns {object | null}
+ */
+export function getTutorialStepDef(idOrIndex, deviceMode = getDeviceInputMode()) {
+  const baseStep = typeof idOrIndex === 'number'
+    ? TUTORIAL_STEPS[idOrIndex]
+    : TUTORIAL_STEPS.find((s) => s.id === idOrIndex);
+
+  if (!baseStep) return null;
+  const isTouch = deviceMode === 'touch';
+
+  if (baseStep.id === 'steer_props') {
+    return {
+      ...baseStep,
+      instruction: isTouch
+        ? 'Drag anywhere on the left half of your screen with your thumb to steer into small cones, hydrants, and trash!'
+        : 'Use WASD or Arrow keys to steer into small traffic cones, hydrants, and trash cans!',
+      hint: isTouch
+        ? 'Left thumb = Steer · Right thumb = Look & Orbit'
+        : 'W/S drive · A/D steer · Q/E orbit camera · Start with snack ring',
+    };
+  }
+
+  if (baseStep.id === 'combo_chain') {
+    return {
+      ...baseStep,
+      hint: isTouch
+        ? 'Swipe right screen to look ahead and spot your next target.'
+        : 'Use Q/E to orbit camera and spot your next target.',
+    };
+  }
+
+  return { ...baseStep };
 }
+
 
 export function shouldShowTutorial(save, scene = 'gallery') {
   if (!save) return false;

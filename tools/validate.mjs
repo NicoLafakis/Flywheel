@@ -58,6 +58,7 @@ import { runHelpSelftest } from './help.test.mjs';
 import { runTutorialSelftest } from './tutorial.test.mjs';
 import { runMobileCameraSelftest } from './mobile-camera.test.mjs';
 import { runMobileUiSelftest } from './mobile-ui.test.mjs';
+import { runDeviceDetectionSelftest } from './device-detection.test.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -3163,7 +3164,9 @@ section('helpAndWalkthrough', () => console.log(`Validating Help, Walkthrough & 
 section('tutorialOnboarding', () => console.log(`Validating Interactive Onboarding & Tutorial (${runTutorialSelftest()} assertions)...`));
 section('mobileCameraClarity', () => console.log(`Validating Adaptive Mobile Camera & Clarity (${runMobileCameraSelftest()} assertions)...`));
 section('mobileUiResponsive', () => console.log(`Validating Mobile-First UI & Navigation (${runMobileUiSelftest()} assertions)...`));
+section('deviceDetection', () => console.log(`Validating Device Detection & Relative Controls (${runDeviceDetectionSelftest()} assertions)...`));
 section('fwMath', validateFwMath);
+
 
 
 section('runBoard', () => {

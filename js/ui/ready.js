@@ -13,6 +13,8 @@
 // is measured against a live 3D frame and runs far larger.
 
 import { buildBlockWord } from './blockword.js';
+import { isTouchDevice } from '../device.js';
+
 
 const GATE_ID = 'ready-gate';
 const EXIT_MS = 460; // must cover the longest exit animation in main.css
@@ -131,11 +133,12 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reduc
   root.querySelector('.rg-top').appendChild(buildBlockWord(title));
 
   if (showTutorialCards) {
+    const isTouch = isTouchDevice();
     const cardsEl = el(`<div class="rg-tutorial-cards" aria-label="How to play instructions">
       <div class="rg-tut-card">
         <span class="rg-tut-card-icon">🕳️</span>
         <strong class="rg-tut-card-title">1. Start Small</strong>
-        <span class="rg-tut-card-desc">Eat cones & trash to build initial mass</span>
+        <span class="rg-tut-card-desc">${isTouch ? 'Drag left ½ to steer · Eat small props' : 'WASD to steer · Drive into cones & trash'}</span>
       </div>
       <div class="rg-tut-card">
         <span class="rg-tut-card-icon">📈</span>
@@ -155,6 +158,7 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reduc
     </div>`);
     root.querySelector('.rg-top').appendChild(cardsEl);
   }
+
 
 
   const cta = root.querySelector('.fw-cta');
