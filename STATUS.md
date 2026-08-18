@@ -27,7 +27,10 @@ Last updated: 2026-08-17
 
 ## Shipped state
 
+- 2026-08-18 — Cute Just-in-Time Milestone Onboarding & Introductory Instruction System (replaced rigid step checklist with delightful casual arcade flow: animated "START EATING BLOCKS!" speech bubble with Sprocket avatar ⚙️ and bouncing pointer; celebratory Size 2 Growth Modal with visual prop comparison [Small Props ➔ Cars & Trees Unlocked!]; 4× Combo Momentum callout; and structural foundation collapse callout; zero redundancy with existing power-up impact overlays; covered by `tools/tutorial.test.mjs`)
+
 - 2026-08-18 — Device Detection & Contextual Relative Controls (shipped `js/device.js` with `isTouchDevice` and `getDeviceInputMode`; dynamically adapts Level 1 tutorial walkthrough steps, Ready Gate pre-flight cards, and in-game control badges so mobile players see only touch instructions [drag left ½ to steer / right ½ to look] and desktop players see keyboard keybinds [WASD / Arrows]; covered by `tools/device-detection.test.mjs`)
+
 
 - 2026-08-18 — Mobile-First UI & Navigation Architecture (overhauled mobile responsive layouts across Title Dashboard, City Selection Carousel, Shop Shell, and HUD overlays; thumb-friendly touch targets $\ge 48\text{px}$, notch safe-area insets, fluid horizontal pill navigation, and 2-column mobile item cards; covered by `tools/mobile-ui.test.mjs`)
 

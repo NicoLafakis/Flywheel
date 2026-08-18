@@ -1,56 +1,8 @@
-import { getDeviceInputMode } from '../device.js';
+// js/ui/tutorial.js — Cute, Just-in-Time Milestone Onboarding & Introductory Instruction System.
+// Inspired by Hole.io, Donut County, and modern mobile casual arcade games.
+// Follows strict ES module architecture and headless pure-sim boundary safety.
 
-export const TUTORIAL_STEPS = Object.freeze([
-  {
-    id: 'steer_props',
-    stepNum: 1,
-    badge: 'STEP 1 OF 5 · STEERING & PROPS',
-    icon: '🕹️',
-    title: 'STEER & EAT SMALL PROPS',
-    instruction: 'Use WASD / Arrow keys (or drag on touch) to steer into small traffic cones, hydrants, and trash cans!',
-    hint: 'Start with small props in the snack ring around you.',
-    reqEats: 3,
-  },
-  {
-    id: 'size_growth',
-    stepNum: 2,
-    badge: 'STEP 2 OF 5 · MASS & SIZE TIERS',
-    icon: '📈',
-    title: 'YOU GREW TO SIZE 2!',
-    instruction: 'Your Mass Bar (top center) filled up! You can now swallow larger objects like parked cars, trees, and dumpsters.',
-    hint: 'Your hole expands automatically as you swallow mass.',
-    reqSize: 2,
-  },
-  {
-    id: 'combo_chain',
-    stepNum: 3,
-    badge: 'STEP 3 OF 5 · COMBO MULTIPLIER',
-    icon: '🔥',
-    title: 'COMBO MOMENTUM',
-    instruction: 'Eat props within 1.5s of each other to build your Combo Multiplier up to 8× and supercharge your score!',
-    hint: 'Keep moving rapidly between props to maintain the chain.',
-    reqCombo: 3,
-  },
-  {
-    id: 'topple_buildings',
-    stepNum: 4,
-    badge: 'STEP 4 OF 5 · STRUCTURAL PHYSICS',
-    icon: '🏗️',
-    title: 'TOPPLE GIANT BUILDINGS',
-    instruction: 'Eat ground pillars and foundation walls under buildings. The upper floors will crumble down into edible rubble!',
-    hint: 'Ingest supports to trigger structural collapse waves.',
-    reqSize: 3,
-  },
-  {
-    id: 'powerup_beacons',
-    stepNum: 5,
-    badge: 'STEP 5 OF 5 · POWER-UP BEACONS',
-    icon: '⚡',
-    title: 'POWER-UP BEACONS (0 PENALTIES)',
-    instruction: 'Orbital beacons drop every ~30–45s! Drive into the vertical light beam for powerful boosts with ZERO penalties!',
-    hint: 'Magnetron, Chrono Freeze, Titan, and Speed boost your run.',
-  },
-]);
+import { getDeviceInputMode, isTouchDevice } from '../device.js';
 
 export const CONTEXTUAL_HINTS = Object.freeze({
   too_big: {
@@ -86,235 +38,251 @@ export const CONTEXTUAL_HINTS = Object.freeze({
 });
 
 /**
- * Returns the step definition adapted for the detected or specified device mode.
- * @param {string | number} idOrIndex - step ID or index
- * @param {'touch' | 'keyboard'} [deviceMode] - optional override
- * @returns {object | null}
+ * Returns true if the milestone onboarding flow should run for this session.
+ * @param {object} save
+ * @param {string} scene
+ * @returns {boolean}
  */
-export function getTutorialStepDef(idOrIndex, deviceMode = getDeviceInputMode()) {
-  const baseStep = typeof idOrIndex === 'number'
-    ? TUTORIAL_STEPS[idOrIndex]
-    : TUTORIAL_STEPS.find((s) => s.id === idOrIndex);
-
-  if (!baseStep) return null;
-  const isTouch = deviceMode === 'touch';
-
-  if (baseStep.id === 'steer_props') {
-    return {
-      ...baseStep,
-      instruction: isTouch
-        ? 'Drag anywhere on the left half of your screen with your thumb to steer into small cones, hydrants, and trash!'
-        : 'Use WASD or Arrow keys to steer into small traffic cones, hydrants, and trash cans!',
-      hint: isTouch
-        ? 'Left thumb = Steer · Right thumb = Look & Orbit'
-        : 'W/S drive · A/D steer · Q/E orbit camera · Start with snack ring',
-    };
-  }
-
-  if (baseStep.id === 'combo_chain') {
-    return {
-      ...baseStep,
-      hint: isTouch
-        ? 'Swipe right screen to look ahead and spot your next target.'
-        : 'Use Q/E to orbit camera and spot your next target.',
-    };
-  }
-
-  return { ...baseStep };
-}
-
-
 export function shouldShowTutorial(save, scene = 'gallery') {
   if (!save) return false;
-  if (save.settings && save.settings.tutorialHints === false) return false;
   if (save.tutorialCompleted) return false;
-  // Primary walkthrough is anchored to the prologue / starter proving ground
-  return scene === 'gallery' || scene === 'level-1';
+  if (save.settings && save.settings.tutorialHints === false) return false;
+  return scene === 'gallery';
 }
 
+/**
+ * Interactive Just-In-Time Milestone Onboarding Manager.
+ */
 export class TutorialManager {
   constructor({ save, scene = 'gallery', onSave = null } = {}) {
     this.save = save || {};
     this.scene = scene;
     this.onSave = onSave;
-    this.currentStepIndex = 0;
     this.active = shouldShowTutorial(this.save, this.scene);
-    this.propsEaten = 0;
-    this.maxCombo = 0;
-    this.collapseCount = 0;
-    this.el = null;
-    this._dismissTimer = null;
+    this.milestoneCounts = {
+      start: 0,
+      size2: 0,
+      combo4: 0,
+      collapse: 0,
+    };
 
-    if (this.active && typeof document !== 'undefined') {
-      this.mount();
+    this.container = null;
+    this.activeModal = null;
+    this.startBubbleTimeout = null;
+
+    if (this.active) {
+      this._mountContainer();
+      this.triggerStartBubble();
     }
-  }
-
-  get currentStep() {
-    return TUTORIAL_STEPS[this.currentStepIndex] || null;
   }
 
   isActive() {
     return this.active;
   }
 
-  mount() {
+  hasShown(milestone) {
+    return (this.milestoneCounts[milestone] || 0) > 0;
+  }
+
+  _mountContainer() {
     if (typeof document === 'undefined') return;
-    this.unmount();
+    let c = document.getElementById('fw-tutorial-overlay');
+    if (!c) {
+      c = document.createElement('div');
+      c.id = 'fw-tutorial-overlay';
+      c.className = 'fw-tut-overlay';
+      document.body.appendChild(c);
+    }
+    this.container = c;
+  }
 
-    const container = document.createElement('div');
-    container.id = 'fw-tutorial-coachmark';
-    container.className = 'fw-tutorial-coachmark fw-tutorial-slide-in';
-    container.setAttribute('role', 'status');
-    container.setAttribute('aria-live', 'polite');
+  triggerStartBubble() {
+    this.milestoneCounts.start = (this.milestoneCounts.start || 0) + 1;
+    if (typeof document === 'undefined' || !this.container) return;
 
-    container.innerHTML = `
-      <div class="tut-glow"></div>
-      <div class="tut-inner">
-        <div class="tut-header">
-          <div class="tut-badge-wrap">
-            <span class="tut-icon"></span>
-            <span class="tut-badge"></span>
-          </div>
-          <button type="button" class="tut-skip-btn" aria-label="Skip Tutorial">SKIP ✕</button>
-        </div>
-        <div class="tut-body">
-          <div class="tut-title"></div>
-          <div class="tut-instruction"></div>
-        </div>
-        <div class="tut-footer">
-          <div class="tut-hint"></div>
-          <button type="button" class="tut-next-btn">GOT IT ➔</button>
-        </div>
+    const isTouch = isTouchDevice();
+    const bubble = document.createElement('div');
+    bubble.className = 'fw-tut-bubble fw-tut-bubble--start animate-pop-bounce';
+    bubble.innerHTML = `
+      <div class="tut-sprocket-avatar">⚙️</div>
+      <div class="tut-bubble-content">
+        <div class="tut-bubble-title">START EATING BLOCKS!</div>
+        <div class="tut-bubble-sub">${isTouch ? '👆 Drag with your thumb to steer & swallow small props' : '⌨️ Use WASD or Arrow Keys to steer into cones & trash'}</div>
       </div>
+      <div class="tut-bouncy-arrow">⬇️</div>
     `;
 
-    const skipBtn = container.querySelector('.tut-skip-btn');
-    if (skipBtn) {
-      skipBtn.onclick = (e) => {
-        e.stopPropagation();
-        this.skip();
-      };
-    }
+    this.container.appendChild(bubble);
 
-    const nextBtn = container.querySelector('.tut-next-btn');
-    if (nextBtn) {
-      nextBtn.onclick = (e) => {
-        e.stopPropagation();
-        this.advance();
-      };
-    }
-
-    document.body.appendChild(container);
-    this.el = container;
-    this.render();
+    // Auto-fade after 4.5 seconds
+    this.startBubbleTimeout = setTimeout(() => {
+      this._fadeBubble(bubble);
+    }, 4500);
   }
 
-  unmount() {
-    if (this.el && this.el.parentNode) {
-      this.el.parentNode.removeChild(this.el);
-    }
-    this.el = null;
-    clearTimeout(this._dismissTimer);
+  _fadeBubble(el) {
+    if (!el || !el.parentNode) return;
+    el.classList.add('fading-out');
+    setTimeout(() => {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }, 300);
   }
 
-  render() {
-    if (!this.el || !this.active) return;
-    const step = this.currentStep;
-    if (!step) {
-      this.complete();
-      return;
-    }
-
-    const iconEl = this.el.querySelector('.tut-icon');
-    const badgeEl = this.el.querySelector('.tut-badge');
-    const titleEl = this.el.querySelector('.tut-title');
-    const instEl = this.el.querySelector('.tut-instruction');
-    const hintEl = this.el.querySelector('.tut-hint');
-
-    if (iconEl) iconEl.textContent = step.icon;
-    if (badgeEl) badgeEl.textContent = step.badge;
-    if (titleEl) titleEl.textContent = step.title;
-    if (instEl) instEl.textContent = step.instruction;
-    if (hintEl) hintEl.textContent = step.hint || '';
-
-    this.el.classList.remove('tut-pulse');
-    void this.el.offsetWidth; // trigger reflow
-    this.el.classList.add('tut-pulse');
-  }
-
-  advance() {
+  onEat(prop) {
     if (!this.active) return;
-    this.currentStepIndex++;
-    if (this.currentStepIndex >= TUTORIAL_STEPS.length) {
-      this.complete();
-    } else {
-      this.render();
-    }
-  }
-
-  onEat(obj) {
-    if (!this.active) return;
-    if (this.currentStepIndex === 0) {
-      this.propsEaten++;
-      if (this.propsEaten >= (TUTORIAL_STEPS[0].reqEats || 3)) {
-        this.advance();
-      }
+    // Dismiss start bubble immediately on first swallow
+    const startBubble = this.container?.querySelector('.fw-tut-bubble--start');
+    if (startBubble) {
+      if (this.startBubbleTimeout) clearTimeout(this.startBubbleTimeout);
+      this._fadeBubble(startBubble);
     }
   }
 
   onSizeUp(newSize) {
     if (!this.active) return;
-    if (this.currentStepIndex === 1 && newSize >= 2) {
-      this.advance();
-    } else if (this.currentStepIndex === 3 && newSize >= 3) {
-      this.advance();
+    if (newSize === 2 && !this.hasShown('size2')) {
+      this.milestoneCounts.size2 = 1;
+      this._showSize2Modal();
     }
   }
 
-  onCombo(chain) {
-    if (!this.active) return;
-    if (chain > this.maxCombo) this.maxCombo = chain;
-    if (this.currentStepIndex === 2 && chain >= 3) {
-      this.advance();
+  _showSize2Modal() {
+    if (typeof document === 'undefined' || !this.container) return;
+
+    const modal = document.createElement('div');
+    modal.className = 'fw-tut-modal fw-tut-modal--size2 animate-bounce-in';
+    modal.innerHTML = `
+      <div class="tut-modal-card">
+        <div class="tut-celebrate-header">
+          <span class="tut-confetti">🎉</span>
+          <div class="tut-sprocket-badge">⚙️</div>
+          <span class="tut-confetti">⭐</span>
+        </div>
+        <h2 class="tut-modal-title">YOU GREW TO SIZE 2!</h2>
+        <div class="tut-growth-visual">
+          <div class="tut-growth-step">
+            <span class="step-icon">🗑️</span>
+            <span class="step-label">Small Props</span>
+          </div>
+          <div class="tut-growth-arrow">➔</div>
+          <div class="tut-growth-step tut-growth-step--unlocked">
+            <span class="step-icon">🚗🌳</span>
+            <span class="step-label">CARS & TREES UNLOCKED!</span>
+          </div>
+        </div>
+        <p class="tut-modal-desc">
+          Your hole diameter expanded! You can now swallow parked vehicles, street trees, and food trucks!
+        </p>
+        <button type="button" class="btn fw-cta tut-modal-btn" id="tut-size2-btn">LET'S EAT! ➔</button>
+      </div>
+    `;
+
+    this.container.appendChild(modal);
+
+    const btn = modal.querySelector('#tut-size2-btn');
+    if (btn) {
+      btn.onclick = () => {
+        this._dismissModal(modal);
+      };
     }
+
+    // Auto-dismiss after 6 seconds if player is busy steering
+    setTimeout(() => {
+      this._dismissModal(modal);
+    }, 6000);
+  }
+
+  onCombo(level) {
+    if (!this.active) return;
+    if (level >= 4 && !this.hasShown('combo4')) {
+      this.milestoneCounts.combo4 = 1;
+      this._showComboCallout();
+    }
+  }
+
+  _showComboCallout() {
+    if (typeof document === 'undefined' || !this.container) return;
+
+    const callout = document.createElement('div');
+    callout.className = 'fw-tut-bubble fw-tut-bubble--combo animate-pop-bounce';
+    callout.innerHTML = `
+      <div class="tut-combo-flame">🔥</div>
+      <div class="tut-bubble-content">
+        <div class="tut-bubble-title">4× COMBO MOMENTUM!</div>
+        <div class="tut-bubble-sub">Eat props within <strong>1.5s</strong> of each other to multiply your score! At 8× you reach <strong>GODLIKE</strong> frenzy!</div>
+      </div>
+    `;
+
+    this.container.appendChild(callout);
+    setTimeout(() => {
+      this._fadeBubble(callout);
+    }, 4500);
   }
 
   onCollapse() {
     if (!this.active) return;
-    this.collapseCount++;
-    if (this.currentStepIndex === 3) {
-      this.advance();
+    if (!this.hasShown('collapse')) {
+      this.milestoneCounts.collapse = 1;
+      this._showCollapseCallout();
     }
   }
 
-  onPowerUpSpawn(type) {
-    if (!this.active) return;
-    if (this.currentStepIndex === 4) {
-      this.render();
+  _showCollapseCallout() {
+    if (typeof document === 'undefined' || !this.container) return;
+
+    const callout = document.createElement('div');
+    callout.className = 'fw-tut-bubble fw-tut-bubble--collapse animate-pop-bounce';
+    callout.innerHTML = `
+      <div class="tut-collapse-icon">🏗️</div>
+      <div class="tut-bubble-content">
+        <div class="tut-bubble-title">TIMBERRR! FOUNDATION COLLAPSE!</div>
+        <div class="tut-bubble-sub">Break ground pillars under buildings to crumble entire towers into bite-sized snacks!</div>
+      </div>
+    `;
+
+    this.container.appendChild(callout);
+    setTimeout(() => {
+      this._fadeBubble(callout);
+    }, 4500);
+  }
+
+  onPowerUpSpawn() {
+    // Handled by existing map beacons and anime impact screens
+  }
+
+  onPowerUpCollected() {
+    // Handled by existing anime impact screens
+  }
+
+  _dismissModal(modal) {
+    if (!modal || !modal.parentNode) return;
+    modal.classList.add('fading-out');
+    setTimeout(() => {
+      if (modal.parentNode) modal.parentNode.removeChild(modal);
+    }, 300);
+
+    // If size2 is completed, mark onboarding done
+    if (this.hasShown('size2')) {
+      this._complete();
     }
   }
 
-  onPowerUpCollected(type) {
-    if (!this.active) return;
-    if (this.currentStepIndex === 4) {
-      this.complete();
-    }
-  }
-
-  complete() {
+  _complete() {
     this.active = false;
     this.save.tutorialCompleted = true;
-    if (typeof this.onSave === 'function') {
-      this.onSave(this.save);
-    }
-    if (this.el) {
-      this.el.classList.add('tut-out');
-      this._dismissTimer = setTimeout(() => this.unmount(), 400);
-    }
+    if (this.onSave) this.onSave(this.save);
+    this.teardown();
   }
 
   skip() {
-    this.complete();
+    this._complete();
+  }
+
+  teardown() {
+    if (this.startBubbleTimeout) clearTimeout(this.startBubbleTimeout);
+    if (this.container && this.container.parentNode) {
+      this.container.parentNode.removeChild(this.container);
+      this.container = null;
+    }
   }
 }

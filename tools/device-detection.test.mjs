@@ -3,7 +3,7 @@
 
 import assert from 'node:assert';
 import { isTouchDevice, getDeviceInputMode } from '../js/device.js';
-import { getTutorialStepDef, TUTORIAL_STEPS } from '../js/ui/tutorial.js';
+import { TutorialManager } from '../js/ui/tutorial.js';
 
 export function runDeviceDetectionSelftest() {
   let passed = 0;
@@ -24,26 +24,12 @@ export function runDeviceDetectionSelftest() {
     assert(mode === 'touch' || mode === 'keyboard', `getDeviceInputMode must return 'touch' or 'keyboard' (got ${mode})`);
   });
 
-  // 2. Device-Relative Tutorial Instructions
-  test('getTutorialStepDef adapts Step 1 instructions based on device mode', () => {
-    const touchStep1 = getTutorialStepDef(0, 'touch');
-    assert(touchStep1.instruction.toLowerCase().includes('drag') || touchStep1.instruction.toLowerCase().includes('thumb'),
-      'Touch Step 1 must reference dragging / thumb steering');
-    assert(!touchStep1.instruction.includes('WASD'), 'Touch Step 1 must not instruct player to use WASD');
-
-    const keyStep1 = getTutorialStepDef(0, 'keyboard');
-    assert(keyStep1.instruction.includes('WASD') || keyStep1.instruction.includes('Arrow keys'),
-      'Keyboard Step 1 must reference WASD or Arrow keys');
-    assert(!keyStep1.instruction.includes('drag anywhere on the left'),
-      'Keyboard Step 1 must not instruct player to drag on touch screen');
-  });
-
-  test('getTutorialStepDef adapts camera look hints based on device mode', () => {
-    const touchStep3 = getTutorialStepDef(2, 'touch');
-    const keyStep3 = getTutorialStepDef(2, 'keyboard');
-
-    assert(touchStep3.instruction.length > 0);
-    assert(keyStep3.instruction.length > 0);
+  // 2. Just-In-Time Milestone Onboarding with Device Detection
+  test('TutorialManager instantiates with device detection and triggers Start Eating bubble', () => {
+    const mockSave = { tutorialCompleted: false, milestones: {} };
+    const tm = new TutorialManager({ save: mockSave, scene: 'gallery' });
+    assert.strictEqual(tm.isActive(), true);
+    assert.strictEqual(tm.hasShown('start'), true);
   });
 
   return passed;

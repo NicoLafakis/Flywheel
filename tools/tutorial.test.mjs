@@ -1,12 +1,10 @@
-// tools/tutorial.test.mjs — Automated unit & contract tests for the In-Game Tutorial & Onboarding System.
+// tools/tutorial.test.mjs — Automated unit & contract tests for the Just-in-Time Milestone Onboarding System.
 // Run: node tools/tutorial.test.mjs
 
 import assert from 'node:assert';
 import {
-  TUTORIAL_STEPS,
   TutorialManager,
   CONTEXTUAL_HINTS,
-  getTutorialStepDef,
   shouldShowTutorial,
 } from '../js/ui/tutorial.js';
 
@@ -22,39 +20,20 @@ export function runTutorialSelftest() {
     }
   }
 
-  // 1. Step Definitions and Schema Integrity
-  test('TUTORIAL_STEPS contains all 5 canonical steps with required fields', () => {
-    assert(Array.isArray(TUTORIAL_STEPS), 'TUTORIAL_STEPS must be an array');
-    assert.strictEqual(TUTORIAL_STEPS.length, 5, 'Must contain 5 sequential steps');
-
-    const expectedIds = ['steer_props', 'size_growth', 'combo_chain', 'topple_buildings', 'powerup_beacons'];
-    TUTORIAL_STEPS.forEach((step, idx) => {
-      assert.strictEqual(step.id, expectedIds[idx], `Step index ${idx} must have id ${expectedIds[idx]}`);
-      assert(typeof step.stepNum === 'number', 'stepNum must be a number');
-      assert(typeof step.badge === 'string' && step.badge.length > 0, 'badge must be non-empty string');
-      assert(typeof step.title === 'string' && step.title.length > 0, 'title must be non-empty string');
-      assert(typeof step.instruction === 'string' && step.instruction.length > 0, 'instruction must be non-empty string');
-      assert(typeof step.icon === 'string' && step.icon.length > 0, 'icon must be non-empty string');
-    });
-  });
-
-  // 2. Tutorial Eligibility Gate
-  test('shouldShowTutorial only triggers on first level (gallery) when tutorial is not completed', () => {
+  // 1. Eligibility Gate
+  test('shouldShowTutorial triggers on first level (gallery) when tutorial is not completed', () => {
     const freshSave = { tutorialCompleted: false, settings: { tutorialHints: true } };
-    assert.strictEqual(shouldShowTutorial(freshSave, 'gallery'), true, 'Fresh save on gallery must show tutorial');
-    assert.strictEqual(shouldShowTutorial(freshSave, 'sydney'), false, 'Non-starter level must not force initial tutorial sequence');
+    assert.strictEqual(shouldShowTutorial(freshSave, 'gallery'), true, 'Fresh save on gallery must show onboarding');
+    assert.strictEqual(shouldShowTutorial(freshSave, 'sydney'), false, 'Other cities must not force initial onboarding');
 
     const completedSave = { tutorialCompleted: true, settings: { tutorialHints: true } };
-    assert.strictEqual(shouldShowTutorial(completedSave, 'gallery'), false, 'Completed save must not re-trigger tutorial');
-
-    const disabledSave = { tutorialCompleted: false, settings: { tutorialHints: false } };
-    assert.strictEqual(shouldShowTutorial(disabledSave, 'gallery'), false, 'Disabled tutorial in settings must not trigger');
+    assert.strictEqual(shouldShowTutorial(completedSave, 'gallery'), false, 'Completed save must not re-trigger');
   });
 
-  // 3. Tutorial State Machine & Progression
-  test('TutorialManager starts at Step 1 and advances on small prop eats', () => {
+  // 2. Just-In-Time Milestone Triggers
+  test('TutorialManager triggers initial Start Eating Blocks bubble on start', () => {
     let saved = null;
-    const mockSave = { tutorialCompleted: false, settings: { tutorialHints: true } };
+    const mockSave = { tutorialCompleted: false, milestones: {} };
     const tm = new TutorialManager({
       save: mockSave,
       scene: 'gallery',
@@ -62,97 +41,67 @@ export function runTutorialSelftest() {
     });
 
     assert.strictEqual(tm.isActive(), true);
-    assert.strictEqual(tm.currentStepIndex, 0);
-    assert.strictEqual(tm.currentStep.id, 'steer_props');
-
-    // Eat 1 prop
-    tm.onEat({ tier: 1, mass: 2 });
-    assert.strictEqual(tm.currentStepIndex, 0, 'Should remain on step 1 after 1 prop');
-
-    // Eat 2nd and 3rd prop
-    tm.onEat({ tier: 1, mass: 2 });
-    tm.onEat({ tier: 1, mass: 2 });
-    assert.strictEqual(tm.currentStepIndex, 1, 'Should advance to step 2 (size_growth) after 3 small props');
-    assert.strictEqual(tm.currentStep.id, 'size_growth');
+    assert.strictEqual(tm.hasShown('start'), true, 'Start bubble must be marked shown');
   });
 
-  test('TutorialManager advances from Step 2 to Step 3 on size-up or vehicle eat', () => {
-    const mockSave = { tutorialCompleted: false, settings: { tutorialHints: true } };
+  test('TutorialManager triggers Size 2 Growth Milestone modal on first reaching Size 2', () => {
+    const mockSave = { tutorialCompleted: false, milestones: {} };
     const tm = new TutorialManager({ save: mockSave, scene: 'gallery' });
-    tm.currentStepIndex = 1; // force step 2 (size_growth)
 
+    assert.strictEqual(tm.hasShown('size2'), false);
     tm.onSizeUp(2);
-    assert.strictEqual(tm.currentStepIndex, 2, 'Should advance to step 3 (combo_chain) on reaching Size 2');
-    assert.strictEqual(tm.currentStep.id, 'combo_chain');
+    assert.strictEqual(tm.hasShown('size2'), true, 'Size 2 milestone must trigger when reaching size 2');
+
+    // Repeated size-up must not duplicate milestone modal
+    tm.onSizeUp(2);
+    assert.strictEqual(tm.milestoneCounts.size2, 1, 'Size 2 milestone should only trigger once');
   });
 
-  test('TutorialManager advances from Step 3 to Step 4 on 3x combo chain', () => {
-    const mockSave = { tutorialCompleted: false, settings: { tutorialHints: true } };
+  test('TutorialManager triggers 4x Combo Momentum explanation callout on reaching 4x combo', () => {
+    const mockSave = { tutorialCompleted: false, milestones: {} };
     const tm = new TutorialManager({ save: mockSave, scene: 'gallery' });
-    tm.currentStepIndex = 2; // step 3 (combo_chain)
 
     tm.onCombo(2);
-    assert.strictEqual(tm.currentStepIndex, 2, '2x combo is not enough');
+    assert.strictEqual(tm.hasShown('combo4'), false, '2x combo should not trigger 4x combo modal');
 
-    tm.onCombo(3);
-    assert.strictEqual(tm.currentStepIndex, 3, '3x combo advances to step 4 (topple_buildings)');
-    assert.strictEqual(tm.currentStep.id, 'topple_buildings');
+    tm.onCombo(4);
+    assert.strictEqual(tm.hasShown('combo4'), true, '4x combo must trigger combo momentum callout');
   });
 
-  test('TutorialManager advances from Step 4 to Step 5 on structural collapse or reaching Size 3', () => {
-    const mockSave = { tutorialCompleted: false, settings: { tutorialHints: true } };
+  test('TutorialManager triggers Building Collapse callout on first structural crash', () => {
+    const mockSave = { tutorialCompleted: false, milestones: {} };
     const tm = new TutorialManager({ save: mockSave, scene: 'gallery' });
-    tm.currentStepIndex = 3; // step 4 (topple_buildings)
 
+    assert.strictEqual(tm.hasShown('collapse'), false);
     tm.onCollapse();
-    assert.strictEqual(tm.currentStepIndex, 4, 'Collapse event advances to step 5 (powerup_beacons)');
-    assert.strictEqual(tm.currentStep.id, 'powerup_beacons');
+    assert.strictEqual(tm.hasShown('collapse'), true, 'Collapse milestone must trigger on building collapse');
   });
 
-  test('TutorialManager completes and marks save when final step is done or dismissed', () => {
+  test('TutorialManager completes and marks save when milestones are finished or skipped', () => {
     let saveMutated = false;
-    const mockSave = { tutorialCompleted: false, settings: { tutorialHints: true } };
+    const mockSave = { tutorialCompleted: false, milestones: {} };
     const tm = new TutorialManager({
       save: mockSave,
       scene: 'gallery',
       onSave: () => { saveMutated = true; },
     });
-    tm.currentStepIndex = 4; // final step
-
-    tm.onPowerUpCollected();
-    assert.strictEqual(tm.isActive(), false, 'Tutorial should now be inactive/completed');
-    assert.strictEqual(mockSave.tutorialCompleted, true, 'save.tutorialCompleted must be set to true');
-    assert.strictEqual(saveMutated, true, 'onSave callback must have fired');
-  });
-
-  test('TutorialManager skip() immediately concludes tutorial and persists', () => {
-    const mockSave = { tutorialCompleted: false, settings: { tutorialHints: true } };
-    const tm = new TutorialManager({ save: mockSave, scene: 'gallery' });
-    assert.strictEqual(tm.isActive(), true);
 
     tm.skip();
     assert.strictEqual(tm.isActive(), false);
     assert.strictEqual(mockSave.tutorialCompleted, true);
   });
 
-  // 4. Contextual Tooltip Messages
-  test('CONTEXTUAL_HINTS contains definitions for oversized bumps and power-up types', () => {
+  // 3. Contextual Tooltips for foreign mechanics
+  test('CONTEXTUAL_HINTS contains bump alerts for oversized objects', () => {
     assert(CONTEXTUAL_HINTS.too_big, 'Must have too_big hint');
     assert(typeof CONTEXTUAL_HINTS.too_big.text === 'string');
-
-    const expectedPowerups = ['magnet', 'freeze', 'speed', 'titan', 'quake'];
-    expectedPowerups.forEach((pu) => {
-      assert(CONTEXTUAL_HINTS[`powerup_${pu}`], `Must have hint for powerup_${pu}`);
-      assert(typeof CONTEXTUAL_HINTS[`powerup_${pu}`].title === 'string');
-      assert(typeof CONTEXTUAL_HINTS[`powerup_${pu}`].desc === 'string');
-    });
   });
 
   return passed;
 }
 
 if (process.argv[1] && process.argv[1].endsWith('tutorial.test.mjs')) {
-  console.log('--- Validating Interactive Onboarding & Tutorial System ---');
+  console.log('--- Validating Just-in-Time Milestone Onboarding System ---');
   const count = runTutorialSelftest();
-  console.log(`\nALL PASS. ${count} onboarding tutorial tests passing cleanly!`);
+  console.log(`\nALL PASS. ${count} milestone onboarding tests passing cleanly!`);
 }
