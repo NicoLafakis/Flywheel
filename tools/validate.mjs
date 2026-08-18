@@ -318,6 +318,13 @@ function validateVoxelSandbox() {
   probeHeroIdentity(fresh, 'voxel sandbox', []);                  // no hero pair declared — vacuous
 
   console.log(`  voxel sandbox: eaten=${a.sim.hole.eatenCount}/${a.sim.totalBlocks} raw=${a.sim.hole.rawMass.toFixed(1)} score=${a.sim.hole.mass.toFixed(0)} peakChain=${a.sim.hole.bestCombo} size=${a.sim.hole.size} radius=${a.sim.hole.radius.toFixed(2)} (t=10s: ${a.snap.eaten10}, t=20s: ${a.snap.eaten20})`);
+
+  // Recent Lab overhaul (architecture, scoring, 4s powerup overhead sequence,
+  // smooth steering) added its own behaviour surface — HUD sandbox progress
+  // bar width/95% indicator, level completion, spawn stability, and road
+  // markings — that the checks above don't touch. Standalone suite, same
+  // pattern as progress-api.test.mjs above.
+  runSuite('tools/progress-and-lab.test.mjs');
 }
 
 // The helpers replace the only implementation-approximated math in replayed

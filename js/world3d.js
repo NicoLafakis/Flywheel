@@ -1819,7 +1819,9 @@ export class World3D {
         if (!o.eaten && !o.committed) uneaten.push(o);
       }
     }
-    const showBeacons = !this.sim.won && uneaten.length > 0 && ((this.sim.timeLeft != null && this.sim.timeLeft <= 30) || uneaten.length <= 100);
+    const totalObjs = (this.sim && this.sim.city && this.sim.city.objects) ? this.sim.city.objects.length : 0;
+    const isEndgame = uneaten.length <= 100 || (totalObjs > 0 && uneaten.length <= Math.max(100, Math.floor(totalObjs * 0.05)));
+    const showBeacons = !this.sim.won && uneaten.length > 0 && ((this.sim.timeLeft != null && this.sim.timeLeft <= 30) || isEndgame);
 
     if (showBeacons && this._targetBeacons && this._targetBeacons.length > 0) {
       const step = Math.max(1, Math.floor(uneaten.length / this._targetBeacons.length));

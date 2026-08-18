@@ -35,13 +35,17 @@ for (let t = 0; t < 60; t++) {
 
 // 4. Test PvP hole-on-hole eating:
 // Set Hole 0 to be significantly larger than Hole 1
+sim.holes[0].size = 7;
 sim.holes[0].radius = 4.0;
 sim.holes[0].mass = 2000;
+sim.holes[0].rawMass = 2000;
 sim.holes[0].x = 5.0;
 sim.holes[0].z = 5.0;
 
+sim.holes[1].size = 2;
 sim.holes[1].radius = 1.5;
 sim.holes[1].mass = 300;
+sim.holes[1].rawMass = 300;
 sim.holes[1].x = 5.2;
 sim.holes[1].z = 5.2; // Overlapping Hole 0!
 

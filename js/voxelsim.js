@@ -59,8 +59,8 @@ import {
   bench, bigTruck, bikeRack, billboard, bollard, boxVan, brownstone, bus, cafeTable,
   crateStack, deliveryTruck, dockCleat, helicopter, helipad, hotDogCart, hydrant,
   lampPost, laneDashes, mailbox, marketStall, mooringBollard, motorLaunch, motorcycle,
-  newsBox, newsstand, pierDeck, planter, sandwichBoard, schoolBus, sedan, shippingContainer,
-  signPost, signText, subwayEntrance, subwayStairEntrance, tower, trafficLight, trashBags,
+  newsBox, newsstand, pierDeck, planter, pothole, sandwichBoard, schoolBus, sedan, shippingContainer,
+  signPost, signText, streetLightSignal, subwayEntrance, subwayStairEntrance, tower, trafficLight, trashBags,
   trashBin, tree, waterTower, kenneySUV, kenneySkyscraper,
 } from './voxelkit.js';
 import {
@@ -1005,7 +1005,8 @@ export class VoxelSandboxSim {
     // Combos now advance in memorable 25-block steps. Keep growth lively by
     // lowering the mass gates to match that gentler multiplier; map completion
     // itself is raw-mass based, so this never shortens a city goal.
-    this._sizeLadder = SIZE_MASS.map((m) => m * 0.3 * Math.min(10, Math.max(1, Math.round(this.totalMass / 4200))));
+    const ladderMult = (this.sceneName === 'gallery' || !this.sceneName) ? 1 : Math.min(10, Math.max(1, Math.round(this.totalMass / 4200)));
+    this._sizeLadder = SIZE_MASS.map((m) => m * 0.3 * ladderMult);
     // Solid-surface heightmap: per fine column, the highest SOLID top
     // (static blocks + sleeping debris). Falling bodies collide with THIS
     // instead of a flat ground plane — blocks land on roofs and stack into
@@ -1833,223 +1834,182 @@ export class VoxelSandboxSim {
   }
 
   _buildScene() {
+    // Crane & shipping containers (Logistics Yard)
+    this._box(11, 0, -13, 2, 1, 2, 'concrete', 1, 0x8d99ae);
+    for (let y = 1; y <= 6; y++) this._block(11, y, -13, 'steel', 1, 0xffb703);
+    this._block(12, 6, -13, 'steel', 1, 0xffb703); this._block(13, 6, -13, 'steel', 1, 0xffb703); this._block(14, 6, -13, 'steel', 1, 0xffb703);
+    this._block(10, 6, -13, 'steel', 1, 0x495057);
+    const cont = (x, y, z, c) => {
+      this._block(x, y, z, 'steel', 1, c);
+      this._block(x + 1, y, z, 'steel', 1, c);
+    };
+    cont(22, 0, -11, 0xd96c2c); cont(24, 0, -11, 0x2a5f9a);
+    cont(22, 1, -11, 0x2a5f9a); cont(24, 1, -11, 0xd96c2c);
+
     // =========================================================================
-    // ZONE 1 (WEST: x: -85..-35) — MODERNIST GLASS PAVILION & WATERFRONT MARINA
+    // ZONE 1 (WEST: x: -85..-35) — MODERNIST PAVILION, BROWNSTONES, DINER & MARINA
     // =========================================================================
 
-    // Modernist Glass Research Pavilion (Mies van der Rohe style) — authentic real-life structure
+    // Modernist Glass Research Pavilion (x: -76..-60, z: -18..-6)
     {
-      const ox = -76, oz = -16;
-      // Modular granite podium plinth pavers (2x2m modular pieces)
-      for (let px = 0; px < 16; px += 2) {
-        for (let pz = 0; pz < 10; pz += 2) {
-          plinth(this, { x: ox + px, y: 0, z: oz + pz, w: 2, d: 2, h: 0.5, mat: 'concrete', color: 0x2b2d42 });
+      const ox = -76, oz = -18;
+      // Foundation plinths in 4x4m modular pieces (16x12m total footprint, y: 0..0.5)
+      for (let px = 0; px < 16; px += 4) {
+        for (let pz = 0; pz < 12; pz += 4) {
+          plinth(this, { x: ox + px, y: 0, z: oz + pz, w: 4, d: 4, h: 0.5, mat: 'concrete', color: 0x2b2d42 });
         }
       }
-      // Grand approach steps on the south facade in modular 2m treads
-      for (let s = 0; s < 2; s++) {
-        for (let sx = 0; sx < 8; sx += 2) {
-          tread(this, { x: ox + 4 + sx, y: s * 0.25, z: oz + 10 + (1 - s) * 0.5, run: 2, axis: 'x', rise: 0.25, going: 0.5, mat: 'concrete', color: 0x8d99ae });
+      // Structural steel columns along grid lines (y: 0.5..4.5)
+      for (let cx = 0; cx <= 16; cx += 4) {
+        for (let cz = 0; cz <= 12; cz += 4) {
+          const colX = ox + (cx === 16 ? 15.5 : cx === 0 ? 0 : cx - 0.25);
+          const colZ = oz + (cz === 12 ? 11.5 : cz === 0 ? 0 : cz - 0.25);
+          column(this, { x: colX, y: 0.5, z: colZ, h: 4.0, s: 0.5, mat: 'steel', color: 0x111625 });
         }
       }
-      // Steel pilotis/columns lifting the structure
-      for (let cx = 0; cx <= 15; cx += 3) {
-        for (let cz = 0.5; cz <= 9.5; cz += 4.5) {
-          column(this, { x: ox + cx, y: 0.5, z: oz + cz, h: 4.0, s: 0.5, mat: 'steel', color: 0x111625 });
+      // Interior warm teakwood core (x: -70..-66, z: -14..-10, y: 0.5..4.5)
+      pier(this, { x: ox + 6, y: 0.5, z: oz + 4, w: 4, h: 4.0, d: 4, mat: 'wood', color: 0x7f4f24 });
+      // Tinted glass perimeter walls (y: 0.5..4.5) set between corner/edge columns
+      for (let wx = 0; wx < 16; wx += 4) {
+        panel(this, { x: ox + wx, y: 0.5, z: oz + 0.125, w: 4.0, h: 4.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x8ecae6 });
+        panel(this, { x: ox + wx, y: 0.5, z: oz + 11.625, w: 4.0, h: 4.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x8ecae6 });
+      }
+      for (let wz = 0; wz < 12; wz += 4) {
+        panel(this, { x: ox + 0.125, y: 0.5, z: oz + wz, w: 4.0, h: 4.0, axis: 'z', t: 0.25, mat: 'glass', color: 0x8ecae6 });
+        panel(this, { x: ox + 15.625, y: 0.5, z: oz + wz, w: 4.0, h: 4.0, axis: 'z', t: 0.25, mat: 'glass', color: 0x8ecae6 });
+      }
+      // Roof slab (16x12m in 4x4m modular plates, y: 4.5..5.0)
+      for (let rx = 0; rx < 16; rx += 4) {
+        for (let rz = 0; rz < 12; rz += 4) {
+          slab(this, { x: ox + rx, y: 4.5, z: oz + rz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xf8f9fa });
         }
       }
-      // Floor-to-ceiling tinted glass curtain walls in modular 2m bays
-      for (let wx = 0; wx < 16; wx += 2) {
-        panel(this, { x: ox + wx, y: 0.5, z: oz + 0.5, w: 2, h: 4.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x8ecae6 });
-        panel(this, { x: ox + wx, y: 0.5, z: oz + 9.25, w: 2, h: 4.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x8ecae6 });
-      }
-      for (let wz = 1; wz < 9; wz += 2) {
-        panel(this, { x: ox + 0.5, y: 0.5, z: oz + wz, w: 2, h: 4.0, axis: 'z', t: 0.25, mat: 'glass', color: 0x8ecae6 });
-        panel(this, { x: ox + 15.25, y: 0.5, z: oz + wz, w: 2, h: 4.0, axis: 'z', t: 0.25, mat: 'glass', color: 0x8ecae6 });
-      }
-      // Vertical steel mullions along glass perimeter
-      for (let mx = 2; mx < 16; mx += 2) {
-        mullion(this, { x: ox + mx, y: 0.5, z: oz + 0.5, h: 4.0, s: 0.25, mat: 'steel', color: 0x111625 });
-        mullion(this, { x: ox + mx, y: 0.5, z: oz + 9.25, h: 4.0, s: 0.25, mat: 'steel', color: 0x111625 });
-      }
-      // Interior warm wood core enclosure in 2m panels
-      for (let k = 0; k < 6; k += 2) {
-        panel(this, { x: ox + 5 + k, y: 0.5, z: oz + 3, w: 2, h: 4.0, axis: 'x', t: 0.25, mat: 'wood', color: 0x7f4f24 });
-        panel(this, { x: ox + 5 + k, y: 0.5, z: oz + 7, w: 2, h: 4.0, axis: 'x', t: 0.25, mat: 'wood', color: 0x7f4f24 });
-      }
-      for (let k = 0; k < 4; k += 2) {
-        panel(this, { x: ox + 5, y: 0.5, z: oz + 3 + k, w: 2, h: 4.0, axis: 'z', t: 0.25, mat: 'wood', color: 0x7f4f24 });
-        panel(this, { x: ox + 11, y: 0.5, z: oz + 3 + k, w: 2, h: 4.0, axis: 'z', t: 0.25, mat: 'wood', color: 0x7f4f24 });
-      }
-      // Cantilevered modular concrete roof slabs (2x2m modular pieces)
-      for (let rx = 0; rx < 16; rx += 2) {
-        for (let rz = 0; rz < 10; rz += 2) {
-          slab(this, { x: ox + rx, y: 4.5, z: oz + rz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0xf8f9fa });
-        }
-      }
-      // Roof fascia / cornice band in 2m modular pieces
-      for (let rx = 0; rx < 16; rx += 2) {
-        cornice(this, { x: ox + rx, y: 4.75, z: oz - 0.5, run: 2, axis: 'x', t: 0.5, proj: 0.5, mat: 'steel', color: 0x2b2d42 });
-        cornice(this, { x: ox + rx, y: 4.75, z: oz + 10, run: 2, axis: 'x', t: 0.5, proj: 0.5, mat: 'steel', color: 0x2b2d42 });
+      // Roof fascia cornice (y: 5.0..5.25)
+      for (let rx = 0; rx < 16; rx += 4) {
+        cornice(this, { x: ox + rx, y: 5.0, z: oz, run: 4, axis: 'x', t: 0.25, proj: 0.5, mat: 'steel', color: 0x2b2d42 });
+        cornice(this, { x: ox + rx, y: 5.0, z: oz + 11.5, run: 4, axis: 'x', t: 0.25, proj: 0.5, mat: 'steel', color: 0x2b2d42 });
       }
     }
 
-    // Art Deco Maritime Lighthouse & Memorial Monument (North-West Waterfront)
+    // Art Deco Maritime Lighthouse & Beacon Monument (North-West Waterfront, x: -80, z: -38)
     {
-      const lx = -82, lz = -38;
-      // Stepped octagonal granite plinth base
-      drum(this, { x: lx, y: 0, z: lz, r: 3.5, h: 0.75, facets: 8, mat: 'concrete', color: 0x2b2d42 });
-      drum(this, { x: lx + 0.5, y: 0.75, z: lz + 0.5, r: 3.0, h: 0.75, facets: 8, mat: 'concrete', color: 0x3d5a80 });
-      // Tapered central shaft (0..14m) with 4 fluted corner piers and modular core
-      for (let y = 1.5; y < 14; y += 3) {
-        const s = 14 - y > 6 ? 0.75 : 0.5;
-        column(this, { x: lx + 2.5, y, z: lz + 2.5, h: 3.0, s, mat: 'concrete', color: 0xf8f9fa });
-        column(this, { x: lx + 4.0, y, z: lz + 2.5, h: 3.0, s, mat: 'concrete', color: 0xf8f9fa });
-        column(this, { x: lx + 2.5, y, z: lz + 4.0, h: 3.0, s, mat: 'concrete', color: 0xf8f9fa });
-        column(this, { x: lx + 4.0, y, z: lz + 4.0, h: 3.0, s, mat: 'concrete', color: 0xf8f9fa });
-        // Red and white maritime bands
-        const bandCol = (y % 6 === 1.5) ? 0xd90429 : 0xf8f9fa;
-        panel(this, { x: lx + 2.5, y, z: lz + 2.0, w: 2.0, h: 3.0, axis: 'x', t: 0.25, mat: 'concrete', color: bandCol });
-        panel(this, { x: lx + 2.5, y, z: lz + 4.75, w: 2.0, h: 3.0, axis: 'x', t: 0.25, mat: 'concrete', color: bandCol });
-        panel(this, { x: lx + 2.0, y, z: lz + 2.5, w: 2.0, h: 3.0, axis: 'z', t: 0.25, mat: 'concrete', color: bandCol });
-        panel(this, { x: lx + 4.75, y, z: lz + 2.5, w: 2.0, h: 3.0, axis: 'z', t: 0.25, mat: 'concrete', color: bandCol });
+      const lx = -80, lz = -38;
+      plinth(this, { x: lx, y: 0, z: lz, w: 4, d: 4, h: 1.0, mat: 'concrete', color: 0x2b2d42 });
+      for (let lvl = 0; lvl < 4; lvl++) {
+        const y = 1.0 + lvl * 3.0;
+        const col = (lvl % 2 === 0) ? 0xd90429 : 0xf8f9fa;
+        column(this, { x: lx, y, z: lz, h: 2.5, s: 0.75, mat: 'concrete', color: col });
+        column(this, { x: lx + 3.25, y, z: lz, h: 2.5, s: 0.75, mat: 'concrete', color: col });
+        column(this, { x: lx, y, z: lz + 3.25, h: 2.5, s: 0.75, mat: 'concrete', color: col });
+        column(this, { x: lx + 3.25, y, z: lz + 3.25, h: 2.5, s: 0.75, mat: 'concrete', color: col });
+        panel(this, { x: lx + 0.75, y, z: lz + 0.25, w: 2.5, h: 2.5, axis: 'x', t: 0.5, mat: 'concrete', color: col });
+        panel(this, { x: lx + 0.75, y, z: lz + 3.25, w: 2.5, h: 2.5, axis: 'x', t: 0.5, mat: 'concrete', color: col });
+        panel(this, { x: lx + 0.25, y, z: lz + 0.75, w: 2.5, h: 2.5, axis: 'z', t: 0.5, mat: 'concrete', color: col });
+        panel(this, { x: lx + 3.25, y, z: lz + 0.75, w: 2.5, h: 2.5, axis: 'z', t: 0.5, mat: 'concrete', color: col });
+        slab(this, { x: lx, y: y + 2.5, z: lz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: col });
       }
-      // Observation catwalk balcony
-      slab(this, { x: lx + 1.5, y: 14.0, z: lz + 1.5, w: 2.0, d: 2.0, t: 0.25, mat: 'steel', color: 0x1d3557 });
-      slab(this, { x: lx + 3.5, y: 14.0, z: lz + 1.5, w: 2.0, d: 2.0, t: 0.25, mat: 'steel', color: 0x1d3557 });
-      slab(this, { x: lx + 1.5, y: 14.0, z: lz + 3.5, w: 2.0, d: 2.0, t: 0.25, mat: 'steel', color: 0x1d3557 });
-      slab(this, { x: lx + 3.5, y: 14.0, z: lz + 3.5, w: 2.0, d: 2.0, t: 0.25, mat: 'steel', color: 0x1d3557 });
-      // 12-facet lantern room with illuminated beacon
-      drum(this, { x: lx + 1.5, y: 14.25, z: lz + 1.5, r: 2.0, h: 2.5, facets: 12, mat: 'glass', color: 0xffe66d });
-      this._block(lx + 3.25, 15.0, lz + 3.25, 'steel', [0.75, 1.0, 0.75], 0xffb703);
-      // Copper cupola roof dome & spire
-      drum(this, { x: lx + 1.5, y: 16.75, z: lz + 1.5, r: 2.0, h: 1.5, facets: 8, mat: 'concrete', color: 0x2a9d8f });
-      this._block(lx + 3.25, 18.25, lz + 3.25, 'steel', [0.5, 2.5, 0.5], 0xf4a261);
+      slab(this, { x: lx, y: 13.0, z: lz, w: 4, d: 4, t: 0.5, mat: 'steel', color: 0x1d3557 });
+      column(this, { x: lx + 0.5, y: 13.5, z: lz + 0.5, h: 2.5, s: 0.5, mat: 'steel', color: 0x1d3557 });
+      column(this, { x: lx + 3.0, y: 13.5, z: lz + 0.5, h: 2.5, s: 0.5, mat: 'steel', color: 0x1d3557 });
+      column(this, { x: lx + 0.5, y: 13.5, z: lz + 3.0, h: 2.5, s: 0.5, mat: 'steel', color: 0x1d3557 });
+      column(this, { x: lx + 3.0, y: 13.5, z: lz + 3.0, h: 2.5, s: 0.5, mat: 'steel', color: 0x1d3557 });
+      panel(this, { x: lx + 1.0, y: 13.5, z: lz + 0.5, w: 2.0, h: 2.5, axis: 'x', t: 0.25, mat: 'glass', color: 0xffe66d });
+      panel(this, { x: lx + 1.0, y: 13.5, z: lz + 3.25, w: 2.0, h: 2.5, axis: 'x', t: 0.25, mat: 'glass', color: 0xffe66d });
+      panel(this, { x: lx + 0.5, y: 13.5, z: lz + 1.0, w: 2.0, h: 2.5, axis: 'z', t: 0.25, mat: 'glass', color: 0xffe66d });
+      panel(this, { x: lx + 3.25, y: 13.5, z: lz + 1.0, w: 2.0, h: 2.5, axis: 'z', t: 0.25, mat: 'glass', color: 0xffe66d });
+      slab(this, { x: lx, y: 16.0, z: lz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0x2a9d8f });
+      this._block(lx + 1.75, 16.5, lz + 1.75, 'steel', [0.5, 2.5, 0.5], 0xf4a261);
     }
 
-    // Modernist Cantilever Luxury Villa ("Fallingwater" style, West Waterfront)
+    // Modernist Cantilever Luxury Villa (West Waterfront, x: -54, z: -38)
     {
-      const vx = -52, vz = -38;
-      // Ashlar stone anchor foundation & fireplace chimney
-      for (let px = 0; px < 8; px += 2) for (let pz = 0; pz < 6; pz += 2) {
-        plinth(this, { x: vx + px, y: 0, z: vz + pz, w: 2, d: 2, h: 0.5, mat: 'brick', color: 0x4a4e69 });
-      }
-      pier(this, { x: vx + 2, y: 0.5, z: vz + 2, w: 2, h: 7.0, d: 2, mat: 'brick', color: 0x3d312a });
-      // Level 1 Cantilever Terrace (y = 0.5..3.0)
-      for (let tx = 0; tx < 8; tx += 2) for (let tz = 0; tz < 6; tz += 2) {
-        slab(this, { x: vx + tx, y: 0.5, z: vz + tz, w: 2, d: 2, t: 0.25, mat: 'concrete', color: 0xe0e1dd });
-      }
-      for (let wx = 0; wx < 8; wx += 2) {
-        panel(this, { x: vx + wx, y: 0.75, z: vz, w: 2, h: 2.25, axis: 'x', t: 0.25, mat: 'glass', color: 0x90e0ef });
-        panel(this, { x: vx + wx, y: 0.75, z: vz + 5.75, w: 2, h: 2.25, axis: 'x', t: 0.25, mat: 'glass', color: 0x90e0ef });
-      }
-      // Level 2 Outboard Cantilever Tray (extending 2m towards water, y = 3.0..5.5)
-      for (let tx = -2; tx < 8; tx += 2) for (let tz = 0; tz < 6; tz += 2) {
-        slab(this, { x: vx + tx, y: 3.0, z: vz + tz, w: 2, d: 2, t: 0.25, mat: 'concrete', color: 0xf4f1de });
-      }
-      column(this, { x: vx - 2, y: 0.5, z: vz + 1, h: 2.5, s: 0.5, mat: 'steel', color: 0x1b263b });
-      column(this, { x: vx - 2, y: 0.5, z: vz + 5, h: 2.5, s: 0.5, mat: 'steel', color: 0x1b263b });
-      // Upper glass master suite
-      for (let wx = -2; wx < 6; wx += 2) {
-        panel(this, { x: vx + wx, y: 3.25, z: vz, w: 2, h: 2.25, axis: 'x', t: 0.25, mat: 'glass', color: 0xaad4f5 });
-        panel(this, { x: vx + wx, y: 3.25, z: vz + 5.75, w: 2, h: 2.25, axis: 'x', t: 0.25, mat: 'glass', color: 0xaad4f5 });
-      }
-      // Level 3 Rooftop Pergola & Solar Trellis
-      for (let tx = 0; tx < 6; tx += 2) for (let tz = 0; tz < 6; tz += 2) {
-        slab(this, { x: vx + tx, y: 5.5, z: vz + tz, w: 2, d: 2, t: 0.25, mat: 'concrete', color: 0xe0e1dd });
-      }
-      for (let b = 0; b < 6; b += 1.5) {
-        beam(this, { x: vx + b, y: 5.75, z: vz, len: 6, axis: 'z', t: 0.25, depth: 0.25, mat: 'wood', color: 0x7f4f24 });
+      const vx = -54, vz = -38;
+      plinth(this, { x: vx, y: 0, z: vz, w: 4, d: 6, h: 0.5, mat: 'brick', color: 0x4a4e69 });
+      plinth(this, { x: vx + 4, y: 0, z: vz, w: 4, d: 6, h: 0.5, mat: 'brick', color: 0x4a4e69 });
+      pier(this, { x: vx + 3, y: 0.5, z: vz + 2, w: 2, h: 6.5, d: 2, mat: 'brick', color: 0x3d312a });
+      // Level 1 Columns & Terrace (y: 0.5..3.5)
+      column(this, { x: vx, y: 0.5, z: vz, h: 3.0, s: 0.5, mat: 'steel', color: 0x1b263b });
+      column(this, { x: vx + 7.5, y: 0.5, z: vz, h: 3.0, s: 0.5, mat: 'steel', color: 0x1b263b });
+      column(this, { x: vx, y: 0.5, z: vz + 5.5, h: 3.0, s: 0.5, mat: 'steel', color: 0x1b263b });
+      column(this, { x: vx + 7.5, y: 0.5, z: vz + 5.5, h: 3.0, s: 0.5, mat: 'steel', color: 0x1b263b });
+      panel(this, { x: vx + 0.5, y: 0.5, z: vz + 0.125, w: 7.0, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x90e0ef });
+      panel(this, { x: vx + 0.5, y: 0.5, z: vz + 5.625, w: 7.0, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x90e0ef });
+      // Level 2 Floor Slab (y: 3.5..4.0)
+      slab(this, { x: vx, y: 3.5, z: vz, w: 4, d: 6, t: 0.5, mat: 'concrete', color: 0xf4f1de });
+      slab(this, { x: vx + 4, y: 3.5, z: vz, w: 4, d: 6, t: 0.5, mat: 'concrete', color: 0xf4f1de });
+      // Level 2 Columns & Glazing (y: 4.0..7.0)
+      column(this, { x: vx, y: 4.0, z: vz, h: 3.0, s: 0.5, mat: 'steel', color: 0x2b3a4a });
+      column(this, { x: vx + 7.5, y: 4.0, z: vz, h: 3.0, s: 0.5, mat: 'steel', color: 0x2b3a4a });
+      column(this, { x: vx, y: 4.0, z: vz + 5.5, h: 3.0, s: 0.5, mat: 'steel', color: 0x2b3a4a });
+      column(this, { x: vx + 7.5, y: 4.0, z: vz + 5.5, h: 3.0, s: 0.5, mat: 'steel', color: 0x2b3a4a });
+      panel(this, { x: vx + 0.5, y: 4.0, z: vz + 0.125, w: 7.0, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x80d0e0 });
+      // Roof slab & timber pergola (y: 7.0..7.5)
+      slab(this, { x: vx, y: 7.0, z: vz, w: 4, d: 6, t: 0.5, mat: 'concrete', color: 0xe0e1dd });
+      slab(this, { x: vx + 4, y: 7.0, z: vz, w: 4, d: 6, t: 0.5, mat: 'concrete', color: 0xe0e1dd });
+      for (let b = 0; b < 8; b += 2) {
+        beam(this, { x: vx + b, y: 7.5, z: vz, len: 6, axis: 'z', t: 0.25, depth: 0.25, mat: 'wood', color: 0x7f4f24 });
       }
     }
 
-    // Googie Mid-Century Diner with Butterfly Wing Roof (West Boulevard)
+    // Googie Mid-Century Boulevard Diner (West, x: -78, z: 12)
     {
-      const dx = -78, dz = 24;
-      // Terrazzo foundation plinth
-      for (let px = 0; px < 10; px += 2) for (let pz = 0; pz < 6; pz += 2) {
-        plinth(this, { x: dx + px, y: 0, z: dz + pz, w: 2, d: 2, h: 0.5, mat: 'concrete', color: 0x3d5a80 });
+      const dx = -78, dz = 12;
+      for (let px = 0; px < 12; px += 3) {
+        plinth(this, { x: dx + px, y: 0, z: dz, w: 3, d: 3, h: 0.5, mat: 'concrete', color: 0x3d5a80 });
+        plinth(this, { x: dx + px, y: 0, z: dz + 3, w: 3, d: 3, h: 0.5, mat: 'concrete', color: 0x3d5a80 });
       }
-      // Slanted polished chrome pilotis
-      for (let cx = 0; cx <= 8; cx += 4) for (let cz = 0; cz <= 4; cz += 4) {
-        column(this, { x: dx + cx + 0.5, y: 0.5, z: dz + cz + 0.5, h: 3.5, s: 0.5, mat: 'steel', color: 0xe0fbfc });
+      for (let cx = 0; cx <= 12; cx += 4) {
+        for (let cz = 0; cz <= 6; cz += 6) {
+          const colX = dx + (cx === 12 ? 11.5 : cx === 0 ? 0 : cx - 0.25);
+          const colZ = dz + (cz === 6 ? 5.5 : 0);
+          column(this, { x: colX, y: 0.5, z: colZ, h: 3.5, s: 0.5, mat: 'steel', color: 0xe0fbfc });
+        }
       }
-      // Curved panoramic corner glass curtain
-      for (let wx = 0; wx < 10; wx += 2) {
-        panel(this, { x: dx + wx, y: 0.5, z: dz, w: 2, h: 3.5, axis: 'x', t: 0.25, mat: 'glass', color: 0x90e0ef });
-        panel(this, { x: dx + wx, y: 0.5, z: dz + 5.75, w: 2, h: 3.5, axis: 'x', t: 0.25, mat: 'glass', color: 0x90e0ef });
-      }
-      for (let wz = 0; wz < 6; wz += 2) {
-        panel(this, { x: dx, y: 0.5, z: dz + wz, w: 2, h: 3.5, axis: 'z', t: 0.25, mat: 'glass', color: 0x90e0ef });
-        panel(this, { x: dx + 9.75, y: 0.5, z: dz + wz, w: 2, h: 3.5, axis: 'z', t: 0.25, mat: 'glass', color: 0x90e0ef });
-      }
-      // Butterfly wing roof slabs
-      for (let rx = 0; rx < 10; rx += 2) for (let rz = 0; rz < 6; rz += 2) {
-        slab(this, { x: dx + rx, y: 4.0, z: dz + rz, w: 2, d: 2, t: 0.5, mat: 'steel', color: 0xee6c4d });
-      }
-      // Rooftop iconic Googie neon fin
-      for (let k = 0; k < 6; k += 2) {
-        panel(this, { x: dx + 2 + k, y: 4.5, z: dz + 2.75, w: 2, h: 2.0, axis: 'x', t: 0.25, mat: 'steel', color: 0x06d6a0 });
-      }
-      this._block(dx + 5, 6.5, dz + 2.75, 'steel', [0.5, 2.0, 0.5], 0xffd166);
+      panel(this, { x: dx + 0.5, y: 0.5, z: dz + 0.125, w: 11, h: 3.5, axis: 'x', t: 0.25, mat: 'glass', color: 0x90e0ef });
+      panel(this, { x: dx + 0.5, y: 0.5, z: dz + 5.625, w: 11, h: 3.5, axis: 'x', t: 0.25, mat: 'glass', color: 0x90e0ef });
+      slab(this, { x: dx, y: 4.0, z: dz, w: 6, d: 6, t: 0.5, mat: 'steel', color: 0xee6c4d });
+      slab(this, { x: dx + 6, y: 4.0, z: dz, w: 6, d: 6, t: 0.5, mat: 'steel', color: 0xee6c4d });
+      panel(this, { x: dx + 3, y: 4.5, z: dz + 2.875, w: 6, h: 2.0, axis: 'x', t: 0.25, mat: 'steel', color: 0x06d6a0 });
+      this._block(dx + 6, 6.5, dz + 2.75, 'steel', [0.5, 2.0, 0.5], 0xffd166);
     }
 
-    // Waterfront Promenade, Pier & Boathouse (North-West)
+    // Waterfront Promenade & Pier Deck (North-West)
     pierDeck(this, { x: -74, z: -42, w: 16, d: 8, y: 1.0, pile: 0x5c4d3c, deck: 0x8a7f70, rail: 0x39414d });
     motorLaunch(this, -68, -40, 'x', 0xf8f9fa, 0x1d3557);
-    mooringBollard(this, -73, -34, 1.25, 0x2f3640);
-    mooringBollard(this, -60, -34, 1.25, 0x2f3640);
-    dockCleat(this, -69, -34, 1.25, 'x', 0x4a525c);
-    dockCleat(this, -64, -34, 1.25, 'x', 0x4a525c);
+    mooringBollard(this, -73, -36, 1.25, 0x2f3640);
+    mooringBollard(this, -60, -36, 1.25, 0x2f3640);
+    dockCleat(this, -69, -36, 1.25, 'x', 0x4a525c);
+    dockCleat(this, -64, -36, 1.25, 'x', 0x4a525c);
 
-    // Terraced Brownstone Townhouses (West) — real multi-story architectural row
+    // Terraced Brownstone Townhouses (West, x: -54, z: -18)
     {
-      const ox = -54, oz = -16;
-      // 3 Joined Brownstone Units
+      const ox = -54, oz = -18;
       for (let u = 0; u < 3; u++) {
         const ux = ox + u * 6;
-        // Stoop staircase
-        for (let s = 0; s < 4; s++) {
-          tread(this, { x: ux + 3.5, y: s * 0.25, z: oz + 8 + (3 - s) * 0.5, run: 2, axis: 'x', rise: 0.25, going: 0.5, mat: 'concrete', color: 0xc9a25c });
+        this._block(ux + 2.0, 0, oz + 9.5, 'concrete', [2.0, 0.25, 0.5], 0xc9a25c);
+        this._block(ux + 2.0, 0, oz + 9.0, 'concrete', [2.0, 0.50, 0.5], 0xc9a25c);
+        this._block(ux + 2.0, 0, oz + 8.5, 'concrete', [2.0, 0.75, 0.5], 0xc9a25c);
+        this._block(ux + 2.0, 0, oz + 8.0, 'concrete', [2.0, 1.00, 0.5], 0xc9a25c);
+        for (let px = 0; px < 6; px += 3) {
+          plinth(this, { x: ux + px, y: 0, z: oz, w: 3, d: 4, h: 0.5, mat: 'brick', color: 0x8f4f3a });
+          plinth(this, { x: ux + px, y: 0, z: oz + 4, w: 3, d: 4, h: 0.5, mat: 'brick', color: 0x8f4f3a });
         }
-        // Foundation & Ground Storey in modular 2x2m plinths
-        for (let fx = 0; fx < 6; fx += 2) {
-          for (let fz = 0; fz < 8; fz += 2) {
-            plinth(this, { x: ux + fx, y: 0, z: oz + fz, w: 2, d: 2, h: 1.0, mat: 'brick', color: 0x8f4f3a });
-          }
-        }
-        // Upper Storeys (1..3)
         for (let lvl = 0; lvl < 3; lvl++) {
-          const ly = 1.0 + lvl * 2.5;
-          // Floor slab in modular 2x2m plates
-          for (let fx = 0; fx < 6; fx += 2) {
-            for (let fz = 0; fz < 8; fz += 2) {
-              slab(this, { x: ux + fx, y: ly, z: oz + fz, w: 2, d: 2, t: 0.25, mat: 'wood', color: 0x582f0e });
-            }
-          }
-          // Masonry piers & walls
-          pier(this, { x: ux, y: ly + 0.25, z: oz + 7.5, w: 0.75, h: 2.25, d: 0.5, mat: 'brick', color: 0xa84a32 });
-          pier(this, { x: ux + 2.5, y: ly + 0.25, z: oz + 7.5, w: 0.75, h: 2.25, d: 0.5, mat: 'brick', color: 0xa84a32 });
-          pier(this, { x: ux + 5.25, y: ly + 0.25, z: oz + 7.5, w: 0.75, h: 2.25, d: 0.5, mat: 'brick', color: 0xa84a32 });
-          // Tall vertical sash windows
-          panel(this, { x: ux + 0.75, y: ly + 0.5, z: oz + 7.6, w: 1.75, h: 2.0, axis: 'x', t: 0.25, mat: 'glass', color: 0xaad4f5 });
-          panel(this, { x: ux + 3.25, y: ly + 0.5, z: oz + 7.6, w: 2.0, h: 2.0, axis: 'x', t: 0.25, mat: 'glass', color: 0xaad4f5 });
-          // Side & rear walls in modular 2m bays
-          for (let wz = 0; wz < 8; wz += 2) {
-            panel(this, { x: ux, y: ly + 0.25, z: oz + wz, w: 2, h: 2.25, axis: 'z', t: 0.5, mat: 'brick', color: 0x8f4f3a });
-            panel(this, { x: ux + 5.5, y: ly + 0.25, z: oz + wz, w: 2, h: 2.25, axis: 'z', t: 0.5, mat: 'brick', color: 0x8f4f3a });
-          }
-          for (let wx = 0; wx < 6; wx += 2) {
-            panel(this, { x: ux + wx, y: ly + 0.25, z: oz, w: 2, h: 2.25, axis: 'x', t: 0.5, mat: 'brick', color: 0x8f4f3a });
-          }
+          const ly = 0.5 + lvl * 2.75;
+          const pCol = [[0xa84a32, 0x8f4f3a, 0xa84a32], [0x8f4f3a, 0x78350f, 0x8f4f3a], [0x9a3412, 0x8f4f3a, 0x9a3412]][u][lvl];
+          const gCol = [[0xaad4f5, 0x90e0ef, 0xaad4f5], [0x90e0ef, 0x81e6d9, 0x90e0ef], [0xaad4f5, 0x72efdd, 0xaad4f5]][u][lvl];
+          pier(this, { x: ux, y: ly, z: oz, w: 0.75, h: 2.5, d: 8.0, mat: 'brick', color: pCol });
+          pier(this, { x: ux + 5.25, y: ly, z: oz, w: 0.75, h: 2.5, d: 8.0, mat: 'brick', color: pCol });
+          pier(this, { x: ux + 0.75, y: ly, z: oz, w: 4.5, h: 2.5, d: 0.5, mat: 'brick', color: pCol });
+          panel(this, { x: ux + 0.75, y: ly, z: oz + 7.5, w: 4.5, h: 2.5, axis: 'x', t: 0.25, mat: 'glass', color: gCol });
+          slab(this, { x: ux, y: ly + 2.5, z: oz, w: 3, d: 8, t: 0.25, mat: 'wood', color: 0x582f0e });
+          slab(this, { x: ux + 3, y: ly + 2.5, z: oz, w: 3, d: 8, t: 0.25, mat: 'wood', color: 0x582f0e });
         }
-        // Projecting Italianate roof cornice in modular sections
-        cornice(this, { x: ux - 0.25, y: 8.5, z: oz + 7.75, run: 3.25, axis: 'x', t: 0.5, proj: 0.75, mat: 'wood', color: 0x3d2618 });
-        cornice(this, { x: ux + 3.0, y: 8.5, z: oz + 7.75, run: 3.25, axis: 'x', t: 0.5, proj: 0.75, mat: 'wood', color: 0x3d2618 });
+        cornice(this, { x: ux, y: 8.75, z: oz + 7.5, run: 6, axis: 'x', t: 0.5, proj: 0.5, mat: 'wood', color: 0x3d2618 });
       }
     }
 
-    // West Logistics & Vehicles
+    // West Vehicles
     deliveryTruck(this, -55, 16, 0xe8ecf2, 0x2a5f9a, 'x', 8);
     schoolBus(this, -72, 14, 'x', 10.5, 0xf7c948, 0x1a1a1e);
     sedan(this, -75, -2, 0xe63946, 0xe63946, 'x');
@@ -2059,210 +2019,158 @@ export class VoxelSandboxSim {
     bigTruck(this, -55, 10, 0xc22a1c, true);
 
     // =========================================================================
-    // ZONE 2 (CENTER: x: -25..+25) — GRAND COLONNADE, SUBWAY & TRANSIT HUB
+    // ZONE 2 (CENTER: x: -25..+25) — CIVIC ROTUNDA, CLOCK TOWER, LOFTS & VIADUCT
     // =========================================================================
 
-    // Monumental Triumphal Arch (Arc de Triomphe, North Center Plaza)
+    // Monumental Triumphal Arch (Arc de Triomphe, North Center, x: -24, z: -38)
     {
       const ax = -24, az = -38;
-      // Twin monumental granite pylon piers (left and right jambs)
-      for (let fx = 0; fx < 4; fx += 2) for (let fz = 0; fz < 4; fz += 2) {
-        plinth(this, { x: ax + fx, y: 0, z: az + fz, w: 2, d: 2, h: 0.75, mat: 'concrete', color: 0xdedbd2 });
-        plinth(this, { x: ax + 8 + fx, y: 0, z: az + fz, w: 2, d: 2, h: 0.75, mat: 'concrete', color: 0xdedbd2 });
-      }
-      for (let y = 0.75; y < 8.0; y += 2.5) {
-        for (let fx = 0; fx < 4; fx += 2) for (let fz = 0; fz < 4; fz += 2) {
-          pier(this, { x: ax + fx, y, z: az + fz, w: 2, h: 2.5, d: 2, mat: 'concrete', color: 0xb0a990 });
-          pier(this, { x: ax + 8 + fx, y, z: az + fz, w: 2, h: 2.5, d: 2, mat: 'concrete', color: 0xb0a990 });
-        }
-      }
-      // Spanning Corbel Arch Vault (span: 4m, course: 0.5m, step: 0.5m)
+      plinth(this, { x: ax, y: 0, z: az, w: 4, d: 4, h: 0.75, mat: 'concrete', color: 0xdedbd2 });
+      plinth(this, { x: ax + 8, y: 0, z: az, w: 4, d: 4, h: 0.75, mat: 'concrete', color: 0xdedbd2 });
+      pier(this, { x: ax, y: 0.75, z: az, w: 4, h: 6.75, d: 4, mat: 'concrete', color: 0xb0a990 });
+      pier(this, { x: ax + 8, y: 0.75, z: az, w: 4, h: 6.75, d: 4, mat: 'concrete', color: 0xb0a990 });
       for (let fz = 0; fz < 4; fz += 2) {
-        corbelArch(this, { x: ax + 4, y: 4.5, z: az + fz, span: 4, axis: 'x', depth: 2, course: 0.5, step: 0.5, bear: 1.0, mat: 'concrete', color: 0xf0ece1 });
+        beam(this, { x: ax, y: 7.5, z: az + fz, len: 12, axis: 'x', t: 0.5, depth: 2.0, mat: 'concrete', color: 0xf0ece1 });
       }
-      // Attic Entablature Frieze & Monumental Crown (y = 8.0..11.5)
-      for (let bx = 0; bx < 12; bx += 3) for (let bz = 0; bz < 4; bz += 2) {
-        slab(this, { x: ax + bx, y: 8.0, z: az + bz, w: 3, d: 2, t: 0.5, mat: 'concrete', color: 0xdedbd2 });
-        slab(this, { x: ax + bx, y: 10.5, z: az + bz, w: 3, d: 2, t: 0.5, mat: 'concrete', color: 0xdedbd2 });
+      for (let bx = 0; bx < 12; bx += 4) {
+        slab(this, { x: ax + bx, y: 8.0, z: az, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xdedbd2 });
+        panel(this, { x: ax + bx, y: 8.5, z: az + 0.25, w: 4, h: 2.0, axis: 'x', t: 0.5, mat: 'concrete', color: 0xf0ece1 });
+        panel(this, { x: ax + bx, y: 8.5, z: az + 3.25, w: 4, h: 2.0, axis: 'x', t: 0.5, mat: 'concrete', color: 0xf0ece1 });
+        slab(this, { x: ax + bx, y: 10.5, z: az, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xdedbd2 });
       }
-      for (let bx = 0; bx < 12; bx += 3) {
-        panel(this, { x: ax + bx, y: 8.5, z: az, w: 3, h: 2.0, axis: 'x', t: 0.5, mat: 'concrete', color: 0xf0ece1 });
-        panel(this, { x: ax + bx, y: 8.5, z: az + 3.5, w: 3, h: 2.0, axis: 'x', t: 0.5, mat: 'concrete', color: 0xf0ece1 });
-      }
-      // Crowning victory chariot plinth
       this._block(ax + 5, 11.0, az + 1.5, 'steel', [2.0, 1.5, 1.0], 0xffb703);
     }
 
-    // Brutalist / Modernist Civic Library & Cultural Center (Center-North)
+    // Civic Library & Cultural Center (Center-North, x: -4, z: -38)
     {
       const bx = -4, bz = -38;
-      // Massive sculptural concrete pilotis lifting the ground floor
-      for (let px = 0; px < 12; px += 4) for (let pz = 0; pz < 8; pz += 4) {
-        pier(this, { x: bx + px, y: 0, z: bz + pz, w: 1.5, h: 3.0, d: 1.5, mat: 'concrete', color: 0x4a5568 });
-      }
-      // Level 1 Stepped Cantilever Reading Hall (y = 3.0..6.5)
-      for (let sx = 0; sx < 12; sx += 2) for (let sz = 0; sz < 8; sz += 2) {
-        slab(this, { x: bx + sx, y: 3.0, z: bz + sz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0xcbd5e0 });
-      }
-      // Rhythmic vertical concrete solar louvers / brise-soleil fins
-      for (let lx = 0; lx < 12; lx += 1.5) {
-        column(this, { x: bx + lx, y: 3.5, z: bz, h: 3.0, s: 0.25, mat: 'concrete', color: 0xedf2f7 });
-        column(this, { x: bx + lx, y: 3.5, z: bz + 7.75, h: 3.0, s: 0.25, mat: 'concrete', color: 0xedf2f7 });
-      }
-      // Level 2 Outboard Stepped Cantilever Gallery (extending 2m wider, y = 6.5..10.0)
-      for (let sx = -2; sx < 14; sx += 2) for (let sz = 0; sz < 8; sz += 2) {
-        slab(this, { x: bx + sx, y: 6.5, z: bz + sz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0xe2e8f0 });
-        slab(this, { x: bx + sx, y: 10.0, z: bz + sz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0xe2e8f0 });
-      }
-      for (let wx = -2; wx < 14; wx += 2) {
-        panel(this, { x: bx + wx, y: 7.0, z: bz, w: 2, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x81e6d9 });
-        panel(this, { x: bx + wx, y: 7.0, z: bz + 7.75, w: 2, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x81e6d9 });
-      }
-      // Central skylight drum rotunda
-      drum(this, { x: bx + 3.5, y: 10.5, z: bz + 1.5, r: 2.5, h: 2.5, facets: 12, mat: 'glass', color: 0x90e0ef });
-    }
-
-    // Grand Central Clock Tower & Obelisk Plaza (Center-East North)
-    {
-      const tx = 16, tz = -38;
-      // Stepped granite plaza plinth
-      for (let px = 0; px < 8; px += 2) for (let pz = 0; pz < 8; pz += 2) {
-        plinth(this, { x: tx + px, y: 0, z: tz + pz, w: 2, d: 2, h: 0.5, mat: 'concrete', color: 0x4a4e69 });
-      }
-      // Monumental plaza obelisk
-      column(this, { x: tx - 4, y: 0, z: tz + 3.5, h: 8.0, s: 1.0, mat: 'concrete', color: 0xdedbd2 });
-      this._block(tx - 4.25, 8.0, tz + 3.25, 'steel', [1.5, 2.0, 1.5], 0xffb703);
-      // 4-sided stone clock tower rising to 22m
-      for (let y = 0.5; y < 16; y += 3) {
-        column(this, { x: tx + 1, y, z: tz + 1, h: 3.0, s: 1.0, mat: 'brick', color: 0x780000 });
-        column(this, { x: tx + 6, y, z: tz + 1, h: 3.0, s: 1.0, mat: 'brick', color: 0x780000 });
-        column(this, { x: tx + 1, y, z: tz + 6, h: 3.0, s: 1.0, mat: 'brick', color: 0x780000 });
-        column(this, { x: tx + 6, y, z: tz + 6, h: 3.0, s: 1.0, mat: 'brick', color: 0x780000 });
-        for (let k = 0; k < 4; k += 2) {
-          panel(this, { x: tx + 2 + k, y, z: tz + 1, w: 2, h: 3.0, axis: 'x', t: 0.5, mat: 'brick', color: 0x9e2a2b });
-          panel(this, { x: tx + 2 + k, y, z: tz + 6.5, w: 2, h: 3.0, axis: 'x', t: 0.5, mat: 'brick', color: 0x9e2a2b });
-          panel(this, { x: tx + 1, y, z: tz + 2 + k, w: 2, h: 3.0, axis: 'z', t: 0.5, mat: 'brick', color: 0x9e2a2b });
-          panel(this, { x: tx + 6.5, y, z: tz + 2 + k, w: 2, h: 3.0, axis: 'z', t: 0.5, mat: 'brick', color: 0x9e2a2b });
+      for (let px = 0; px < 12; px += 4) {
+        for (let pz = 0; pz < 8; pz += 4) {
+          pier(this, { x: bx + px + 1.25, y: 0, z: bz + pz + 1.25, w: 1.5, h: 3.0, d: 1.5, mat: 'concrete', color: 0x4a5568 });
         }
       }
-      // Clock face stage (y = 16..19)
-      for (let sx = 0; sx < 6; sx += 2) for (let sz = 0; sz < 6; sz += 2) {
-        slab(this, { x: tx + 1 + sx, y: 16.0, z: tz + 1 + sz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0xfdf0d5 });
-        slab(this, { x: tx + 1 + sx, y: 19.0, z: tz + 1 + sz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0xfdf0d5 });
+      for (let sx = 0; sx < 12; sx += 4) {
+        for (let sz = 0; sz < 8; sz += 4) {
+          slab(this, { x: bx + sx, y: 3.0, z: bz + sz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xcbd5e0 });
+          column(this, { x: bx + sx + 1.75, y: 3.5, z: bz + sz + 1.75, h: 3.0, s: 0.5, mat: 'concrete', color: 0xedf2f7 });
+          slab(this, { x: bx + sx, y: 6.5, z: bz + sz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xe2e8f0 });
+          column(this, { x: bx + sx + 1.75, y: 7.0, z: bz + sz + 1.75, h: 2.5, s: 0.5, mat: 'concrete', color: 0xedf2f7 });
+          slab(this, { x: bx + sx, y: 9.5, z: bz + sz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xe2e8f0 });
+        }
       }
-      drum(this, { x: tx + 2, y: 16.5, z: tz + 2, r: 2.0, h: 2.5, facets: 8, mat: 'concrete', color: 0xfdf0d5 });
-      // Copper pyramidion roof spire (y = 19..24)
-      wedge(this, { x: tx + 1, y: 19.5, z: tz + 1, w: 6, d: 6, h: 4.5, axis: 'x', from: 'center', mat: 'steel', color: 0x2a9d8f });
-      this._block(tx + 3.75, 24.0, tz + 3.75, 'steel', [0.5, 3.0, 0.5], 0xffb703);
+      for (let wx = 0; wx < 12; wx += 4) {
+        panel(this, { x: bx + wx, y: 3.5, z: bz + 0.125, w: 4, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x81e6d9 });
+        panel(this, { x: bx + wx, y: 7.0, z: bz + 0.125, w: 4, h: 2.5, axis: 'x', t: 0.25, mat: 'glass', color: 0x81e6d9 });
+      }
+      drum(this, { x: bx + 3.5, y: 10.0, z: bz + 1.5, r: 2.5, h: 2.0, facets: 8, mat: 'glass', color: 0x90e0ef });
     }
 
-    // Urban Stepped Apartment Mid-Rise with Fire Escapes (Center-South)
+    // Grand Central Clock Tower & Obelisk Plaza (Center-East North, x: 16, z: -38)
     {
-      const ax = -22, az = 24;
-      // 4-Storey apartment block in modular 2m bays
-      for (let px = 0; px < 8; px += 2) for (let pz = 0; pz < 8; pz += 2) {
-        plinth(this, { x: ax + px, y: 0, z: az + pz, w: 2, d: 2, h: 0.5, mat: 'brick', color: 0x8f4f3a });
+      const tx = 16, tz = -38;
+      plinth(this, { x: tx, y: 0, z: tz, w: 4, d: 4, h: 0.5, mat: 'concrete', color: 0x4a4e69 });
+      plinth(this, { x: tx + 4, y: 0, z: tz, w: 4, d: 4, h: 0.5, mat: 'concrete', color: 0x4a4e69 });
+      plinth(this, { x: tx, y: 0, z: tz + 4, w: 4, d: 4, h: 0.5, mat: 'concrete', color: 0x4a4e69 });
+      plinth(this, { x: tx + 4, y: 0, z: tz + 4, w: 4, d: 4, h: 0.5, mat: 'concrete', color: 0x4a4e69 });
+      column(this, { x: tx - 4, y: 0, z: tz + 3.5, h: 8.0, s: 1.0, mat: 'concrete', color: 0xdedbd2 });
+      this._block(tx - 4.25, 8.0, tz + 3.25, 'steel', [1.5, 2.0, 1.5], 0xffb703);
+      pier(this, { x: tx + 1, y: 0.5, z: tz + 1, w: 6, h: 15.0, d: 6, mat: 'brick', color: 0x780000 });
+      slab(this, { x: tx + 1, y: 15.5, z: tz + 1, w: 6, d: 6, t: 0.5, mat: 'concrete', color: 0xfdf0d5 });
+      column(this, { x: tx + 2, y: 16.0, z: tz + 2, h: 2.5, s: 0.5, mat: 'steel', color: 0x780000 });
+      column(this, { x: tx + 5.5, y: 16.0, z: tz + 2, h: 2.5, s: 0.5, mat: 'steel', color: 0x780000 });
+      column(this, { x: tx + 2, y: 16.0, z: tz + 5.5, h: 2.5, s: 0.5, mat: 'steel', color: 0x780000 });
+      column(this, { x: tx + 5.5, y: 16.0, z: tz + 5.5, h: 2.5, s: 0.5, mat: 'steel', color: 0x780000 });
+      drum(this, { x: tx + 2, y: 16.0, z: tz + 2, r: 2.0, h: 2.5, facets: 8, mat: 'concrete', color: 0xfdf0d5 });
+      slab(this, { x: tx + 1, y: 18.5, z: tz + 1, w: 6, d: 6, t: 0.5, mat: 'concrete', color: 0xfdf0d5 });
+      wedge(this, { x: tx + 1, y: 19.0, z: tz + 1, w: 6, d: 6, h: 4.5, axis: 'x', from: 'center', mat: 'steel', color: 0x2a9d8f });
+      this._block(tx + 3.75, 23.5, tz + 3.75, 'steel', [0.5, 3.0, 0.5], 0xffb703);
+    }
+
+    // Urban Stepped Apartment Mid-Rise with Fire Escapes (Center-South, x: -22, z: 12)
+    {
+      const ax = -22, az = 12;
+      for (let px = 0; px < 8; px += 4) {
+        plinth(this, { x: ax + px, y: 0, z: az, w: 4, d: 4, h: 0.5, mat: 'brick', color: 0x8f4f3a });
+        plinth(this, { x: ax + px, y: 0, z: az + 4, w: 4, d: 4, h: 0.5, mat: 'brick', color: 0x8f4f3a });
       }
       for (let lvl = 0; lvl < 4; lvl++) {
         const ly = 0.5 + lvl * 3.0;
-        for (let fx = 0; fx < 8; fx += 2) for (let fz = 0; fz < 8; fz += 2) {
-          slab(this, { x: ax + fx, y: ly + 2.75, z: az + fz, w: 2, d: 2, t: 0.25, mat: 'concrete', color: 0xdde5b6 });
-        }
-        for (let wx = 0; wx < 8; wx += 2) {
-          panel(this, { x: ax + wx, y: ly, z: az, w: 2, h: 2.75, axis: 'x', t: 0.5, mat: 'brick', color: 0xa84a32 });
-          panel(this, { x: ax + wx, y: ly, z: az + 7.5, w: 2, h: 2.75, axis: 'x', t: 0.5, mat: 'brick', color: 0xa84a32 });
-        }
-        for (let wz = 0; wz < 8; wz += 2) {
-          panel(this, { x: ax, y: ly, z: az + wz, w: 2, h: 2.75, axis: 'z', t: 0.5, mat: 'brick', color: 0xa84a32 });
-          panel(this, { x: ax + 7.5, y: ly, z: az + wz, w: 2, h: 2.75, axis: 'z', t: 0.5, mat: 'brick', color: 0xa84a32 });
-        }
-        // Cantilevered steel fire escape balconies on the south facade
-        beam(this, { x: ax + 2, y: ly + 1.0, z: az + 8.25, len: 4, axis: 'x', t: 0.25, depth: 1.0, mat: 'steel', color: 0x1a1a1e });
+        const pCol = [0xa84a32, 0x8f4f3a, 0xa84a32, 0x8f4f3a][lvl];
+        const gCol = [0xaad4f5, 0x90e0ef, 0xaad4f5, 0x90e0ef][lvl];
+        pier(this, { x: ax, y: ly, z: az, w: 0.75, h: 2.75, d: 8.0, mat: 'brick', color: pCol });
+        pier(this, { x: ax + 3.625, y: ly, z: az, w: 0.75, h: 2.75, d: 8.0, mat: 'brick', color: pCol });
+        pier(this, { x: ax + 7.25, y: ly, z: az, w: 0.75, h: 2.75, d: 8.0, mat: 'brick', color: pCol });
+        pier(this, { x: ax + 0.75, y: ly, z: az, w: 6.5, h: 2.75, d: 0.5, mat: 'brick', color: pCol });
+        panel(this, { x: ax + 0.75, y: ly, z: az + 7.5, w: 6.5, h: 2.75, axis: 'x', t: 0.25, mat: 'glass', color: gCol });
+        slab(this, { x: ax, y: ly + 2.75, z: az, w: 4, d: 8, t: 0.25, mat: 'concrete', color: 0xdde5b6 });
+        slab(this, { x: ax + 4, y: ly + 2.75, z: az, w: 4, d: 8, t: 0.25, mat: 'concrete', color: 0xdde5b6 });
       }
     }
 
-    // Industrial Sawtooth Art Studio Lofts with Skylight Trusses (Center-South)
+    // Industrial Sawtooth Art Studio Lofts with Skylights (Center-South, x: 14, z: 12)
     {
-      const sx = 14, sz = 24;
-      for (let px = 0; px < 10; px += 2) for (let pz = 0; pz < 8; pz += 2) {
-        plinth(this, { x: sx + px, y: 0, z: sz + pz, w: 2, d: 2, h: 0.5, mat: 'brick', color: 0x6c584c });
+      const sx = 14, sz = 12;
+      for (let px = 0; px < 12; px += 3) {
+        plinth(this, { x: sx + px, y: 0, z: sz, w: 3, d: 4, h: 0.5, mat: 'brick', color: 0x6c584c });
+        plinth(this, { x: sx + px, y: 0, z: sz + 4, w: 3, d: 4, h: 0.5, mat: 'brick', color: 0x6c584c });
       }
-      for (let px = 0; px <= 8; px += 4) for (let pz = 0; pz <= 6; pz += 3) {
-        column(this, { x: sx + px, y: 0.5, z: sz + pz, h: 4.5, s: 0.5, mat: 'steel', color: 0x2b2d42 });
-      }
-      for (let wx = 0; wx < 10; wx += 2) {
-        panel(this, { x: sx + wx, y: 0.5, z: sz, w: 2, h: 4.5, axis: 'x', t: 0.5, mat: 'brick', color: 0xa98467 });
-        panel(this, { x: sx + wx, y: 0.5, z: sz + 7.5, w: 2, h: 4.5, axis: 'x', t: 0.5, mat: 'brick', color: 0xa98467 });
-      }
-      // Rhythmic 3-bay sawtooth roof wedges with clerestory glass
+      pier(this, { x: sx, y: 0.5, z: sz, w: 0.75, h: 4.5, d: 8.0, mat: 'brick', color: 0xa98467 });
+      pier(this, { x: sx + 11.25, y: 0.5, z: sz, w: 0.75, h: 4.5, d: 8.0, mat: 'brick', color: 0xa98467 });
+      pier(this, { x: sx + 5.625, y: 0.5, z: sz, w: 0.75, h: 4.5, d: 8.0, mat: 'brick', color: 0xa98467 });
+      pier(this, { x: sx + 0.75, y: 0.5, z: sz, w: 10.5, h: 4.5, d: 0.5, mat: 'brick', color: 0xa98467 });
+      panel(this, { x: sx + 0.75, y: 0.5, z: sz + 7.5, w: 10.5, h: 4.5, axis: 'x', t: 0.25, mat: 'glass', color: 0x90e0ef });
       for (let bay = 0; bay < 3; bay++) {
-        const bx = sx + bay * 3.33;
-        wedge(this, { x: bx, y: 5.0, z: sz, w: 3.33, d: 8, h: 2.5, axis: 'x', from: 'min', mat: 'steel', color: 0x4a5759 });
-        panel(this, { x: bx + 3.0, y: 5.0, z: sz, w: 8, h: 2.5, axis: 'z', t: 0.25, mat: 'glass', color: 0x90e0ef });
+        const bx = sx + bay * 4.0;
+        const wCol = [0x4a5759, 0x3d405b, 0x4a5759][bay];
+        wedge(this, { x: bx, y: 5.0, z: sz, w: 4.0, d: 8, h: 2.5, axis: 'x', from: 'min', mat: 'steel', color: wCol });
+        panel(this, { x: bx + 3.75, y: 5.0, z: sz, w: 8, h: 2.5, axis: 'z', t: 0.25, mat: 'glass', color: 0x90e0ef });
       }
     }
 
-    // The Grand Beaux-Arts Colonnade, Corbel Arch Hall & Glass Dome (Centerpiece)
+    // The Grand Beaux-Arts Civic Colonnade & Glass Dome (Centerpiece, x: -10, z: -18)
     {
-      const ox = -10, oz = -14;
-      // Grand granite podium plinth pavers (2x2m modular pieces)
-      for (let px = 0; px < 20; px += 2) {
-        for (let pz = 0; pz < 12; pz += 2) {
-          plinth(this, { x: ox + px, y: 0, z: oz + pz, w: 2, d: 2, h: 0.75, mat: 'concrete', color: 0xdedbd2 });
+      const ox = -10, oz = -18;
+      for (let px = 0; px < 20; px += 4) {
+        for (let pz = 0; pz < 12; pz += 4) {
+          plinth(this, { x: ox + px, y: 0, z: oz + pz, w: 4, d: 4, h: 0.75, mat: 'concrete', color: 0xdedbd2 });
         }
       }
-      // Monumental entry approach stairs in modular 2m treads
       for (let s = 0; s < 3; s++) {
-        for (let sx = 0; sx < 12; sx += 2) {
-          tread(this, { x: ox + 4 + sx, y: s * 0.25, z: oz + 12 + (2 - s) * 0.5, run: 2, axis: 'x', rise: 0.25, going: 0.5, mat: 'concrete', color: 0xb0a990 });
+        for (let sx = 0; sx < 12; sx += 4) {
+          this._block(ox + 4 + sx, 0, oz + 12 + (2 - s) * 0.5, 'concrete', [4.0, (s + 1) * 0.25, 0.5], 0xb0a990);
         }
       }
-      // Colossal Colonnade: monumental pillars on portico
       for (let cx = 1; cx <= 19; cx += 3.6) {
         column(this, { x: ox + cx, y: 0.75, z: oz + 11, h: 7.0, s: 0.75, mat: 'concrete', color: 0xf0ece1 });
       }
-      // Entablature frieze beam spanning the colonnade in modular 4m sections
       for (let bx = 0; bx < 20; bx += 4) {
         beam(this, { x: ox + bx, y: 7.75, z: oz + 11, len: 4, axis: 'x', t: 0.75, depth: 1.0, mat: 'concrete', color: 0xdedbd2 });
       }
-      // Grand monumental corbel arch portal into the central hall
-      corbelArch(this, { x: ox + 7, y: 0.75, z: oz + 9.5, span: 6, axis: 'x', depth: 1.5, course: 0.5, step: 0.5, bear: 1.0, mat: 'concrete', color: 0xf0ece1 });
-      // Main hall interior columns & vaulted 2x2m floor/roof slabs
-      for (let cx = 0; cx < 20; cx += 4) {
-        for (let cz = 0; cz < 10; cz += 3) {
+      for (let cx = 4; cx < 18; cx += 4) {
+        for (let cz = 3; cz <= 9; cz += 3) {
           column(this, { x: ox + cx, y: 0.75, z: oz + cz, h: 7.0, s: 0.5, mat: 'steel', color: 0x4a5568 });
         }
       }
-      for (let cx = 0; cx < 20; cx += 2) {
-        for (let cz = 0; cz < 12; cz += 2) {
-          slab(this, { x: ox + cx, y: 7.75, z: oz + cz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0xdedbd2 });
+      for (let cx = 0; cx < 20; cx += 4) {
+        for (let cz = 0; cz < 12; cz += 4) {
+          slab(this, { x: ox + cx, y: 7.75, z: oz + cz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xdedbd2 });
         }
       }
-      // Flanking stone side walls in modular 2m panel bays
-      for (let wz = 0; wz < 10; wz += 2) {
-        panel(this, { x: ox, y: 0.75, z: oz + wz, w: 2, h: 7.0, axis: 'z', t: 0.5, mat: 'concrete', color: 0xdedbd2 });
-        panel(this, { x: ox + 19.5, y: 0.75, z: oz + wz, w: 2, h: 7.0, axis: 'z', t: 0.5, mat: 'concrete', color: 0xdedbd2 });
-      }
-      for (let wx = 0; wx < 20; wx += 2) {
-        panel(this, { x: ox + wx, y: 0.75, z: oz, w: 2, h: 7.0, axis: 'x', t: 0.5, mat: 'concrete', color: 0xdedbd2 });
-      }
-      // Classical dentil roof cornice in modular 3m sections
-      for (let k = 0; k < 21; k += 3) {
-        cornice(this, { x: ox - 0.5 + k, y: 8.5, z: oz + 11.25, run: Math.min(3, 21 - k), axis: 'x', t: 0.5, proj: 0.75, mat: 'concrete', color: 0xb0a990 });
-      }
-      // Grand central glass rotunda dome crowning the building
-      drum(this, { x: ox + 7, y: 8.5, z: oz + 3, r: 3, h: 3.5, facets: 16, mat: 'glass', color: 0x81e6d9 });
-      // Top lantern spire
-      this._block(ox + 10, 12.0, oz + 6, 'steel', [0.5, 3.0, 0.5], 0xffb703);
+      pier(this, { x: ox, y: 0.75, z: oz, w: 0.75, h: 7.0, d: 10.0, mat: 'concrete', color: 0xdedbd2 });
+      pier(this, { x: ox + 19.25, y: 0.75, z: oz, w: 0.75, h: 7.0, d: 10.0, mat: 'concrete', color: 0xdedbd2 });
+      pier(this, { x: ox + 0.75, y: 0.75, z: oz, w: 18.5, h: 7.0, d: 0.75, mat: 'concrete', color: 0xdedbd2 });
+      column(this, { x: ox + 9.75, y: 8.25, z: oz + 5.75, h: 3.5, s: 0.5, mat: 'steel', color: 0x4a5568 });
+      drum(this, { x: ox + 7, y: 8.25, z: oz + 3, r: 3, h: 3.5, facets: 8, mat: 'glass', color: 0x81e6d9 });
+      this._block(ox + 9.75, 11.75, oz + 5.75, 'steel', [0.5, 3.0, 0.5], 0xffb703);
     }
 
-    // Modern Subway Station Transit Portal (Sunken Plaza)
-    subwayStairEntrance(this, { x: -18, z: 4, w: 3, steps: 6, stone: 0x8d8377, kiosk: 0x2e4d3a, globe: 0x3ddc84, rail: 0x39414d });
+    // Modern Subway Station Entrance
+    subwayEntrance(this, -18, 4);
 
     // Highway Digital Billboard (North Boulevard)
     billboard(this, { x: -16, z: -20, axis: 'x', w: 8, h: 5, boardH: 2.5, face: 0xffedd8, frame: 0x2b2d42, post: 0x6c757d, lights: true });
 
-    // 2m Warehouse & Crate Logistics (Center)
+    // Crate logistics & warehouse
     {
       const ox = 8, oz = 8, S = 2;
       for (let x = 0; x < 4; x++) for (let z = 0; z < 3; z++) {
@@ -2283,19 +2191,7 @@ export class VoxelSandboxSim {
       this._block(ox, 3, oz, 'loose', 1, 0xd4a373);
     }
 
-    // Construction Crane & Shipping Containers (Center NE)
-    this._box(11, 0, -13, 2, 1, 2, 'concrete', 1, 0x8d99ae);
-    for (let y = 1; y <= 6; y++) this._block(11, y, -13, 'steel', 1, 0xffb703);
-    this._block(12, 6, -13, 'steel', 1, 0xffb703); this._block(13, 6, -13, 'steel', 1, 0xffb703); this._block(14, 6, -13, 'steel', 1, 0xffb703);
-    this._block(10, 6, -13, 'steel', 1, 0xffb703); this._block(9, 6, -13, 'concrete', 1, 0x495057);
-    const cont = (x, y, z, c) => {
-      this._block(x, y, z, 'steel', 1, c);
-      this._block(x + 1, y, z, 'steel', 1, c);
-    };
-    cont(22, 0, -11, 0xd96c2c); cont(24, 0, -11, 0x2a5f9a);
-    cont(22, 1, -11, 0x2a5f9a); cont(24, 1, -11, 0xd96c2c);
-
-    // Break-Apart Vehicle Fleet (Center)
+    // Center Fleet
     sedan(this, -18, -2, 0xe8ecf2, 0x2a2f3a, 'x');
     kenneySUV(this, -10, -2, 0x1d3557, 'x');
     sedan(this, 2, -2, 0xf7c948, 0x1d3557, 'x');
@@ -2330,164 +2226,183 @@ export class VoxelSandboxSim {
     }
 
     // =========================================================================
-    // ZONE 3 (EAST: x: +35..+85) — SKYSCRAPERS, SKYBRIDGE & HELIPAD
+    // ZONE 3 (EAST: x: +35..+85) — SKYSCRAPERS, SKYBRIDGE, HELIPAD & TOWER SPIRES
     // =========================================================================
 
-    // Modernist Setback Skyscraper Alpha (32m high in modular structural blocks)
+    // Setback Skyscraper Alpha (32m high, x: 36, z: -18)
     {
-      const ox = 36, oz = -14;
-      // Stage 1 (0..10m, 8x8m footprint) — Heavy corner piers & modular 2x2m floor slabs
-      for (let cx = 0; cx <= 6; cx += 2) for (let cz = 0; cz <= 6; cz += 2) {
-        column(this, { x: ox + cx, y: 0, z: oz + cz, h: 10, s: 0.5, mat: 'steel', color: 0x1a365d });
+      const ox = 36, oz = -18;
+      // Stage 1 (0..10m, 8x8m footprint)
+      plinth(this, { x: ox, y: 0, z: oz, w: 4, d: 4, h: 0.5, mat: 'steel', color: 0x1a365d });
+      plinth(this, { x: ox + 4, y: 0, z: oz, w: 4, d: 4, h: 0.5, mat: 'steel', color: 0x1a365d });
+      plinth(this, { x: ox, y: 0, z: oz + 4, w: 4, d: 4, h: 0.5, mat: 'steel', color: 0x1a365d });
+      plinth(this, { x: ox + 4, y: 0, z: oz + 4, w: 4, d: 4, h: 0.5, mat: 'steel', color: 0x1a365d });
+      for (let cx = 0; cx <= 8; cx += 2) {
+        for (let cz = 0; cz <= 8; cz += 2) {
+          const colX = ox + (cx === 8 ? 7.5 : cx);
+          const colZ = oz + (cz === 8 ? 7.5 : cz);
+          column(this, { x: colX, y: 0.5, z: colZ, h: 9.5, s: 0.5, mat: 'steel', color: 0x1a365d });
+        }
       }
-      for (let sx = 0; sx < 8; sx += 2) for (let sz = 0; sz < 8; sz += 2) {
-        slab(this, { x: ox + sx, y: 5, z: oz + sz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0xedf2f7 });
-        slab(this, { x: ox + sx, y: 10, z: oz + sz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0xedf2f7 });
-      }
-      for (let k = 0; k < 8; k += 2) {
-        cornice(this, { x: ox + k, y: 10.5, z: oz, run: 2, axis: 'x', t: 0.25, proj: 0.5, mat: 'steel', color: 0x2b6cb0 });
+      for (let sx = 0; sx < 8; sx += 4) {
+        for (let sz = 0; sz < 8; sz += 4) {
+          slab(this, { x: ox + sx, y: 5.0, z: oz + sz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xedf2f7 });
+          slab(this, { x: ox + sx, y: 10.0, z: oz + sz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xedf2f7 });
+        }
       }
       // Stage 2 (10..20m, 6x6m footprint)
-      for (let cx = 1; cx <= 5; cx += 2) for (let cz = 1; cz <= 5; cz += 2) {
-        column(this, { x: ox + cx, y: 10.5, z: oz + cz, h: 9.5, s: 0.5, mat: 'steel', color: 0x2b6cb0 });
+      for (let cx = 0; cx <= 6; cx += 2) {
+        for (let cz = 0; cz <= 6; cz += 2) {
+          const colX = ox + 1 + (cx === 6 ? 5.5 : cx);
+          const colZ = oz + 1 + (cz === 6 ? 5.5 : cz);
+          column(this, { x: colX, y: 10.5, z: colZ, h: 9.5, s: 0.5, mat: 'steel', color: 0x2b6cb0 });
+        }
       }
-      for (let sx = 1; sx < 7; sx += 2) for (let sz = 1; sz < 7; sz += 2) {
-        slab(this, { x: ox + sx, y: 15, z: oz + sz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0xe2e8f0 });
-        slab(this, { x: ox + sx, y: 20, z: oz + sz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0xe2e8f0 });
+      for (let sx = 0; sx < 6; sx += 3) {
+        for (let sz = 0; sz < 6; sz += 3) {
+          slab(this, { x: ox + 1 + sx, y: 15.0, z: oz + 1 + sz, w: 3, d: 3, t: 0.5, mat: 'concrete', color: 0xe2e8f0 });
+          slab(this, { x: ox + 1 + sx, y: 20.0, z: oz + 1 + sz, w: 3, d: 3, t: 0.5, mat: 'concrete', color: 0xe2e8f0 });
+        }
       }
       // Stage 3 (20..28m, 4x4m crown + antenna mast)
-      for (let cx = 2; cx <= 4; cx += 2) for (let cz = 2; cz <= 4; cz += 2) {
-        column(this, { x: ox + cx, y: 20.5, z: oz + cz, h: 7.5, s: 0.5, mat: 'steel', color: 0x3182ce });
+      for (let cx = 0; cx <= 4; cx += 2) {
+        for (let cz = 0; cz <= 4; cz += 2) {
+          const colX = ox + 2 + (cx === 4 ? 3.5 : cx);
+          const colZ = oz + 2 + (cz === 4 ? 3.5 : cz);
+          column(this, { x: colX, y: 20.5, z: colZ, h: 7.5, s: 0.5, mat: 'steel', color: 0x3182ce });
+        }
       }
-      for (let sx = 2; sx < 6; sx += 2) for (let sz = 2; sz < 6; sz += 2) {
-        slab(this, { x: ox + sx, y: 28, z: oz + sz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0xcbd5e0 });
-      }
+      slab(this, { x: ox + 2, y: 28.0, z: oz + 2, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xcbd5e0 });
       for (let y = 28.5; y <= 32; y += 0.5) this._block(ox + 3.75, y, oz + 3.75, 'steel', 0.5, 0xe2e8f0);
     }
 
-    // Skybridge connecting Alpha and Beta Towers across the plaza
+    // Skybridge connecting Alpha and Beta Towers
     {
       const bx = 44, by = 12, bz = -10;
-      for (let k = 0; k < 10; k += 2) {
-        beam(this, { x: bx + k, y: by, z: bz, len: 2, axis: 'x', t: 0.5, depth: 3.0, mat: 'steel', color: 0x2b2d42 });
-        beam(this, { x: bx + k, y: by + 3.5, z: bz, len: 2, axis: 'x', t: 0.5, depth: 3.0, mat: 'steel', color: 0x2b2d42 });
-        panel(this, { x: bx + k, y: by + 0.5, z: bz, w: 2, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x8ecae6 });
-        panel(this, { x: bx + k, y: by + 0.5, z: bz + 2.75, w: 2, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x8ecae6 });
+      for (let k = 0; k <= 9; k += 3) {
+        const colX = bx + (k === 9 ? 9.5 : k);
+        column(this, { x: colX, y: 0, z: bz, h: 16.0, s: 0.5, mat: 'steel', color: 0x2b2d42 });
+        column(this, { x: colX, y: 0, z: bz + 2.5, h: 16.0, s: 0.5, mat: 'steel', color: 0x2b2d42 });
+      }
+      for (let k = 0; k < 9; k += 3) {
+        beam(this, { x: bx + k, y: by, z: bz, len: 3, axis: 'x', t: 0.5, depth: 3.0, mat: 'steel', color: 0x2b2d42 });
+        beam(this, { x: bx + k, y: by + 3.5, z: bz, len: 3, axis: 'x', t: 0.5, depth: 3.0, mat: 'steel', color: 0x2b2d42 });
+        panel(this, { x: bx + k, y: by + 0.5, z: bz + 0.125, w: 3, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x8ecae6 });
+        panel(this, { x: bx + k, y: by + 0.5, z: bz + 2.625, w: 3, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x8ecae6 });
       }
     }
 
-    // Plaza Helipad & Operational Light Helicopter (East)
+    // Helipad & Helicopter
     helipad(this, { x: 44, z: -28, w: 8, d: 8, t: 0.5, pad: 0x4a5568, mark: 0xf7fafc, lights: true, lightColor: 0xf6e05e });
     helicopter(this, { x: 46, z: -26, y: 0.5, axis: 'x', body: 0xe53e3e, trim: 0xf7fafc, rotor: 0x2d3748 });
 
-    // Skyscraper Beta: Plaza Monolith (30m) with Rooftop Helipad
-    kenneySkyscraper(this, 54, -14, 8, 8, 30, 0x293241, 0xf4a261, 'helipad');
+    // Skyscraper Beta (30m) with Helipad
+    kenneySkyscraper(this, 54, -18, 8, 8, 30, 0x293241, 0xf4a261, 'helipad');
 
-    // Skyscraper Gamma: Twin Corporate Headquarters (22m)
-    kenneySkyscraper(this, 72, -14, 8, 8, 22, 0x457b9d, 0xe76f51, 'cooling');
+    // Skyscraper Gamma (22m)
+    kenneySkyscraper(this, 72, -18, 8, 8, 22, 0x457b9d, 0xe76f51, 'cooling');
 
-    // Skyscraper Delta: Financial Center (26m)
-    kenneySkyscraper(this, 44, 8, 8, 8, 26, 0x1d3557, 0x06d6a0, 'cooling');
+    // Skyscraper Delta (26m)
+    kenneySkyscraper(this, 44, 12, 8, 8, 26, 0x1d3557, 0x06d6a0, 'cooling');
 
-    // Skyscraper Epsilon: Grand Plaza Suites (20m)
-    kenneySkyscraper(this, 66, 8, 8, 8, 20, 0x2b2d42, 0xffb703, 'helipad');
+    // Skyscraper Epsilon (20m)
+    kenneySkyscraper(this, 66, 12, 8, 8, 20, 0x2b2d42, 0xffb703, 'helipad');
 
-    // Super-Tall Diagonal-Braced Skyscraper ("The Hancock / Shard" Style, East)
+    // Super-Tall Diagonal-Braced Skyscraper (East, x: 78, z: 12)
     {
-      const hx = 78, hz = 6;
-      // Massive steel corner pilotis & core (0..38m)
-      for (let sx = 0; sx < 8; sx += 2) for (let sz = 0; sz < 8; sz += 2) {
-        plinth(this, { x: hx + sx, y: 0, z: hz + sz, w: 2, d: 2, h: 1.0, mat: 'steel', color: 0x0f172a });
+      const hx = 78, hz = 12;
+      plinth(this, { x: hx, y: 0, z: hz, w: 4, d: 4, h: 0.5, mat: 'steel', color: 0x0f172a });
+      plinth(this, { x: hx + 4, y: 0, z: hz, w: 4, d: 4, h: 0.5, mat: 'steel', color: 0x0f172a });
+      plinth(this, { x: hx, y: 0, z: hz + 4, w: 4, d: 4, h: 0.5, mat: 'steel', color: 0x0f172a });
+      plinth(this, { x: hx + 4, y: 0, z: hz + 4, w: 4, d: 4, h: 0.5, mat: 'steel', color: 0x0f172a });
+      for (let lvl = 0; lvl < 6; lvl++) {
+        const y = 0.5 + lvl * 6.0;
+        const gCol = [0x0ea5e9, 0x0284c7, 0x38bdf8, 0x0284c7, 0x0ea5e9, 0x38bdf8][lvl];
+        const cCol = [0x1e293b, 0x334155, 0x1e293b, 0x334155, 0x1e293b, 0x334155][lvl];
+        column(this, { x: hx, y, z: hz, h: 5.5, s: 0.75, mat: 'steel', color: cCol });
+        column(this, { x: hx + 7.25, y, z: hz, h: 5.5, s: 0.75, mat: 'steel', color: cCol });
+        column(this, { x: hx, y, z: hz + 7.25, h: 5.5, s: 0.75, mat: 'steel', color: cCol });
+        column(this, { x: hx + 7.25, y, z: hz + 7.25, h: 5.5, s: 0.75, mat: 'steel', color: cCol });
+        pier(this, { x: hx + 3.0, y, z: hz + 3.0, w: 2.0, h: 5.5, d: 2.0, mat: 'concrete', color: cCol });
+        panel(this, { x: hx + 0.75, y, z: hz + 0.25, w: 6.5, h: 5.5, axis: 'x', t: 0.25, mat: 'glass', color: gCol });
+        panel(this, { x: hx + 0.75, y, z: hz + 7.5, w: 6.5, h: 5.5, axis: 'x', t: 0.25, mat: 'glass', color: gCol });
+        panel(this, { x: hx + 0.25, y, z: hz + 0.75, w: 6.5, h: 5.5, axis: 'z', t: 0.25, mat: 'glass', color: gCol });
+        panel(this, { x: hx + 7.5, y, z: hz + 0.75, w: 6.5, h: 5.5, axis: 'z', t: 0.25, mat: 'glass', color: gCol });
+        slab(this, { x: hx, y: y + 5.5, z: hz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0x334155 });
+        slab(this, { x: hx + 4, y: y + 5.5, z: hz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0x334155 });
+        slab(this, { x: hx, y: y + 5.5, z: hz + 4, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0x334155 });
+        slab(this, { x: hx + 4, y: y + 5.5, z: hz + 4, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0x334155 });
       }
-      for (let y = 0; y < 36; y += 6) {
-        // Floor diaphragm plates
-        for (let sx = 0; sx < 8; sx += 2) for (let sz = 0; sz < 8; sz += 2) {
-          slab(this, { x: hx + sx, y: y + 5.5, z: hz + sz, w: 2, d: 2, t: 0.5, mat: 'concrete', color: 0x334155 });
-        }
-        // Heavy vertical corner columns
-        column(this, { x: hx, y, z: hz, h: 6.0, s: 0.75, mat: 'steel', color: 0x1e293b });
-        column(this, { x: hx + 7.25, y, z: hz, h: 6.0, s: 0.75, mat: 'steel', color: 0x1e293b });
-        column(this, { x: hx, y, z: hz + 7.25, h: 6.0, s: 0.75, mat: 'steel', color: 0x1e293b });
-        column(this, { x: hx + 7.25, y, z: hz + 7.25, h: 6.0, s: 0.75, mat: 'steel', color: 0x1e293b });
-        // Monumental structural diagonal X-braces & dark tinted glass
-        for (let k = 0; k < 8; k += 2) {
-          panel(this, { x: hx + k, y, z: hz, w: 2, h: 6.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x0ea5e9 });
-          panel(this, { x: hx + k, y, z: hz + 7.75, w: 2, h: 6.0, axis: 'x', t: 0.25, mat: 'glass', color: 0x0ea5e9 });
-          panel(this, { x: hx, y, z: hz + k, w: 2, h: 6.0, axis: 'z', t: 0.25, mat: 'glass', color: 0x0ea5e9 });
-          panel(this, { x: hx + 7.75, y, z: hz + k, w: 2, h: 6.0, axis: 'z', t: 0.25, mat: 'glass', color: 0x0ea5e9 });
-        }
-        // Diagonal cross members
-        beam(this, { x: hx, y: y + 2.5, z: hz, len: 8, axis: 'x', t: 0.5, depth: 0.5, mat: 'steel', color: 0x38bdf8 });
-        beam(this, { x: hx, y: y + 2.5, z: hz + 7.5, len: 8, axis: 'x', t: 0.5, depth: 0.5, mat: 'steel', color: 0x38bdf8 });
-      }
-      // Crowning communications mast spire (y = 38..46)
       this._block(hx + 3.5, 36.5, hz + 3.5, 'steel', [1.0, 4.0, 1.0], 0x38bdf8);
       this._block(hx + 3.75, 40.5, hz + 3.75, 'steel', [0.5, 5.5, 0.5], 0xf43f5e);
     }
 
-    // Modernist Cylindrical Drum Tower ("Capitol Records / Gherkin" Style, East North)
+    // Cylindrical Drum Tower (East North, x: 78, z: -30)
     {
       const gx = 78, gz = -30;
-      drum(this, { x: gx, y: 0, z: gz, r: 4.0, h: 1.0, facets: 16, mat: 'concrete', color: 0x1e293b });
+      plinth(this, { x: gx, y: 0, z: gz, w: 4, d: 4, h: 0.5, mat: 'concrete', color: 0x1e293b });
+      plinth(this, { x: gx + 4, y: 0, z: gz, w: 4, d: 4, h: 0.5, mat: 'concrete', color: 0x1e293b });
+      plinth(this, { x: gx, y: 0, z: gz + 4, w: 4, d: 4, h: 0.5, mat: 'concrete', color: 0x1e293b });
+      plinth(this, { x: gx + 4, y: 0, z: gz + 4, w: 4, d: 4, h: 0.5, mat: 'concrete', color: 0x1e293b });
       for (let lvl = 0; lvl < 6; lvl++) {
-        const ly = 1.0 + lvl * 4.0;
-        // Tinted glass cylindrical drum
-        drum(this, { x: gx + 0.5, y: ly, z: gz + 0.5, r: 3.5, h: 3.5, facets: 16, mat: 'glass', color: 0x38bdf8 });
-        // Projecting white concrete sunshade ring
-        drum(this, { x: gx, y: ly + 3.5, z: gz, r: 4.0, h: 0.5, facets: 16, mat: 'concrete', color: 0xf8fafc });
+        const ly = 0.5 + lvl * 4.0;
+        const dCol = [0x38bdf8, 0x0ea5e9, 0x0284c7, 0x38bdf8, 0x0ea5e9, 0x0284c7][lvl];
+        const colCol = [0x1e293b, 0x334155, 0x1e293b, 0x334155, 0x1e293b, 0x334155][lvl];
+        column(this, { x: gx + 1.0, y: ly, z: gz + 1.0, h: 3.5, s: 0.5, mat: 'steel', color: colCol });
+        column(this, { x: gx + 6.5, y: ly, z: gz + 1.0, h: 3.5, s: 0.5, mat: 'steel', color: colCol });
+        column(this, { x: gx + 1.0, y: ly, z: gz + 6.5, h: 3.5, s: 0.5, mat: 'steel', color: colCol });
+        column(this, { x: gx + 6.5, y: ly, z: gz + 6.5, h: 3.5, s: 0.5, mat: 'steel', color: colCol });
+        column(this, { x: gx + 3.75, y: ly, z: gz + 3.75, h: 3.5, s: 0.5, mat: 'steel', color: colCol });
+        drum(this, { x: gx + 0.5, y: ly, z: gz + 0.5, r: 3.5, h: 3.5, facets: 8, mat: 'glass', color: dCol });
+        slab(this, { x: gx, y: ly + 3.5, z: gz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xf8fafc });
+        slab(this, { x: gx + 4, y: ly + 3.5, z: gz, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xf8fafc });
+        slab(this, { x: gx, y: ly + 3.5, z: gz + 4, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xf8fafc });
+        slab(this, { x: gx + 4, y: ly + 3.5, z: gz + 4, w: 4, d: 4, t: 0.5, mat: 'concrete', color: 0xf8fafc });
       }
-      // Top lantern spire
-      this._block(gx + 3.75, 25.5, gz + 3.75, 'steel', [0.5, 4.0, 0.5], 0xf59e0b);
+      this._block(gx + 3.75, 24.5, gz + 3.75, 'steel', [0.5, 4.0, 0.5], 0xf59e0b);
     }
 
-    // Suspension Bridge Anchor Pier & Pylon Gateway (East North-West)
+    // Suspension Bridge Anchor Pier (East, x: 34, z: -40)
     {
       const px = 34, pz = -40;
-      // Massive granite caisson foundation
-      for (let sx = 0; sx < 8; sx += 2) for (let sz = 0; sz < 4; sz += 2) {
-        plinth(this, { x: px + sx, y: 0, z: pz + sz, w: 2, d: 2, h: 1.5, mat: 'concrete', color: 0x334155 });
-      }
-      // Twin tapering suspension bridge pylon legs rising to 26m
-      column(this, { x: px + 0.5, y: 1.5, z: pz + 1, h: 24.0, s: 1.5, mat: 'concrete', color: 0x94a3b8 });
-      column(this, { x: px + 6.0, y: 1.5, z: pz + 1, h: 24.0, s: 1.5, mat: 'concrete', color: 0x94a3b8 });
-      // Portal strut cross-beams
-      beam(this, { x: px + 2.0, y: 10.0, z: pz + 1.25, len: 4, axis: 'x', t: 1.0, depth: 1.0, mat: 'steel', color: 0xd97706 });
-      beam(this, { x: px + 2.0, y: 18.0, z: pz + 1.25, len: 4, axis: 'x', t: 1.0, depth: 1.0, mat: 'steel', color: 0xd97706 });
-      beam(this, { x: px + 0.5, y: 25.5, z: pz + 1.25, len: 7, axis: 'x', t: 1.0, depth: 1.0, mat: 'steel', color: 0xd97706 });
+      plinth(this, { x: px, y: 0, z: pz, w: 4, d: 4, h: 1.0, mat: 'concrete', color: 0x334155 });
+      plinth(this, { x: px + 4, y: 0, z: pz, w: 4, d: 4, h: 1.0, mat: 'concrete', color: 0x334155 });
+      column(this, { x: px + 0.5, y: 1.0, z: pz + 1.25, h: 24.0, s: 1.5, mat: 'concrete', color: 0x94a3b8 });
+      column(this, { x: px + 6.0, y: 1.0, z: pz + 1.25, h: 24.0, s: 1.5, mat: 'concrete', color: 0x94a3b8 });
+      beam(this, { x: px + 2.0, y: 9.0, z: pz + 1.5, len: 4, axis: 'x', t: 1.0, depth: 1.0, mat: 'steel', color: 0xd97706 });
+      beam(this, { x: px + 2.0, y: 17.0, z: pz + 1.5, len: 4, axis: 'x', t: 1.0, depth: 1.0, mat: 'steel', color: 0xd97706 });
+      beam(this, { x: px + 0.5, y: 25.0, z: pz + 1.5, len: 7, axis: 'x', t: 1.0, depth: 1.0, mat: 'steel', color: 0xd97706 });
     }
 
-    // East Metropolis Luxury Penthouse Villa with Infinity Pool (East North)
+    // East Metropolis Penthouse Villa with Pool (x: 56, z: -32)
     {
       const vx = 56, vz = -32;
-      for (let px = 0; px < 8; px += 2) for (let pz = 0; pz < 8; pz += 2) {
-        plinth(this, { x: vx + px, y: 0, z: vz + pz, w: 2, d: 2, h: 0.5, mat: 'concrete', color: 0x1e293b });
+      for (let px = 0; px < 8; px += 4) {
+        plinth(this, { x: vx + px, y: 0, z: vz, w: 4, d: 4, h: 0.5, mat: 'concrete', color: 0x1e293b });
+        plinth(this, { x: vx + px, y: 0, z: vz + 4, w: 4, d: 4, h: 0.5, mat: 'concrete', color: 0x1e293b });
       }
-      // 3 Storey podium with modular floor slabs
       for (let lvl = 0; lvl < 3; lvl++) {
         const ly = 0.5 + lvl * 3.0;
-        for (let fx = 0; fx < 8; fx += 2) for (let fz = 0; fz < 8; fz += 2) {
-          slab(this, { x: vx + fx, y: ly + 2.75, z: vz + fz, w: 2, d: 2, t: 0.25, mat: 'concrete', color: 0xe2e8f0 });
-        }
-        for (let wx = 0; wx < 8; wx += 2) {
-          panel(this, { x: vx + wx, y: ly, z: vz, w: 2, h: 2.75, axis: 'x', t: 0.25, mat: 'glass', color: 0x0284c7 });
-          panel(this, { x: vx + wx, y: ly, z: vz + 7.75, w: 2, h: 2.75, axis: 'x', t: 0.25, mat: 'glass', color: 0x0284c7 });
-        }
+        const pCol = [0x1e293b, 0x334155, 0x1e293b][lvl];
+        const gCol = [0x0284c7, 0x0ea5e9, 0x0284c7][lvl];
+        pier(this, { x: vx, y: ly, z: vz, w: 0.75, h: 2.75, d: 8.0, mat: 'concrete', color: pCol });
+        pier(this, { x: vx + 7.25, y: ly, z: vz, w: 0.75, h: 2.75, d: 8.0, mat: 'concrete', color: pCol });
+        pier(this, { x: vx + 0.75, y: ly, z: vz, w: 6.5, h: 2.75, d: 0.5, mat: 'concrete', color: pCol });
+        panel(this, { x: vx + 0.75, y: ly, z: vz + 7.5, w: 6.5, h: 2.75, axis: 'x', t: 0.25, mat: 'glass', color: gCol });
+        slab(this, { x: vx, y: ly + 2.75, z: vz, w: 4, d: 8, t: 0.25, mat: 'concrete', color: 0xe2e8f0 });
+        slab(this, { x: vx + 4, y: ly + 2.75, z: vz, w: 4, d: 8, t: 0.25, mat: 'concrete', color: 0xe2e8f0 });
       }
-      // Rooftop Cantilever Deck & Glowing Infinity Pool (y = 9.5..12.0)
-      for (let fx = 0; fx < 8; fx += 2) for (let fz = 0; fz < 8; fz += 2) {
-        slab(this, { x: vx + fx, y: 9.5, z: vz + fz, w: 2, d: 2, t: 0.25, mat: 'wood', color: 0x78350f });
-      }
-      // Pool basin (2x4m, cyan water surface)
+      // Rooftop Pool Deck
+      slab(this, { x: vx, y: 9.5, z: vz, w: 4, d: 8, t: 0.25, mat: 'wood', color: 0x78350f });
+      slab(this, { x: vx + 4, y: 9.5, z: vz, w: 4, d: 8, t: 0.25, mat: 'wood', color: 0x78350f });
       this._block(vx + 2, 9.75, vz + 2, 'glass', [4.0, 0.5, 4.0], 0x06b6d4);
-      panel(this, { x: vx + 1, y: 10.0, z: vz + 1, w: 6, h: 2.5, axis: 'x', t: 0.25, mat: 'glass', color: 0x38bdf8 });
-      panel(this, { x: vx + 1, y: 10.0, z: vz + 6.75, w: 6, h: 2.5, axis: 'x', t: 0.25, mat: 'glass', color: 0x38bdf8 });
     }
 
     // East Fleet
     sedan(this, 40, -2, 0xf7c948, 0x1d3557, 'x');
     sedan(this, 52, -2, 0x3a86ff, 0x3a86ff, 'x');
     kenneySUV(this, 64, -2, 0x111111, 'x');
-    bus(this, 48, 20, 0xfb8500, 'x');
+    bus(this, 40, 20, 0xfb8500, 'x');
     bigTruck(this, 68, 20, 0x457b9d, false);
 
     // =========================================================================
@@ -2507,22 +2422,54 @@ export class VoxelSandboxSim {
       planter(this, scx - 4, scz - 2);
       bollard(this, scx + 2, scz - 4);
       bollard(this, scx - 2, scz + 4);
-      bench(this, scx + 3, scz + 3, 'x');
-      bikeRack(this, scx - 3, scz - 3, 'x');
+      bench(this, scx + 3, scz + 3, 0);
+      bikeRack(this, scx - 3, scz - 3, 3, 'x');
     }
 
     // --- STREET TREES & LAMP POSTS ACROSS ALL 3 ZONES -----------------------
     for (const [tx, tz] of [
-      [-80, -12], [-60, -12], [-40, -12], [-28, -6], [0, -10], [24, -6], [38, -6], [60, -6], [80, -6],
-      [-80, 12], [-60, 12], [-40, 12], [-28, 16], [0, 20], [24, 16], [40, 24], [60, 24], [80, 24]
+      [-84, -7.5], [-68, -7.5], [-52, -7.5], [-36, -7.5], [-16, -7.5], [16, -7.5], [44, -7.5], [68, -7.5], [84, -7.5],
+      [-84, 7.5], [-68, 7.5], [-52, 7.5], [-36, 7.5], [-16, 7.5], [16, 7.5], [44, 7.5], [68, 7.5], [84, 7.5],
+      [-76, -19.5], [-44, -19.5], [8, -19.5], [48, -19.5], [76, -19.5],
+      [-76, 19.5], [-44, 19.5], [8, 19.5], [48, 19.5], [76, 19.5]
     ]) tree(this, tx, tz);
 
     for (const [lx, lz] of [
-      [-80, 4], [-60, 4], [-40, 4], [-20, 4], [0, 4], [20, 4], [40, 4], [60, 4], [80, 4],
-      [-80, -4], [-60, -4], [-40, -4], [-20, -4], [0, -4], [20, -4], [40, -4], [60, -4], [80, -4],
-      [-70, 22], [-30, 22], [10, 22], [50, 22], [70, 22],
-      [-70, -22], [-30, -22], [10, -22], [50, -22], [70, -22]
+      [-90, 7.5], [-74, 7.5], [-42, 7.5], [-10, 7.5], [10, 7.5], [38, 7.5], [54, 7.5], [74, 7.5], [90, 7.5],
+      [-90, -7.5], [-74, -7.5], [-42, -7.5], [-10, -7.5], [10, -7.5], [38, -7.5], [54, -7.5], [74, -7.5], [90, -7.5],
+      [-68, 19.5], [-16, 19.5], [24, 19.5], [60, 19.5],
+      [-68, -19.5], [-16, -19.5], [24, -19.5], [60, -19.5]
     ]) lampPost(this, lx, lz);
+
+    // Cantilever Mast-Arm Traffic Signals at 4-way intersections
+    const crossX = [-60, -26, 0, 32, 62];
+    for (const cx of crossX) {
+      streetLightSignal(this, cx - 3.5, -6.5, 'x', 1);
+      streetLightSignal(this, cx + 3.5, 6.5, 'x', -1);
+      streetLightSignal(this, cx + 3.5, -6.5, 'z', 1);
+      streetLightSignal(this, cx - 3.5, 6.5, 'z', -1);
+    }
+
+    // Street Furniture & Amenities along sidewalks
+    for (const [hx, hz] of [
+      [-64, -7.2], [-30, -7.2], [4, -7.2], [36, -7.2], [66, -7.2],
+      [-64, 7.2], [-30, 7.2], [4, 7.2], [36, 7.2], [66, 7.2]
+    ]) hydrant(this, hx, hz);
+
+    for (const [bx, bz] of [
+      [-56, -7.5], [-22, -7.5], [12, -7.5], [40, -7.5], [70, -7.5],
+      [-56, 7.5], [-22, 7.5], [12, 7.5], [40, 7.5], [70, 7.5]
+    ]) trashBin(this, bx, bz);
+
+    for (const [mx, mz] of [
+      [-48, -7.5], [-14, -7.5], [20, -7.5], [50, -7.5], [78, -7.5]
+    ]) mailbox(this, mx, mz);
+
+    // Realistic Potholes on roadway asphalt
+    for (const [px, pz] of [
+      [-70, 2.5], [-45, -3.5], [-12, 1.5], [18, -2.5], [50, 3.2], [75, -1.8],
+      [-60, 23.5], [0, -24.5], [32, 23.5]
+    ]) pothole(this, px, pz);
 
     // Dynamic Player Movement Bounds (190m × 90m total area)
     this.bounds = 95;
@@ -2540,45 +2487,102 @@ export class VoxelSandboxSim {
     water.push({ x: -85, z: -45, w: 45, d: 13, color: 0x1a3a5f });
     boardwalk.push({ x: -85, z: -32, w: 45, d: 2, color: 0x8b5e34 });
 
-    // Plazas
-    plaza.push({ x: -85, z: -30, w: 50, d: 65, color: 0x4a4e69 });  // Zone 1 West Plaza
+    // Plazas (Plaza paving in solid stone colors)
+    plaza.push({ x: -85, z: -30, w: 50, d: 60, color: 0x4a4e69 });  // Zone 1 West Plaza
     plaza.push({ x: -25, z: -35, w: 50, d: 70, color: 0x3d5a80 });  // Zone 2 Center Plaza
     plaza.push({ x: 30, z: -35, w: 60, d: 70, color: 0x293241 });   // Zone 3 East Metropolis Plaza
 
-    // East-West Main Thoroughfares
-    roads.push({ x: -95, z: -6, w: 190, d: 8, color: 0x1c2030 });    // Boulevard North
-    roads.push({ x: -95, z: 12, w: 190, d: 8, color: 0x1c2030 });    // Boulevard South
-    roads.push({ x: -95, z: -24, w: 190, d: 6, color: 0x2b2d42 });   // Service Lane North
+    // East-West Main Thoroughfare: 4-lane Central Grand Boulevard (z: -6..6, width 12m)
+    roads.push({ x: -95, z: -6, w: 190, d: 12, color: 0x1c2030 });
+    // Sidewalks flanking 4-lane Boulevard (width 3m each side)
+    sidewalks.push({ x: -95, z: -9, w: 190, d: 3, color: 0xd1d5db });
+    sidewalks.push({ x: -95, z: 6, w: 190, d: 3, color: 0xd1d5db });
 
-    // North-South Cross-Town Avenues
-    roads.push({ x: -60, z: -45, w: 6, d: 90, color: 0x1c2030 });
-    roads.push({ x: -26, z: -45, w: 6, d: 90, color: 0x1c2030 });
-    roads.push({ x: 0, z: -45, w: 6, d: 90, color: 0x1c2030 });
-    roads.push({ x: 32, z: -45, w: 6, d: 90, color: 0x1c2030 });
-    roads.push({ x: 62, z: -45, w: 6, d: 90, color: 0x1c2030 });
+    // East-West Secondary Streets (2-lane roads: z: -27..-21 and z: 21..27, width 6m)
+    roads.push({ x: -95, z: -27, w: 190, d: 6, color: 0x222634 });
+    roads.push({ x: -95, z: 21, w: 190, d: 6, color: 0x222634 });
+    // Flanking sidewalks for secondary streets
+    sidewalks.push({ x: -95, z: -30, w: 190, d: 3, color: 0xd1d5db });
+    sidewalks.push({ x: -95, z: -21, w: 190, d: 3, color: 0xd1d5db });
+    sidewalks.push({ x: -95, z: 18, w: 190, d: 3, color: 0xd1d5db });
+    sidewalks.push({ x: -95, z: 27, w: 190, d: 3, color: 0xd1d5db });
 
-    // Sidewalks flanking avenues
-    sidewalks.push({ x: -95, z: -8, w: 190, d: 2, color: 0x6c757d });
-    sidewalks.push({ x: -95, z: 2, w: 190, d: 2, color: 0x6c757d });
-    sidewalks.push({ x: -95, z: 10, w: 190, d: 2, color: 0x6c757d });
-    sidewalks.push({ x: -95, z: 20, w: 190, d: 2, color: 0x6c757d });
-
-    // Yellow Dashed Lane Dividers
-    for (let x = -90; x < 90; x += 6) {
-      laneMarkers.push({ x: x, z: -2.2, w: 3.5, d: 0.4, color: 0xf7c948 });
-      laneMarkers.push({ x: x, z: 15.8, w: 3.5, d: 0.4, color: 0xf7c948 });
+    // North-South Cross-Town Avenues (2-lane roads at x = -60, -26, 0, 32, 62, width 6m)
+    for (const cx of crossX) {
+      roads.push({ x: cx - 3, z: -45, w: 6, d: 90, color: 0x1c2030 });
+      sidewalks.push({ x: cx - 6, z: -45, w: 3, d: 90, color: 0xd1d5db });
+      sidewalks.push({ x: cx + 3, z: -45, w: 3, d: 90, color: 0xd1d5db });
     }
 
-    // Zebra Crosswalks at all 5 intersections
+    // Double Yellow Solid Centerlines for 4-lane Boulevard (z = -0.2..0.2)
+    laneMarkers.push({ x: -95, z: -0.2, w: 190, d: 0.15, color: 0xf59e0b });
+    laneMarkers.push({ x: -95, z: 0.05, w: 190, d: 0.15, color: 0xf59e0b });
+
+    // Broken White Lane Dividers for 4-lane Boulevard (at z = -3.0 and z = 3.0, 3m dash / 3m gap)
+    for (let x = -92; x < 92; x += 6) {
+      laneMarkers.push({ x: x, z: -3.1, w: 3.0, d: 0.2, color: 0xf8fafc });
+      laneMarkers.push({ x: x, z: 2.9, w: 3.0, d: 0.2, color: 0xf8fafc });
+    }
+
+    // Dashed Yellow Centerlines for 2-lane Secondary Streets (at z = -24.0 and z = 24.0)
+    for (let x = -92; x < 92; x += 6) {
+      laneMarkers.push({ x: x, z: -24.1, w: 3.0, d: 0.2, color: 0xf59e0b });
+      laneMarkers.push({ x: x, z: 23.9, w: 3.0, d: 0.2, color: 0xf59e0b });
+    }
+
+    // Dashed Yellow Centerlines for North-South Avenues
+    for (const cx of crossX) {
+      for (let z = -42; z < 42; z += 6) {
+        laneMarkers.push({ x: cx - 0.1, z: z, w: 0.2, d: 3.0, color: 0xf59e0b });
+      }
+    }
+
+    // Stop Lines at 4-Way Intersections:
+    // Rule: Exactly one white stop line at each intersection approach:
+    // - On 4-lane Boulevard: across BOTH approaching lanes (entire right half of the 4-lane road, width 5.6m)
+    // - On 2-lane road: across the RIGHT-HAND approaching lane (width 2.8m)
+    for (const cx of crossX) {
+      // 4-lane Boulevard approaches (Eastbound and Westbound)
+      laneMarkers.push({ x: cx - 5.5, z: 0.2, w: 0.6, d: 5.6, color: 0xf8fafc, isStopLine: true });   // Eastbound approach (both lanes)
+      laneMarkers.push({ x: cx + 4.9, z: -5.8, w: 0.6, d: 5.6, color: 0xf8fafc, isStopLine: true });  // Westbound approach (both lanes)
+
+      // North-South Avenue approaches at the Boulevard (Northbound and Southbound, 2-lane road: right-hand lane only)
+      laneMarkers.push({ x: cx + 0.2, z: -8.5, w: 2.8, d: 0.6, color: 0xf8fafc, isStopLine: true });   // Southbound approach (right lane)
+      laneMarkers.push({ x: cx - 3.0, z: 7.9, w: 2.8, d: 0.6, color: 0xf8fafc, isStopLine: true });    // Northbound approach (right lane)
+
+      // Secondary Street intersections (North & South 2-lane crossings)
+      laneMarkers.push({ x: cx - 5.5, z: -23.8, w: 0.6, d: 2.8, color: 0xf8fafc, isStopLine: true });  // Eastbound secondary right lane
+      laneMarkers.push({ x: cx + 4.9, z: -26.8, w: 0.6, d: 2.8, color: 0xf8fafc, isStopLine: true });  // Westbound secondary right lane
+      laneMarkers.push({ x: cx - 5.5, z: 24.2, w: 0.6, d: 2.8, color: 0xf8fafc, isStopLine: true });   // Eastbound secondary right lane
+      laneMarkers.push({ x: cx + 4.9, z: 21.2, w: 0.6, d: 2.8, color: 0xf8fafc, isStopLine: true });   // Westbound secondary right lane
+    }
+
+    // Zebra / Continental Crosswalks at all intersections
     const zebra = (x0, z0, w, d, horiz = true) => {
-      if (horiz) for (let z = z0; z < z0 + d; z += 1.2) crosswalks.push({ x: x0, z: z, w: w, d: 0.6, color: 0xffffff });
-      else for (let x = x0; x < x0 + w; x += 1.2) crosswalks.push({ x: x, z: z0, w: 0.6, d: d, color: 0xffffff });
+      if (horiz) {
+        for (let z = z0; z < z0 + d - 0.5; z += 1.2) {
+          crosswalks.push({ x: x0, z: z, w: w, d: 0.6, color: 0xf8fafc });
+        }
+      } else {
+        for (let x = x0; x < x0 + w - 0.5; x += 1.2) {
+          crosswalks.push({ x: x, z: z0, w: 0.6, d: d, color: 0xf8fafc });
+        }
+      }
     };
-    for (const cx of [-60, -26, 0, 32, 62]) {
-      zebra(cx - 5, -6, 2, 8, true);
-      zebra(cx + 9, -6, 2, 8, true);
-      zebra(cx - 5, 12, 2, 8, true);
-      zebra(cx + 9, 12, 2, 8, true);
+
+    for (const cx of crossX) {
+      // Crosswalks across Boulevard
+      zebra(cx - 4.5, -6.0, 1.8, 12.0, true);
+      zebra(cx + 2.7, -6.0, 1.8, 12.0, true);
+      // Crosswalks across Avenue
+      zebra(cx - 3.0, -7.8, 6.0, 1.8, false);
+      zebra(cx - 3.0, 6.0, 6.0, 1.8, false);
+
+      // Secondary crossings
+      zebra(cx - 4.5, -27.0, 1.8, 6.0, true);
+      zebra(cx + 2.7, -27.0, 1.8, 6.0, true);
+      zebra(cx - 4.5, 21.0, 1.8, 6.0, true);
+      zebra(cx + 2.7, 21.0, 1.8, 6.0, true);
     }
 
     // Rail Bed under Elevated Viaduct
@@ -4743,6 +4747,8 @@ export class VoxelSandboxSim {
             h.radius = START_RADIUS;
             h.size = 1;
             h.sizeFrac = 0;
+            h.rawMass = 0;
+            h.mass = 0;
             // `h.slot ?? h.index`, never `||`: slot 0 is a REAL slot, and the
             // falsy-zero form silently substituted the array index for it — the
             // host respawned wherever its index happened to put it.
@@ -5010,14 +5016,21 @@ export class VoxelSandboxSim {
 
     const goalMass = this.totalMass * this.goal.targetFraction - this.totalMass * 1e-9;
     if (!this.won) {
-      // first hole in index order to cross the goal takes it — deterministic
-      for (let hi = 0; hi < holes.length; hi++) {
-        const h = holes[hi];
-        if (h.rawMass >= goalMass) {
-          this.won = true;
-          this.over = true;
-          this.events.push({ type: 'goal', goal: this.goal, hole: h });
-          break;
+      const allBlocksConsumed = this.totalBlocks > 0 && this.blocks.every((b) => b.state === 'consumed' || b.state === 'eaten');
+      if (allBlocksConsumed) {
+        this.won = true;
+        this.over = true;
+        this.events.push({ type: 'goal', goal: this.goal, hole: this.localHole || holes[0] });
+      } else {
+        // first hole in index order to cross the goal takes it — deterministic
+        for (let hi = 0; hi < holes.length; hi++) {
+          const h = holes[hi];
+          if (h.rawMass >= goalMass) {
+            this.won = true;
+            this.over = true;
+            this.events.push({ type: 'goal', goal: this.goal, hole: h });
+            break;
+          }
         }
       }
     }

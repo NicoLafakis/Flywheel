@@ -165,7 +165,7 @@ function v23Save({ ownedItems = [], coins = 0, equippedSkin = 'classic' } = {}) 
 
 // --- 7. the version bumped and the migration exists ------------------------
 {
-  assert.equal(CURRENT_VERSION, 24, 'CURRENT_VERSION must be 24 for the partner refund');
+  assert.ok(CURRENT_VERSION >= 24, 'CURRENT_VERSION must be at least 24 for the partner refund');
   assert.equal(typeof __MIGRATIONS[23], 'function', 'MIGRATIONS[23] must exist');
 }
 

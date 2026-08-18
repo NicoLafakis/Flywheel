@@ -30,7 +30,13 @@ it — a stale-snapshot false positive, not a real edit. On 2026-08-11
 that only `js/voxelscene-chicago.js`'s train opts into; `tools/validate.mjs`
 is again unchanged (confirmed by diff). Neither affects Cambridge's level
 design.
-**Date:** 2026-08-06 (reconciled 2026-08-10, twice; 2026-08-11).
+**Reconciled 2026-08-17:** `js/voxelsim.js` and `js/voxelkit.js` changed
+again, but the work is scoped entirely to The Lab (the `'gallery'` scene
+built inline in `voxelsim.js`, not a `js/voxelscene-*.js` file) — new
+monuments/mid-rises/supertalls/villas, a plinth/slab/wall subdivision into 2 m
+structural bays, and a scoring/architecture/camera overhaul. Cambridge's ten
+districts, block budget and density gate are untouched.
+**Date:** 2026-08-06 (reconciled 2026-08-10, twice; 2026-08-11; 2026-08-17).
 **Toolkit:** `01-voxel-primitive-vocabulary.md`. **Facts:**
 `02-cambridge-reference.md`. **Decision:** `adr/0013-anisotropic-voxel-primitives.md`.
 **Hidden things:** `04-easter-eggs-and-achievements.md` (separately owned — this

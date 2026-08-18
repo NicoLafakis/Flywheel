@@ -66,23 +66,27 @@ export function bus(sim, ox, oz, bodyColor, axis = 'x', bodySurf = undefined, gl
   const B = (x, y, z, m, c, surf) => axis === 'z'
     ? sim._block(ox + z, y, oz + x, m, S, c, surf)
     : sim._block(ox + x, y, oz + z, m, S, c, surf);
-  const pillars = new Set(['0,0', '0,1.5', '2.5,0', '2.5,1.5', '5,0', '5,1.5']);
+  const pillars = new Set(['0,0', '0,1.5', '0.5,0', '0.5,1.5', '2.5,0', '2.5,1.5', '4.5,0', '4.5,1.5', '5.5,0', '5.5,1.5']);
   for (const [wx, wz] of [[0.5, 0], [0.5, 1.5], [2.5, 0], [2.5, 1.5], [4.5, 0], [4.5, 1.5]]) B(wx, 0, wz, 'rubber');
   for (let x = 0; x < 6; x += S) {
     for (let z = 0; z < 2; z += S) {
       const edge = x === 0 || x >= 5.5 || z === 0 || z >= 1.5;
-      B(x, 0.5, z, edge ? 'steel' : 'panel', edge ? undefined : bodyColor, edge ? undefined : bodySurf);
+      B(x, 0.5, z, 'steel', edge ? undefined : bodyColor, edge ? undefined : bodySurf);
     }
   }
   for (let x = 0; x < 6; x += S) {
     for (let z = 0; z < 2; z += S) {
       const edge = x === 0 || x >= 5.5 || z === 0 || z >= 1.5;
       if (!edge) continue;
-      if (pillars.has(x + ',' + z)) { B(x, 1, z, 'steel'); B(x, 1.5, z, 'steel'); }
-      else { B(x, 1, z, 'panel', bodyColor, bodySurf); B(x, 1.5, z, 'glass', undefined, glassSurf); }
+      if (pillars.has(x + ',' + z) || x === 0 || x >= 5.5) {
+        B(x, 1, z, 'steel'); B(x, 1.5, z, 'steel');
+      } else {
+        B(x, 1, z, 'steel', bodyColor, bodySurf);
+        B(x, 1.5, z, 'glass', undefined, glassSurf);
+      }
     }
   }
-  for (let x = 0; x < 6; x += S) for (let z = 0; z < 2; z += S) B(x, 2, z, 'panel', bodyColor, bodySurf);
+  for (let x = 0; x < 6; x += S) for (let z = 0; z < 2; z += S) B(x, 2, z, 'steel', bodyColor, bodySurf);
 }
 
 // 0.5 m box van / ambulance: cab with windshield + box body.
@@ -320,6 +324,31 @@ export function trafficLight(sim, x, z) {
   F(sim, x, 2, z + 0.25, 'glass', 0xd93025);
   F(sim, x, 1.75, z + 0.25, 'glass', 0xf7c948);
   F(sim, x, 1.5, z + 0.25, 'glass', 0x3ddc84);
+}
+
+// Asphalt pothole / road pavement wear
+export function pothole(sim, x, z) {
+  B25(sim, x - 0.25, 0, z - 0.25, 3, 1, 3, 'loose', 0x111318);
+  F(sim, x, 0.25, z, 'loose', 0x22262c);
+}
+
+// Cantilever mast-arm traffic signal & street light
+export function streetLightSignal(sim, x, z, axis = 'x', facing = 1) {
+  B25(sim, x, 0, z, 1, 16, 1, 'steel', 0x2d3748);
+  const dir = facing >= 0 ? 1 : -1;
+  if (axis === 'x') {
+    for (let k = 1; k <= 3; k++) B25(sim, x, 3.75, z + dir * k * 0.25, 1, 1, 1, 'steel', 0x2d3748);
+    B25(sim, x, 3.75, z + dir * 1.0, 1, 4, 1, 'steel', 0x1a1a1e);
+    F(sim, x + 0.25, 4.5, z + dir * 1.0, 'steel', 0xd93025);
+    F(sim, x + 0.25, 4.25, z + dir * 1.0, 'steel', 0xf7c948);
+    F(sim, x + 0.25, 4.0, z + dir * 1.0, 'steel', 0x3ddc84);
+  } else {
+    for (let k = 1; k <= 3; k++) B25(sim, x + dir * k * 0.25, 3.75, z, 1, 1, 1, 'steel', 0x2d3748);
+    B25(sim, x + dir * 1.0, 3.75, z, 1, 4, 1, 'steel', 0x1a1a1e);
+    F(sim, x + dir * 1.0, 4.5, z + 0.25, 'steel', 0xd93025);
+    F(sim, x + dir * 1.0, 4.25, z + 0.25, 'steel', 0xf7c948);
+    F(sim, x + dir * 1.0, 4.0, z + 0.25, 'steel', 0x3ddc84);
+  }
 }
 
 // Newsstand: green body, overhanging roof.

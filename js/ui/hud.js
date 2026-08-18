@@ -320,7 +320,8 @@ export class HUD {
     this._showMinimap(false);
     const h = sim.localHole || sim.hole;
     this.massBar.style.background = '#ffd23f';
-    const cleared = Math.min(1, h.rawMass / sim.totalMass);
+    const cleared = Math.min(1, h.rawMass / (sim.totalMass || 1));
+    this.massBar.style.width = `${(Math.min(1, sim.won ? 1 : cleared) * 100).toFixed(1)}%`;
     // Live numeric progress, not a static banner: "GOAL: CLEAR 50%" never told
     // the player whether they were at 0.1% or 10% (playtest finding — the bar
     // was the only progress channel and it had no scale). SIZE rides the same
@@ -377,13 +378,15 @@ export class HUD {
     this._updatePowerUps(h.activePowerUps || sim.activePowerUps);
     this._updateScreenHeat(h.chain, h.activePowerUps || sim.activePowerUps);
 
-    // Endgame remaining blocks counter (displays when <= 100 blocks remain or <= 30s left)
+    // Endgame remaining blocks counter (displays when <= 100 blocks remain or <= 5% remain or <= 30s left or >=95% cleared)
     const standingBlocks = sim.remainingBlocksCount != null
       ? sim.remainingBlocksCount
       : (sim.blocks ? sim.blocks.filter((b) => b.state !== 'eaten' && b.state !== 'consumed').length : 0);
     
+    const isEndgameBlocks = standingBlocks <= 100 || (sim.totalBlocks > 0 && standingBlocks <= Math.max(100, Math.floor(sim.totalBlocks * 0.05))) || cleared >= 0.95;
+
     if (this.blocksLeftPill) {
-      if (!sim.won && standingBlocks > 0 && (standingBlocks <= 100 || (clockSeconds != null && clockSeconds <= 30))) {
+      if (!sim.won && standingBlocks > 0 && (isEndgameBlocks || (clockSeconds != null && clockSeconds <= 30))) {
         this.blocksLeftPill.classList.remove('hidden');
         if (this.blocksLeftText) {
           this.blocksLeftText.textContent = `${standingBlocks} BLOCKS LEFT`;

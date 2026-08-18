@@ -25,6 +25,8 @@ Last updated: 2026-08-17
 
 ## Shipped state
 
+- 2026-08-17 — The Lab Architectural Realism, HUD Sandbox Progress Bar & Endgame Locators: Zero-Falling Spawn Physics, Vector Textures, 4-Way Stop Lines & Mast-Arm Signals (fixed HUD sandbox progress bar width & allBlocksConsumed 100% win trigger; updated 3D endgame beacons and HUD remaining blocks pill to trigger at 95% cleared; eliminated all unsupported and overlapping blocks across all buildings in The Lab for 100% spawn stability; replaced raster surfaces with accurate vector solid color rendering; added realistic road markings with white stop lines across approaching lanes at 4-way intersections, mast-arm cantilever traffic light signals, street trees, waste bins, hydrants, and potholes)
+
 - 2026-08-17 — The Lab Architectural Expansion: Monuments, Mid-Rises, Supertalls & Cantilever Villas (expanded sandbox with Arc de Triomphe corbel monument, Art Deco maritime lighthouse, Fallingwater modernist cantilever villa, Googie butterfly-roof diner, Brutalist civic cultural library, 24m Grand Clock Tower & obelisk plaza, 4-storey urban fire-escape apartments, sawtooth industrial lofts, 46m diagonal X-braced supertall skyscraper, cylindrical drum tower, suspension bridge anchor pylon, and luxury rooftop infinity pool villa; all authored in modular anisotropic single-piece structural forms)
 
 - 2026-08-17 — The Lab Modular Structural Sub-Division: 2m Bay Fragmentation & Detachment (subdivided oversized plinths, floor slabs, roofs, and walls in Modernist Pavilion, Grand Colonnade, and Skyscraper Alpha into modular 2m structural bays; complies with Grade and Bite clauses; enables fluid collapse, progressive crumbling, and consumption)

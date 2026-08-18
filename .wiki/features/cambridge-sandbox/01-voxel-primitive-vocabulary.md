@@ -20,8 +20,15 @@ this page audits. On 2026-08-11 `js/voxelsim.js` and `js/voxelworld.js` both
 gained a mover-simulation seam (derail/ground-run/eatable capability flags,
 consumed today only by `js/voxelscene-chicago.js`'s CTA train) — engine
 plumbing for movers, not a new primitive, and orthogonal to the twelve
-`voxelforms.js` shapes this page audits; see `modules/voxel.md`.
-**Date:** 2026-08-06 (reconciled 2026-08-10, twice; 2026-08-11).
+`voxelforms.js` shapes this page audits; see `modules/voxel.md`. On
+2026-08-17 `js/voxelkit.js` picked up two more gallery builders (`pothole`,
+`streetLightSignal` — a cantilever mast-arm traffic signal), and The Lab's
+existing buildings (Modernist Pavilion, Grand Colonnade, Skyscraper Alpha,
+plus a wave of new monuments, mid-rises, supertalls and villas) were
+re-authored in modular 2 m structural bays for spawn stability. Both are
+ordinary `voxelkit`/scene-content changes built from the existing primitives;
+neither touches the primitive vocabulary this page audits.
+**Date:** 2026-08-06 (reconciled 2026-08-10, twice; 2026-08-11, 2026-08-17).
 **Answers:** the owner's *"Construction vocabulary"* request, which sat on
 `STATUS.md`'s board as an open decision — *"his actual request, and nothing has
 been started on it"* — until ADR-0013 was accepted and this vocabulary shipped.

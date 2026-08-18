@@ -31,7 +31,16 @@ mover-simulation engine (derail/ground-run/eatable) and `js/voxelscene-chicago.j
 opted its CTA train into it (`f42ffde`/`89255b7`); `js/main.js`, `js/ui/screens.js`
 and `tools/validate.mjs` are unchanged in this range (confirmed by diff).
 None of it touches Cambridge's tasks.
-**Date:** 2026-08-06, kept current as tasks land (reconciled 2026-08-10, twice; 2026-08-11).
+**Reconciled 2026-08-17:** `js/voxelsim.js` changed again, scoped entirely to
+The Lab (the `'gallery'` scene, not a `js/voxelscene-*.js` file) — new
+monuments/mid-rises/supertalls/villas, a plinth/slab/wall subdivision into 2 m
+structural bays, and a scoring/architecture/camera overhaul; none of it
+touches Cambridge. `js/voxelworld.js` picked up one shared, engine-level
+change that does reach every voxel scene including Cambridge: its 3D endgame
+locator beacons now also trigger at ≤5% blocks remaining or ≥95% cleared, on
+top of the existing ≤100-blocks / ≤30s triggers (see `modules/powerups.md`).
+Cambridge's own tasks, registration and validator gate are unaffected.
+**Date:** 2026-08-06, kept current as tasks land (reconciled 2026-08-10, twice; 2026-08-11; 2026-08-17).
 **Reads with:** every other doc in this package — this page sequences their
 decisions rather than re-arguing them. The owning-doc convention from `03`/`04`
 holds: where a task description here disagrees with `01`–`04`, the numbered doc

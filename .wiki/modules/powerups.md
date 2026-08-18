@@ -65,8 +65,8 @@ Provides collectible in-game power-up entities and active status effects across 
   defined value. This keeps rendering live when the explanation card clears.
 - **Louder Combo Multiplier**: `#cm-burst` overlays the combo meter with 3D comic typography, spinning dashed halos, and radial shock rings.
 - **Endgame Remaining Blocks Pill & 3D Beacons**:
-  - Displays `#blocks-left-pill` (`🎯 42 BLOCKS LEFT`) when uneaten blocks drop below 100 or when time remaining is `≤ 30s`.
-  - Generates 3D downward-pointing glowing beacon arrows and pulsating ground locator rings above remaining standing blocks to help players pinpoint every last building for 100% full clears.
+  - Displays `#blocks-left-pill` (`🎯 42 BLOCKS LEFT`) when uneaten blocks drop below 100, when they drop to 5% or less of the level's total, when the cleared fraction reaches 95% or more, or when time remaining is `≤ 30s`. The 5%/95% triggers exist so a huge level (many thousands of blocks) still surfaces the endgame pill well before the flat 100-block floor would fire.
+  - Generates 3D downward-pointing glowing beacon arrows and pulsating ground locator rings above remaining standing blocks to help players pinpoint every last building for 100% full clears, using the same 100-block / 5%-remaining / 95%-cleared / 30s triggers (`js/world3d.js` for city holes, `js/voxelworld.js` for the Cambridge sandbox).
 - **Scheduled Natural Disasters**:
   - **1m30s Elapsed**: Triggers **Seismic Super Quake** (`⚠️ NATURAL DISASTER: SEISMIC QUAKE! ⚠️`) with full-map fault fissures and building foundation collapses.
   - **1m Before End**: Triggers **Meteor Shower** (`⚠️ NATURAL DISASTER: METEOR SHOWER! ⚠️`) bombarding building clusters with stratospheric fireballs and loose debris.

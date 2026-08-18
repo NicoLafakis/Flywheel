@@ -1,15 +1,15 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-18T00:32:27+00:00",
+    "generatedAt": "2026-08-18T02:32:59+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
-      "files": 166,
+      "files": 167,
       "symbols": 6,
       "edges": 1,
       "modules": 4,
-      "reusedFromCache": 136
+      "reusedFromCache": 166
     }
   },
   "files": {
@@ -119,8 +119,8 @@
     },
     "api/progress/pull.mjs": {
       "lang": "javascript",
-      "hash": "49aa747e3eb0f427f2790afd0239e4998c164ae65cb28f72195846d3363c54a8",
-      "loc": 55,
+      "hash": "a64bdf26cac9127addb8bb37fb0ccd02160209ccecc078806f8f9c7e8b256686",
+      "loc": 56,
       "module": "api",
       "symbols": [],
       "imports": []
@@ -311,7 +311,7 @@
     },
     "js/citycatalog.js": {
       "lang": "javascript",
-      "hash": "c7fd169aeb603a183b0a195631e8b2d1e97ba85ae30f9a03d2d7d93dfb1ac947",
+      "hash": "6a3331a060526607834cac208ead14c33afc3629133d431fe778a11695d99e89",
       "loc": 191,
       "module": "js",
       "symbols": [],
@@ -583,8 +583,8 @@
     },
     "js/ui/hud.js": {
       "lang": "javascript",
-      "hash": "40881e18b6dd5b66125a97ad1131a623ad981fc432a124c4fbd2cb641b2a032e",
-      "loc": 720,
+      "hash": "5c1baf804f708e036a2149c0475c8e3ac76dbf6574a8940335ae63032c499bc5",
+      "loc": 723,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -706,8 +706,8 @@
     },
     "js/voxelkit.js": {
       "lang": "javascript",
-      "hash": "39d3484d16a9f087e4e811f8cd47f1b4ed8b53777b06f6761eca0d9ff2929390",
-      "loc": 3310,
+      "hash": "b46409c3fd0d010fee70e9245a69135d9142d9e99ed5fc4be18682ff5c735ae1",
+      "loc": 3339,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -786,8 +786,8 @@
     },
     "js/voxelsim.js": {
       "lang": "javascript",
-      "hash": "e747677f156d0fef3852b8eb6ae3034d248fe8c70f262db4c1594b40e64bcafb",
-      "loc": 4728,
+      "hash": "a3a31b03ba7159a5767b55ca05f983f0d2da19225c23b6e9dbd01828b6a4cb1e",
+      "loc": 5139,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -818,16 +818,16 @@
     },
     "js/voxelworld.js": {
       "lang": "javascript",
-      "hash": "63642787374dda0b517828ba3292a1f3c3dee4e9975a77b901bf45f56acd80bd",
-      "loc": 4158,
+      "hash": "2134780cee461d09cc0510646ae12015234f76ffaa92b15d5a2ace6af7e50b95",
+      "loc": 4160,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/world3d.js": {
       "lang": "javascript",
-      "hash": "4c54da081f2df030eb2d2e04a5ab8b4dfff37a3f0f95228a02b826b72e825a93",
-      "loc": 2238,
+      "hash": "94e7ef7daad3e769a2fb4a4cb2a6b967dd98cd5f0df6cbdc5bc61a8373388ed2",
+      "loc": 2240,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -1248,10 +1248,18 @@
       "symbols": [],
       "imports": []
     },
+    "tools/progress-and-lab.test.mjs": {
+      "lang": "javascript",
+      "hash": "e3485dfead590ff8409a9427f9c1022c6ab16d4b0d6d85ba067fad4b980dc2d5",
+      "loc": 180,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/progress-api.test.mjs": {
       "lang": "javascript",
-      "hash": "5a514c733b326dd6ea92f4ccb60ab53cae1e7e1330ab8ff7bbe35f0e473e1a1c",
-      "loc": 314,
+      "hash": "4c084c2daf1f0338b04ff4dd2cd8a720c347aead2917f661dc1b2d69c4481695",
+      "loc": 321,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1556,6 +1564,7 @@
         "tools/perf/t901.cjs",
         "tools/probe-aniso.mjs",
         "tools/probe-buildcost2.mjs",
+        "tools/progress-and-lab.test.mjs",
         "tools/progress-api.test.mjs",
         "tools/progress-blob.test.mjs",
         "tools/progress-merge.test.mjs",

@@ -34,7 +34,17 @@ handful of `js/voxelforms.js` primitives (`beam`, `column`, `panel`, `pier`,
 cube-only scene the way Chicago is — but it has no Cambridge caller and
 authors nothing in Cambridge's own districts; nothing in this package
 changed.
-**Date:** 2026-08-06 (reconciled 2026-08-10, twice; 2026-08-11; 2026-08-14).
+**Reconciled 2026-08-17:** `js/voxelsim.js` and `js/voxelkit.js` both changed
+again, but every change is scoped to The Lab — the `'gallery'` scene built
+inline in `voxelsim.js`'s own `_buildScene`, not a `js/voxelscene-*.js` file
+and not Cambridge. The Lab's architecture, scoring (points now scale with an
+eaten object's raw mass), 4 s power-up overhead camera sequence, keyboard
+steering acceleration, plinth/slab/wall subdivision into 2 m structural bays,
+and a wave of new monuments, mid-rises, supertalls and villas all landed
+there. Cambridge's own districts, primitives and scene registration are
+untouched.
+**Date:** 2026-08-06 (reconciled 2026-08-10, twice; 2026-08-11; 2026-08-14;
+2026-08-17).
 **Reads with:** `01-voxel-primitive-vocabulary.md` (the toolkit),
 `02-cambridge-reference.md` (the facts), `03-level-design.md` (the design),
 `05-build-tasks.md` (the ordered work and its live state),
