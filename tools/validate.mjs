@@ -59,7 +59,9 @@ import { runTutorialSelftest } from './tutorial.test.mjs';
 import { runMobileCameraSelftest } from './mobile-camera.test.mjs';
 import { runMobileUiSelftest } from './mobile-ui.test.mjs';
 import { runDeviceDetectionSelftest } from './device-detection.test.mjs';
+import { runMobileZoomControlsSelftest } from './mobile-zoom-controls.test.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
+
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -3165,7 +3167,9 @@ section('tutorialOnboarding', () => console.log(`Validating Interactive Onboardi
 section('mobileCameraClarity', () => console.log(`Validating Adaptive Mobile Camera & Clarity (${runMobileCameraSelftest()} assertions)...`));
 section('mobileUiResponsive', () => console.log(`Validating Mobile-First UI & Navigation (${runMobileUiSelftest()} assertions)...`));
 section('deviceDetection', () => console.log(`Validating Device Detection & Relative Controls (${runDeviceDetectionSelftest()} assertions)...`));
+section('mobileZoomControls', () => console.log(`Validating Mobile Pinch/Expand Zoom & Gestures (${runMobileZoomControlsSelftest()} assertions)...`));
 section('fwMath', validateFwMath);
+
 
 
 

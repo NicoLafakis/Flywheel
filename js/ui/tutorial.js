@@ -107,7 +107,7 @@ export class TutorialManager {
       <div class="tut-sprocket-avatar">⚙️</div>
       <div class="tut-bubble-content">
         <div class="tut-bubble-title">START EATING BLOCKS!</div>
-        <div class="tut-bubble-sub">${isTouch ? '👆 Drag with your thumb to steer & swallow small props' : '⌨️ Use WASD or Arrow Keys to steer into cones & trash'}</div>
+        <div class="tut-bubble-sub">${isTouch ? '🕹️ Drag left ½ with thumb to steer · 🤏 Pinch / expand to zoom' : '⌨️ Use WASD or Arrow Keys to steer · 🖱️ Scroll or R/F to zoom'}</div>
       </div>
       <div class="tut-bouncy-arrow">⬇️</div>
     `;
@@ -149,6 +149,7 @@ export class TutorialManager {
   _showSize2Modal() {
     if (typeof document === 'undefined' || !this.container) return;
 
+    const isTouch = isTouchDevice();
     const modal = document.createElement('div');
     modal.className = 'fw-tut-modal fw-tut-modal--size2 animate-bounce-in';
     modal.innerHTML = `
@@ -173,11 +174,15 @@ export class TutorialManager {
         <p class="tut-modal-desc">
           Your hole diameter expanded! You can now swallow parked vehicles, street trees, and food trucks!
         </p>
+        <div class="tut-zoom-hint" style="font-size:11.5px; color:#ffd23f; font-weight:700; background:rgba(255,210,63,0.12); padding:6px 12px; border-radius:10px; border:1px solid rgba(255,210,63,0.3);">
+          ${isTouch ? '🤏 Gesture Tip: Pinch or expand with two fingers to zoom in & out!' : '🔍 Control Tip: Press R / F keys or scroll wheel to zoom camera!'}
+        </div>
         <button type="button" class="btn fw-cta tut-modal-btn" id="tut-size2-btn">LET'S EAT! ➔</button>
       </div>
     `;
 
     this.container.appendChild(modal);
+
 
     const btn = modal.querySelector('#tut-size2-btn');
     if (btn) {

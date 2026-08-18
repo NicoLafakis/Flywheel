@@ -26,6 +26,8 @@ import { comboMultiplier as campaignComboMult } from '../sim.js';
 import { buildBlockWord } from './blockword.js';
 import { buildSprocket } from './sprocket.js';
 import { POWERUP_SPECS } from '../powerups.js';
+import { isTouchDevice } from '../device.js';
+
 
 
 // The shop shelf is the skin registry itself — js/skins.js owns the rows, this
@@ -1602,13 +1604,20 @@ export class Screens {
   showPause() {
     this.clear();
     if (this.actions.music) this.actions.music('pause');
-    const s = el(`<div class="screen"><h2>PAUSED</h2></div>`);
+    const isTouch = isTouchDevice();
+    const s = el(`<div class="screen">
+      <h2>PAUSED</h2>
+      <div class="pause-ctrl-hint" style="font-size:11px; font-weight:700; color:rgba(255,210,63,0.85); background:rgba(12,16,28,0.7); border:1px solid rgba(255,210,63,0.25); border-radius:12px; padding:6px 14px; margin-bottom:8px; text-align:center;">
+        ${isTouch ? '🕹️ Left: Steer · 🔄 Right: Look · 🤏 Pinch/Expand: Zoom' : '⌨️ WASD: Move · Q/E: Orbit · R/F or Scroll: Zoom · Esc: Resume'}
+      </div>
+    </div>`);
     const resume = el(`<button class="btn">RESUME</button>`);
     resume.onclick = () => this.actions.resume();
     const settings = el(`<button class="btn secondary">SETTINGS</button>`);
     settings.onclick = () => this.showSettings(() => this.showPause());
     const help = el(`<button class="btn secondary">HELP & FAQ</button>`);
     help.onclick = () => this.showHelp(() => this.showPause());
+
     // RESTART and CITIES both discard the run, and pause is only reachable
     // mid-run — so both ask once before throwing the run away (playtest
     // finding: silent mid-run progress loss). Two-step inline confirm, not a

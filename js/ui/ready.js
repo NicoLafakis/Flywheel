@@ -115,8 +115,8 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reduc
           <span class="rg-hint-tap">tap anywhere</span>
         </div>
         <div class="rg-controls">
-          <span class="rg-controls-key">W/S drive · A/D turn · Q/E orbit · R/F zoom · Esc pause</span>
-          <span class="rg-controls-tap">drag left ½ steer · right ½ look · pinch zoom</span>
+          <span class="rg-controls-key">W/S drive · A/D turn · Q/E orbit · R/F or Scroll zoom · Esc pause</span>
+          <span class="rg-controls-tap">🕹️ Drag Left: Steer · 🔄 Right: Orbit · 🤏 Pinch / Expand: Zoom</span>
         </div>
         <div class="rg-rule">eat what's smaller than you to grow</div>
       </div>
@@ -137,18 +137,18 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reduc
     const cardsEl = el(`<div class="rg-tutorial-cards" aria-label="How to play instructions">
       <div class="rg-tut-card">
         <span class="rg-tut-card-icon">🕳️</span>
-        <strong class="rg-tut-card-title">1. Start Small</strong>
-        <span class="rg-tut-card-desc">${isTouch ? 'Drag left ½ to steer · Eat small props' : 'WASD to steer · Drive into cones & trash'}</span>
+        <strong class="rg-tut-card-title">${isTouch ? '1. Steer & Eat' : '1. WASD Drive'}</strong>
+        <span class="rg-tut-card-desc">${isTouch ? 'Drag left screen with thumb' : 'Steer into small cones & trash'}</span>
       </div>
       <div class="rg-tut-card">
-        <span class="rg-tut-card-icon">📈</span>
-        <strong class="rg-tut-card-title">2. Grow Big</strong>
-        <span class="rg-tut-card-desc">Fill mass bar to jump size tiers</span>
+        <span class="rg-tut-card-icon">🔄</span>
+        <strong class="rg-tut-card-title">${isTouch ? '2. Look & Orbit' : '2. Q/E Orbit'}</strong>
+        <span class="rg-tut-card-desc">${isTouch ? 'Drag right screen to orbit camera' : 'Rotate camera view around hole'}</span>
       </div>
       <div class="rg-tut-card">
-        <span class="rg-tut-card-icon">🏗️</span>
-        <strong class="rg-tut-card-title">3. Topple Towers</strong>
-        <span class="rg-tut-card-desc">Eat base pillars to crumble giant floors</span>
+        <span class="rg-tut-card-icon">${isTouch ? '🤏' : '🔍'}</span>
+        <strong class="rg-tut-card-title">${isTouch ? '3. Pinch Zoom' : '3. R/F Zoom'}</strong>
+        <span class="rg-tut-card-desc">${isTouch ? 'Pinch / expand with 2 fingers' : 'Or use mouse wheel to zoom'}</span>
       </div>
       <div class="rg-tut-card">
         <span class="rg-tut-card-icon">⚡</span>
@@ -158,6 +158,7 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reduc
     </div>`);
     root.querySelector('.rg-top').appendChild(cardsEl);
   }
+
 
 
 
