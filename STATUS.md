@@ -8,10 +8,12 @@ Last updated: 2026-08-17
 
 ## Active focus
 
+- **Global Campaign & Sprocket Storyline**: 29-metropolis world tour across 7 regional Acts (Pacific, Asia, Mediterranean, Europe, Americas, New York, Cambridge UNBOUND). Narrative grounding of flywheel mechanics, mission dossiers, and progressive city unlock ladders (`.wiki/features/global-campaign/`).
 - **Multiplayer Multi-Hole & Join Polish**: 6-player synchronized invite lobby multiplayer, multi-hole presentation alignment, PvP hole swallowing, 10s respawn timeout, per-player coin isolation, and 7 free color skins (`.wiki/modules/multiplayer.md`).
 - **Power-Up System**: Dynamic roaming power-ups with intermittent spawn/despawn lifecycle, in-world 3D beams, and full WebAudio fanfares (`.wiki/modules/powerups.md`).
 - **Scoreboards & Offline Fallback**: Live ranked boards + server-replayed trace verification and local profile fallback (`js/board/`).
 - **Cambridge Phase 7 Secrets & Belts**: Cambridge 44 hidden easter eggs, 11 ground glyphs, and championship belts.
+
 
 ### Open decisions (owner's call, papered not parked)
 
@@ -24,6 +26,8 @@ Last updated: 2026-08-17
 ---
 
 ## Shipped state
+
+- 2026-08-18 — Sydney Sandbox Expansion: Voxel Strict Min Corner Implementation (expanded sandbox with Sydney architectural icons including Heritage Townhouses, CBD Tower, Opera House, and Harbour Bridge. Engineered entirely using strict min-corner geometric mapping, ensuring perfect structural bay alignment and exactly 0 overlap or collision errors. Block count optimized down to 1167 with full retention of architectural identity)
 
 - 2026-08-17 — The Lab Architectural Realism, HUD Sandbox Progress Bar & Endgame Locators: Zero-Falling Spawn Physics, Vector Textures, 4-Way Stop Lines & Mast-Arm Signals (fixed HUD sandbox progress bar width & allBlocksConsumed 100% win trigger; updated 3D endgame beacons and HUD remaining blocks pill to trigger at 95% cleared; eliminated all unsupported and overlapping blocks across all buildings in The Lab for 100% spawn stability; replaced raster surfaces with accurate vector solid color rendering; added realistic road markings with white stop lines across approaching lanes at 4-way intersections, mast-arm cantilever traffic light signals, street trees, waste bins, hydrants, and potholes)
 

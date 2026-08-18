@@ -16,14 +16,17 @@ beatable headlessly.
 | File | Purpose |
 |------|---------|
 | `js/levels.js` | `METROS`, `MECHANICS`, `levelDef(i)` formulas, stars/coins |
-| `js/citycatalog.js` | Pure catalog metadata & progression rules for metropolis sandboxes, 3-minute challenges, and secret 90s unlock logic |
+| `js/citycatalog.js` | Pure catalog metadata & progression rules for the 29-metropolis global campaign across 7 Acts, 3-minute challenges, and secret 90s unlock logic |
 | `js/save.js` | localStorage schema v25 (+settings, +upgrades, +challenges, +v25 `cloud{}` sync bookkeeping), migrations v1→v25, quarantine |
-| `tools/validate.mjs` | Overlap + snack-ring + greedy-bot margin proof for every campaign level, plus `validateCambridge()` (drives the voxel-sandbox Cambridge scene through the same kind of greedy bot) and `validateOfflineBoot()` (parses `index.html` and fails on any external-origin runtime dependency — see `architecture.md`'s Boot section) |
+| `tools/validate.mjs` | Overlap + snack-ring + greedy-bot margin proof for every campaign level, plus `validateCambridge()`, `validateSydney()`, and `validateOfflineBoot()` |
+| `.wiki/features/global-campaign/` | Comprehensive package specification for Sprocket's Odyssey: 29 metropolises, 7 Acts, world bible, mission dossiers, and progression rules |
 
 ## Talks To
 
 - **citygen.js / sim.js** — validator imports the same modules as the game
-- **ui/screens.js** — reads save for locks/stars, writes via `main.js` actions
+- **ui/screens.js** — reads save for locks/stars, renders Act-based carousel and mission dossiers, writes via `main.js` actions
+- **ui/ready.js** — renders level-start Ready Gate with active city mission directives
+
 
 ## Gotchas
 

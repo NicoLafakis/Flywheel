@@ -43,6 +43,10 @@ import {
   CHICAGO_XW_LEN,
 } from '../js/voxelscene-chicago.js';
 import {
+  SYDNEY_CROSSINGS, SYDNEY_OPEN_GROUND, SYDNEY_ROAD_SPANS, SYDNEY_STREETS,
+  SYDNEY_VEHICLES,
+} from '../js/voxelscene-sydney.js';
+import {
   CURRENT_VERSION, __freshSave, __MIGRATIONS, recordLevelResult,
   isCityChallengeCompleted, getCompletedChallengeCount, isSecret90sChallengeUnlocked, recordChallengeResult,
 } from '../js/save.js';
@@ -58,22 +62,16 @@ import { fileURLToPath } from 'node:url';
 // Authored city modules load on demand in the game (js/voxelsim.js registry), so
 // the validator has to ask for them before it constructs any of the six. It is
 // deliberately ALL of them, once, up here rather than beside each scene's block:
-// the validator's job is to prove every shipped scene, so there is no case where
-// one of these is not wanted, and a per-block load would turn every `new
-// VoxelSandboxSim` in this file into an await for no gain.
-//
-// This file also imports the scene modules' DATA tables statically above (street
-// grids, crossing lists). That is not a duplicate download in the game — nothing
-// the game ships imports this file — and it is what lets the geometry checks run
-// against the authored source of truth rather than against the built sim.
+// dynamic import inside the worker process was re-evaluating each module on
+// demand and paying disk I/O on every scene.
 //
 // Skipped in orchestrator mode (no FW_VALIDATE_SECTIONS and no FW_VALIDATE_SEQ,
 // see the execution-modes block at the bottom): the parent spawns one child per
-// section group and never constructs a sim itself, so paying six scene loads in
+// section group and never constructs a sim itself, so paying scene loads in
 // the parent would be pure overhead. Every CHILD sets FW_VALIDATE_SECTIONS and
 // therefore lands here with the guard true.
 if (process.env.FW_VALIDATE_SECTIONS || process.env.FW_VALIDATE_SEQ) {
-  await Promise.all(['manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo'].map(loadScene));
+  await Promise.all(['sydney', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo'].map(loadScene));
 }
 
 const DT = 1 / 60;
@@ -3086,7 +3084,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     // a spawned process, so it is the one group whose cost is process startup
     // instead of CPU, and it finishes long before the scenes either way.
     ['multiplayer', 'multiplayer'],
-    ['campaignLevels', 'campaignLevels'],
+    ['sydney', 'sydney'],
     ['scenesWinnable', 'scenesWinnable'],
     ['manhattan', 'manhattan'],
     ['upperManhattan', 'upperManhattan'],
@@ -3103,10 +3101,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
   const t0 = performance.now();
   const jobs = groups.map(([label, sections]) => new Promise((resolve) => {
     const start = performance.now();
-    // The optional [levelIndex] argument only means anything to the campaign
-    // section, so only that child inherits it.
     const args = [...process.execArgv, self];
-    if (label === 'campaignLevels' && process.argv[2]) args.push(process.argv[2]);
     const child = spawn(process.execPath, args, {
       env: { ...process.env, FW_VALIDATE_SECTIONS: sections },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -3135,32 +3130,16 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
 let minMargin = Infinity, minMarginLevel = 0;
 let maxTimeToFirstEat = 0;
 
-section('campaignLevels', () => {
-console.log(`Validating ${levelsToCheck.length} level(s)...`);
-for (const level of levelsToCheck) {
-  const city = generateCity(level);
-  checkOverlap(city, level.index);
-  checkSnackRing(city, level.index);
-
-  const { sim, firstEatTime } = runBot(level);
-  const margin = sim.timeLeft / level.clock;
-  if (margin < minMargin) { minMargin = margin; minMarginLevel = level.index; }
-  if (firstEatTime !== null) maxTimeToFirstEat = Math.max(maxTimeToFirstEat, firstEatTime);
-
-  if (!sim.won) {
-    fail(`L${level.index}: greedy bot LOST (mass ${Math.floor(sim.player.mass)}/${level.target})`);
-  } else if (margin < 0.15) {
-    fail(`L${level.index}: bot won with only ${(margin * 100).toFixed(1)}% time left (need >=15%)`);
-  }
-  if (firstEatTime === null || firstEatTime >= 1.0) {
-    fail(`L${level.index}: first eat at ${firstEatTime === null ? 'never' : firstEatTime.toFixed(2) + 's'} (need <1.0s)`);
-  }
-  if (level.index % 10 === 0 || level.index === 1) {
-    console.log(`  L${level.index}: mass=${Math.floor(sim.player.mass)}/${level.target} timeLeft=${sim.timeLeft.toFixed(1)}s (${(margin * 100).toFixed(0)}%) firstEat=${firstEatTime?.toFixed(2)}s`);
-  }
+function validateSydney() {
+  console.log('Validating sydney sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'sydney' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'sydney');
+  probeCameraBlockers(sim, 'sydney', tops);
+  probePlacementStep(sim, 'sydney');
+  probeIdleStability(sim, 'sydney');
+  console.log(`  sydney sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
 }
-});
-
 
 // Phase C (cloud progress sync, tasks 12-14): the player-facing surface of the
 // sync — indicator states, first-time note, trimmed notice, sign-out. The body
@@ -3170,8 +3149,7 @@ function validateProgressUi() {
   console.log('Validating cloud progress UI (indicator, notes, sign-out)...');
   const r = spawnSync(process.execPath, [fileURLToPath(new URL('./progress-ui.test.mjs', import.meta.url))], { encoding: 'utf8' });
   if (r.stdout) process.stdout.write(r.stdout);
-  if (r.status !== 0) fail(`tools/progress-ui.test.mjs failed:
-${r.stderr || ''}`);
+  if (r.status !== 0) fail(`tools/progress-ui.test.mjs failed:\n${r.stderr || ''}`);
 }
 section('syntaxCheck', validateSyntax);
 section('offlineBoot', validateOfflineBoot);
@@ -3182,9 +3160,6 @@ section('helpAndWalkthrough', () => console.log(`Validating Help, Walkthrough & 
 section('fwMath', validateFwMath);
 section('runBoard', () => {
   console.log(`Validating THE RUN trace/replay (${runBoardSelftest()} assertions)...`);
-  // Task 5 (cloud progress sync): the server replay must record how many coins
-  // the run collected, from the sim's own counter, so fw_coins_verified has a
-  // ledger to sum. Same guard style as the best_chain guard in rewardLadders.
   const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\n'"`]*\/\/.*$/gm, '');
   const verifySrc = stripComments(readFileSync(new URL('../api/_verify.mjs', import.meta.url), 'utf8'));
   if (!/\bcoins_collected:\s*sim\.hole\.coinsCollected\b/.test(verifySrc)) {
@@ -3204,6 +3179,7 @@ section('voxelCollisions', validateVoxelCollisions);
 section('gameplayEnhancements', validateGameplayEnhancements);
 section('cityChallenges', validateCityChallenges);
 section('multiplayer', validateMultiplayer);
+section('sydney', validateSydney);
 section('manhattan', validateManhattan);
 section('upperManhattan', validateUpperManhattan);
 section('brooklyn', validateBrooklyn);

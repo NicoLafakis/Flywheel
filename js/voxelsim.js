@@ -264,6 +264,7 @@ const SCENE_IMPORTERS = {
   'cambridge': () => import('./voxelscene-cambridge.js').then((m) => m.buildCambridge),
   'chicago': () => import('./voxelscene-chicago.js').then((m) => m.buildChicago),
   'tokyo': () => import('./voxelscene-tokyo.js').then((m) => m.buildTokyo),
+  'sydney': () => import('./voxelscene-sydney.js').then((m) => m.buildSydney),
 };
 const SCENE_BUILDERS = new Map();
 // In-flight promises, so two overlapping starts (a fast double-tap on a city
@@ -506,6 +507,7 @@ export const SCENE_GOALS = {
   cambridge: { name: 'SWALLOW THE SPROCKET', targetFraction: 1.0 },
   chicago: { name: 'LOOP THE LOOP', targetFraction: 1.0 },
   tokyo: { name: 'CROSS THE SCRAMBLE', targetFraction: 1.0 },
+  sydney: { name: 'EAT THE OPERA HOUSE', targetFraction: 1.0 },
 };
 export const SANDBOX_COIN_COUNT = 60;
 export const SANDBOX_COIN_VALUE = 2;

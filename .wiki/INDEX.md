@@ -96,6 +96,11 @@ what each is waiting on, and what could start today.
   rather than on anything in this package. Start at the
   [README](features/cambridge-sandbox/README.md), which points at
   [00-objective-overview.md](features/cambridge-sandbox/00-objective-overview.md).
+- [features/global-campaign/](features/global-campaign/README.md) — **Sprocket's Odyssey**: 
+  a 29-metropolis worldwide campaign across 7 regional Acts, connecting the protagonist's
+  kinetic flywheel physics directly to global architectural landmarks, leading from
+  The Lab to the Grand Finale at Cambridge · UNBOUND Summit (HubSpot Global HQ).
+
 
 ## External references
 

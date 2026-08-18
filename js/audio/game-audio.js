@@ -30,6 +30,7 @@ import { MusicDirector } from './music.js';
 // Scene id -> ambience bed name (null = deliberate quiet).
 export const SCENE_AMBIENCE = {
   gallery: null,
+  sydney: 'amb-boston',
   brooklyn: 'amb-brooklyn',
   manhattan: 'amb-manhattan',
   'upper-manhattan': 'amb-manhattan',

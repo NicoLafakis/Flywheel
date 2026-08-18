@@ -738,6 +738,11 @@ const AUTHORED_SCENES = {
     hud: 'CAMBRIDGE · CANAL PARK AND LECHMERE',
     intro: { subtitle: 'CAMBRIDGE' },
   },
+  'sydney': {
+    label: 'SYDNEY: OPERA HOUSE AND CBD PROTOTYPE',
+    hud: 'SYDNEY · THE LITTLE CITY VERTICAL SLICE',
+    intro: { subtitle: 'SYDNEY' },
+  },
   'chicago': {
     label: 'CHICAGO: THE LOOP AND THE CHICAGO RIVER',
     hud: 'CHICAGO · THE LOOP & WILLIS TOWER',
