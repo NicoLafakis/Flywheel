@@ -85,9 +85,10 @@ function isStartKey(e) {
  * @param {string} [opts.subtitle]    small pill above it, e.g. 'BROOKLYN'
  * @param {Function} [opts.onStart]   fired once when the player triggers the CTA
  * @param {boolean} [opts.reducedMotion] skip every animation
+ * @param {boolean} [opts.showTutorialCards] show pre-flight 4-step cards
  * @returns {{ dismiss: Function }}
  */
-export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reducedMotion = false } = {}) {
+export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reducedMotion = false, showTutorialCards = false } = {}) {
   const host = document.getElementById('app') || document.body;
   if (liveDismiss) liveDismiss(); // never stack gates
   const stale = document.getElementById(GATE_ID);
@@ -128,6 +129,33 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reduc
   // rather than centred so the establishing shot shows through the middle of
   // the frame — see the .rg-stack rule in main.css for the measurement.
   root.querySelector('.rg-top').appendChild(buildBlockWord(title));
+
+  if (showTutorialCards) {
+    const cardsEl = el(`<div class="rg-tutorial-cards" aria-label="How to play instructions">
+      <div class="rg-tut-card">
+        <span class="rg-tut-card-icon">🕳️</span>
+        <strong class="rg-tut-card-title">1. Start Small</strong>
+        <span class="rg-tut-card-desc">Eat cones & trash to build initial mass</span>
+      </div>
+      <div class="rg-tut-card">
+        <span class="rg-tut-card-icon">📈</span>
+        <strong class="rg-tut-card-title">2. Grow Big</strong>
+        <span class="rg-tut-card-desc">Fill mass bar to jump size tiers</span>
+      </div>
+      <div class="rg-tut-card">
+        <span class="rg-tut-card-icon">🏗️</span>
+        <strong class="rg-tut-card-title">3. Topple Towers</strong>
+        <span class="rg-tut-card-desc">Eat base pillars to crumble giant floors</span>
+      </div>
+      <div class="rg-tut-card">
+        <span class="rg-tut-card-icon">⚡</span>
+        <strong class="rg-tut-card-title">4. Power-Up</strong>
+        <span class="rg-tut-card-desc">Drive into glowing light beams</span>
+      </div>
+    </div>`);
+    root.querySelector('.rg-top').appendChild(cardsEl);
+  }
+
 
   const cta = root.querySelector('.fw-cta');
   const prevFocus = document.activeElement;

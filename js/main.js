@@ -20,6 +20,7 @@ import { HUD, ANN } from './ui/hud.js';
 import { Screens, SKINS, INDICATOR_SKINS } from './ui/screens.js';
 import { isSkinAvailable } from './skinapproval.js';
 import { mountReadyGate } from './ui/ready.js';
+import { TutorialManager, shouldShowTutorial } from './ui/tutorial.js';
 import { startMenuScene, stopMenuScene, tickMenuScene, resizeMenuScene } from './ui/menuscene.js';
 import { TIERS, defaultTierForDevice } from './quality.js';
 
@@ -124,6 +125,7 @@ let world = null;
 let cam = null;
 let controls = null;
 let readyGate = null; // live mountReadyGate handle, so teardown can dismiss it
+let tutorialManager = null; // live interactive onboarding walkthrough
 let lastSandboxScene = 'gallery'; // for pause-menu RESTART in the sandbox
 let lastSandboxMode = 'freeplay';
 let rankedRun = null; // { inputs, ticks, ticket, move }; only allocated before a RUN starts
@@ -917,6 +919,18 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
     // The handle is kept so teardownWorld() can dismiss it: dropping the node
     // alone would leave a live window keydown listener AND body.rg-gate-up set,
     // which strands the HUD invisible on the next campaign level.
+    const showTutorial = shouldShowTutorial(save, scene);
+    if (showTutorial) {
+      tutorialManager = new TutorialManager({
+        save,
+        scene,
+        onSave: (s) => storeSave(s),
+      });
+    } else if (tutorialManager) {
+      tutorialManager.unmount();
+      tutorialManager = null;
+    }
+
     if (authored && authored.intro) {
       // Arrival beat under the wide static overview; the gate's own downbeat
       // answers when the player starts the zoom.
@@ -925,6 +939,7 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
         title: 'READY?',
         subtitle: authored.intro.subtitle,   // the pill is sized for one short word
         reducedMotion: save.settings.reducedMotion,
+        showTutorialCards: showTutorial,
         onStart: () => {
           readyGate = null;     // the gate tears itself down after onStart
           audio.countdownGo();   // downbeat for the zoom
@@ -936,7 +951,8 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
       // bounds to frame, so use its movement bounds for the same zoom-in beat.
       cam.beginIntro({ minR: sim.bounds, sun: sunDirOf(world) });
       readyGate = mountReadyGate({
-        title: 'READY?', subtitle: 'SANDBOX', reducedMotion: save.settings.reducedMotion,
+        title: 'READY?', subtitle: 'PROVING GROUND', reducedMotion: save.settings.reducedMotion,
+        showTutorialCards: showTutorial,
         onStart: () => { readyGate = null; audio.countdownGo(); cam.releaseIntro(); },
       });
     }
@@ -953,6 +969,7 @@ function teardownWorld() {
   pokeSpawnQueue = [];
   isShowingPokeSpawn = false;
   if (readyGate) { readyGate.dismiss(); readyGate = null; }
+  if (tutorialManager) { tutorialManager.unmount(); tutorialManager = null; }
   if (world) { world.dispose(); world = null; }
   if (mpHost) { mpHost.destroy(); mpHost = null; }
   if (mpPeer) { mpPeer.destroy(); mpPeer = null; }
@@ -962,6 +979,7 @@ function teardownWorld() {
   sim = null;
   audio.stopScene();   // a level teardown silences the city bed with the city
 }
+
 
 // One construction site for the multiplayer UI. It used to be copy-pasted into
 // each of the three entry points, which is how a fourth entry point ends up with
@@ -1468,7 +1486,18 @@ function frame(ts) {
         // Single player is unaffected: `!isMultiplayer` short-circuits true.
         if (!ev.hole || isLocalHole) audio.handleEvent(ev);
         else if (ev.type === 'quake') audio.handleEvent(ev, { quiet: true });
+
+        if (tutorialManager) {
+          if (ev.type === 'eat' && isLocalHole) tutorialManager.onEat(ev.obj);
+          else if (ev.type === 'growth' && isLocalHole) tutorialManager.onSizeUp(ev.size);
+          else if (ev.type === 'combo' && isLocalHole) tutorialManager.onCombo(ev.level);
+          else if (ev.type === 'crash') tutorialManager.onCollapse();
+          else if (ev.type === 'powerup_spawn') tutorialManager.onPowerUpSpawn(ev.powerup?.type);
+          else if (ev.type === 'powerup_collect' && isLocalHole) tutorialManager.onPowerUpCollected(ev.powerup?.type);
+        }
+
         if (ev.type === 'combo') {
+
           if (isLocalHole) {
             hud.pulseCombo();
             if (ev.level >= 2) {
