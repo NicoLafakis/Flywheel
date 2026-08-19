@@ -4372,6 +4372,9 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
 /* Campaign Act Filter Tabs */
 .city-act-filter-rail {
   width: 100%;
+  /* A scroll container's auto min-size is 0, so as a child of the column-flex
+     screen it would shrink to its padding and clip the pills; never shrink. */
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 6px;

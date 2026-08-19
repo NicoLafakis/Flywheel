@@ -89,6 +89,14 @@ export function runMobileUiSelftest() {
     assert(desk && /\.city-act-filter-rail \{[^}]*padding:\s*12px 4px 14px/.test(desk[0]), 'desktop act rail padding must be 12px top / 14px bottom');
   });
 
+  // 3f. The act rail is a scroll container inside a height-constrained column
+  // flex screen; its auto min-size is 0, so without flex-shrink:0 it collapses
+  // to its padding and clips the pills top/bottom (Nico's 2026-08-19 desktop shot).
+  test('Act filter rail cannot collapse and clip its pills', () => {
+    const rail = cssSrc.match(/\n\.city-act-filter-rail \{[^}]*\}/);
+    assert(rail && /flex-shrink:\s*0/.test(rail[0]), '.city-act-filter-rail must set flex-shrink: 0');
+  });
+
   // 4. Mobile Shop Shell & Docked Navigation
   test('Shop provides mobile docked tab bar and responsive item grid', () => {
     assert(cssSrc.includes('.shop-screen'), 'Must style .shop-screen');
