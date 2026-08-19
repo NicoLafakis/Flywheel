@@ -180,6 +180,38 @@ const TARGET_RATE_CAMPAIGN = 8;
 // with a hard containment clamp and a roof lift behind it.
 const BLOCKER_T_IN = 9;
 const BLOCKER_T_OUT = 3.5;
+// ADR-0022, opt-in per rig (see setSmoothOcclusion). Upward roof-climb rate for
+// the damped ascent that replaces the legacy one-frame `_lift = need` snap.
+// 18/s = 56 ms time constant: 30 % of the remaining gap per 60 fps frame, 95 %
+// of a step in ~9 frames. Downward release keeps BLOCKER_T_OUT. First-order,
+// not a slew limit: a 50 m roof step still moves ~13 m on its first frame —
+// that is the knob if it reads as a pop; tightening it buys fewer frames with
+// the camera below the roofline, which is the whole trade.
+const BLOCKER_LIFT_IN = 18.0;
+// Ceiling of the occlusion pitch boost under the S-curve: S(1) * this, reached
+// at the standoff floor (effT = MIN_T). 0.50 rad = 28.6 deg. The legacy linear
+// path peaks at (1 - 0.15) * 0.5 = 0.425.
+const PITCH_MAX_BOOST = 0.5;
+const MIN_T = 0.15;   // the rawT floor below; named here for the easing's domain
+// Pull-in rate of the pitch's own standoff filter (flagged path only). Slower
+// than BLOCKER_T_IN on purpose: the position must reach the safe standoff fast,
+// the horizon does not. The S-curve's mid-slope is 1.5x linear, so at 9/s a
+// near-full step peaks at 0.063 rad/frame and at 6/s a FULL step (0.92 -> 0.15,
+// the hole hugging a wall) still grazes 0.049 (both measured, Node and
+// in-browser); 5/s = 200 ms holds every frame under the 0.05 rad budget in
+// tools/camera-smoothing.test.mjs with margin. This is an ANGULAR rate (see the
+// SPATIAL/ANGULAR note at the top of the file): it is applied UNSCALED, not via
+// _spatialRate — the in-browser drive at SIZE ~2.6 measured 0.049 rad/frame
+// with the spatial scaling on, at any base rate from 4 to 6, because the
+// scaling multiplied it back up.
+const PITCH_EASE_IN = 5;
+// Flagged pull-in parks the camera this far (m) in front of the occluding face:
+// past the 0.75 m footprint pad _roofOver/_insideBlocker apply, with 0.25 m of
+// rounding room, so landing in front of a wall never hands off to the lift.
+const BLOCKER_STANDOFF = 1.0;
+// ...and sweeps footprints padded by the same 0.75 m _roofOver/_insideBlocker
+// use, so the sweep and the lift agree about where a building begins.
+const SWEEP_PAD = 0.75;
 
 // --- level intro (see beginIntro) -------------------------------------------
 // Wide establishing lens. Widening the FOV instead of only pulling back cuts
@@ -252,6 +284,17 @@ try {
  * @param {number} [baseFov=45] - baseline landscape vertical FOV
  * @returns {number} compensated vertical FOV in degrees
  */
+// ADR-0022 occlusion pitch easing. Cubic Hermite / smoothstep S(u) = u^2(3-2u):
+// S(0)=0, S(1)=1, S'(0)=S'(1)=0, so the overhead tilt that rides the standoff
+// starts and ends with zero jerk instead of the legacy constant -0.5 slope that
+// begins tilting at full velocity the frame a corner clips the ray. Pure, no
+// state; exported for tools/camera-smoothing.test.mjs.
+export function occlusionPitchEase(u) {
+  if (!(u > 0)) return 0;
+  if (u >= 1) return 1;
+  return u * u * (3 - 2 * u);
+}
+
 export function computeAdaptiveFov(aspect, baseFov = 45) {
   if (!aspect || aspect >= 1.0) return baseFov;
   // Natural aspect compensation curve: fov = baseFov / sqrt(aspect)
@@ -299,7 +342,15 @@ export class ChaseCamera {
     this._velZ = 0;
     this._effT = null;        // smoothed blocker standoff; null = adopt the raw one
     this._lift = 0;           // roof-clearance floor on cy (m), eases down only
+    // ADR-0022: S-curve occlusion pitch + damped roof climb. OFF by default so
+    // every existing caller keeps the legacy linear-pitch / snap-lift path
+    // bit-identical; main.js turns it on for The Lab only (owner decision
+    // 2026-08-19: feel it on one level before rolling it out).
+    this.smoothOcclusion = false;
+    this._pitchT = null;      // flag-only: the pitch's own filtered standoff (see update)
+    this.lastEffPitch = 0;    // the placed effective pitch (rad), read by probes/tests
     this._span = { enter: 0, exit: 0 };  // raySpan2D scratch; ~540 calls/frame
+    this._padBox = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };  // flagged sweep scratch
     this.fovBase = 45;
     this._fovKick = 0;        // temporary FOV punch (growth/milestone juice)
 
@@ -441,6 +492,7 @@ export class ChaseCamera {
     if (this.reducedMotion && (this.introPhase === 'rise' || this.introPhase === 'dive')) this.skipIntro();
   }
   setFollowDirection(val) { this.followDir = !!val; }
+  setSmoothOcclusion(val) { this.smoothOcclusion = !!val; }
 
   // Aim the chase at THIS yaw instead of at the drive heading, or pass null to
   // go back to chasing the heading.
@@ -1596,8 +1648,30 @@ export class ChaseCamera {
     const invReach = 1 / Math.max(1e-6, dist * dirY);
     for (const b of this.blockers) {
       if (b.h <= 0) continue;                    // demolished, no longer occludes
-      const s = this.raySpan2D(tx, tz, dirX, dirZ, b, this._span);
+      // ADR-0022 (flagged): sweep the SAME padded footprint _roofOver and
+      // _insideBlocker test (0.75 m), so a ray that skims a corner inside the
+      // pad is pulled in by the sweep instead of being handed to the lift.
+      // Legacy sweeps the bare box, and the 0.75 m ring between the two is
+      // exactly where its 50 m pops come from: the sweep says clear, the pad
+      // says roof.
+      let bb = b;
+      if (this.smoothOcclusion) {
+        const pb = this._padBox;
+        pb.minX = b.minX - SWEEP_PAD; pb.maxX = b.maxX + SWEEP_PAD;
+        pb.minZ = b.minZ - SWEEP_PAD; pb.maxZ = b.maxZ + SWEEP_PAD;
+        bb = pb;
+      }
+      const s = this.raySpan2D(tx, tz, dirX, dirZ, bb, this._span);
       if (!s) continue;
+      // ADR-0022 (flagged): normalise the span to the camera distance. dirX/dirZ
+      // are unit-per-metre, so raySpan2D hands back metres / cos(pitch), while
+      // `t` and `b.h * invReach` are FRACTIONS of `dist`. Unnormalised, the
+      // pull-in only ever fires on a face within ~cos(pitch) m of the hole and
+      // everything further back is left to the roof lift — which is the 50 m
+      // one-frame pop this ADR exists to remove. Legacy path keeps the mixed
+      // units bit-for-bit (owner scope: Lab first). Sentinels survive the
+      // division: -1 stays <= 0.02 (inside), 1e9 stays effectively infinite.
+      if (this.smoothOcclusion) { s.enter /= dist; s.exit /= dist; }
       const hi = Math.min(s.exit, b.h * invReach);
       if (hi <= s.enter) continue;               // camera clears it at every t
       if (s.enter > 0.02) { if (s.enter < t) t = s.enter; }
@@ -1608,6 +1682,12 @@ export class ChaseCamera {
     // for the same reason in the opposite direction — land ON the face and
     // rounding puts you back inside it.
     let rawT = Math.max(0.15, t * BLOCKER_EASE);
+    // ADR-0022 (flagged): land at least BLOCKER_STANDOFF m in front of the face,
+    // not 8 % of the way back from it. _roofOver and _insideBlocker pad every
+    // footprint by 0.75 m, so the proportional standoff parks the camera INSIDE
+    // that pad for any face nearer than ~9 m — and the pad hands it to the roof
+    // lift, which is the pop. Absolute clearance keeps it out of the pad.
+    if (this.smoothOcclusion && t < 1) rawT = Math.max(MIN_T, Math.min(rawT, t - BLOCKER_STANDOFF / dist));
     // Capped at 1: pushing past the nominal distance would dolly out, and if the
     // box reaches beyond the camera there is nothing to push out to anyway. That
     // residue is what the roof lift below exists for.
@@ -1665,7 +1745,38 @@ export class ChaseCamera {
     // the spawn. Steepening the middle of the dive keeps it above the roofline
     // until the camera is nearly home.
     const diveBump = this._introK * (1 - this._introK) * 1.4;
-    let effPitch = pitch + (1 - effT) * 0.5 + diveBump;
+    // Legacy linear boost, or (ADR-0022, opt-in) the S-curve over the
+    // normalised occlusion u = (1 - t) / (1 - MIN_T). Same at both ends of the
+    // range; the difference is the zero initial slope.
+    //
+    // Under the flag the pitch rides its OWN filtered standoff, `_pitchT`, not
+    // the one that places the camera. The containment re-solve below snaps
+    // effT to rawT on the frame a lagging camera would stand inside a box —
+    // and on entry that is EVERY frame, because a camera lagging behind the
+    // face it is being pulled in front of is, by construction, inside that
+    // box. So the position must snap (safety), but nothing forces the horizon
+    // to snap with it: the pitch eases through the same first-order filter
+    // and the position re-solve leaves it alone. Safe because the sweep was
+    // run at the base `pitch` and every effPitch >= pitch places the camera
+    // closer in XZ (cos smaller) and higher (sin larger) than the sweep
+    // assumed — inside its cleared reach, never past it. Task 2.4 of the
+    // package, done the one way that cannot clip.
+    let pitchBoost;
+    if (this.smoothOcclusion) {
+      if (this._pitchT === null) this._pitchT = effT;
+      const prate = effT < this._pitchT ? PITCH_EASE_IN : BLOCKER_T_OUT;
+      this._pitchT += (effT - this._pitchT) * Math.min(1, dt * prate);
+      // u is measured from the RESTING standoff, BLOCKER_EASE, not from 1: the
+      // sweep never returns more than 0.92 in the clear, and an S-curve whose
+      // flat start sits at 1.0 has already spent it (S'(0.094) = 0.51) by the
+      // time anything happens. Measured from rest, S'(0) = 0 is the onset.
+      const boost = occlusionPitchEase((BLOCKER_EASE - this._pitchT) / (BLOCKER_EASE - MIN_T)) * PITCH_MAX_BOOST;
+      pitchBoost = () => boost;
+    } else {
+      this._pitchT = null;
+      pitchBoost = (t) => (1 - t) * 0.5;
+    }
+    let effPitch = pitch + pitchBoost(effT) + diveBump;
     let cx = tx + Math.sin(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.x;
     let cz = tz + Math.cos(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.z;
     let cy = Math.max(2.5, Math.sin(effPitch) * dist * effT + this.shakeOffset.y);
@@ -1679,7 +1790,7 @@ export class ChaseCamera {
     // building on Brooklyn and Upper Manhattan; guarding both leaves none.
     if (this._insideBlocker(cx, cy, cz)) {
       this._effT = effT = rawT;
-      effPitch = pitch + (1 - effT) * 0.5 + diveBump;
+      effPitch = pitch + pitchBoost(effT) + diveBump;
       cx = tx + Math.sin(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.x;
       cz = tz + Math.cos(this.yaw) * Math.cos(effPitch) * dist * effT + this.shakeOffset.z;
       cy = Math.max(2.5, Math.sin(effPitch) * dist * effT + this.shakeOffset.y);
@@ -1724,13 +1835,20 @@ export class ChaseCamera {
     if (this.introPhase !== 'hold' && this.introPhase !== 'rise') {
       const roof = this._roofOver(cx, cz);
       const need = roof > 0 ? roof + ROOF_CLEAR : 0;
-      if (need > this._lift) this._lift = need;
+      if (this.smoothOcclusion) {
+        // ADR-0022: directional first-order filter, fast up / slow down. The
+        // `cy = max(cy, _lift)` backstop below is unchanged, so the only thing
+        // this trades is a few frames below the roofline for no one-frame pop.
+        const rate = need > this._lift ? BLOCKER_LIFT_IN : BLOCKER_T_OUT;
+        this._lift += (need - this._lift) * Math.min(1, dt * this._spatialRate(rate));
+      } else if (need > this._lift) this._lift = need;
       else this._lift += (need - this._lift) * Math.min(1, dt * this._spatialRate(BLOCKER_T_OUT));
       if (this._lift > cy) cy = this._lift;
     } else {
       this._lift = 0;
     }
 
+    this.lastEffPitch = effPitch;
     this.camera.position.set(cx, cy, cz);
     this.camera.lookAt(tx, 0, tz);
 

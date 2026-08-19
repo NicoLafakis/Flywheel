@@ -40,6 +40,18 @@ mutates sim state.
   `generateBlockers` (`voxelkit.js`) for Brooklyn/Upper Manhattan and hand-pushed
   for Lower Manhattan. Same `h > 6` cut applies; `tools/validate.mjs` enforces it
   for Manhattan because nothing in the sim can.
+- **ADR-0022 smooth occlusion is The Lab only** (2026-08-19). `ChaseCamera.smoothOcclusion`
+  (`setSmoothOcclusion`) is set from `scene === 'gallery'` at the sandbox and
+  multiplayer camera sites in `main.js`; every other city is bit-identical legacy
+  (parity-tested). Under the flag: S-curve pitch boost via a decoupled, UNSCALED
+  angular `_pitchT` filter, first-order roof lift at `BLOCKER_LIFT_IN = 18`,
+  distance-normalised sweep spans with a 1.0 m standoff and a 0.75 m sweep pad.
+  Found on the way: the legacy sweep compares metre spans from `raySpan2D`
+  against a dimensionless `t`, so legacy pull-in almost never fires — left as-is
+  under flag-off by design, fixed under the flag; the Lab also shipped with zero
+  `cameraBlockers` (now `generateBlockers` at the end of `_buildScene`). Tests:
+  `tools/camera-smoothing.test.mjs` (`cameraSmoothing` section). Feature package:
+  `.wiki/features/camera-bezier-smoothing/`.
 - **`sim.cameraBlockers` now tracks demolition** (2026-08-05). It used to be
   built once at scene start and never pruned, so a levelled tower kept a ghost
   AABB the camera hid behind forever. `_bindCameraBlockers()` indexes each

@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-17
+Last updated: 2026-08-19
 
 ---
 
@@ -28,6 +28,7 @@ Last updated: 2026-08-17
 
 ## Shipped state
 
+- 2026-08-19 — ADR-0022 camera smoothing, The Lab only: `ChaseCamera.smoothOcclusion` (gallery scene) gives S-curve occlusion pitch (decoupled unscaled `_pitchT` filter, 5/s), first-order roof lift (18/s up, 3.5/s down), distance-normalised blocker sweep with 1.0 m standoff and 0.75 m pad; all other cities bit-identical legacy (48k-sample parity). The Lab gains the 3-tower testbed (Gamma 25 m / Alpha 35 m / Beta 48 m, SE strip x 26..89 z 25..45, +14.8 % blocks) and, for the first time, `cameraBlockers` (191). `tools/camera-smoothing.test.mjs` (10 assertions, `cameraSmoothing` section; the core group now also runs the previously-unlisted tutorial/mobile sections). Browser drive: max |dpitch| 0.039 rad/frame, |dy| 1.9 m/frame outside roof climbs. Findings papered in `.wiki/features/camera-bezier-smoothing/03-tasks.md`: legacy sweep unit bug (flag-off untouched), 2.5 m/frame roof budget unwinnable for a first-order filter.
 - 2026-08-19 — City Select act-filter rail clipping fix: the rail (a scroll container, auto min-size 0) was shrinking inside the column-flex screen to its own padding and clipping the tab pills top/bottom on every viewport; `flex-shrink: 0` on `.city-act-filter-rail`; browser harness `tools/pw/_city-select-verify/rail-diag.mjs` asserts pill rect inside rail client rect with >=2px margin (1440x900 + 390x844); `tools/mobile-ui.test.mjs` now 10 tests
 - 2026-08-19 — City Select follow-up: CLEARED stamp (100% clear) and 3-MIN challenge seal split into independent marks (`.city-marks` cluster, cyan `.city-challenge-badge`, layered on the stamp corner when both, alone for challenge-only); desktop-only (`min-width:1024px` + hover/fine-pointer) breathing room for header, act rail, card and CTA area — 390x844 metrics verified pixel-identical before/after; `tools/mobile-ui.test.mjs` now 9 tests
 - 2026-08-19 — City Select card-state cleanup (`js/ui/screens.js` `showCitySelect` + `css/main.css`): upper-right status pill removed in favour of an on-card CSS "CLEARED" passport stamp, faded body + sticky lock bar ("METROPOLIS LOCKED — Clear {gating PLAYABLE city} 100% in under 5 minutes") for locked cities and an "UNDER CONSTRUCTION" bar for DEVELOPMENT cities; lock-bar copy now names the preceding PLAYABLE city (was the previous carousel card, which could be an in-development city); play CTA is `PLAY {city}` (no `(5 MIN)`); the 29-dot bottom rail is gated off behind `SHOW_CITY_DOTS = false` and act tabs get a 40px min touch height; covered by `tools/mobile-ui.test.mjs` (7 tests) and verified headed on 390x844 / 360x640 / 844x390)

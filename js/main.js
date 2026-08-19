@@ -819,6 +819,11 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
     hud.setReducedMotion(save.settings.reducedMotion);
     hud.resetSandboxMeters(); // the plate and the ring must not open on the last run's numbers
     cam.setFollowDirection(true); // chase cam swings behind the direction of travel
+    // ADR-0022 Bezier occlusion smoothing, scoped to The Lab first (owner
+    // decision 2026-08-19): every other city keeps the legacy camera until it
+    // has been felt here. Set BEFORE setBlockers so the first frame is already
+    // on the flagged path.
+    cam.setSmoothOcclusion(scene === 'gallery');
     cam.setBlockers(sim.cameraBlockers); // tall towers occlude the low chase cam
     // Establishing shot, authored scenes only (an `intro` row in
     // AUTHORED_SCENES). Ordered AFTER setBlockers because beginIntro frames the
@@ -1298,6 +1303,7 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
     hud.setReducedMotion(save.settings.reducedMotion);
     hud.resetSandboxMeters();
     cam.setFollowDirection(true);
+    cam.setSmoothOcclusion(scene === 'gallery'); // ADR-0022, The Lab only (see startVoxelSandbox)
     cam.setBlockers(sim.cameraBlockers);
     // Instant snap to local hole spawn to eliminate spawn swoop and shake
     const spawnHole = sim.localHole;

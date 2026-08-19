@@ -58,7 +58,7 @@ import { CITY_CATALOG } from './citycatalog.js';
 import {
   bench, bigTruck, bikeRack, billboard, bollard, boxVan, brownstone, bus, cafeTable,
   crateStack, deliveryTruck, dockCleat, helicopter, helipad, hotDogCart, hydrant,
-  lampPost, laneDashes, mailbox, marketStall, mooringBollard, motorLaunch, motorcycle,
+  generateBlockers, lampPost, laneDashes, mailbox, marketStall, megaShell, mooringBollard, motorLaunch, motorcycle,
   newsBox, newsstand, pierDeck, planter, pothole, sandwichBoard, schoolBus, sedan, shippingContainer,
   signPost, signText, streetLightSignal, subwayEntrance, subwayStairEntrance, tower, trafficLight, trashBags,
   trashBin, tree, waterTower, kenneySUV, kenneySkyscraper,
@@ -2408,6 +2408,80 @@ export class VoxelSandboxSim {
     bigTruck(this, 68, 20, 0x457b9d, false);
 
     // =========================================================================
+    // ADR-0022 CAMERA TESTBED (SOUTH-EAST STRIP: x: 26..89, z: 25..45)
+    // Three high-rises with 6 m / 7 m canyons between them, so the chase
+    // camera's occlusion pull-in, S-curve pitch and damped roof climb can be
+    // felt and tuned in The Lab before any city gets them. The package drew
+    // this in a NE quadrant (z -80..-30) that is outside the Lab's z bounds
+    // (+-45) — this strip was the one free zone wide enough for the three
+    // footprints at spec size; every other quadrant is built out (see
+    // .wiki/features/camera-bezier-smoothing/02-technical-design.md).
+    //
+    // megaShell (2 m hollow shells, one-in-five interior columns) rather than
+    // the 1 m `tower` kit: the three masses cost ~2.3k blocks this way against
+    // ~12k as solid 1 m towers, on the scene every mobile player boots into.
+    // Footprints are kept on EVEN metres so the 2 m cells land exactly on the
+    // authored edges tools/camera-smoothing.test.mjs pins.
+    // =========================================================================
+
+    // megaShell(ox, oy, oz, nx, ny, nz): walls oy..oy+2ny, then a 2 m roof
+    // plate oy+2ny..oy+2ny+2 — a stacked tier or crown starts ABOVE the roof.
+
+    // Tower Gamma — brutalist block, 14 x 14 m, 25 m (x: 26..40, z: 27..41)
+    // 22 m of shell + 2 m roof + 1 m parapet ring = 25 m.
+    {
+      const gx = 26, gz = 27;
+      megaShell(this, gx, 0, gz, 7, 11, 7, 'concrete', 0x8d8680, { roofColor: 0x6f6a64 });
+      for (let k = 0; k < 14; k++) {        // parapet ring, y 24..25 (corners once: a doubled cell is pushed off the roof)
+        this._block(gx + k, 24, gz, 'concrete', 1, 0x6f6a64);
+        this._block(gx + k, 24, gz + 13, 'concrete', 1, 0x6f6a64);
+        if (k > 0 && k < 13) {
+          this._block(gx, 24, gz + k, 'concrete', 1, 0x6f6a64);
+          this._block(gx + 13, 24, gz + k, 'concrete', 1, 0x6f6a64);
+        }
+      }
+    }
+
+    // Tower Alpha — glass-and-steel office, 16 x 16 m, 35 m (x: 46..62, z: 26..42)
+    // 4 m concrete podium, 28 m curtain-wall shell + 2 m roof, 1 m crown = 35 m.
+    // The curtain wall is a STEEL shell tinted glass-blue, not a glass one: a
+    // shell of 2 m glass cells this tall fails under its own height (measured:
+    // 252 of its cells falling within 8 s of spawn), and the sim has no way to
+    // hang cladding off a frame at this cell size.
+    {
+      const ax = 46, az = 26;
+      megaShell(this, ax, 0, az, 8, 2, 8, 'concrete', 0x4a5568, { roof: false });
+      megaShell(this, ax, 4, az, 8, 14, 8, 'steel', 0x7fb8d8, { roofMat: 'steel', roofColor: 0x2b3a4a });
+      for (let k = 0; k < 16; k++) {        // steel crown ring, y 34..35 (corners once)
+        this._block(ax + k, 34, az, 'steel', 1, 0x1a365d);
+        this._block(ax + k, 34, az + 15, 'steel', 1, 0x1a365d);
+        if (k > 0 && k < 15) {
+          this._block(ax, 34, az + k, 'steel', 1, 0x1a365d);
+          this._block(ax + 15, 34, az + k, 'steel', 1, 0x1a365d);
+        }
+      }
+    }
+
+    // Tower Beta — art-deco setbacks, 20 x 20 m, 48 m (x: 69..89, z: 25..45)
+    // Tiers (walls + roof): 20 x 20 to 16 m, 16 x 16 to 32 m, 12 x 12 to 44 m,
+    // 2 x 2 m spire to 48 m. Flush against the south bound on purpose: the
+    // existing skyscraper row ends at z 20, and a 6 m lane between it and
+    // Beta's north face (vs the 2 m sliver a centred Beta would leave at the
+    // bound) is the drivable canyon the testbed is for.
+    {
+      const bx = 69, bz = 25;
+      megaShell(this, bx, 0, bz, 10, 7, 10, 'concrete', 0xc9b79c, { roofColor: 0xa89a82 });
+      megaShell(this, bx + 2, 16, bz + 2, 8, 7, 8, 'concrete', 0xbfae94, { roofColor: 0xa89a82 });
+      megaShell(this, bx + 4, 32, bz + 4, 6, 5, 6, 'concrete', 0xb5a58c, { roofMat: 'steel', roofColor: 0x6b7280 });
+      for (let y = 44; y < 48; y++) {        // crown spire
+        this._block(bx + 9, y, bz + 9, 'steel', 1, 0x9aa3ad);
+        this._block(bx + 10, y, bz + 9, 'steel', 1, 0x9aa3ad);
+        this._block(bx + 9, y, bz + 10, 'steel', 1, 0x9aa3ad);
+        this._block(bx + 10, y, bz + 10, 'steel', 1, 0x9aa3ad);
+      }
+    }
+
+    // =========================================================================
     // MULTIPLAYER & STARTER SNACK RINGS AROUND 6 SPAWN POINTS (R = 25m)
     // =========================================================================
     const spawnCenters = [
@@ -2597,6 +2671,12 @@ export class VoxelSandboxSim {
 
     // Texture-free lightweight solid color rendering
     this.sceneSurfaces = {};
+
+    // The Lab used to ship ZERO camera blockers — nothing in it occluded the
+    // chase cam, so its skyscrapers were walked through. Generated from the
+    // finished geometry exactly as every authored city does (ADR-0022: the Lab
+    // is the camera's testbed, so it has to exercise the same blocker path).
+    this.cameraBlockers = generateBlockers(this);
   }
 
   // Neighbors are found by scanning each face's fine cells, so mixed-size

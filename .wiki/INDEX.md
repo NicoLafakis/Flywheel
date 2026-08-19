@@ -102,6 +102,8 @@ what each is waiting on, and what could start today.
   a 29-metropolis worldwide campaign across 7 regional Acts, connecting the protagonist's
   kinetic flywheel physics directly to global architectural landmarks, leading from
   The Lab to the Grand Finale at Cambridge · UNBOUND Summit (HubSpot Global HQ).
+- [features/camera-bezier-smoothing/](features/camera-bezier-smoothing/README.md) — **Camera Bézier Occlusion & The Lab Skyscraper Testbed** ([ADR-0022](adr/0022-camera-bezier-occlusion-and-smooth-roof-climbing.md)):
+  $C^1$-continuous cubic Bézier / Hermite S-curve pitch transitions, critically damped continuous roof-climbing ascent rates, and an authored 3-tower skyscraper testbed in The Lab to eliminate abrupt overhead flips and vertical pops.
 
 
 ## External references
