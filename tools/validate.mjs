@@ -63,6 +63,7 @@ import { runMobileZoomControlsSelftest } from './mobile-zoom-controls.test.mjs';
 import { runCampaignSelftest } from './validate-campaign.mjs';
 import { runCampaignUiSelftest } from './campaign-ui.test.mjs';
 import { runCameraSmoothingSelftest } from './camera-smoothing.test.mjs';
+import { runQuakeRuptureSelftest } from './quake-rupture.test.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -3095,7 +3096,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     // registered as sections but never added to this list (found 2026-08-19
     // while adding cameraSmoothing), so `node tools/validate.mjs` had not been
     // running them — only a by-name FW_VALIDATE_SECTIONS run did.
-    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,globalCampaign,campaignUi,tutorialOnboarding,mobileCameraClarity,mobileUiResponsive,deviceDetection,mobileZoomControls,cameraSmoothing,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges'],
+    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,globalCampaign,campaignUi,tutorialOnboarding,mobileCameraClarity,mobileUiResponsive,deviceDetection,mobileZoomControls,cameraSmoothing,quakeRupture,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges'],
     // Its own child rather than folded into `core`: every suite in it is itself
     // a spawned process, so it is the one group whose cost is process startup
     // instead of CPU, and it finishes long before the scenes either way.
@@ -3181,6 +3182,7 @@ section('mobileUiResponsive', () => console.log(`Validating Mobile-First UI & Na
 section('deviceDetection', () => console.log(`Validating Device Detection & Relative Controls (${runDeviceDetectionSelftest()} assertions)...`));
 section('mobileZoomControls', () => console.log(`Validating Mobile Pinch/Expand Zoom & Gestures (${runMobileZoomControlsSelftest()} assertions)...`));
 section('cameraSmoothing', () => console.log(`Validating ADR-0022 Camera Bezier Occlusion Smoothing, Lab-scoped (${runCameraSmoothingSelftest()} assertions)...`));
+section('quakeRupture', () => console.log(`Validating Fault Line Rupture full-length wavefront (${runQuakeRuptureSelftest()} assertions)...`));
 section('fwMath', validateFwMath);
 
 

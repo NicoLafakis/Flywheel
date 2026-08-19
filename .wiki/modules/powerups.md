@@ -41,7 +41,50 @@ Provides collectible in-game power-up entities and active status effects across 
   - `Titan Surge`: Golden-crimson border flare and Kanji expansion header (`巨 大 化`).
   - `Turbo Overdrive`: High-velocity anime lightning streaks along screen borders.
   - `Chain Frenzy`: Dragon fire flame borders and glowing chain particles.
-- **Fault Line Rupture cinematic**: The instant quake is resolved in the sim,
+- **Fault Line Rupture wavefront** (`js/voxelsim.js` `_queueFault` /
+  `_advanceFaults`, 2026-08-19): collecting QUAKE only *queues* a fault — every
+  static/unstable block within `QUAKE_CRACK_WIDTH` (4 m) of the line from the
+  hole to the farthest bounds corner, plus a ground-level (y<=3) flank band out
+  to `QUAKE_FLANK_MULT` (1.5x), sorted by distance along the line. `step()` then
+  releases that list front-to-back at `faultLen / QUAKE_RUPTURE_SECONDS` (1.5 s,
+  matching the camera's 1.16 s launch-to-endpoint phase and the renderer's
+  0.6-1.0 s fissure propagation), at most `QUAKE_RELEASE_CAP` (60) blocks per
+  fault per step. State lives on `sim._activeFaults` and is advanced ONLY inside
+  `step()`; `sim._lastFaultReleases` is the per-step probe the validator reads.
+  Every storey detaches: ground-band blocks keep the perpendicular 3.5 m/s kick,
+  upper storeys are thrown outward harder with height
+  (`QUAKE_STOREY_KICK_PER_M`, capped by `QUAKE_STOREY_KICK_MAX`), flank blocks
+  slump *into* the crack one crack-width behind the front, and a kick that
+  would land inside `QUAKE_EDGE_MARGIN` of the map edge is redirected toward
+  the centre (the boundary clamp otherwise herds debris into one column the
+  pair solver bounces apart forever). The open crack **swallows** — consumes
+  without award — any loose body that comes to rest inside it (underside at or
+  below `QUAKE_SWALLOW_Y`), for `QUAKE_SWALLOW_SECONDS` (6 s) after the last
+  release; rubble that lands on the banks stays edible. The Seismic disaster
+  (`_triggerNaturalSeismicDisaster`, `SEISMIC_CRACK_WIDTH` 5 m, centre-out in
+  both directions) takes the same path with `disasterRng`.
+  - *Why the 160/180-block cap went*: the fault used to resolve in one frame,
+    stop after 160 blocks (a few metres into a dense city) and detach only the
+    y<=3 band; taller blocks were set unstable/damage=1, but `_recalcSupport`
+    runs first in `step()` and resets any still-supported unstable block to
+    static, so they never fell. Owner report: "doesn't break everything down
+    between the player and the end of the quake".
+  - *Why the fissure swallows*: a building holds far more block volume than the
+    ground strip under it. Dropped in place, a tower becomes a stack of loose
+    bodies the pair solver walks apart for seconds (measured before the
+    swallow: ~400 blocks awake and ~130 still moving at >5 m/s ten seconds
+    after the quake, 90-120 ms/step on the desktop tier). With it, the gallery
+    corner fault (2008 blocks over 200 m) releases in 1.48 s, peaks ~65 ms/step
+    for about a second, and is back at the 3-4 ms baseline by t+4 s; ~1600
+    blocks are swallowed and ~380 remain as bank rubble.
+  - Pinned by `tools/quake-rupture.test.mjs` (validator section `quakeRupture`):
+    full-length rupture across all ten longDist deciles, per-step cap,
+    determinism, no state change outside `step()`, swallow/no-award, and the
+    Seismic variant. `RANKED_SIM_VERSION` bumped 2 -> 3 (both fire inside a
+    90 s RUN).
+- **Fault Line Rupture cinematic**: The quake is queued in the sim (see the
+  wavefront above; the sim is held for the cinematic, so the rupture itself
+  plays out over ~1.5 s once the chase camera returns),
   then a 5.8-second, skippable super-move sequence freezes gameplay input and
   game time. Three player close-ups slam **EARTH**, **QUAKE**, and **TIME!**
   into the center of the screen; the camera then launches to the far endpoint,

@@ -294,6 +294,28 @@ export async function loadScene(scene) {
   finally { SCENE_PENDING.delete(scene); }
 }
 
+// --- Fault Line Rupture (QUAKE power-up / Seismic disaster) -------------------
+// The fault used to resolve in ONE frame and stop after 160 blocks, i.e. a few
+// metres into a dense city, and only y<=3 blocks detached (taller ones were
+// flagged unstable/damage=1 and then reset to static by the next support recalc
+// because they still had a foundation). Owner report: "doesn't break everything
+// down between the player and the end of the quake". It is now a staggered
+// WAVEFRONT: trigger collects every block the crack crosses over the FULL
+// length, sorted by distance along the line, and step() releases them
+// front-to-back. Total is uncapped; only the per-step release count is bounded,
+// which is what mobile perf actually needs (debris population is separately
+// governed by the tier's debrisCap in _capDebris).
+export const QUAKE_CRACK_WIDTH = 4.0;      // m either side of the line: detached outright
+export const QUAKE_FLANK_MULT = 1.5;       // flank band (crackWidth..crackWidth*mult): released one crack-width behind the front, slumping inward
+export const QUAKE_RUPTURE_SECONDS = 1.5;  // wavefront travel time hole->map edge; camera launch phase is 1.16 s, fissure visual 0.6-1.0 s
+export const QUAKE_RELEASE_CAP = 60;       // max blocks released per fault per step; throttles the wavefront rather than truncating it
+export const SEISMIC_CRACK_WIDTH = 5.0;    // natural disaster variant
+export const QUAKE_STOREY_KICK_PER_M = 0.35; // m/s of outward kick per metre of height for blocks above the ground band
+export const QUAKE_STOREY_KICK_MAX = 12.0;  // m/s ceiling on that kick
+export const QUAKE_SWALLOW_SECONDS = 6.0;  // the crack stays open (swallowing debris that lands in it) this long after the last release
+export const QUAKE_SWALLOW_Y = 0.3;        // a loose body whose underside is at or below this inside the crack is swallowed
+export const QUAKE_EDGE_MARGIN = 4.0;      // m: a kick that would land inside this band at the map edge is redirected toward the centre
+
 // --- tuning ------------------------------------------------------------------
 const FINE = 0.25;          // fine grid resolution (m); blocks are fs fine cells per side (0.25/0.5/1/2 m)
 const COLLISION_CELL = 1;   // coarse broad-phase cell for moving-body vs solid queries
@@ -576,7 +598,11 @@ export const RANKED_TUNE_ID = 'ranked-v2';
 // cross-version replay as a cheat merely because a physics bug was fixed.
 // v2 (2026-08-17): SPEED_MULT 1.4 -> 1.8 — a replay under one does not
 // reproduce the other's score trajectory.
-export const RANKED_SIM_VERSION = 2;
+// v3 (2026-08-19): Fault Line Rupture / Seismic disaster became a full-length
+// staggered wavefront that detaches every storey and swallows what lands in
+// the crack (was: first 160/180 blocks, ground band only, one frame). Both
+// fire inside a 90 s RUN, so a v2 replay no longer reproduces the v3 score.
+export const RANKED_SIM_VERSION = 3;
 export const RANKED_TICK_COUNT = 90 * 60;
 export const CHALLENGE_COIN_MULTIPLIER = 2;
 
@@ -867,6 +893,8 @@ export class VoxelSandboxSim {
     // structures, and the support BFS never crosses between them (see
     // _buildZones). Only zones the hole can actually perturb are recomputed.
     this._dirtyComps = new Set(); // zones whose graph changed (a block detached / was eaten)
+    this._activeFaults = [];      // in-flight fault ruptures (see _queueFault / _advanceFaults); advanced ONLY in step()
+    this._lastFaultReleases = 0;  // blocks released by _advanceFaults on the most recent step (perf probe / validator)
     this._prevProx = [];          // zones inside the hole's influence radius on the previous recalc
     // --- render active set (voxelworld.js) --------------------------------------
     // The renderer used to walk all 82,894 blocks every frame to discover that
@@ -1354,6 +1382,159 @@ export class VoxelSandboxSim {
     this._graphDirty = true;
   }
 
+  // Build a fault's release list: every static/unstable block whose perpendicular
+  // distance to the line is within crackWidth*QUAKE_FLANK_MULT, sorted by
+  // distance along the line so step() can release it as a travelling front.
+  // Shared by the power-up (hole -> farthest corner) and the Seismic disaster
+  // (centre-out, both directions: `longMin` < 0). Pure bookkeeping: no block
+  // changes state here -- that happens in _advanceFaults inside step().
+  _queueFault({ x0, z0, cosA, sinA, longMin, longMax, crackWidth, rng, kick, lift }) {
+    const flankW = crackWidth * QUAKE_FLANK_MULT;
+    const list = [];
+    for (let i = 0; i < this.blocks.length; i++) {
+      const b = this.blocks[i];
+      if (b.state !== 'static' && b.state !== 'unstable') continue;
+      const dx = b.x - x0;
+      const dz = b.z - z0;
+      const longDist = dx * cosA + dz * sinA;
+      if (longDist < longMin || longDist > longMax) continue;
+      const rawPerp = -dx * sinA + dz * cosA;
+      const perpDist = rawPerp < 0 ? -rawPerp : rawPerp;
+      if (perpDist > flankW) continue;
+      const flank = perpDist > crackWidth;
+      // Flank band is GROUND-LEVEL only: the banks cave into the fissure, but
+      // the storeys above them stay standing on their own foundations. Taking
+      // whole flank columns too was measured at +60% debris (2574 vs 1635 on the
+      // gallery corner fault) for no extra read -- the crack already guts every
+      // structure it crosses -- and loose debris is the per-frame cost that
+      // mobile pays for (see debrisCap).
+      if (flank && b.y > 3.0) continue;
+      list.push({ b, longDist, rawPerp, flank });
+    }
+    // Front-to-back by |longDist| (the disaster runs both ways from centre);
+    // ties broken by block id so the order is stable across builds/runs.
+    list.sort((p, q) => (Math.abs(p.longDist) - Math.abs(q.longDist)) || (p.b.id - q.b.id));
+    const span = Math.max(longMax, -longMin);
+    const fault = {
+      list, idx: 0, t: 0,
+      x0, z0, cosA, sinA, longMin, longMax, crackWidth,
+      swallowT: QUAKE_SWALLOW_SECONDS, // counts down once the release list is drained
+      speed: span / QUAKE_RUPTURE_SECONDS, // m/s -- tuned via QUAKE_RUPTURE_SECONDS
+      rng, kick, lift,
+    };
+    this._activeFaults.push(fault);
+    // affectedBlocks samples EVENLY along the full line (<=120) so the renderer's
+    // fissure visuals span hole->edge instead of clustering at the first metres.
+    const affectedBlocks = [];
+    const n = list.length;
+    const take = Math.min(120, n);
+    for (let k = 0; k < take; k++) {
+      const e = list[Math.floor((k * n) / take)];
+      affectedBlocks.push({ x: e.b.x, y: e.b.y, z: e.b.z, longDist: e.longDist, perpDist: e.rawPerp });
+    }
+    return affectedBlocks;
+  }
+
+  // Advance every in-flight fault one step: release blocks whose longDist the
+  // wavefront has passed (flank blocks one crack-width later, so the crack
+  // opens first and the banks slump in after), at most QUAKE_RELEASE_CAP per
+  // fault per step. Every block in the crack detaches regardless of height --
+  // the damage=1/unstable route was a dead end because _recalcSupport runs
+  // first in step() and resets any still-supported unstable block to static.
+  _advanceFaults(dt) {
+    this._lastFaultReleases = 0;
+    const faults = this._activeFaults;
+    if (faults.length === 0) return;
+    const rect = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
+    const cx = (rect.minX + rect.maxX) * 0.5, cz = (rect.minZ + rect.maxZ) * 0.5;
+    for (let fi = faults.length - 1; fi >= 0; fi--) {
+      const f = faults[fi];
+      f.t += dt;
+      const front = f.t * f.speed;
+      let released = 0;
+      while (f.idx < f.list.length && released < QUAKE_RELEASE_CAP) {
+        const e = f.list[f.idx];
+        const ld = e.longDist < 0 ? -e.longDist : e.longDist;
+        if (ld + (e.flank ? f.crackWidth : 0) > front) break;
+        f.idx++;
+        const b = e.b;
+        if (b.state !== 'static' && b.state !== 'unstable') continue; // eaten / already fell
+        const sign = e.rawPerp >= 0 ? 1 : -1;
+        let perpX = -f.sinA * sign;
+        let perpZ = f.cosA * sign;
+        // Never kick toward the map edge. The power-up fault ENDS at a bounds
+        // corner, where both sideways directions leave the rect, and a loose
+        // body outside the rect never comes to rest (measured: 57-80 awake
+        // out-of-bounds blocks 20 s after the quake, before this). Inside the
+        // margin the kick points at the map centre instead.
+        if (b.x + perpX * QUAKE_EDGE_MARGIN < rect.minX || b.x + perpX * QUAKE_EDGE_MARGIN > rect.maxX
+            || b.z + perpZ * QUAKE_EDGE_MARGIN < rect.minZ || b.z + perpZ * QUAKE_EDGE_MARGIN > rect.maxZ) {
+          const tx = cx - b.x, tz = cz - b.z;
+          const tl = Math.sqrt(tx * tx + tz * tz) || 1;
+          perpX = tx / tl; perpZ = tz / tl;
+        }
+        const j1 = f.rng ? (f.rng.next() - 0.5) * 2 : 0;
+        const j2 = f.rng ? (f.rng.next() - 0.5) * 2 : 0;
+        if (e.flank) {
+          // banks slump INTO the crack: gentle, mostly downward
+          this._detachBlock(b, -perpX * 1.2 + j1 * 0.5, 0.3, -perpZ * 1.2 + j2 * 0.5);
+        } else if (b.y <= 3.0) {
+          // ground blocks keep the documented perpendicular kick
+          this._detachBlock(b, perpX * f.kick + j1, f.lift, perpZ * f.kick + j2);
+        } else {
+          // Upper storeys: thrown OUTWARD, harder the higher they sit, so a
+          // tower sheds onto the banks and roofs either side of the fissure
+          // (edible rubble) instead of dropping straight into the crack, where
+          // it would only be swallowed (see the swallow pass below).
+          const spread = Math.min(QUAKE_STOREY_KICK_MAX, f.kick * 0.6 + b.y * QUAKE_STOREY_KICK_PER_M);
+          this._detachBlock(b, perpX * spread + j1, 0.4, perpZ * spread + j2);
+        }
+        this._dirtyComps.add(this._compOf[b.bi]);
+        released++;
+      }
+      this._lastFaultReleases += released;
+      if (f.idx >= f.list.length) {
+        f.swallowT -= dt;
+        if (f.swallowT <= 0) faults.splice(fi, 1);
+      }
+    }
+    // The fissure SWALLOWS what lands in it. A building holds far more block
+    // volume than the strip of ground beneath it, so debris dropped in place
+    // stacks into a tower of loose bodies the pair solver then walks apart for
+    // seconds (measured before this: ~400 blocks awake and ~130 still moving at
+    // >5 m/s ten seconds after the quake, 90-120 ms/step on a desktop tier).
+    // Anything whose underside reaches ground level inside an open crack is
+    // consumed WITHOUT award -- the rubble that lands on the banks stays edible.
+    // Two gates share `_faultSwallows`: this sweep catches loose bodies already
+    // sitting at ground level in the crack (jammed, or woken there), and the
+    // sleep-commit site in _stepDebris catches a body the moment it comes to
+    // rest -- a block shattered out of a chunk retires from `_falling` in the
+    // same step it lands, so a start-of-step sweep alone misses it.
+    if (faults.length === 0) return;
+    const fl = this._falling;
+    for (let i = 0; i < fl.length; i++) {
+      const b = fl[i];
+      if (b.state !== 'falling' || b.parentChunk) continue;
+      if (this._faultSwallows(b)) this._consume(b, this.holes[0], false);
+    }
+  }
+
+  // Is this loose body at ground level inside an open fault crack?
+  _faultSwallows(b) {
+    if (b.y - b.sy * 0.5 > QUAKE_SWALLOW_Y) return false;
+    const faults = this._activeFaults;
+    for (let fi = 0; fi < faults.length; fi++) {
+      const f = faults[fi];
+      const dx = b.x - f.x0, dz = b.z - f.z0;
+      const ld = dx * f.cosA + dz * f.sinA;
+      if (ld < f.longMin || ld > f.longMax) continue;
+      const pd = -dx * f.sinA + dz * f.cosA;
+      if ((pd < 0 ? -pd : pd) > f.crackWidth) continue;
+      return true;
+    }
+    return false;
+  }
+
   _triggerVoxelQuake(hole) {
     const r = this.boundsRect || { minX: -this.bounds, maxX: this.bounds, minZ: -this.bounds, maxZ: this.bounds };
     const corners = [
@@ -1386,44 +1567,10 @@ export class VoxelSandboxSim {
     const x1 = hole.x + cosA * faultLen;
     const z1 = hole.z + sinA * faultLen;
 
-    const crackWidth = 4.0;
-    let count = 0;
-    const affectedBlocks = [];
-    for (let i = 0; i < this.blocks.length; i++) {
-      const b = this.blocks[i];
-      if (b.state !== 'static' && b.state !== 'unstable') continue;
-      
-      const dx = b.x - hole.x;
-      const dz = b.z - hole.z;
-      const longDist = dx * cosA + dz * sinA;
-      if (longDist < 0 || longDist > faultLen) continue;
-      
-      const rawPerp = -dx * sinA + dz * cosA;
-      const perpDist = Math.abs(rawPerp);
-      if (perpDist <= crackWidth) {
-        const sign = rawPerp >= 0 ? 1 : -1;
-        const perpX = -sinA * sign;
-        const perpZ = cosA * sign;
-        
-        if (b.y <= 3.0) {
-          const vx = perpX * 3.5 + (this.powerupRng ? (this.powerupRng.next() - 0.5) * 2 : 0);
-          const vz = perpZ * 3.5 + (this.powerupRng ? (this.powerupRng.next() - 0.5) * 2 : 0);
-          this._detachBlock(b, vx, 1.2, vz);
-        } else {
-          b.state = 'unstable';
-          b.damage = 1.0;
-          b.failRate = 0;
-          this._watchDamage(b);
-          this._dirtyComps.add(this._compOf[b.bi]);
-        }
-        count++;
-        if (affectedBlocks.length < 120) {
-          affectedBlocks.push({ x: b.x, y: b.y, z: b.z, longDist, perpDist: rawPerp });
-        }
-        if (count >= 160) break;
-      }
-    }
-    if (count > 0) this._graphDirty = true;
+    const affectedBlocks = this._queueFault({
+      x0, z0, cosA, sinA, longMin: 0, longMax: faultLen,
+      crackWidth: QUAKE_CRACK_WIDTH, rng: this.powerupRng, kick: 3.5, lift: 1.2,
+    });
     this.events.push({
       type: 'dragonball_aura',
       x: hole.x,
@@ -1494,40 +1641,13 @@ export class VoxelSandboxSim {
     const x1 = cx + cosA * faultLen * 0.5;
     const z1 = cz + sinA * faultLen * 0.5;
 
-    const crackWidth = 5.0;
-    let count = 0;
-    const affectedBlocks = [];
-    for (let i = 0; i < this.blocks.length; i++) {
-      const b = this.blocks[i];
-      if (b.state !== 'static' && b.state !== 'unstable') continue;
-      const dx = b.x - cx;
-      const dz = b.z - cz;
-      const longDist = dx * cosA + dz * sinA;
-      if (Math.abs(longDist) > faultLen * 0.5) continue;
-      const rawPerp = -dx * sinA + dz * cosA;
-      if (Math.abs(rawPerp) <= crackWidth) {
-        const sign = rawPerp >= 0 ? 1 : -1;
-        const perpX = -sinA * sign;
-        const perpZ = cosA * sign;
-        if (b.y <= 3.0) {
-          const vx = perpX * 3.2 + (this.disasterRng ? (this.disasterRng.next() - 0.5) * 2 : 0);
-          const vz = perpZ * 3.2 + (this.disasterRng ? (this.disasterRng.next() - 0.5) * 2 : 0);
-          this._detachBlock(b, vx, 1.4, vz);
-        } else {
-          b.state = 'unstable';
-          b.damage = 1.0;
-          b.failRate = 0;
-          this._watchDamage(b);
-          this._dirtyComps.add(this._compOf[b.bi]);
-        }
-        count++;
-        if (affectedBlocks.length < 120) {
-          affectedBlocks.push({ x: b.x, y: b.y, z: b.z, longDist, perpDist: rawPerp });
-        }
-        if (count >= 180) break;
-      }
-    }
-    if (count > 0) this._graphDirty = true;
+    const crackWidth = SEISMIC_CRACK_WIDTH;
+    // Centre-out in both directions (longMin < 0), same staggered wavefront as
+    // the power-up fault -- see _queueFault / _advanceFaults.
+    const affectedBlocks = this._queueFault({
+      x0: cx, z0: cz, cosA, sinA, longMin: -faultLen * 0.5, longMax: faultLen * 0.5,
+      crackWidth, rng: this.disasterRng, kick: 3.2, lift: 1.4,
+    });
 
     // Check if any hole was struck by the seismic fault fissure
     for (let hi = 0; hi < this.holes.length; hi++) {
@@ -3922,6 +4042,9 @@ export class VoxelSandboxSim {
       const jam = b._jamReady === true;
       b._jamReady = false;
       if (b.state !== 'falling' || b.parentChunk || b.asleep || (b._inContact && !jam)) continue;
+      // Coming to rest inside an open fault crack: the fissure swallows it
+      // (no award) instead of letting it sleep there. See _advanceFaults.
+      if (this._activeFaults.length !== 0 && this._faultSwallows(b)) { this._consume(b, this.holes[0], false); continue; }
       b.asleep = true;
       // Woken bodies must re-prove stillness from scratch rather than resume a
       // stale count against a stale anchor.
@@ -4702,7 +4825,7 @@ export class VoxelSandboxSim {
   // never be double-counted and mass is never created from nothing. Defaults
   // to holes[0] for external probes (tools/validate.mjs's win guard feeds
   // blocks in directly).
-  _consume(b, h = this.holes[0]) {
+  _consume(b, h = this.holes[0], award = true) {
     b.state = 'consumed';
     // The renderer hides consumed blocks, and `_syncFalling` drops this entry at
     // the top of the NEXT step — which, with the fixed-timestep catch-up in
@@ -4720,6 +4843,7 @@ export class VoxelSandboxSim {
       }
     }
     this._graphDirty = true;
+    if (!award) return; // swallowed by a fault fissure: gone, but nobody scores it
     const vol = b.sx * b.sy * b.sz;
     this._award(h, b.mat.mass * vol, b);
   }
@@ -5016,6 +5140,9 @@ export class VoxelSandboxSim {
       if (holes[hi].departed) continue;
       if (this._coverageChanged(holes[hi])) covChanged = true;
     }
+    // 0b. in-flight fault ruptures release their next wavefront slice BEFORE the
+    // support recalc so the freed columns are evaluated this same step.
+    this._advanceFaults(dt);
     let recalc = covChanged || this._graphDirty;
     if (recalc && !this._graphDirty && this.tune.supportEvery > 1
         && ++this._supportSkipped < this.tune.supportEvery) recalc = false;

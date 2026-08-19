@@ -74,7 +74,7 @@ check(camera.includes('Phase 5: hold at the distant endpoint and pull a delibera
   'camera no longer performs the endpoint 180');
 check(camera.includes('Phase 6: chase the glowing fissure back toward the player'),
   'camera no longer tracks the fissure back to the player');
-check(camera.includes('skipEarthquakeCinematic()'), 'camera skip API is missing');
+check(camera.includes('skipEarthquakeCinematic(token)'), 'camera skip API is missing');
 check(screens.includes('showCivilDisasterEmergencyCinematic(') || screens.includes('showEarthquakeCinematic('), 'civil emergency / earthquake UI overlay API is missing');
 check(screens.includes('showPowerUpShowcase('),
   'the powerup showcase card API is missing');
