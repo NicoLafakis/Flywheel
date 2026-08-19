@@ -83,6 +83,10 @@ export function runMobileUiSelftest() {
   test('Desktop City Select breathing room lives in a >=1024px, non-touch media query', () => {
     assert(/@media \(min-width: 1024px\) and \(hover: hover\)[\s\S]{0,1200}\.city-act-filter-rail/.test(cssSrc), 'desktop-only query must restyle the act rail');
     assert(/@media \(min-width: 1024px\) and \(hover: hover\)[\s\S]{0,1200}\.city-action-row/.test(cssSrc), 'desktop-only query must pad the CTA area');
+    // Act tab pills: ~20% taller on desktop (40px mobile -> 48px), rail padding ~20% more.
+    const desk = cssSrc.match(/@media \(min-width: 1024px\) and \(hover: hover\)[\s\S]{0,1500}?\n\}/);
+    assert(desk && /\.act-tab-btn \{[^}]*min-height:\s*48px[^}]*padding:\s*10px/.test(desk[0]), 'desktop .act-tab-btn must be min-height 48px with 10px vertical padding');
+    assert(desk && /\.city-act-filter-rail \{[^}]*padding:\s*12px 4px 14px/.test(desk[0]), 'desktop act rail padding must be 12px top / 14px bottom');
   });
 
   // 4. Mobile Shop Shell & Docked Navigation

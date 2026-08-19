@@ -5042,7 +5042,8 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
   .fw-city-select { gap: 18px; padding-top: calc(26px + var(--sai-top, 0px)); }
   .city-select-header { padding: 6px 0 12px; }
-  .city-act-filter-rail { padding: 10px 4px 12px; gap: 8px; }
+  .city-act-filter-rail { padding: 12px 4px 14px; gap: 8px; }
+  .act-tab-btn { min-height: 48px; padding: 10px 16px; }
   .city-carousel-wrapper { margin-top: 14px; margin-bottom: 10px; }
   .city-card { padding: 24px 30px 26px; gap: 16px; }
   .city-action-row { padding-top: 8px; padding-bottom: 6px; gap: 12px !important; }
