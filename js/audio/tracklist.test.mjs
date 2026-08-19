@@ -19,6 +19,7 @@
 import assert from 'node:assert/strict';
 import { MUSIC_CUES } from './music.js';
 import { TRACKLIST, getAvailableTracks } from './tracklist.js';
+import { CITY_CATALOG, isCityUnlocked } from '../citycatalog.js';
 
 // ---------------------------------------------------------------- registry
 // Every selectable cue must resolve to a real file — a picker row that plays
@@ -65,13 +66,35 @@ const playedBoston = { sandbox: { boston: { runs: 1 } } };
 assert.ok(getAvailableTracks(playedBoston).some((f) => f.cue === 'boston'),
   'a city the player has run must offer its track');
 
-// The ladder path: a 100% clear of Brooklyn in under 300s unlocks Chicago.
-const clearedBrooklyn = { sandbox: { brooklyn: { completions: 1, bestTime: 250 } } };
-const afterClear = getAvailableTracks(clearedBrooklyn);
-assert.ok(afterClear.some((f) => f.cue === 'chicago'),
-  'clearing the previous city unlocks the next city\'s track');
-assert.ok(!afterClear.some((f) => f.cue === 'cambridge'),
-  'unlocking is one city at a time — Chicago\'s clear does not leak into Cambridge');
+// The ladder path: a 100% clear in under 300s unlocks the NEXT playable city.
+//
+// The pair is derived from the catalog rather than named, because naming it is
+// what broke this assertion. It read "clearing Brooklyn unlocks Chicago", which
+// was true until the 29-city roster landed and put Chicago six Acts earlier;
+// from then on the test asserted an unlock the ladder had stopped granting, and
+// went red on a catalog edit that was entirely correct. Every city added to the
+// roster from here re-derives the pair instead of falsifying it.
+const playableCities = CITY_CATALOG.filter((c) => c.status === 'PLAYABLE');
+const trackCues = new Set(TRACKLIST.map((t) => t.cue));
+const ladderPair = (() => {
+  for (let i = 1; i < playableCities.length; i++) {
+    const prev = playableCities[i - 1].scene, next = playableCities[i].scene;
+    // Both ends need a selectable row, and the gate must be the clear itself —
+    // a starter city is unlocked outright and would prove nothing.
+    if (trackCues.has(prev) && trackCues.has(next) && !isCityUnlocked({}, next)) return [prev, next];
+  }
+  return null;
+})();
+assert.ok(ladderPair, 'the catalog must contain one adjacent playable pair with tracks at both ends');
+const [prevCity, nextCity] = ladderPair;
+const afterClear = getAvailableTracks({ sandbox: { [prevCity]: { completions: 1, bestTime: 250 } } });
+assert.ok(afterClear.some((f) => f.cue === nextCity),
+  `clearing ${prevCity} must unlock ${nextCity}'s track`);
+const laterCities = playableCities.slice(playableCities.findIndex((c) => c.scene === nextCity) + 1);
+for (const later of laterCities) {
+  assert.ok(!afterClear.some((f) => f.cue === later.scene),
+    `unlocking is one city at a time — clearing ${prevCity} must not leak into ${later.scene}`);
+}
 
 // Tokyo aliases Lower Manhattan's MP3; a tokyo row would be a duplicate button.
 assert.ok(!TRACKLIST.some((t) => t.cue === 'tokyo'),

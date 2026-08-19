@@ -82,11 +82,11 @@ export function runCampaignSelftest() {
   // 4. Playable vs. Development Separation
   const playable = CITY_CATALOG.filter((c) => c.status === 'PLAYABLE');
   const development = CITY_CATALOG.filter((c) => c.status === 'DEVELOPMENT');
-  assert.equal(playable.length, 9, `Expected exactly 9 playable cities, found ${playable.length}`); count();
-  assert.equal(development.length, 20, `Expected exactly 20 development cities, found ${development.length}`); count();
+  assert.equal(playable.length, 10, `Expected exactly 10 playable cities, found ${playable.length}`); count();
+  assert.equal(development.length, 19, `Expected exactly 19 development cities, found ${development.length}`); count();
 
   const helperPlayable = getPlayableCityCatalog();
-  assert.equal(helperPlayable.length, 9, 'getPlayableCityCatalog() must return the 9 playable cities'); count();
+  assert.equal(helperPlayable.length, 10, 'getPlayableCityCatalog() must return the 10 playable cities'); count();
   assert.deepEqual(helperPlayable.map((c) => c.scene), playable.map((c) => c.scene), 'getPlayableCityCatalog() order mismatch'); count();
 
   // 5. Progression Unlock Logic
@@ -115,7 +115,7 @@ export function runCampaignSelftest() {
   assert.equal(getCompletedChallengeCount(emptySave), 0, 'Initial challenge count must be 0'); count();
   assert.equal(isSecret90sChallengeUnlocked(emptySave), false, 'Secret 90s must be locked initially'); count();
 
-  // Complete 3m challenge on all 9 playable cities
+  // Complete 3m challenge on all 10 playable cities
   for (const c of playable) {
     recordChallengeResult(emptySave, c.scene, {
       mode: 'challenge3m',
@@ -127,7 +127,7 @@ export function runCampaignSelftest() {
       percent: 1.0,
     });
   }
-  assert.equal(getCompletedChallengeCount(emptySave), 9, 'All 9 playable challenges must be counted'); count();
+  assert.equal(getCompletedChallengeCount(emptySave), 10, 'All 10 playable challenges must be counted'); count();
   assert.ok(isSecret90sChallengeUnlocked(emptySave), 'Secret 90s challenge must unlock when all 9 playable cities are cleared in 3m'); count();
 
   return assertions;

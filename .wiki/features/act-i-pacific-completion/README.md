@@ -15,7 +15,7 @@ built map, and that one was defective.
 | City | Scene id | Declared `blocks` | State at open |
 |---|---|---|---|
 | Sydney Harbour | `sydney` | 14,120 | PLAYABLE, but built **14,309** and had **0 camera blockers** |
-| Auckland | `auckland` | 16,000 | DEVELOPMENT — no scene file |
+| Auckland | `auckland` | 16,000 | **PLAYABLE** — built exactly 16,000 with 115 camera blockers (2026-08-19) |
 | Singapore Marina Bay | `singapore` | 22,000 | DEVELOPMENT — no scene file |
 
 **Acceptance**: for each city, `sim.blocks.length === catalogEntry.blocks`

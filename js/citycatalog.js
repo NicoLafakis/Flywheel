@@ -66,7 +66,7 @@ export const CITY_CATALOG = [
     desc: 'Harbour city nestled among volcanic hills. Towering needle spires, maritime wharves, and steep coastlines.',
     tagline: 'CHAPTER 2 · PACIFIC REACH',
     chapter: 'CHAPTER 2',
-    status: 'DEVELOPMENT',
+    status: 'PLAYABLE',
     blocks: 16000,
     difficulty: 'TIER 2 · CASUAL',
     badge: 'ACT I',

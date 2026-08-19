@@ -47,6 +47,10 @@ import {
   SYDNEY_VEHICLES,
 } from '../js/voxelscene-sydney.js';
 import {
+  AUCKLAND_CROSSINGS, AUCKLAND_OPEN_GROUND, AUCKLAND_ROAD_SPANS, AUCKLAND_STREETS,
+  AUCKLAND_VEHICLES,
+} from '../js/voxelscene-auckland.js';
+import {
   CURRENT_VERSION, __freshSave, __MIGRATIONS, recordLevelResult,
   isCityChallengeCompleted, getCompletedChallengeCount, isSecret90sChallengeUnlocked, recordChallengeResult,
 } from '../js/save.js';
@@ -81,7 +85,7 @@ import { fileURLToPath } from 'node:url';
 // the parent would be pure overhead. Every CHILD sets FW_VALIDATE_SECTIONS and
 // therefore lands here with the guard true.
 if (process.env.FW_VALIDATE_SECTIONS || process.env.FW_VALIDATE_SEQ) {
-  await Promise.all(['sydney', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo'].map(loadScene));
+  await Promise.all(['sydney', 'auckland', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo'].map(loadScene));
 }
 
 const DT = 1 / 60;
@@ -3102,6 +3106,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     // instead of CPU, and it finishes long before the scenes either way.
     ['multiplayer', 'multiplayer'],
     ['sydney', 'sydney'],
+    ['auckland', 'auckland'],
     ['scenesWinnable', 'scenesWinnable'],
     ['manhattan', 'manhattan'],
     ['upperManhattan', 'upperManhattan'],
@@ -3158,6 +3163,73 @@ function validateSydney() {
   console.log(`  sydney sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
 }
 
+// Cheap structural fingerprint of a built scene: min corner, extents, material
+// and colour of every block, folded in ARRAY ORDER. Two builds that agree on it
+// agree on the geometry AND on the order it was emitted in, which is what
+// "deterministic" has to mean for a scene whose blocks are indexed by id.
+function sceneFingerprint(sim) {
+  let h = 0x811c9dc5;
+  for (const b of sim.blocks) {
+    const s = `${b.gx},${b.gy},${b.gz},${b.fsx},${b.fsy},${b.fsz},${b.matType},${b.color}`;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+  }
+  return h >>> 0;
+}
+
+// AUCKLAND (Act I, chapter 2). The block-count assertion is the one that is not
+// shared with the other scenes and is deliberately EXACT: `citycatalog.js`
+// prints `blocks` on the city-select card and the mission dossier, so it is a
+// promise the map screen makes to the player rather than an estimate. A scene
+// that drifts off its declared number makes every card in the catalog suspect,
+// so the number and the geometry are one fact with two writers and this is the
+// gate that keeps them equal. Bring the GEOMETRY to the number, never the
+// number to the geometry.
+function validateAuckland() {
+  console.log('Validating auckland sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'auckland' });
+  const entry = CITY_CATALOG.find((c) => c.scene === 'auckland');
+  if (!entry) {
+    fail('auckland: no CITY_CATALOG entry — the scene exists with nothing declaring it');
+  } else if (sim.blocks.length !== entry.blocks) {
+    fail(`auckland: built ${sim.blocks.length} blocks, catalog declares ${entry.blocks} (delta ${sim.blocks.length - entry.blocks}) — the card's block count is a promise, not an estimate`);
+  }
+  if (entry && entry.status !== 'PLAYABLE') {
+    fail(`auckland: catalog status is '${entry.status}' — a scene with geometry, wiring and a green section is PLAYABLE`);
+  }
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'auckland');
+  probeCameraBlockers(sim, 'auckland', tops);
+  probeBoundsRect(sim, 'auckland');
+  probeGradeDiagonal(sim, 'auckland');
+  probeRoadConflicts(sim, 'auckland', AUCKLAND_VEHICLES, AUCKLAND_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'auckland');
+  probeAmbient(sim, 'auckland', ['gulls', 'ferries']);
+  probePlacementStep(sim, 'auckland');
+  // The exported tables are the scene's own contract with the validator and the
+  // route driver: an index into AUCKLAND_STREETS that no longer exists reads as
+  // a crossing painted at (undefined, undefined).
+  for (const [si, at] of AUCKLAND_CROSSINGS) {
+    if (!AUCKLAND_STREETS[si]) fail(`auckland: crossing at ${at} names street index ${si}, which does not exist`);
+  }
+  if (AUCKLAND_OPEN_GROUND.length !== 0) {
+    fail(`auckland: AUCKLAND_OPEN_GROUND has ${AUCKLAND_OPEN_GROUND.length} entries — nothing reads it yet, so a non-empty table is a claim with no consumer`);
+  }
+  // Determinism (invariant 4), proved rather than asserted: a second build in
+  // the same process must be bit-identical. The seeded-rng rule makes this
+  // true; a stray Math.random or a Set/Map iteration leak makes it false.
+  const fp = sceneFingerprint(sim);
+  const again = new VoxelSandboxSim({ seed: 'validator', scene: 'auckland' });
+  if (again.blocks.length !== sim.blocks.length || sceneFingerprint(again) !== fp) {
+    fail(`auckland: two builds differ (${sim.blocks.length}/${fp.toString(16)} vs ${again.blocks.length}/${sceneFingerprint(again).toString(16)}) — the scene is not deterministic`);
+  }
+  // Last, because it steps the sim 3 s and leaves the caller a 3 s-old world.
+  probeIdleStability(sim, 'auckland');
+  console.log(`  auckland sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length} fingerprint=${fp.toString(16)}`);
+}
+
 // Phase C (cloud progress sync, tasks 12-14): the player-facing surface of the
 // sync — indicator states, first-time note, trimmed notice, sign-out. The body
 // lives in tools/progress-ui.test.mjs because it has to import the copy module
@@ -3210,6 +3282,7 @@ section('gameplayEnhancements', validateGameplayEnhancements);
 section('cityChallenges', validateCityChallenges);
 section('multiplayer', validateMultiplayer);
 section('sydney', validateSydney);
+section('auckland', validateAuckland);
 section('manhattan', validateManhattan);
 section('upperManhattan', validateUpperManhattan);
 section('brooklyn', validateBrooklyn);

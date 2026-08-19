@@ -30,6 +30,10 @@ export const MUSIC_CUES = Object.freeze({
   'upper-manhattan': 'upper-manhattan.mp3',
   tokyo: 'lower-manhattan.mp3',
   sydney: 'boston.mp3',
+  // Auckland has no track of its own yet and aliases Cambridge's, exactly as
+  // Sydney aliases Boston's. An alias needs no `js/audio/tracklist.js` row: the
+  // picker lists TRACKS, and this is a city cue pointing at one already there.
+  auckland: 'cambridge.mp3',
   // The Lab's own theme. The gallery was deliberately music-free until the
   // track shipped; the owner reversed that call when it did.
   gallery: 'the-lab.mp3',

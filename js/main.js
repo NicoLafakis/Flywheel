@@ -745,6 +745,11 @@ const AUTHORED_SCENES = {
     hud: 'SYDNEY · THE LITTLE CITY VERTICAL SLICE',
     intro: { subtitle: 'SYDNEY' },
   },
+  'auckland': {
+    label: 'AUCKLAND: SKY TOWER AND THE WAITEMATĀ WHARVES',
+    hud: 'AUCKLAND · THE HARBOUR AND THE CONES',
+    intro: { subtitle: 'AUCKLAND' },
+  },
   'chicago': {
     label: 'CHICAGO: THE LOOP AND THE CHICAGO RIVER',
     hud: 'CHICAGO · THE LOOP & WILLIS TOWER',

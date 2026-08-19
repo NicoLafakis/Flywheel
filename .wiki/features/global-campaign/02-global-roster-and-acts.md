@@ -10,7 +10,7 @@ covers:
 |:---:|---|---|---|:---:|:---:|---|---|:---:|:---:|
 | **0** | `gallery` | **The Lab (Proving Ground)** | **Prologue** · Calibration | **PLAYABLE** | 13,652 | T1 · STARTER | Crash Ramps, Calibration Pylons, Subway Terminal | `#00f0ff` | 🧪 |
 | **1** | `sydney` | **Sydney Harbour** (Australia) | **Act I** · Pacific Awakening | **PLAYABLE** | 14,120 | T2 · CASUAL | Opera House Sail Vaults, Harbour Bridge Arch, Sydney Tower | `#4cc9f0` | 🦘 |
-| **2** | `auckland` | **Auckland** (New Zealand) | **Act I** · Pacific Awakening | *DEV* | ~16,000 | T2 · CASual | Sky Tower Spire, Waitematā Ferry Wharves, Volcanic Hills | `#48cae4` | ⛵ |
+| **2** | `auckland` | **Auckland** (New Zealand) | **Act I** · Pacific Awakening | **PLAYABLE** | 16,000 | T2 · CASUAL | Sky Tower Needle, Waitematā Ferry Wharves, Mt Eden Volcanic Cones | `#48cae4` | ⛵ |
 | **3** | `singapore` | **Singapore Marina Bay** | **Act I** · Pacific Awakening | *DEV* | ~22,000 | T3 · NORMAL | Marina Bay Sands, Supertree Grove, Fullerton Hotel | `#00b4d8` | 🦁 |
 | **4** | `hongkong` | **Hong Kong** (Victoria Harbour) | **Act II** · Asian Megacities | *DEV* | ~28,000 | T3 · NORMAL | Bank of China Tower, Peak Tram, Star Ferry Terminals | `#ff5d8f` | 🚢 |
 | **5** | `seoul` | **Seoul** (South Korea) | **Act II** · Asian Megacities | *DEV* | ~32,000 | T4 · SKILLED | N Seoul Tower, Han River Bridges, Gyeongbokgung Gate | `#ff758f` | 🏯 |
