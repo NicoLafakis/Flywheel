@@ -4,182 +4,159 @@
 
 Last updated: 2026-08-19
 
+This is a board, not a changelog. One line per shipped item; the detail lives in
+the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
+
+---
+
+## Baseline
+
+- **Brand**: *Flywheel — A sprocket's story*. Branded landing screen over a live
+  city backdrop, block wordmark, legal footer.
+- **Campaign**: 29 metropolises across 7 regional Acts + a Prologue
+  (`js/citycatalog.js`). **10 are `PLAYABLE`**; the rest are `DEVELOPMENT` and
+  gated in the UI. Unlock ladder is 100% clear of the preceding *playable* city.
+- **Run rules**: 5-minute clock, 100% full-clear goal, 60 deterministic coins
+  per city, plus a 3-minute challenge tier. Ranked THE RUN (Chicago) is 90 s.
+- **Boards**: public ranked boards with server-replayed trace verification;
+  local/cloud profile fallback and a signed outbox. Offline play always works.
+- **Audio & quality**: 19 streamed tracks, pause-menu picker with unlock gating,
+  independent mix controls, HIGH/LOW quality tiers.
+
 ---
 
 ## Active focus
 
-- **Camera Bézier Occlusion Smoothing & The Lab Skyscraper Testbed**: $C^1$-continuous cubic Hermite/Bézier pitch transitions ($S(u) = u^2(3-2u)$) and critically-damped roof-climb ascent easing ($18\text{ s}^{-1}$) to eliminate abrupt overhead angle snaps and vertical pops when navigating near skyscrapers, with an authored 3-tower testbed in The Lab (`.wiki/features/camera-bezier-smoothing/`, ADR-0022).
-- **Global Campaign & Sprocket Storyline**: 29-metropolis world tour across 7 regional Acts (Pacific, Asia, Mediterranean, Europe, Americas, New York, Cambridge UNBOUND). Narrative grounding of flywheel mechanics, mission dossiers, and progressive city unlock ladders (`.wiki/features/global-campaign/`).
-- **Multiplayer Multi-Hole & Join Polish**: 6-player synchronized invite lobby multiplayer, multi-hole presentation alignment, PvP hole swallowing, 10s respawn timeout, per-player coin isolation, and 7 free color skins (`.wiki/modules/multiplayer.md`).
-- **Power-Up System**: Dynamic roaming power-ups with intermittent spawn/despawn lifecycle, in-world 3D beams, and full WebAudio fanfares (`.wiki/modules/powerups.md`).
-- **Scoreboards & Offline Fallback**: Live ranked boards + server-replayed trace verification and local profile fallback (`js/board/`).
-- **Cambridge Phase 7 Secrets & Belts**: Cambridge 44 hidden easter eggs, 11 ground glyphs, and championship belts.
-
+- **Act I map completion** — every Act I city built to the voxel count declared
+  in its catalog entry, exactly. Sydney done; Auckland and Singapore in flight.
+  `.wiki/features/act-i-pacific-completion/`.
+- **Camera Bézier occlusion smoothing (The Lab only)** — C¹ cubic Hermite pitch
+  transitions and critically-damped roof-climb easing, behind a per-scene flag.
+  `.wiki/features/camera-bezier-smoothing/`, ADR-0022.
+- **Global campaign & Sprocket storyline** — 29-city world tour, mission
+  dossiers, progressive unlock ladders. `.wiki/features/global-campaign/`.
+- **Multiplayer multi-hole & join polish** — 6-player invite lobby, PvP hole
+  swallowing, per-player coin isolation. `.wiki/modules/multiplayer.md`.
+- **Cambridge Phase 7** — 44 easter eggs, 11 ground glyphs, championship belts.
 
 ### Open decisions (owner's call, papered not parked)
 
-- **Menu-angle inheritance for the level intro** — the establishing beat uses the level's own sun-scored `_introYaw0`. Adopting the title backdrop's live yaw instead is a two-line change but discards that scoring, and the backdrop is hard-coded to Brooklyn regardless of city. `.wiki/modules/render.md`.
-- **Mid-play power-up spawn cutscene** — still fires on every ~30s intermittent respawn, now smooth and cancellable rather than removed. Suppressing it entirely is a one-line change to the same gate that already suppresses it at level start.
-- **Quake cutscene's authored internal hard cuts** — shot 0→1 turns 2.76 rad in one frame (285.3% distance, 165.88 rad/s whole-sequence). Deliberately outside the release-continuity gate; keeping or retiring them is shot design. `.wiki/modules/render.md`.
-- **Cloud progress sync — built 2026-08-17.** Coins, skins, stars and upgrades now follow the signed-in player across devices (`.wiki/plans/cloud-progress-sync.md` tasks 1–17 complete; `.wiki/modules/cloud.md`, `.wiki/modules/api.md`, ADR-0021). **On by default** — setting `FW_PROGRESS_SYNC=false` on Vercel pauses it (both routes answer `503 SERVER_NOT_READY` and the game plays exactly as before), an emergency switch rather than a deploy step.
-- **Cambridge 2** — the map was specced to *look* as detailed as 73k voxels, not to contain them. Rebuild at perceived density; the existing map stays. Root cause of the validator's runtime.
+- **Quake crack: swallow vs. award** — the open fissure currently *consumes* any
+  loose body that settles in it, with no score awarded. Awarding it instead is a
+  one-line change; it is a scoring-fairness call, not a physics one.
+- **Quake sequencing** — the sim is held for the 5.8 s cinematic, so the
+  wavefront plays *after* the camera returns. Running the fixed-step loop during
+  cinematic phases 4–6 would put the collapse under the camera tracking the
+  fissure. `js/main.js`.
+- **Quake cutscene's authored hard cuts** — shot 0→1 turns 2.76 rad in one
+  frame, deliberately outside the release-continuity gate. Shot design.
+  `.wiki/modules/render.md`.
+- **Menu-angle inheritance for the level intro** — the establishing beat uses
+  the level's own sun-scored `_introYaw0`. Adopting the title backdrop's live
+  yaw is two lines but discards that scoring, and the backdrop is hard-coded to
+  Brooklyn regardless of city. `.wiki/modules/render.md`.
+- **Mid-play power-up spawn cutscene** — still fires on every ~30 s respawn, now
+  smooth and cancellable. Suppressing it is a one-line change to the gate that
+  already suppresses it at level start.
+- **Cambridge 2** — the map was specced to *look* as detailed as 73k voxels, not
+  to contain them. Rebuild at perceived density; the existing map stays. Root
+  cause of the validator's 37-minute runtime.
+- **Cloud progress sync** — shipped and **on by default**; `FW_PROGRESS_SYNC=false`
+  on Vercel pauses it (both routes answer `503 SERVER_NOT_READY`, game unchanged).
+  An emergency switch, not a deploy step. `.wiki/modules/cloud.md`, ADR-0021.
 
 ---
 
 ## Shipped state
 
-- 2026-08-19 — Fault Line Rupture full-length wavefront (`js/voxelsim.js` `_queueFault` / `_advanceFaults`, `tools/quake-rupture.test.mjs`, validator section `quakeRupture`): the QUAKE power-up and the Seismic disaster used to resolve in one frame, stop after 160/180 blocks (a few metres into a dense city) and detach only the y<=3 band (taller blocks were flagged unstable/damage=1 and reset to static by the next support recalc). Now the trigger only queues a fault (every static block within `QUAKE_CRACK_WIDTH` = 4 m of the line over the FULL hole->corner length, plus a ground-level flank band to 1.5x, sorted by distance along the line) and `step()` releases it front-to-back at `faultLen / QUAKE_RUPTURE_SECONDS` (1.5 s), <= `QUAKE_RELEASE_CAP` = 60 blocks per step; every storey detaches (ground band keeps the perpendicular kick, upper storeys are thrown outward harder with height, flank slumps inward one crack-width behind the front; kicks never point at the map edge). The open crack SWALLOWS (consumes, no award) any loose body that comes to rest inside it for `QUAKE_SWALLOW_SECONDS` = 6 s after the last release; rubble that lands on the banks stays edible. Why: dropped in place, a tower's worth of blocks stacks into loose bodies the pair solver walks apart for seconds (measured ~400 awake, ~130 still >5 m/s 10 s later, 90-120 ms/step) — with the swallow the gallery corner fault (2008 blocks, 200 m) releases in 1.48 s, peaks ~65 ms/step for ~1 s in Node and is back to the ~3-4 ms baseline by t+4 s. Event shape unchanged (`affectedBlocks` now samples evenly along the line). `RANKED_SIM_VERSION` 2 -> 3 (both fire inside a 90 s RUN). Also re-armed `tools/earthquake-cinematic-selftest.mjs` (`skipEarthquakeCinematic(token)` rename had left it red since efc04c8). Known sequencing gap (owner's call, main.js): the sim is held for the 5.8 s cinematic, so the wavefront plays after the camera returns; letting the fixed-step loop run during phases 4-6 would put the collapses under the camera that is tracking the fissure.)
-- 2026-08-19 — City Select campaign wayfinding (`js/ui/screens.js` `showCitySelect`, `css/main.css`): 8-segment campaign progress strip button under the act rail (cleared fill per act, current act pulses, 44px tap box), `CITY n / 29 · ACT · i / n` card breadcrumb, act-tab cleared/total counts with check + cleared style, header pill now `CITY n / 29` button, and a World Tour bottom sheet / desktop panel listing all 29 cities by act with status glyphs, best %, unlock hints and tap-to-jump (jumps via the ALL filter to keep global indices coherent); dossier becomes a collapsible drawer (collapsed under 700px tall) plus a short-viewport compaction query so PLAY is above the fold at 360x640 (measured: PLAY bottom 613/640, 824/844); covered by `tools/mobile-ui.test.mjs` (12 tests) and the gitignored browser harness `tools/pw/_city-select-verify/wayfinding-verify.mjs` (360x640 / 390x844 / 844x390 / 1440x900: strip, breadcrumb, counts, sheet rows >=48px, row-jump); phone (<=480px) carousel arrows are pinned by `positionNavArrows` to the hero emoji band via `--nav-arrow-top` (36px, re-anchored on resize) so they never cover metrics/dossier/CTAs — harness asserts zero rect intersections at both phone viewports
-- 2026-08-19 — ADR-0022 camera smoothing, The Lab only: `ChaseCamera.smoothOcclusion` (gallery scene) gives S-curve occlusion pitch (decoupled unscaled `_pitchT` filter, 5/s), first-order roof lift (18/s up, 3.5/s down), distance-normalised blocker sweep with 1.0 m standoff and 0.75 m pad; all other cities bit-identical legacy (48k-sample parity). The Lab gains the 3-tower testbed (Gamma 25 m / Alpha 35 m / Beta 48 m, SE strip x 26..89 z 25..45, +14.8 % blocks) and, for the first time, `cameraBlockers` (191). `tools/camera-smoothing.test.mjs` (10 assertions, `cameraSmoothing` section; the core group now also runs the previously-unlisted tutorial/mobile sections). Browser drive: max |dpitch| 0.039 rad/frame, |dy| 1.9 m/frame outside roof climbs. Findings papered in `.wiki/features/camera-bezier-smoothing/03-tasks.md`: legacy sweep unit bug (flag-off untouched), 2.5 m/frame roof budget unwinnable for a first-order filter.
-- 2026-08-19 — City Select act-filter rail clipping fix: the rail (a scroll container, auto min-size 0) was shrinking inside the column-flex screen to its own padding and clipping the tab pills top/bottom on every viewport; `flex-shrink: 0` on `.city-act-filter-rail`; browser harness `tools/pw/_city-select-verify/rail-diag.mjs` asserts pill rect inside rail client rect with >=2px margin (1440x900 + 390x844); `tools/mobile-ui.test.mjs` now 10 tests
-- 2026-08-19 — City Select follow-up: CLEARED stamp (100% clear) and 3-MIN challenge seal split into independent marks (`.city-marks` cluster, cyan `.city-challenge-badge`, layered on the stamp corner when both, alone for challenge-only); desktop-only (`min-width:1024px` + hover/fine-pointer) breathing room for header, act rail, card and CTA area — 390x844 metrics verified pixel-identical before/after; `tools/mobile-ui.test.mjs` now 9 tests
-- 2026-08-19 — City Select card-state cleanup (`js/ui/screens.js` `showCitySelect` + `css/main.css`): upper-right status pill removed in favour of an on-card CSS "CLEARED" passport stamp, faded body + sticky lock bar ("METROPOLIS LOCKED — Clear {gating PLAYABLE city} 100% in under 5 minutes") for locked cities and an "UNDER CONSTRUCTION" bar for DEVELOPMENT cities; lock-bar copy now names the preceding PLAYABLE city (was the previous carousel card, which could be an in-development city); play CTA is `PLAY {city}` (no `(5 MIN)`); the 29-dot bottom rail is gated off behind `SHOW_CITY_DOTS = false` and act tabs get a 40px min touch height; covered by `tools/mobile-ui.test.mjs` (7 tests) and verified headed on 390x844 / 360x640 / 844x390)
-- 2026-08-19 — Global Campaign Phase 2: UI & Mission Dossier Integration (shipped regional Act filter navigation tabs [All, Prologue, Acts I–VII] in City Select `js/ui/screens.js`; integrated interactive Sprocket Mission Dossier cards displaying tactical directives, radio transmissions, target hero landmarks, and rescued momentum companion bots; added Ready Gate pre-flight narrative briefing in `js/ui/ready.js`; added victory Kinetic Revival Debrief cards on 100% full clears in `showSandboxResults`; covered by 163 assertions in `tools/campaign-ui.test.mjs` and registered in `tools/validate.mjs`)
+### 2026-08-19
 
-- 2026-08-19 — Global Campaign Phase 1: 29-Metropolis Roster, 7 Acts & Schema Foundation (shipped full 29-metropolis world tour schema in `js/citycatalog.js` across 7 regional Acts [Pacific, Asia, Mediterranean, Europe, Americas, New York, Cambridge UNBOUND]; added narrative tactical transmissions, hero landmark rosters, momentum companion bots, and debrief directives; engineered backward-compatible `PLAYABLE` vs. `DEVELOPMENT` status gating and monotonic economy ladders; updated help walkthrough and registered automated test suite `tools/validate-campaign.mjs` in `tools/validate.mjs` with 1178 assertions)
+- **Sydney: camera blockers restored, exact 14,120 blocks** — `buildSydney` ended
+  with a bare `generateBlockers(sim, 6);`, but the function *returns* the rect
+  list rather than assigning it, so the Act I opener shipped with `blockers=0`
+  and the camera clipped through every landmark. Now assigned, as every other
+  scene does: 250 blockers, 0 uncovered cells. Geometry also trimmed 189 blocks
+  of surplus street furniture to hit the catalog's declared 14,120 exactly; no
+  hero touched. Proven by a forced-yaw A/B (0/120 camera-inside poses with
+  blockers on, 31/120 with them off). `1d7bda9`.
+- **Fault Line Rupture: full-length wavefront** — QUAKE and the Seismic disaster
+  used to resolve in one frame, stop after ~160 blocks and detach only the y≤3
+  band. The trigger now queues a fault and `step()` releases it front-to-back
+  over 1.5 s at ≤60 blocks/step, every storey detaching with height-scaled kick;
+  the open crack swallows loose bodies for 6 s. `RANKED_SIM_VERSION` 2→3.
+  `js/voxelsim.js`, `tools/quake-rupture.test.mjs`, section `quakeRupture`.
+- **City Select: campaign wayfinding** — 8-segment progress strip, `CITY n / 29 ·
+  ACT · i / n` breadcrumb, act-tab cleared/total counts, and a World Tour sheet
+  listing all 29 cities with status, best %, unlock hints and tap-to-jump.
+  Dossier collapses under 700px tall so PLAY stays above the fold at 360×640.
+  `js/ui/screens.js`, `tools/mobile-ui.test.mjs`.
+- **ADR-0022 camera smoothing, The Lab only** — S-curve occlusion pitch,
+  first-order roof lift, distance-normalised blocker sweep; all other cities
+  bit-identical legacy (48k-sample parity). The Lab gains a 3-tower testbed and
+  its first `cameraBlockers` (191). `tools/camera-smoothing.test.mjs`.
+- **City Select: act-rail clipping fix** — the rail is a scroll container with
+  automatic min-size 0, so it shrank to its own padding inside the column flex
+  and clipped the tab pills on every viewport. `flex-shrink: 0`.
+- **City Select: card-state cleanup** — status pill replaced by an on-card
+  CLEARED passport stamp with an independent 3-MIN challenge seal; faded body +
+  sticky lock bar naming the gating *playable* city; `PLAY {city}` CTA (no
+  `(5 MIN)`); 29-dot rail gated off behind `SHOW_CITY_DOTS = false`.
+- **Global Campaign Phase 2** — Act filter tabs, Sprocket Mission Dossier cards,
+  Ready Gate narrative briefing, victory debrief cards. `tools/campaign-ui.test.mjs`.
+- **Global Campaign Phase 1** — 29-metropolis roster across 7 Acts, narrative
+  transmissions, hero rosters, `PLAYABLE`/`DEVELOPMENT` gating, monotonic economy
+  ladders. `tools/validate-campaign.mjs`.
 
-- 2026-08-18 — Mobile Pinch/Expand Zoom & Dual-Zone Gesture Guidance (prominently surfaced two-finger pinch-to-zoom-in and spread-to-zoom-out gesture controls on mobile touchscreens across Ready Gate pre-flight cards [🤏 Pinch / Expand with 2 fingers], in-game speech bubbles, Size 2 Level-Up Pro Tip, and Pause Menu quick cheat sheet; clearly contrasted with desktop R/F & scroll wheel; covered by `tools/mobile-zoom-controls.test.mjs`)
+### 2026-08-18
 
-- 2026-08-18 — Cute Just-in-Time Milestone Onboarding & Introductory Instruction System (replaced rigid step checklist with delightful casual arcade flow: animated "START EATING BLOCKS!" speech bubble with Sprocket avatar ⚙️ and bouncing pointer; celebratory Size 2 Growth Modal with visual prop comparison [Small Props ➔ Cars & Trees Unlocked!]; 4× Combo Momentum callout; and structural foundation collapse callout; zero redundancy with existing power-up impact overlays; covered by `tools/tutorial.test.mjs`)
+- Mobile pinch/expand zoom surfaced across Ready Gate, speech bubbles and pause.
+- Just-in-time milestone onboarding replacing the rigid step checklist.
+- Device detection & contextual controls (`js/device.js`) — touch vs. keyboard.
+- Mobile-first UI & navigation overhaul: ≥48px targets, safe-area insets.
+- Adaptive portrait FOV (`V = 45°/√aspect`) killing mobile tunnel-vision.
+- Interactive in-game onboarding & 5-step walkthrough (`js/ui/tutorial.js`).
+- Sydney sandbox first authored in strict min-corner geometry.
 
+### 2026-08-17
 
-- 2026-08-18 — Device Detection & Contextual Relative Controls (shipped `js/device.js` with `isTouchDevice` and `getDeviceInputMode`; dynamically adapts Level 1 tutorial walkthrough steps, Ready Gate pre-flight cards, and in-game control badges so mobile players see only touch instructions [drag left ½ to steer / right ½ to look] and desktop players see keyboard keybinds [WASD / Arrows]; covered by `tools/device-detection.test.mjs`)
+- The Lab architectural realism: zero-falling spawn physics, vector surfaces,
+  stop lines, mast-arm signals; HUD progress bar and 95% endgame beacons.
+- The Lab expansion: monuments, mid-rises, supertalls, cantilever villas.
+- The Lab 2 m structural bay fragmentation enabling fluid collapse.
+- Cloud progress sync (save schema v25, ADR-0021).
+- Keyboard steering angular acceleration ramp.
+- Power-up wild spawn encounter & overhead camera.
+- Level intro camera: establishing hold → overhead rise → dive.
+- Excursion harness advances on arrival, not on the clock.
+- Inaudible sounds no longer fatigue their sample.
+- Multiplayer match start is an act, not a side effect of capacity.
+- Mobile shop bottom nav undocked from its own scroll container.
+- Voxel event audio restored (eat, combo ladder, stingers, derailment, tornado).
+- Partner skin approval gating & coin refund (v24); hole speed 1.4×→1.8× (v23).
+- Automatic player names, one all-time leaderboard, guest run adoption.
 
+### 2026-08-16
 
-- 2026-08-18 — Mobile-First UI & Navigation Architecture (overhauled mobile responsive layouts across Title Dashboard, City Selection Carousel, Shop Shell, and HUD overlays; thumb-friendly touch targets $\ge 48\text{px}$, notch safe-area insets, fluid horizontal pill navigation, and 2-column mobile item cards; covered by `tools/mobile-ui.test.mjs`)
+- Economy corrections; silent victory podium fix; host-authoritative match clock.
+- Interactive help menu, walkthrough, FAQ & tips.
+- Multiplayer scorecard/podium; 10 s combo meter; 3-minute city challenges.
+- Multiplayer multi-hole system + 7 basic color skins; ADR-0020 menu wiring.
+- Level 1 six-player invite lobby; legacy multiplayer scrapped and rearchitected.
+- Demographic cohort playtesting (marketing professionals 30–55).
 
+### 2026-08-15 and earlier
 
-- 2026-08-18 — Mobile-First Clarity & Adaptive Portrait FOV Overhaul (shipped `computeAdaptiveFov` in `js/camera.js` with smooth aspect-compensation curve $V(\text{aspect}) = 45^\circ / \sqrt{\text{aspect}}$, eliminating mobile portrait tunnel-vision and locking horizontal FOV $\ge 68^\circ-72^\circ$; upgraded mobile quality tier in `js/quality.js` to crisp 1.5× DPR with directional shadows and ambient lighting for razor-sharp voxel edges and 3D depth perception; covered by `tools/mobile-camera.test.mjs`)
+- Mobile game shop & multi-rank stat upgrades; gameplay mechanics polish.
+- Strict TDD adopted as the mandatory standard.
+- Power-up lifecycle, anime overlays, endgame beacons, scheduled disasters.
+- Fault Line Rupture super-move, cinematic and pickup-sequence restorations.
+- SIZE 24 ladder & proportional scaling; tiered coin economy.
+- Tokyo mega-metropolis expansion, daytime palette and geographic accuracy.
+- 19 rendered audio masters; boot progression and title autoplay fixes.
+- 5-minute level duration & perimeter voxel containment.
+- Fast startup & 2-stage menu flow; in-game GUI hierarchy overhaul.
+- Kenney-inspired city surface textures; visual polish stages 2–6.
+- Player identity chip, legal pages, score integrity (T-301..T-312).
+- Parallelized validator suite & Cambridge soak opt-in; debris retirement (ADR-0018).
 
-
-- 2026-08-18 — Interactive In-Game Onboarding & Step-by-Step Walkthrough System (shipped `js/ui/tutorial.js` with 5-step progressive coachmark sequence in Level 1 / The Lab covering Steering/Snack Ring, Mass & Size 2, Combo Multipliers, Structural Foundation Collapse, and Orbital Power-Up Beacons; Pre-Flight Visual Cards on Level 1 Ready Gate; contextual tooltips for oversized objects & power-ups; auto-persisted save state with instant skip option; covered by `tools/tutorial.test.mjs`)
-
-
-- 2026-08-18 — Sydney Sandbox Expansion: Voxel Strict Min Corner Implementation (expanded sandbox with Sydney architectural icons including Heritage Townhouses, CBD Tower, Opera House, and Harbour Bridge. Engineered entirely using strict min-corner geometric mapping, ensuring perfect structural bay alignment and exactly 0 overlap or collision errors. Block count optimized down to 1167 with full retention of architectural identity)
-
-
-- 2026-08-17 — The Lab Architectural Realism, HUD Sandbox Progress Bar & Endgame Locators: Zero-Falling Spawn Physics, Vector Textures, 4-Way Stop Lines & Mast-Arm Signals (fixed HUD sandbox progress bar width & allBlocksConsumed 100% win trigger; updated 3D endgame beacons and HUD remaining blocks pill to trigger at 95% cleared; eliminated all unsupported and overlapping blocks across all buildings in The Lab for 100% spawn stability; replaced raster surfaces with accurate vector solid color rendering; added realistic road markings with white stop lines across approaching lanes at 4-way intersections, mast-arm cantilever traffic light signals, street trees, waste bins, hydrants, and potholes)
-
-- 2026-08-17 — The Lab Architectural Expansion: Monuments, Mid-Rises, Supertalls & Cantilever Villas (expanded sandbox with Arc de Triomphe corbel monument, Art Deco maritime lighthouse, Fallingwater modernist cantilever villa, Googie butterfly-roof diner, Brutalist civic cultural library, 24m Grand Clock Tower & obelisk plaza, 4-storey urban fire-escape apartments, sawtooth industrial lofts, 46m diagonal X-braced supertall skyscraper, cylindrical drum tower, suspension bridge anchor pylon, and luxury rooftop infinity pool villa; all authored in modular anisotropic single-piece structural forms)
-
-- 2026-08-17 — The Lab Modular Structural Sub-Division: 2m Bay Fragmentation & Detachment (subdivided oversized plinths, floor slabs, roofs, and walls in Modernist Pavilion, Grand Colonnade, and Skyscraper Alpha into modular 2m structural bays; complies with Grade and Bite clauses; enables fluid collapse, progressive crumbling, and consumption)
-
-- 2026-08-17 — Cloud Progress Sync: Coins, Skins, Stars & Upgrades Follow The Signed-In Player (save schema v25; `player_progress` table with RLS deny-browser posture, `/api/progress/pull`+`push`, a merge that keeps the better of two records and never sums coins, a server-side coin plausibility fence, an 8s-debounced offline-safe sync queue, and a profile-tab sync indicator; behind `FW_PROGRESS_SYNC` — see `.wiki/modules/cloud.md`, ADR-0021)
-
-- 2026-08-17 — Keyboard Steering Angular Acceleration: Smooth Continuous Turn Ramp (replaces instantaneous fixed-step turn rate; short taps execute sub-degree micro-adjustments; holding A/D smoothly accelerates turn rate up to maximum speed across 0.45s; direction switches cleanly reset)
-
-- 2026-08-17 — Power-Up Wild Spawn Encounter & Overhead Camera: 4.0s Non-Interruptible Sequence ("A WILD [NAME] HAS APPEARED!" holographic battle card, name, icon and short description; overhead 1.20 rad pitch framing over drop beacon; 4.0s duration)
-
-- 2026-08-17 — The Lab Architectural & Scoring Overhaul: Anisotropic Forms, Texture-Free Solids, Size-Scaled Points & 6-Player Spawn Snack Rings (HUD score reads h.mass instead of rawMass; base points scale with object size; lightweight solid color rendering; subway hub, waterfront pier basin, helipad & helicopter, billboard, and balanced 6-player snack rings shipped)
-
-- 2026-08-17 — Level Intro Camera: Establishing Hold → Overhead Rise → Dive To The Hole (RCA-2026-08-17 level-start camera; an orphaned power-up cinematic had hijacked frame 1 of every level since `8818c2d` — peak yaw 1220 → 42.5 °/s, cinematic-armed frames 185/350 → 0, pitch leak closed)
-
-- 2026-08-17 — Excursion Harness Advances On Arrival, Not On The Clock (RCA-2026-08-17 chicago; `tools/route-driver.mjs`, ≤2% parked ticks, new `speedInvariance` gate, four unregistered suites now gated)
-
-- 2026-08-17 — Inaudible Sounds No Longer Fatigue Their Sample (audibility floor moved between peek and deposit; the near tower 11.1 dB louder, rival `quiet` ladder made real)
-
-- 2026-08-17 — Multiplayer Match Start Is An Act, Not A Side Effect Of Capacity (host presses start, or non-hosts vote unanimously once the host is idle; vote unavailable below 3 players)
-
-- 2026-08-17 — Mobile Shop Bottom Nav Undocked From Its Own Scroll Container (RCA-2026-08-17 backdrop-filter; 6087px drift → 0px, 241-check browser contract, fluid tab labels)
-
-- 2026-08-17 — Voxel Event Audio Restored: Eat Gulps, Combo Ladder, Stingers, Derailment & Tornado (RCA-2026-08-17, three suites now gated)
-
-- 2026-08-17 — Partner Skin Approval Gating & Coin Refund (save schema v24)
-
-- 2026-08-17 — Hole Speed Retune: 1.4× → 1.8× (save schema v23, ranked v2)
-
-- 2026-08-17 — The Lab Theme & Pause-Menu Track Picker
-
-- 2026-08-17 — Automatic Player Names, One All-Time Leaderboard & Guest Run Adoption (T-801, T-802, T-803)
-
-- 2026-08-17 — Music Buffers Before The First Tap (T-704)
-
-- 2026-08-16 — Economy Corrections: Coin Ladder, Campaign Growth Upgrade & Legacy Double-Count (T-701, T-702, T-703)
-
-- 2026-08-16 — Silent Victory Podium Fixed & Music Cue Registry Guarded
-
-- 2026-08-16 — Host-Authoritative Match Clock & Shared Coin Pool (T-635, T-636)
-
-- 2026-08-16 — Interactive Help Menu, Comprehensive Walkthrough, FAQ & Tips 'n Tricks Shipped
-
-- 2026-08-16 — Multiplayer Per-Player End-of-Match Scorecard & Results Podium Shipped
-
-- 2026-08-16 — 10-Second Combo Meter with 5s / 3s Dynamic Flashing & Arc Draining Shipped
-
-- 2026-08-16 — 3-Minute City Challenges, 2x Coin Rewards & Secret 90s Challenge Unlock
-
-- 2026-08-16 — Multiplayer Multi-Hole System, Power-Up Polish & 7 Basic Color Skins Shipped
-
-- 2026-08-16 — ADR-0020: Menu Wiring Bug Fixes
-
-- 2026-08-16 — Demographic Cohort Playtesting (Marketing Professionals 30–55)
-
-- 2026-08-16 — Level 1 (The Lab) 6-Player Invite Lobby Multiplayer Shipped
-
-- 2026-08-16 — Scrapped Legacy Multiplayer & Prepared Fresh Clean-Slate Architecture
-
-- 2026-08-15 — Modern Mobile Game Shop & Multi-Rank Incremental Character Stat Upgrades
-
-- 2026-08-15 — Gameplay Enhancements & Mechanics Polish
-
-- 2026-08-15 — Dragon Ball Pickup Camera Recovery
-
-- 2026-08-15 — Chrono Freeze Ice Cue Restored
-
-- 2026-08-15 — Non-Quake Dragon Ball Pickup Sequences Restored
-
-- 2026-08-15 — Fault Line Rupture Super-Move Expansion
-
-- **Brand**: *Flywheel — A sprocket's story*. Branded landing screen over live city backdrop, block wordmark, legal footer.
-- **Progression**: Free-play voxel sandboxes on 180s clock, 100% full-clear goal, 60 deterministic collectible coins per city, skin & indicator shop.
-- **Cities (7 + Tokyo)**: Gallery, Manhattan, Upper Manhattan (73k blocks), Brooklyn (40k blocks), Boston (83k blocks), Cambridge (73k blocks), Chicago Loop (44k blocks), Tokyo (83k blocks).
-- **Boards & Online Progression**: THE RUN Chicago 90s verified replay; public boards; local/cloud profiles; signed outbox. Multiplayer being rebuilt from scratch.
-- **Audio & Quality**: 19 streamed tracks, pause-menu track picker with unlock gating, independent audio mix controls, HIGH/LOW binary quality.
-
----
-
-- 2026-08-15 — Strict Test-Driven Development (TDD) Mandatory Standard
-
-- 2026-08-15 — Fault Line Rupture Cinematic Restored
-
-- 2026-08-15 — Collected Power-Up 3D Mesh Disappearance & Scene Graph Cleanup
-- 2026-08-15 — Tornado Siren Dissipation Cutoff, Level Soundtrack Initiation & 50% Master Volume Tuning
-- 2026-08-15 — Smooth Boot Progression & Title Music Autoplay Fix
-- 2026-08-15 — High-Fidelity Rendered Audio Assets Integration (19 Dedicated Masters)
-- 2026-08-15 — Immediate Title Music Preloading & Early Boot Audio Streaming
-- 2026-08-15 — Real-Time Dragon Ball Fault Line Rupture Restoration & Uninterrupted Power-Up Activation
-- 2026-08-15 — Natural Disaster Physics Optimization & Bounded Twister Vortex
-- 2026-08-15 — Tiered City Coin Economy (Scaled Ground Spawns, Per-Coin Multipliers, and Escalating Full-Clear Payouts)
-- 2026-08-15 — Fast Startup & 2-Stage Menu Flow (Stage 1 Clean Title -> Stage 2 City Carousel with Dynamic Size Progression)
-- 2026-08-15 — Power-Up Lifecycle, Louder Combo Multipliers, Anime Screen Overlays, Endgame Target Beacons & Scheduled Disasters
-- 2026-08-15 — Short-Phone Landing Fix
-- 2026-08-15 — Default Action Camera Angle & Obstruction View Clearance
-- 2026-08-15 — In-Game GUI Visual Hierarchy & Mobile Ergonomics Overhaul
-- 2026-08-15 — Mobile UI Screen Region Spatial Separation (Size Center vs Combo Meter Burst)
-- 2026-08-15 — Pokémon Wild Battle Encounter Power-Up Spawn Introduction
-- 2026-08-15 — Combo Screen Glow Removal & Anime Battle Banner Overhaul
-- 2026-08-15 — Dragon Ball Anime Cinematic Earthquake Power-Up Overhaul
-- 2026-08-15 — SIZE 24 Ladder & Proportional Scaling Overhaul
-- 2026-08-15 — Tokyo Geographic Accuracy Pass
-- 2026-08-14 — Tokyo Daytime Palette Overhaul
-- 2026-08-14 — Earthquake Fault-Line Direction Fix
-- 2026-08-14 — Environmental Cataclysms & Power-Up Overhaul
-- 2026-08-14 — Tokyo Mega-Metropolis Expansion (83,573 blocks / 154,879 mass)
-- 2026-08-14 — Panicked Derailment Scream SFX
-- 2026-08-14 — 3-Thirds Showcase Sandbox Architecture
-- 2026-08-14 — Cute Kenney-Inspired City Surface Textures
-- 2026-08-14 — 5-Minute Level Duration & Perimeter Voxel Containment
-- 2026-08-14 — Power-Up Showcase Modal & Pure Demolition
-- 2026-08-14 — Anti-Clustering & Power-Up Balancing
-- 2026-08-14 — Dynamic Roaming & Intermittent Power-Ups
-- 2026-08-14 — Authentic Coin Audio & Power-Up Polish
-- 2026-08-14 — Visual Polish Stage 6
-- 2026-08-14 — Visual Polish Stages 2–5
-- 2026-08-14 — Splash screen status header
-- 2026-08-14 — Boards offline/local fallback
-- 2026-08-14 — Power-Up System
-- 2026-08-14 — Parallelized validator test suite & Cambridge soak opt-in (T-403)
-- 2026-08-14 — Debris retirement on proven stationarity (T-402, ADR-0018)
-- 2026-08-13 — Player identity chip, legal pages (`privacy.html`, `terms.html`), score integrity (T-301..T-312)
-- 2026-08-13 — Timed runs (180s clock) & 100% full-clear goals across all scenes
-- Older: `CHANGELOG.md`
+Older: `CHANGELOG.md`.

@@ -117,6 +117,7 @@ bottom-up, along material bond strengths.
 | `js/voxelscene-upper-manhattan.js` | `buildUpperManhattan(sim)`: the full Central Park + Upper Manhattan district (73,393 blocks / 86,083 mass). Sets its own bounds, landmarks, curb kit, decor, and camera blockers |
 | `js/voxelscene-brooklyn.js` | `buildBrooklyn(sim)`: bridges-to-Coney-Island sandbox, 1.35 blocks/m² |
 | `js/voxelscene-boston.js` | `buildBoston(sim)`: Seaport, Fort Point and the BCEC (82,894 blocks, 2.0 blocks/m²) — see the Boston section below |
+| `js/voxelscene-sydney.js` | `buildSydney(sim)`: Circular Quay, the Opera House sail vaults, the Harbour Bridge arch and the 53 m Sydney Tower Eye — the ACT I opener and the first city of the global campaign (14,120 blocks / 25,237 mass / 250 camera blockers, matching `js/citycatalog.js` exactly). Validated by `tools/validate-sydney.mjs` via the `sydney` section |
 | `js/voxelforms.js` | The twelve anisotropic primitives ADR-0013 unlocked (`slab`, `column`, `beam`, `panel`, `mullion`, `cornice`, `pier`, `plinth`, `tread`, and the rest), sitting below `js/voxelkit.js`. Geometry only — no named buildings, no city semantics. Pure sim |
 | `js/voxelscene-cambridge.js` | `buildCambridge(sim)`: East Cambridge around 2 Canal Park, the first scene authored in the `voxelforms.js` vocabulary. All ten districts built and the map complete at 72,943 blocks with the dead-ground census at zero; wired into the sim's scene dispatch, `AUTHORED_SCENES` and `FREE_PLAY`, and validated by `validateCambridge()`. Phase 7's hidden content and the Phase 8 sign-off are still ahead |
 | `js/voxelscene-chicago.js` | `buildChicago(sim)`: the Loop and Chicago River map, ground-up rebuilt on the Cambridge method (44,578 blocks, SIZE 7 reachable via `tools/chicago-probe.mjs`). Real street grid single-sourced through `CHICAGO_STREETS`; the river wraps north and west with three bascule bridges (LaSalle, State, DuSable); the 'L' Loop is a full four-corner elevated circuit (Lake/Wabash/Van Buren/Wells) with three stations (State/Lake, Washington/Wabash, Quincy) and a four-car CTA train riding it continuously via the mover seam — simulated, not just drawn: it derails at eaten track, runs the streets as a runaway, and a derailed car is eatable (see the Chicago section below). ~15 named landmarks (Willis Tower, Board of Trade/Ceres, Marina City, the Chicago Theatre blade, Cloud Gate, Wrigley, Tribune, and more). **Menu-reachable since 2026-08-11** via `js/main.js`'s `AUTHORED_SCENES` entry and `js/ui/screens.js`'s FREE_PLAY card (the original wiring also joined the now-retired `js/net/` prototype's city picker, which no longer exists — see `architecture.md`'s "Key decisions"). `tools/validate.mjs`'s `validateChicago()` runs Chicago through the same 19-probe contract plus scripted-excursion gates as Cambridge (deterministic double excursion, `eatenCount >= 300`, `SIZE >= 7`). It now also proves green end to end in a full pass: the Cambridge stall that used to block every section after it in file order was rooted in unretirable jammed debris (superlinear contact cost), fixed engine-side by T-402 (ADR-0018), and the validator now runs all section groups as concurrent child processes so wall time is the slowest group rather than the serial sum. `tools/chicago-probe.mjs` remains the fast iteration loop for this scene |
@@ -770,6 +771,16 @@ especially
 
 ## Gotchas
 
+- **`generateBlockers` RETURNS, it does not assign.** The last line of a scene
+  build must be `sim.cameraBlockers = generateBlockers(sim);`. A bare
+  `generateBlockers(sim);` compiles, runs, pays the full generation cost and
+  throws the result away, leaving `sim.cameraBlockers` undefined so the chase
+  camera clips straight through every building in the scene. This shipped in
+  Sydney and survived review because **there is no crash and no warning** — the
+  only symptom is `blockers=0` in the validator's own summary line, printed one
+  line below the coverage failure it causes. Pass no `minH`: the default (6 m) is
+  what every other scene uses, so the whole roster stays on one knob. A scene
+  with no validator section is not covered by this check at all.
 - **No `Math.random()`** — inject `this.rng` (seeded); the validator's guard
   now globs `js/voxelscene-*.js` (see conventions.md #1), so any new scene
   file is covered without an update here. Determinism also means: no
