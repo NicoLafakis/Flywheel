@@ -932,10 +932,15 @@ especially
      hole.
   9. **Every structure ≥ 6 m needs a `cameraBlockers` entry** whose `h` is its
      true top, water tower and spire included, and whose AABB matches the
-     footprint (not the district). Nothing in the sim derives these — a new
-     building is invisible to the camera until someone types it in, which is
-     how all nineteen original entries ended up being ≥ 9 m towers while a
-     dozen 6-9 m mid-rises, the 58 m-long El viaduct among them, had none.
+     footprint (not the district). The older scenes type these in by hand, and
+     nothing derives them for you there — which is how all nineteen original
+     entries ended up being ≥ 9 m towers while a dozen 6-9 m mid-rises, the
+     58 m-long El viaduct among them, had none. Newer scenes instead END their
+     build with `sim.cameraBlockers = generateBlockers(sim);`, which derives the
+     whole set from finished geometry. **Read the Gotchas entry on that call
+     before you write it** — it returns rather than assigns, and getting that
+     wrong is silent and total (Sydney ran its entire Act I opener with the
+     camera clipping through every landmark).
   10. **The placement step must equal the brick size.** `_block(x, …, 0.5)`
       walked on a 1 m step leaves 0.5 m gaps — the Battery Park "hedge row"
      was 13 isolated cubes for exactly this reason. Physics never complains
