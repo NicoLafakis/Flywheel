@@ -70,6 +70,21 @@ export function runMobileUiSelftest() {
     assert(screensSrc.includes('${gateCity ? gateCity.name'), 'lock bar copy must reference gateCity');
   });
 
+  // 3d. CLEARED stamp (100% clear) and 3-MIN challenge badge are separate marks.
+  test('CLEARED stamp and 3-MIN challenge badge are independent, separately styled marks', () => {
+    assert(screensSrc.includes('city-challenge-badge'), 'screens.js must render a .city-challenge-badge');
+    assert(!/city-stamp-sub">3-MIN/.test(screensSrc), 'stamp sub-line must not carry the 3-MIN challenge');
+    assert(/const challengeDone = [^\n]*isCityChallengeCompleted/.test(screensSrc), 'challengeDone must derive from isCityChallengeCompleted');
+    assert(/\$\{challengeDone \? `<div class="city-challenge-badge/.test(screensSrc), 'badge must render independently of the CLEARED stamp');
+    assert(cssSrc.includes('.city-challenge-badge'), 'Must style .city-challenge-badge');
+  });
+
+  // 3e. Desktop-only breathing room; mobile rules untouched.
+  test('Desktop City Select breathing room lives in a >=1024px, non-touch media query', () => {
+    assert(/@media \(min-width: 1024px\) and \(hover: hover\)[\s\S]{0,1200}\.city-act-filter-rail/.test(cssSrc), 'desktop-only query must restyle the act rail');
+    assert(/@media \(min-width: 1024px\) and \(hover: hover\)[\s\S]{0,1200}\.city-action-row/.test(cssSrc), 'desktop-only query must pad the CTA area');
+  });
+
   // 4. Mobile Shop Shell & Docked Navigation
   test('Shop provides mobile docked tab bar and responsive item grid', () => {
     assert(cssSrc.includes('.shop-screen'), 'Must style .shop-screen');

@@ -597,6 +597,9 @@ export class Screens {
       const animClass = direction > 0 ? 'slide-left' : (direction < 0 ? 'slide-right' : '');
       const isDev = city.status === 'DEVELOPMENT';
       const cleared = !isDev && !!(rec && (rec.completions || 0) > 0);
+      // Separate achievement: the 3-minute challenge. Can be true without a
+      // full clear (save.challenges[scene].completed3m), so it is its own mark.
+      const challengeDone = !isDev && isCityChallengeCompleted(this.save, city.scene);
       // Locked and in-development cards share the faded treatment + bottom bar.
       const fadeCls = (!unlocked || isDev) ? ' city-fade' : '';
 
@@ -608,7 +611,10 @@ export class Screens {
             <span class="city-tag city-tag--stage">${city.act}: ${city.actTitle}</span>
           </div>
         </div>
-        ${cleared ? `<div class="city-stamp" aria-label="Cleared"><span class="city-stamp-text">CLEARED</span>${isCityChallengeCompleted(this.save, city.scene) ? `<span class="city-stamp-sub">3-MIN ★</span>` : (rec.completions > 1 ? `<span class="city-stamp-sub">×${rec.completions}</span>` : '')}</div>` : ''}
+        ${cleared || challengeDone ? `<div class="city-marks" aria-hidden="false">
+          ${cleared ? `<div class="city-stamp" aria-label="Cleared"><span class="city-stamp-text">CLEARED</span>${rec.completions > 1 ? `<span class="city-stamp-sub">×${rec.completions}</span>` : ''}</div>` : ''}
+          ${challengeDone ? `<div class="city-challenge-badge${cleared ? ' city-challenge-badge--on-stamp' : ''}" aria-label="3-minute challenge completed"><span class="badge-bolt" aria-hidden="true">⚡</span><span class="badge-text">3-MIN ★</span></div>` : ''}
+        </div>` : ''}
 
         <div class="city-hero-block${fadeCls}">
           <div class="city-icon-float" aria-hidden="true">${city.icon}</div>

@@ -8,6 +8,7 @@ Last updated: 2026-08-17
 
 ## Active focus
 
+- **Camera Bézier Occlusion Smoothing & The Lab Skyscraper Testbed**: $C^1$-continuous cubic Hermite/Bézier pitch transitions ($S(u) = u^2(3-2u)$) and critically-damped roof-climb ascent easing ($18\text{ s}^{-1}$) to eliminate abrupt overhead angle snaps and vertical pops when navigating near skyscrapers, with an authored 3-tower testbed in The Lab (`.wiki/features/camera-bezier-smoothing/`, ADR-0022).
 - **Global Campaign & Sprocket Storyline**: 29-metropolis world tour across 7 regional Acts (Pacific, Asia, Mediterranean, Europe, Americas, New York, Cambridge UNBOUND). Narrative grounding of flywheel mechanics, mission dossiers, and progressive city unlock ladders (`.wiki/features/global-campaign/`).
 - **Multiplayer Multi-Hole & Join Polish**: 6-player synchronized invite lobby multiplayer, multi-hole presentation alignment, PvP hole swallowing, 10s respawn timeout, per-player coin isolation, and 7 free color skins (`.wiki/modules/multiplayer.md`).
 - **Power-Up System**: Dynamic roaming power-ups with intermittent spawn/despawn lifecycle, in-world 3D beams, and full WebAudio fanfares (`.wiki/modules/powerups.md`).
@@ -27,6 +28,7 @@ Last updated: 2026-08-17
 
 ## Shipped state
 
+- 2026-08-19 — City Select follow-up: CLEARED stamp (100% clear) and 3-MIN challenge seal split into independent marks (`.city-marks` cluster, cyan `.city-challenge-badge`, layered on the stamp corner when both, alone for challenge-only); desktop-only (`min-width:1024px` + hover/fine-pointer) breathing room for header, act rail, card and CTA area — 390x844 metrics verified pixel-identical before/after; `tools/mobile-ui.test.mjs` now 9 tests
 - 2026-08-19 — City Select card-state cleanup (`js/ui/screens.js` `showCitySelect` + `css/main.css`): upper-right status pill removed in favour of an on-card CSS "CLEARED" passport stamp, faded body + sticky lock bar ("METROPOLIS LOCKED — Clear {gating PLAYABLE city} 100% in under 5 minutes") for locked cities and an "UNDER CONSTRUCTION" bar for DEVELOPMENT cities; lock-bar copy now names the preceding PLAYABLE city (was the previous carousel card, which could be an in-development city); play CTA is `PLAY {city}` (no `(5 MIN)`); the 29-dot bottom rail is gated off behind `SHOW_CITY_DOTS = false` and act tabs get a 40px min touch height; covered by `tools/mobile-ui.test.mjs` (7 tests) and verified headed on 390x844 / 360x640 / 844x390)
 - 2026-08-19 — Global Campaign Phase 2: UI & Mission Dossier Integration (shipped regional Act filter navigation tabs [All, Prologue, Acts I–VII] in City Select `js/ui/screens.js`; integrated interactive Sprocket Mission Dossier cards displaying tactical directives, radio transmissions, target hero landmarks, and rescued momentum companion bots; added Ready Gate pre-flight narrative briefing in `js/ui/ready.js`; added victory Kinetic Revival Debrief cards on 100% full clears in `showSandboxResults`; covered by 163 assertions in `tools/campaign-ui.test.mjs` and registered in `tools/validate.mjs`)
 
