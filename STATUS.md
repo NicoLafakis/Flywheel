@@ -27,6 +27,8 @@ Last updated: 2026-08-17
 
 ## Shipped state
 
+- 2026-08-19 — Global Campaign Phase 1: 29-Metropolis Roster, 7 Acts & Schema Foundation (shipped full 29-metropolis world tour schema in `js/citycatalog.js` across 7 regional Acts [Pacific, Asia, Mediterranean, Europe, Americas, New York, Cambridge UNBOUND]; added narrative tactical transmissions, hero landmark rosters, momentum companion bots, and debrief directives; engineered backward-compatible `PLAYABLE` vs. `DEVELOPMENT` status gating and monotonic economy ladders; updated help walkthrough and registered automated test suite `tools/validate-campaign.mjs` in `tools/validate.mjs` with 1178 assertions)
+
 - 2026-08-18 — Mobile Pinch/Expand Zoom & Dual-Zone Gesture Guidance (prominently surfaced two-finger pinch-to-zoom-in and spread-to-zoom-out gesture controls on mobile touchscreens across Ready Gate pre-flight cards [🤏 Pinch / Expand with 2 fingers], in-game speech bubbles, Size 2 Level-Up Pro Tip, and Pause Menu quick cheat sheet; clearly contrasted with desktop R/F & scroll wheel; covered by `tools/mobile-zoom-controls.test.mjs`)
 
 - 2026-08-18 — Cute Just-in-Time Milestone Onboarding & Introductory Instruction System (replaced rigid step checklist with delightful casual arcade flow: animated "START EATING BLOCKS!" speech bubble with Sprocket avatar ⚙️ and bouncing pointer; celebratory Size 2 Growth Modal with visual prop comparison [Small Props ➔ Cars & Trees Unlocked!]; 4× Combo Momentum callout; and structural foundation collapse callout; zero redundancy with existing power-up impact overlays; covered by `tools/tutorial.test.mjs`)

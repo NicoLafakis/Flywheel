@@ -9,10 +9,10 @@ covers:
 
 ## Phase Tracker
 
-- [ ] **Phase 1: Catalog & Data Schema Foundation**
-  - [ ] Update `js/citycatalog.js` with the full 29-metropolis roster, 7 Acts, mission transmissions, and hero landmarks.
-  - [ ] Maintain helper functions (`getSortedCityCatalog()`, `isCityUnlocked()`, `isCityChallengeCompleted()`) to handle `PLAYABLE` vs. `DEVELOPMENT` scene status without regressions.
-  - [ ] Write dedicated validator suite (`tools/validate-campaign.mjs`) asserting all 29 cities have valid schema, unique scenes, ascending block targets, and deterministic progression links.
+- [x] **Phase 1: Catalog & Data Schema Foundation**
+  - [x] Update `js/citycatalog.js` with the full 29-metropolis roster, 7 Acts, mission transmissions, and hero landmarks.
+  - [x] Maintain helper functions (`getSortedCityCatalog()`, `getPlayableCityCatalog()`, `isCityUnlocked()`, `isCityChallengeCompleted()`, `getCompletedChallengeCount()`, `isSecret90sChallengeUnlocked()`) to handle `PLAYABLE` vs. `DEVELOPMENT` scene status without regressions.
+  - [x] Write dedicated validator suite (`tools/validate-campaign.mjs`) asserting all 29 cities have valid schema, unique scenes, ascending block targets, and deterministic progression links.
 
 - [ ] **Phase 2: UI & Mission Dossier Integration**
   - [ ] Expand City Selection screen (`js/ui/screens.js`) with **Act Filter Tabs** (Acts I–VII).

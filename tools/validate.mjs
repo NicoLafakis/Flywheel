@@ -60,6 +60,7 @@ import { runMobileCameraSelftest } from './mobile-camera.test.mjs';
 import { runMobileUiSelftest } from './mobile-ui.test.mjs';
 import { runDeviceDetectionSelftest } from './device-detection.test.mjs';
 import { runMobileZoomControlsSelftest } from './mobile-zoom-controls.test.mjs';
+import { runCampaignSelftest } from './validate-campaign.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -2676,6 +2677,7 @@ function validateCityChallenges() {
 
   // 5. Secret 90s Challenge Unlock Logic Across City Catalog
   const mockSave = __freshSave();
+  const playableCities = CITY_CATALOG.filter((c) => c.status === 'PLAYABLE');
   if (isSecret90sChallengeUnlocked(mockSave, CITY_CATALOG)) {
     fail('Secret 90s challenge should be locked initially on a fresh save');
   }
@@ -2683,9 +2685,9 @@ function validateCityChallenges() {
     fail(`Initial completed challenge count should be 0, got ${getCompletedChallengeCount(mockSave, CITY_CATALOG)}`);
   }
 
-  // Complete first 7 cities
-  for (let i = 0; i < CITY_CATALOG.length - 1; i++) {
-    const city = CITY_CATALOG[i];
+  // Complete all playable cities except the last
+  for (let i = 0; i < playableCities.length - 1; i++) {
+    const city = playableCities[i];
     recordChallengeResult(mockSave, city.scene, {
       mode: 'challenge3m',
       won: true,
@@ -2701,29 +2703,29 @@ function validateCityChallenges() {
   }
 
   if (isSecret90sChallengeUnlocked(mockSave, CITY_CATALOG)) {
-    fail('Secret 90s challenge should still be locked when 7 of 8 cities are completed');
+    fail(`Secret 90s challenge should still be locked when ${playableCities.length - 1} of ${playableCities.length} cities are completed`);
   }
-  if (getCompletedChallengeCount(mockSave, CITY_CATALOG) !== CITY_CATALOG.length - 1) {
-    fail(`Completed challenge count should be ${CITY_CATALOG.length - 1}, got ${getCompletedChallengeCount(mockSave, CITY_CATALOG)}`);
+  if (getCompletedChallengeCount(mockSave, CITY_CATALOG) !== playableCities.length - 1) {
+    fail(`Completed challenge count should be ${playableCities.length - 1}, got ${getCompletedChallengeCount(mockSave, CITY_CATALOG)}`);
   }
 
-  // Complete final city (8th city)
-  const lastCity = CITY_CATALOG[CITY_CATALOG.length - 1];
-  recordChallengeResult(mockSave, lastCity.scene, {
+  // Complete final playable city
+  const lastPlayableCity = playableCities[playableCities.length - 1];
+  recordChallengeResult(mockSave, lastPlayableCity.scene, {
     mode: 'challenge3m',
     won: true,
     elapsed: 145.0,
     score: 85000,
     bestCombo: 50,
-    coinsEarned: (lastCity.coinCount * lastCity.coinValue + lastCity.goalBonus) * 2,
+    coinsEarned: (lastPlayableCity.coinCount * lastPlayableCity.coinValue + lastPlayableCity.goalBonus) * 2,
     percent: 1.0,
   });
 
   if (!isSecret90sChallengeUnlocked(mockSave, CITY_CATALOG)) {
-    fail('Secret 90s challenge should be UNLOCKED after all 8 city challenges are completed!');
+    fail('Secret 90s challenge should be UNLOCKED after all playable city challenges are completed!');
   }
-  if (getCompletedChallengeCount(mockSave, CITY_CATALOG) !== CITY_CATALOG.length) {
-    fail(`Completed challenge count should be ${CITY_CATALOG.length}, got ${getCompletedChallengeCount(mockSave, CITY_CATALOG)}`);
+  if (getCompletedChallengeCount(mockSave, CITY_CATALOG) !== playableCities.length) {
+    fail(`Completed challenge count should be ${playableCities.length}, got ${getCompletedChallengeCount(mockSave, CITY_CATALOG)}`);
   }
 
   // 6. Coins Persistence on Challenge Wins (2x reward)
@@ -3085,7 +3087,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
   // gets its own child.
   const groups = [
     ['syntax', 'syntaxCheck'],
-    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges'],
+    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,globalCampaign,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges'],
     // Its own child rather than folded into `core`: every suite in it is itself
     // a spawned process, so it is the one group whose cost is process startup
     // instead of CPU, and it finishes long before the scenes either way.
@@ -3163,6 +3165,7 @@ section('saveSchema', validateSaveSchema);
 section('rewardLadders', validateRewardLadders);
 section('shopAndUpgrades', validateShopAndUpgrades);
 section('helpAndWalkthrough', () => console.log(`Validating Help, Walkthrough & FAQ (${runHelpSelftest()} assertions)...`));
+section('globalCampaign', () => console.log(`Validating Global Campaign (${runCampaignSelftest()} assertions)...`));
 section('tutorialOnboarding', () => console.log(`Validating Interactive Onboarding & Tutorial (${runTutorialSelftest()} assertions)...`));
 section('mobileCameraClarity', () => console.log(`Validating Adaptive Mobile Camera & Clarity (${runMobileCameraSelftest()} assertions)...`));
 section('mobileUiResponsive', () => console.log(`Validating Mobile-First UI & Navigation (${runMobileUiSelftest()} assertions)...`));
