@@ -14,11 +14,11 @@ covers:
   - [x] Maintain helper functions (`getSortedCityCatalog()`, `getPlayableCityCatalog()`, `isCityUnlocked()`, `isCityChallengeCompleted()`, `getCompletedChallengeCount()`, `isSecret90sChallengeUnlocked()`) to handle `PLAYABLE` vs. `DEVELOPMENT` scene status without regressions.
   - [x] Write dedicated validator suite (`tools/validate-campaign.mjs`) asserting all 29 cities have valid schema, unique scenes, ascending block targets, and deterministic progression links.
 
-- [ ] **Phase 2: UI & Mission Dossier Integration**
-  - [ ] Expand City Selection screen (`js/ui/screens.js`) with **Act Filter Tabs** (Acts I–VII).
-  - [ ] Add **Sprocket Mission Dossier** collapsible drawer with tactical transmission & hero landmarks.
-  - [ ] Integrate **Ready Gate Story Directive** in `js/ui/ready.js` pulling the active city's transmission.
-  - [ ] Update Results Screen with story debrief for 100% full clears.
+- [x] **Phase 2: UI & Mission Dossier Integration**
+  - [x] Expand City Selection screen (`js/ui/screens.js`) with **Act Filter Tabs** (All, Prologue, Acts I–VII).
+  - [x] Add **Sprocket Mission Dossier** drawer on city cards with tactical directive, transmission, hero landmarks, and rescued companion bot.
+  - [x] Integrate **Ready Gate Story Directive** in `js/ui/ready.js` pulling the active city's narrative directive and transmission.
+  - [x] Update Results Screen (`js/ui/screens.js`) with story debrief and rescued companion note for 100% full clears.
 
 - [ ] **Phase 3: Automated Validation & Invariant Guard**
   - [ ] Integrate campaign validation into `tools/validate.mjs`.

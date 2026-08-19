@@ -85,12 +85,14 @@ function isStartKey(e) {
  * @param {object} opts
  * @param {string} opts.title         big display line, e.g. 'READY?'
  * @param {string} [opts.subtitle]    small pill above it, e.g. 'BROOKLYN'
+ * @param {string} [opts.directive]   tactical narrative mission directive
+ * @param {string} [opts.transmission] in-universe mission transmission
  * @param {Function} [opts.onStart]   fired once when the player triggers the CTA
  * @param {boolean} [opts.reducedMotion] skip every animation
  * @param {boolean} [opts.showTutorialCards] show pre-flight 4-step cards
  * @returns {{ dismiss: Function }}
  */
-export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reducedMotion = false, showTutorialCards = false } = {}) {
+export function mountReadyGate({ title = 'READY?', subtitle = '', directive = '', transmission = '', onStart, reducedMotion = false, showTutorialCards = false } = {}) {
   const host = document.getElementById('app') || document.body;
   if (liveDismiss) liveDismiss(); // never stack gates
   const stale = document.getElementById(GATE_ID);
@@ -131,6 +133,14 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', onStart, reduc
   // rather than centred so the establishing shot shows through the middle of
   // the frame — see the .rg-stack rule in main.css for the measurement.
   root.querySelector('.rg-top').appendChild(buildBlockWord(title));
+
+  if (directive) {
+    const dirEl = el(`<div class="rg-directive" aria-label="Mission Directive">
+      <span class="rg-directive-tag">🎯 DIRECTIVE:</span>
+      <span class="rg-directive-text">${directive}</span>
+    </div>`);
+    root.querySelector('.rg-top').appendChild(dirEl);
+  }
 
   if (showTutorialCards) {
     const isTouch = isTouchDevice();

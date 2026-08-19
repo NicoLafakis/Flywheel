@@ -61,6 +61,7 @@ import { runMobileUiSelftest } from './mobile-ui.test.mjs';
 import { runDeviceDetectionSelftest } from './device-detection.test.mjs';
 import { runMobileZoomControlsSelftest } from './mobile-zoom-controls.test.mjs';
 import { runCampaignSelftest } from './validate-campaign.mjs';
+import { runCampaignUiSelftest } from './campaign-ui.test.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -3087,7 +3088,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
   // gets its own child.
   const groups = [
     ['syntax', 'syntaxCheck'],
-    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,globalCampaign,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges'],
+    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,globalCampaign,campaignUi,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges'],
     // Its own child rather than folded into `core`: every suite in it is itself
     // a spawned process, so it is the one group whose cost is process startup
     // instead of CPU, and it finishes long before the scenes either way.
@@ -3166,6 +3167,7 @@ section('rewardLadders', validateRewardLadders);
 section('shopAndUpgrades', validateShopAndUpgrades);
 section('helpAndWalkthrough', () => console.log(`Validating Help, Walkthrough & FAQ (${runHelpSelftest()} assertions)...`));
 section('globalCampaign', () => console.log(`Validating Global Campaign (${runCampaignSelftest()} assertions)...`));
+section('campaignUi', () => console.log(`Validating Campaign UI, Mission Dossiers & Narrative Gates (${runCampaignUiSelftest()} assertions)...`));
 section('tutorialOnboarding', () => console.log(`Validating Interactive Onboarding & Tutorial (${runTutorialSelftest()} assertions)...`));
 section('mobileCameraClarity', () => console.log(`Validating Adaptive Mobile Camera & Clarity (${runMobileCameraSelftest()} assertions)...`));
 section('mobileUiResponsive', () => console.log(`Validating Mobile-First UI & Navigation (${runMobileUiSelftest()} assertions)...`));

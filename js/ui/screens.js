@@ -419,26 +419,41 @@ export class Screens {
     s.appendChild(foot);
 
     this.root.appendChild(s);
-    this.current = 'title';
   }
 
   // Stage 2: City Selection & Map Progression Screen.
-  // Displays the featured city at center, navigation arrows (and touch swipe) to advance,
-  // ordered strictly from smallest to largest size, with gated progression.
-  showCitySelect(initialIndex = null) {
+  // Displays the featured city at center, Act filter tabs to browse regional acts,
+  // mission dossier drawer with tactical transmissions, and gated progression.
+  showCitySelect(initialIndex = null, initialAct = 'ALL') {
     this.clear();
     if (this.actions.music) this.actions.music('menu');
     if (this.actions.menuScene) this.actions.menuScene(false);
 
     const catalog = getSortedCityCatalog();
-    const totalCities = catalog.length;
+    const playableCatalog = getPlayableCityCatalog();
+    const playableCount = playableCatalog.length;
 
-    // Find default active city: highest unlocked or first uncompleted
+    const ACTS = [
+      { id: 'ALL', label: 'ALL CITIES' },
+      { id: 'PROLOGUE', label: 'PROLOGUE' },
+      { id: 'ACT I', label: 'ACT I · PACIFIC' },
+      { id: 'ACT II', label: 'ACT II · ASIA' },
+      { id: 'ACT III', label: 'ACT III · DESERT' },
+      { id: 'ACT IV', label: 'ACT IV · EUROPE' },
+      { id: 'ACT V', label: 'ACT V · AMERICAS' },
+      { id: 'ACT VI', label: 'ACT VI · NEW YORK' },
+      { id: 'ACT VII', label: 'ACT VII · UNBOUND' },
+    ];
+
+    let selectedAct = initialAct;
+    let filteredCatalog = selectedAct === 'ALL' ? catalog : catalog.filter((c) => c.act === selectedAct);
+
+    // Find default active city: highest unlocked or first uncompleted in filtered catalog
     let defaultIndex = 0;
-    for (let i = 0; i < catalog.length; i++) {
-      if (isCityUnlocked(this.save, catalog[i].scene, catalog)) {
+    for (let i = 0; i < filteredCatalog.length; i++) {
+      if (isCityUnlocked(this.save, filteredCatalog[i].scene, catalog)) {
         defaultIndex = i;
-        const rec = (this.save?.sandbox || {})[catalog[i].scene];
+        const rec = (this.save?.sandbox || {})[filteredCatalog[i].scene];
         if (!rec || (rec.completions || 0) === 0) {
           break;
         }
@@ -446,7 +461,7 @@ export class Screens {
     }
 
     let currentIndex = initialIndex !== null
-      ? Math.max(0, Math.min(totalCities - 1, initialIndex))
+      ? Math.max(0, Math.min(filteredCatalog.length - 1, initialIndex))
       : defaultIndex;
 
     const s = el(`<div class="screen fw-city-select" role="region" aria-label="City Metropolis Campaign"></div>`);
@@ -456,7 +471,7 @@ export class Screens {
       <button type="button" class="btn secondary city-back-btn" aria-label="Back to Title">← BACK</button>
       <div class="city-header-center">
         <h1 class="city-select-title">SELECT CITY</h1>
-        <div class="city-select-sub">ASCENDING METROPOLIS CAMPAIGN</div>
+        <div class="city-select-sub">GLOBAL 29-METROPOLIS CAMPAIGN</div>
       </div>
       <div class="city-progress-badge" id="city-progress-badge">
         <span class="progress-text"></span>
@@ -464,6 +479,38 @@ export class Screens {
     </div>`);
     header.querySelector('.city-back-btn').onclick = () => this.showTitle();
     s.appendChild(header);
+
+    // Act Filter Navigation Tabs
+    const actTabsRail = el(`<div class="city-act-filter-rail" role="tablist" aria-label="Campaign Act Filters"></div>`);
+    const updateActTabs = () => {
+      actTabsRail.innerHTML = '';
+      ACTS.forEach((act) => {
+        const isActActive = (act.id === selectedAct);
+        const actBtn = el(`<button type="button" class="act-tab-btn${isActActive ? ' active' : ''}" role="tab" aria-selected="${isActActive ? 'true' : 'false'}">
+          ${act.label}
+        </button>`);
+        actBtn.onclick = () => {
+          if (selectedAct !== act.id) {
+            selectedAct = act.id;
+            filteredCatalog = selectedAct === 'ALL' ? catalog : catalog.filter((c) => c.act === selectedAct);
+            let newIndex = 0;
+            for (let i = 0; i < filteredCatalog.length; i++) {
+              if (isCityUnlocked(this.save, filteredCatalog[i].scene, catalog)) {
+                newIndex = i;
+                const rec = (this.save?.sandbox || {})[filteredCatalog[i].scene];
+                if (!rec || (rec.completions || 0) === 0) break;
+              }
+            }
+            currentIndex = newIndex;
+            updateActTabs();
+            renderCard(1);
+          }
+        };
+        actTabsRail.appendChild(actBtn);
+      });
+    };
+    updateActTabs();
+    s.appendChild(actTabsRail);
 
     // Carousel Area
     const carouselWrapper = el(`<div class="city-carousel-wrapper"></div>`);
@@ -489,20 +536,22 @@ export class Screens {
       cardHost.innerHTML = '';
       dotsRail.innerHTML = '';
 
-      const city = catalog[currentIndex];
+      const totalFiltered = filteredCatalog.length;
+      if (currentIndex >= totalFiltered) currentIndex = Math.max(0, totalFiltered - 1);
+      const city = filteredCatalog[currentIndex];
       const unlocked = isCityUnlocked(this.save, city.scene, catalog);
       const rec = (this.save?.sandbox || {})[city.scene];
-      const prevCity = currentIndex > 0 ? catalog[currentIndex - 1] : null;
+      const prevCity = currentIndex > 0 ? filteredCatalog[currentIndex - 1] : null;
 
       const unlockedCount = catalog.filter((c) => isCityUnlocked(this.save, c.scene, catalog)).length;
       const progressText = header.querySelector('.progress-text');
       if (progressText) progressText.textContent = `${unlockedCount} / ${catalog.length} UNLOCKED`;
 
       btnPrev.disabled = (currentIndex === 0);
-      btnNext.disabled = (currentIndex === totalCities - 1);
+      btnNext.disabled = (currentIndex === totalFiltered - 1);
 
       // Render dots
-      catalog.forEach((c, idx) => {
+      filteredCatalog.forEach((c, idx) => {
         const isCur = (idx === currentIndex);
         const isUnl = isCityUnlocked(this.save, c.scene, catalog);
         const cRec = (this.save?.sandbox || {})[c.scene];
@@ -536,23 +585,25 @@ export class Screens {
 
       const animClass = direction > 0 ? 'slide-left' : (direction < 0 ? 'slide-right' : '');
 
-      const card = el(`<div class="city-card ${unlocked ? 'city-card--unlocked' : 'city-card--locked'} ${animClass}" style="--city-accent: ${city.accentColor};">
+      const card = el(`<div class="city-card ${unlocked ? 'city-card--unlocked' : 'city-card--locked'} ${city.status === 'DEVELOPMENT' ? 'city-card--dev' : ''} ${animClass}" style="--city-accent: ${city.accentColor};">
         <div class="city-card-glow"></div>
         <div class="city-card-header">
           <div class="city-badge-group">
             <span class="city-tag city-tag--loc">📍 ${city.location}</span>
-            <span class="city-tag city-tag--stage">${city.badge}</span>
+            <span class="city-tag city-tag--stage">${city.act}: ${city.actTitle}</span>
           </div>
           <div class="city-status-wrap">
-            ${isCityChallengeCompleted(this.save, city.scene)
-              ? `<span class="city-status-pill city-status--cleared">⭐ 3-MIN CLEARED</span>`
-              : (rec && rec.completions > 0
-                ? `<span class="city-status-pill city-status--cleared">🏆 CLEARED ×${rec.completions}</span>`
-                : (unlocked && rec && rec.runs > 0
-                  ? `<span class="city-status-pill city-status--progress">⚡ BEST ${Math.round((rec.bestPercent || 0) * 100)}%</span>`
-                  : (unlocked
-                    ? `<span class="city-status-pill city-status--open">✦ OPEN ✦</span>`
-                    : `<span class="city-status-pill city-status--locked">🔒 LOCKED</span>`)))}
+            ${city.status === 'DEVELOPMENT'
+              ? `<span class="city-status-pill city-status--dev">🚧 COMING SOON</span>`
+              : (isCityChallengeCompleted(this.save, city.scene)
+                ? `<span class="city-status-pill city-status--cleared">⭐ 3-MIN CLEARED</span>`
+                : (rec && rec.completions > 0
+                  ? `<span class="city-status-pill city-status--cleared">🏆 CLEARED ×${rec.completions}</span>`
+                  : (unlocked && rec && rec.runs > 0
+                    ? `<span class="city-status-pill city-status--progress">⚡ BEST ${Math.round((rec.bestPercent || 0) * 100)}%</span>`
+                    : (unlocked
+                      ? `<span class="city-status-pill city-status--open">✦ OPEN ✦</span>`
+                      : `<span class="city-status-pill city-status--locked">🔒 LOCKED</span>`))))}
           </div>
         </div>
 
@@ -560,7 +611,27 @@ export class Screens {
           <div class="city-icon-float" aria-hidden="true">${city.icon}</div>
           <h2 class="city-card-title">${city.name}</h2>
           <div class="city-card-tagline">${city.tagline}</div>
-          <div class="city-card-sub">${city.sub}</div>
+          <div class="city-card-sub">${city.desc}</div>
+        </div>
+
+        <!-- SPROCKET MISSION DOSSIER (NARRATIVE DRAWER) -->
+        <div class="city-dossier-wrap">
+          <div class="dossier-header">
+            <span class="dossier-label">⚙️ SPROCKET MISSION DOSSIER</span>
+            <span class="dossier-companion-tag">${city.momentumFriend}</span>
+          </div>
+          <div class="dossier-directive">
+            <strong>DIRECTIVE:</strong> ${city.directive}
+          </div>
+          <div class="dossier-transmission">
+            <em>"${city.transmission}"</em>
+          </div>
+          <div class="dossier-heroes">
+            <span class="dossier-heroes-title">HERO LANDMARKS:</span>
+            <div class="dossier-hero-chips">
+              ${city.heroes.map(h => `<span class="hero-chip">🏛️ ${h}</span>`).join('')}
+            </div>
+          </div>
         </div>
 
         <div class="city-metrics-row">
@@ -601,7 +672,16 @@ export class Screens {
         </div>
 
         <div class="city-action-row" style="display:flex; flex-direction:column; gap:8px;">
-          ${unlocked ? `
+          ${city.status === 'DEVELOPMENT' ? `
+            <div class="city-locked-notice" style="border-color: #48cae4; background: rgba(72,202,228,0.08);">
+              <span class="locked-icon">🚧</span>
+              <div class="locked-info">
+                <strong style="color: #48cae4;">METROPOLIS IN DEVELOPMENT</strong>
+                <span>3D Voxel architecture for <strong>${city.name}</strong> is currently being authored for the world tour!</span>
+              </div>
+            </div>
+            <button type="button" class="btn fw-cta city-launch-btn disabled" style="opacity:0.6; cursor:not-allowed;" disabled>🚧 UNDER CONSTRUCTION</button>
+          ` : (unlocked ? `
             <button type="button" class="btn fw-cta city-launch-btn">PLAY ${city.name} (5 MIN)</button>
             <div style="display:flex; gap:8px; width:100%;">
               <button type="button" class="btn secondary city-challenge-btn" style="flex:1; border-color:#ffd23f; font-size:12px;">
@@ -615,7 +695,7 @@ export class Screens {
             </div>
             ${!isSecret90sChallengeUnlocked(this.save, catalog) ? `
               <div class="fw-stat-note" style="text-align:center; font-size:11px; opacity:0.8;">
-                🔒 Secret 90s Challenge: ${getCompletedChallengeCount(this.save, catalog)}/${catalog.length} 3m Challenges Complete
+                🔒 Secret 90s Challenge: ${getCompletedChallengeCount(this.save, catalog)}/${playableCount} 3m Challenges Complete
               </div>
             ` : ''}
           ` : `
@@ -627,7 +707,7 @@ export class Screens {
               </div>
             </div>
             <button type="button" class="btn fw-cta city-launch-btn disabled" disabled>🔒 LOCKED</button>
-          `}
+          `)}
         </div>
       </div>`);
 
@@ -661,18 +741,15 @@ export class Screens {
     };
 
     btnNext.onclick = () => {
-      if (currentIndex < totalCities - 1) {
+      if (currentIndex < filteredCatalog.length - 1) {
         currentIndex++;
         renderCard(1);
       }
     };
 
-    // Swipe gestures on carouselWrapper (Touch + Pointer Drag support)
+    // Touch swipe support on card host
     let touchStartX = 0;
     let touchStartY = 0;
-    let touchStartTime = 0;
-    let isSwiping = false;
-
     const onPointerDown = (e) => {
       if (e.target.closest('button')) return;
       touchStartX = e.clientX ?? (e.touches && e.touches[0]?.clientX) ?? 0;
@@ -839,6 +916,7 @@ export class Screens {
       : (prev.bestTime ?? null);
 
     const catalog = getSortedCityCatalog();
+    const cityEntry = catalog.find((c) => c.scene === sim.scene);
     const wasUnlockedBefore = isSecret90sChallengeUnlocked(this.save, catalog);
     const completedChallengesCount = getCompletedChallengeCount(this.save, catalog);
     const willUnlockSecret = isChallenge && sim.won && !isCityChallengeCompleted(this.save, sim.scene) && (completedChallengesCount + 1 >= catalog.length) && !wasUnlockedBefore;
@@ -852,6 +930,11 @@ export class Screens {
       <div class="results-card">
         <h2>${resultTitle}</h2>
         ${isChallenge ? `<div class="challenge-reward-badge" style="background:#ffd23f; color:#000; font-weight:bold; font-size:12px; padding:4px 8px; border-radius:4px; margin-bottom:8px; display:inline-block;">⭐ 2× COIN MULTIPLIER ACTIVE</div>` : ''}
+        ${sim.won && cityEntry ? `<div class="results-debrief-card" style="background: linear-gradient(135deg, rgba(76,201,240,0.15), rgba(157,78,221,0.15)); border: 1.5px solid rgba(76,201,240,0.45); border-radius: 8px; padding: 10px 14px; margin: 10px 0; text-align: left;">
+          <div style="font-size: 11px; font-weight: bold; color: #4cc9f0; letter-spacing: 0.08em; text-transform: uppercase;">🌟 KINETIC REVIVAL ACHIEVED · MISSION DEBRIEF</div>
+          <div style="font-size: 12.5px; color: #fff; margin-top: 4px; font-style: italic; line-height: 1.4;">"${cityEntry.debrief}"</div>
+          ${cityEntry.momentumFriend ? `<div style="font-size: 11px; color: #ffd23f; margin-top: 6px;">⚙️ Rescued Companion: <strong>${cityEntry.momentumFriend}</strong> safely secured in Workshop!</div>` : ''}
+        </div>` : ''}
         ${willUnlockSecret ? `<div class="secret-unlock-card" style="background:linear-gradient(135deg,rgba(255,0,84,0.35),rgba(157,78,221,0.35)); border:2px solid #ff0054; border-radius:8px; padding:10px 14px; margin:10px 0; text-align:center;">
           <div style="font-weight:bold; font-size:14px; color:#ffd23f;">🔥 SECRET 90s HYPER RUN UNLOCKED! 🔥</div>
           <div style="font-size:12px; color:#fff; margin-top:2px;">All 3-minute city challenges conquered! The Secret 90s speed challenge is now available across every metropolis!</div>

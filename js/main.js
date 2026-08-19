@@ -17,7 +17,7 @@ import { VoxelWorld3D } from './voxelworld.js';
 import { ChaseCamera } from './camera.js';
 import { Controls } from './controls.js';
 import { HUD, ANN } from './ui/hud.js';
-import { Screens, SKINS, INDICATOR_SKINS } from './ui/screens.js';
+import { Screens, SKINS, INDICATOR_SKINS, CITY_CATALOG } from './ui/screens.js';
 import { isSkinAvailable } from './skinapproval.js';
 import { mountReadyGate } from './ui/ready.js';
 import { TutorialManager, shouldShowTutorial } from './ui/tutorial.js';
@@ -931,6 +931,7 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
       tutorialManager = null;
     }
 
+    const cityEntry = CITY_CATALOG.find((c) => c.scene === scene);
     if (authored && authored.intro) {
       // Arrival beat under the wide static overview; the gate's own downbeat
       // answers when the player starts the zoom.
@@ -938,6 +939,8 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
       readyGate = mountReadyGate({
         title: 'READY?',
         subtitle: authored.intro.subtitle,   // the pill is sized for one short word
+        directive: cityEntry?.directive || '',
+        transmission: cityEntry?.transmission || '',
         reducedMotion: save.settings.reducedMotion,
         showTutorialCards: showTutorial,
         onStart: () => {
@@ -951,7 +954,11 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
       // bounds to frame, so use its movement bounds for the same zoom-in beat.
       cam.beginIntro({ minR: sim.bounds, sun: sunDirOf(world) });
       readyGate = mountReadyGate({
-        title: 'READY?', subtitle: 'PROVING GROUND', reducedMotion: save.settings.reducedMotion,
+        title: 'READY?',
+        subtitle: 'PROVING GROUND',
+        directive: cityEntry?.directive || 'CALIBRATE VORTEX & INGEST STARTER SNACKS',
+        transmission: cityEntry?.transmission || '',
+        reducedMotion: save.settings.reducedMotion,
         showTutorialCards: showTutorial,
         onStart: () => { readyGate = null; audio.countdownGo(); cam.releaseIntro(); },
       });

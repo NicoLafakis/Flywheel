@@ -2078,6 +2078,27 @@ body.rg-gate-up #hud * { pointer-events: none; }
 /* The subtitle IS the shared .fw-plate; the gate adds only its entrance, which
    drops the pill in from above the frame edge before the title lands. */
 #ready-gate .rg-sub { animation: rg-sub-in .5s cubic-bezier(.2,1.5,.4,1) .06s both; }
+#ready-gate .rg-directive {
+  font-size: clamp(10px, 1.8vw, 12px);
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #00f0ff;
+  background: rgba(10, 14, 28, 0.85);
+  border: 1px solid rgba(0, 240, 255, 0.45);
+  border-radius: 999px;
+  padding: 4px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  max-width: 90vw;
+  animation: rg-sub-in .45s cubic-bezier(.2,1.5,.4,1) .1s both;
+}
+#ready-gate .rg-directive-tag {
+  color: #ffd23f;
+  font-weight: 900;
+}
 
 /* Gate sizing for the shared wordmark and CTA. This is the only thing the gate
    overrides on either: it is measured against a live 3D frame at arm's length,
@@ -4348,6 +4369,48 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
 }
 .progress-icon { font-size: 13px; }
 
+/* Campaign Act Filter Tabs */
+.city-act-filter-rail {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 4px 6px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  justify-content: flex-start;
+}
+.city-act-filter-rail::-webkit-scrollbar {
+  display: none;
+}
+.act-tab-btn {
+  flex-shrink: 0;
+  background: rgba(15, 20, 35, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.act-tab-btn:hover {
+  background: rgba(30, 40, 70, 0.9);
+  color: #fff;
+  border-color: rgba(255, 210, 63, 0.5);
+}
+.act-tab-btn.active {
+  background: linear-gradient(135deg, rgba(255, 210, 63, 0.3), rgba(0, 240, 255, 0.25));
+  border-color: #ffd23f;
+  color: #ffd23f;
+  box-shadow: 0 0 10px rgba(255, 210, 63, 0.35);
+  font-weight: 900;
+}
+
 /* Carousel Wrapper */
 .city-carousel-wrapper {
   width: 100%;
@@ -4516,6 +4579,16 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   border: 1px solid rgba(255, 60, 60, 0.4);
   color: #ff6b6b;
 }
+.city-status--dev {
+  background: rgba(72, 202, 228, 0.18);
+  border: 1px solid #48cae4;
+  color: #48cae4;
+  box-shadow: 0 0 8px rgba(72, 202, 228, 0.3);
+}
+.city-card--dev {
+  border-color: rgba(72, 202, 228, 0.35);
+  background: linear-gradient(175deg, rgba(14, 22, 38, 0.95) 0%, rgba(8, 12, 22, 0.98) 100%);
+}
 
 /* Card Hero Block */
 .city-hero-block {
@@ -4551,6 +4624,87 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   color: rgba(255, 255, 255, 0.7);
   max-width: 90%;
   line-height: 1.35;
+}
+
+/* Sprocket Mission Dossier Drawer */
+.city-dossier-wrap {
+  width: 100%;
+  background: rgba(10, 14, 28, 0.85);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.dossier-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 4px;
+}
+.dossier-label {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #00f0ff;
+  text-transform: uppercase;
+}
+.dossier-companion-tag {
+  font-size: 10px;
+  font-weight: 800;
+  color: #ffd23f;
+  background: rgba(255, 210, 63, 0.12);
+  border: 1px solid rgba(255, 210, 63, 0.3);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+.dossier-directive {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.35;
+}
+.dossier-directive strong {
+  color: #ffd23f;
+  font-weight: 900;
+}
+.dossier-transmission {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+  font-style: italic;
+  line-height: 1.3;
+}
+.dossier-heroes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+.dossier-heroes-title {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+}
+.dossier-hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.hero-chip {
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 /* Metrics Row */

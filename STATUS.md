@@ -27,6 +27,8 @@ Last updated: 2026-08-17
 
 ## Shipped state
 
+- 2026-08-19 — Global Campaign Phase 2: UI & Mission Dossier Integration (shipped regional Act filter navigation tabs [All, Prologue, Acts I–VII] in City Select `js/ui/screens.js`; integrated interactive Sprocket Mission Dossier cards displaying tactical directives, radio transmissions, target hero landmarks, and rescued momentum companion bots; added Ready Gate pre-flight narrative briefing in `js/ui/ready.js`; added victory Kinetic Revival Debrief cards on 100% full clears in `showSandboxResults`; covered by 163 assertions in `tools/campaign-ui.test.mjs` and registered in `tools/validate.mjs`)
+
 - 2026-08-19 — Global Campaign Phase 1: 29-Metropolis Roster, 7 Acts & Schema Foundation (shipped full 29-metropolis world tour schema in `js/citycatalog.js` across 7 regional Acts [Pacific, Asia, Mediterranean, Europe, Americas, New York, Cambridge UNBOUND]; added narrative tactical transmissions, hero landmark rosters, momentum companion bots, and debrief directives; engineered backward-compatible `PLAYABLE` vs. `DEVELOPMENT` status gating and monotonic economy ladders; updated help walkthrough and registered automated test suite `tools/validate-campaign.mjs` in `tools/validate.mjs` with 1178 assertions)
 
 - 2026-08-18 — Mobile Pinch/Expand Zoom & Dual-Zone Gesture Guidance (prominently surfaced two-finger pinch-to-zoom-in and spread-to-zoom-out gesture controls on mobile touchscreens across Ready Gate pre-flight cards [🤏 Pinch / Expand with 2 fingers], in-game speech bubbles, Size 2 Level-Up Pro Tip, and Pause Menu quick cheat sheet; clearly contrasted with desktop R/F & scroll wheel; covered by `tools/mobile-zoom-controls.test.mjs`)
