@@ -447,6 +447,26 @@ export class Screens {
       { id: 'ACT VII', label: 'ACT VII · UNBOUND' },
     ];
 
+    // Campaign acts in catalog order (everything but the ALL pseudo-tab).
+    const CAMPAIGN_ACTS = ACTS.filter((a) => a.id !== 'ALL');
+    const isCleared = (scene) => {
+      const r = (this.save?.sandbox || {})[scene];
+      return !!(r && (r.completions || 0) > 0);
+    };
+    // Per-act cleared/total, recomputed on demand (the save can change between renders).
+    const actStats = (actId) => {
+      const cities = actId === 'ALL' ? catalog : catalog.filter((c) => c.act === actId);
+      return { total: cities.length, cleared: cities.filter((c) => isCleared(c.scene)).length, cities };
+    };
+    const totalCleared = () => actStats('ALL').cleared;
+    // Unlock gate for a city: nearest preceding PLAYABLE city in the full
+    // catalog (mirrors isCityUnlocked), never an in-development city.
+    const gateCityFor = (scene) => {
+      const idx = catalog.findIndex((c) => c.scene === scene);
+      for (let i = idx - 1; i >= 0; i--) if (catalog[i].status === 'PLAYABLE') return catalog[i];
+      return null;
+    };
+
     let selectedAct = initialAct;
     let filteredCatalog = selectedAct === 'ALL' ? catalog : catalog.filter((c) => c.act === selectedAct);
 
@@ -475,11 +495,12 @@ export class Screens {
         <h1 class="city-select-title">SELECT CITY</h1>
         <div class="city-select-sub">GLOBAL 29-METROPOLIS CAMPAIGN</div>
       </div>
-      <div class="city-progress-badge" id="city-progress-badge">
+      <button type="button" class="city-progress-badge" id="city-progress-badge" aria-label="Open World Tour">
         <span class="progress-text"></span>
-      </div>
+      </button>
     </div>`);
     header.querySelector('.city-back-btn').onclick = () => this.showTitle();
+    header.querySelector('.city-progress-badge').onclick = () => openWorldTour();
     s.appendChild(header);
 
     // Act Filter Navigation Tabs
@@ -488,8 +509,11 @@ export class Screens {
       actTabsRail.innerHTML = '';
       ACTS.forEach((act) => {
         const isActActive = (act.id === selectedAct);
-        const actBtn = el(`<button type="button" class="act-tab-btn${isActActive ? ' active' : ''}" role="tab" aria-selected="${isActActive ? 'true' : 'false'}">
-          ${act.label}
+        const st = actStats(act.id);
+        const actCleared = st.total > 0 && st.cleared === st.total;
+        const actBtn = el(`<button type="button" class="act-tab-btn${isActActive ? ' active' : ''}${actCleared ? ' cleared' : ''}" role="tab" aria-selected="${isActActive ? 'true' : 'false'}" aria-label="${act.label}, ${st.cleared} of ${st.total} cleared">
+          <span class="tab-label">${act.label}</span>
+          <span class="tab-count">${actCleared ? '✓ ' : ''}${st.cleared}/${st.total}</span>
         </button>`);
         actBtn.onclick = () => {
           if (selectedAct !== act.id) {
@@ -513,6 +537,102 @@ export class Screens {
     };
     updateActTabs();
     s.appendChild(actTabsRail);
+
+    // Campaign progress strip: one segment per act, width proportional to city
+    // count, filled by cleared cities; the act holding the current card glows.
+    // The whole strip is a 44px-tall button that opens the World Tour sheet.
+    const progressStrip = el(`<button type="button" class="city-progress-strip"></button>`);
+    progressStrip.onclick = () => openWorldTour();
+    s.appendChild(progressStrip);
+    const renderStrip = (currentCity) => {
+      const cleared = totalCleared();
+      progressStrip.setAttribute('aria-label', `Campaign progress: ${cleared} of ${catalog.length} cleared, open World Tour`);
+      progressStrip.innerHTML = `<span class="strip-track">${CAMPAIGN_ACTS.map((act) => {
+        const st = actStats(act.id);
+        const pct = st.total ? Math.round((st.cleared / st.total) * 100) : 0;
+        const isCur = currentCity && currentCity.act === act.id;
+        return `<span class="strip-seg${isCur ? ' current' : ''}${pct >= 100 ? ' full' : ''}" style="flex:${st.total}" title="${act.label}: ${st.cleared}/${st.total}"><span class="strip-fill" style="width:${pct}%"></span></span>`;
+      }).join('')}</span>`;
+    };
+
+    // World Tour sheet: bottom sheet on phones, centred panel on desktop.
+    let tourEl = null;
+    const closeWorldTour = () => {
+      if (!tourEl) return;
+      const t = tourEl; tourEl = null;
+      t.classList.add('closing');
+      setTimeout(() => t.remove(), 200);
+    };
+    const openWorldTour = () => {
+      if (tourEl) return;
+      const cur = filteredCatalog[currentIndex];
+      const unlockedCount = catalog.filter((c) => isCityUnlocked(this.save, c.scene, catalog)).length;
+      tourEl = el(`<div class="world-tour-backdrop" role="presentation">
+        <div class="world-tour-sheet" role="dialog" aria-modal="true" aria-label="World Tour campaign map">
+          <div class="wt-grip" aria-hidden="true"></div>
+          <div class="wt-header">
+            <div class="wt-title">WORLD TOUR · ${totalCleared()} / ${catalog.length} CLEARED</div>
+            <div class="wt-sub">${unlockedCount} / ${catalog.length} UNLOCKED</div>
+            <button type="button" class="wt-close" aria-label="Close World Tour">✕</button>
+          </div>
+          <div class="wt-scroll">
+            ${CAMPAIGN_ACTS.map((act) => {
+              const st = actStats(act.id);
+              return `<section class="wt-act" aria-label="${act.label}">
+                <div class="wt-act-head"><span>${act.label}</span><span class="wt-act-count">${st.cleared === st.total && st.total ? '✓ ' : ''}${st.cleared}/${st.total}</span></div>
+                ${st.cities.map((c) => {
+                  const gi = catalog.indexOf(c);
+                  const unl = isCityUnlocked(this.save, c.scene, catalog);
+                  const r = (this.save?.sandbox || {})[c.scene];
+                  const clr = isCleared(c.scene);
+                  const ch = c.status !== 'DEVELOPMENT' && isCityChallengeCompleted(this.save, c.scene);
+                  const glyph = c.status === 'DEVELOPMENT' ? '🚧' : (clr ? (ch ? '⚡' : '✓') : (unl ? '▶' : '🔒'));
+                  const state = c.status === 'DEVELOPMENT' ? 'dev' : (clr ? 'cleared' : (unl ? 'open' : 'locked'));
+                  const best = (r && r.runs > 0) ? `${Math.round((r.bestPercent || 0) * 100)}%` : '';
+                  const gate = gateCityFor(c.scene);
+                  const hint = state === 'locked' ? `Clear ${gate ? gate.name : 'the previous city'} 100% in under 5 min` : (state === 'dev' ? 'Coming soon' : '');
+                  return `<button type="button" class="wt-row wt-row--${state}${cur && cur.scene === c.scene ? ' current' : ''}" data-scene="${c.scene}" aria-label="City ${gi + 1}, ${c.name}, ${state}${best ? `, best ${best}` : ''}">
+                    <span class="wt-glyph" aria-hidden="true">${glyph}</span>
+                    <span class="wt-main"><span class="wt-name">${gi + 1}. ${c.name}</span>${hint ? `<span class="wt-hint">${hint}</span>` : ''}</span>
+                    <span class="wt-best">${best}</span>
+                  </button>`;
+                }).join('')}
+              </section>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>`);
+      tourEl.onclick = (e) => { if (e.target === tourEl) closeWorldTour(); };
+      tourEl.querySelector('.wt-close').onclick = () => closeWorldTour();
+      // Swipe-down on the grip/header dismisses (touch only; the scroll area is left alone).
+      let dragY = null;
+      const sheet = tourEl.querySelector('.world-tour-sheet');
+      sheet.addEventListener('touchstart', (e) => { if (e.target.closest('.wt-scroll')) return; dragY = e.touches[0].clientY; }, { passive: true });
+      sheet.addEventListener('touchend', (e) => { if (dragY != null && e.changedTouches[0].clientY - dragY > 60) closeWorldTour(); dragY = null; }, { passive: true });
+      tourEl.querySelectorAll('.wt-row').forEach((row) => {
+        row.onclick = () => {
+          // Jump via the ALL filter: the sheet is the whole-campaign view and the
+          // breadcrumb/strip number cities globally, so ALL keeps the carousel
+          // index coherent with what the player just tapped (no act-tab surprise).
+          const scene = row.dataset.scene;
+          selectedAct = 'ALL';
+          filteredCatalog = catalog;
+          const gi = catalog.findIndex((c) => c.scene === scene);
+          const dir = gi >= currentIndex ? 1 : -1;
+          currentIndex = Math.max(0, gi);
+          closeWorldTour();
+          updateActTabs();
+          renderCard(dir);
+        };
+      });
+      // Mount on the screen root, not the screen: `.screen` carries a
+      // backdrop-filter, which makes it the containing block for position:fixed
+      // and would drag the sheet along with the screen's own scroll offset.
+      // clear() wipes this.root on navigation, so the sheet cannot outlive the screen.
+      this.root.appendChild(tourEl);
+      const curRow = tourEl.querySelector('.wt-row.current');
+      if (curRow) requestAnimationFrame(() => curRow.scrollIntoView({ block: 'center' }));
+    };
 
     // Carousel Area
     const carouselWrapper = el(`<div class="city-carousel-wrapper"></div>`);
@@ -554,9 +674,12 @@ export class Screens {
         if (catalog[i].status === 'PLAYABLE') { gateCity = catalog[i]; break; }
       }
 
-      const unlockedCount = catalog.filter((c) => isCityUnlocked(this.save, c.scene, catalog)).length;
+      const globalIdx = catalog.indexOf(city);
+      const actSt = actStats(city.act);
+      const idxInAct = actSt.cities.indexOf(city);
       const progressText = header.querySelector('.progress-text');
-      if (progressText) progressText.textContent = `${unlockedCount} / ${catalog.length} UNLOCKED`;
+      if (progressText) progressText.textContent = `CITY ${globalIdx + 1} / ${catalog.length}`;
+      renderStrip(city);
 
       btnPrev.disabled = (currentIndex === 0);
       btnNext.disabled = (currentIndex === totalFiltered - 1);
@@ -602,6 +725,8 @@ export class Screens {
       const challengeDone = !isDev && isCityChallengeCompleted(this.save, city.scene);
       // Locked and in-development cards share the faded treatment + bottom bar.
       const fadeCls = (!unlocked || isDev) ? ' city-fade' : '';
+      // Short phones (360x640 etc.): collapse the dossier so PLAY stays above the fold.
+      const dossierCollapsed = (typeof window !== 'undefined') && window.innerHeight < 700;
 
       const card = el(`<div class="city-card ${(unlocked && !isDev) ? 'city-card--unlocked' : 'city-card--locked'} ${isDev ? 'city-card--dev' : ''} ${animClass}" style="--city-accent: ${city.accentColor};">
         <div class="city-card-glow"></div>
@@ -620,15 +745,18 @@ export class Screens {
           <div class="city-icon-float" aria-hidden="true">${city.icon}</div>
           <h2 class="city-card-title">${city.name}</h2>
           <div class="city-card-tagline">${city.tagline}</div>
+          <div class="city-breadcrumb">CITY ${globalIdx + 1} / ${catalog.length} · ${city.act} · ${idxInAct + 1} / ${actSt.total}</div>
           <div class="city-card-sub">${city.desc}</div>
         </div>
 
         <!-- SPROCKET MISSION DOSSIER (NARRATIVE DRAWER) -->
-        <div class="city-dossier-wrap${fadeCls}">
-          <div class="dossier-header">
+        <div class="city-dossier-wrap${fadeCls}${dossierCollapsed ? ' collapsed' : ''}">
+          <button type="button" class="dossier-header dossier-toggle" aria-expanded="${dossierCollapsed ? 'false' : 'true'}">
             <span class="dossier-label">⚙️ SPROCKET MISSION DOSSIER</span>
             <span class="dossier-companion-tag">${city.momentumFriend}</span>
-          </div>
+            <span class="dossier-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="dossier-body">
           <div class="dossier-directive">
             <strong>DIRECTIVE:</strong> ${city.directive}
           </div>
@@ -640,6 +768,7 @@ export class Screens {
             <div class="dossier-hero-chips">
               ${city.heroes.map(h => `<span class="hero-chip">🏛️ ${h}</span>`).join('')}
             </div>
+          </div>
           </div>
         </div>
 
@@ -718,6 +847,14 @@ export class Screens {
         ${(isDev || !unlocked) ? '' : `</div>`}
       </div>`);
 
+      const dossierToggle = card.querySelector('.dossier-toggle');
+      if (dossierToggle) {
+        dossierToggle.onclick = () => {
+          const wrap = dossierToggle.closest('.city-dossier-wrap');
+          const nowCollapsed = wrap.classList.toggle('collapsed');
+          dossierToggle.setAttribute('aria-expanded', nowCollapsed ? 'false' : 'true');
+        };
+      }
       const launchBtn = card.querySelector('.city-launch-btn:not(.disabled)');
       if (launchBtn) {
         launchBtn.onclick = () => this.actions.startVoxelSandbox(city.scene);

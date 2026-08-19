@@ -97,7 +97,50 @@ export function runMobileUiSelftest() {
     assert(rail && /flex-shrink:\s*0/.test(rail[0]), '.city-act-filter-rail must set flex-shrink: 0');
   });
 
-  // 4. Mobile Shop Shell & Docked Navigation
+  // 4. Campaign wayfinding (strip, breadcrumb, tab counts, World Tour sheet, header pill)
+  test('City Select wayfinding: progress strip, breadcrumb, tab counts, World Tour sheet, header pill', () => {
+    // strip: one segment per act (Prologue + Acts I-VII = 8), button with aria-label, opens sheet
+    assert(screensSrc.includes('city-progress-strip'), 'must render .city-progress-strip');
+    assert(/CAMPAIGN_ACTS\.map\(/.test(screensSrc), 'strip segments must be mapped from CAMPAIGN_ACTS (8 entries)');
+    assert(/const CAMPAIGN_ACTS = ACTS\.filter\(\(a\) => a\.id !== 'ALL'\)/.test(screensSrc), 'CAMPAIGN_ACTS = ACTS minus ALL');
+    assert(/`Campaign progress: \$\{[^}]+\} of \$\{[^}]+\} cleared, open World Tour`/.test(screensSrc), 'strip aria-label format');
+    assert(screensSrc.includes('strip-seg'), 'segments');
+    assert(screensSrc.includes('strip-fill'), 'segment fill');
+    // breadcrumb
+    assert(/CITY \$\{[^}]+\} \/ \$\{catalog\.length\} · \$\{[^}]+\} · \$\{[^}]+\} \/ \$\{[^}]+\}/.test(screensSrc), 'breadcrumb CITY n / 29 · ACT · i / n');
+    assert(screensSrc.includes('city-breadcrumb'), '.city-breadcrumb');
+    // tab counts + cleared glyph
+    assert(screensSrc.includes('tab-count'), 'tab count span');
+    assert(/class="act-tab-btn[\s\S]{0,120}actCleared \? ' cleared'/.test(screensSrc), 'cleared act tabs get .cleared');
+    assert(screensSrc.includes('✓'), 'cleared act tabs show a check glyph');
+    // world tour sheet
+    assert(screensSrc.includes('world-tour-sheet'), '.world-tour-sheet');
+    assert(screensSrc.includes('WORLD TOUR ·'), 'sheet header');
+    assert(screensSrc.includes('wt-row'), 'rows');
+    assert(/openWorldTour|openTour/.test(screensSrc) && /closeWorldTour|closeTour/.test(screensSrc), 'open/close fns');
+    assert(/selectedAct = 'ALL'[\s\S]{0,300}closeWorldTour\(\)|closeWorldTour\(\)[\s\S]{0,300}selectedAct = 'ALL'/.test(screensSrc), 'row jump switches filter to ALL then closes');
+    // header pill is a button that opens the sheet
+    assert(/<button[^>]*class="[^"]*city-progress-badge/.test(screensSrc), 'header pill is a button');
+    assert(/CITY \$\{[^}]+\} \/ \$\{catalog\.length\}`/.test(screensSrc) || screensSrc.includes("`CITY ${globalIdx + 1} / ${catalog.length}`"), 'header pill reads CITY n / 29');
+    assert(!screensSrc.includes('UNLOCKED`'), 'header pill no longer reads N / 29 UNLOCKED');
+    // css
+    for (const sel of ['.city-progress-strip', '.strip-seg', '.strip-fill', '.city-breadcrumb', '.tab-count', '.world-tour-sheet', '.world-tour-backdrop', '.wt-row']) {
+      assert(cssSrc.includes(sel), `Must style ${sel}`);
+    }
+    assert(/\.city-progress-strip \{[^}]*min-height:\s*44px/.test(cssSrc), 'strip tap target >= 44px');
+    assert(/\.wt-row \{[^}]*min-height:\s*48px/.test(cssSrc), 'sheet rows >= 48px');
+  });
+
+  // 5. Short-viewport card: dossier collapses by default under 700px, toggle exists
+  test('City card collapses the dossier under 700px tall viewports with a toggle', () => {
+    assert(screensSrc.includes('dossier-toggle'), 'dossier toggle button');
+    assert(screensSrc.includes('dossier-body'), 'dossier body wrapper');
+    assert(/innerHeight < 700/.test(screensSrc), 'collapsed by default under 700px');
+    assert(cssSrc.includes('.city-dossier-wrap.collapsed .dossier-body'), 'collapsed CSS hides body');
+    assert(/@media \(max-height: 700px\)[\s\S]{0,600}\.city-icon-float/.test(cssSrc), 'short-viewport hero emoji shrink');
+  });
+
+  // 6. Mobile Shop Shell & Docked Navigation
   test('Shop provides mobile docked tab bar and responsive item grid', () => {
     assert(cssSrc.includes('.shop-screen'), 'Must style .shop-screen');
     assert(cssSrc.includes('.shop-scroll'), 'Must style .shop-scroll');

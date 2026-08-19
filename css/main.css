@@ -4354,6 +4354,10 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   text-transform: uppercase;
 }
 .city-progress-badge {
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 36px;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4389,6 +4393,12 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
 }
 .act-tab-btn {
   flex-shrink: 0;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.1;
   background: rgba(15, 20, 35, 0.75);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
@@ -4407,6 +4417,68 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   color: #fff;
   border-color: rgba(255, 210, 63, 0.5);
 }
+.act-tab-btn .tab-count {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.45);
+}
+.act-tab-btn.cleared {
+  border-color: rgba(255, 210, 63, 0.55);
+  background: rgba(255, 210, 63, 0.08);
+}
+.act-tab-btn.cleared .tab-count { color: #ffd23f; }
+.act-tab-btn.active .tab-count { color: rgba(255, 210, 63, 0.85); }
+
+/* Campaign progress strip: 6px visual, 44px tap target */
+.city-progress-strip {
+  width: 100%;
+  max-width: 580px;
+  min-height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 1px;
+  margin: -12px 0 -14px;
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.strip-track {
+  display: flex;
+  width: 100%;
+  gap: 2px;
+  height: 6px;
+}
+.strip-seg {
+  position: relative;
+  display: block;
+  height: 100%;
+  min-width: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+.strip-fill {
+  display: block;
+  height: 100%;
+  background: var(--fw-gold, #ffd23f);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.strip-seg.full .strip-fill { background: #ffd23f; }
+.strip-seg.current {
+  box-shadow: 0 0 0 1.5px var(--city-accent, #00f0ff), 0 0 10px var(--city-accent, #00f0ff);
+  animation: stripPulse 1.6s ease-in-out infinite;
+}
+@keyframes stripPulse {
+  0%, 100% { box-shadow: 0 0 0 1.5px var(--city-accent, #00f0ff), 0 0 6px var(--city-accent, #00f0ff); }
+  50% { box-shadow: 0 0 0 1.5px var(--city-accent, #00f0ff), 0 0 14px var(--city-accent, #00f0ff); }
+}
+@media (prefers-reduced-motion: reduce) { .strip-seg.current { animation: none; } }
 .act-tab-btn.active {
   background: linear-gradient(135deg, rgba(255, 210, 63, 0.3), rgba(0, 240, 255, 0.25));
   border-color: #ffd23f;
@@ -4751,6 +4823,14 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   color: var(--city-accent, #ffd23f);
   text-transform: uppercase;
 }
+.city-breadcrumb {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.6px;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
 .city-card-sub {
   font-size: clamp(11px, 2vw, 12.5px);
   font-weight: 600;
@@ -4758,6 +4838,153 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   max-width: 90%;
   line-height: 1.35;
 }
+
+/* Dossier drawer toggle + collapsed state */
+.dossier-toggle {
+  width: 100%;
+  min-height: 44px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+}
+.dossier-chevron {
+  margin-left: auto;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  transition: transform 0.18s ease;
+}
+.city-dossier-wrap.collapsed .dossier-chevron { transform: rotate(-90deg); }
+.city-dossier-wrap.collapsed .dossier-body { display: none; }
+.city-dossier-wrap.collapsed .dossier-header { border-bottom: 0; padding-bottom: 0; }
+.city-dossier-wrap.collapsed { padding-top: 4px; padding-bottom: 4px; gap: 0; }
+.dossier-body { display: flex; flex-direction: column; gap: 6px; }
+
+/* World Tour sheet (bottom sheet on phones) */
+.world-tour-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120; /* above .screen (100); mounted on the screen root */
+  pointer-events: auto; /* #screen-root is pointer-events:none */
+  background: rgba(4, 6, 12, 0.72);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: wtFade 0.18s ease both;
+}
+.world-tour-backdrop.closing { animation: wtFadeOut 0.2s ease both; }
+@keyframes wtFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wtFadeOut { from { opacity: 1; } to { opacity: 0; } }
+.world-tour-sheet {
+  width: 100%;
+  max-width: 640px;
+  max-height: 85vh;
+  max-height: 85dvh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(18, 24, 42, 0.99), rgba(8, 11, 20, 0.99));
+  border: 1.5px solid rgba(255, 210, 63, 0.35);
+  border-bottom: 0;
+  border-radius: 18px 18px 0 0;
+  padding-bottom: var(--sai-bottom, 0px);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.7);
+  animation: wtSlideUp 0.24s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.world-tour-backdrop.closing .world-tour-sheet { animation: wtSlideDown 0.2s ease-in both; }
+@keyframes wtSlideUp { from { transform: translateY(40px); } to { transform: translateY(0); } }
+@keyframes wtSlideDown { from { transform: translateY(0); } to { transform: translateY(60px); } }
+.wt-grip {
+  width: 42px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.3);
+  margin: 8px auto 4px;
+}
+.wt-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "title close" "sub close";
+  align-items: center;
+  gap: 0 8px;
+  padding: 4px 12px 8px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.wt-title {
+  grid-area: title;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 1.6px;
+  color: var(--fw-gold, #ffd23f);
+}
+.wt-sub {
+  grid-area: sub;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.wt-close {
+  grid-area: close;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+}
+.wt-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 6px 10px 12px;
+}
+.wt-act { margin-bottom: 8px; }
+.wt-act-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 6px 4px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.6px;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+}
+.wt-act-count { color: #ffd23f; }
+.wt-row {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  margin: 2px 0;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wt-row:active { background: rgba(255, 255, 255, 0.1); }
+.wt-row.current {
+  border-color: var(--fw-gold, #ffd23f);
+  background: rgba(255, 210, 63, 0.1);
+}
+.wt-glyph { font-size: 16px; text-align: center; }
+.wt-main { display: flex; flex-direction: column; min-width: 0; }
+.wt-name { font-size: 13px; font-weight: 800; letter-spacing: 0.6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wt-hint { font-size: 10px; color: rgba(255, 255, 255, 0.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wt-best { font-size: 12px; font-weight: 900; color: #00f0ff; letter-spacing: 1px; }
+.wt-row--locked .wt-name, .wt-row--dev .wt-name { color: rgba(255, 255, 255, 0.6); }
+.wt-row--cleared .wt-glyph { color: #ffd23f; }
+.wt-row--open .wt-glyph { color: #00f0ff; }
 
 /* Sprocket Mission Dossier Drawer */
 .city-dossier-wrap {
@@ -5040,6 +5267,26 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   .city-nav-prev { left: -8px; }
   .city-nav-next { right: -8px; }
 }
+/* Short viewports (360x640 class): keep PLAY above the fold */
+@media (max-height: 700px) {
+  .city-icon-float { font-size: 26px; margin-bottom: 0; }
+  .city-metric-box { padding: 4px 4px; }
+  .city-card-sub { display: none; }
+  .city-hero-block { gap: 2px; }
+  .city-card { gap: 8px; padding-top: 10px; padding-bottom: 12px; }
+}
+/* Landscape phones / desktop: World Tour becomes a centred panel */
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 520px) {
+  .world-tour-backdrop { align-items: center; padding: 12px; }
+  .world-tour-sheet {
+    max-height: 90vh;
+    border-radius: 18px;
+    border-bottom: 1.5px solid rgba(255, 210, 63, 0.35);
+    animation: wtFade 0.18s ease both;
+  }
+  .wt-grip { display: none; }
+}
+
 /* Desktop breathing room (non-touch, wide): header/rail/CTA area read crunched
    at 1280-1440 once the dots rail left. Mobile rules above are untouched. */
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
