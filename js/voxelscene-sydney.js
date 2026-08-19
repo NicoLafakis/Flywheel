@@ -3,12 +3,19 @@
 // Uses canonical builders from js/voxelkit.js.
 
 import {
-  bench, bigTruck, bikeRack, bollard, boxVan, brownstone, bus, cafeTable,
-  crateStack, fireEscape, generateBlockers, hotDogCart, hydrant, lampPost,
-  laneDashes, mailbox, marketStall, motorcycle, newsBox, newsstand, planter,
-  sandwichBoard, sedan, shippingContainer, signPost, signText, stoop,
-  subwayEntrance, tower, trafficLight, trashBags, trashBin, tree, zebra,
+  bench, bigTruck, bollard, boxVan, brownstone, bus, cafeTable, crateStack,
+  generateBlockers, hydrant, lampPost, marketStall, motorcycle, newsBox,
+  newsstand, sedan, signText, subwayEntrance, tower, trafficLight, trashBin,
+  tree, zebra,
 } from './voxelkit.js';
+// Trimmed 2026-08-19. `mailbox` and `hotDogCart` went with their last callers
+// (see the Alfred St note below). The other nine — bikeRack, fireEscape,
+// laneDashes, planter, sandwichBoard, shippingContainer, signPost, stoop and
+// trashBags — never had a call site at all; `stoop` reads as used but only
+// ever appears as brownstone's `{ stoop: true }` OPTION KEY, which is not a
+// use of the imported symbol. Chicago and the other scenes carry no dead
+// imports, so this was a wart in this file rather than a house pattern of
+// importing the whole kit as a palette.
 
 export { vehicleBBox } from './voxelkit.js';
 
@@ -150,7 +157,9 @@ export function buildSydney(sim) {
   buildShell(24, -7, -5, 7, 2, 'south');
 
   // Western Boardwalk Dining & Promenade (x 9.5..12, clear of podium x 14..34)
-  for (let z = -28; z <= -6; z += 4) {
+  // Spaced every 6 m, not 4: at 4 m this was a table-and-bench every car length
+  // for 22 m straight, which read as a repeating stamp rather than a promenade.
+  for (let z = -28; z <= -6; z += 6) {
     cafeTable(sim, 11.5, z);
     bench(sim, 10.5, z + 2);
     bollard(sim, 9.5, z);
@@ -360,19 +369,22 @@ export function buildSydney(sim) {
   for (const tx of [-22, -14, -4, 6, 16]) tree(sim, tx, 8);
   for (const tz of [6, 14, 22]) tree(sim, 34, tz);
 
-  // Street lighting, trash bins, benches, news boxes
-  for (const lx of [-20, -10, 0, 10, 20]) {
-    lampPost(sim, lx, 9);
-    trashBin(sim, lx + 2, 9);
-  }
+  // Street lighting, trash bins, benches, news boxes.
+  // Lamps stay on the full 10 m rhythm; bins do NOT — a bin at every single
+  // lamp post is denser than any real quay-side street and just noise at the
+  // player's eye height, so only the two ends of Alfred St carry one.
+  for (const lx of [-20, -10, 0, 10, 20]) lampPost(sim, lx, 9);
+  for (const bx of [-18, 12]) trashBin(sim, bx, 9);
   bench(sim, -16, 9);
   bench(sim, 4, 9);
   bench(sim, 15, 9);
 
-  mailbox(sim, -7, 9);
+  // No US-pattern mailbox or hot dog cart here: both were generic North
+  // American street furniture standing on Circular Quay, and they were the two
+  // lowest-read props on the strip. The news box, newsstand, subway entrance
+  // and hydrant carry the same "inhabited street" job without the wrong accent.
   newsBox(sim, -5, 9);
   newsstand(sim, 13, 9);
-  hotDogCart(sim, -2, 9);
   subwayEntrance(sim, 1, 9);
   hydrant(sim, 8, 9);
   trafficLight(sim, -25.5, 9.5);
@@ -403,6 +415,13 @@ export function buildSydney(sim) {
     ],
   };
 
-  // Generate camera blockers dynamically from high geometry
-  generateBlockers(sim, 6);
+  // Generate camera blockers dynamically from high geometry.
+  // generateBlockers RETURNS the rect list — it does NOT assign it. Sydney
+  // shipped as a bare `generateBlockers(sim, 6);` whose return value was
+  // discarded, so the scene ran with ZERO blockers and the chase cam clipped
+  // straight through the Opera House, the Bridge and the Tower. Always assign,
+  // exactly as every other scene does. The minH argument is left off on
+  // purpose: 6 is the builder's own default and matching the other scenes
+  // literally keeps the whole roster on one knob.
+  sim.cameraBlockers = generateBlockers(sim);
 }
