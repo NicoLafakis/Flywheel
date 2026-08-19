@@ -425,6 +425,8 @@ export class Screens {
   // Displays the featured city at center, Act filter tabs to browse regional acts,
   // mission dossier drawer with tactical transmissions, and gated progression.
   showCitySelect(initialIndex = null, initialAct = 'ALL') {
+    // Bottom numbered dots rail: hidden for now (see renderCard); keep the code path.
+    const SHOW_CITY_DOTS = false;
     this.clear();
     if (this.actions.music) this.actions.music('menu');
     if (this.actions.menuScene) this.actions.menuScene(false);
@@ -528,9 +530,11 @@ export class Screens {
     carouselWrapper.append(btnPrev, cardHost, btnNext);
     s.appendChild(carouselWrapper);
 
-    // Dots pagination rail
+    // Dots pagination rail — gated off for now (29 numbered buttons never fit a
+    // phone; the freed height goes to the act tabs + card). Flip SHOW_CITY_DOTS
+    // to bring it back; the render path below is kept intact.
     const dotsRail = el(`<div class="city-dots-rail" role="tablist" aria-label="City Selection Indicators"></div>`);
-    s.appendChild(dotsRail);
+    if (SHOW_CITY_DOTS) s.appendChild(dotsRail);
 
     const renderCard = (direction = 0) => {
       cardHost.innerHTML = '';
@@ -541,7 +545,14 @@ export class Screens {
       const city = filteredCatalog[currentIndex];
       const unlocked = isCityUnlocked(this.save, city.scene, catalog);
       const rec = (this.save?.sandbox || {})[city.scene];
-      const prevCity = currentIndex > 0 ? filteredCatalog[currentIndex - 1] : null;
+      // The city whose clear actually gates this one: nearest preceding PLAYABLE
+      // city in the FULL catalog (mirrors isCityUnlocked), not the previous card
+      // of the act-filtered carousel and never an in-development city.
+      const fullIdx = catalog.findIndex((c) => c.scene === city.scene);
+      let gateCity = null;
+      for (let i = fullIdx - 1; i >= 0; i--) {
+        if (catalog[i].status === 'PLAYABLE') { gateCity = catalog[i]; break; }
+      }
 
       const unlockedCount = catalog.filter((c) => isCityUnlocked(this.save, c.scene, catalog)).length;
       const progressText = header.querySelector('.progress-text');
@@ -550,8 +561,8 @@ export class Screens {
       btnPrev.disabled = (currentIndex === 0);
       btnNext.disabled = (currentIndex === totalFiltered - 1);
 
-      // Render dots
-      filteredCatalog.forEach((c, idx) => {
+      // Render dots (only when the rail is enabled)
+      if (SHOW_CITY_DOTS) filteredCatalog.forEach((c, idx) => {
         const isCur = (idx === currentIndex);
         const isUnl = isCityUnlocked(this.save, c.scene, catalog);
         const cRec = (this.save?.sandbox || {})[c.scene];
@@ -584,30 +595,22 @@ export class Screens {
       const bestTimeStr = (rec && rec.bestTime) ? `${rec.bestTime.toFixed(1)}s` : '—';
 
       const animClass = direction > 0 ? 'slide-left' : (direction < 0 ? 'slide-right' : '');
+      const isDev = city.status === 'DEVELOPMENT';
+      const cleared = !isDev && !!(rec && (rec.completions || 0) > 0);
+      // Locked and in-development cards share the faded treatment + bottom bar.
+      const fadeCls = (!unlocked || isDev) ? ' city-fade' : '';
 
-      const card = el(`<div class="city-card ${unlocked ? 'city-card--unlocked' : 'city-card--locked'} ${city.status === 'DEVELOPMENT' ? 'city-card--dev' : ''} ${animClass}" style="--city-accent: ${city.accentColor};">
+      const card = el(`<div class="city-card ${(unlocked && !isDev) ? 'city-card--unlocked' : 'city-card--locked'} ${isDev ? 'city-card--dev' : ''} ${animClass}" style="--city-accent: ${city.accentColor};">
         <div class="city-card-glow"></div>
-        <div class="city-card-header">
+        <div class="city-card-header${fadeCls}">
           <div class="city-badge-group">
             <span class="city-tag city-tag--loc">📍 ${city.location}</span>
             <span class="city-tag city-tag--stage">${city.act}: ${city.actTitle}</span>
           </div>
-          <div class="city-status-wrap">
-            ${city.status === 'DEVELOPMENT'
-              ? `<span class="city-status-pill city-status--dev">🚧 COMING SOON</span>`
-              : (isCityChallengeCompleted(this.save, city.scene)
-                ? `<span class="city-status-pill city-status--cleared">⭐ 3-MIN CLEARED</span>`
-                : (rec && rec.completions > 0
-                  ? `<span class="city-status-pill city-status--cleared">🏆 CLEARED ×${rec.completions}</span>`
-                  : (unlocked && rec && rec.runs > 0
-                    ? `<span class="city-status-pill city-status--progress">⚡ BEST ${Math.round((rec.bestPercent || 0) * 100)}%</span>`
-                    : (unlocked
-                      ? `<span class="city-status-pill city-status--open">✦ OPEN ✦</span>`
-                      : `<span class="city-status-pill city-status--locked">🔒 LOCKED</span>`))))}
-          </div>
         </div>
+        ${cleared ? `<div class="city-stamp" aria-label="Cleared"><span class="city-stamp-text">CLEARED</span>${isCityChallengeCompleted(this.save, city.scene) ? `<span class="city-stamp-sub">3-MIN ★</span>` : (rec.completions > 1 ? `<span class="city-stamp-sub">×${rec.completions}</span>` : '')}</div>` : ''}
 
-        <div class="city-hero-block">
+        <div class="city-hero-block${fadeCls}">
           <div class="city-icon-float" aria-hidden="true">${city.icon}</div>
           <h2 class="city-card-title">${city.name}</h2>
           <div class="city-card-tagline">${city.tagline}</div>
@@ -615,7 +618,7 @@ export class Screens {
         </div>
 
         <!-- SPROCKET MISSION DOSSIER (NARRATIVE DRAWER) -->
-        <div class="city-dossier-wrap">
+        <div class="city-dossier-wrap${fadeCls}">
           <div class="dossier-header">
             <span class="dossier-label">⚙️ SPROCKET MISSION DOSSIER</span>
             <span class="dossier-companion-tag">${city.momentumFriend}</span>
@@ -634,7 +637,7 @@ export class Screens {
           </div>
         </div>
 
-        <div class="city-metrics-row">
+        <div class="city-metrics-row${fadeCls}">
           <div class="city-metric-box">
             <span class="metric-k">📐 CITY SCALE</span>
             <span class="metric-v">${city.blocks.toLocaleString('en-US')}</span>
@@ -652,7 +655,7 @@ export class Screens {
           </div>
         </div>
 
-        <div class="city-records-strip">
+        <div class="city-records-strip${fadeCls}">
           <div class="record-item">
             <span class="rec-k">BEST SCORE</span>
             <span class="rec-v">${bestScoreStr}</span>
@@ -671,18 +674,17 @@ export class Screens {
           </div>
         </div>
 
-        <div class="city-action-row" style="display:flex; flex-direction:column; gap:8px;">
-          ${city.status === 'DEVELOPMENT' ? `
-            <div class="city-locked-notice" style="border-color: #48cae4; background: rgba(72,202,228,0.08);">
-              <span class="locked-icon">🚧</span>
-              <div class="locked-info">
-                <strong style="color: #48cae4;">METROPOLIS IN DEVELOPMENT</strong>
-                <span>3D Voxel architecture for <strong>${city.name}</strong> is currently being authored for the world tour!</span>
+        ${(isDev || !unlocked) ? '' : `<div class="city-action-row" style="display:flex; flex-direction:column; gap:8px;">`}
+          ${isDev ? `
+            <div class="city-lock-bar city-lock-bar--dev" role="status">
+              <span class="lock-bar-icon" aria-hidden="true">🚧</span>
+              <div class="lock-bar-info">
+                <strong>UNDER CONSTRUCTION</strong>
+                <span>3D voxel architecture for <strong>${city.name}</strong> is being authored for the world tour.</span>
               </div>
             </div>
-            <button type="button" class="btn fw-cta city-launch-btn disabled" style="opacity:0.6; cursor:not-allowed;" disabled>🚧 UNDER CONSTRUCTION</button>
           ` : (unlocked ? `
-            <button type="button" class="btn fw-cta city-launch-btn">PLAY ${city.name} (5 MIN)</button>
+            <button type="button" class="btn fw-cta city-launch-btn">PLAY ${city.name}</button>
             <div style="display:flex; gap:8px; width:100%;">
               <button type="button" class="btn secondary city-challenge-btn" style="flex:1; border-color:#ffd23f; font-size:12px;">
                 ${isCityChallengeCompleted(this.save, city.scene) ? '⭐ 3-MIN CLEARED' : '⚡ 3-MIN CHALLENGE (2× COINS)'}
@@ -699,16 +701,15 @@ export class Screens {
               </div>
             ` : ''}
           ` : `
-            <div class="city-locked-notice">
-              <span class="locked-icon">🔒</span>
-              <div class="locked-info">
+            <div class="city-lock-bar" role="status">
+              <span class="lock-bar-icon" aria-hidden="true">🔒</span>
+              <div class="lock-bar-info">
                 <strong>METROPOLIS LOCKED</strong>
-                <span>Clear <strong>${prevCity ? prevCity.name : 'previous city'}</strong> 100% in under 5 minutes to unlock!</span>
+                <span>Clear <strong>${gateCity ? gateCity.name : 'the previous city'}</strong> 100% in under 5 minutes to unlock!</span>
               </div>
             </div>
-            <button type="button" class="btn fw-cta city-launch-btn disabled" disabled>🔒 LOCKED</button>
           `)}
-        </div>
+        ${(isDev || !unlocked) ? '' : `</div>`}
       </div>`);
 
       const launchBtn = card.querySelector('.city-launch-btn:not(.disabled)');

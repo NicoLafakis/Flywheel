@@ -42,6 +42,34 @@ export function runMobileUiSelftest() {
     assert(cssSrc.includes('.city-dots-rail'), 'Must style .city-dots-rail');
   });
 
+  // 3b. Dots rail is flag-gated OFF (29 numbered buttons never fit a phone);
+  // act tabs get the freed space as real touch targets.
+  test('City dots rail is gated off by SHOW_CITY_DOTS and act tabs are >=40px touch targets', () => {
+    assert(/const SHOW_CITY_DOTS\s*=\s*false/.test(screensSrc), 'screens.js must declare SHOW_CITY_DOTS = false');
+    assert(/SHOW_CITY_DOTS[\s\S]{0,200}city-dots-rail/.test(screensSrc),
+      'dots rail DOM creation must be inside the SHOW_CITY_DOTS gate');
+    const tab = cssSrc.match(/\.act-tab-btn \{[^}]*\}/);
+    assert(tab && /min-height:\s*4[0-9]px/.test(tab[0]), '.act-tab-btn must set min-height >= 40px');
+  });
+
+  // 3c. Status pill is gone; state is shown on the card itself.
+  test('City card uses CLEARED stamp and lock/construction bar instead of the status pill', () => {
+    assert(!screensSrc.includes('city-status-pill'), 'screens.js must not render .city-status-pill');
+    assert(screensSrc.includes('city-stamp'), 'screens.js must render a .city-stamp overlay for cleared cities');
+    assert(screensSrc.includes('city-lock-bar'), 'screens.js must render a .city-lock-bar for locked/dev cities');
+    assert(screensSrc.includes('UNDER CONSTRUCTION'), 'dev cities must show UNDER CONSTRUCTION bar');
+    assert(!/PLAY \$\{city\.name\} \(5 MIN\)/.test(screensSrc), 'Play button must not carry a time callout');
+    assert(screensSrc.includes('PLAY ${city.name}</button>'), 'Play button must read PLAY {city}');
+    assert(cssSrc.includes('.city-stamp'), 'Must style .city-stamp');
+    assert(cssSrc.includes('.city-lock-bar'), 'Must style .city-lock-bar');
+    assert(cssSrc.includes('.city-card--locked .city-fade'), 'locked card content must be faded via CSS');
+    // The lock bar must name the city that actually gates the unlock (the
+    // nearest preceding PLAYABLE city in the full catalog, mirroring
+    // isCityUnlocked), not merely the previous card in the filtered carousel.
+    assert(/gateCity[\s\S]{0,400}status === 'PLAYABLE'/.test(screensSrc), 'lock bar must derive its gate city from the preceding PLAYABLE city');
+    assert(screensSrc.includes('${gateCity ? gateCity.name'), 'lock bar copy must reference gateCity');
+  });
+
   // 4. Mobile Shop Shell & Docked Navigation
   test('Shop provides mobile docked tab bar and responsive item grid', () => {
     assert(cssSrc.includes('.shop-screen'), 'Must style .shop-screen');

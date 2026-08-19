@@ -13,3 +13,5 @@ _*-deliverables/
 .env*
 !.env.example
 supabase/.temp/
+# Agent UI verification output (screenshots + throwaway harnesses); not shipped.
+tools/pw/_*/

@@ -4376,7 +4376,7 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   align-items: center;
   gap: 6px;
   overflow-x: auto;
-  padding: 2px 4px 6px;
+  padding: 8px 4px 8px;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   justify-content: flex-start;
@@ -4393,7 +4393,8 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.8px;
-  padding: 5px 12px;
+  min-height: 40px;
+  padding: 8px 14px;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
@@ -4414,6 +4415,7 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
 /* Carousel Wrapper */
 .city-carousel-wrapper {
   width: 100%;
+  margin-top: 6px; /* breathing room now the dots rail is gated off */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4483,7 +4485,10 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 24px var(--city-accent, rgba(0, 240, 255, 0.15));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  /* clip, not hidden: `hidden` would make the card its own scroll container and
+     defeat the sticky lock bar below; `clip` keeps the rounded-corner crop only. */
   overflow: hidden;
+  overflow: clip;
 }
 .city-card--unlocked {
   border-color: var(--city-accent, rgba(255, 210, 63, 0.6));
@@ -4589,6 +4594,97 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   border-color: rgba(72, 202, 228, 0.35);
   background: linear-gradient(175deg, rgba(14, 22, 38, 0.95) 0%, rgba(8, 12, 22, 0.98) 100%);
 }
+
+/* Faded content on locked / in-development cards (the lock bar stays full-strength) */
+.city-card--locked .city-fade {
+  opacity: 0.5;
+  filter: saturate(0.35);
+}
+
+/* CLEARED passport stamp — pure CSS, sits over the card header/hero */
+.city-stamp {
+  position: absolute;
+  top: clamp(38px, 7vh, 56px);
+  right: clamp(8px, 3vw, 22px);
+  z-index: 3;
+  transform: rotate(-12deg);
+  padding: 4px 10px;
+  border: 3px double var(--fw-gold, #ffd23f);
+  border-radius: 8px;
+  color: var(--fw-gold, #ffd23f);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0.88;
+  mix-blend-mode: screen;
+  box-shadow: inset 0 0 0 1px rgba(255, 210, 63, 0.35);
+  -webkit-mask-image: radial-gradient(circle at 30% 40%, #000 55%, rgba(0,0,0,0.55) 70%, #000 85%),
+    repeating-linear-gradient(45deg, #000 0 3px, rgba(0,0,0,0.8) 3px 5px);
+  mask-image: radial-gradient(circle at 30% 40%, #000 55%, rgba(0,0,0,0.55) 70%, #000 85%),
+    repeating-linear-gradient(45deg, #000 0 3px, rgba(0,0,0,0.8) 3px 5px);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  animation: stampIn 0.28s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.city-stamp-text {
+  display: block;
+  font-size: clamp(16px, 3.6vw, 22px);
+  font-weight: 900;
+  letter-spacing: 3px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.city-stamp-sub {
+  display: block;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  margin-top: 2px;
+}
+@keyframes stampIn {
+  0% { opacity: 0; transform: rotate(-12deg) scale(1.6); }
+  100% { opacity: 0.88; transform: rotate(-12deg) scale(1); }
+}
+
+/* Lockout / construction bar — the one affordance on a locked card */
+.city-lock-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 60, 60, 0.14);
+  border: 1.5px solid rgba(255, 90, 90, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+  /* Pinned to the viewport bottom while the tall card scrolls, so the unlock
+     rule is always on screen on a phone. */
+  position: sticky;
+  bottom: calc(8px + var(--sai-bottom, 0px));
+  z-index: 2;
+  background-color: rgba(38, 12, 18, 0.97);
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.45);
+}
+.lock-bar-icon { font-size: 20px; flex-shrink: 0; }
+.lock-bar-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  min-width: 0;
+}
+.lock-bar-info strong:first-child {
+  color: #ff6b6b;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+.city-lock-bar--dev {
+  background: rgba(10, 30, 42, 0.97);
+  border-color: rgba(72, 202, 228, 0.55);
+}
+.city-lock-bar--dev .lock-bar-info strong:first-child { color: #48cae4; }
 
 /* Card Hero Block */
 .city-hero-block {
@@ -4914,6 +5010,7 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   .city-icon-float { display: none; }
   .city-card-sub { display: none; }
   .city-dots-rail { padding: 2px 0; }
+  .city-act-filter-rail { padding: 4px 4px; }
 }
 
 /* -------------------------------------------------------------------------
