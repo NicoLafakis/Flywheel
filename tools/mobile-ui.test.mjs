@@ -140,6 +140,14 @@ export function runMobileUiSelftest() {
     assert(/@media \(max-height: 700px\)[\s\S]{0,600}\.city-icon-float/.test(cssSrc), 'short-viewport hero emoji shrink');
   });
 
+  // 5b. Phone nav arrows are pinned to the hero emoji band, never over metrics/dossier/CTAs
+  test('City Select phone nav arrows are anchored to the hero band (no content overlap)', () => {
+    assert(/positionNavArrows/.test(screensSrc), 'positionNavArrows helper');
+    assert(/city-icon-float[\s\S]{0,400}getBoundingClientRect/.test(screensSrc) || /getBoundingClientRect[\s\S]{0,400}city-icon-float/.test(screensSrc), 'anchors on the .city-icon-float rect');
+    assert(/addEventListener\('resize', positionNavArrows/.test(screensSrc), 're-anchors on resize');
+    assert(/--nav-arrow-top/.test(screensSrc) && /--nav-arrow-top/.test(cssSrc), 'top set via --nav-arrow-top custom property');
+  });
+
   // 6. Mobile Shop Shell & Docked Navigation
   test('Shop provides mobile docked tab bar and responsive item grid', () => {
     assert(cssSrc.includes('.shop-screen'), 'Must style .shop-screen');

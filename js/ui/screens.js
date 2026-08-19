@@ -650,6 +650,20 @@ export class Screens {
     carouselWrapper.append(btnPrev, cardHost, btnNext);
     s.appendChild(carouselWrapper);
 
+    // Phone widths (<=480px): the arrows are absolutely positioned over the card,
+    // so pin them to the hero emoji band (the only row with empty side gutters)
+    // instead of the wrapper's vertical centre, which lands on metrics/dossier.
+    // Swipe is the primary control; the arrows are secondary affordances.
+    const positionNavArrows = () => {
+      if (window.innerWidth > 480) { carouselWrapper.style.removeProperty('--nav-arrow-top'); return; }
+      const icon = cardHost.querySelector('.city-icon-float');
+      if (!icon) return;
+      const ir = icon.getBoundingClientRect();
+      const wr = carouselWrapper.getBoundingClientRect();
+      carouselWrapper.style.setProperty('--nav-arrow-top', `${Math.round(ir.top + ir.height / 2 - wr.top)}px`);
+    };
+    window.addEventListener('resize', positionNavArrows);
+
     // Dots pagination rail — gated off for now (29 numbered buttons never fit a
     // phone; the freed height goes to the act tabs + card). Flip SHOW_CITY_DOTS
     // to bring it back; the render path below is kept intact.
@@ -875,6 +889,8 @@ export class Screens {
       }
 
       cardHost.appendChild(card);
+      positionNavArrows();
+      requestAnimationFrame(positionNavArrows);
     };
 
     btnPrev.onclick = () => {

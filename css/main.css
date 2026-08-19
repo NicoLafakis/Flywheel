@@ -5261,8 +5261,11 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   .city-card { padding: 12px 14px; gap: 8px; }
   .city-nav-arrow {
     position: absolute;
-    top: 50%;
+    /* JS pins --nav-arrow-top to the hero emoji centre; 50% only until the first card lands */
+    top: var(--nav-arrow-top, 50%);
     transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
   }
   .city-nav-prev { left: -8px; }
   .city-nav-next { right: -8px; }
