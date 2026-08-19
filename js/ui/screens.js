@@ -48,11 +48,11 @@ export const ITEMS = [
 // The master catalog of all single-player metropolis sandboxes and challenge progression helpers.
 // Pure data lives in citycatalog.js, imported and re-exported here for backwards compatibility.
 import {
-  CITY_CATALOG, getSortedCityCatalog, isCityUnlocked,
+  CITY_CATALOG, getSortedCityCatalog, getPlayableCityCatalog, isCityUnlocked,
   isCityChallengeCompleted, getCompletedChallengeCount, isSecret90sChallengeUnlocked,
 } from '../citycatalog.js';
 export {
-  CITY_CATALOG, getSortedCityCatalog, isCityUnlocked,
+  CITY_CATALOG, getSortedCityCatalog, getPlayableCityCatalog, isCityUnlocked,
   isCityChallengeCompleted, getCompletedChallengeCount, isSecret90sChallengeUnlocked,
 };
 
@@ -750,6 +750,8 @@ export class Screens {
     // Touch swipe support on card host
     let touchStartX = 0;
     let touchStartY = 0;
+    let touchStartTime = 0;
+    let isSwiping = false;
     const onPointerDown = (e) => {
       if (e.target.closest('button')) return;
       touchStartX = e.clientX ?? (e.touches && e.touches[0]?.clientX) ?? 0;
@@ -771,7 +773,7 @@ export class Screens {
       const isDrag = Math.abs(dx) > 38;
 
       if ((isFlick || isDrag) && Math.abs(dx) > Math.abs(dy) * 1.1) {
-        if (dx < 0 && currentIndex < totalCities - 1) {
+        if (dx < 0 && currentIndex < filteredCatalog.length - 1) {
           currentIndex++;
           renderCard(1);
         } else if (dx > 0 && currentIndex > 0) {
@@ -796,15 +798,15 @@ export class Screens {
       if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && currentIndex > 0) {
         currentIndex--;
         renderCard(-1);
-      } else if ((e.code === 'ArrowRight' || e.code === 'KeyD') && currentIndex < totalCities - 1) {
+      } else if ((e.code === 'ArrowRight' || e.code === 'KeyD') && currentIndex < filteredCatalog.length - 1) {
         currentIndex++;
         renderCard(1);
       } else if (e.code === 'Escape') {
         window.removeEventListener('keydown', keyNav);
         this.showTitle();
       } else if (e.code === 'Enter' || e.code === 'Space') {
-        const city = catalog[currentIndex];
-        if (isCityUnlocked(this.save, city.scene, catalog)) {
+        const city = filteredCatalog[currentIndex];
+        if (city && isCityUnlocked(this.save, city.scene, catalog) && city.status !== 'DEVELOPMENT') {
           window.removeEventListener('keydown', keyNav);
           this.actions.startVoxelSandbox(city.scene);
         }
