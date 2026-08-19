@@ -4,73 +4,112 @@ covers:
   - "js/ui/screens.js"
   - "js/save.js"
 ---
-# 03 — Mechanics & Progression Architecture
+# 03 — Mechanics & Progression Architecture: The Marketing Machine & Campaign Loop
 
-## 1. Progression Gate Architecture
+## 1. Progression Gate & Replay Architecture
 
-Progression across the 29-metropolis campaign follows strict, deterministic rules designed to reward mastery while maintaining accessibility:
+Progression across the 29-metropolis campaign follows strict, deterministic rules designed to reward mastery, observation, and speed:
 
 ```mermaid
 flowchart TD
-    A["Launch City"] --> B{"100% Cleared?"}
-    B -- No --> C["Retry Sector / Run Stored"]
-    B -- Yes --> D{"Time <= 300s (5 Min)?"}
-    D -- No --> E["Score Recorded, Progression Locked"]
-    D -- Yes --> F["⭐ Standard Clear: Next Metropolis Unlocked!"]
-    F --> G{"Time <= 180s (3 Min)?"}
-    G -- Yes --> H["🏆 3-Min Challenge Cleared (2x Coins Awarded)"]
-    H --> I{"All 29 3m Challenges Done?"}
-    I -- Yes --> J["🔥 Secret 90s Challenge Unlocked Globally!"]
+    A["Launch City Sandbox"] --> B["Locate 'Where's Waldo' Target Building"]
+    B --> C{"Extracted Module in <= 60s?"}
+    C -- Yes --> D["⚡ 2x Early Extraction Multiplier Armed!"]
+    C -- No --> E["Standard Payout Active"]
+    D --> F{"100% City Cleared in <= 300s?"}
+    E --> F
+    F -- No --> G["Run Logged; Module Not Banked (Option B Gate)"]
+    F -- Yes --> H["⭐ 100% Clear Achieved!"]
+    H --> I["⚙️ Marketing Module Banked to Master Board!"]
+    H --> J{"Time <= 180s (3 Min)?"}
+    J -- Yes --> K["🏆 3-Min Challenge Cleared (Bonus Stars & Double Coins)"]
+    I --> L{"Quadrant Fully Assembled?"}
+    L -- Yes --> M["🎁 Permanent Passive Section Perk Unlocked!"]
+    K --> N{"All 29 3-Min Challenges Cleared?"}
+    N -- Yes --> O["🔥 Secret 90s Challenge Unlocked Globally!"]
 ```
-
-### Key Progression Rules:
-1. **Starter Unlocks**: *The Lab* (Prologue) and *Sydney Harbour* (Chapter 1) are unlocked by default on fresh saves.
-2. **Next Metropolis Unlock Gate**: A subsequent metropolis unlocks when the immediately preceding playable metropolis has achieved a **100% full clear** (`completions > 0` or `bestPercent >= 1.0`) in **$\le 300\text{s}$ (5 minutes)**.
-3. **Playable vs. Development Cities**: Cities flagged as `status: 'DEVELOPMENT'` display their full mission dossier, architectural previews, and target landmarks, but are marked with a `🚧 UNDER CONSTRUCTION` badge while their voxel scenes are being authored. Progression seamlessly unlocks the next *shipped* metropolis in sequence.
-4. **3-Minute Speed Challenge**: Clearing a city at 100% within 180s permanently awards the **3-Minute Challenge Star** and doubles all earned coins.
-5. **Secret 90-Second Apex Mode**: Completing all 3-minute city challenges unlocks the legendary **Secret 90s Challenge**, placing the player in hyper-dense sectors under an aggressive 90-second orbital clock.
 
 ---
 
-## 2. City Catalog Data Schema (`js/citycatalog.js`)
+## 2. Core Campaign Mechanics Specifications
 
-To decouple UI presentation from hardcoded values, `CITY_CATALOG` serves as the single source of truth:
+### A. The Marketing Engine Module Tokens
+* **In-World Presentation:** Heavy, machined industrial cartridges floating 1m above ground with a glowing vertical golden/cyan kinetic beam and an audible low-frequency mechanical hum.
+* **Extraction:** Hidden inside the city's unique "Where's Waldo" target building. As the player reaches Size 4–5 and breaks load-bearing corner bays, the building collapses and ejects the module.
+* **Collection Event:** Swallowing the module triggers an anime milestone banner (`PART RECOVERED: [MODULE NAME]`) with custom mechanical ratcheting audio.
+* **The 100% Full-Clear Gate (Option B):** The module is only permanently banked into the player's save file upon achieving a **100% full clear** within the standard 300s (5-minute) sector limit.
+
+### B. Sub-60s Speedrun Early Extraction Bonus
+* **HUD Indicator:** A golden 60-second timer counts down from 1:00 at level start (`EARLY EXTRACTION WINDOW: 0:59...`).
+* **Multiplier:** Swallowing the module before $t=60\text{s}$ arms a **$2\times$ Multiplier** on the final level coin and score payout upon 100% completion.
+* **Replay Farming:** On subsequent runs of already-cleared cities, the module slot remains filled on the blueprint, but repeating the Sub-60s extraction continues to award the $2\times$ payout.
+
+### C. The 4 Quadrant Completion Perks
+Assembling all modules in a quadrant permanently activates a passive perk in the player's profile:
+
+1. **Top Quadrant: Inbound & Awareness (Acts I & II)**
+   * *Perk:* **Inbound Magnetism** — Expands the automatic suction radius for coins and Tier 1 props by 15%.
+2. **Right Quadrant: Conversion & Pipeline (Acts III & IV)**
+   * *Perk:* **Pipeline Velocity** — Reduces the total mass needed to advance to the next size tier by 10%.
+3. **Bottom Quadrant: Retention & Delight (Acts V & VI)**
+   * *Perk:* **Low-Churn Buffer** — Extends the combo meter decay grace window from 1.5s to 2.5s, allowing effortless maintenance of $8\times$ multipliers.
+4. **Left Quadrant: Analytics & RevOps (Acts VI & VII)**
+   * *Perk:* **High-Yield Attribution** — Increases base coin value and full-clear payout bonuses across all cities by 25%.
+5. **Center Core: UNBOUND Master Hub (Cambridge Finale)**
+   * *Perk:* **Perpetual Motion** — Golden cosmetic overdrive trail and instant maximum momentum retention.
+
+---
+
+## 3. The "Where's Waldo" & Carmen Sandiego Intel Progression
+
+### Visual Differentiation Hierarchy:
+* **Acts I–II (Obvious Contrast):** 2-story brick bookstore or diner placed directly adjacent to uniform 30-story towers; vivid saturated paint colors.
+* **Acts III–IV (Architectural Flourish):** Unique rooflines, historic copper domes, or stone porticos standing out against modern glass curtain walls.
+* **Acts V–VII (Subtle Geometry):** Off-axis footprint angles, non-standard fire escapes, unique water towers, or unlit vintage clockfaces.
+
+### Pre-Flight Briefing Clue Evolution:
+* **Act I (Plain English):** *"Intel: Target module is stored in the 2-story red diner on the waterfront wharf."*
+* **Acts II–IV (Telegraphic Memos):** *"Intercepted cable: Component relocated to agency loft with emerald copper roof overlooking the canal loop."*
+* **Acts V–VII (Local Lore Riddles):** *"Follow where the elevated rail tracks bend south past the only pre-war brick facade with an unlit clockface."*
+
+---
+
+## 4. Master Data Schema Extension (`js/citycatalog.js`)
+
+Each city's entry in `CITY_CATALOG` incorporates the marketing module metadata and Carmen Sandiego clue:
 
 ```javascript
-export const CITY_CATALOG = [
-  {
-    scene: 'sydney',
-    name: 'SYDNEY HARBOUR',
-    location: 'SYDNEY, AUSTRALIA',
-    act: 'ACT I',
-    actTitle: 'THE PACIFIC AWAKENING',
-    sub: 'Opera House, Harbour Bridge & Circular Quay',
-    desc: 'Sprocket goes global. Soaring ceramic sail vaults, deep water bays, and the iconic Coathanger bridge.',
-    tagline: 'CHAPTER 1 · HARBOUR VOYAGE',
-    chapter: 'CHAPTER 1',
-    status: 'PLAYABLE', // 'PLAYABLE' | 'DEVELOPMENT'
-    blocks: 14120,
-    difficulty: 'TIER 2 · CASUAL',
-    badge: 'ACT 1',
-    accentColor: '#4cc9f0',
-    icon: '🦘',
-    coinCount: 70,
-    coinValue: 1,
-    goalBonus: 50,
-    heroes: ['Opera House Sail Vaults', 'Harbour Bridge Arch', 'Sydney Tower Eye'],
-    directive: 'CALIBRATE OCEANIC INERTIA & CONSUME THE SAIL VAULTS',
-    transmission: 'Target: Port Jackson. Ingest coastal bollards and ferries to build sufficient angular velocity for the Harbour Bridge through-arch.',
-    debrief: 'Sydney sector 100% converted. Oceanic resonance achieved. Vector locked for trans-Pacific leap.',
+{
+  scene: 'sydney',
+  name: 'SYDNEY HARBOUR',
+  location: 'SYDNEY, AUSTRALIA',
+  act: 'ACT I',
+  actTitle: 'THE PACIFIC AWAKENING',
+  sub: 'Opera House, Harbour Bridge & Circular Quay',
+  // ... standard fields ...
+  moduleToken: {
+    id: 'inbound_hopper_sydney',
+    name: 'OCEANIC INBOUND HOPPER',
+    quadrant: 'AWARENESS', // 'AWARENESS' | 'CONVERSION' | 'RETENTION' | 'ANALYTICS' | 'CORE'
+    desc: 'Catches incoming maritime signals and converts coastal waves into inbound momentum.',
+    targetBuilding: 'Red-Roofed Wharf Warehouse',
+    intelClue: 'Intel: Target module is stored inside the red-roofed wharf warehouse on the eastern quay.',
+    difficulty: 'OBVIOUS_CONTRAST',
   },
-  // ... (All 29 Metropolises)
-];
+}
 ```
 
 ---
 
-## 3. UI Presentation & Act Grouping Contract
+## 5. UI Presentation Contract: The Master Blueprint Screen
 
-The City Selection interface (`js/ui/screens.js`) provides:
-1. **Act Navigation Filter**: Filter carousel view by Act (Act I through VII) or browse in continuous global progression order.
-2. **Interactive Mission Dossier Drawer**: Expands to reveal Sprocket's tactical transmission, target hero landmarks, and narrative debrief upon 100% completion.
-3. **Dynamic Status Badging**: Clear visual distinction between `✦ OPEN ✦`, `🏆 100% CLEARED`, `⭐ 3-MIN CLEARED`, `🔒 LOCKED`, and `🚧 COMING SOON`.
+1. **The Machine Blueprint Workbench (`showMachineBlueprint`):**
+   * An interactive schematic displaying the 4 quadrants and central Sprocket hub.
+   * Unlocked modules gleam with animated spinning gears and golden power traces.
+   * Empty sockets pulse with faint wireframes and display the gating city name and module description.
+2. **HUD In-Game Overlays:**
+   * Golden 60s countdown timer at level start.
+   * `⚡ 2X BONUS ARMED!` badge upon sub-60s module extraction.
+   * Full-screen celebration banner and audio stinger upon module swallow.
+3. **Victory Debrief:**
+   * Shows banked module, quadrant assembly progress, and applied perk bonuses.
