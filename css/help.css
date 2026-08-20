@@ -157,15 +157,27 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   overflow-x: auto;
   scrollbar-width: none;
+  /* This rail is a scroll container inside a height-constrained column flex
+     card, so its automatic min-size is 0 and it would otherwise collapse onto
+     its own padding and clip the pills — the same collapse that clipped the
+     City Select act rail on 2026-08-19. */
+  flex-shrink: 0;
 }
 
 .fw-help-nav-tabs::-webkit-scrollbar {
   display: none;
 }
 
+/* `flex: 1` is basis 0 + shrink 1, so the pill squeezed down to its min-width
+   floor while the label span inside kept its automatic min-content width —
+   WALKTHROUGH is one unbreakable word and painted 12.9px outside a 105px pill
+   at 360, 11.5px outside at a 380px desktop window. `1 1 auto` + a max-content
+   floor makes the pill refuse to shrink below its own label; the rail, which
+   already scrolls, is the thing that gives instead. */
 .fw-help-tab {
-  flex: 1;
-  min-width: 140px;
+  flex: 1 1 auto;
+  min-width: max-content;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -197,6 +209,14 @@
 
 .fw-tab-icon {
   font-size: 15px;
+  flex-shrink: 0;
+}
+
+/* Once the pills size to their content, a label that wraps would make one pill
+   taller than its neighbours for no reason — TIPS 'N TRICKS did exactly that at
+   360px. */
+.fw-tab-name {
+  white-space: nowrap;
 }
 
 /* Body Area */
@@ -570,10 +590,19 @@
     gap: 6px;
   }
 
+  /* No fixed min-width floor here: the base rule's max-content floor is the
+     only one that can be honest about how wide WALKTHROUGH actually is. The
+     trims below buy back ~27px so all three pills still fit a 360px screen
+     without the rail needing to scroll; below that it scrolls, which is what
+     the rail is for. */
   .fw-help-tab {
-    min-width: 105px;
     font-size: 11px;
-    padding: 8px 10px;
+    padding: 8px 8px;
+    gap: 5px;
+  }
+
+  .fw-tab-icon {
+    font-size: 13px;
   }
 
   .fw-tips-grid {

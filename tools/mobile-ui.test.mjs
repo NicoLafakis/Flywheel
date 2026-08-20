@@ -5,6 +5,7 @@ import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 
 const cssSrc = readFileSync(new URL('../css/main.css', import.meta.url), 'utf8');
+const helpCssSrc = readFileSync(new URL('../css/help.css', import.meta.url), 'utf8');
 const screensSrc = readFileSync(new URL('../js/ui/screens.js', import.meta.url), 'utf8');
 
 export function runMobileUiSelftest() {
@@ -146,6 +147,78 @@ export function runMobileUiSelftest() {
     assert(/city-icon-float[\s\S]{0,400}getBoundingClientRect/.test(screensSrc) || /getBoundingClientRect[\s\S]{0,400}city-icon-float/.test(screensSrc), 'anchors on the .city-icon-float rect');
     assert(/addEventListener\('resize', positionNavArrows/.test(screensSrc), 're-anchors on resize');
     assert(/--nav-arrow-top/.test(screensSrc) && /--nav-arrow-top/.test(cssSrc), 'top set via --nav-arrow-top custom property');
+  });
+
+  // 5c. PAUSE is a panic surface. At 844x390 landscape — how the game is
+  // actually played — the inline 9-track music picker held the primary slot and
+  // pushed RESTART to y=556 and CITIES to y=622 on a 390px screen; 360x640
+  // portrait buried CITIES at 679 of 640. The actions move into one wrapper
+  // that lays out as a grid on short viewports, and the picker becomes a
+  // disclosure that starts closed there.
+  test('Pause menu keeps RESTART and CITIES above the fold on short viewports', () => {
+    assert(/const pauseActions = el\(`<div class="pause-actions">/.test(screensSrc),
+      'showPause must group its action buttons in a .pause-actions wrapper');
+    assert(/pauseActions\.append\(resume, restart, quit, settings, help\)/.test(screensSrc),
+      'RESTART and CITIES must be in the action group, ordered ahead of the secondary buttons');
+    assert(!/s\.append\(restart, quit\)/.test(screensSrc),
+      'RESTART/CITIES must no longer be appended after the music picker');
+    // The picker may not sit between the actions and the fold at any viewport,
+    // so compare the two APPEND statements — not the first mention of either
+    // name, which a comment above the function would win.
+    assert(screensSrc.indexOf('s.appendChild(pauseActions)') > -1
+      && screensSrc.indexOf('s.appendChild(pauseActions)') < screensSrc.indexOf('s.appendChild(musicBox)'),
+      'the action group must be appended to the screen before the music picker');
+    const grid = cssSrc.match(/@media \(max-height: 700px\)[\s\S]{0,900}?\.pause-actions \{[^}]*\}/);
+    assert(grid && /display:\s*grid/.test(grid[0]),
+      '.pause-actions must become a grid under a max-height: 700px query');
+    assert(/\.pause-actions \{[^}]*\}/.test(cssSrc), 'Must style .pause-actions');
+  });
+
+  // 5d. The music picker is exploratory, so it collapses to a single row with a
+  // disclosure on short viewports and opens on demand — the same progressive
+  // -disclosure deal the City Select dossier already makes.
+  test('Pause music picker is a >=44px disclosure, collapsed under 700px tall', () => {
+    assert(screensSrc.includes('pause-music-toggle'), 'showPause must render a .pause-music-toggle');
+    assert(/aria-expanded="\$\{!shortView\}"/.test(screensSrc), 'toggle must carry aria-expanded');
+    assert(/const shortView = window\.innerHeight < 700/.test(screensSrc),
+      'collapsed by default under a 700px tall viewport');
+    assert(cssSrc.includes('.pause-music.collapsed .pause-music-list'),
+      'collapsed CSS must hide the track list');
+    assert(/\.pause-music-toggle \{[^}]*min-height:\s*44px/.test(cssSrc),
+      '.pause-music-toggle must be a >=44px tap target');
+    // The wrapped track list was overflowing the pause screen horizontally at
+    // 360/380/390 portrait (measured screenScrollsX=true).
+    assert(/\.pause-music \{[^}]*max-width:\s*100%/.test(cssSrc),
+      '.pause-music must not exceed the screen width');
+  });
+
+  // 5e. Help tab rail. `.fw-help-tab` was `flex: 1` (basis 0, shrink 1) with a
+  // min-width floor, so the pill squeezed to that floor while the label span
+  // kept its automatic min-content width — and WALKTHROUGH, one unbreakable
+  // word, painted 12.9px PAST a 105px pill at 360 (and 9.9px past it at 390,
+  // 11.5px at a 380px desktop window: this was never only a 360px bug). The
+  // rail already scrolls; the pills just have to refuse to shrink below their
+  // own content and let it. Same class of defect as the City Select act rail.
+  test('Help tab pills never shrink below their own label', () => {
+    const tab = helpCssSrc.match(/\n\.fw-help-tab \{[^}]*\}/);
+    assert(tab, 'css/help.css must style .fw-help-tab');
+    assert(/min-width:\s*max-content/.test(tab[0]),
+      '.fw-help-tab must set min-width: max-content so the pill cannot squeeze below its label');
+    assert(!/^\s*flex:\s*1;\s*$/m.test(tab[0]),
+      '.fw-help-tab must not use bare `flex: 1` (basis 0 + shrink 1 is what squeezed the pill)');
+    assert(/min-height:\s*44px/.test(tab[0]), '.fw-help-tab must be a >=44px tap target');
+    assert(/white-space:\s*nowrap/.test(helpCssSrc.match(/\.fw-tab-name \{[^}]*\}/)?.[0] || ''),
+      '.fw-tab-name must be nowrap so pill heights stay uniform once they size to content');
+    // The rail is the thing that gives, not the pill.
+    const rail = helpCssSrc.match(/\.fw-help-nav-tabs \{[^}]*\}/);
+    assert(rail && /overflow-x:\s*auto/.test(rail[0]), '.fw-help-nav-tabs must scroll horizontally');
+    assert(rail && /flex-shrink:\s*0/.test(rail[0]),
+      '.fw-help-nav-tabs must not collapse inside the help card column (the act-rail lesson)');
+    // The narrow override must stop re-imposing a fixed floor.
+    const at = helpCssSrc.indexOf('@media (max-width: 540px)');
+    assert(at > -1, 'css/help.css must keep its <=540px block');
+    assert(!/\.fw-help-tab \{[^}]*min-width:\s*\d/.test(helpCssSrc.slice(at)),
+      'the <=540px override must not set a fixed min-width on .fw-help-tab');
   });
 
   // 6. Mobile Shop Shell & Docked Navigation

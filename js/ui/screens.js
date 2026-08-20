@@ -1850,6 +1850,14 @@ export class Screens {
     this.clear();
     if (this.actions.music) this.actions.music('pause');
     const isTouch = isTouchDevice();
+    // Pause is a panic surface: the two things a player reaches for under time
+    // pressure are RESTART and CITIES, and at 844x390 landscape — how a phone
+    // is actually held for this game — the inline 9-track music picker held the
+    // slot above them and pushed them to y=556 and y=622 on a 390px screen.
+    // Under 700px of viewport height the actions lay out as a grid and the
+    // picker collapses to one row; see .pause-actions / .pause-music.collapsed
+    // in css/main.css.
+    const shortView = window.innerHeight < 700;
     const s = el(`<div class="screen">
       <h2>PAUSED</h2>
       <div class="pause-ctrl-hint" style="font-size:11px; font-weight:700; color:rgba(255,210,63,0.85); background:rgba(12,16,28,0.7); border:1px solid rgba(255,210,63,0.25); border-radius:12px; padding:6px 14px; margin-bottom:8px; text-align:center;">
@@ -1891,7 +1899,12 @@ export class Screens {
     // shelf and no map exists (showWorldMap is an alias for showTitle). The
     // old label promised a reorientation hub and delivered the front door.
     const quit = armable('CITIES', () => this.actions.quitToMap());
-    s.append(resume, settings, help);
+    // One group, primary actions first: the picker can never come between
+    // RESTART/CITIES and the fold again, at any viewport, because it is no
+    // longer between them in the DOM.
+    const pauseActions = el(`<div class="pause-actions"></div>`);
+    pauseActions.append(resume, restart, quit, settings, help);
+    s.appendChild(pauseActions);
     // MUSIC picker: the session override from js/audio/tracklist.js — the
     // default pool plus one row per unlocked city. Selecting a track starts
     // it immediately (that doubles as the preview), and the choice holds
@@ -1900,22 +1913,38 @@ export class Screens {
     // track the player just asked to hear.
     if (this.actions.musicTracks && this.actions.musicSelect) {
       const nowPlaying = this.actions.nowPlaying ? this.actions.nowPlaying() : null;
-      const musicBox = el(`<div class="pause-music"><h3>MUSIC</h3></div>`);
+      const tracks = this.actions.musicTracks();
+      const current = tracks.find((t) => t.cue === nowPlaying);
+      const musicBox = el(`<div class="pause-music${shortView ? ' collapsed' : ''}"></div>`);
+      // The picker is exploratory, so on a short viewport it costs one row and
+      // opens on demand — the same progressive-disclosure deal the City Select
+      // dossier makes. The row still names the track that is playing, so the
+      // collapsed state answers "what is this?" without being opened.
+      const toggle = el(`<button class="btn secondary pause-music-toggle" aria-expanded="${!shortView}">
+        <span class="pause-music-k">MUSIC</span>
+        <span class="pause-music-now">${current ? current.label : '—'}</span>
+        <span class="pause-music-caret" aria-hidden="true">▾</span>
+      </button>`);
+      const now = toggle.querySelector('.pause-music-now');
+      toggle.onclick = () => {
+        const open = !musicBox.classList.toggle('collapsed');
+        toggle.setAttribute('aria-expanded', String(open));
+      };
       const list = el(`<div class="pause-music-list"></div>`);
-      for (const track of this.actions.musicTracks()) {
+      for (const track of tracks) {
         const b = el(`<button class="btn secondary pause-music-track">${track.label}</button>`);
         if (track.cue === nowPlaying) b.classList.add('playing');
         b.onclick = () => {
           if (!this.actions.musicSelect(track.cue)) return;
           list.querySelectorAll('.pause-music-track').forEach((x) => x.classList.remove('playing'));
           b.classList.add('playing');
+          now.textContent = track.label;
         };
         list.appendChild(b);
       }
-      musicBox.appendChild(list);
+      musicBox.append(toggle, list);
       s.appendChild(musicBox);
     }
-    s.append(restart, quit);
     this.root.appendChild(s);
     this.current = 'pause';
   }

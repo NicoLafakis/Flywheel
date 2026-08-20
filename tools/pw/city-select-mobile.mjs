@@ -9,12 +9,21 @@
 // `hasTouch` is a dimension here, never a baked-in constant.
 //
 // Run: node tools/pw/city-select-mobile.mjs   (with `python -m http.server 8000`)
-// Opens a visible browser window by default so runs can be watched along;
-// FW_HEADLESS=1 forces headless (CI).
+//
+// HEADLESS BY DEFAULT (was headed). This script was reported on 2026-08-19 as
+// blocking for a full 300s with ZERO output, and the block was attributed to
+// `waitForFunction(() => window.__screens)`. It was not that: `chromium.launch()`
+// runs BEFORE the first console.log in this file, so anything that blocks in the
+// launch produces exactly that signature — no output at all, and no evidence
+// pointing at whatever line gets blamed. A HEADED launch is the one thing here
+// that can block on the environment (it needs an interactive desktop session);
+// the sibling harnesses that resolved the same predicate instantly all launch
+// headless. Watching a run is opt-in now: FW_HEADED=1.
+// (FW_HEADLESS=1 still accepted so older invocations keep working.)
 import { chromium } from 'playwright';
 
 const BASE = process.env.FW_BASE || 'http://localhost:8000';
-const HEADLESS = process.env.FW_HEADLESS === '1';
+const HEADLESS = process.env.FW_HEADED !== '1';
 
 const results = [];
 const check = (vp, name, pass, detail) => {
@@ -34,6 +43,9 @@ const CASES = [
 const intersect = (a, b) =>
   a.left < b.right - 0.5 && a.right > b.left + 0.5 && a.top < b.bottom - 0.5 && a.bottom > b.top + 0.5;
 
+// Log BEFORE the launch, so a launch that blocks can never again look like a
+// hang somewhere further down the file.
+console.log(`launching chromium (headless=${HEADLESS}) against ${BASE} ...`);
 const browser = await chromium.launch({ headless: HEADLESS });
 
 for (const c of CASES) {
@@ -46,7 +58,20 @@ for (const c of CASES) {
   const pageErrors = [];
   page.on('pageerror', (e) => pageErrors.push(String(e)));
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => window.__screens, null, { timeout: 45000 });
+  // `polling: 200` rather than the default 'raf', and a diagnostic instead of a
+  // bare TimeoutError: if the app really is dead, the reason is on the page and
+  // the next person should not have to go and find it.
+  await page.waitForFunction(() => window.__screens, null, { timeout: 45000, polling: 200 })
+    .catch(async (err) => {
+      const state = await page.evaluate(() => ({
+        readyState: document.readyState,
+        hasCanvas: !!document.querySelector('canvas'),
+        body: (document.body.innerText || '').slice(0, 200),
+      })).catch(() => null);
+      console.log(`  app never exposed window.__screens: ${err.message}`);
+      console.log(`  page state: ${JSON.stringify(state)}  page errors: ${pageErrors.join(' | ') || '(none)'}`);
+      throw err;
+    });
 
   // Give the first city a play history on the LIVE save object — the dossier
   // must be collapsed by default once the lore has greeted the player, and
@@ -88,8 +113,13 @@ for (const c of CASES) {
   });
   check(c.name, 'dossier toggle exists and is a >=44px tap target',
     dossier.exists && dossier.toggleH >= 44, dossier.exists ? `toggle ${dossier.toggleH}px` : 'no .dossier-toggle found');
-  check(c.name, 'dossier starts collapsed for a city with runs',
-    dossier.exists && dossier.expanded === 'false' && !dossier.bodyVisible,
+  // The shipped rule is progressive disclosure on SHORT viewports only
+  // (js/ui/screens.js: `innerHeight < 700`, asserted in tools/mobile-ui.test.mjs).
+  // This case used to demand "always collapsed", which is a contract the screen
+  // never had — on a 844px-tall phone the lore is meant to greet the player.
+  const wantCollapsed = c.vp.height < 700;
+  check(c.name, `dossier starts ${wantCollapsed ? 'collapsed' : 'open'} on a ${c.vp.height}px viewport`,
+    dossier.exists && dossier.expanded === String(!wantCollapsed) && dossier.bodyVisible === !wantCollapsed,
     dossier.exists ? `aria-expanded=${dossier.expanded} bodyVisible=${dossier.bodyVisible}` : 'no dossier');
 
   // --- 3: CTA fully inside the viewport, dossier collapsed ------------------
@@ -104,8 +134,15 @@ for (const c of CASES) {
     ctaCollapsed ? `bottom ${ctaCollapsed.bottom.toFixed(0)} of ${ctaCollapsed.vh}` : 'no .city-launch-btn');
 
   // --- 4: toggle expands the dossier; CTA still reachable -------------------
+  // Drive it from whatever state THIS viewport starts in. A blind single click
+  // was testing the close direction on tall viewports while reporting on the
+  // open one.
   await page.click('.dossier-toggle').catch(() => {});
   await page.waitForTimeout(150);
+  if (await page.evaluate(() => document.querySelector('.dossier-toggle')?.getAttribute('aria-expanded')) === 'false') {
+    await page.click('.dossier-toggle').catch(() => {});
+    await page.waitForTimeout(150);
+  }
   const expanded = await page.evaluate(() => {
     const t = document.querySelector('.dossier-toggle');
     const body = document.querySelector('.dossier-body');
@@ -177,12 +214,16 @@ for (const c of CASES) {
 
   // --- 7: numbered dots are gone; a compact counter takes their place -------
   const nav = await page.evaluate(() => {
-    const counter = document.querySelector('.city-counter');
+    // Shipped as `.city-breadcrumb` ("CITY n / 29 · ACT · i / n"), which is
+    // what tools/mobile-ui.test.mjs asserts. `.city-counter` was this harness's
+    // working name for it and never existed in the DOM, so this case was
+    // reporting a missing element rather than a missing feature.
+    const counter = document.querySelector('.city-breadcrumb');
     const dots = [...document.querySelectorAll('.city-dot')];
     const rail = document.querySelector('.city-dots-rail');
     return {
       hasCounter: !!counter,
-      counterText: counter ? counter.textContent.trim() : null,
+      counterText: counter ? counter.textContent.trim().replace(/\s+/g, ' ') : null,
       dotCount: dots.length,
       railOverflow: rail ? rail.scrollWidth > rail.clientWidth + 1 : null,
     };
