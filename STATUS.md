@@ -28,7 +28,7 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 ## Active focus
 
 - **Act I map completion** — every Act I city built to the voxel count declared
-  in its catalog entry, exactly. Sydney done; Auckland and Singapore in flight.
+  in its catalog entry, exactly. Sydney and Auckland done; Singapore in flight.
   `.wiki/features/act-i-pacific-completion/`.
 - **Camera Bézier occlusion smoothing (The Lab only)** — C¹ cubic Hermite pitch
   transitions and critically-damped roof-climb easing, behind a per-scene flag.
@@ -71,6 +71,19 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 
 ### 2026-08-19
 
+- **Auckland: Act I chapter 2, playable at exactly 16,000 blocks** — new
+  `js/voxelscene-auckland.js`: the Sky Tower (an octagonal shaft, copper pod and
+  full antenna mast to y 67), three Waitematā wharves on even-bay `pierDeck`
+  timber, the Ferry Building, and Maungawhau / North Head / Mt Victoria as solid
+  truncated scoria cones with sunk craters. Wired through `SCENE_IMPORTERS`,
+  `SCENE_GOALS` (*TOPPLE THE SKY TOWER*), `AUTHORED_SCENES`, the music cue
+  registry, and `CITY_CATALOG` (`DEVELOPMENT` → `PLAYABLE`, 10 playable). The
+  count is hit by authoring the city deliberately short and closing the gap with
+  a shore-first harbour rip-rap apron, so the last ~55 blocks are real armour
+  rock rather than filler. 115 camera blockers, 0 overlaps, 0 unsupported
+  blocks, 0 road conflicts; `step` 4.4 ms/frame mid-collapse on a 390×844 touch
+  viewport. `tools/validate.mjs` section `auckland`,
+  `tools/pw/auckland-playtest.mjs`.
 - **Sydney: camera blockers restored, exact 14,120 blocks** — `buildSydney` ended
   with a bare `generateBlockers(sim, 6);`, but the function *returns* the rect
   list rather than assigning it, so the Act I opener shipped with `blockers=0`
