@@ -28,6 +28,24 @@
 // The strip is itself asserted to have changed the source (see MUTATION GUARD):
 // a mutation that silently fails to apply makes both arms identical and turns
 // the whole file green on a broken tree.
+//
+// WHAT THIS FILE DOES **NOT** PROVE — read before trusting it
+//
+// It proves the `.catch` wirings are load-bearing and that recovery changes a
+// player-visible outcome. It does NOT prove `failSceneLaunch`'s unwinding is
+// complete. Three things are MEASURED here — `body.mode-sandbox`, the loading
+// screen, and the unhandled-rejection count. The rest of the unwinding
+// (`rankedRun`, `isVoxelSandbox`) is unwound on REASONING about where the throw
+// lands relative to where those are assigned, and is not observed by any
+// assertion below.
+//
+// `rankedRun` is the one worth naming: on a failed launch it is never assigned,
+// so without the explicit reset it would still hold the PREVIOUS run's input
+// buffer. Observing that needs a real ranked run driven into a failed launch,
+// which is materially more setup than this file does.
+//
+// This caveat is here because a test's coverage being read wider than it is, is
+// how the next person concludes something is proven when it was only argued.
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
 
