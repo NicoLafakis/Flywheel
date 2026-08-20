@@ -45,6 +45,11 @@ export const SCENE_AMBIENCE = {
   // CBD wall is one EDGE of this map, not its middle, so `amb-manhattan`'s
   // canyon texture would be describing the part you mostly have behind you.
   singapore: 'amb-boston',
+  hongkong: 'amb-boston',
+  seoul: 'amb-boston',
+  beijing: 'amb-manhattan',
+  bangkok: 'amb-boston',
+  mumbai: 'amb-boston',
   brooklyn: 'amb-brooklyn',
   // Tokyo Shinjuku reuses the Manhattan bed: it is a dense high-rise canyon
   // core, which is the texture `amb-manhattan` records, and js/audio/music.js

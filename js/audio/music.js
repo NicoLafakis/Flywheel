@@ -40,6 +40,11 @@ export const MUSIC_CUES = Object.freeze({
   // CBD one — and it keeps the Act's three chapters on three distinct cues
   // (Sydney -> boston, Auckland -> cambridge, Singapore -> upper-manhattan).
   singapore: 'upper-manhattan.mp3',
+  hongkong: 'lower-manhattan.mp3',
+  seoul: 'tokyo.mp3',
+  beijing: 'tokyo.mp3',
+  bangkok: 'tokyo.mp3',
+  mumbai: 'tokyo.mp3',
   // The Lab's own theme. The gallery was deliberately music-free until the
   // track shipped; the owner reversed that call when it did.
   gallery: 'the-lab.mp3',

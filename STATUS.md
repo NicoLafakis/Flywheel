@@ -14,8 +14,10 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 - **Brand**: *Flywheel — A sprocket's story*. Branded landing screen over a live
   city backdrop, block wordmark, legal footer.
 - **Campaign**: 29 metropolises across 7 regional Acts + a Prologue
-  (`js/citycatalog.js`). **10 are `PLAYABLE`**; the rest are `DEVELOPMENT` and
-  gated in the UI. Unlock ladder is 100% clear of the preceding *playable* city.
+  (`js/citycatalog.js`). **16 are `PLAYABLE`** (The Lab, Sydney, Auckland,
+  Singapore, Bangkok, Hong Kong, Seoul, Beijing, Tokyo, Mumbai, Chicago, Lower Manhattan, Brooklyn, Upper Manhattan, Boston,
+  Cambridge) — Act 0 (Prologue), Act I (Pacific Gateway), and Act II (Asian Megacities) are 100% COMPLETE and PLAYABLE; the rest are `DEVELOPMENT` and gated in the UI. Unlock ladder is 100%
+  clear of the preceding *playable* city.
 - **Run rules**: 5-minute clock, 100% full-clear goal, 60 deterministic coins
   per city, plus a 3-minute challenge tier. Ranked THE RUN (Chicago) is 90 s.
 - **Boards**: public ranked boards with server-replayed trace verification;
@@ -51,7 +53,11 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   transitions and critically-damped roof-climb easing, behind a per-scene flag.
   `.wiki/features/camera-bezier-smoothing/`, ADR-0022.
 - **Global campaign & Sprocket storyline** — 29-city world tour, mission
-  dossiers, progressive unlock ladders. `.wiki/features/global-campaign/`.
+  dossiers, progressive unlock ladders. Complete paperwork: 29 Marketing
+  Engine modules, Where's Waldo target structures, Carmen Sandiego intel clues,
+  Sub-60s speedrun extraction, 4 quadrant perks, Blueprint Workbench UI spec,
+  and Save Schema v26 (ADR-0023). Ready for Phase 3 implementation.
+  `.wiki/features/global-campaign/`.
 - **Multiplayer multi-hole & join polish** — 6-player invite lobby, PvP hole
   swallowing, per-player coin isolation. `.wiki/modules/multiplayer.md`.
 - **Cambridge Phase 7** — 44 easter eggs, 11 ground glyphs, championship belts.
@@ -175,7 +181,9 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   to contain them. Rebuild at perceived density; the existing map stays. Root
   cause of the validator's 37-minute runtime. **Target: 88,500 blocks** — the
   figure the card used to advertise, kept here so correcting the card did not
-  delete the goal.
+  delete the goal. The validator-side half of the same problem (budget the
+  excursion by work, not sim-seconds; fast modes) is planned, not built:
+  `.wiki/plans/validator-optimization.md`.
 - **Cloud progress sync** — shipped and **on by default**; `FW_PROGRESS_SYNC=false`
   on Vercel pauses it (both routes answer `503 SERVER_NOT_READY`, game unchanged).
   An emergency switch, not a deploy step. `.wiki/modules/cloud.md`, ADR-0021.

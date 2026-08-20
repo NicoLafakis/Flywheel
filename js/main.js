@@ -755,6 +755,31 @@ const AUTHORED_SCENES = {
     hud: 'SINGAPORE · THE BAY AND THE SUPERTREES',
     intro: { subtitle: 'SINGAPORE' },
   },
+  'hongkong': {
+    label: 'HONG KONG: VICTORIA HARBOUR AND THE PEAK',
+    hud: 'HONG KONG · BANK TOWERS & PEAK TRAM',
+    intro: { subtitle: 'HONG KONG' },
+  },
+  'seoul': {
+    label: 'SEOUL: HAN RIVER, GYEONGBOKGUNG AND N SEOUL TOWER',
+    hud: 'SEOUL · N SEOUL TOWER & GYEONGBOKGUNG',
+    intro: { subtitle: 'SEOUL' },
+  },
+  'beijing': {
+    label: 'BEIJING: FORBIDDEN CITY, BIRD\'S NEST AND CCTV LOOP',
+    hud: 'BEIJING · FORBIDDEN CITY & CCTV LOOP',
+    intro: { subtitle: 'BEIJING' },
+  },
+  'bangkok': {
+    label: 'BANGKOK: GRAND PALACE, WAT ARUN AND BTS SKYTRAIN',
+    hud: 'BANGKOK · GRAND PALACE & WAT ARUN',
+    intro: { subtitle: 'BANGKOK' },
+  },
+  'mumbai': {
+    label: 'MUMBAI: GATEWAY OF INDIA, MARINE DRIVE AND VICTORIA TERMINUS',
+    hud: 'MUMBAI · GATEWAY OF INDIA & MARINE DRIVE',
+    intro: { subtitle: 'MUMBAI' },
+  },
   'chicago': {
     label: 'CHICAGO: THE LOOP AND THE CHICAGO RIVER',
     hud: 'CHICAGO · THE LOOP & WILLIS TOWER',

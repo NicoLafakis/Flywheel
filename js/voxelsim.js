@@ -267,6 +267,11 @@ const SCENE_IMPORTERS = {
   'sydney': () => import('./voxelscene-sydney.js').then((m) => m.buildSydney),
   'auckland': () => import('./voxelscene-auckland.js').then((m) => m.buildAuckland),
   'singapore': () => import('./voxelscene-singapore.js').then((m) => m.buildSingapore),
+  'hongkong': () => import('./voxelscene-hongkong.js').then((m) => m.buildHongKong),
+  'seoul': () => import('./voxelscene-seoul.js').then((m) => m.buildSeoul),
+  'beijing': () => import('./voxelscene-beijing.js').then((m) => m.buildBeijing),
+  'bangkok': () => import('./voxelscene-bangkok.js').then((m) => m.buildBangkok),
+  'mumbai': () => import('./voxelscene-mumbai.js').then((m) => m.buildMumbai),
 };
 const SCENE_BUILDERS = new Map();
 const GALLERY_SCENE = 'gallery';
@@ -552,6 +557,11 @@ export const SCENE_GOALS = {
   sydney: { name: 'EAT THE OPERA HOUSE', targetFraction: 1.0 },
   auckland: { name: 'TOPPLE THE SKY TOWER', targetFraction: 1.0 },
   singapore: { name: 'CRUMBLE THE SKYPARK', targetFraction: 1.0 },
+  hongkong: { name: 'TOPPLE THE BANK OF CHINA TOWER', targetFraction: 1.0 },
+  seoul: { name: 'TOPPLE N SEOUL TOWER', targetFraction: 1.0 },
+  beijing: { name: 'UNRAVEL THE CCTV CANTILEVER LOOP', targetFraction: 1.0 },
+  bangkok: { name: 'TOPPLE THE WAT ARUN PRANG SPIRE', targetFraction: 1.0 },
+  mumbai: { name: 'TOPPLE THE GATEWAY OF INDIA', targetFraction: 1.0 },
 };
 export const SANDBOX_COIN_COUNT = 60;
 export const SANDBOX_COIN_VALUE = 2;

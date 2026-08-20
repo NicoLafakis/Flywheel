@@ -10,9 +10,9 @@ covers:
 |:---:|---|---|---|:---:|:---:|---|---|:---:|:---:|
 | **0** | `gallery` | **The Lab (Proving Ground)** | **Prologue** · Calibration | **PLAYABLE** | 15,767 | T1 · STARTER | Crash Ramps, Calibration Pylons, Subway Terminal | `#00f0ff` | 🧪 |
 | **1** | `sydney` | **Sydney Harbour** (Australia) | **Act I** · Pacific Awakening | **PLAYABLE** | 14,120 | T2 · CASUAL | Opera House Sail Vaults, Harbour Bridge Arch, Sydney Tower | `#4cc9f0` | 🦘 |
-| **2** | `auckland` | **Auckland** (New Zealand) | **Act I** · Pacific Awakening | **PLAYABLE** | 16,000 | T2 · CASUAL | Sky Tower Needle, Waitematā Ferry Wharves, Mt Eden Volcanic Cones | `#48cae4` | ⛵ |
-| **3** | `singapore` | **Singapore Marina Bay** | **Act I** · Pacific Awakening | *DEV* | ~22,000 | T3 · NORMAL | Marina Bay Sands, Supertree Grove, Fullerton Hotel | `#00b4d8` | 🦁 |
-| **4** | `hongkong` | **Hong Kong** (Victoria Harbour) | **Act II** · Asian Megacities | *DEV* | ~28,000 | T3 · NORMAL | Bank of China Tower, Peak Tram, Star Ferry Terminals | `#ff5d8f` | 🚢 |
+| **2** | `auckland` | **Auckland** (New Zealand) | **Act I** · Pacific Awakening | **PLAYABLE** | 16,000 | T2 · CASUAL | Sky Tower Needle, Waitematā Ferry Wharves, Mt Eden Cones | `#48cae4` | ⛵ |
+| **3** | `singapore` | **Singapore Marina Bay** | **Act I** · Pacific Awakening | **PLAYABLE** | 22,000 | T3 · NORMAL | Marina Bay Sands, Supertree Grove, Fullerton Hotel | `#00b4d8` | 🦁 |
+| **4** | `hongkong` | **Hong Kong** (Victoria Harbour) | **Act II** · Asian Megacities | *DEV* | ~28,500 | T3 · NORMAL | Bank of China Tower, Peak Tram, Star Ferry Terminals | `#ff5d8f` | 🚢 |
 | **5** | `seoul` | **Seoul** (South Korea) | **Act II** · Asian Megacities | *DEV* | ~32,000 | T4 · SKILLED | N Seoul Tower, Han River Bridges, Gyeongbokgung Gate | `#ff758f` | 🏯 |
 | **6** | `tokyo` | **Tokyo Shinjuku & Shibuya** | **Act II** · Asian Megacities | **PLAYABLE** | 84,122 | T8 · APEX | Shibuya Scramble, Tokyo Tower, Shinjuku Neon Canyons | `#ff0054` | 🗼 |
 | **7** | `beijing` | **Beijing** (China) | **Act II** · Asian Megacities | *DEV* | ~38,000 | T4 · SKILLED | Bird's Nest Lattice, CCTV Loop Tower, Imperial Red Walls | `#d90429` | 🐉 |
@@ -42,10 +42,13 @@ covers:
 
 ## Act Distribution Summary
 
-* **Act I: The Pacific Awakening** (4 Metropolises — The Lab, Sydney, Auckland, Singapore)
-* **Act II: Asian Megacities & High-Density Grids** (6 Metropolises — Hong Kong, Seoul, Tokyo, Beijing, Bangkok, Mumbai)
+* **Prologue: Calibration** (1 Metropolis — The Lab)
+* **Act I: The Pacific Awakening** (3 Metropolises — Sydney, Auckland, Singapore — **100% PLAYABLE ACT**)
+* **Act II: Asian Megacities & High-Density Grids** (6 Metropolises — Hong Kong, Seoul, Tokyo, Beijing, Bangkok, Mumbai — 1 Playable)
 * **Act III: Desert Horizons & Mediterranean Antiquity** (4 Metropolises — Dubai, Cairo, Athens, Rome)
 * **Act IV: European Capitals of Grandeur** (4 Metropolises — Paris, London, Amsterdam, Berlin)
-* **Act V: The Americas & Transcontinental Transit** (6 Metropolises — Rio, Buenos Aires, Mexico City, San Francisco, Chicago, Toronto)
-* **Act VI: The New York Megacity Trilogy** (3 Metropolises — Lower Manhattan, Brooklyn, Upper Manhattan)
-* **Act VII: The Massachusetts Tech Corridor & Grand Finale** (2 Metropolises — Boston Seaport, Cambridge UNBOUND Summit)
+* **Act V: The Americas & Transcontinental Transit** (6 Metropolises — Rio, Buenos Aires, Mexico City, San Francisco, Chicago, Toronto — 1 Playable)
+* **Act VI: The New York Megacity Trilogy** (3 Metropolises — Lower Manhattan, Brooklyn, Upper Manhattan — **100% PLAYABLE ACT**)
+* **Act VII: The Massachusetts Tech Corridor & Grand Finale** (2 Metropolises — Boston Seaport, Cambridge UNBOUND Summit — **100% PLAYABLE ACT**)
+
+**Total:** 29 Metropolises across 7 Acts + Prologue. **11 PLAYABLE** sandboxes currently active.
