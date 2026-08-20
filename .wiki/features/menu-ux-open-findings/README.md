@@ -1,6 +1,6 @@
 # Open Findings: Menu & Shell UX
 
-**Status**: OPEN (recorded 2026-08-19)
+**Status**: items 1–5 resolved; item 6 open, owner decision (recorded 2026-08-19)
 **Category**: UI / Menus
 **Origin**: surfaced during the 2026-08-19 mobile menu audit (Playwright, headed,
 360×640 / 390×844 / 844×390 / 1440×900). Recorded here rather than left in a
@@ -98,6 +98,127 @@ worse. Those bumps are **not** to be reverted — 9px labels on a phone are the
 worse defect, and this game is mobile-first by standing rule. The card layout
 has to fit the CTA *with* the larger type. Reverting to protect a red check
 optimises the metric instead of the screen.
+
+**RESOLVED** 2026-08-19, commit `411f4aa`. **419 of 692** swept viewports had
+PLAY below the fold; now **0 of 692**, with every type bump intact. Proven RED
+rather than assumed: the fix's parent, served with its byte count verified
+against disk, swept with the same harness reads 419/692 against 0/692. Both
+new static tests were proven by mutation — deleting the two-column block, and
+moving it above the 520px landscape block, so the ordering assertion is armed
+rather than decorative. `mobile-ui.test.mjs` 18/18, `menu-mobile.mjs` 144/144,
+`city-select-mobile.mjs` 75/75.
+
+**The fix**: the card body became a bounded scroller with the action row docked
+*outside* it, and in short landscape the card goes two-column (title across the
+top, body left, action stack right) — taking the card body from 0px to 118–127px
+at 320px of height with every target still ≥44px.
+
+**The instructive failure**: the first attempt put `min-height: 0` on
+`.city-card-host` alone and made the problem *worse*. `.city-carousel-wrapper`
+sits between the host and the screen and was still content-sized, and being a
+row flex with `align-items: center` it content-sizes its children and overflows
+them symmetrically. **A min-height:0 chain has to be unbroken from the flex
+child all the way up** — fixing one link while an ancestor stays content-sized
+inverts the result, and the symptom is indistinguishable from the fix simply not
+working.
+
+**Withdrawn before shipping**: a measure-and-collapse pass (`fitCard`) that shut
+the dossier drawer when the body overflowed. Once the body is a bounded
+scroller, "content taller than the body" is a scroller's *normal* state, so it
+fired at 390×844 and 1440×900 and closed a drawer the design deliberately opens
+there. `city-select-mobile.mjs` caught it at 72/75. Removed entirely; the
+docking does the job alone and the shipped drawer behaviour is byte-for-byte
+unchanged.
+
+**One existing test was widened, not pinned**: check `3e` pinned the desktop
+media-query text verbatim and broke on the new `min-height` clause. Its pattern
+was widened to tolerate extra clauses rather than re-pinned to the new text —
+verbatim pinning is what made it brittle, so re-pinning would reload the same
+trap for the next author.
+
+> **Correction — the original figure was 347/692 and it was wrong.** A stale
+> `python -m http.server` was squatting the baseline port, serving an older
+> directory: Content-Length 226883 against a 234584-byte file on disk, with
+> **two PIDs listening**, so killing one left the other alive. It returned a
+> well-formed, entirely plausible number on the one arm nobody re-checks — the
+> baseline. Re-measured against the fix's real parent with served bytes verified
+> against disk: **419/692**, which also matches the very first pre-fix reading,
+> so 419 has two independent arrivals and 347 has one from an unverified server.
+> The commit message was amended rather than leaving a wrong number in the
+> permanent record, which is why the sha moved `4749a72` → `411f4aa` (same tree
+> `4e742b62`, same 4 files, attestation still valid).
+>
+> **The lesson is about which arm gets checked.** Effort concentrates on the arm
+> being changed; the control arm is assumed. A baseline served from the wrong
+> bytes is invisible precisely because a baseline is *supposed* to differ from
+> the fixed tree — the discrepancy it produces looks like the fix working.
+> Verify the served byte count against disk before trusting any A/B, and check
+> for more than one listener on the port.
+
+---
+
+## 5. `#boot-splash.fade-out` overflows the viewport horizontally
+
+**Found** 2026-08-19 while falsifying item 4; **pre-existing and unrelated to
+City Select**, which is why it is recorded separately rather than folded in.
+
+The `#boot-splash.fade-out` rule scales the splash to `1.03`. On a full-viewport
+element that puts ~1.5% of it outside the viewport for the 0.45s fade **on every
+single load** — **5px at 320 wide, 5px at 360, 6px at 390**. Note 390×844 is the
+*worst* of the three sampled and the most common phone width, so this is not an
+exotic narrow-device edge case. (Cite the selector, not a line number — several
+agents are editing `css/main.css` and the line has already moved once.)
+
+**Why it has never been seen**: `html`/`body` are `overflow: hidden`, so nothing
+pans and there is no scrollbar. The defect is real and permanently masked. It
+cost two falsification rounds during item 4 because it presents exactly like a
+City Select overflow leak.
+
+**RESOLVED** 2026-08-19, commit `eafbfc5` (2 files). The fix is
+`position: absolute` → `position: fixed`: fixed-position boxes are excluded from
+the document's scrollable overflow region, and with `inset: 0` on a body that is
+already the viewport box, the splash occupies the identical rect. **Transform,
+timing and easing untouched.** Overflow across the whole boot goes 5/5/6px → 0.
+
+**The visual identity was proven, not eyeballed.** Both arms were shot from *one
+page* with animations paused and the fade frozen at opacity .5 / `scale(1.03)`,
+toggling only the `position` property — and the run carried a control arm, with
+`absolute` shot twice around the `fixed` shot. `absolute`-vs-`fixed` differs by
+825 pixels at 360×640; `absolute`-vs-`absolute` differs by **the same 825 pixels
+in the same bounding box** — the boot progress bar advancing between shots. None
+of the difference belongs to the change. That is how you assert "looks
+identical" with evidence instead of an opinion.
+
+**Gated**: `city-select-fold.mjs` now samples `document.scrollWidth` every frame
+from before the first script runs, across three widths, names the phase an
+overflow occurred in, and **fails loudly if the splash was never observed at
+all** — an arm that measured nothing must not report PASS. Proven RED by a
+single-element mutation (`fixed` → `absolute`, verified by diff as the only
+change): exactly the three boot lines fail and all ten sweep guards stay green.
+
+**The generalisable point**: a defect masked by an ancestor's `overflow: hidden`
+is invisible to users *and* to every visual check, but still corrupts any
+measurement that asks "does anything overflow the viewport". A masked defect is
+not a harmless one; it is one that will be misattributed to whatever is being
+investigated nearby.
+
+The masking cuts the other way too, and it is why this stayed a one-declaration
+fix: because nothing ever panned, **no layout could have come to depend on the
+overflow existing**, so removing it cannot break anything downstream. A masked
+defect is rarely harmless, but it is usually safe to remove.
+
+## 6. Short-landscape chrome consumes 45% of the screen — OPEN, owner decision
+
+At 568×320 the chrome above the City Select card is header 47 + act rail 52 +
+progress strip 44 = **143px of a 320px screen (45%)**, leaving 167px for the
+card. Item 4's two-column layout makes this *liveable* rather than fixing it,
+and no guard is currently blocked by it.
+
+The only remaining lever is compressing the act rail and progress strip in short
+landscape. **Not built** — it changes navigation chrome the player relies on, to
+buy breathing room rather than to clear a failing check, so it is an owner
+decision rather than a completer of item 4. A spec can be written before any
+build.
 
 ---
 
