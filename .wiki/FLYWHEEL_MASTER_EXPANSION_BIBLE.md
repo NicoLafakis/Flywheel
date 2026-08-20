@@ -158,7 +158,7 @@ graph TD
 
 | Act | # | Scene ID | City & Metro | Scale (Voxels) | Landmark Heroes & Relics | Rescued Momentum Friend | Marketing Module Component |
 | :--- |:---:|---|---|:---:|---|---|---|
-| **Prologue** | **0** | `gallery` | **The Lab (Awakening)** | 13,652 | Crash Ramps, Calibration Pylons, Subway Terminal | *Clockwork Moth* 🦋 | **The Frictionless Drive Hub** |
+| **Prologue** | **0** | `gallery` | **The Lab (Awakening)** | 15,767 | Crash Ramps, Calibration Pylons, Subway Terminal | *Clockwork Moth* 🦋 | **The Frictionless Drive Hub** |
 | **Act I** | **1** | `sydney` | **Sydney Harbour** (Australia) | 14,120 | Opera House Sail Vaults, Harbour Bridge Arch, Circular Quay | *Sydney Seagull Bot* 🕊️ | **Oceanic Inbound Hopper** |
 | | **2** | `auckland` | **Auckland** (New Zealand) | 16,000 | Sky Tower Spire, Waitematā Ferry Wharves, Mt Eden Cones | *Kiwi Clockwork Bot* 🥝 | **Pacific Signal Array** |
 | | **3** | `singapore` | **Singapore Marina Bay** | 22,000 | Marina Bay Sands SkyPark, Supertrees, Merlion Statue | *Merlion Cub Bot* 🦁 | **Equatorial Broadcast Antenna** |

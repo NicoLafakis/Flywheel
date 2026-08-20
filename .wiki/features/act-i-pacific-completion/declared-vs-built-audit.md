@@ -104,3 +104,63 @@ a fix establishes a class, sweep the class rather than the single value.
    real hole is not a bad value but an *ungated* scene. A city with no section
    is unguarded by construction, and that is invisible from reading the scene
    file.
+
+---
+
+## Outcome (2026-08-19, same day)
+
+All four actions landed. The numbers in the tables above are preserved as the
+**state at audit time**; they are history, not current values.
+
+- **Gate** (`declaredBlockCounts`) is in and unconditional — no allowlist, no
+  exemptions, no sampling. All ten playable cities compared in 26–30 s, cheap
+  enough for the default run. Proven red by perturbing a declared count and
+  confirming it names the right city.
+- **Both drifts corrected**: gallery 13,652 → **15,767** (the number was stale;
+  the geometry is ADR-0022's testbed), cambridge 88,500 → **72,943** (the
+  number was never true). Block counts appear on **two** player-facing
+  surfaces — the city card (`js/ui/screens.js:792`) and the Help World Tour
+  walkthrough prose (`js/ui/help.js`) — and both were corrected. Fixing only
+  the catalog would have left the two screens contradicting each other.
+  Cambridge's 88,500 is retained as the **Cambridge 2 target** in `STATUS.md`
+  so correcting the card did not delete the goal.
+- **Tokyo fixed and gated**: `sim.cameraBlockers = generateBlockers(sim);`
+  takes it from 6 rects to **233**, and uncovered tall cells from 5,404 to
+  **0**, with the block count unchanged at 84,122. A `tokyo` section now exists
+  and was verified in *both* directions — it passes on the fixed tree and fails
+  with 5,404 uncovered against the pre-fix scene file.
+
+### The most valuable thing the gate found was not a block count
+
+Correcting the two numbers turned `tools/validate-campaign.mjs` **red in five
+places**. That suite sorts all 29 cities ascending by `blocks` and asserts the
+coin economy is non-decreasing along it — using map size as a proxy for
+campaign progression.
+
+It had been green **only because the two wrong numbers happened to place
+`gallery` smallest and `cambridge` largest**. The fiction was load-bearing for
+the gate: the suite was not testing the economy, it was testing a coincidence.
+
+The fix was neither to narrow the claim nor to move coin values, but to assert
+what the economy is actually designed around — **role, not size**:
+
+1. The **PROLOGUE** (`gallery`) holds the strictly lowest `coinCount`,
+   `coinValue` and `goalBonus` of all 29 cities. It is the tutorial; it is the
+   floor *by role*, however its block count moves for testbed reasons.
+2. The **ACT VII finale** (`cambridge`) holds the highest of all 29, wherever
+   its true size happens to rank.
+3. The remaining 27 stay monotonic by `blocks`, exactly as before.
+
+Verified against the live catalog before being adopted: 0 breaks in the body,
+0 breaks on the role invariants, **no coin value moved**.
+
+This is strictly *stronger* than what it replaced. It adds ~56 assertions the
+size sort could never express — under the old model a tutorial paying more than
+a mid-campaign city was legal so long as the tutorial was the smallest map —
+and it removes the gate's dependence on two block counts being wrong, so a
+correct count can no longer break it and an incorrect one can no longer prop it
+up.
+
+**The general lesson**: when a gate goes red because an upstream value was
+*corrected*, the gate's premise is the suspect, not the correction. Ask what
+made it green before, and whether that thing was true.
