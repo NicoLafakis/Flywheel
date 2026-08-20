@@ -255,7 +255,6 @@ export function buildTokyo(sim) {
         B(x, by + 1, z, 'glass', 1, 0x90e0ef, 'mat_shop_window');
       }
     }
-    sim.cameraBlockers.push({ minX: -100, maxX: -80, minZ: -60, maxZ: -50, h: 35 });
   }
 
   // HERO LANDMARK: Mode Gakuen Cocoon Tower (26m tall with Diagrid Pattern)
@@ -281,7 +280,6 @@ export function buildTokyo(sim) {
     }
     BOX(ox + 2, layers, oz + 2, 6, 1, 6, 'concrete', 1, 0x111111, 'mat_suburban_siding');
     BOX(ox + 3, layers + 1, oz + 3, 4, 1, 4, 'panel', 1, 0x8a8a8e, 'mat_awning_stripe');
-    sim.cameraBlockers.push({ minX: ox, maxX: ox + 10, minZ: oz, maxZ: oz + 10, h: 30 });
   }
 
   // HERO LANDMARK: NTT Docomo Yoyogi Tower (32m with 4-Sided Clock & Spire)
@@ -301,7 +299,6 @@ export function buildTokyo(sim) {
       B(ox + 3, 30 + h, oz + 3, 'steel', 1, col);
       B(ox + 4, 30 + h, oz + 4, 'steel', 1, col);
     }
-    sim.cameraBlockers.push({ minX: ox, maxX: ox + 8, minZ: oz, maxZ: oz + 8, h: 37 });
   }
 
   // Nishi-Shinjuku High-Rise Canyon Grid (Cleanly Placed Inside Street Blocks)
@@ -424,7 +421,6 @@ export function buildTokyo(sim) {
 
   // Roppongi Hills Mori Tower (28m tall)
   kenneySkyscraper(sim, 22, -90, 10, 10, 28, 0x1a1a24, 0x607a7a, 'helipad');
-  sim.cameraBlockers.push({ minX: 22, maxX: 32, minZ: -90, maxZ: -80, h: 32 });
 
   // Ginza Wako Clock Tower (18m tall)
   {
@@ -574,7 +570,6 @@ export function buildTokyo(sim) {
     }
     BOX(ox + 1, layers, oz + 1, 6, 1, 6, 'concrete', 1, 0x2b2d42, 'mat_suburban_siding');
     BOX(ox + 2, layers + 1, oz + 2, 4, 3, 1, 'panel', 1, 0xc03040, 'mat_awning_stripe');
-    sim.cameraBlockers.push({ minX: ox, maxX: ox + 8, minZ: oz, maxZ: oz + 8, h: layers + 4 });
   }
 
   // QFRONT Media Tower (16m with Giant Video Billboards)
@@ -679,7 +674,6 @@ export function buildTokyo(sim) {
     BOX(gx - 1, 9, gz - 1, 9, 1, 5, 'wood', 1, C.copperPatina, 'mat_clay_shingles');
     BOX(gx, 10, gz, 7, 1, 3, 'wood', 1, C.copperPatina, 'mat_clay_shingles');
     BOX(gx + 1, 11, gz, 5, 1, 3, 'wood', 1, C.copperPatina, 'mat_clay_shingles');
-    sim.cameraBlockers.push({ minX: gx - 1, maxX: gx + 7, minZ: gz - 1, maxZ: gz + 3, h: 12 });
   }
 
   // Haiden Main Worship Hall (Cypress timbers & gabled copper roof)
@@ -804,4 +798,21 @@ export function buildTokyo(sim) {
     panel: 'mat_awning_stripe',
     wood: 'mat_clay_shingles',
   };
+
+  // Camera blockers, GENERATED from the finished geometry — the LAST statement
+  // of the builder, so every block above is inside the sweep.
+  //
+  // Tokyo previously shipped six hand-pushed rects covering the Tocho twins, the
+  // Cocoon Tower, the Docomo spire, Mori Tower, Shibuya 109 and one shrine roof.
+  // Six rects for 84,122 blocks left 5,404 of the 5,963 footprint cells >= 6 m
+  // tall (90.6 %) with nothing above them, so the chase cam clipped straight
+  // through Shinjuku. A hand list cannot track a city this size across edits;
+  // this is the same defect Sydney shipped and fix 1d7bda9 closed.
+  //
+  // Note the ASSIGNMENT: generateBlockers RETURNS the rect list, it does not
+  // write sim.cameraBlockers. Sydney's bare `generateBlockers(sim, 6);` ran,
+  // paid full cost, and discarded the result. No minH argument either — 6 is
+  // the function's own default and every other scene passes nothing, so the
+  // whole roster stays on one knob.
+  sim.cameraBlockers = generateBlockers(sim);
 }
