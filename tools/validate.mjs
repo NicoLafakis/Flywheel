@@ -70,7 +70,9 @@ import { runCampaignSelftest } from './validate-campaign.mjs';
 import { runCampaignUiSelftest } from './campaign-ui.test.mjs';
 import { runCameraSmoothingSelftest } from './camera-smoothing.test.mjs';
 import { runQuakeRuptureSelftest } from './quake-rupture.test.mjs';
+import { runOrchestratorCoverageSelftest } from './orchestrator-coverage.test.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
+import { probeLaneModulus } from './probe-lane-modulus.mjs';
 
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -3101,14 +3103,18 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     // mobileUiResponsive, deviceDetection and mobileZoomControls were
     // registered as sections but never added to this list (found 2026-08-19
     // while adding cameraSmoothing), so `node tools/validate.mjs` had not been
-    // running them — only a by-name FW_VALIDATE_SECTIONS run did.
-    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,globalCampaign,campaignUi,tutorialOnboarding,mobileCameraClarity,mobileUiResponsive,deviceDetection,mobileZoomControls,cameraSmoothing,quakeRupture,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges'],
+    // running them — only a by-name FW_VALIDATE_SECTIONS run did. Singapore was
+    // the sixth instance. The `orchestratorCoverage` entry below is the guard
+    // that now makes a seventh impossible: it asserts this array's names and the
+    // section('name') registrations are the same set, in both directions.
+    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,globalCampaign,campaignUi,tutorialOnboarding,mobileCameraClarity,mobileUiResponsive,deviceDetection,mobileZoomControls,cameraSmoothing,quakeRupture,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges,orchestratorCoverage'],
     // Its own child rather than folded into `core`: every suite in it is itself
     // a spawned process, so it is the one group whose cost is process startup
     // instead of CPU, and it finishes long before the scenes either way.
     ['multiplayer', 'multiplayer'],
     ['sydney', 'sydney'],
     ['auckland', 'auckland'],
+    ['singapore', 'singapore'],
     // Its own child: it builds every PLAYABLE city once, so its cost is the sum
     // of ten scene builds and it must not serialise behind another group. It is
     // in this list at all because of the note above — a section registered and
@@ -3188,6 +3194,19 @@ function validateSingapore() {
   probeRoadConflicts(sim, 'singapore', SINGAPORE_VEHICLES, SINGAPORE_ROAD_SPANS);
   probeWaterOverSurfaces(sim, 'singapore');
   probePlacementStep(sim, 'singapore');
+  // Shared with auckland — one implementation, two subjects. The idiom it
+  // guards spread from auckland to here by copy-paste, so a copied probe would
+  // rot the same way the code did. Before probeIdleStability, which steps the
+  // sim 3 s and hands back a settled world.
+  probeLaneModulus({
+    scene: 'singapore',
+    fileUrl: new URL('../js/voxelscene-singapore.js', import.meta.url),
+    marker: '12. PROMENADE APRON (BUDGET CLOSE-OUT)',
+    greys: [0x6f6a60, 0x5c574f, 0x7d776c],
+    sim,
+    fail,
+    readFile: readFileSync,
+  });
   probeIdleStability(sim, 'singapore');
   console.log(`  singapore sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
 }
@@ -3393,6 +3412,10 @@ section('deviceDetection', () => console.log(`Validating Device Detection & Rela
 section('mobileZoomControls', () => console.log(`Validating Mobile Pinch/Expand Zoom & Gestures (${runMobileZoomControlsSelftest()} assertions)...`));
 section('cameraSmoothing', () => console.log(`Validating ADR-0022 Camera Bezier Occlusion Smoothing, Lab-scoped (${runCameraSmoothingSelftest()} assertions)...`));
 section('quakeRupture', () => console.log(`Validating Fault Line Rupture full-length wavefront (${runQuakeRuptureSelftest()} assertions)...`));
+// Guards this file's own orchestrator: registered sections == names in `groups`,
+// both ways. It is itself listed in the `core` group below — a coverage guard
+// left out of `groups` would be exactly the hole it exists to catch.
+section('orchestratorCoverage', () => console.log(`Validating validator orchestrator coverage (${runOrchestratorCoverageSelftest()} assertions)...`));
 section('fwMath', validateFwMath);
 
 

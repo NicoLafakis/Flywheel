@@ -52,6 +52,9 @@ import { getLevel } from '../js/levels.js';
 import { isEdible } from '../js/tiers.js';
 import { MAX_UPGRADE_RANK, upgradeCost, upgradeMultiplier, SHOP_CATEGORIES, getShopItemsByCategory } from '../js/upgrades.js';
 import { isSkinAvailable } from '../js/skinapproval.js';
+// One implementation of the role-based economy ladder, shared with the campaign
+// suite; see the block below for why this file runs it over a different table.
+import { economyLadderViolations } from './validate-campaign.mjs';
 
 console.log('Testing economy consistency (T-701 coin ladder, T-702 growth upgrade)...');
 
@@ -102,20 +105,29 @@ console.log('\n--- T-701: CITY_COIN_TIERS agrees with CITY_CATALOG ---');
     'the first, easiest scene must not pay the apex scene\'s rate (the 08d104b copy-paste)',
   );
 
-  // The ladder must be monotonic in the catalog's own difficulty order, so a
-  // harder city is never worth less than an easier one.
-  const ladder = [...CITY_CATALOG].sort((a, b) => a.blocks - b.blocks);
-  for (let i = 1; i < ladder.length; i++) {
-    const prev = getCityCoinTier(ladder[i - 1].scene);
-    const cur = getCityCoinTier(ladder[i].scene);
-    for (const f of COIN_FIELDS) {
-      assert.ok(
-        cur[f] >= prev[f],
-        `coin ladder goes backwards at ${ladder[i].scene}.${f}: ${prev[f]} -> ${cur[f]}`,
-      );
-    }
-  }
-  console.log(`  coin ladder: ${CITY_CATALOG.length} cities agree across both tables, monotonic.`);
+  // The ladder must respect the campaign's ROLE order, so a harder city is
+  // never worth less than an easier one. This used to sort all 29 cities by
+  // `blocks` and assert plain monotonicity along that — a retired model that
+  // used map size as a proxy for campaign progression, and that was only ever
+  // green because two declared block counts were wrong in the two directions
+  // that happened to put the prologue first and the finale last. The canonical
+  // statement of the current model — prologue floor, cambridge ceiling, the 27
+  // in between scaling with size, bounds inclusive, violations collected — and
+  // the full history live on `economyLadderViolations` in
+  // tools/validate-campaign.mjs. That suite runs it over the DECLARED catalog
+  // rows; this one runs the SAME check over the PAID `CITY_COIN_TIERS` rows the
+  // sim actually hands the player, which is the table this file exists to guard.
+  const { violations, comparisons, floorCity, ceilCity } =
+    economyLadderViolations((city) => getCityCoinTier(city.scene));
+  assert.ok(
+    violations.length === 0,
+    `paid coin ladder: ${violations.length} violation(s)\n    ${violations.join('\n    ')}`,
+  );
+  // Anti-vacuity: a ladder that compared nothing would report zero violations.
+  assert.ok(comparisons > 0, 'the paid coin ladder made no comparisons at all');
+  assert.equal(floorCity.scene, 'gallery', 'the economy floor anchor must be THE LAB');
+  assert.equal(ceilCity.scene, 'cambridge', 'the economy ceiling anchor must be the ACT VII finale');
+  console.log(`  coin ladder: ${CITY_CATALOG.length} cities agree across both tables; ${comparisons} role-ladder comparisons, floor ${floorCity.scene}, ceiling ${ceilCity.scene}.`);
 }
 
 console.log('\n--- T-701: a live gallery sim reads the starter tier ---');

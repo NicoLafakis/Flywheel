@@ -15,6 +15,101 @@ import {
 } from '../js/citycatalog.js';
 import { __freshSave, recordChallengeResult } from '../js/save.js';
 
+// The CANONICAL statement of the campaign economy ladder, exported because more
+// than one suite asserts it (this file reads the DECLARED catalog rows;
+// tools/economy-consistency.test.mjs reads the PAID `CITY_COIN_TIERS` rows the
+// sim hands the player). Two hand-written copies is exactly how the ladder came
+// to be asserted against a retired model in one file and the current one in the
+// other, so there is one implementation and the caller supplies the accessor.
+export const ECONOMY_FIELDS = ['coinCount', 'coinValue', 'goalBonus'];
+
+/**
+ * Monotonic Economy Ladder — by ROLE first, then by size.
+ *
+ * This used to sort all 29 cities by `blocks` and assert the economy was
+ * non-decreasing along it, i.e. it used map size as a proxy for campaign
+ * progression. That was green only by coincidence: two DECLARED BLOCK COUNTS
+ * were wrong (gallery understated by 2,115, cambridge overstated by 15,557)
+ * and those two errors happened to place the prologue smallest and the finale
+ * largest. Correcting them on 2026-08-19 broke this in five places without any
+ * economy value changing. The suite was testing the coincidence, not the ladder.
+ *
+ * The economy is designed around ROLE, not size, so that is what is asserted:
+ * the tutorial is the floor however big its testbed grows, the finale is the
+ * ceiling wherever its true size ranks, and the 27 cities in between still
+ * scale with size. Bounds are inclusive — ties are legal (gallery and sydney
+ * share coinValue 1); the claim is floor and ceiling, not strict inequality.
+ *
+ * Violations are COLLECTED and returned rather than thrown on the first,
+ * because assert.ok crashes the run and the first failure is often the least
+ * informative one. Moving an ANCHOR is the case that proves it: push gallery's
+ * coinCount above the roster and a crash-on-first run blames `sydney` — the
+ * first city it happens to compare — while the actual cause is gallery.
+ * Collected, the same break reports every city at once, and 27 rows all naming
+ * the same anchor points at the anchor unmistakably. This is also how the
+ * original five-break regression reported as one and cost a round trip.
+ *
+ * @param {(city: object) => object} read economy row for a catalog city;
+ *   defaults to the catalog row itself.
+ * @returns {{violations: string[], comparisons: number, floorCity: object, ceilCity: object}}
+ */
+export function economyLadderViolations(read = (city) => city) {
+  const violations = [];
+  let comparisons = 0;
+  const count = () => comparisons++;
+
+  const prologue = CITY_CATALOG.filter((c) => c.act === 'PROLOGUE');
+  const finale = CITY_CATALOG.filter((c) => c.scene === 'cambridge');
+  // The anchors are the whole model, so a missing or ambiguous one is reported
+  // as a violation rather than silently making every bound below vacuous.
+  if (prologue.length !== 1) {
+    violations.push(`economy ladder: expected exactly one PROLOGUE city to anchor the floor, found ${prologue.length}`);
+  }
+  if (finale.length !== 1) {
+    violations.push(`economy ladder: expected exactly one finale city (cambridge) to anchor the ceiling, found ${finale.length}`);
+  }
+  if (violations.length) return { violations, comparisons, floorCity: null, ceilCity: null };
+
+  const floorCity = prologue[0];
+  const ceilCity = finale[0];
+  const rowOf = (city) => {
+    const row = read(city);
+    if (!row) violations.push(`economy ladder: no economy row for '${city.scene}'`);
+    return row || {};
+  };
+  const floorRow = rowOf(floorCity);
+  const ceilRow = rowOf(ceilCity);
+
+  for (const city of CITY_CATALOG) {
+    const row = rowOf(city);
+    for (const f of ECONOMY_FIELDS) {
+      if (city.scene !== floorCity.scene) {
+        if (!(row[f] >= floorRow[f])) violations.push(`economy floor: ${f} at ${city.scene} (${row[f]}) is below the PROLOGUE ${floorCity.scene} (${floorRow[f]}) — the tutorial must stay the poorest reward on the board`);
+        count();
+      }
+      if (city.scene !== ceilCity.scene) {
+        if (!(row[f] <= ceilRow[f])) violations.push(`economy ceiling: ${f} at ${city.scene} (${row[f]}) is above the finale ${ceilCity.scene} (${ceilRow[f]}) — the ACT VII finale must stay the richest`);
+        count();
+      }
+    }
+  }
+
+  // The 27 in between still scale with size.
+  const body = CITY_CATALOG
+    .filter((c) => c.scene !== floorCity.scene && c.scene !== ceilCity.scene)
+    .sort((a, b) => a.blocks - b.blocks);
+  for (let i = 1; i < body.length; i++) {
+    const prev = rowOf(body[i - 1]);
+    const cur = rowOf(body[i]);
+    for (const f of ECONOMY_FIELDS) {
+      if (!(cur[f] >= prev[f])) violations.push(`${f} non-monotonic at ${body[i].scene} (${cur[f]} < ${prev[f]} at ${body[i - 1].scene})`);
+      count();
+    }
+  }
+
+  return { violations, comparisons, floorCity, ceilCity };
+}
+
 export function runCampaignSelftest() {
   let assertions = 0;
   const count = () => assertions++;
@@ -109,70 +204,22 @@ export function runCampaignSelftest() {
   assert.ok(isCityUnlocked(mockSave, 'auckland'), 'Auckland must unlock after clearing Sydney'); count();
 
   // 6. Monotonic Economy Ladder — by ROLE first, then by size.
-  //
-  // This used to sort all 29 cities by `blocks` and assert the economy was
-  // non-decreasing along it, i.e. it used map size as a proxy for campaign
-  // progression. That was green only by coincidence: two DECLARED BLOCK COUNTS
-  // were wrong (gallery understated by 2,115, cambridge overstated by 15,557)
-  // and those two errors happened to place the prologue smallest and the finale
-  // largest. Correcting them on 2026-08-19 broke this in five places without
-  // any economy value changing. The suite was testing the coincidence, not the
-  // ladder.
-  //
-  // The economy is designed around ROLE, not size, so that is what is asserted:
-  // the tutorial is the floor however big its testbed grows, the finale is the
-  // ceiling wherever its true size ranks, and the 27 cities in between still
-  // scale with size. Bounds are inclusive — ties are legal (gallery and sydney
-  // share coinValue 1); the claim is floor and ceiling, not strict inequality.
-  const ECONOMY_FIELDS = ['coinCount', 'coinValue', 'goalBonus'];
-  const prologue = CITY_CATALOG.filter((c) => c.act === 'PROLOGUE');
-  const finale = CITY_CATALOG.filter((c) => c.scene === 'cambridge');
-  assert.equal(prologue.length, 1, 'economy ladder: expected exactly one PROLOGUE city to anchor the floor'); count();
-  assert.equal(finale.length, 1, 'economy ladder: expected exactly one finale city (cambridge) to anchor the ceiling'); count();
-
-  const floorCity = prologue[0];
-  const ceilCity = finale[0];
-
-  // Violations are COLLECTED and asserted once at the end rather than thrown on
-  // the first, because assert.ok crashes the run and the first failure is often
-  // the least informative one. Moving an ANCHOR is the case that proves it: push
-  // gallery's coinCount above the roster and a crash-on-first run blames
-  // `sydney` — the first city it happens to compare — while the actual cause is
-  // gallery. Collected, the same break reports every city at once, and 27 rows
-  // all naming the same anchor points at the anchor unmistakably. This is also
-  // how the original five-break regression reported as one and cost a round
-  // trip.
-  const violations = [];
-  for (const city of CITY_CATALOG) {
-    for (const f of ECONOMY_FIELDS) {
-      if (city.scene !== floorCity.scene) {
-        if (!(city[f] >= floorCity[f])) violations.push(`economy floor: ${f} at ${city.scene} (${city[f]}) is below the PROLOGUE ${floorCity.scene} (${floorCity[f]}) — the tutorial must stay the poorest reward on the board`);
-        count();
-      }
-      if (city.scene !== ceilCity.scene) {
-        if (!(city[f] <= ceilCity[f])) violations.push(`economy ceiling: ${f} at ${city.scene} (${city[f]}) is above the finale ${ceilCity.scene} (${ceilCity[f]}) — the ACT VII finale must stay the richest`);
-        count();
-      }
-    }
+  // The model, its history, and why violations are collected rather than thrown
+  // all live on `economyLadderViolations` above; this is the DECLARED-catalog
+  // arm of it. tools/economy-consistency.test.mjs runs the same check over the
+  // PAID `CITY_COIN_TIERS` rows.
+  {
+    const { violations, comparisons, floorCity, ceilCity } = economyLadderViolations();
+    for (let i = 0; i < comparisons; i++) count();
+    assert.ok(
+      violations.length === 0,
+      `economy ladder: ${violations.length} violation(s)\n    ${violations.join('\n    ')}`,
+    );
+    // Anti-vacuity: a ladder that compared nothing would report zero violations.
+    assert.ok(comparisons > 0, 'the economy ladder made no comparisons at all'); count();
+    assert.equal(floorCity.scene, 'gallery', 'the economy floor anchor must be THE LAB'); count();
+    assert.equal(ceilCity.scene, 'cambridge', 'the economy ceiling anchor must be the ACT VII finale'); count();
   }
-
-  // The 27 in between still scale with size.
-  const body = CITY_CATALOG
-    .filter((c) => c.scene !== floorCity.scene && c.scene !== ceilCity.scene)
-    .sort((a, b) => a.blocks - b.blocks);
-  for (let i = 1; i < body.length; i++) {
-    const prev = body[i - 1];
-    const cur = body[i];
-    for (const f of ECONOMY_FIELDS) {
-      if (!(cur[f] >= prev[f])) violations.push(`${f} non-monotonic at ${cur.scene} (${cur[f]} < ${prev[f]} at ${prev.scene})`);
-      count();
-    }
-  }
-
-  assert.ok(
-    violations.length === 0,
-    `economy ladder: ${violations.length} violation(s)\n    ${violations.join('\n    ')}`,
-  );
 
   // 7. Challenge Count & Secret 90s Unlock
   const emptySave = __freshSave();

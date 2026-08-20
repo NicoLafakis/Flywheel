@@ -1,45 +1,67 @@
-// Per-step sim cost while the player is ATTACKING a city's hero structure.
+// Per-step sim cost while the player is ATTACKING a city's largest structure,
+// across every PLAYABLE city.
 //
-// Why this exists: a scene can sit comfortably inside the frame budget at rest
-// and blow through it the moment the player starts doing the thing the goal
-// asks for. Singapore's goal is CRUMBLE THE SKYPARK, and Marina Bay Sands is a
-// single 6,418-block connected component (three towers plus the SkyPark deck
-// that bridges them). The support solver re-runs its BFS over a whole dirty
-// component, so undermining that one structure costs 7.7x what Sydney's Opera
-// House costs, on 1.9x the component size -- superlinear, and it lands at 92%
-// of the entire 16.7 ms frame budget for the simulation alone.
+// WHY IT COVERS ALL OF THEM. Singapore's hero attack was measured at 15.33
+// ms/step, 92% of the 16.7 ms frame budget for the simulation alone, and the
+// obvious reading was "reshape Marina Bay Sands". But the diagnosis offered for
+// it — the support solver re-runs a BFS over a whole dirty component, so cost
+// follows the largest component — is a claim about the SOLVER, and if it were
+// true it would indict every big city at once. Tokyo, Boston, Upper Manhattan
+// and Cambridge are all 73-84k blocks. Reshaping one approved hero fixes one map
+// and leaves the class standing, so the class is what gets measured here.
 //
-// Run: node tools/pw/hero-attack-perf.mjs   (no server, no renderer)
+// WHAT IT FOUND, AND WHY THE OBVIOUS DIAGNOSIS IS WRONG. Largest-component size
+// does NOT predict cost. Boston has the biggest component of any city (11,739
+// blocks, 1.8x Singapore's 6,418) and is among the CHEAPEST under attack.
+// What predicts cost is the number of blocks CONCURRENTLY IN MOTION — the
+// active debris population — and Singapore is expensive because Marina Bay
+// Sands, undermined, dumps an unusually large fraction of itself at once for
+// its size, not because it is one large component.
 //
-// METHOD NOTES, because the first three versions of this measured nothing.
+// METHOD, and the three ways earlier versions of this measured nothing.
 //
-// 1. Each city is driven into ITS OWN largest component. An earlier version
-//    drove all three along Singapore's route -- which ends under the Sands --
-//    so it compared "singapore attacking its hero" against "sydney driving
-//    somewhere arbitrary", and the 5x it printed was a property of the route.
-// 2. The timing loop must pass a REAL move vector or run against an already
-//    collapsing structure. A stationary hole never changes its removal-zone
-//    coverage, so support never recalculates and the step is nearly free:
-//    a zero vector reports ~0.008 ms/step and looks like a triumph.
-// 3. Round-robin across scenes with min-of-N. A min is the rep least polluted
-//    by whatever else the box was doing, and interleaving stops one background
-//    spike from landing entirely on one scene. Absolute ms on a shared machine
-//    is not a measurement; the ORDERING between scenes is the falsifiable part,
-//    so a run that inverts a known ordering indicts the instrument, not the code.
-// 4. Debris is NOT the driver, though it correlates. Applying the shipped
-//    device-tier lever (debrisCap 280, contactBudget 200) moved singapore from
-//    15.33 to 13.75 ms and left the debris count at 3,178 -- component size is
-//    what costs.
+// 1. THE WORKLOAD IS DEFINED FUNCTIONALLY, PER CITY. An earlier version drove
+//    every city along SINGAPORE's waypoint route. That route ends under the
+//    Sands, so it compared "singapore attacking its hero" against "sydney
+//    driving somewhere arbitrary" and reported a 5x that belonged to the route.
+//    Each city is now attacked at the ground-footprint centroid of its own
+//    largest component. Ground footprint, not 3D centroid: a tall tower's 3D
+//    centroid is up in the air and parks the hole beside the thing it is meant
+//    to undermine.
+// 2. THE HOLE'S SIZE IS PINNED EVERY STEP. Without pinning, the hole grows as
+//    it eats, so a city that engages early finishes the settle with a much
+//    bigger aperture — singapore reached r=8.4 having eaten 3,273 while boston
+//    sat at r=6.0 having eaten 361, and the "comparison" was then between two
+//    different holes. Note it must be `size` that is pinned, not `radius`:
+//    radius is recomputed from size every step, so an assigned radius is
+//    overwritten on frame one and the hole silently reverts to 1.1 m.
+// 3. THE TIMING LOOP MUST MAKE THE SIM DO WORK, AND MUST PROVE IT DID. A
+//    stationary hole with nothing collapsing never changes its removal-zone
+//    coverage, support never recalculates, and the step costs ~0.008 ms —
+//    comfortably inside any budget, and measuring an early return. The loop
+//    asserts the sim clock advanced by the full STEPS/60 and throws otherwise.
+//
+// Scenes are round-robined rather than run back to back, so a background spike
+// on a shared box cannot be attributed entirely to whichever city was running
+// during it, and both MEDIAN and MIN are reported: the min is the rep least
+// polluted by other load, the median says whether the min was a fluke.
+//
+// Run: node tools/pw/hero-attack-perf.mjs            (all PLAYABLE cities)
+//      node tools/pw/hero-attack-perf.mjs sydney boston
 import { VoxelSandboxSim, loadScene } from '../../js/voxelsim.js';
+import { CITY_CATALOG } from '../../js/citycatalog.js';
 
-const SCENES = process.argv.slice(2).length ? process.argv.slice(2) : ['sydney', 'auckland', 'singapore'];
-const REPS = 3, STEPS = 300, BUDGET_MS = 1000 / 60;
+const ARGS = process.argv.slice(2);
+const SCENES = ARGS.length ? ARGS : CITY_CATALOG.filter((c) => c.status === 'PLAYABLE').map((c) => c.scene);
+const REPS = Number(process.env.FW_PERF_REPS || 3);
+const ATTACK_SIZE = 11;      // pinned: radius 1.1 + (11-1)*0.5 = 6.1 m
+const SETTLE = 60, STEPS = 200, BUDGET_MS = 1000 / 60;
 
 for (const s of SCENES) await loadScene(s);
 
-// Centre of the largest connected component: the structure whose collapse
-// dirties the most support graph, which is what the goal points the player at.
-const heroCentre = (sim) => {
+// The largest connected component, and the point on the ground where a player
+// would be standing to bring it down.
+const heroOf = (sim) => {
   const byComp = new Map();
   for (const b of sim.blocks) {
     const c = sim._compOf[b.bi];
@@ -47,46 +69,82 @@ const heroCentre = (sim) => {
     byComp.get(c).push(b);
   }
   const [, bs] = [...byComp.entries()].sort((a, b) => b[1].length - a[1].length)[0];
+  const ground = bs.filter((b) => b.gy === 0);
+  const src = ground.length ? ground : bs;
   return {
     n: bs.length,
-    x: bs.reduce((s, b) => s + b.x, 0) / bs.length,
-    z: bs.reduce((s, b) => s + b.z, 0) / bs.length,
+    x: src.reduce((s, b) => s + b.x, 0) / src.length,
+    z: src.reduce((s, b) => s + b.z, 0) / src.length,
   };
 };
 
-const best = {}, meta = {};
+const runs = Object.fromEntries(SCENES.map((s) => [s, []]));
+const meta = {};
 for (let rep = 0; rep < REPS; rep++) {
   for (const scene of SCENES) {
     const sim = new VoxelSandboxSim({ seed: 'perf', scene });
-    sim.step(1 / 60, { x: 0, z: 0 });      // one step to populate the component map
-    const hero = heroCentre(sim);
+    sim.step(1 / 60, { x: 0, z: 0 });                 // populates _compOf
+    const hero = heroOf(sim);
     const h = sim.hole;
-    for (let i = 0; i < 30 * 60; i++) {     // drive to it
-      const dx = hero.x - h.x, dz = hero.z - h.z, m = Math.hypot(dx, dz);
-      if (m < 1.0) break;
-      sim.step(1 / 60, { x: dx / m, z: dz / m });
-    }
-    for (let i = 0; i < 120; i++) sim.step(1 / 60, { x: 0, z: 0 });   // bed in beneath it
+    h.x = hero.x; h.z = hero.z;
+    h.size = ATTACK_SIZE; h.sizeFrac = 0;   // same starting aperture either way
+    // FW_PERF_GROW=1 lets the hole grow as it eats, which is what really
+    // happens in play and is the condition the original alarming Singapore
+    // number was measured under. It is NOT a controlled comparison — a city
+    // that engages early ends up with a bigger aperture than one that does
+    // not — so it answers a different question: not "which city is dearest
+    // per unit of attack" but "does any city blow the budget in real play".
+    const GROW = process.env.FW_PERF_GROW === '1';
+    const pin = () => { if (!GROW) { h.size = ATTACK_SIZE; h.sizeFrac = 0; } };
+    pin();
+    for (let i = 0; i < SETTLE; i++) { pin(); sim.step(1 / 60, { x: 0, z: 0 }); }
+    const eaten0 = h.eatenCount;
     const debris = sim.blocks.filter((b) => b.state !== 'static').length;
     const t0 = sim.time, w = process.hrtime.bigint();
-    for (let i = 0; i < STEPS; i++) sim.step(1 / 60, { x: 0, z: 0 });
+    for (let i = 0; i < STEPS; i++) { pin(); sim.step(1 / 60, { x: 0, z: 0 }); }
     const ms = Number(process.hrtime.bigint() - w) / 1e6 / STEPS;
-    // A step that early-returns costs nothing and beats every budget. If the
-    // clock did not advance by the full STEPS/60, the number above is not a
-    // measurement of anything and must not be reported as one.
     const advanced = sim.time - t0;
     if (Math.abs(advanced - STEPS / 60) > 1e-6) {
-      throw new Error(`${scene}: sim clock advanced ${advanced.toFixed(3)}s over ${STEPS} steps, expected ${(STEPS / 60).toFixed(3)}s — the timing loop did not run the sim`);
+      throw new Error(`${scene}: clock advanced ${advanced.toFixed(3)}s over ${STEPS} steps, expected ${(STEPS / 60).toFixed(3)}s — the timing loop did not run the sim`);
     }
-    if (!(scene in best) || ms < best[scene]) { best[scene] = ms; meta[scene] = { hero, debris }; }
+    runs[scene].push(ms);
+    meta[scene] = { hero: hero.n, blocks: sim.blocks.length, debris, ate: h.eatenCount - eaten0 };
   }
 }
 
-const baseline = best[SCENES[0]];
-console.log(`hero-attack step cost, min of ${REPS} reps x ${STEPS} steps, frame budget ${BUDGET_MS.toFixed(2)} ms\n`);
-for (const s of SCENES) {
-  const m = meta[s];
-  console.log(`${s.padEnd(11)} hero ${String(m.hero.n).padStart(5)} blocks @(${m.hero.x.toFixed(0)},${m.hero.z.toFixed(0)})  `
-    + `debris ${String(m.debris).padStart(4)}  ${best[s].toFixed(3).padStart(7)} ms/step  `
-    + `${(best[s] / baseline).toFixed(2)}x ${SCENES[0]}  ${(best[s] / BUDGET_MS * 100).toFixed(0)}% of budget`);
+const median = (a) => { const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+console.log(`\nhero-attack step cost — ${REPS} round-robined reps x ${STEPS} steps, hole pinned at SIZE ${ATTACK_SIZE} (r 6.1 m)`);
+console.log(`frame budget ${BUDGET_MS.toFixed(2)} ms\n`);
+console.log('scene            blocks  largestComp  debris   ate    min ms   median ms   % budget');
+const rows = SCENES.map((s) => ({ s, ...meta[s], min: Math.min(...runs[s]), med: median(runs[s]) }))
+  .sort((a, b) => b.med - a.med);
+for (const r of rows) {
+  console.log(`${r.s.padEnd(17)}${String(r.blocks).padStart(6)}${String(r.hero).padStart(13)}`
+    + `${String(r.debris).padStart(8)}${String(r.ate).padStart(6)}`
+    + `${r.min.toFixed(3).padStart(10)}${r.med.toFixed(3).padStart(12)}`
+    + `${(r.med / BUDGET_MS * 100).toFixed(0).padStart(10)}%`);
 }
+
+// Which variable actually predicts the cost? Reported rather than assumed:
+// the whole point of widening this to 11 cities was that the first answer
+// ("largest component") was a guess fitted to one city.
+const corr = (xs, ys) => {
+  const n = xs.length, mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) { const dx = xs[i] - mx, dy = ys[i] - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; }
+  return sxy / Math.sqrt(sxx * syy);
+};
+const usable = rows.filter((r) => r.debris > 0 && r.med > 0);
+const lg = (v) => Math.log(v);
+const y = usable.map((r) => lg(r.med));
+for (const [name, pick] of [['largest component', (r) => r.hero], ['active debris', (r) => r.debris], ['total blocks', (r) => r.blocks]]) {
+  const x = usable.map((v) => lg(pick(v)));
+  const r = corr(x, y);
+  const n = x.length, mx = x.reduce((a, b) => a + b, 0) / n, my = y.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0;
+  for (let i = 0; i < n; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; }
+  console.log(`\nlog-log vs ${name.padEnd(18)} r=${r.toFixed(3)}  exponent=${(sxy / sxx).toFixed(2)}  (n=${n})`);
+}
+console.log('\nAn exponent is only meaningful where r is high; a low r means the variable does not');
+console.log('predict cost at all and its exponent is noise, not a scaling law.');

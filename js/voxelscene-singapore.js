@@ -525,10 +525,19 @@ export function buildSingapore(sim) {
         if (wetCell(x, z) || !clearOfSpawn(x, z) || !cellFree(x, z)) continue;
         // Three greys on a fixed positional pattern: one colour reads as a
         // painted strip, and keying it to position keeps it build-identical.
-        // The lane term must not be a multiple of the modulus — at `lane * 3`
-        // every lane gets an IDENTICAL stripe and the apron renders as
-        // corduroy running the length of the promenade. `lane * 2` staggers it.
-        const t = (Math.round(x * 2) + lane * 2) % 3;
+        //
+        // Two things are load-bearing here. The lane term must not be a
+        // multiple of the modulus — at `lane * 3` every lane gets an IDENTICAL
+        // stripe and the apron renders as corduroy running the length of the
+        // promenade. `lane * 2` staggers it, and that half was already right.
+        //
+        // And the result must be FLOORED into range, which it was not. JS keeps
+        // the DIVIDEND's sign, so `-2 % 3` is -2; the ternary below sends every
+        // negative index down to the third grey. This apron runs x -18..18, so
+        // 635 of its 1,241 stones were on the negative side and the split came
+        // out 416/304/521 against an even 414 — the middle grey losing a third
+        // of its stones to the third. Floored it is 416/415/410.
+        const t = (((Math.round(x * 2) + lane * 2) % 3) + 3) % 3;
         B(x, 0, z, 'concrete', 0.5, t === 0 ? 0x6f6a60 : t === 1 ? 0x5c574f : 0x7d776c);
         placed++;
       }

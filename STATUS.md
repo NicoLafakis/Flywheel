@@ -56,6 +56,93 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   swallowing, per-player coin isolation. `.wiki/modules/multiplayer.md`.
 - **Cambridge Phase 7** — 44 easter eggs, 11 ground glyphs, championship belts.
 
+- **Singapore exceeds the frame budget in real play — the only city that does.**
+  With the hole growing as it eats (what actually happens in play), Singapore
+  costs **18.03 ms/step median against a 16.67 ms budget — 108%**, for the sim
+  alone before rendering, on a mobile-first game. Next worst are Auckland at 62%
+  and Cambridge at 55%; every other playable city is at or under 12%. Measured
+  across all 11 scenes, 3 round-robined reps × 200 steps, median and min.
+  `tools/pw/hero-attack-perf.mjs`.
+  **Cost tracks blocks concurrently IN MOTION, not map size and not component
+  size.** Log-log across 11 cities: active debris r=0.727 (exponent ≈1.80),
+  largest component r=0.318, total blocks r=−0.444 (*anti*-correlated — the four
+  biggest cities are four of the five cheapest). Boston's largest component is
+  11,739, **1.83× Singapore's**, at 7% of budget; Chicago's 6,512 is *larger*
+  than Singapore's at 1%. Singapore is expensive because the Sands, undermined,
+  dumps an unusually large fraction of itself at once for its size.
+  The shipped device-tier lever is not the fix (`debrisCap` 280 /
+  `contactBudget` 200 moved it ~10% with debris essentially unchanged).
+  **Owner's call, three options, no work done on any of them**: (a) accept 108%;
+  (b) incremental / dirty-region support propagation — the durable fix, and
+  justified beyond Singapore by the 1.80 exponent, since a map dumping twice the
+  debris would cost ~3.5× and nothing structural prevents one; (c) reshape the
+  hero, which is **not** supported by this evidence and is not recommended.
+  > **Correction — an earlier figure of 15.33 ms / 92% was wrong, and was on
+  > this board.** It came from an uncontrolled comparison: the hole GREW while
+  > eating, so Singapore finished at r=8.4 having eaten 3,273 blocks while
+  > Boston sat at r=6.0 having eaten 361. Each arm ran a different experiment,
+  > measuring how much each city happened to be engaging rather than the cost of
+  > attacking it. Controlled, Singapore is 5.39 ms — **32%**, not 92%.
+  > Two things made it controlled, and the first is the trap: pin `size`, **not**
+  > `radius` — radius is recomputed from size every step, so an assigned radius
+  > is silently overwritten on frame one and the hole reverts to 1.1 m while the
+  > harness reads plausible numbers forever. And place the hole at the
+  > **ground-footprint** centroid of the component, since a tall tower's 3D
+  > centroid is up in the air and parks the hole beside the thing it is meant to
+  > undermine. The 108% figure above is the *growth-allowed* run, which is a
+  > deliberate play-realism measurement rather than a controlled comparison, and
+  > is labelled as such.
+- **Rip-rap palette: a third of every apron's colours never rendered.** The
+  scatter expression `(Math.round(x * 2) + lane * N) % 3` is wrong twice over,
+  and both halves shipped. **Coprimality**: with `N = 3` the per-lane term is a
+  multiple of the modulus and cancels, so every lane gets an identical stripe —
+  corduroy running perpendicular to the shore. **Sign**: JS `%` keeps the
+  *dividend's* sign, so `-2 % 3` is `-2`, and the colour ternary funnels every
+  negative index into the third grey. Auckland's 21 stones all sit at negative
+  x, so the shipped split was **14 / 7 / 0 — the middle grey never appeared at
+  all**. Fixed to a coprime lane term with a floor-mod:
+  `(((Math.round(x * 2) + lane * 2) % 3) + 3) % 3`. Now 7/7/7.
+  Two instances, both fixed, found by sweeping the idiom rather than the value:
+  Auckland (both halves) and Singapore (coprime already right in the copy,
+  **sign not** — 416/304/521 across 1,241 stones, now 416/415/410). No third:
+  the only other `% 3` in `js/` are vendored three.js and an axis index 0..2.
+  Geometry is bit-identical and counts hold exactly (16,000 / 22,000, blockers
+  115 / 571, mass unchanged); `sceneFingerprint` hashes `b.color`, so the
+  fingerprints move — auckland `6c1b3a42` → `4447ccb4`, singapore `3200114096`
+  → `790920319` — and **no code constant anywhere pins either**.
+  Guarded by one shared probe over both scenes, `tools/probe-lane-modulus.mjs`,
+  not two copies — a second copy of a check is how the economy ladder above
+  ended up half-retired. Its balance floor (0.75) was set from **both** arms
+  measured first (0.583 broken, 0.986 fixed), so it is not fitted to either, and
+  it skips loudly below 12 stones where an even 3-way split is not achievable —
+  a threshold derived from the population must never make a small population
+  illegal.
+  **The refactor to a shared probe nearly disarmed it**, which is the part worth
+  keeping: deriving the sample domain from the built stones made the corduroy
+  check *undecidable* for Auckland, because all 21 of its stones sit at negative
+  x and that property is only meaningful at x ≥ 0 — so the shared probe reported
+  Auckland clean at HEAD on the exact fault its inline predecessor caught. The
+  domain restriction was an exclusion zone with the defect inside it. Now the
+  two properties sample deliberately different domains: the range check uses the
+  scene's real domain so it quotes indices that genuinely occur, the corduroy
+  check uses a fixed non-negative sweep because `lane * 3` is wrong wherever it
+  is written. Caught only by running the refactored guard against the *bad*
+  commit; green after a refactor proves the code passes, not that the guard
+  still works.
+- **Test-suite integrity — the suite was red on `main`.** Declaring Flywheel's
+  real commit gates in `.sop-gates.json` (the attestation harness had been
+  discovering gates only from `package.json`, which this repo does not have, so
+  it wrote `PASS … 0 gate(s) ran` receipts) meant running them, and three
+  defects fell out — all pre-existing at `origin/main`, proven by `git archive`
+  across five trees. `sfx-event-guard.test.mjs` fails 16/32 because its
+  positional source extraction from `js/main.js` now captures a nested
+  `tutorialManager` arm, so fifteen assertions report an audio regression that
+  does not exist; `economy-consistency.test.mjs` still asserts the retired
+  size-as-progression coin ladder that `validate-campaign.mjs` replaced with the
+  role-based floor/ceiling model; and the `singapore` section is registered in
+  `tools/validate.mjs` but absent from the orchestrator's `groups`, so a bare
+  full run has never executed it. `.wiki/findings/2026-08-19-the-suite-was-red-on-main.md`.
+
 ### Open decisions (owner's call, papered not parked)
 
 - **Quake crack: swallow vs. award** — the open fissure currently *consumes* any

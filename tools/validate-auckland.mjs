@@ -17,6 +17,8 @@
 // runnable on its own: standalone execution would mean importing the
 // orchestrator, whose module body runs the entire validator, or forking the
 // probes again — and a second copy of the probes is the defect, not the fix.
+import { readFileSync } from 'node:fs';
+import { probeLaneModulus } from './probe-lane-modulus.mjs';
 import {
   AUCKLAND_CROSSINGS, AUCKLAND_OPEN_GROUND, AUCKLAND_ROAD_SPANS,
   AUCKLAND_STREETS, AUCKLAND_VEHICLES,
@@ -82,6 +84,32 @@ export function validateAuckland(ctx) {
   if (AUCKLAND_OPEN_GROUND.length !== 0) {
     fail(`auckland: AUCKLAND_OPEN_GROUND has ${AUCKLAND_OPEN_GROUND.length} entries — nothing reads it yet, so a non-empty table is a claim with no consumer`);
   }
+
+  // The rip-rap apron's colour pattern, checked by the SHARED guard.
+  //
+  // This used to be ~80 lines of probe inline here. It is a shared module now
+  // because the idiom it guards travels by copy-paste — it was copied from this
+  // scene into Singapore's promenade apron — and a probe that also travels by
+  // copy-paste rots exactly the way the code did. The receipt is in this repo:
+  // the economy coin ladder was asserted in two places, one copy was retired
+  // when the model changed and the other was not, and the stale one kept
+  // passing against a model nothing used.
+  //
+  // Auckland is the WEAKER of the two subjects and that is worth stating. Its
+  // close-out places only 21 stones, all in one lane and all at negative x, so
+  // neither the lane-offset property nor the balance gate is decidable from its
+  // domain — the shared probe says so out loud rather than counting a skip as a
+  // pass. What Auckland DID prove is the sign half: the split was 14/7/0 and
+  // the middle grey never rendered at all.
+  probeLaneModulus({
+    scene: 'auckland',
+    fileUrl: new URL('../js/voxelscene-auckland.js', import.meta.url),
+    marker: '8. RIP-RAP (BUDGET CLOSE-OUT)',
+    greys: [0x6b655c, 0x5a554e, 0x7a746a],
+    sim,
+    fail,
+    readFile: readFileSync,
+  });
 
   // Determinism (invariant 4), proved rather than asserted: a second build in
   // the same process must be bit-identical. The seeded-rng rule makes this

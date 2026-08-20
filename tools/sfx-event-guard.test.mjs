@@ -131,13 +131,86 @@ check(/audio\.handleEvents?\s*\(/.test(legacySrc),
 // ---------------------------------------------------------------------------
 const isLocalHoleAt = mainLines.findIndex((l, i) => i > voxLoopStart && l.includes('const isLocalHole ='));
 check(isLocalHoleAt !== -1, 'js/main.js: the voxel event loop must still compute isLocalHole');
-const firstArmAt = mainLines.findIndex((l, i) => i > isLocalHoleAt && /^\s*(\} else )?if \(ev\.type ===/.test(l));
-check(firstArmAt !== -1, 'js/main.js: the voxel event loop must still have ev.type arms after isLocalHole');
 
-const guardSrc = mainLines.slice(isLocalHoleAt, firstArmAt).join('\n');
+// WHY THE BOUNDARY IS WALKED BY INDENT AND NOT MATCHED BY A REGEX
+// This used to end the slice at the first line matching
+// `/^\s*(\} else )?if \(ev\.type ===/`. That regex is indent-blind, and two
+// lines under the pump sits `if (tutorialManager) {` whose FIRST inner line is
+// `if (ev.type === 'eat' && isLocalHole) tutorialManager.onEat(ev.obj);` at a
+// deeper indent. That nested line was the first match, so the slice ran one
+// line past `if (tutorialManager) {`, the fragment ended on an unbalanced
+// brace, `new Function` threw, `runGuard` stayed null, and every executable
+// assertion below reported actual:0 — fifteen phantom logic failures for one
+// extraction bug. A boundary that is right only because of what happens to
+// follow it is the same bug waiting to happen again.
+//
+// The guard is the `const isLocalHole` computation plus the AUDIO dispatch that
+// follows it, and both live at one indent inside the event loop. So walk from
+// that line over statements at exactly that indent and keep going while the
+// statement is still part of the audio dispatch — it continues an if/else chain
+// (`else`, `} else`, a closing `}`) or it names `audio.`. Stop at the first
+// statement at that indent (or shallower) that does neither: that is a
+// downstream consumer, not the guard. Deeper lines are a nested body and can
+// never be the boundary, which is precisely the fact the old regex ignored.
+// The discriminator is what the statement DOES (dispatch audio) rather than
+// what happens to sit next in the file.
+const indentOf = (l) => l.match(/^\s*/)[0].length;
+const baseIndent = indentOf(mainLines[isLocalHoleAt]);
+let guardEndAt = -1;
+for (let i = isLocalHoleAt + 1; i < mainLines.length; i++) {
+  const line = mainLines[i];
+  const t = line.trim();
+  if (!t || t.startsWith('//') || t.startsWith('/*') || t.startsWith('*')) continue;
+  const ind = indentOf(line);
+  if (ind > baseIndent) continue;                                  // a nested body, not the boundary
+  if (ind === baseIndent && (/^(\}\s*)?else\b|^\}/.test(t) || /\baudio\./.test(t))) continue;
+  guardEndAt = i;
+  break;
+}
+check(guardEndAt !== -1,
+  'BOUNDARY: js/main.js: the isLocalHole guard runs to the end of the file — no statement after it '
+  + 'ends the dispatch chain, so the extraction has nothing to slice against');
+
+const guardSrc = guardEndAt === -1 ? '' : mainLines.slice(isLocalHoleAt, guardEndAt).join('\n');
+
+// --- the boundary asserts ITSELF ------------------------------------------
+// Everything below drives the extracted text, so a bad slice can only surface
+// as a pile of unrelated-looking logic failures unless the slice is checked
+// first. These four say WHERE the failure is. If either STRUCTURAL one trips,
+// the executable half is skipped rather than run against a fragment already
+// known to be mis-sliced — one loud boundary message beats fifteen phantom ones.
+const codeOnly = guardSrc
+  .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  .replace(/\/\/[^\n]*/g, ' ')
+  .replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`/g, "''");
+let depth = 0, balanced = true;
+for (const ch of codeOnly) {
+  if (ch === '{' || ch === '(' || ch === '[') depth++;
+  else if (ch === '}' || ch === ')' || ch === ']') { depth--; if (depth < 0) balanced = false; }
+}
+// Only the two STRUCTURAL checks gate the executable half. The two CONTENT
+// checks below them (pump present, quake arm present) describe real regressions
+// in the shipped guard, and the executable failures they cause are honest
+// signal about the same defect rather than artefacts of a bad slice.
+const boundaryOk = [
+  check(balanced && depth === 0,
+    `BOUNDARY: the extracted guard (js/main.js lines ${isLocalHoleAt + 1}-${guardEndAt}) is not brace/paren `
+    + `balanced (residual depth ${depth}) — the slice cut through a block instead of ending at one. `
+    + 'Something was inserted between the isLocalHole computation and the end of its dispatch chain.'),
+  check(!/tutorialManager|hud\.|hudEvent/.test(codeOnly),
+    `BOUNDARY: the extracted guard (js/main.js lines ${isLocalHoleAt + 1}-${guardEndAt}) OVERRAN into the `
+    + 'consumers below the audio dispatch chain (it mentions tutorialManager/hud). The boundary walk was '
+    + 'misled — most likely by a block indented deeper than the guard it follows.'),
+].every(Boolean);
+
 check(/audio\.handleEvents?\s*\(/.test(guardSrc),
-  'js/main.js: the audio pump must sit between the isLocalHole computation and the first '
-  + 'ev.type arm, so that every event passes it rather than only the arms someone remembered');
+    'BOUNDARY: js/main.js: the audio pump must sit between the isLocalHole computation and the first '
+    + 'ev.type arm, so that every event passes it rather than only the arms someone remembered. '
+    + 'Either the pump is gone (the RCA-2026-08-17 regression) or the slice ended before it.'),
+check(/else if \(ev\.type === 'quake'\)[^\n]*audio\.handleEvents?\s*\(/.test(guardSrc),
+  `BOUNDARY: the extracted guard (js/main.js lines ${isLocalHoleAt + 1}-${guardEndAt}) does not contain the `
+  + "rival-quake arm (`else if (ev.type === 'quake') audio.handleEvent(ev, { quiet: true })`). Either the "
+  + 'attenuation arm was deleted or the slice stopped short of it.');
 
 // Compile the REAL source text. `audio` is a recorder; `sim` supplies the two
 // fields isLocalHole reads. A guard that will not compile is itself a failure,
@@ -163,42 +236,49 @@ function deliver(ev, { isMultiplayer = true, localSlot = 0 } = {}) {
 const LOCAL = { slot: 0, isPlayer: true };
 const RIVAL = { slot: 3, isPlayer: false };
 
-// --- direction one: a rival's hole-scoped event is NOT voiced ---------------
-eq(deliver({ type: 'eat', hole: RIVAL }).length, 0,
-  "multiplayer: a RIVAL hole's eat must not be voiced (that is the coin isolation 8c3c85d added)");
-eq(deliver({ type: 'coin', hole: RIVAL }).length, 0,
-  "multiplayer: a RIVAL hole's coin must not be voiced");
+// Cascade suppression: driving a fragment already known to be mis-sliced turns
+// one extraction defect into fifteen actual:0 failures that read like scoping
+// regressions. If the boundary is broken, the boundary message is the report.
+if (!boundaryOk || !runGuard) {
+  console.error('  (executable guard assertions SKIPPED: the extraction boundary above is broken — fix that first)');
+} else {
+  // --- direction one: a rival's hole-scoped event is NOT voiced -------------
+  eq(deliver({ type: 'eat', hole: RIVAL }).length, 0,
+    "multiplayer: a RIVAL hole's eat must not be voiced (that is the coin isolation 8c3c85d added)");
+  eq(deliver({ type: 'coin', hole: RIVAL }).length, 0,
+    "multiplayer: a RIVAL hole's coin must not be voiced");
 
-// --- direction two: a WORLD event with no hole IS voiced --------------------
-// This is the half a one-directional test would miss, and the half the plausible
-// wrong fix (`if (isLocalHole)` alone) breaks: isLocalHole is false whenever
-// there is no hole to own, so the tornado and the derailment go silent.
-for (const type of ['derail', 'crash', 'storm_warning', 'storm_active', 'storm_cleared', 'powerup_spawn']) {
-  eq(deliver({ type }).length, 1,
-    `multiplayer: the world event '${type}' carries no hole and must still be voiced for everyone`);
+  // --- direction two: a WORLD event with no hole IS voiced ------------------
+  // This is the half a one-directional test would miss, and the half the
+  // plausible wrong fix (`if (isLocalHole)` alone) breaks: isLocalHole is false
+  // whenever there is no hole to own, so the tornado and the derailment go silent.
+  for (const type of ['derail', 'crash', 'storm_warning', 'storm_active', 'storm_cleared', 'powerup_spawn']) {
+    eq(deliver({ type }).length, 1,
+      `multiplayer: the world event '${type}' carries no hole and must still be voiced for everyone`);
+  }
+
+  // --- the local player always hears their own -----------------------------
+  eq(deliver({ type: 'eat', hole: LOCAL }).length, 1, "multiplayer: the local hole's eat must be voiced");
+  eq(deliver({ type: 'eat', hole: { slot: 0 } }).length, 1, 'multiplayer: slot match must count as local, not only identity');
+
+  // --- single player is unaffected either way ------------------------------
+  for (const ev of [{ type: 'eat', hole: RIVAL }, { type: 'derail' }, { type: 'quake', hole: LOCAL }]) {
+    eq(deliver(ev, { isMultiplayer: false }).length, 1,
+      `single player: '${ev.type}' must be voiced (!isMultiplayer short-circuits isLocalHole true)`);
+  }
+
+  // --- the rival quake: reaches handleEvent AND arrives attenuated ----------
+  // Owner decision 2026-08-17: world-audible, attenuated for rivals. `crash` is
+  // world-scoped and always voiced, so muting the rumble under audible collapses
+  // gives the consequence without the cause. Asserting only that it FIRES would
+  // pass against a build that plays a rival's quake at full volume.
+  const rivalQuake = deliver({ type: 'quake', hole: RIVAL });
+  eq(rivalQuake.length, 1, "multiplayer: a RIVAL's quake must still reach handleEvent, not be filtered out");
+  eq(rivalQuake[0] && rivalQuake[0].opts.quiet, true, "multiplayer: a RIVAL's quake must arrive with { quiet: true }, not at full level");
+  const localQuake = deliver({ type: 'quake', hole: LOCAL });
+  eq(localQuake.length, 1, "multiplayer: the local player's own quake must be voiced");
+  check(localQuake[0] && !localQuake[0].opts.quiet, "multiplayer: the local player's own quake must NOT be attenuated");
 }
-
-// --- the local player always hears their own -------------------------------
-eq(deliver({ type: 'eat', hole: LOCAL }).length, 1, "multiplayer: the local hole's eat must be voiced");
-eq(deliver({ type: 'eat', hole: { slot: 0 } }).length, 1, 'multiplayer: slot match must count as local, not only identity');
-
-// --- single player is unaffected either way --------------------------------
-for (const ev of [{ type: 'eat', hole: RIVAL }, { type: 'derail' }, { type: 'quake', hole: LOCAL }]) {
-  eq(deliver(ev, { isMultiplayer: false }).length, 1,
-    `single player: '${ev.type}' must be voiced (!isMultiplayer short-circuits isLocalHole true)`);
-}
-
-// --- the rival quake: reaches handleEvent AND arrives attenuated ------------
-// Owner decision 2026-08-17: world-audible, attenuated for rivals. `crash` is
-// world-scoped and always voiced, so muting the rumble under audible collapses
-// gives the consequence without the cause. Asserting only that it FIRES would
-// pass against a build that plays a rival's quake at full volume.
-const rivalQuake = deliver({ type: 'quake', hole: RIVAL });
-eq(rivalQuake.length, 1, "multiplayer: a RIVAL's quake must still reach handleEvent, not be filtered out");
-eq(rivalQuake[0] && rivalQuake[0].opts.quiet, true, "multiplayer: a RIVAL's quake must arrive with { quiet: true }, not at full level");
-const localQuake = deliver({ type: 'quake', hole: LOCAL });
-eq(localQuake.length, 1, "multiplayer: the local player's own quake must be voiced");
-check(localQuake[0] && !localQuake[0].opts.quiet, "multiplayer: the local player's own quake must NOT be attenuated");
 
 // ---------------------------------------------------------------------------
 // 6. Non-fatal reporting. These are design questions, not defects, and making

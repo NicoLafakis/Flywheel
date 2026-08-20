@@ -285,6 +285,19 @@ function probeNoDeadImports() {
 }
 
 import { readFileSync } from 'node:fs';
+// The lane-offset modulus guard is SHARED with Auckland rather than copied.
+// This file exists because Sydney's section was duplicated inline in the
+// orchestrator and the two copies drifted; duplicating a probe here would be
+// the same mistake one directory over. See tools/probe-lane-modulus.mjs.
+import { probeLaneModulus } from './probe-lane-modulus.mjs';
+
+const SINGAPORE_APRON = {
+  scene: 'singapore',
+  fileUrl: new URL('../js/voxelscene-singapore.js', import.meta.url),
+  marker: '12. PROMENADE APRON (BUDGET CLOSE-OUT)',
+  greys: [0x6f6a60, 0x5c574f, 0x7d776c],
+  readFile: readFileSync,
+};
 
 console.log('--- Validating Singapore Marina Bay ---');
 const sim = newSim();
@@ -298,6 +311,7 @@ probeBoundsRect(sim);
 probeBlocksInWater(sim);
 probePureSimBoundary();
 probeNoDeadImports();
+probeLaneModulus({ ...SINGAPORE_APRON, sim, fail });
 probeIdleStability(sim);
 probeDeterminism();
 probeWinnable(newSim());

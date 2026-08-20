@@ -1,0 +1,60 @@
+{
+  "_comment": [
+    "Flywheel's real pre-commit gates, declared for ~/.claude/scripts/sop_attest.py.",
+    "",
+    "WHY THIS FILE EXISTS. The attestation harness used to discover gates only by",
+    "reading package.json scripts. Flywheel has no package.json -- by design, its",
+    "validator IS the test suite -- so the harness found nothing, emitted",
+    "'no-gates-applicable', and wrote a PASS receipt indistinguishable from a",
+    "verified commit. A full session of commits was attested on '0 gate(s) ran'.",
+    "See .wiki/findings/2026-08-19-the-suite-was-red-on-main.md.",
+    "",
+    "WHAT IS DELIBERATELY NOT GATED, named here rather than left implicit. A gate",
+    "set that silently omits coverage reads as 'everything was checked' when it",
+    "was not. These sections are excluded for RUNTIME, not because they do not",
+    "matter, and they must still be run by hand when their scene is touched:",
+    "  cambridge  -- ~30 min on its own, and the sole reason the full run is ~37",
+    "                min. It was specced to LOOK as dense as 73k voxels, not to",
+    "                contain them; see the Cambridge 2 entry in STATUS.md.",
+    "  chicago, speedInvariance, manhattan, upperManhattan, brooklyn, boston,",
+    "  tokyo, scenesWinnable -- each is one or more full builds of a large city.",
+    "Touching js/voxelscene-<city>.js means running that city's section by hand:",
+    "  FW_VALIDATE_SECTIONS=<name> node tools/validate.mjs",
+    "Never run a bare `node tools/validate.mjs` as a commit gate.",
+    "",
+    "Every section name below must also appear in the orchestrator's `groups`",
+    "array in tools/validate.mjs, or it is dormant there too."
+  ],
+  "gates": [
+    {
+      "name": "validate-core",
+      "cmd": ["node", "tools/validate.mjs"],
+      "env": {
+        "FW_VALIDATE_SECTIONS": "syntaxCheck,offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,globalCampaign,campaignUi,tutorialOnboarding,mobileCameraClarity,mobileUiResponsive,deviceDetection,mobileZoomControls,cameraSmoothing,quakeRupture,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges"
+      },
+      "doc_only": false
+    },
+    {
+      "name": "validate-suites",
+      "cmd": ["node", "tools/validate.mjs"],
+      "env": { "FW_VALIDATE_SECTIONS": "multiplayer" },
+      "doc_only": false
+    },
+    {
+      "name": "validate-act1-cities",
+      "cmd": ["node", "tools/validate.mjs"],
+      "env": { "FW_VALIDATE_SECTIONS": "sydney,auckland,singapore,declaredBlockCounts,audioCoverage" },
+      "doc_only": false
+    },
+    {
+      "name": "validate-campaign",
+      "cmd": ["node", "tools/validate-campaign.mjs"],
+      "doc_only": false
+    },
+    {
+      "name": "validate-singapore",
+      "cmd": ["node", "tools/validate-singapore.mjs"],
+      "doc_only": false
+    }
+  ]
+}

@@ -287,10 +287,26 @@ was already stale when it was written: the prototype patch had been swapped for
 `await loadScene('singapore')` and the file ran ALL PASS. It also carries five
 assertions the shared section does **not** duplicate — exact declared count,
 the dead-import check across all 18 `voxelkit` imports, the pure-sim boundary,
-determinism across two builds (fingerprint `3200114096` — it moved from
-`4195553297` when the apron relocated, which is the fingerprint doing its job;
-do not read the old value as expected), and the winnable residual. It now also
+determinism across two builds (fingerprint **`790920319`** — see below; do not
+read any older value as expected), and the winnable residual. It now also
 carries `probeBlocksInWater`, below. `tools/validate-sydney.mjs` is the same shape and is not deleted.
+
+> **Fingerprint history, and why this line kept going stale.** `4195553297` →
+> `3200114096` when the budget apron relocated off the water (geometry moved) →
+> **`790920319`** when the apron's colour expression gained its floor-mod
+> (`js/voxelscene-singapore.js:540`; **colour only — geometry bit-identical**).
+> That last one was proven rather than asserted: a second hash computed with the
+> colour field **removed** is byte-identical across the two trees
+> (`geometryOnly=4e94948d` before and after), which turns "only the colour
+> changed" from a claim into a measurement. Blocks held at 22,000, mass at
+> 36,474, blockers at 571.
+>
+> No **code** constant anywhere in the repo pins any of these values — checked
+> across every `.mjs`/`.js`/`.json`. This wiki line was the only stored copy,
+> which is exactly why it went false twice: a number with a single home and no
+> gate has nothing to make it fail loudly when it drifts. It is recorded here as
+> history rather than as an expectation, and the sentence warning the reader not
+> to treat the old value as expected is the sentence that had itself gone stale.
 
 Following the instruction would have deleted working coverage to satisfy a
 premise that no longer held. It was caught because the agent re-checked the

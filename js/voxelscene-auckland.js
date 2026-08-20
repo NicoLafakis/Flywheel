@@ -672,7 +672,21 @@ export function buildAuckland(sim) {
             // Three greys on a fixed positional pattern: a single-colour apron
             // reads as a painted strip, and being positional keeps it
             // identical on every build.
-            const t = (Math.round(x * 2) + lane * 3) % 3;
+            //
+            // Two things here are load-bearing and were both wrong.
+            //
+            // The lane term must be COPRIME to the modulus. It was `lane * 3`,
+            // a multiple of 3, so it cancelled: every lane got the identical
+            // sequence and the apron read as corduroy stripes running
+            // perpendicular to the shore rather than as scattered rock. 2 walks
+            // the three greys 0,2,1,0,2,1 down the lanes.
+            //
+            // And the result must be floored into range, because JS keeps the
+            // DIVIDEND's sign: `-2 % 3` is -2, not 1. These windows span
+            // negative x, and the ternary below sends every negative index to
+            // the third grey, so over the negative-x windows two of the three
+            // greys collapsed into one.
+            const t = (((Math.round(x * 2) + lane * 2) % 3) + 3) % 3;
             B(x, 0, z, 'concrete', 0.5, t === 0 ? 0x6b655c : t === 1 ? 0x5a554e : 0x7a746a);
             placed++;
           }
