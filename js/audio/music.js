@@ -34,6 +34,12 @@ export const MUSIC_CUES = Object.freeze({
   // Sydney aliases Boston's. An alias needs no `js/audio/tracklist.js` row: the
   // picker lists TRACKS, and this is a city cue pointing at one already there.
   auckland: 'cambridge.mp3',
+  // Singapore aliases Upper Manhattan's, the roster's PARK track. Act I's
+  // chapter 3 is subtitled EQUATORIAL GARDEN and the map's whole south half is
+  // Gardens by the Bay, so the green track is the read rather than a second
+  // CBD one — and it keeps the Act's three chapters on three distinct cues
+  // (Sydney -> boston, Auckland -> cambridge, Singapore -> upper-manhattan).
+  singapore: 'upper-manhattan.mp3',
   // The Lab's own theme. The gallery was deliberately music-free until the
   // track shipped; the owner reversed that call when it did.
   gallery: 'the-lab.mp3',

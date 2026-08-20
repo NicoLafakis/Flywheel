@@ -82,11 +82,19 @@ export function runCampaignSelftest() {
   // 4. Playable vs. Development Separation
   const playable = CITY_CATALOG.filter((c) => c.status === 'PLAYABLE');
   const development = CITY_CATALOG.filter((c) => c.status === 'DEVELOPMENT');
-  assert.equal(playable.length, 10, `Expected exactly 10 playable cities, found ${playable.length}`); count();
-  assert.equal(development.length, 19, `Expected exactly 19 development cities, found ${development.length}`); count();
+  // These two stay LITERAL on purpose, unlike the derived challenge count below:
+  // they are the tripwire that catches a city whose status was flipped without
+  // the rest of the wiring, so deriving them from the catalog would make them
+  // agree with any accident. Bump both when a city genuinely ships. Singapore
+  // took the roster from 10/19 to 11/18 on 2026-08-19.
+  assert.equal(playable.length, 11, `Expected exactly 11 playable cities, found ${playable.length}`); count();
+  assert.equal(development.length, 18, `Expected exactly 18 development cities, found ${development.length}`); count();
+  // The pair cannot silently drift apart from the roster it partitions.
+  assert.equal(playable.length + development.length, CITY_CATALOG.length,
+    `playable + development must account for every city: ${playable.length} + ${development.length} != ${CITY_CATALOG.length}`); count();
 
   const helperPlayable = getPlayableCityCatalog();
-  assert.equal(helperPlayable.length, 10, 'getPlayableCityCatalog() must return the 10 playable cities'); count();
+  assert.equal(helperPlayable.length, playable.length, 'getPlayableCityCatalog() must return every playable city'); count();
   assert.deepEqual(helperPlayable.map((c) => c.scene), playable.map((c) => c.scene), 'getPlayableCityCatalog() order mismatch'); count();
 
   // 5. Progression Unlock Logic
@@ -171,7 +179,11 @@ export function runCampaignSelftest() {
   assert.equal(getCompletedChallengeCount(emptySave), 0, 'Initial challenge count must be 0'); count();
   assert.equal(isSecret90sChallengeUnlocked(emptySave), false, 'Secret 90s must be locked initially'); count();
 
-  // Complete 3m challenge on all 10 playable cities
+  // Complete the 3m challenge on EVERY playable city. The expected count is
+  // derived from `playable`, not written as a literal: a hard-coded 10 here is a
+  // second copy of a number the catalog already owns, and it sank this suite the
+  // moment Singapore flipped to PLAYABLE even though nothing about the challenge
+  // logic had changed. Derived, it never needs touching again.
   for (const c of playable) {
     recordChallengeResult(emptySave, c.scene, {
       mode: 'challenge3m',
@@ -183,8 +195,9 @@ export function runCampaignSelftest() {
       percent: 1.0,
     });
   }
-  assert.equal(getCompletedChallengeCount(emptySave), 10, 'All 10 playable challenges must be counted'); count();
-  assert.ok(isSecret90sChallengeUnlocked(emptySave), 'Secret 90s challenge must unlock when all 9 playable cities are cleared in 3m'); count();
+  assert.ok(playable.length > 0, 'the playable roster must be non-empty, or the count assertion below passes vacuously'); count();
+  assert.equal(getCompletedChallengeCount(emptySave), playable.length, `All ${playable.length} playable challenges must be counted`); count();
+  assert.ok(isSecret90sChallengeUnlocked(emptySave), 'Secret 90s challenge must unlock when every playable city is cleared in 3m'); count();
 
   return assertions;
 }

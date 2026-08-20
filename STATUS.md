@@ -28,8 +28,25 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 ## Active focus
 
 - **Act I map completion** — every Act I city built to the voxel count declared
-  in its catalog entry, exactly. Sydney and Auckland done; Singapore in flight.
-  `.wiki/features/act-i-pacific-completion/`.
+  in its catalog entry, exactly. Sydney, Auckland and Singapore done — Singapore
+  is `PLAYABLE` at 22,000 blocks / 571 camera blockers with zero uncovered tall
+  cells, and its `singapore` section plus `tools/validate-singapore.mjs` both run
+  green. `.wiki/features/act-i-pacific-completion/`.
+  **Closed 2026-08-19:** the 1,241-block budget close-out course used to stand
+  entirely inside the Marina Bay water rect, rendering as a flat grey mat on the
+  water. No probe could see it — `probeWaterOverSurfaces` compares decor rects,
+  and a physical block standing in water is not a decor rect — so it was green
+  the whole time. The lanes now walk SOUTH from the bank across the boardwalk
+  instead of north into the bay, with occupancy, spawn and water skips; ground
+  blocks wholly inside the water rect went 1,377 -> 136 (the remainder is the
+  Shoppes podium's west face and the two moored launches, both legitimate), the
+  count held at exactly 22,000, and blockers held at 571 with 0 uncovered.
+  Also closed: `tools/pw/singapore-shots.mjs` was broken on the same retired
+  `_buildScene` prototype seam that had broken `tools/validate-singapore.mjs` —
+  two callers, one fix — and now runs green on `await loadScene('singapore')`
+  with `canvas.toDataURL()` in place of `page.screenshot()`. Nothing else in the
+  repo is on that seam; `tools/probe-aniso.mjs` uses the gallery fall-through,
+  which is still valid and still runs.
 - **Camera Bézier occlusion smoothing (The Lab only)** — C¹ cubic Hermite pitch
   transitions and critically-damped roof-climb easing, behind a per-scene flag.
   `.wiki/features/camera-bezier-smoothing/`, ADR-0022.

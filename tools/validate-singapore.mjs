@@ -1,29 +1,35 @@
 // Singapore Marina Bay — standalone scene validator.
 //
-// Runs the SAME probe contract tools/validate.mjs applies to every other city,
-// but stands alone so the scene can be authored and gated before it is wired
-// into js/voxelsim.js's SCENE_IMPORTERS (which another agent owns this cycle).
+// The fast iteration loop: builds ONE city in ~1 s instead of nine, and carries
+// five probes the shared suite has no equivalent of — exact declared count, dead
+// voxelkit imports, pure-sim boundary, build determinism, and the winnable
+// residual printed rather than merely compared.
 //
-// THE INSTRUMENT. `new VoxelSandboxSim({ scene })` only reaches an authored
-// builder through the module-private SCENE_IMPORTERS/SCENE_BUILDERS registry,
-// so an unregistered scene id cannot be constructed the normal way. It does NOT
-// follow that the scene has to be validated against a hand-written stub sim: a
-// stub reimplements _block's rounding, _addBlock's grid ownership, the support
-// solver and the constructor's dozen post-build passes, and every one of those
-// is a chance to drift from the engine the scene will actually ship on.
+// It also re-implements cell ownership, camera blockers, bounds, placement step
+// and idle stability, which `section('singapore', ...)` in tools/validate.mjs
+// runs too. That duplication is deliberate and follows tools/validate-sydney.mjs
+// — a standalone harness that has to be re-pointed at the shared file to answer
+// "did I just break the geometry" is not a fast loop. The costs are real and
+// worth naming: two copies can drift, and the copies here are the WEAKER ones
+// (the shared idle probe parks the hole at spawn for 3 s and also checks nothing
+// was EATEN, which is how the spawn-on-the-revetment bug was caught after this
+// file had already said PASS). Treat tools/validate.mjs as authoritative and
+// this as the loop you iterate in.
 //
-// Instead, patch `_buildScene` on the prototype. An id the registry does not
-// know falls through to `this._buildScene()`, so the patch hands the REAL
-// constructor our geometry and everything downstream — grid ownership, support,
-// _top, coins, zones, collision buckets, cameraBlockers binding, step() — is
-// the shipped code path rather than a model of it. Nothing in js/ is modified.
-// Phase 2 deletes the patch and adds the registry entry; the probes below do
-// not change, which is the point.
-import { VoxelSandboxSim } from '../js/voxelsim.js';
+// PHASE 1 USED A PROTOTYPE PATCH; THIS IS THE PHASE 2 SHAPE. Before the scene
+// was registered, `new VoxelSandboxSim({ scene })` could not reach the builder
+// at all — SCENE_IMPORTERS is module-private — so this file overrode
+// `_buildScene`, which an unknown id falls through to. That is a real seam and
+// it is worth recording that it BROKE the moment the registry entry landed: a
+// registered-but-unloaded scene throws by name instead of falling through, so
+// the patch stopped being reached and the whole file died on its first
+// construct. Half of a two-sided seam was retired and the caller kept calling.
+// The registered path is now the honest one and needs no patch, only the
+// `loadScene` await that every other consumer of an authored scene already does.
+import { VoxelSandboxSim, loadScene } from '../js/voxelsim.js';
 import { CITY_CATALOG } from '../js/citycatalog.js';
-import { buildSingapore } from '../js/voxelscene-singapore.js';
 
-VoxelSandboxSim.prototype._buildScene = function () { buildSingapore(this); };
+await loadScene('singapore');
 const newSim = () => new VoxelSandboxSim({ seed: 'validator', scene: 'singapore' });
 
 const DECLARED = CITY_CATALOG.find((c) => c.scene === 'singapore').blocks;
@@ -152,6 +158,30 @@ function probeIdleStability(sim) {
   }
 }
 
+// A physical block standing in water is invisible to probeWaterOverSurfaces,
+// which compares DECOR rects only. Singapore shipped 1,241 ground-level setts
+// inside the bay and stayed green. Ground-anchored blocks WHOLLY inside a water
+// rect are legitimate only where a built edge occludes the rect (the Shoppes
+// podium's west face, the moored launches) — 136 of them. More than that is a
+// course laid in the water.
+//
+// THE 136 IS EXACT AND MUST STAY EXACT. It is not an allowance with room in it:
+// slack here would sit green through a new course of up to that many setts,
+// which is the same failure as a floor loose enough to pass the thing it was
+// written to catch. If a deliberate change moves the number, re-derive it and
+// say which blocks account for the difference — do not widen it to fit.
+function probeBlocksInWater(sim) {
+  const W = sim.sceneDecor.water;
+  const drowned = sim.blocks.filter((b) => b.gy === 0 && W.some((w) =>
+    b.x - b.sx / 2 >= w.x && b.x + b.sx / 2 <= w.x + w.w &&
+    b.z - b.sz / 2 >= w.z && b.z + b.sz / 2 <= w.z + w.d));
+  if (drowned.length !== 136) {
+    fail(`singapore: ${drowned.length} ground blocks stand wholly inside a water rect (exactly 136 expected: the Shoppes podium's west face and the two launches) — first at (${drowned[0].x}, ${drowned[0].z})`);
+  } else {
+    pass('blocks in water: 136 ground blocks inside a water rect, all of them occluded by a built edge');
+  }
+}
+
 function probeBoundsRect(sim, slack = 12) {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const b of sim.blocks) {
@@ -265,6 +295,7 @@ probeCameraBlockers(sim, tops);
 probeCellOwnership(sim);
 probePlacementStep(sim);
 probeBoundsRect(sim);
+probeBlocksInWater(sim);
 probePureSimBoundary();
 probeNoDeadImports();
 probeIdleStability(sim);

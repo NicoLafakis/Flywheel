@@ -750,6 +750,11 @@ const AUTHORED_SCENES = {
     hud: 'AUCKLAND · THE HARBOUR AND THE CONES',
     intro: { subtitle: 'AUCKLAND' },
   },
+  'singapore': {
+    label: 'SINGAPORE: MARINA BAY AND THE GARDENS',
+    hud: 'SINGAPORE · THE BAY AND THE SUPERTREES',
+    intro: { subtitle: 'SINGAPORE' },
+  },
   'chicago': {
     label: 'CHICAGO: THE LOOP AND THE CHICAGO RIVER',
     hud: 'CHICAGO · THE LOOP & WILLIS TOWER',
@@ -792,7 +797,11 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
   const sceneLabel = authored ? authored.label : 'SANDBOX';
   const hudLabel = authored ? authored.hud : 'SANDBOX';
   screens.showLoading(sceneLabel);
-  requestAnimationFrame(() => requestAnimationFrame(async () => {
+  // Named and held rather than passed inline so the rejection has somewhere to
+  // land: an `async` callback handed straight to requestAnimationFrame returns
+  // its promise to nobody, so anything that throws below becomes an unhandled
+  // rejection under a loading screen that never resolves. See failSceneLaunch.
+  const buildSandbox = async () => {
     // The city's own module is fetched here rather than at page load
     // (js/voxelsim.js registry). The loading frame is already painted — it went
     // up before these two rAFs — so the fetch happens under the same screen that
@@ -973,7 +982,48 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
         onStart: () => { readyGate = null; audio.countdownGo(); cam.releaseIntro(); },
       });
     }
+  };
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    buildSandbox().catch((err) => failSceneLaunch(scene, err, 'cities'));
   }));
+}
+
+// The recovery half of the unknown-scene guard in js/voxelsim.js. That
+// constructor throws on a scene with no SCENE_IMPORTERS entry — a typo'd
+// catalog row, a stale save naming a scene that has since been renamed, a city
+// module that 404s — which is the correct loud failure, but the throw lands
+// inside an async requestAnimationFrame callback. Uncaught, that is an
+// unhandled promise rejection under a loading screen that never resolves:
+// silent to the player and indistinguishable from a slow network. Trading
+// "wrong map, looks fine" for "no map, looks broken and says nothing" is not
+// the deal, so the failure is caught here and the player is put back on a live
+// screen.
+//
+// Deliberately not an error-UI system: there is no message surface available on
+// a menu screen — #toast lives inside #hud, which is hidden on every menu, and
+// the multiplayer join-error modal is room-code-branded. The console line is
+// the diagnostic channel and the navigation is the player-facing one.
+function failSceneLaunch(scene, err, returnTo = 'cities') {
+  console.error(
+    `Flywheel: cannot launch scene '${scene}' — the world was not built, so the ` +
+    'player has been returned to the menu rather than left on the loading screen.',
+    err,
+  );
+  // The throw can land AFTER teardownWorld() and after the sandbox flags are
+  // set, so recovery has to unwind them by hand. Leaving mode-sandbox on the
+  // body restyles the next menu, and leaving isVoxelSandbox true tells the
+  // frame loop a world exists that teardownWorld has already disposed.
+  isVoxelSandbox = false;
+  document.body.classList.remove('mode-sandbox');
+  rankedRun = null;   // never assigned on this path; would otherwise be the last run's buffer
+  teardownWorld();
+  hud.hide();
+  if (returnTo === 'title') {
+    backToTitle();
+  } else {
+    state = 'menu';
+    screens.showCitySelect();
+  }
 }
 
 function teardownWorld() {
@@ -1194,7 +1244,10 @@ function joinMultiplayerLobby(roomCode, chosenName = null) {
 
 function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180, players, mySlot, channel }) {
   screens.showLoading('MULTIPLAYER · ' + scene.toUpperCase());
-  requestAnimationFrame(() => requestAnimationFrame(async () => {
+  // Same rejection-has-nowhere-to-land shape as startVoxelSandbox; here the
+  // scene id arrives off the wire in the host's GAME_START message, so an
+  // unknown one is remote input rather than a local typo.
+  const buildMatch = async () => {
     await loadScene(scene);
     teardownWorld();  // clears mpIsHost, so publish the role AFTER it
     isMultiplayer = true;
@@ -1344,6 +1397,16 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
       mpLobby.destroy();
       mpLobby = null;
     }
+  };
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    // 'title', not 'cities' — do NOT unify these two paths for consistency.
+    // They are different failures with different right answers. A sandbox
+    // launch comes FROM City Select, so returning there puts the player back
+    // where they were; a match comes from a lobby, so City Select would offer
+    // them a single-player launch they never asked for. The scene id here also
+    // arrives off the wire in the host's GAME_START message — remote input,
+    // not a local typo or a stale save.
+    buildMatch().catch((err) => failSceneLaunch(scene, err, 'title'));
   }));
 }
 

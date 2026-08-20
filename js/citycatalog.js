@@ -102,7 +102,7 @@ export const CITY_CATALOG = [
     desc: 'Garden megacity of futuristic cantilevers, towering biome domes, and luminous vertical gardens.',
     tagline: 'CHAPTER 3 · EQUATORIAL GARDEN',
     chapter: 'CHAPTER 3',
-    status: 'DEVELOPMENT',
+    status: 'PLAYABLE',
     blocks: 22000,
     difficulty: 'TIER 3 · NORMAL',
     badge: 'ACT I',

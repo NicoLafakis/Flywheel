@@ -37,6 +37,14 @@ export const SCENE_AMBIENCE = {
   // — a missing key here is silent, and silence is indistinguishable from a bed
   // that failed to load.
   auckland: 'amb-boston',
+  // Marina Bay takes the seaport bed for the same reason Sydney and Auckland
+  // do, with one caveat worth writing down: it is NOT a working harbour, it is
+  // a dammed freshwater basin, so there are no ferries in it. What carries is
+  // the other half of `amb-boston` — forty metres of open water on all sides
+  // with a promenade around it, which is where the player spends the run. The
+  // CBD wall is one EDGE of this map, not its middle, so `amb-manhattan`'s
+  // canyon texture would be describing the part you mostly have behind you.
+  singapore: 'amb-boston',
   brooklyn: 'amb-brooklyn',
   // Tokyo Shinjuku reuses the Manhattan bed: it is a dense high-rise canyon
   // core, which is the texture `amb-manhattan` records, and js/audio/music.js

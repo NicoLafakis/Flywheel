@@ -266,17 +266,36 @@ const SCENE_IMPORTERS = {
   'tokyo': () => import('./voxelscene-tokyo.js').then((m) => m.buildTokyo),
   'sydney': () => import('./voxelscene-sydney.js').then((m) => m.buildSydney),
   'auckland': () => import('./voxelscene-auckland.js').then((m) => m.buildAuckland),
+  'singapore': () => import('./voxelscene-singapore.js').then((m) => m.buildSingapore),
 };
 const SCENE_BUILDERS = new Map();
+const GALLERY_SCENE = 'gallery';
 // In-flight promises, so two overlapping starts (a fast double-tap on a city
 // chip) share one module fetch instead of racing two.
 const SCENE_PENDING = new Map();
 
-/** True once `scene` can be constructed synchronously. Always true for the
- *  gallery and for any id that names no authored scene — both fall through to
- *  `_buildScene`, which needs nothing loaded. */
+/** True when `scene` is a scene this build knows about at all: the gallery, or
+ *  an id with a `SCENE_IMPORTERS` entry. Says nothing about whether it is
+ *  loaded — that is `sceneReady`. */
+// The gallery is the ONLY scene authored inline in `_buildScene`, so it is the
+// only legitimate id with no importer. The old predicate said
+// `!SCENE_IMPORTERS[scene]`, which reported READY for the gallery and for every
+// name nothing has ever heard of alike — so a typo'd or unregistered scene id
+// passed the readiness check, skipped the throw in the constructor, and
+// silently built a gallery under another city's label. Registration is now
+// decided by IDENTITY (is this a known id) rather than by ABSENCE (does it lack
+// an importer), which are the same answer for the gallery and opposite answers
+// for a typo.
+export function isSceneRegistered(scene) {
+  return scene === GALLERY_SCENE || Boolean(SCENE_IMPORTERS[scene]);
+}
+
+/** True once `scene` can be constructed synchronously: the gallery (nothing to
+ *  load) or an authored scene whose builder is already cached. An id this build
+ *  does not know is NOT ready — it used to be, which is the bug above. */
 export function sceneReady(scene) {
-  return !SCENE_IMPORTERS[scene] || SCENE_BUILDERS.has(scene);
+  if (!isSceneRegistered(scene)) return false;
+  return scene === GALLERY_SCENE || SCENE_BUILDERS.has(scene);
 }
 
 /** Fetch and cache an authored scene's builder. Idempotent, and a no-op for the
@@ -532,6 +551,7 @@ export const SCENE_GOALS = {
   tokyo: { name: 'CROSS THE SCRAMBLE', targetFraction: 1.0 },
   sydney: { name: 'EAT THE OPERA HOUSE', targetFraction: 1.0 },
   auckland: { name: 'TOPPLE THE SKY TOWER', targetFraction: 1.0 },
+  singapore: { name: 'CRUMBLE THE SKYPARK', targetFraction: 1.0 },
 };
 export const SANDBOX_COIN_COUNT = 60;
 export const SANDBOX_COIN_VALUE = 2;
@@ -974,6 +994,12 @@ export class VoxelSandboxSim {
     // skipped `await loadScene`), so it throws by name rather than falling
     // through to the gallery — a Brooklyn label over a gallery pile is the kind
     // of wrong that passes a smoke test.
+    // An unknown id is a different failure from an unloaded one and must be
+    // named as such: the check below only fires for scenes that HAVE an
+    // importer, so without this a misspelled id fell through to _buildScene().
+    if (!isSceneRegistered(scene)) {
+      throw new Error(`VoxelSandboxSim: unknown scene '${scene}' — it has no SCENE_IMPORTERS entry and is not the gallery. An unregistered or misspelled scene id must not fall through to a gallery wearing another city's label.`);
+    }
     const authored = SCENE_IMPORTERS[scene] ? SCENE_BUILDERS.get(scene) : null;
     if (SCENE_IMPORTERS[scene] && !authored) {
       throw new Error(`VoxelSandboxSim: scene '${scene}' is not loaded — await loadScene('${scene}') before constructing`);

@@ -1,17 +1,27 @@
-// SINGAPORE visual review, phase 1 (BEFORE any wiring exists).
+// SINGAPORE visual review.
 //
-// The scene is not registered in SCENE_IMPORTERS yet, so there is no City Select
-// path to it and `auckland-playtest.mjs`'s "launch it like a player" approach is
-// not available. Instead a synthetic page is served ON THE APP ORIGIN by
-// intercepting a route, so every relative module specifier and the `three`
-// importmap entry resolve exactly as they do for the real game, and the REAL
-// renderer draws the REAL sim — no stub geometry, no second copy of anything.
+// A synthetic page is served ON THE APP ORIGIN by intercepting a route, so every
+// relative module specifier and the `three` importmap entry resolve exactly as
+// they do for the real game, and the REAL renderer draws the REAL sim — no stub
+// geometry, no second copy of anything.
 //
-// The prototype patch is the same instrument tools/validate-singapore.mjs uses:
-// VoxelSandboxSim's constructor throws by name for a REGISTERED-but-unloaded
-// scene, but falls through to `this._buildScene()` for an unknown id, so
-// overriding that one method runs the unregistered builder through the genuine
-// constructor — real grid ownership, real support solver, real cameraBlockers.
+// PHASE 1 PATCHED `_buildScene`; THIS IS THE PHASE 2 SHAPE. Before the scene was
+// registered there was no City Select path to it and no way to construct it by
+// name, so this file overrode `VoxelSandboxSim.prototype._buildScene`, which an
+// UNKNOWN scene id falls through to. That seam BROKE the moment the
+// SCENE_IMPORTERS entry landed: a registered-but-unloaded id now throws by name
+// instead of falling through, so the override stopped being reached, the page
+// never signalled ready, and this script died on a 60 s waitForFunction timeout.
+// `tools/validate-singapore.mjs` was the other caller of the same retired seam
+// and broke identically. Half of a two-sided seam was retired and BOTH callers
+// kept calling — so the question after any such repair is never "does the caller
+// work" but "how many callers were there". The registered path needs no patch,
+// only the `await loadScene` every other consumer of an authored scene does.
+//
+// THE FRAME IS READ WITH `toDataURL`, NOT `page.screenshot()`. Playwright's
+// screenshot photographs the compositor, which has already discarded the back
+// buffer of a camera we flew by hand — so the read has to happen inside the SAME
+// evaluate() as the render, while the drawing buffer is still ours.
 //
 // An ORTHOGRAPHIC PLAN comes first and a chase-cam-height shot second: a
 // perspective shot from inside the city hides whole districts behind whatever is
@@ -19,7 +29,7 @@
 //
 // Run: node tools/pw/singapore-shots.mjs   (with `python -m http.server 8000`)
 import { chromium } from 'file:///C:/programming/nico-apps/Flywheel/tools/pw/node_modules/playwright/index.mjs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 
 const OUT = 'C:/programming/nico-apps/Flywheel/tools/pw/_singapore';
 const BASE = process.env.FW_BASE || 'http://localhost:8000';
@@ -31,11 +41,10 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 </head><body><canvas id="c"></canvas>
 <script type="module">
 import * as THREE from 'three';
-import { VoxelSandboxSim } from './js/voxelsim.js';
+import { VoxelSandboxSim, loadScene } from './js/voxelsim.js';
 import { VoxelWorld3D } from './js/voxelworld.js';
-import { buildSingapore } from './js/voxelscene-singapore.js';
 
-VoxelSandboxSim.prototype._buildScene = function () { buildSingapore(this); };
+await loadScene('singapore');
 const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'singapore' });
 const canvas = document.getElementById('c');
 const world = new VoxelWorld3D(canvas, sim, 'classic', {});
@@ -67,7 +76,8 @@ window.__sg = {
     cam.updateProjectionMatrix();
     cam.updateMatrixWorld(true);
     world.render(cam);
-    return true;
+    // Same evaluate, same frame: the drawing buffer is still ours here.
+    return canvas.toDataURL('image/png');
   },
 };
 window.__sgReady = true;
@@ -104,8 +114,8 @@ const VIEWS = [
 ];
 
 for (const [name, view] of VIEWS) {
-  await page.evaluate((v) => window.__sg.shot(v), view);
-  await page.screenshot({ path: `${OUT}/${name}.png` });
+  const url = await page.evaluate((v) => window.__sg.shot(v), view);
+  await writeFile(`${OUT}/${name}.png`, Buffer.from(url.split(',')[1], 'base64'));
   console.log(`  wrote ${OUT}/${name}.png`);
 }
 

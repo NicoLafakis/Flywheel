@@ -10,7 +10,7 @@ import {
   VoxelSandboxSim, COMBO_THRESHOLDS, COMBO_STEP, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES,
   MILESTONES, MILESTONE_TIERS, RANKED_TICK_COUNT, SCENE_GOALS, comboLevel, comboMult,
   CHALLENGE_COIN_MULTIPLIER, RANKED_TUNE, RANKED_SIM_VERSION,
-  loadScene, sceneReady,
+  loadScene, sceneReady, isSceneRegistered,
 } from '../js/voxelsim.js';
 import { POWERUP_TYPES, POWERUP_SPECS, activatePowerUp, createPowerUp } from '../js/powerups.js';
 import { PLAYER_MAX_RADIUS } from '../js/tiers.js';
@@ -46,6 +46,9 @@ import {
   SYDNEY_CROSSINGS, SYDNEY_OPEN_GROUND, SYDNEY_ROAD_SPANS, SYDNEY_STREETS,
   SYDNEY_VEHICLES,
 } from '../js/voxelscene-sydney.js';
+import {
+  SINGAPORE_ROAD_SPANS, SINGAPORE_VEHICLES,
+} from '../js/voxelscene-singapore.js';
 import { validateAuckland } from './validate-auckland.mjs';
 import { SCENE_AMBIENCE } from '../js/audio/game-audio.js';
 import { MUSIC_CUES } from '../js/audio/music.js';
@@ -84,7 +87,7 @@ import { fileURLToPath } from 'node:url';
 // the parent would be pure overhead. Every CHILD sets FW_VALIDATE_SECTIONS and
 // therefore lands here with the guard true.
 if (process.env.FW_VALIDATE_SECTIONS || process.env.FW_VALIDATE_SEQ) {
-  await Promise.all(['sydney', 'auckland', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo'].map(loadScene));
+  await Promise.all(['sydney', 'auckland', 'singapore', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo'].map(loadScene));
 }
 
 const DT = 1 / 60;
@@ -3170,6 +3173,25 @@ function validateSydney() {
   console.log(`  sydney sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
 }
 
+// SINGAPORE (Act I, chapter 3). Shaped like `validateSydney` above rather than
+// like Auckland's injected module: the scene has its own standalone harness in
+// `tools/validate-singapore.mjs` (exact count, determinism, dead imports,
+// pure-sim boundary, winnable residual) exactly as Sydney does, and this section
+// is the SHARED probe pass, so no probe is copied into the suite twice.
+function validateSingapore() {
+  console.log('Validating singapore sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'singapore' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'singapore');
+  probeCameraBlockers(sim, 'singapore', tops);
+  probeBoundsRect(sim, 'singapore');
+  probeRoadConflicts(sim, 'singapore', SINGAPORE_VEHICLES, SINGAPORE_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'singapore');
+  probePlacementStep(sim, 'singapore');
+  probeIdleStability(sim, 'singapore');
+  console.log(`  singapore sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
 // Cheap structural fingerprint of a built scene: min corner, extents, material
 // and colour of every block, folded in ARRAY ORDER. Two builds that agree on it
 // agree on the geometry AND on the order it was emitted in, which is what
@@ -3241,6 +3263,17 @@ function validateDeclaredBlockCounts() {
   if (playable.length === 0) fail('declared counts: no PLAYABLE cities in CITY_CATALOG — the gate would pass vacuously');
   const rows = [];
   for (const city of playable) {
+    // IDENTITY BEFORE COUNT. sceneReady() used to return true for any name with
+    // no importer, so an unregistered or misspelled scene id reported ready and
+    // then silently built the gallery — and this gate caught that only by
+    // coincidence, because the gallery's 15,767 happened to differ from the
+    // declared count. Had the two collided it would have passed while measuring
+    // a completely different map. Registration is now asserted on its own, in
+    // front of the count, so the failure names the real defect.
+    if (!isSceneRegistered(city.scene)) {
+      fail(`declared counts: '${city.scene}' is PLAYABLE but is not a registered scene — it has no SCENE_IMPORTERS entry in js/voxelsim.js, so constructing it would build a gallery under its label; check for a typo in the catalog's scene id or a missing registration`);
+      continue;
+    }
     if (!sceneReady(city.scene)) {
       fail(`declared counts: '${city.scene}' is PLAYABLE but was never preloaded — add it to the loadScene list at the top of this file`);
       continue;
@@ -3388,6 +3421,7 @@ section('cityChallenges', validateCityChallenges);
 section('multiplayer', validateMultiplayer);
 section('sydney', validateSydney);
 section('auckland', () => validateAuckland(AUCKLAND_CTX));
+section('singapore', validateSingapore);
 section('declaredBlockCounts', validateDeclaredBlockCounts);
 section('tokyo', validateTokyo);
 section('audioCoverage', validateAudioCoverage);

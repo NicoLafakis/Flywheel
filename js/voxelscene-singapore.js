@@ -69,11 +69,17 @@ export function buildSingapore(sim) {
   const water = [], boardwalk = [], cobbles = [];
 
   // ============================================================ DISTRICT SURFACES
-  water.push({ x: -18, z: -14, w: 40, d: 34, color: 0x1a5a72 });   // Marina Bay
+  // The bay's south shore is at z 14, not z 20, because every scene in this
+  // engine spawns its hole at a hard-coded (0, 16) — js/voxelsim.js:844 — and
+  // that has to be solid promenade the player can stand on, not open water with
+  // a revetment under it. The bay is 40 x 28.
+  water.push({ x: -18, z: -14, w: 40, d: 28, color: 0x1a5a72 });   // Marina Bay
 
   plaza.push(
     { x: -50, z: -24, w: 32, d: 60, color: 0x8e8a82 },   // Raffles Place / CBD apron
-    { x: 18, z: -20, w: 36, d: 40, color: 0xd6d2c8 },    // Bayfront / Sands apron
+    // Starts at the water's east edge, not 4 m inside it: water draws OVER
+    // plaza, so the overlap was 4 m of apron that never rendered.
+    { x: 22, z: -20, w: 32, d: 40, color: 0xd6d2c8 },    // Bayfront / Sands apron
     { x: -20, z: -34, w: 40, d: 18, color: 0xc8c4ba },   // Esplanade forecourt
   );
 
@@ -85,7 +91,7 @@ export function buildSingapore(sim) {
 
   boardwalk.push(
     { x: -32, z: -18, w: 14, d: 16, color: 0x9a7048 },   // Merlion Park deck
-    { x: -18, z: 19, w: 36, d: 5, color: 0x9a7048 },     // south bay promenade
+    { x: -18, z: 14, w: 36, d: 10, color: 0x9a7048 },    // south bay promenade
   );
 
   cobbles.push({ x: -50, z: 6, w: 12, d: 12, color: 0x6a6560 });   // Telok Ayer lane
@@ -407,11 +413,17 @@ export function buildSingapore(sim) {
 
   const gardenPath = pathRibbon([[-14, 22], [0, 26], [16, 28], [34, 30]], 2, { color: 0xb5a98c });
 
-  // Moored NORTH of z 7, which is as far into the bay as the revetment's last
-  // lane can reach at full extension. A launch parked any further south is a
-  // launch sitting on the rocks.
-  motorLaunch(sim, -12, 0, 'x', 0xe8ecf2, 0x1c6ea4);
-  motorLaunch(sim, 6, 2, 'x', 0xf2efe6, 0xc9302c);
+  // Two launches under way in open water. Their old rationale — "moored NORTH
+  // of z 4, as far into the bay as the revetment's last lane can reach" — died
+  // with the revetment: §12's close-out course moved out of the bay onto the
+  // promenade, so there are no rocks to sit on and the whole basin from z -14
+  // to the z 14 shore is clear water. What actually constrains them now is the
+  // built edges: the Merlion Park deck runs to x -18 on the west and the
+  // Shoppes podium starts at x 18 on the east, so a launch must stay inside
+  // that span to read as afloat rather than beached on a quay. Both do, with
+  // several metres to spare, so they are left where they are.
+  motorLaunch(sim, -12, -4, 'x', 0xe8ecf2, 0x1c6ea4);
+  motorLaunch(sim, 6, -2, 'x', 0xf2efe6, 0xc9302c);
 
   // Satay Club stalls on the Esplanade forecourt, west of the shells.
   // x = -23 clears the promenade lamp posts standing at x = -17.
@@ -446,31 +458,76 @@ export function buildSingapore(sim) {
   }
 
   // ============================================================ 12. DECOR & AMBIENT
-  // ============================================================ 12. REVETMENT (BUDGET CLOSE-OUT)
-  // Granite armour on the reservoir's south bank, laid lane by lane from the
-  // promenade outward. Marina Bay is a dammed freshwater basin and its banks are
-  // riprapped in life, so this is a real edge rather than filler — and the
-  // shore-first ORDER is what makes a short run read as a narrower revetment
-  // instead of an unfinished one. The authored city above lands deliberately
-  // short of TARGET_BLOCKS and `need` is whatever the budget has left.
+  // ============================================================ 12. PROMENADE APRON (BUDGET CLOSE-OUT)
+  // Granite setts paving the south-bay promenade, laid lane by lane from the
+  // bank SOUTHWARD across the boardwalk deck. The authored city above lands
+  // deliberately short of TARGET_BLOCKS and `need` is whatever the budget has
+  // left, so this course is what makes the count exact.
   //
-  // The window is bounded on three sides by things that are already there: the
-  // promenade furniture stands at x -19..-16 and along z 19..22, and the
-  // Shoppes podium occupies x 18..26 from z -14. So the stones run x -14..18
-  // starting at z 18.5, one lane south of the prop lane. A stone sharing a fine
-  // cell with a lamp post does not collide, it GHOSTS it — the later block wins
-  // the grid cell and the prop silently stops being solid.
+  // IT USED TO RUN THE OTHER WAY, AND THAT WAS THE BUG. The lanes walked NORTH
+  // from the shore, which put all 1,241 stones INSIDE the Marina Bay water rect
+  // — 5.6% of the city standing on the water. Nothing caught it and nothing
+  // could: `probeWaterOverSurfaces` compares DECOR rects against the water
+  // rects, and a physical block standing in water is not a decor rect. It was
+  // green the whole time and rendered as a flat grey mat floating on the bay.
+  //
+  // The old comment called it riprap, and that intent was reasonable — Marina
+  // Bay is a dammed freshwater basin and its banks are armoured in life. The
+  // geometry never delivered it: riprap hugs an irregular bank and slopes,
+  // while a constant-height rectangle at a fixed offset from the shore reads as
+  // unfinished paving. It IS paving. So it is laid where paving belongs, on the
+  // promenade, and the name now matches the thing.
+  //
+  // THREE SKIPS, EVERY ONE LOAD-BEARING — the apron crosses ground that is
+  // already in use, which the old course never did:
+  //   1. OCCUPANCY. The promenade carries lamp posts, stalls and railings. A
+  //      stone sharing a fine cell with a prop does not collide, it GHOSTS it —
+  //      the later block wins the grid cell and the prop silently stops being
+  //      solid. `sim.grid` is live mid-build, so this asks the engine rather
+  //      than modelling it; `probeCellOwnership` is the backstop, not the guard.
+  //   2. THE SPAWN. A stone under the hole is eaten on frame one, which reports
+  //      through BOTH arms of `probeIdleStability` — its non-static arm counts
+  //      `consumed`, so four stones straddling the spawn read as a collapse that
+  //      never happened. Read off `sim.hole` (0, 16 here, set before the builder
+  //      runs) rather than hard-coded, so the apron follows the spawn if it moves.
+  //   3. WATER. Cheap, and it is the defect this very course just had.
+  //
+  // The footprint is EXACTLY the boardwalk rect (x -18..18, z 14..24), so the
+  // apron paves the deck it stands on and never spills onto the gardens.
+  // Capacity is 1,340 cells against 1,241 needed. The shortfall therefore lands
+  // in the LAST lane, farthest from the bank — the shore-first order is what
+  // makes a short run read as a narrower apron instead of an unfinished one.
   const need = TARGET_BLOCKS - sim.blocks.length;
   if (need > 0) {
+    const wetCell = (x, z) => water.some((w) =>
+      x + 0.5 > w.x && x < w.x + w.w && z + 0.5 > w.z && z < w.z + w.d);
+    // 1.4 m outside the rim, which is comfortably past the widest a SIZE-1 hole
+    // reaches before the player has moved at all.
+    const keepOut = sim.hole.radius + 1.4;
+    const clearOfSpawn = (x, z) =>
+      Math.hypot(x + 0.25 - sim.hole.x, z + 0.25 - sim.hole.z) >= keepOut;
+    // Min-corner in metres -> fine cells [g, g+2) on each axis, matching
+    // `_block`'s own rounding. All four base cells AND the course above them,
+    // because a prop's post occupies y as well.
+    const cellFree = (x, z) => {
+      const gx = Math.round(x * 4), gz = Math.round(z * 4);
+      for (let ix = 0; ix < 2; ix++) {
+        for (let iy = 0; iy < 2; iy++) {
+          for (let iz = 0; iz < 2; iz++) if (sim.grid.has(`${gx + ix},${iy},${gz + iz}`)) return false;
+        }
+      }
+      return true;
+    };
     let placed = 0;
-    for (let lane = 0; lane < 24 && placed < need; lane++) {
-      const z = 18.5 - lane * 0.5;
-      for (let x = -14; x < 18 && placed < need; x += 0.5) {
+    for (let lane = 0; lane < 20 && placed < need; lane++) {
+      const z = 14 + lane * 0.5;
+      for (let x = -18; x < 18 && placed < need; x += 0.5) {
+        if (wetCell(x, z) || !clearOfSpawn(x, z) || !cellFree(x, z)) continue;
         // Three greys on a fixed positional pattern: one colour reads as a
         // painted strip, and keying it to position keeps it build-identical.
         // The lane term must not be a multiple of the modulus — at `lane * 3`
         // every lane gets an IDENTICAL stripe and the apron renders as
-        // corduroy running out into the water. `lane * 2` staggers it.
+        // corduroy running the length of the promenade. `lane * 2` staggers it.
         const t = (Math.round(x * 2) + lane * 2) % 3;
         B(x, 0, z, 'concrete', 0.5, t === 0 ? 0x6f6a60 : t === 1 ? 0x5c574f : 0x7d776c);
         placed++;
