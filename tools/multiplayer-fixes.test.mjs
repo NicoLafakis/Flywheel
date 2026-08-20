@@ -451,8 +451,11 @@ console.log('\n--- tripwire: no MULTIPLAYER_SCENES entry declares sceneMovers --
   // (`SCENE_IMPORTERS` in js/voxelsim.js) rather than a hand-written copy. A
   // renamed scene file has to be renamed there too or the game cannot load the
   // city at all, so this mapping cannot drift out from under the guard and leave
-  // it silently scanning a file that no longer exists. A scene with NO entry is
-  // authored inline in `_buildScene`, so its source is voxelsim.js itself.
+  // it silently scanning a file that no longer exists. The GALLERY has no entry
+  // because it is authored inline in `_buildScene`, so its source is
+  // voxelsim.js itself — but that is true of the gallery specifically, NOT of
+  // "anything without an entry", and conflating the two is the defect recorded
+  // in .wiki/features/act-i-pacific-completion/ under sceneReady(). See below.
   const importerTable = voxelsimSrc.match(/const SCENE_IMPORTERS\s*=\s*\{([\s\S]*?)\n\};/);
   assert.ok(importerTable,
     'js/voxelsim.js must still declare SCENE_IMPORTERS — the tripwire reads its scene->module map');
@@ -460,9 +463,33 @@ console.log('\n--- tripwire: no MULTIPLAYER_SCENES entry declares sceneMovers --
   for (const m of importerTable[1].matchAll(/['"]([\w-]+)['"]\s*:\s*\(\)\s*=>\s*import\(\s*['"]\.\/([\w.-]+)['"]/g)) {
     sceneModule.set(m[1], `../js/${m[2]}`);
   }
-  assert.ok(sceneModule.size >= 6,
-    `SCENE_IMPORTERS parsed to only ${sceneModule.size} entr(ies) — the parser has drifted from the loader`);
-  const sourceFor = (scene) => sceneModule.get(scene) || '../js/voxelsim.js';
+  // EXACT, not a floor. This was `>= 6` against a table that had grown to 10,
+  // which is four deleted registrations of slack — a gate that would sit green
+  // through most of the roster vanishing. Bump it deliberately when a city
+  // ships, exactly as the 11/18 playable/development split is bumped.
+  //
+  // 10, not 11: this counts IMPORTERS, and the gallery has none because it is
+  // authored inline in `_buildScene`. So it is (playable cities - gallery), and
+  // deriving it from the playable count without that subtraction is wrong — I
+  // did exactly that and this assertion caught it on the first run.
+  const EXPECTED_IMPORTERS = 10;
+  assert.equal(sceneModule.size, EXPECTED_IMPORTERS,
+    `SCENE_IMPORTERS parsed to ${sceneModule.size} entr(ies), expected ${EXPECTED_IMPORTERS} — either the parser has drifted from the loader, or a scene was registered/unregistered and this count was not bumped with it`);
+
+  // IDENTITY, not absence. `sceneModule.get(scene) || '../js/voxelsim.js'` gave
+  // the gallery's answer to every unregistered or misspelled id, so such a scene
+  // was silently SCANNED AS voxelsim.js and handed back a clean pass — the guard
+  // inspecting the wrong file and reporting success. Same wrong inference as the
+  // old `sceneReady`, reached independently in different words, which is why a
+  // search for that symbol could never have found it.
+  const GALLERY_SCENE = 'gallery';
+  const sourceFor = (scene) => {
+    if (scene === GALLERY_SCENE) return '../js/voxelsim.js';
+    const mod = sceneModule.get(scene);
+    assert.ok(mod,
+      `scene '${scene}' has no SCENE_IMPORTERS entry in js/voxelsim.js and is not the gallery — it cannot be scanned, and defaulting it to voxelsim.js would pass this guard while inspecting the wrong file`);
+    return mod;
+  };
 
   // "Declares movers" = assigns `.sceneMovers` to something other than null, on a
   // line that is not prose (no `/` or `*` may precede the assignment, which rules
