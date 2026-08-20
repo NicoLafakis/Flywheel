@@ -80,12 +80,18 @@ export function runMobileUiSelftest() {
     assert(cssSrc.includes('.city-challenge-badge'), 'Must style .city-challenge-badge');
   });
 
-  // 3e. Desktop-only breathing room; mobile rules untouched.
+  // 3e. Desktop-only breathing room; mobile rules untouched. The query also
+  // carries a `min-height` clause now — a 1024x320 window is wide and
+  // pointer-fine, so without it this block out-ran the short-viewport
+  // compression purely by sitting later in the file. These patterns tolerate the
+  // extra clause instead of pinning the query text, which is what made this test
+  // the thing that broke when the clause landed.
+  const DESKTOP_Q = String.raw`@media \(min-width: 1024px\)(?: and \([a-z-]+: [^)]+\))* and \(hover: hover\)`;
   test('Desktop City Select breathing room lives in a >=1024px, non-touch media query', () => {
-    assert(/@media \(min-width: 1024px\) and \(hover: hover\)[\s\S]{0,1200}\.city-act-filter-rail/.test(cssSrc), 'desktop-only query must restyle the act rail');
-    assert(/@media \(min-width: 1024px\) and \(hover: hover\)[\s\S]{0,1200}\.city-action-row/.test(cssSrc), 'desktop-only query must pad the CTA area');
+    assert(new RegExp(DESKTOP_Q + String.raw`[\s\S]{0,1200}\.city-act-filter-rail`).test(cssSrc), 'desktop-only query must restyle the act rail');
+    assert(new RegExp(DESKTOP_Q + String.raw`[\s\S]{0,1200}\.city-action-row`).test(cssSrc), 'desktop-only query must pad the CTA area');
     // Act tab pills: ~20% taller on desktop (40px mobile -> 48px), rail padding ~20% more.
-    const desk = cssSrc.match(/@media \(min-width: 1024px\) and \(hover: hover\)[\s\S]{0,1500}?\n\}/);
+    const desk = cssSrc.match(new RegExp(DESKTOP_Q + String.raw`[\s\S]{0,1500}?\n\}`));
     assert(desk && /\.act-tab-btn \{[^}]*min-height:\s*48px[^}]*padding:\s*10px/.test(desk[0]), 'desktop .act-tab-btn must be min-height 48px with 10px vertical padding');
     assert(desk && /\.city-act-filter-rail \{[^}]*padding:\s*12px 4px 14px/.test(desk[0]), 'desktop act rail padding must be 12px top / 14px bottom');
   });
@@ -219,6 +225,83 @@ export function runMobileUiSelftest() {
     assert(at > -1, 'css/help.css must keep its <=540px block');
     assert(!/\.fw-help-tab \{[^}]*min-width:\s*\d/.test(helpCssSrc.slice(at)),
       'the <=540px override must not set a fixed min-width on .fw-help-tab');
+  });
+
+  // 5f. City Select: PLAY docked, body scrolls, and the chain that lets it.
+  // The card was taller than the viewport, so `.city-launch-btn` fell below the
+  // fold at 347 of 692 swept viewports. The fix is a docked action row over an
+  // internal scroller — but that only works if the height bound is UNBROKEN all
+  // the way down. An earlier attempt put `min-height: 0` on `.city-card-host`
+  // alone and made the failure rate WORSE, because `.city-carousel-wrapper` sits
+  // between the host and the screen and was still content-sized. The wrapper is
+  // also a ROW flex with `align-items: center`, which content-sizes its children
+  // and overflows them symmetrically, so the host needs `align-self: stretch`
+  // and `max-height: 100%` as well as the `min-height: 0`. Each of the four
+  // links below is load-bearing; drop any one and the card grows past the card
+  // host again. Browser contract: tools/pw/city-select-fold.mjs.
+  test('City Select docks PLAY and scrolls the card body', () => {
+    assert(/<div class="city-card-scroll">/.test(screensSrc),
+      'the card body must be wrapped in .city-card-scroll so the action row can dock outside it');
+    // These rule matches run to the next brace at the start of a line, not to
+    // the next brace at all: the rules carry comments that quote CSS, and a
+    // closing brace inside a comment truncated the match so a declaration that
+    // was present read as absent.
+    const scroll = cssSrc.match(/\.city-card-scroll \{[\s\S]*?\n\}/);
+    assert(scroll, 'css/main.css must style .city-card-scroll');
+    assert(/overflow-y:\s*auto/.test(scroll[0]), '.city-card-scroll must scroll');
+    assert(/min-height:\s*0/.test(scroll[0]),
+      '.city-card-scroll must set min-height: 0 or its automatic min-size keeps it at content height');
+    assert(/\.city-action-row \{ flex-shrink: 0; \}/.test(cssSrc),
+      '.city-action-row must not shrink — it is the docked element');
+    // The unbroken chain, one assertion per link.
+    const wrapper = cssSrc.match(/\.city-carousel-wrapper \{[\s\S]*?\n\}/);
+    assert(wrapper && /min-height:\s*0/.test(wrapper[0]),
+      '.city-carousel-wrapper must set min-height: 0 (the link that was missing when the first fix made it worse)');
+    const host = cssSrc.match(/\.city-card-host \{[\s\S]*?\n\}/);
+    assert(host && /min-height:\s*0/.test(host[0]), '.city-card-host must set min-height: 0');
+    assert(host && /align-self:\s*stretch/.test(host[0]),
+      '.city-card-host must stretch — the wrapper centres its children, which content-sizes them');
+    assert(host && /max-height:\s*100%/.test(host[0]), '.city-card-host must cap at its track');
+    // The card itself closes the chain.
+    const card = cssSrc.match(/\n\.city-card \{[\s\S]*?\n\}/);
+    assert(card && /max-height:\s*100%/.test(card[0]), '.city-card must cap at 100% of the host');
+    // The docking is the whole fix: nothing may close the dossier drawer to make
+    // the card fit. A measure-and-collapse pass was tried and removed — with a
+    // bounded scroller, "content taller than the body" is the normal state of a
+    // scroller, so it fired on 390x844 and 1440x900 and shut a drawer the design
+    // opens there.
+    assert(!/fitCard/.test(screensSrc),
+      'the card must not collapse the dossier to fit; the action row docks instead');
+  });
+
+  // 5g. Phone landscape turns the card two-column. At 320px of height the card
+  // gets ~167px, and a stacked action row is a ~138px floor once every target is
+  // a legal 44px — the controls ate the card and the body they describe rendered
+  // at 0px. Landscape is short but wide, so the layout uses the axis with room.
+  test('City Select card is two-column in short landscape', () => {
+    const at = cssSrc.indexOf('@media (max-height: 500px) and (orientation: landscape)');
+    assert(at > -1, 'css/main.css must carry a short-landscape City Select block');
+    const block = cssSrc.slice(at, at + 1600);
+    assert(/\.city-card \{[^}]*display:\s*grid/.test(block),
+      'the card must become a grid in short landscape');
+    assert(/grid-template-columns:\s*1fr minmax\(/.test(block),
+      'the grid must be body-plus-controls, with a floor on the control column');
+    assert(/\.city-action-row \{[^}]*grid-column:\s*2/.test(block),
+      'the action row must occupy the second column');
+    assert(/\.city-action-row \.btn \{ margin: 0 !important; \}/.test(block),
+      '.btn carries a global 6px margin that double-pays the column gap and pushed the note out of the card');
+    // Source order is the mechanism, not an accident: the `max-height: 520px`
+    // landscape block sets a shorthand `gap` on .city-card, which would reset the
+    // column-gap the two-column layout needs. Guarding the ordering here means a
+    // later tidy-up cannot silently neutralise the whole block, which is exactly
+    // how the first version of the density fix computed as a no-op.
+    assert(at > cssSrc.indexOf('@media (max-height: 520px) and (orientation: landscape)'),
+      'the two-column block must come AFTER the 520px landscape block or its shorthand gap wins');
+    // The desktop breathing-room block is pointer/width-gated but was not
+    // height-gated, so a 1024x320 window took 12px gaps and 24/30/26 card padding
+    // purely by sitting later in the file.
+    assert(/@media \(min-width: 1024px\) and \(min-height: 640px\) and \(hover: hover\)/.test(cssSrc),
+      'the desktop City Select block must be height-gated so it cannot apply to a short wide window');
   });
 
   // 6. Mobile Shop Shell & Docked Navigation

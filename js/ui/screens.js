@@ -755,6 +755,7 @@ export class Screens {
           ${challengeDone ? `<div class="city-challenge-badge${cleared ? ' city-challenge-badge--on-stamp' : ''}" aria-label="3-minute challenge completed"><span class="badge-bolt" aria-hidden="true">⚡</span><span class="badge-text">3-MIN ★</span></div>` : ''}
         </div>` : ''}
 
+        <div class="city-card-scroll">
         <div class="city-hero-block${fadeCls}">
           <div class="city-icon-float" aria-hidden="true">${city.icon}</div>
           <h2 class="city-card-title">${city.name}</h2>
@@ -821,6 +822,7 @@ export class Screens {
             <span class="rec-k">BEST TIME</span>
             <span class="rec-v">${bestTimeStr}</span>
           </div>
+        </div>
         </div>
 
         ${(isDev || !unlocked) ? '' : `<div class="city-action-row" style="display:flex; flex-direction:column; gap:8px;">`}
@@ -889,6 +891,14 @@ export class Screens {
       }
 
       cardHost.appendChild(card);
+      // An earlier version of this fix also measured the laid-out card and
+      // collapsed the dossier drawer whenever the body overflowed. That was
+      // written while the card itself was the thing overflowing the screen. Now
+      // that the body is a bounded scroller, "content taller than the body" is
+      // the normal state of a scroller, not a fault — so the measurement fired on
+      // 390x844 and 1440x900 and shut a drawer the design opens there. The docked
+      // action row keeps PLAY on screen without it, so the drawer's open/closed
+      // state stays exactly what showCitySelect decided.
       positionNavArrows();
       requestAnimationFrame(positionNavArrows);
     };

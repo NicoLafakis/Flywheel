@@ -4554,6 +4554,11 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   gap: clamp(8px, 2.5vw, 24px);
   position: relative;
   flex: 1;
+  /* The bound has to be unbroken from the screen all the way down to the card:
+     this wrapper sits between .fw-city-select and .city-card-host, and its own
+     automatic min-size was the link that refused to shrink. Setting min-height
+     on the host alone changed nothing because the break was one level above it. */
+  min-height: 0;
   touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
@@ -4596,6 +4601,21 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
 /* Card Host & Card */
 .city-card-host {
   flex: 1;
+  /* A flex item's automatic min-size is its CONTENT, so this host refused to
+     shrink below the card and pushed the whole screen into a scroll — which is
+     how the PLAY button ended up below the fold on 419 of 692 sampled
+     viewports. Same collapse-vs-min-size mechanism as the act rail, opposite
+     direction: there the container needed to STOP shrinking, here it needs to
+     be ALLOWED to. */
+  min-height: 0;
+  /* The wrapper is a ROW flex container with `align-items: center`, so this
+     host was taking its height from its own content and then overflowing the
+     wrapper equally in both directions — centred, and half of it off screen.
+     Stretching binds it to the wrapper's (now bounded) height, which is what
+     finally gives `.city-card { max-height: 100% }` something real to resolve
+     against. */
+  align-self: stretch;
+  max-height: 100%;
   max-width: 580px;
   display: flex;
   justify-content: center;
@@ -4621,7 +4641,28 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
      defeat the sticky lock bar below; `clip` keeps the rounded-corner crop only. */
   overflow: hidden;
   overflow: clip;
+  /* Never taller than the space the host actually has. Combined with the
+     internal scroller below, this makes "PLAY is on screen" a property of the
+     geometry rather than an arithmetic budget that every future content change
+     has to be re-checked against. */
+  max-height: 100%;
 }
+/* The card body scrolls; the action row does not. The CTA is the last row of a
+   bounded column, so it is on screen by construction at every viewport,
+   including 844x390 landscape where the content can never fit. */
+.city-card-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 2vh, 16px);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.city-card-scroll::-webkit-scrollbar { display: none; }
+.city-action-row { flex-shrink: 0; }
 .city-card--unlocked {
   border-color: var(--city-accent, rgba(255, 210, 63, 0.6));
 }
@@ -5224,6 +5265,31 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   cursor: not-allowed !important;
   transform: none !important;
 }
+/* Short viewports, phone landscape above all. Docking the action row put PLAY
+   on screen everywhere, but a 152px action stack inside a 167px card left the
+   BODY at 0px on a 320px-tall screen — the CTA was on the fold and the city it
+   launches was not on the card. So the row itself gives, without dropping any of
+   the three things it carries. Nothing is hidden; it is denser.
+   This block MUST stay after the .city-launch-btn rule above: that rule is
+   itself `!important`, so an equally-specific `!important` override only wins by
+   coming later. Placed earlier in the file it computed as a no-op, which looked
+   exactly like the media query not matching. The note also carries an inline
+   font-size from the template, which nothing but `!important` can beat. */
+@media (max-height: 640px) {
+  .city-action-row { gap: 6px !important; }
+  .city-launch-btn {
+    padding: 9px 18px !important;
+    min-height: 44px;
+    font-size: clamp(14px, 3vw, 18px) !important;
+    letter-spacing: 1.2px !important;
+  }
+  .city-challenge-btn, .city-secret90s-btn {
+    padding: 8px 10px !important;
+    min-height: 44px;
+    font-size: 11px !important;
+  }
+  .city-action-row .fw-stat-note { font-size: 9.5px !important; line-height: 1.25; }
+}
 .city-ranked-btn {
   padding: 6px 18px !important;
   font-size: 12px !important;
@@ -5353,7 +5419,11 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
 
 /* Desktop breathing room (non-touch, wide): header/rail/CTA area read crunched
    at 1280-1440 once the dots rail left. Mobile rules above are untouched. */
-@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+/* `min-height` is load-bearing, not decoration: a 1024x320 desktop window is
+   wide and pointer-fine, so without it this block out-ran the short-viewport
+   compression below purely by coming later in the file — 12px gaps and 24/30/26
+   card padding on a 320px-tall screen, which collapsed the card body to 0px. */
+@media (min-width: 1024px) and (min-height: 640px) and (hover: hover) and (pointer: fine) {
   .fw-city-select { gap: 18px; padding-top: calc(26px + var(--sai-top, 0px)); }
   .city-select-header { padding: 6px 0 12px; }
   .city-act-filter-rail { padding: 12px 4px 14px; gap: 8px; }
@@ -5370,6 +5440,68 @@ body.fw-scene #game-canvas { animation: fw-scene-fade 1s ease-out both; }
   .city-card-sub { display: none; }
   .city-dots-rail { padding: 2px 0; }
   .city-act-filter-rail { padding: 4px 4px; }
+}
+
+/* Phone landscape: the card turns two-column.
+   A 320px-tall screen leaves the card 167px, and a stacked action row is a
+   ~138px floor once every tap target is a legal 44px — so stacked, the controls
+   ate the card and the body they describe rendered at 0px. Squeezing the stack
+   sideways only moved the problem: the challenge pair then set the row height
+   and PLAY shrank below the control beside it, which is backwards for the
+   primary CTA.
+   In landscape the screen is short but wide, so the axis with room is the one
+   the column layout was not using. The card becomes a grid: title spanning the
+   top, the scrollable city body left, the full vertical action stack right. Tap
+   targets keep 44px, nothing is hidden, and the body gets the whole card height
+   instead of what the controls leave over. */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* This block sits after the `max-height: 520px` landscape block on purpose:
+     that block sets `.city-card { padding: 8px 12px; gap: 6px }`, and a shorthand
+     `gap` there would otherwise reset the `column-gap` the two-column layout
+     needs. Source order is the whole mechanism, so this must never be moved
+     above it. */
+  .city-card {
+    display: grid;
+    grid-template-columns: 1fr minmax(190px, 36%);
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: 12px;
+    row-gap: 4px;
+    padding: 6px 12px;
+    align-items: stretch;
+  }
+  .city-card-header { grid-column: 1 / -1; grid-row: 1; }
+  .city-card-scroll { grid-column: 1; grid-row: 2; min-height: 0; }
+  .city-action-row {
+    grid-column: 2;
+    grid-row: 2;
+    justify-content: space-evenly;
+    gap: 4px !important;
+    align-self: stretch;
+    min-height: 0;
+  }
+  /* `.btn` carries a global 6px margin, so each control in this column cost 12px
+     of vertical space that the column's own `gap` then paid for a second time —
+     24px of double-spacing in a 121px track, which is what pushed the note off
+     the bottom. The gap is the spacing here; the margins are not. */
+  .city-action-row .btn { margin: 0 !important; }
+  .city-action-row .fw-stat-note { line-height: 1.15 !important; }
+  /* The challenge label wraps to four lines in a 190px slot, which pushed the
+     whole control column past the card and let `overflow: clip` eat the bottom
+     of the progress note. Tighter leading holds the pair at the 44px tap floor
+     so the column fits its track instead of being cropped to fit. */
+  .city-challenge-btn, .city-secret90s-btn {
+    padding: 4px 6px !important;
+    line-height: 1.1 !important;
+    font-size: 9.5px !important;
+    min-height: 44px;
+  }
+  /* Below 640px the nav arrows turn absolute and sit 8px outside the wrapper,
+     which overlaps the card edge by ~28px. That was free space in the stacked
+     layout; in the two-column one the right edge is the CTA column, so the arrow
+     landed on top of a tap target. The card gives the arrows their gutter back. */
+  @media (max-width: 640px) {
+    .city-card { padding-left: 26px; padding-right: 26px; }
+  }
 }
 
 /* -------------------------------------------------------------------------
