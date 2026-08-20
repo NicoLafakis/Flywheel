@@ -2,37 +2,11 @@
 // Organized into 7 Regional Acts + Prologue across 29 world metropolises.
 // Single source of truth for narrative lore, hero landmarks, progression gating, and coin economies.
 //
-// KNOWN OPEN ISSUE — tools/validate-campaign.mjs is RED against this file.
-// That suite sorts the roster ascending by `blocks` and asserts coinCount,
-// coinValue and goalBonus are each non-decreasing along it, i.e. it treats map
-// size as a proxy for campaign progression. Correcting the two wrong declared
-// counts on 2026-08-19 (gallery 13652 -> 15767, cambridge 88500 -> 72943)
-// falsifies that proxy in five places:
-//
-//   sydney(70 coins)    -> gallery(60)     gallery is the PROLOGUE tutorial and
-//                                          is meant to be the poorest reward on
-//                                          the board; its size grew because
-//                                          ADR-0022 added a camera testbed, not
-//                                          because it became a bigger LEVEL.
-//   cambridge(200/5/500) -> upper-manhattan(120/3/150)
-//                                          cambridge is the ACT VII finale with a
-//                                          deliberately huge endgame economy, but
-//                                          at its true 72,943 it is only the 3rd
-//                                          largest map, behind tokyo (ACT II).
-//
-// The suite was green before the correction ONLY because the two wrong numbers
-// happened to place gallery smallest and cambridge largest. The fiction was
-// load-bearing for the gate. Verified by re-running the suite against a clean
-// `git archive HEAD` tree: ALL PASS there, 5 breaks here.
-//
-// Deliberately NOT resolved here, because every available fix is someone else's
-// call: changing any coinCount/coinValue/goalBonus is a game-balance decision,
-// and changing the suite's sort key is shaping a gate to pass. Sorting by act
-// then catalog order is strictly worse (14 breaks), which confirms the block
-// sort really is that suite's intended premise rather than an accident.
-// Escalated to the campaign owner. Do not "fix" this by editing the two block
-// counts back — they are the accurate ones and are gated by validate.mjs's
-// declaredBlockCounts section.
+// ECONOMY LADDER INVARIANT: the PROLOGUE is the floor and the ACT VII finale is
+// the ceiling for coinCount/coinValue/goalBonus; the other 27 cities scale with
+// `blocks`. Rewards follow ROLE, not map size — a testbed can grow the tutorial
+// without making it richer. Enforced by tools/validate-campaign.mjs; the full
+// derivation is in .wiki/features/act-i-pacific-completion/.
 
 export const CITY_CATALOG = [
   // --- PROLOGUE: CALIBRATION ---

@@ -124,13 +124,26 @@ export function runCampaignSelftest() {
 
   const floorCity = prologue[0];
   const ceilCity = finale[0];
+
+  // Violations are COLLECTED and asserted once at the end rather than thrown on
+  // the first, because assert.ok crashes the run and the first failure is often
+  // the least informative one. Moving an ANCHOR is the case that proves it: push
+  // gallery's coinCount above the roster and a crash-on-first run blames
+  // `sydney` — the first city it happens to compare — while the actual cause is
+  // gallery. Collected, the same break reports every city at once, and 27 rows
+  // all naming the same anchor points at the anchor unmistakably. This is also
+  // how the original five-break regression reported as one and cost a round
+  // trip.
+  const violations = [];
   for (const city of CITY_CATALOG) {
     for (const f of ECONOMY_FIELDS) {
       if (city.scene !== floorCity.scene) {
-        assert.ok(city[f] >= floorCity[f], `economy floor: ${f} at ${city.scene} (${city[f]}) is below the PROLOGUE ${floorCity.scene} (${floorCity[f]}) — the tutorial must stay the poorest reward on the board`); count();
+        if (!(city[f] >= floorCity[f])) violations.push(`economy floor: ${f} at ${city.scene} (${city[f]}) is below the PROLOGUE ${floorCity.scene} (${floorCity[f]}) — the tutorial must stay the poorest reward on the board`);
+        count();
       }
       if (city.scene !== ceilCity.scene) {
-        assert.ok(city[f] <= ceilCity[f], `economy ceiling: ${f} at ${city.scene} (${city[f]}) is above the finale ${ceilCity.scene} (${ceilCity[f]}) — the ACT VII finale must stay the richest`); count();
+        if (!(city[f] <= ceilCity[f])) violations.push(`economy ceiling: ${f} at ${city.scene} (${city[f]}) is above the finale ${ceilCity.scene} (${ceilCity[f]}) — the ACT VII finale must stay the richest`);
+        count();
       }
     }
   }
@@ -143,9 +156,15 @@ export function runCampaignSelftest() {
     const prev = body[i - 1];
     const cur = body[i];
     for (const f of ECONOMY_FIELDS) {
-      assert.ok(cur[f] >= prev[f], `${f} non-monotonic at ${cur.scene} (${cur[f]} < ${prev[f]} at ${prev.scene})`); count();
+      if (!(cur[f] >= prev[f])) violations.push(`${f} non-monotonic at ${cur.scene} (${cur[f]} < ${prev[f]} at ${prev.scene})`);
+      count();
     }
   }
+
+  assert.ok(
+    violations.length === 0,
+    `economy ladder: ${violations.length} violation(s)\n    ${violations.join('\n    ')}`,
+  );
 
   // 7. Challenge Count & Secret 90s Unlock
   const emptySave = __freshSave();
