@@ -10,7 +10,7 @@ import {
   VoxelSandboxSim, COMBO_THRESHOLDS, COMBO_STEP, COMBO_MAX_LEVEL, COMBO_LEVEL_NAMES,
   MILESTONES, MILESTONE_TIERS, RANKED_TICK_COUNT, SCENE_GOALS, comboLevel, comboMult,
   CHALLENGE_COIN_MULTIPLIER, RANKED_TUNE, RANKED_SIM_VERSION,
-  loadScene,
+  loadScene, sceneReady,
 } from '../js/voxelsim.js';
 import { POWERUP_TYPES, POWERUP_SPECS, activatePowerUp, createPowerUp } from '../js/powerups.js';
 import { PLAYER_MAX_RADIUS } from '../js/tiers.js';
@@ -46,10 +46,7 @@ import {
   SYDNEY_CROSSINGS, SYDNEY_OPEN_GROUND, SYDNEY_ROAD_SPANS, SYDNEY_STREETS,
   SYDNEY_VEHICLES,
 } from '../js/voxelscene-sydney.js';
-import {
-  AUCKLAND_CROSSINGS, AUCKLAND_OPEN_GROUND, AUCKLAND_ROAD_SPANS, AUCKLAND_STREETS,
-  AUCKLAND_VEHICLES,
-} from '../js/voxelscene-auckland.js';
+import { validateAuckland } from './validate-auckland.mjs';
 import {
   CURRENT_VERSION, __freshSave, __MIGRATIONS, recordLevelResult,
   isCityChallengeCompleted, getCompletedChallengeCount, isSecret90sChallengeUnlocked, recordChallengeResult,
@@ -3107,6 +3104,12 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     ['multiplayer', 'multiplayer'],
     ['sydney', 'sydney'],
     ['auckland', 'auckland'],
+    // Its own child: it builds every PLAYABLE city once, so its cost is the sum
+    // of ten scene builds and it must not serialise behind another group. It is
+    // in this list at all because of the note above — a section registered and
+    // never listed here is a gate that only a by-name FW_VALIDATE_SECTIONS run
+    // ever fires, which is how five of them sat dormant until 2026-08-19.
+    ['declaredBlockCounts', 'declaredBlockCounts'],
     ['scenesWinnable', 'scenesWinnable'],
     ['manhattan', 'manhattan'],
     ['upperManhattan', 'upperManhattan'],
@@ -3179,55 +3182,97 @@ function sceneFingerprint(sim) {
   return h >>> 0;
 }
 
-// AUCKLAND (Act I, chapter 2). The block-count assertion is the one that is not
-// shared with the other scenes and is deliberately EXACT: `citycatalog.js`
-// prints `blocks` on the city-select card and the mission dossier, so it is a
-// promise the map screen makes to the player rather than an estimate. A scene
-// that drifts off its declared number makes every card in the catalog suspect,
-// so the number and the geometry are one fact with two writers and this is the
-// gate that keeps them equal. Bring the GEOMETRY to the number, never the
-// number to the geometry.
-function validateAuckland() {
-  console.log('Validating auckland sandbox...');
-  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'auckland' });
-  const entry = CITY_CATALOG.find((c) => c.scene === 'auckland');
-  if (!entry) {
-    fail('auckland: no CITY_CATALOG entry — the scene exists with nothing declaring it');
-  } else if (sim.blocks.length !== entry.blocks) {
-    fail(`auckland: built ${sim.blocks.length} blocks, catalog declares ${entry.blocks} (delta ${sim.blocks.length - entry.blocks}) — the card's block count is a promise, not an estimate`);
+// AUCKLAND (Act I, chapter 2) lives in `tools/validate-auckland.mjs` and is
+// injected with the probes below, so there is exactly one copy of every probe
+// in the repo. See that file's header for why it does not follow
+// `tools/validate-sydney.mjs`'s standalone-script shape.
+const AUCKLAND_CTX = {
+  VoxelSandboxSim, CITY_CATALOG, fail, footprintTops, sceneFingerprint,
+  probes: {
+    probeCellOwnership, probeCameraBlockers, probeBoundsRect, probeGradeDiagonal,
+    probeRoadConflicts, probeWaterOverSurfaces, probeAmbient, probePlacementStep,
+    probeIdleStability,
+  },
+};
+
+// Every PLAYABLE city's built block count against the number its catalog entry
+// declares — the cross-city half of Auckland's own exact-count gate.
+//
+// Sydney is the case that argues for it: it was corrected from a built 14,309
+// to a declared 14,120 and was, until this ran, protected by nothing. The
+// per-scene sections do not each carry this assertion, so a scene could drift
+// by hundreds of blocks and stay green while the city-select card kept
+// printing a number no build had produced since.
+//
+// PLAYABLE only, deliberately. A DEVELOPMENT city declares a target count with
+// no scene file behind it — `blocks: 22000` for a Singapore that does not
+// exist yet is a plan, not a claim about geometry, and gating it would make
+// "write the catalog row first" unschedulable. Metadata lands WITH its
+// geometry; a row whose scene is still being authored is not yet under
+// contract.
+//
+// Nothing is skipped, and that is deliberate. `loadScene` returns null for a
+// scene with no importer, but `gallery` is exactly that — it is built
+// procedurally rather than imported — so a "skip when there is no importer"
+// guard would silently exempt a real, shipping, PLAYABLE city. Every PLAYABLE
+// row is BUILT and compared.
+//
+// Synchronous on purpose: `section()` calls its function without awaiting, so
+// an async body would return a promise and let the run reach its ALL PASS check
+// before a single count had been compared — a gate that passes by racing. The
+// scenes are already awaited by the preload near the top of this file, and
+// `sceneReady` names a missing preload entry instead of leaving the sim
+// constructor to throw a less specific error.
+// Two cities were ALREADY drifted when this gate first ran (2026-08-19), and
+// neither is a number a passing agent should quietly rewrite:
+//
+//   gallery   built 15767, declared 13652 (+2115)
+//   cambridge built 72943, declared 88500 (-15557)
+//
+// Cambridge's is not a typo — it is 15.5k blocks of content the map does not
+// have yet, so "fix" means finishing Cambridge, not editing the promise down to
+// match the accident. The Lab's needs an owner's call about which number is the
+// intended one.
+//
+// They are PINNED, not exempted. The expected BUILT count is written here
+// exactly, so neither city can drift by one further block without failing, and
+// closing a gap means deleting its line rather than being silently forgiven.
+// A blanket allowlist would have turned this gate off for the two cities that
+// most need it.
+const DECLARED_COUNT_BASELINE = {
+  gallery: 15767,
+  cambridge: 72943,
+};
+
+function validateDeclaredBlockCounts() {
+  console.log('Validating declared-vs-built block counts (all PLAYABLE cities)...');
+  const playable = CITY_CATALOG.filter((c) => c.status === 'PLAYABLE');
+  if (playable.length === 0) fail('declared counts: no PLAYABLE cities in CITY_CATALOG — the gate would pass vacuously');
+  const rows = [];
+  const pinned = [];
+  for (const city of playable) {
+    if (!sceneReady(city.scene)) {
+      fail(`declared counts: '${city.scene}' is PLAYABLE but was never preloaded — add it to the loadScene list at the top of this file`);
+      continue;
+    }
+    const sim = new VoxelSandboxSim({ seed: 'validator', scene: city.scene });
+    const built = sim.blocks.length;
+    const baseline = DECLARED_COUNT_BASELINE[city.scene];
+    if (baseline !== undefined) {
+      if (built !== baseline) {
+        fail(`declared counts: ${city.scene} built ${built}, pinned baseline is ${baseline} (declared ${city.blocks}) — this city was already drifted and is pinned; changing it means closing the gap and deleting its DECLARED_COUNT_BASELINE line, not moving the pin`);
+      } else if (built === city.blocks) {
+        fail(`declared counts: ${city.scene} now matches its declared ${city.blocks} — delete its DECLARED_COUNT_BASELINE line so the real gate takes over`);
+      } else {
+        pinned.push(`${city.scene}=${built}(declares ${city.blocks})`);
+      }
+    } else if (built !== city.blocks) {
+      fail(`declared counts: ${city.scene} built ${built} blocks, catalog declares ${city.blocks} (delta ${built - city.blocks}) — the card's block count is a promise, not an estimate`);
+    }
+    rows.push(`${city.scene}=${built}`);
   }
-  if (entry && entry.status !== 'PLAYABLE') {
-    fail(`auckland: catalog status is '${entry.status}' — a scene with geometry, wiring and a green section is PLAYABLE`);
-  }
-  const tops = footprintTops(sim);
-  probeCellOwnership(sim, 'auckland');
-  probeCameraBlockers(sim, 'auckland', tops);
-  probeBoundsRect(sim, 'auckland');
-  probeGradeDiagonal(sim, 'auckland');
-  probeRoadConflicts(sim, 'auckland', AUCKLAND_VEHICLES, AUCKLAND_ROAD_SPANS);
-  probeWaterOverSurfaces(sim, 'auckland');
-  probeAmbient(sim, 'auckland', ['gulls', 'ferries']);
-  probePlacementStep(sim, 'auckland');
-  // The exported tables are the scene's own contract with the validator and the
-  // route driver: an index into AUCKLAND_STREETS that no longer exists reads as
-  // a crossing painted at (undefined, undefined).
-  for (const [si, at] of AUCKLAND_CROSSINGS) {
-    if (!AUCKLAND_STREETS[si]) fail(`auckland: crossing at ${at} names street index ${si}, which does not exist`);
-  }
-  if (AUCKLAND_OPEN_GROUND.length !== 0) {
-    fail(`auckland: AUCKLAND_OPEN_GROUND has ${AUCKLAND_OPEN_GROUND.length} entries — nothing reads it yet, so a non-empty table is a claim with no consumer`);
-  }
-  // Determinism (invariant 4), proved rather than asserted: a second build in
-  // the same process must be bit-identical. The seeded-rng rule makes this
-  // true; a stray Math.random or a Set/Map iteration leak makes it false.
-  const fp = sceneFingerprint(sim);
-  const again = new VoxelSandboxSim({ seed: 'validator', scene: 'auckland' });
-  if (again.blocks.length !== sim.blocks.length || sceneFingerprint(again) !== fp) {
-    fail(`auckland: two builds differ (${sim.blocks.length}/${fp.toString(16)} vs ${again.blocks.length}/${sceneFingerprint(again).toString(16)}) — the scene is not deterministic`);
-  }
-  // Last, because it steps the sim 3 s and leaves the caller a 3 s-old world.
-  probeIdleStability(sim, 'auckland');
-  console.log(`  auckland sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length} fingerprint=${fp.toString(16)}`);
+  console.log(`  declared counts: ${playable.length} PLAYABLE cities checked — ${rows.join(' ')}`);
+  if (pinned.length) console.log(`  declared counts: ${pinned.length} pre-existing drift(s) pinned, not exempt — ${pinned.join(' ')}`);
 }
 
 // Phase C (cloud progress sync, tasks 12-14): the player-facing surface of the
@@ -3282,7 +3327,8 @@ section('gameplayEnhancements', validateGameplayEnhancements);
 section('cityChallenges', validateCityChallenges);
 section('multiplayer', validateMultiplayer);
 section('sydney', validateSydney);
-section('auckland', validateAuckland);
+section('auckland', () => validateAuckland(AUCKLAND_CTX));
+section('declaredBlockCounts', validateDeclaredBlockCounts);
 section('manhattan', validateManhattan);
 section('upperManhattan', validateUpperManhattan);
 section('brooklyn', validateBrooklyn);

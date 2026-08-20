@@ -31,6 +31,12 @@ import { MusicDirector } from './music.js';
 export const SCENE_AMBIENCE = {
   gallery: null,
   sydney: 'amb-boston',
+  // Auckland reuses the seaport bed for the same reason Sydney does: it is a
+  // working harbour with ferries, gulls and open water on three sides, which is
+  // what `amb-boston` records. No new asset, and an entry rather than a fallback
+  // — a missing key here is silent, and silence is indistinguishable from a bed
+  // that failed to load.
+  auckland: 'amb-boston',
   brooklyn: 'amb-brooklyn',
   manhattan: 'amb-manhattan',
   'upper-manhattan': 'amb-manhattan',
