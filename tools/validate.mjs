@@ -47,6 +47,8 @@ import {
   SYDNEY_VEHICLES,
 } from '../js/voxelscene-sydney.js';
 import { validateAuckland } from './validate-auckland.mjs';
+import { SCENE_AMBIENCE } from '../js/audio/game-audio.js';
+import { MUSIC_CUES } from '../js/audio/music.js';
 import {
   CURRENT_VERSION, __freshSave, __MIGRATIONS, recordLevelResult,
   isCityChallengeCompleted, getCompletedChallengeCount, isSecret90sChallengeUnlocked, recordChallengeResult,
@@ -3111,6 +3113,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     // ever fires, which is how five of them sat dormant until 2026-08-19.
     ['declaredBlockCounts', 'declaredBlockCounts'],
     ['tokyo', 'tokyo'],
+    ['audioCoverage', 'audioCoverage'],
     ['scenesWinnable', 'scenesWinnable'],
     ['manhattan', 'manhattan'],
     ['upperManhattan', 'upperManhattan'],
@@ -3274,6 +3277,53 @@ function validateDeclaredBlockCounts() {
 // runs, because a section nobody lists is a section nobody runs — that is how
 // five of them sat dormant until today, and it is the same shape of hole as
 // Tokyo having no section in the first place.
+// AUDIO COVERAGE — every PLAYABLE city must name an ambience bed and a music
+// cue, explicitly.
+//
+// Tokyo shipped with no js/audio/game-audio.js SCENE_AMBIENCE key at all, and
+// nothing noticed, for the same structural reason its blockers went unchecked:
+// nothing was looking. A missing key here does not throw and does not warn — it
+// plays SILENCE, which is indistinguishable from a bed that failed to load, so
+// the failure mode is a city that sounds broken rather than one that errors.
+//
+// `null` is an accepted value and is the point of the gate rather than a hole in
+// it: the gallery is deliberately quiet, and writing that down is what separates
+// a considered silence from a forgotten key. Absence is the failure; an explicit
+// null is a decision.
+//
+// Cheap by construction — pure map lookups over the catalog, no scene is built,
+// so this costs milliseconds and can sit in the default run without argument.
+function validateAudioCoverage() {
+  console.log('Validating audio coverage (all PLAYABLE cities)...');
+  const playable = CITY_CATALOG.filter((c) => c.status === 'PLAYABLE');
+  if (playable.length === 0) fail('audio coverage: no PLAYABLE cities in CITY_CATALOG — the gate would pass vacuously');
+
+  // The bed name has to name a sound that actually loads. ALL_SOUNDS is not
+  // exported, so it is read out of the shipped source text rather than
+  // duplicated here — a second copy of the list is a second thing to drift.
+  const audioSrc = readFileSync(new URL('../js/audio/game-audio.js', import.meta.url), 'utf8');
+  const soundsBlock = audioSrc.match(/const ALL_SOUNDS = \[([\s\S]*?)\];/);
+  if (!soundsBlock) fail('audio coverage: could not read ALL_SOUNDS out of js/audio/game-audio.js — the extraction broke, so the bed-name check below is not running');
+  const knownSounds = soundsBlock ? new Set(soundsBlock[1].match(/'[^']+'/g).map((s) => s.slice(1, -1))) : new Set();
+
+  const rows = [];
+  for (const city of playable) {
+    if (!(city.scene in SCENE_AMBIENCE)) {
+      fail(`audio coverage: '${city.scene}' is PLAYABLE but has no SCENE_AMBIENCE key — a missing key is SILENT, which is indistinguishable from a bed that failed to load; add an explicit null if the quiet is deliberate`);
+    } else {
+      const bed = SCENE_AMBIENCE[city.scene];
+      if (bed !== null && !knownSounds.has(bed)) {
+        fail(`audio coverage: '${city.scene}' names ambience bed '${bed}', which is not in ALL_SOUNDS — it will never be loaded and the city plays silent`);
+      }
+    }
+    if (!(city.scene in MUSIC_CUES)) {
+      fail(`audio coverage: '${city.scene}' is PLAYABLE but has no MUSIC_CUES entry — the city plays no music and nothing reports it`);
+    }
+    rows.push(`${city.scene}=${SCENE_AMBIENCE[city.scene] === null ? 'quiet' : SCENE_AMBIENCE[city.scene]}`);
+  }
+  console.log(`  audio coverage: ${playable.length} PLAYABLE cities checked — ${rows.join(' ')}`);
+}
+
 function validateTokyo() {
   console.log('Validating tokyo camera blockers...');
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'tokyo' });
@@ -3340,6 +3390,7 @@ section('sydney', validateSydney);
 section('auckland', () => validateAuckland(AUCKLAND_CTX));
 section('declaredBlockCounts', validateDeclaredBlockCounts);
 section('tokyo', validateTokyo);
+section('audioCoverage', validateAudioCoverage);
 section('manhattan', validateManhattan);
 section('upperManhattan', validateUpperManhattan);
 section('brooklyn', validateBrooklyn);

@@ -38,6 +38,17 @@ export const SCENE_AMBIENCE = {
   // that failed to load.
   auckland: 'amb-boston',
   brooklyn: 'amb-brooklyn',
+  // Tokyo Shinjuku reuses the Manhattan bed: it is a dense high-rise canyon
+  // core, which is the texture `amb-manhattan` records, and js/audio/music.js
+  // already aliases tokyo to lower-manhattan.mp3 — so this follows a call the
+  // project has made rather than inventing a second, conflicting one. Chicago's
+  // bed was the other candidate for its elevated rail, but Shinjuku's rail sits
+  // at and below grade here, leaving canyon and crowd as the dominant texture.
+  // No new asset. Entry rather than fallback, for the same reason as Auckland:
+  // a missing key is silent, and silence is indistinguishable from a bed that
+  // failed to load — which is exactly how the apex city went unnoticed without
+  // one.
+  tokyo: 'amb-manhattan',
   manhattan: 'amb-manhattan',
   'upper-manhattan': 'amb-manhattan',
   boston: 'amb-boston',
