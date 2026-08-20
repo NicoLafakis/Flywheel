@@ -58,6 +58,14 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 - **Mid-play power-up spawn cutscene** — still fires on every ~30 s respawn, now
   smooth and cancellable. Suppressing it is a one-line change to the gate that
   already suppresses it at level start.
+- **Cambridge's card advertises 88,500 blocks; the map has 72,943** — the card
+  metric is player-facing (`js/ui/screens.js:792`), so it currently overstates
+  the map by 15,557 blocks. The declared number was deliberately *not* edited
+  down, because doing so would ratify the shortfall as correct; it is pinned
+  instead, so it cannot drift further and closing the gap forces the pin's
+  removal. The open question is whether the card should state the map that
+  exists today or the Cambridge 2 target — which depends on whether Cambridge 2
+  is happening. Ties to the entry below.
 - **Cambridge 2** — the map was specced to *look* as detailed as 73k voxels, not
   to contain them. Rebuild at perceived density; the existing map stays. Root
   cause of the validator's 37-minute runtime.
