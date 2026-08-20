@@ -22,6 +22,21 @@
     "  FW_VALIDATE_SECTIONS=<name> node tools/validate.mjs",
     "Never run a bare `node tools/validate.mjs` as a commit gate.",
     "",
+    "seoul, beijing, bangkok, mumbai are DELIBERATELY excluded from the routine",
+    "gate below for a different reason than the RUNTIME list above: each has a",
+    "known, accepted, currently-failing `probeRoadConflicts` remainder (hand-",
+    "authored landmark geometry sitting on a declared street, confirmed grounded",
+    "with no legitimate elevated-span exemption -- a scene-authoring design call,",
+    "not a mechanical bug). Baking a section that is known to FAIL into a PASS",
+    "gate would either block every future commit or force weakening the probe --",
+    "both wrong. See '.wiki/findings/REVIEW-2026-08-20-act-ii-scene-geometry-",
+    "road-water-conflicts.md', 'Resolution -- Filler-Loop Pass', for the exact",
+    "numbers (seoul 1744, beijing 812, bangkok 664, mumbai 160) and the fix.",
+    "Run them by hand until that finding is closed, same as the RUNTIME set:",
+    "  FW_VALIDATE_SECTIONS=seoul,beijing,bangkok,mumbai node tools/validate.mjs",
+    "hongkong is NOT in this exception -- its own geometry defect (G11) is",
+    "fully fixed, so it is safe to include below.",
+    "",
     "Every section name below must also appear in the orchestrator's `groups`",
     "array in tools/validate.mjs, or it is dormant there too."
   ],
@@ -44,6 +59,12 @@
       "name": "validate-act1-cities",
       "cmd": ["node", "tools/validate.mjs"],
       "env": { "FW_VALIDATE_SECTIONS": "sydney,auckland,singapore,declaredBlockCounts,audioCoverage" },
+      "doc_only": false
+    },
+    {
+      "name": "validate-act2-cities",
+      "cmd": ["node", "tools/validate.mjs"],
+      "env": { "FW_VALIDATE_SECTIONS": "hongkong,playableCitiesGated,orchestratorCoverage" },
       "doc_only": false
     },
     {

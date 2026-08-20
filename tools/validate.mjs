@@ -49,6 +49,21 @@ import {
 import {
   SINGAPORE_ROAD_SPANS, SINGAPORE_VEHICLES,
 } from '../js/voxelscene-singapore.js';
+import {
+  SEOUL_ROAD_SPANS, SEOUL_VEHICLES,
+} from '../js/voxelscene-seoul.js';
+import {
+  BEIJING_ROAD_SPANS, BEIJING_VEHICLES,
+} from '../js/voxelscene-beijing.js';
+import {
+  BANGKOK_ROAD_SPANS, BANGKOK_VEHICLES,
+} from '../js/voxelscene-bangkok.js';
+import {
+  MUMBAI_ROAD_SPANS, MUMBAI_VEHICLES,
+} from '../js/voxelscene-mumbai.js';
+import {
+  HONGKONG_ROAD_SPANS, HONGKONG_VEHICLES,
+} from '../js/voxelscene-hongkong.js';
 import { validateAuckland } from './validate-auckland.mjs';
 import { SCENE_AMBIENCE } from '../js/audio/game-audio.js';
 import { MUSIC_CUES } from '../js/audio/music.js';
@@ -88,8 +103,10 @@ import { fileURLToPath } from 'node:url';
 // section group and never constructs a sim itself, so paying scene loads in
 // the parent would be pure overhead. Every CHILD sets FW_VALIDATE_SECTIONS and
 // therefore lands here with the guard true.
+// 'hongkong' added 2026-08-20 once the concurrently-edited scene file and
+// standalone validator (ADR-0024's Follow-up note) landed at commit c02ea4a.
 if (process.env.FW_VALIDATE_SECTIONS || process.env.FW_VALIDATE_SEQ) {
-  await Promise.all(['sydney', 'auckland', 'singapore', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo'].map(loadScene));
+  await Promise.all(['sydney', 'auckland', 'singapore', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo', 'hongkong', 'seoul', 'beijing', 'bangkok', 'mumbai'].map(loadScene));
 }
 
 const DT = 1 / 60;
@@ -2234,6 +2251,23 @@ function validateScenesWinnable() {
     }
   }
   for (const scene of Object.keys(SCENE_GOALS)) {
+    // IDENTITY AND READINESS BEFORE CONSTRUCTION — same guard shape as
+    // `declaredBlockCounts` and `playableCitiesGated` below, for the same
+    // reason: an unguarded `new VoxelSandboxSim` throws uncaught the moment a
+    // SCENE_GOALS key names a scene that is registered but not yet preloaded
+    // (hongkong tripped exactly this in 2026-08-20's Act II wiring pass,
+    // before its preload entry landed). An uncaught throw here does not just
+    // fail this scene, it aborts the whole Node process mid section list,
+    // taking every section queued after it down with it. A named `fail()`
+    // reports the one real gap instead.
+    if (!isSceneRegistered(scene)) {
+      fail(`win guard [${scene}]: '${scene}' is in SCENE_GOALS but is not a registered scene — it has no SCENE_IMPORTERS entry, so constructing it would build the gallery under its label`);
+      continue;
+    }
+    if (!sceneReady(scene)) {
+      fail(`win guard [${scene}]: '${scene}' is in SCENE_GOALS but was never preloaded — add it to the loadScene list at the top of this file`);
+      continue;
+    }
     const sim = new VoxelSandboxSim({ seed: 'validator', scene });
     if (sim.goal.targetFraction !== 1) {
       fail(`win guard [${scene}]: sim built with targetFraction ${sim.goal.targetFraction} — this guard only means anything at 100%`);
@@ -3107,7 +3141,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     // the sixth instance. The `orchestratorCoverage` entry below is the guard
     // that now makes a seventh impossible: it asserts this array's names and the
     // section('name') registrations are the same set, in both directions.
-    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,globalCampaign,campaignUi,tutorialOnboarding,mobileCameraClarity,mobileUiResponsive,deviceDetection,mobileZoomControls,cameraSmoothing,quakeRupture,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges,orchestratorCoverage'],
+    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,globalCampaign,campaignUi,tutorialOnboarding,mobileCameraClarity,mobileUiResponsive,deviceDetection,mobileZoomControls,cameraSmoothing,quakeRupture,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges,orchestratorCoverage,playableCitiesGated'],
     // Its own child rather than folded into `core`: every suite in it is itself
     // a spawned process, so it is the one group whose cost is process startup
     // instead of CPU, and it finishes long before the scenes either way.
@@ -3115,6 +3149,14 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     ['sydney', 'sydney'],
     ['auckland', 'auckland'],
     ['singapore', 'singapore'],
+    // Act II megacities, each its own child for the same reason singapore is:
+    // a heavy scene build serialised into a shared child would make that
+    // child the wall-clock long pole.
+    ['hongkong', 'hongkong'],
+    ['seoul', 'seoul'],
+    ['beijing', 'beijing'],
+    ['bangkok', 'bangkok'],
+    ['mumbai', 'mumbai'],
     // Its own child: it builds every PLAYABLE city once, so its cost is the sum
     // of ten scene builds and it must not serialise behind another group. It is
     // in this list at all because of the note above — a section registered and
@@ -3209,6 +3251,91 @@ function validateSingapore() {
   });
   probeIdleStability(sim, 'singapore');
   console.log(`  singapore sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// HONG KONG (Act II, chapter 4). Shaped like `validateSingapore` above, minus
+// `probeLaneModulus` (see the seoul section's comment for why it does not
+// generalize).
+function validateHongKong() {
+  console.log('Validating hongkong sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'hongkong' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'hongkong');
+  probeCameraBlockers(sim, 'hongkong', tops);
+  probeBoundsRect(sim, 'hongkong');
+  probeRoadConflicts(sim, 'hongkong', HONGKONG_VEHICLES, HONGKONG_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'hongkong');
+  probePlacementStep(sim, 'hongkong');
+  probeIdleStability(sim, 'hongkong');
+  console.log(`  hongkong sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// SEOUL (Act II, chapter 5). Shaped like `validateSingapore` above, minus
+// `probeLaneModulus` — that probe checks a literal source-comment marker
+// unique to voxelscene-singapore.js and does not generalize to another scene.
+function validateSeoul() {
+  console.log('Validating seoul sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'seoul' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'seoul');
+  probeCameraBlockers(sim, 'seoul', tops);
+  probeBoundsRect(sim, 'seoul');
+  probeRoadConflicts(sim, 'seoul', SEOUL_VEHICLES, SEOUL_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'seoul');
+  probePlacementStep(sim, 'seoul');
+  probeIdleStability(sim, 'seoul');
+  console.log(`  seoul sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// BEIJING (Act II, chapter 7). Shaped like `validateSingapore` above, minus
+// `probeLaneModulus` (see the seoul section's comment for why it does not
+// generalize).
+function validateBeijing() {
+  console.log('Validating beijing sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'beijing' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'beijing');
+  probeCameraBlockers(sim, 'beijing', tops);
+  probeBoundsRect(sim, 'beijing');
+  probeRoadConflicts(sim, 'beijing', BEIJING_VEHICLES, BEIJING_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'beijing');
+  probePlacementStep(sim, 'beijing');
+  probeIdleStability(sim, 'beijing');
+  console.log(`  beijing sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// BANGKOK (Act II, chapter 8). Shaped like `validateSingapore` above, minus
+// `probeLaneModulus` (see the seoul section's comment for why it does not
+// generalize).
+function validateBangkok() {
+  console.log('Validating bangkok sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'bangkok' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'bangkok');
+  probeCameraBlockers(sim, 'bangkok', tops);
+  probeBoundsRect(sim, 'bangkok');
+  probeRoadConflicts(sim, 'bangkok', BANGKOK_VEHICLES, BANGKOK_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'bangkok');
+  probePlacementStep(sim, 'bangkok');
+  probeIdleStability(sim, 'bangkok');
+  console.log(`  bangkok sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// MUMBAI (Act II, chapter 9). Shaped like `validateSingapore` above, minus
+// `probeLaneModulus` (see the seoul section's comment for why it does not
+// generalize).
+function validateMumbai() {
+  console.log('Validating mumbai sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'mumbai' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'mumbai');
+  probeCameraBlockers(sim, 'mumbai', tops);
+  probeBoundsRect(sim, 'mumbai');
+  probeRoadConflicts(sim, 'mumbai', MUMBAI_VEHICLES, MUMBAI_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'mumbai');
+  probePlacementStep(sim, 'mumbai');
+  probeIdleStability(sim, 'mumbai');
+  console.log(`  mumbai sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
 }
 
 // Cheap structural fingerprint of a built scene: min corner, extents, material
@@ -3358,6 +3485,13 @@ function validateAudioCoverage() {
   if (!soundsBlock) fail('audio coverage: could not read ALL_SOUNDS out of js/audio/game-audio.js — the extraction broke, so the bed-name check below is not running');
   const knownSounds = soundsBlock ? new Set(soundsBlock[1].match(/'[^']+'/g).map((s) => s.slice(1, -1))) : new Set();
 
+  // A MUSIC_CUES entry naming a key is not the same claim as that key naming a
+  // file that actually shipped — F4 (2026-08-20 review): this section checked
+  // only the former and passed while four cities' cues pointed at a track that
+  // was never in assets/music/. MANIFEST.json is the shipped-MP3 list.
+  const manifest = JSON.parse(readFileSync(new URL('../assets/music/MANIFEST.json', import.meta.url), 'utf8'));
+  const shippedMusic = new Set(manifest.files.map((f) => f.path));
+
   const rows = [];
   for (const city of playable) {
     if (!(city.scene in SCENE_AMBIENCE)) {
@@ -3370,10 +3504,83 @@ function validateAudioCoverage() {
     }
     if (!(city.scene in MUSIC_CUES)) {
       fail(`audio coverage: '${city.scene}' is PLAYABLE but has no MUSIC_CUES entry — the city plays no music and nothing reports it`);
+    } else {
+      const cue = MUSIC_CUES[city.scene];
+      if (cue && !shippedMusic.has(cue)) {
+        fail(`audio coverage: '${city.scene}' names music cue '${cue}', which is not a shipped MP3 in assets/music/MANIFEST.json — it will 404 in the browser and play silence`);
+      }
     }
     rows.push(`${city.scene}=${SCENE_AMBIENCE[city.scene] === null ? 'quiet' : SCENE_AMBIENCE[city.scene]}`);
   }
   console.log(`  audio coverage: ${playable.length} PLAYABLE cities checked — ${rows.join(' ')}`);
+}
+
+// PLAYABLE CITIES GATED — ADR-0024. A catalog row flipped to PLAYABLE carries
+// four wiring points (importer, preload entry, gate section, resolvable music
+// cue); this asserts all four for every PLAYABLE row, generically, so the
+// next city needs no edit here. Composes with (does not replace)
+// `declaredBlockCounts` (registration + built-vs-declared count) and
+// `audioCoverage` (ambience bed + cue-key presence): this section is the one
+// that proves the gate SECTION exists and that the cue resolves to a shipped
+// file, which is `audioCoverage`'s own historical gap (F4).
+//
+// The section-registration check reads this file's own source text rather
+// than hardcoding a city list — matching every other identity-before-count
+// probe in this file (see `declaredBlockCounts` above): a hardcoded list is
+// exactly the kind of second copy that drifts out from under a real fix.
+function validatePlayableCitiesGated() {
+  console.log('Validating playable-cities gate wiring (importer, preload, section, music)...');
+  const playable = CITY_CATALOG.filter((c) => c.status === 'PLAYABLE');
+  if (playable.length === 0) fail('playable cities gated: no PLAYABLE cities in CITY_CATALOG — the gate would pass vacuously');
+
+  const selfSrc = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  // Normalized (lowercase, non-alphanumeric stripped) rather than a literal
+  // string match: 'upper-manhattan' the scene id registers as section
+  // 'upperManhattan' (camelCase, no hyphen) — a pre-existing, legitimate
+  // naming convention this generic check must not misread as ungated.
+  const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const registeredSections = new Set([...selfSrc.matchAll(/section\('([^']+)'/g)].map((m) => norm(m[1])));
+
+  const manifest = JSON.parse(readFileSync(new URL('../assets/music/MANIFEST.json', import.meta.url), 'utf8'));
+  const shippedMusic = new Set(manifest.files.map((f) => f.path));
+
+  const rows = [];
+  for (const city of playable) {
+    let gated = true;
+    if (!isSceneRegistered(city.scene)) {
+      fail(`playable cities gated: '${city.scene}' is PLAYABLE but has no SCENE_IMPORTERS entry in js/voxelsim.js — the scene cannot be built`);
+      gated = false;
+    }
+    if (!sceneReady(city.scene)) {
+      fail(`playable cities gated: '${city.scene}' is PLAYABLE but was never preloaded — add it to the loadScene list at the top of this file`);
+      gated = false;
+    }
+    // 'gallery' is the one scene authored inline in `_buildScene` rather than
+    // through SCENE_IMPORTERS (js/voxelsim.js — isSceneRegistered/sceneReady
+    // special-case this exact id the same way, above). It needs no section of
+    // its own keyed to that name — this text avoids the call-site shape
+    // `section(` + a quoted name + a comma on purpose, so it cannot be picked
+    // up as a phantom registration by this file's own scan above or by
+    // orchestrator-coverage.test.mjs's identical regex over this file's
+    // source — because it is already exercised by name across most of the
+    // other sections (voxelSandbox, levelClock, cityChallenges,
+    // scenesWinnable...): one dedicated registration here would be a hoop
+    // this scene structurally never has to jump through.
+    if (city.scene !== 'gallery' && !registeredSections.has(norm(city.scene))) {
+      fail(`playable cities gated: '${city.scene}' is PLAYABLE but has no section('${city.scene}', ...) registration in tools/validate.mjs — the release gate never runs its geometry`);
+      gated = false;
+    }
+    const cue = MUSIC_CUES[city.scene];
+    if (!cue) {
+      fail(`playable cities gated: '${city.scene}' is PLAYABLE but has no MUSIC_CUES entry — the city plays no music and nothing reports it`);
+      gated = false;
+    } else if (!shippedMusic.has(cue)) {
+      fail(`playable cities gated: '${city.scene}' names music cue '${cue}', which is not a shipped MP3 in assets/music/MANIFEST.json — it will 404 in the browser and play silence`);
+      gated = false;
+    }
+    rows.push(`${city.scene}=${gated ? 'gated' : 'UNGATED'}`);
+  }
+  console.log(`  playable cities gated: ${playable.length} PLAYABLE cities checked — ${rows.join(' ')}`);
 }
 
 function validateTokyo() {
@@ -3445,9 +3652,15 @@ section('multiplayer', validateMultiplayer);
 section('sydney', validateSydney);
 section('auckland', () => validateAuckland(AUCKLAND_CTX));
 section('singapore', validateSingapore);
+section('hongkong', validateHongKong);
+section('seoul', validateSeoul);
+section('beijing', validateBeijing);
+section('bangkok', validateBangkok);
+section('mumbai', validateMumbai);
 section('declaredBlockCounts', validateDeclaredBlockCounts);
 section('tokyo', validateTokyo);
 section('audioCoverage', validateAudioCoverage);
+section('playableCitiesGated', validatePlayableCitiesGated);
 section('manhattan', validateManhattan);
 section('upperManhattan', validateUpperManhattan);
 section('brooklyn', validateBrooklyn);

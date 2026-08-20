@@ -41,10 +41,13 @@ export const MUSIC_CUES = Object.freeze({
   // (Sydney -> boston, Auckland -> cambridge, Singapore -> upper-manhattan).
   singapore: 'upper-manhattan.mp3',
   hongkong: 'lower-manhattan.mp3',
-  seoul: 'tokyo.mp3',
-  beijing: 'tokyo.mp3',
-  bangkok: 'tokyo.mp3',
-  mumbai: 'tokyo.mp3',
+  // Act II's own tracks are not composed yet (2026-08-20). These four alias
+  // Tokyo's bed rather than four different wrong ones, same placeholder move
+  // as the Auckland/Sydney aliases above.
+  seoul: 'lower-manhattan.mp3',
+  beijing: 'lower-manhattan.mp3',
+  bangkok: 'lower-manhattan.mp3',
+  mumbai: 'lower-manhattan.mp3',
   // The Lab's own theme. The gallery was deliberately music-free until the
   // track shipped; the owner reversed that call when it did.
   gallery: 'the-lab.mp3',

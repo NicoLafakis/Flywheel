@@ -84,6 +84,19 @@ function canPlace(sim, x, y, z, s = 0.5) {
   return true;
 }
 
+// Filler-only guard: keeps the budget close-out grid off the roadway and water
+// rects it happens to sweep through, so it never competes with probeRoadConflicts.
+// Landmark geometry (CCTV, Bird's Nest) is placed earlier and is untouched by this.
+// x/z is the block's MIN CORNER (matching canPlace/B's own convention), not its
+// center — the same convention sim._block and blockRect() in the validator use.
+function overlapsDecorRect(x, z, s, rects) {
+  return rects.some((rd) => x < rd.x + rd.w && x + s > rd.x && z < rd.z + rd.d && z + s > rd.z);
+}
+
+function fillerBlocked(x, z, s, roads, water) {
+  return overlapsDecorRect(x, z, s, roads) || overlapsDecorRect(x, z, s, water);
+}
+
 export function buildBeijing(sim) {
   sim.bounds = 90;
   sim.boundsRect = { minX: -56, maxX: 58, minZ: -56, maxZ: 68 };
@@ -261,7 +274,7 @@ export function buildBeijing(sim) {
     // Course A: Tiananmen Grand Square pavement (z = -6 down to -24, y = 0)
     for (let rz = -6; rz >= -24 && placed < needed; rz -= 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
+        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
@@ -269,9 +282,9 @@ export function buildBeijing(sim) {
       }
     }
     // Course B: Olympic Green Concourse (z = 36 to 66, x = -54 to 54, y = 0)
-    for (let rz = 36; rz <= 66 && placed < needed; rz -= 0.5) {
+    for (let rz = 36; rz <= 66 && placed < needed; rz += 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
+        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
@@ -279,9 +292,9 @@ export function buildBeijing(sim) {
       }
     }
     // Course C: Meridian Forecourt (z = 10 to 22, x = -54 to 54, y = 0)
-    for (let rz = 10; rz <= 22 && placed < needed; rz -= 0.5) {
+    for (let rz = 10; rz <= 22 && placed < needed; rz += 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
+        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
@@ -291,7 +304,7 @@ export function buildBeijing(sim) {
     // Course D: CBD & Hutong northern infill (z = -24 down to -54, x = -18 to 18, y = 0)
     for (let rz = -24; rz >= -54 && placed < needed; rz -= 0.5) {
       for (let rx = -18; rx <= 18 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
+        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
@@ -301,10 +314,28 @@ export function buildBeijing(sim) {
     // Course E: Western Courtyards (z = -24 down to -54, x = -54 to -18, y = 0)
     for (let rz = -24; rz >= -54 && placed < needed; rz -= 0.5) {
       for (let rx = -54; rx <= -18 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
+        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
+        }
+      }
+    }
+    // Course F: full-bounds fallback. Courses A-E now dodge roads/water, so
+    // their fixed strips can fall short of `needed` — this relocates the
+    // remainder anywhere free inside boundsRect rather than dropping blocks.
+    if (placed < needed) {
+      // rx/rz are the block's min corner (canPlace/B convention), so the upper
+      // bound is boundsRect.max - blockSize, not boundsRect.max.
+      const bx0 = sim.boundsRect.minX, bx1 = sim.boundsRect.maxX - 0.5;
+      const bz0 = sim.boundsRect.minZ, bz1 = sim.boundsRect.maxZ - 0.5;
+      for (let rz = bz0; rz <= bz1 && placed < needed; rz += 0.5) {
+        for (let rx = bx0; rx <= bx1 && placed < needed; rx += 0.5) {
+          if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water)) {
+            const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
+            B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
+            placed++;
+          }
         }
       }
     }

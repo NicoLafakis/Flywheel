@@ -133,13 +133,20 @@ export function buildSeoul(sim) {
     { x: 6, z: 38, w: 12, d: 28, color: 0x546e7a },     // Namsan Cable Car path
   );
 
-  // Roads
+  // Roads. Mapo and Banpo Bridge are NOT declared here even though
+  // SEOUL_STREETS lists them: both are water-crossing spans (deck at y=4,
+  // piers rooted in the riverbed below), and this codebase's established
+  // precedent — Brooklyn's Manhattan Bridge, Chicago's LaSalle/State/Michigan
+  // river crossings — is that a bridge over water gets no `roads` ground-paint
+  // rect at all; the physical deck is the only representation of the
+  // crossing. Declaring one here painted a road stripe on top of the river
+  // and put every pier/deck block "inside a roadway rect" with no span to
+  // exempt them (they are rooted at y=0, so no minY clears them without also
+  // clearing the unrelated riverbed coping fill).
   roads.push(
     { x: -54, z: -25, w: 108, d: 5, color: 0x37474f },  // Olympic-daero
     { x: -54, z: -3, w: 108, d: 5, color: 0x37474f },   // Teheran-ro
     { x: -50, z: 17, w: 100, d: 5, color: 0x37474f },   // Jongno
-    { x: -26, z: -54, w: 4, d: 30, color: 0x37474f },   // Mapo Bridge
-    { x: 16, z: -54, w: 4, d: 30, color: 0x37474f },    // Banpo Bridge
     { x: -2, z: 2, w: 4, d: 24, color: 0x37474f },      // Sejong-daero
   );
 
@@ -345,6 +352,27 @@ export function buildSeoul(sim) {
   const currentCount = sim.blocks.length;
   const needed = TARGET_BLOCKS - currentCount;
 
+  // Olympic-daero footprint (mirrors the roads.push() entry above) — Course B's
+  // South Apron coping is the only course whose z-range (-24..-6) reaches into
+  // it (-25..-20); Course A's z-range bottoms out at -26 and Course C starts at
+  // 0, so neither ever touches it. Skipping these cells here, without lowering
+  // `needed`, lets the same loop relocate that many blocks into the remaining
+  // Course B cells and Course C rather than dropping the total block count.
+  const olympicDaero = { x: -54, z: -25, w: 108, d: 5 };
+  const inOlympicDaero = (x, z) => x >= olympicDaero.x && x < olympicDaero.x + olympicDaero.w
+    && z >= olympicDaero.z && z < olympicDaero.z + olympicDaero.d;
+
+  // VoxelSandboxSim hard-codes the spawn hole at (0, 16) (js/voxelsim.js
+  // `_newHole(0, 16, 0)`). Course C's z-range reaches that row, and skipping
+  // the Olympic-daero cells above means Course C now has to absorb more of
+  // `needed` than before, extending its fill further into that row than the
+  // original scan did — close enough to leave blocks non-static/eaten at
+  // spawn during probeIdleStability's 3 s idle. Keepout radius matches the
+  // established convention for this defect class (js/voxelscene-bangkok.js's
+  // `fillerExcluded`, SPAWN_KEEPOUT = 3).
+  const SPAWN_X = 0, SPAWN_Z = 16, SPAWN_KEEPOUT = 3;
+  const inSpawnKeepout = (x, z) => Math.hypot(x - SPAWN_X, z - SPAWN_Z) < SPAWN_KEEPOUT;
+
   if (needed > 0) {
     let placed = 0;
     // Course A: Flat riverbed stone coping across Han River (z = -26 down to -54, y = 0)
@@ -360,6 +388,7 @@ export function buildSeoul(sim) {
     // Course B: Flat pavement coping across South Apron / Promenade (z = -6 down to -24, y = 0)
     for (let rz = -6; rz >= -24 && placed < needed; rz -= 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
+        if (inOlympicDaero(rx, rz)) continue;
         if (canPlace(sim, rx, 0, rz, 0.5)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
@@ -370,6 +399,7 @@ export function buildSeoul(sim) {
     // Course C: Flat pavement coping across Sejong-daero & Jongno apron (z = 0 to 20, y = 0)
     for (let rz = 0; rz <= 20 && placed < needed; rz += 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
+        if (inSpawnKeepout(rx, rz)) continue;
         if (canPlace(sim, rx, 0, rz, 0.5)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);

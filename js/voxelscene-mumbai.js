@@ -79,6 +79,16 @@ function canPlace(sim, x, y, z, s = 0.5) {
   return true;
 }
 
+// Does a candidate footprint (rx, rz, size s) land inside any rect in the
+// given decor list? Same overlap test `probeRoadConflicts`/`rectsOverlap`
+// use in tools/validate.mjs, so a cell that clears this clears the gate too.
+function inDecorRect(rx, rz, s, rects) {
+  for (const r of rects) {
+    if (rx < r.x + r.w && rx + s > r.x && rz < r.z + r.d && rz + s > r.z) return true;
+  }
+  return false;
+}
+
 export function buildMumbai(sim) {
   sim.bounds = 90;
   sim.boundsRect = { minX: -56, maxX: 58, minZ: -56, maxZ: 70 };
@@ -91,9 +101,21 @@ export function buildMumbai(sim) {
   const water = [], boardwalk = [], cobbles = [];
 
   // ============================================================ DISTRICT SURFACES
-  // Arabian Sea Water Basin & Back Bay
+  // Arabian Sea Water Basin & Back Bay, carved around the Gateway of India
+  // (Gateway Basalt Concourse) and Taj Mahal Palace Hotel (Taj Mahal
+  // Forecourt) plazas — both stand on built waterfront land; the plaza rects
+  // already match the built podiums, so it was Colaba Harbour's declared
+  // bounds that were too wide, painting water over both forecourts. South of
+  // z -40 neither plaza reaches, so that strip stays one full-width rect;
+  // north of it the two notches have different south edges (Gateway z -38,
+  // Taj z -40), which is why the band splits into two z-rows.
   water.push(
-    { x: -70, z: -54, w: 140, d: 26, color: 0x0277bd }, // Colaba Harbour
+    { x: -70, z: -54, w: 140, d: 14, color: 0x0277bd }, // Colaba Harbour, south of both plazas
+    { x: -70, z: -40, w: 84, d: 2, color: 0x0277bd },   // ...west of the Taj notch
+    { x: 50, z: -40, w: 20, d: 2, color: 0x0277bd },    // ...east of the Taj notch
+    { x: -70, z: -38, w: 48, d: 10, color: 0x0277bd },  // ...west of the Gateway notch
+    { x: 12, z: -38, w: 2, d: 10, color: 0x0277bd },    // ...between the two plazas
+    { x: 50, z: -38, w: 20, d: 10, color: 0x0277bd },   // ...east of the Taj notch
     { x: -70, z: -20, w: 22, d: 88, color: 0x0277bd },  // Marine Drive Back Bay
   );
 
@@ -121,11 +143,14 @@ export function buildMumbai(sim) {
     { x: 16, z: 26, w: 36, d: 32, color: 0x546e7a },   // Worli Sea Link Toll Approach
   );
 
-  // Roads
+  // Roads. The three west-east streets are trimmed to start at x -48 instead
+  // of x -54: at their uniform full-width start they each ran 6 m into the
+  // Marine Drive Back Bay inlet (which only reaches x -48), painting a road
+  // stripe over open water on the same sliver for all three.
   roads.push(
-    { x: -54, z: 6, w: 108, d: 5, color: 0x37474f },   // D.N. Road
-    { x: -54, z: -20, w: 108, d: 5, color: 0x37474f },  // Colaba Causeway
-    { x: -54, z: 58, w: 100, d: 5, color: 0x37474f },   // Sea Link Connector
+    { x: -48, z: 6, w: 102, d: 5, color: 0x37474f },   // D.N. Road
+    { x: -48, z: -20, w: 102, d: 5, color: 0x37474f },  // Colaba Causeway
+    { x: -48, z: 58, w: 94, d: 5, color: 0x37474f },   // Sea Link Connector
     { x: -40, z: -20, w: 5, d: 80, axis: 'z', color: 0x37474f }, // Marine Drive
     { x: 10, z: -20, w: 5, d: 80, axis: 'z', color: 0x37474f },  // Station Approach
   );
@@ -269,41 +294,52 @@ export function buildMumbai(sim) {
   // ------------------------------------------------------------
   // 7. HARBOUR COPING & PLAZA INFILL (BUDGET CLOSE-OUT)
   // ------------------------------------------------------------
+  // Road- and water-aware: a candidate cell inside any `roads` or `water`
+  // rect is skipped so the close-out grid never paints concrete into a
+  // roadway or under the harbour a second time (Course A's own "seabed
+  // coping" job already IS that placement, done properly, further down).
+  // Skipped cells are not dropped — each course now scans the full
+  // `sim.boundsRect` instead of the old -54..54/-54..68 hand-picked window,
+  // which reopens exactly enough clean ground (verified against this
+  // scene's own landmark footprint) for the same TARGET_BLOCKS total to
+  // still land.
   const greys = [0x607d8b, 0x78909c, 0x546e7a];
   const currentCount = sim.blocks.length;
   const needed = TARGET_BLOCKS - currentCount;
+  const R = sim.boundsRect;
+  // A 0.5m cell's far edge must still clear the bound, so the scan's max
+  // corner is one cell short of R.maxX/R.maxZ (min corner already sits
+  // exactly on R.minX/R.minZ, which is in-bounds).
+  const maxX0 = R.maxX - 0.5;
+  const maxZ0 = R.maxZ - 0.5;
+
+  const tryPlaceFiller = (rx, rz) => {
+    if (inDecorRect(rx, rz, 0.5, roads) || inDecorRect(rx, rz, 0.5, water)) return false;
+    if (!canPlace(sim, rx, 0, rz, 0.5)) return false;
+    const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
+    B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
+    return true;
+  };
 
   if (needed > 0) {
     let placed = 0;
-    // Course A: Colaba Harbour seabed coping (z = -22 down to -54, x = -54 to 54, y = 0)
-    for (let rz = -22; rz >= -54 && placed < needed; rz -= 0.5) {
-      for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
-          const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
-          B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
-          placed++;
-        }
+    // Course A: Colaba Harbour seabed coping (z = -22 down to boundsRect.minZ, x = boundsRect.minX to maxX, y = 0)
+    for (let rz = -22; rz >= R.minZ && placed < needed; rz -= 0.5) {
+      for (let rx = R.minX; rx <= maxX0 && placed < needed; rx += 0.5) {
+        if (tryPlaceFiller(rx, rz)) placed++;
       }
     }
-    // Course B: Fort Heritage Plaza & Oval Maidan (z = -18 to 4, x = -54 to 54, y = 0)
+    // Course B: Fort Heritage Plaza & Oval Maidan (z = -18 to 4, x = boundsRect.minX to maxX, y = 0)
     for (let rz = -18; rz <= 4 && placed < needed; rz += 0.5) {
-      for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
-          const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
-          B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
-          placed++;
-        }
+      for (let rx = R.minX; rx <= maxX0 && placed < needed; rx += 0.5) {
+        if (tryPlaceFiller(rx, rz)) placed++;
       }
     }
-    // Course C: Marine Drive & Worli Inland Plaza (z = 6 to 68, x = -54 to 54, y = 0)
-    for (let rz = 6; rz <= 68 && placed < needed; rz += 0.5) {
-      for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
+    // Course C: Marine Drive & Worli Inland Plaza (z = 6 to boundsRect.maxZ, x = boundsRect.minX to maxX, y = 0)
+    for (let rz = 6; rz <= maxZ0 && placed < needed; rz += 0.5) {
+      for (let rx = R.minX; rx <= maxX0 && placed < needed; rx += 0.5) {
         if (rz >= 14 && rz <= 18 && Math.abs(rx) < 4) continue;
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
-          const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
-          B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
-          placed++;
-        }
+        if (tryPlaceFiller(rx, rz)) placed++;
       }
     }
   }

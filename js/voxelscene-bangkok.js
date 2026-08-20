@@ -92,9 +92,21 @@ export function buildBangkok(sim) {
   const water = [], boardwalk = [], cobbles = [];
 
   // ============================================================ DISTRICT SURFACES
-  // Chao Phraya River Channel
+  // Chao Phraya River Channel, carved around the two riverbank temples
+  // (Wat Arun and Wat Pho both stand on built land at the water's edge — the
+  // cobbles rects below are their courtyards, already correctly placed; it
+  // was the water rect that was declared too wide, painting over dry land).
+  // One rect would double as both the flagstones' floor AND the water on top
+  // of it, so this is 5 rects instead of 1: full-width strips north (z -54..
+  // -46) and south (z -30..-26) of the temple band, and three segments across
+  // the temple band itself (z -46..-30) split around both temples' footprints
+  // (Wat Arun x -38..-18, Wat Pho x 22..40).
   water.push(
-    { x: -70, z: -54, w: 140, d: 28, color: 0x0288d1 },
+    { x: -70, z: -54, w: 140, d: 8, color: 0x0288d1 },
+    { x: -70, z: -30, w: 140, d: 4, color: 0x0288d1 },
+    { x: -70, z: -46, w: 32, d: 16, color: 0x0288d1 },
+    { x: -18, z: -46, w: 40, d: 16, color: 0x0288d1 },
+    { x: 40, z: -46, w: 30, d: 16, color: 0x0288d1 },
   );
 
   // Sanam Luang Royal Lawn & Lumpini Park
@@ -274,12 +286,35 @@ export function buildBangkok(sim) {
   const currentCount = sim.blocks.length;
   const needed = TARGET_BLOCKS - currentCount;
 
+  // Filler must stay off declared roadway rects (probeRoadConflicts), off
+  // water rects, and clear of the default spawn hole at (0,16) radius 1.1
+  // (probeIdleStability) — a raw raster scan otherwise paints concrete
+  // straight through them. Skipped cells are simply not counted toward
+  // `placed`, so the same scan keeps going until it finds `needed` legal
+  // cells elsewhere in its range — the total block count is unaffected.
+  // (x, z) is the block's MIN CORNER (matching sim._block's own convention —
+  // its center comes out as x+s/2), so the overlap test below mirrors
+  // validate.mjs's rectsOverlap exactly rather than approximating it around
+  // a center point.
+  const SPAWN_X = 0, SPAWN_Z = 16, SPAWN_KEEPOUT = 3;
+  function fillerExcluded(x, z) {
+    for (const r of roads) {
+      if (x + 0.5 > r.x && x < r.x + r.w && z + 0.5 > r.z && z < r.z + r.d) return true;
+    }
+    for (const r of water) {
+      if (x + 0.5 > r.x && x < r.x + r.w && z + 0.5 > r.z && z < r.z + r.d) return true;
+    }
+    const cx = x + 0.25, cz = z + 0.25;
+    if (Math.hypot(cx - SPAWN_X, cz - SPAWN_Z) < SPAWN_KEEPOUT) return true;
+    return false;
+  }
+
   if (needed > 0) {
     let placed = 0;
     // Course A: Chao Phraya riverbed coping (z = -26 down to -54, y = 0)
     for (let rz = -26; rz >= -54 && placed < needed; rz -= 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
+        if (!fillerExcluded(rx, rz) && canPlace(sim, rx, 0, rz, 0.5)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
@@ -289,7 +324,7 @@ export function buildBangkok(sim) {
     // Course B: Sanam Luang Royal Promenade (z = -16 down to -24, y = 0)
     for (let rz = -16; rz >= -24 && placed < needed; rz -= 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
+        if (!fillerExcluded(rx, rz) && canPlace(sim, rx, 0, rz, 0.5)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
@@ -297,9 +332,9 @@ export function buildBangkok(sim) {
       }
     }
     // Course C: Siam & Sukhumvit Modern Plaza (z = 20 to 66, x = -54 to 54, y = 0)
-    for (let rz = 20; rz <= 66 && placed < needed; rz -= 0.5) {
-      for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
+    for (let rz = 20; rz <= 66 && placed < needed; rz += 0.5) {
+      for (let rx = -56; rx <= 57.5 && placed < needed; rx += 0.5) {
+        if (!fillerExcluded(rx, rz) && canPlace(sim, rx, 0, rz, 0.5)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
@@ -309,14 +344,29 @@ export function buildBangkok(sim) {
     // Course D: Sanam Luang West & East Flanks (z = -6 down to -16, x = -54..-22 and 22..54)
     for (let rz = -6; rz >= -16 && placed < needed; rz -= 0.5) {
       for (let rx = -54; rx <= -22 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
+        if (!fillerExcluded(rx, rz) && canPlace(sim, rx, 0, rz, 0.5)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
         }
       }
       for (let rx = 22; rx <= 54 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5)) {
+        if (!fillerExcluded(rx, rz) && canPlace(sim, rx, 0, rz, 0.5)) {
+          const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
+          B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
+          placed++;
+        }
+      }
+    }
+    // Course E: Palace Flanks & Royal Promenade (z = -6 to 20, x = -54 to 54, y = 0)
+    // The one z-band no earlier course ever scanned. Water/road/spawn exclusion
+    // shrank Course A and B's yield below `needed` (most of Course A's nominal
+    // area is the river itself), so this course picks up the shortfall from
+    // open ground beside the palace walls and Sanam Luang promenade rather than
+    // dropping blocks or letting an earlier course spill past its own district.
+    for (let rz = -6; rz <= 20 && placed < needed; rz += 0.5) {
+      for (let rx = -56; rx <= 57.5 && placed < needed; rx += 0.5) {
+        if (!fillerExcluded(rx, rz) && canPlace(sim, rx, 0, rz, 0.5)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;

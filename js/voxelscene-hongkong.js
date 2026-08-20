@@ -161,7 +161,11 @@ export function buildHongKong(sim) {
   const water = [], boardwalk = [], cobbles = [];
 
   // ============================================================ DISTRICT SURFACES
-  water.push({ x: -70, z: -42, w: 140, d: 28, color: 0x164e63 }); // Victoria Harbour
+  water.push(
+    { x: -70, z: -42, w: 140, d: 10, color: 0x164e63 }, // Victoria Harbour, north band above the pier notch
+    { x: -70, z: -32, w: 60, d: 18, color: 0x164e63 },  // ...west of the Star Ferry Pier forecourt
+    { x: 10, z: -32, w: 60, d: 18, color: 0x164e63 },   // ...east of the Star Ferry Pier forecourt
+  );
   plaza.push(
     { x: -54, z: -54, w: 108, d: 12, color: 0xcfd8dc }, // TST Promenade
     { x: -54, z: -14, w: 108, d: 11, color: 0xd6d2c8 }, // Central Harbourfront promenade

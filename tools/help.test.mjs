@@ -120,6 +120,34 @@ export function runHelpSelftest() {
   assert.ok(signInFaq.length >= 2, 'at least two FAQ entries must mention signing in (ranked + progress)'); count();
   assert.ok(!JSON.stringify(filterHelpContent('', 'all')).includes('http://'), 'help copy must not contain http://'); count();
 
+  // 8. The hand-typed "(N blocks)" counts in the "29-Metropolis World Tour"
+  // list must not drift from CITY_CATALOG's authoritative `blocks` field —
+  // the two are independently maintained prose vs. data and have drifted
+  // before (Hong Kong: catalog moved on, the copy did not).
+  const worldTourBlock = citiesChapter.content.find(
+    (c) => c.heading === 'The 29-Metropolis World Tour (7 Regional Acts)'
+  );
+  assert.ok(worldTourBlock, 'Cities chapter must contain "The 29-Metropolis World Tour" list'); count();
+  const worldTourText = worldTourBlock.list.join(' ');
+  let worldTourMatched = 0;
+  for (const city of CITY_CATALOG) {
+    // 'gallery' (THE LAB) carries a normal `blocks` field, same shape as every
+    // other CITY_CATALOG row, so it needs no special-casing beyond this note
+    // that the shape was checked -- it goes through the generic loop below.
+    const escapedName = city.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = worldTourText.match(new RegExp(`${escapedName}\\s*\\([^)]*?([\\d][\\d,]*)\\s*blocks`));
+    if (!match) continue; // city's block count is not written out as "(N blocks)" in the copy
+    worldTourMatched++;
+    const copyBlocks = Number(match[1].replace(/,/g, ''));
+    assert.equal(
+      copyBlocks,
+      city.blocks,
+      `World Tour copy blocks mismatch for ${city.name}: copy says "${match[1]} blocks", CITY_CATALOG says ${city.blocks.toLocaleString()}`
+    ); count();
+  }
+  // Guard against the check going vacuous (e.g. a regex that silently matches nothing).
+  assert.ok(worldTourMatched >= 25, `World Tour copy must have named block counts for most cities (found ${worldTourMatched})`); count();
+
   // 6. Check renderHelp function exists
   assert.equal(typeof renderHelp, 'function', 'renderHelp must be an exported function'); count();
 
