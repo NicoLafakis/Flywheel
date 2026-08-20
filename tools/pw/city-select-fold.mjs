@@ -34,6 +34,41 @@ console.log(`city-select-fold: launching chromium (headless=${HEADLESS}) against
 const browser = await chromium.launch({ headless: HEADLESS });
 const rows = [];
 
+// Boot-phase horizontal overflow, sampled every frame from before the first
+// script runs. The boot splash is a viewport-sized box that scales to 1.03 as it
+// fades, and while it was absolutely positioned that pushed 5-6px past the
+// viewport edge for the 0.45s of the fade on every load. `html`/`body` are
+// `overflow: hidden` so nothing ever panned — the defect was masked, not absent,
+// and a masked overflow corrupts every check that asks "does anything overflow
+// the viewport". It masqueraded as a City Select leak here for two rounds.
+const bootOverflow = [];
+for (const [w, h] of [[320, 568], [360, 640], [390, 844]]) {
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: true, isMobile: true });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => {
+    window.__bootOvf = { max: 0, splashSeen: false, worstPhase: null };
+    const tick = () => {
+      const s = document.querySelector('#boot-splash');
+      if (s) window.__bootOvf.splashSeen = true;
+      const d = document.scrollingElement;
+      if (d) {
+        const over = d.scrollWidth - window.innerWidth;
+        if (over > window.__bootOvf.max) {
+          window.__bootOvf.max = over;
+          window.__bootOvf.worstPhase = s ? `#boot-splash.${s.className || '(no class)'}` : 'after the splash left';
+        }
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !document.querySelector('#boot-splash'), null, { timeout: 40000, polling: 100 }).catch(() => {});
+  await page.waitForTimeout(600);
+  bootOverflow.push({ w, h, ...(await page.evaluate(() => window.__bootOvf)) });
+  await ctx.close();
+}
+
 for (const touch of [true, false]) {
   const ctx = await browser.newContext({
     viewport: { width: 390, height: 844 }, hasTouch: touch, isMobile: touch,
@@ -143,6 +178,21 @@ const guards = [
   ['page scrolls horizontally', (r) => r.pageScrollsX && r.leaks.length > 0, (r) => `leaks: ${r.leaks.join(', ')}`],
   ['tap target under 36px', (r) => r.smallTargets.length > 0, (r) => r.smallTargets.join(', ')],
 ];
+// Boot phase first: it runs before any screen exists, so it is not a per-sample
+// guard. A run where the splash was never observed proves nothing and says so.
+console.log(`\nboot phase (${bootOverflow.length} loads):`);
+for (const b of bootOverflow) {
+  if (!b.splashSeen) {
+    failed++;
+    console.log(`  FAIL  ${b.w}x${b.h} — the boot splash was never observed, so this arm measured nothing`);
+  } else if (b.max > 0) {
+    failed++;
+    console.log(`  FAIL  ${b.w}x${b.h} — ${b.max}px of horizontal overflow during boot, worst at ${b.worstPhase}`);
+  } else {
+    console.log(`  PASS  ${b.w}x${b.h} — no horizontal overflow across the whole boot, splash observed`);
+  }
+}
+
 console.log(`\nsamples: ${rows.length} (${rows.filter((r) => r.orient === 'P').length} portrait, ${rows.filter((r) => r.orient === 'L').length} landscape)`);
 for (const [name, pred, why] of guards) {
   const hit = rows.filter(pred);

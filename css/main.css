@@ -1051,7 +1051,18 @@ body.mode-sandbox #combo-meter.broke .cm-arc { stroke: #6b7280; }
 }
 /* Boot splash: covers the app until main.js signals ready, with glowing animated progress bar */
 #boot-splash {
-  position: absolute;
+  /* `fixed`, not `absolute`, and the reason is the fade below: `scale(1.03)` on a
+     viewport-sized box pushes ~1.5% of it past each edge, and a transformed
+     absolutely-positioned box contributes that to the document's scrollable
+     overflow. `html`/`body` are `overflow: hidden`, so nothing ever panned and
+     the defect was invisible — but `scrollWidth` still reported 5-6px of
+     horizontal overflow at 320-390px wide for the 0.45s of the fade, on every
+     load. That corrupts any check that asks "does anything overflow the
+     viewport": it masqueraded as a City Select leak and cost two rounds of
+     falsification to attribute. Fixed-position boxes are excluded from the
+     scrollable overflow region, and with `inset: 0` on a body that is already
+     the viewport box, the splash renders identically. */
+  position: fixed;
   inset: 0;
   z-index: 100;
   display: flex;
