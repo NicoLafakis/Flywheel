@@ -20,3 +20,25 @@ facade pattern / colours, then how the voxel scene renders it (block sizes in me
 | Tong lau shophouses | 3-4 storey narrow houses; ground-floor shops, balconies, projecting signboards | Horizontal balconies, vertical signs | Faded pastel, many neon signs | Row along Des Voeux Rd: 1 m brick, 0.5 m balconies, projecting 0.5 m signboards |
 | Victoria Peak | Green granite hill, terraced | Vegetation + grey granite outcrops | Greens, granite grey | Terraced green slabs with granite retaining walls and tree clumps |
 | Harbour traffic | Junks (batwing sails), sampans, kaito ferries | — | Red/brown sails | Budget close-out spent on sampans and pontoons, not a stone carpet |
+
+## Character pass, 2026-08-20 (status + module notes live here; STATUS.md and voxel.md were owned by other sessions at the time)
+
+Nico: "indistinguishable from a generic city". Measured root cause: 15,346 of the
+blocks (54%) were a flat 0.5 m grey stone carpet on Victoria Harbour placed purely
+as budget close-out, and every landmark was a solid 2 m box.
+
+Rebuilt `js/voxelscene-hongkong.js` at the catalog's 32,000 exactly. Small y=0
+water-zone blocks 15,129 -> 685 (sampan hulls + 8 buoys; close-out 1,191 blocks =
+3.7% of budget). Blocks above y=4 that are not 2 m cubes: 29.3% -> 93.1%.
+
+Three RED-first guards in `tools/validate-hongkong.mjs`: `probeNoBudgetPadding`
+(failed at 15,129 vs cap 2,850), `probeFacadeArticulation` (failed at 29.3%),
+`probeRoadConflicts` (ported from `tools/validate.mjs`; failed at 1,123 blocks —
+the inherited IFC, Jardine and BoC footprints stood inside Connaught, Murray and
+Queensway, all re-sited; BoC now at the Peak foot beside the tram, x 26..42, as
+on Garden Road, because the 11 m canyon band cannot hold a 16 m footprint).
+
+Structural lessons encoded in the scene header: support hops accumulate on BOTH
+axes, so a 1 m slab over an open floor needs supports on a grid whose Manhattan
+radius is <= 3; a diagonal of white cells in a glass field is a set of islands,
+so curtain walls that carry bracing are `panel`, not `glass`.
