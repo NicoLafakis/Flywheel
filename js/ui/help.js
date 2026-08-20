@@ -115,14 +115,14 @@ export const WALKTHROUGH_MODULES = Object.freeze([
       {
         heading: 'The 29-Metropolis World Tour (7 Regional Acts)',
         list: [
-          'PROLOGUE · Calibration: THE LAB (Proving Ground · 13,652 blocks) — starter ramps and training grid.',
+          'PROLOGUE · Calibration: THE LAB (Proving Ground · 15,767 blocks) — starter ramps and training grid.',
           'ACT I · The Pacific Awakening: SYDNEY HARBOUR (14,120 blocks), AUCKLAND (16,000 blocks), SINGAPORE MARINA BAY (22,000 blocks).',
           'ACT II · Asian Megacities: HONG KONG (28,500 blocks), SEOUL (32,000 blocks), TOKYO SHINJUKU (84,122 blocks), BEIJING (38,000 blocks), BANGKOK (30,000 blocks), MUMBAI (34,500 blocks).',
           'ACT III · Desert & Antiquity: DUBAI (36,000 blocks), CAIRO & GIZA (32,500 blocks), ATHENS (26,000 blocks), ROME (35,000 blocks).',
           'ACT IV · European Grandeur: PARIS (42,000 blocks), LONDON (45,000 blocks), AMSTERDAM (28,000 blocks), BERLIN (36,500 blocks).',
           'ACT V · The Americas: RIO DE JANEIRO (38,500 blocks), BUENOS AIRES (34,000 blocks), MEXICO CITY (37,000 blocks), SAN FRANCISCO (44,000 blocks), CHICAGO LOOP (44,578 blocks), TORONTO (40,000 blocks).',
           'ACT VI · New York Trilogy: LOWER MANHATTAN (25,875 blocks), BROOKLYN (39,984 blocks), UPPER MANHATTAN (73,393 blocks).',
-          'ACT VII · Tech Corridor & Grand Finale: BOSTON SEAPORT (82,894 blocks), CAMBRIDGE (HubSpot HQ · 88,500 blocks · "SWALLOW THE SPROCKET!").',
+          'ACT VII · Tech Corridor & Grand Finale: BOSTON SEAPORT (82,894 blocks), CAMBRIDGE (HubSpot HQ · 72,943 blocks · "SWALLOW THE SPROCKET!").',
         ],
       },
       {

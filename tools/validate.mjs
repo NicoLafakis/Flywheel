@@ -3110,6 +3110,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     // never listed here is a gate that only a by-name FW_VALIDATE_SECTIONS run
     // ever fires, which is how five of them sat dormant until 2026-08-19.
     ['declaredBlockCounts', 'declaredBlockCounts'],
+    ['tokyo', 'tokyo'],
     ['scenesWinnable', 'scenesWinnable'],
     ['manhattan', 'manhattan'],
     ['upperManhattan', 'upperManhattan'],
@@ -3223,33 +3224,19 @@ const AUCKLAND_CTX = {
 // scenes are already awaited by the preload near the top of this file, and
 // `sceneReady` names a missing preload entry instead of leaving the sim
 // constructor to throw a less specific error.
-// Two cities were ALREADY drifted when this gate first ran (2026-08-19), and
-// neither is a number a passing agent should quietly rewrite:
-//
-//   gallery   built 15767, declared 13652 (+2115)
-//   cambridge built 72943, declared 88500 (-15557)
-//
-// Cambridge's is not a typo — it is 15.5k blocks of content the map does not
-// have yet, so "fix" means finishing Cambridge, not editing the promise down to
-// match the accident. The Lab's needs an owner's call about which number is the
-// intended one.
-//
-// They are PINNED, not exempted. The expected BUILT count is written here
-// exactly, so neither city can drift by one further block without failing, and
-// closing a gap means deleting its line rather than being silently forgiven.
-// A blanket allowlist would have turned this gate off for the two cities that
-// most need it.
-const DECLARED_COUNT_BASELINE = {
-  gallery: 15767,
-  cambridge: 72943,
-};
-
+// Two cities were already drifted when this gate first ran (2026-08-19):
+// gallery built 15767 against a declared 13652, and cambridge built 72943
+// against a declared 88500. Both were briefly PINNED here at their built count
+// while the owner decided which side of each pair was the intended one. Both
+// have since been resolved in the catalog itself — The Lab is a testbed whose
+// geometry ADR-0022 deliberately grew, and Cambridge's 88,500 had never been
+// true — so the pins are GONE and this gate is unconditional. No allowlist, no
+// baseline map, no city exempt.
 function validateDeclaredBlockCounts() {
   console.log('Validating declared-vs-built block counts (all PLAYABLE cities)...');
   const playable = CITY_CATALOG.filter((c) => c.status === 'PLAYABLE');
   if (playable.length === 0) fail('declared counts: no PLAYABLE cities in CITY_CATALOG — the gate would pass vacuously');
   const rows = [];
-  const pinned = [];
   for (const city of playable) {
     if (!sceneReady(city.scene)) {
       fail(`declared counts: '${city.scene}' is PLAYABLE but was never preloaded — add it to the loadScene list at the top of this file`);
@@ -3257,22 +3244,45 @@ function validateDeclaredBlockCounts() {
     }
     const sim = new VoxelSandboxSim({ seed: 'validator', scene: city.scene });
     const built = sim.blocks.length;
-    const baseline = DECLARED_COUNT_BASELINE[city.scene];
-    if (baseline !== undefined) {
-      if (built !== baseline) {
-        fail(`declared counts: ${city.scene} built ${built}, pinned baseline is ${baseline} (declared ${city.blocks}) — this city was already drifted and is pinned; changing it means closing the gap and deleting its DECLARED_COUNT_BASELINE line, not moving the pin`);
-      } else if (built === city.blocks) {
-        fail(`declared counts: ${city.scene} now matches its declared ${city.blocks} — delete its DECLARED_COUNT_BASELINE line so the real gate takes over`);
-      } else {
-        pinned.push(`${city.scene}=${built}(declares ${city.blocks})`);
-      }
-    } else if (built !== city.blocks) {
+    if (built !== city.blocks) {
       fail(`declared counts: ${city.scene} built ${built} blocks, catalog declares ${city.blocks} (delta ${built - city.blocks}) — the card's block count is a promise, not an estimate`);
     }
     rows.push(`${city.scene}=${built}`);
   }
   console.log(`  declared counts: ${playable.length} PLAYABLE cities checked — ${rows.join(' ')}`);
-  if (pinned.length) console.log(`  declared counts: ${pinned.length} pre-existing drift(s) pinned, not exempt — ${pinned.join(' ')}`);
+}
+
+// TOKYO — camera-blocker coverage only.
+//
+// Tokyo is the apex city at 84,122 blocks and had no validator section at all,
+// which is the whole reason its blocker set could sit at six hand-pushed rects
+// covering ~9% of its tall footprint without anything noticing. This section
+// was written to go RED against that state and did: 5,404 uncovered cells,
+// tallest 34 m at cell 27,-85. It passes now only because c10ce33 replaced the
+// six rects with a generated set (233), landing between this section being
+// written and first run — so it is green on merit, not by construction. The
+// RED proof was re-run against c386406's scene file to confirm the section is
+// not vacuous. This file must not be narrowed to make the number look better.
+//
+// Deliberately narrow in the other sense: it runs the blocker probe and nothing
+// else. Tokyo has never been under any of the other probes, so adding the full
+// suite here would dump unrelated findings on top of the one defect this is
+// meant to gate, and a red section that fails for six reasons teaches nothing
+// about any of them.
+//
+// It is registered in the orchestrator's group list rather than left to by-name
+// runs, because a section nobody lists is a section nobody runs — that is how
+// five of them sat dormant until today, and it is the same shape of hole as
+// Tokyo having no section in the first place.
+function validateTokyo() {
+  console.log('Validating tokyo camera blockers...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'tokyo' });
+  const tops = footprintTops(sim);
+  console.log(`  tokyo sandbox: blocks=${sim.blocks.length} blockers=${sim.cameraBlockers.length}`);
+  if (sim.cameraBlockers.length === 0) {
+    fail('tokyo: cameraBlockers is empty — generateBlockers RETURNS the rects, it does not assign them');
+  }
+  probeCameraBlockers(sim, 'tokyo', tops);
 }
 
 // Phase C (cloud progress sync, tasks 12-14): the player-facing surface of the
@@ -3329,6 +3339,7 @@ section('multiplayer', validateMultiplayer);
 section('sydney', validateSydney);
 section('auckland', () => validateAuckland(AUCKLAND_CTX));
 section('declaredBlockCounts', validateDeclaredBlockCounts);
+section('tokyo', validateTokyo);
 section('manhattan', validateManhattan);
 section('upperManhattan', validateUpperManhattan);
 section('brooklyn', validateBrooklyn);
