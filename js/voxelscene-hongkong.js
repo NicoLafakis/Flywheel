@@ -12,17 +12,21 @@
 //               clock tower), moored green-and-white double-deck Star Ferry, a
 //               batwing-sailed junk, and a close-out flotilla of sampans
 //   z -14..-4   Central Waterfront Promenade & Connaught Road Central
-//   z  -4..16   Commercial Core: Two IFC (cream tapering shaft, vertical ribs,
-//               clawed crown) and Jardine House (recessed porthole grid)
-//   z  16..36   Financial Canyon: Bank of China Tower (four hollow prisms with
-//               white X-bracing, stepped wedge tops, twin masts), HSBC Main
+//   z   2..13   Commercial Core: Two IFC (slender cream tapering shaft, vertical
+//               ribs, clawed crown) and Jardine House (recessed porthole grid)
+//   z  18..29   Financial Canyon: HSBC Main
 //               Building (eight masts, open ground floor, chevron trusses, glass
 //               floors hung between, bronze lions), Lippo Centre (two octagonal
 //               towers with "koala" pod bands), tong lau shophouse row with
 //               balconies and projecting signboards, the Tram Terminus Loft
-//   z  36..66   Victoria Peak: two terraces of pastel pencil towers (the
-//               Mid-Levels wall), the Peak Tram cutting, and The Peak Tower's
-//               wok bowl on a neck above its podium
+//   z  34..66   Peak foot and Victoria Peak: Bank of China Tower (four hollow
+//               prisms with white X-bracing, stepped wedge tops, twin masts)
+//               beside the Peak Tram cutting, two terraces of pastel pencil
+//               towers (the Mid-Levels wall), and The Peak Tower's wok bowl on
+//               a neck above its podium
+//
+// No block sits inside a roadway rect (validate-hongkong probeRoadConflicts);
+// the first draft's IFC, Jardine and BoC footprints all did.
 //
 // STRUCTURE RULES THAT SHAPED THE GEOMETRY (see .wiki/modules/voxel.md):
 //   - every piece rests on something or hangs within its material's maxSpan
@@ -172,7 +176,7 @@ export function buildHongKong(sim) {
     { x: -36, z: 20, w: 12, d: 8, color: 0x388e3c },    // Statue Square park
   );
   cobbles.push(
-    { x: 4, z: 34, w: 16, d: 30, color: 0x546e7a },     // Peak Tram rail cutting bed
+    { x: 4, z: 34, w: 10, d: 30, color: 0x546e7a },     // Peak Tram rail cutting bed
     { x: -42, z: 40, w: 20, d: 24, color: 0x455a64 },   // Peak Road switchback
   );
   roads.push(
@@ -210,10 +214,22 @@ export function buildHongKong(sim) {
     const h = 3 + Math.floor(i / 2);
     for (let y = 0; y < h; y++) B(6 + i, y, -52, 'concrete', [1, 1, 8], y === h - 1 ? 0xe6c9c0 : 0xd7b9b0);
   }
+  // Second wing (x 26..44) mirrors the first: the two roofs sweep up toward
+  // the auditorium block between them.
+  for (let i = 0; i < 18; i++) {
+    const h = 3 + Math.floor((17 - i) / 2);
+    for (let y = 0; y < h; y++) B(26 + i, y, -52, 'concrete', [1, 1, 8], y === h - 1 ? 0xe6c9c0 : 0xd7b9b0);
+  }
+  BOX(24, 0, -52, 1, 6, 4, 'concrete', 2, 0xc9a9a0); // auditorium block between the wings
+  // Avenue of Stars promenade railing along the Kowloon seawall.
+  for (let rx = -52; rx < 52; rx += 2) {
+    B(rx, 0, -42.5, 'steel', [0.25, 1, 0.25], 0x37474f);
+    B(rx, 1, -42.5, 'steel', [2, 0.25, 0.25], 0x78909c);
+  }
 
   // TST promenade lamps
   for (let lx = -52; lx <= 52; lx += 8) {
-    if (lx < -8 || lx > 26) lampPost(sim, lx, -46);
+    if (lx < -8 || lx > 44) lampPost(sim, lx, -46);
   }
 
   // ------------------------------------------------------------
@@ -244,18 +260,22 @@ export function buildHongKong(sim) {
   BOX(0.5, 14, -15.5, 4, 1, 2, 'steel', 0.5, 0x004d40);
   BOX(1, 14.5, -15, 2, 1, 1, 'steel', 0.5, 0x004d40);
 
-  // Star Ferry "Twinkling Star" (x -18..-12, z -28..-18): green hull, open
-  // lower deck, white upper deck with window strip, slatted roof, funnel.
-  BOX(-18, 0, -28, 6, 1, 10, 'steel', 1, 0x1b5e20);
-  ring(-18, -28, 6, 10, (x, z) => B(x, 1, z, 'panel', 1, 0x1b5e20));
-  BOX(-18, 2, -28, 6, 1, 10, 'concrete', 1, WHITE);
-  ring(-18, -28, 6, 10, (x, z, along, face, corner) => {
-    const win = !corner && along % 2 === 1;
-    B(x, 3, z, win ? 'glass' : 'panel', 1, win ? undefined : WHITE);
-  });
-  for (let k = 0; k < 10; k++) B(-18, 4, -28 + k, 'steel', [6, 0.5, 1], 0xeceff1);
-  B(-16, 4.5, -24, 'steel', [1, 2, 1], 0x212121); // funnel
-  for (const z of [-27, -24, -21]) B(-18.5, 1, z, 'rubber', 0.5, 0xff6f00); // lifebuoys on the rail
+  // Star Ferries: green hull, open lower deck, white upper deck with window
+  // strip, slatted roof, funnel, lifebuoys on the rail.
+  const starFerry = (x0, z0) => {
+    BOX(x0, 0, z0, 6, 1, 10, 'steel', 1, 0x1b5e20);
+    ring(x0, z0, 6, 10, (x, z) => B(x, 1, z, 'panel', 1, 0x1b5e20));
+    BOX(x0, 2, z0, 6, 1, 10, 'concrete', 1, WHITE);
+    ring(x0, z0, 6, 10, (x, z, along, face, corner) => {
+      const win = !corner && along % 2 === 1;
+      B(x, 3, z, win ? 'glass' : 'panel', 1, win ? undefined : WHITE);
+    });
+    for (let k = 0; k < 10; k++) B(x0, 4, z0 + k, 'steel', [6, 0.5, 1], 0xeceff1);
+    B(x0 + 2, 4.5, z0 + 4, 'steel', [1, 2, 1], 0x212121); // funnel
+    for (const dz of [1, 4, 7]) B(x0 - 0.5, 1, z0 + dz, 'rubber', 0.5, 0xff6f00);
+  };
+  starFerry(-18, -28); // "Twinkling Star" alongside Pier 7
+  starFerry(30, -40);  // "Morning Star" on the Kowloon run
 
   // Junk (x 12..18, z -28..-18): wood hull, deck, three battened red sails.
   BOX(12, 0, -28, 6, 1, 10, 'wood', 1, 0x4e342e);
@@ -272,10 +292,10 @@ export function buildHongKong(sim) {
   }
 
   // ------------------------------------------------------------
-  // 2. TWO IFC (x -38..-22, z -4..12): cream tapering shaft, vertical ribs,
-  //    clawed crown.
+  // 2. TWO IFC (x -40..-26, z 2..12): slender cream tapering shaft, vertical
+  //    ribs, clawed crown. Sited between Connaught and Des Voeux roads.
   // ------------------------------------------------------------
-  BOX(-38, 0, -4, 8, 3, 8, 'concrete', 2, 0xb8b4aa); // podium y 0..6
+  BOX(-40, 0, 2, 7, 3, 5, 'concrete', 2, 0xb8b4aa); // podium y 0..6
   const ifcTier = (x0, z0, n, y0, y1, col) => {
     BOX(x0, y0, z0, n, (y1 - y0) / 2, n, 'steel', 2, col);
     const w = n * 2;
@@ -289,26 +309,23 @@ export function buildHongKong(sim) {
       }
     }
   };
-  ifcTier(-37, -3, 7, 6, 26, CREAM);
-  ifcTier(-36, -2, 6, 26, 48, 0xe0dcd2);
-  ifcTier(-35, -1, 5, 48, 68, CREAM);
+  ifcTier(-37, 3, 4, 6, 26, CREAM);
+  ifcTier(-36, 4, 3, 26, 48, 0xe0dcd2);
+  ifcTier(-35, 5, 2, 48, 68, CREAM);
   // Crown: corner claws plus a picket of fins along every edge.
-  for (const [fx, fz] of [[-35, -1], [-26, -1], [-35, 8], [-26, 8]]) B(fx, 68, fz, 'steel', [1, 4, 1], WHITE);
-  for (let k = 0; k < 4; k++) {
-    const o = 2 * k + 1.25;
-    B(-35 + o, 68, -1, 'steel', [0.5, 3, 0.5], WHITE);
-    B(-35 + o, 68, 8.5, 'steel', [0.5, 3, 0.5], WHITE);
-    B(-35, 68, -1 + o, 'steel', [0.5, 3, 0.5], WHITE);
-    B(-25.5, 68, -1 + o, 'steel', [0.5, 3, 0.5], WHITE);
-  }
-  BOX(-33, 68, 1, 3, 1, 3, 'concrete', 2, 0x9e9a90); // crown roof platform
+  for (const [fx, fz] of [[-35, 5], [-32, 5], [-35, 8], [-32, 8]]) B(fx, 68, fz, 'steel', [1, 4, 1], WHITE);
+  B(-33.25, 68, 5, 'steel', [0.5, 3, 0.5], WHITE);
+  B(-33.25, 68, 8.5, 'steel', [0.5, 3, 0.5], WHITE);
+  B(-35, 68, 6.75, 'steel', [0.5, 3, 0.5], WHITE);
+  B(-31.5, 68, 6.75, 'steel', [0.5, 3, 0.5], WHITE);
+  B(-34, 68, 6, 'concrete', 2, 0x9e9a90); // crown roof platform
 
   // ------------------------------------------------------------
-  // 3. JARDINE HOUSE (x -20..-8, z 0..10, 44 m): grey core, 1 m skin with a
+  // 3. JARDINE HOUSE (x -20..-8, z 2..12, 44 m): grey core, 1 m skin with a
   //    grid of recessed dark portholes on every other cell of every other floor.
   // ------------------------------------------------------------
-  BOX(-19, 0, 1, 5, 22, 4, 'concrete', 2, 0x90a4ae);
-  ring(-20, 0, 12, 10, (x, z, along, face, corner) => {
+  BOX(-19, 0, 3, 5, 22, 4, 'concrete', 2, 0x90a4ae);
+  ring(-20, 2, 12, 10, (x, z, along, face, corner) => {
     for (let y = 0; y < 44; y++) {
       const port = !corner && y >= 2 && y % 2 === 1 && along % 2 === 1;
       if (!port) { B(x, y, z, 'panel', 1, 0xe0e0e0); continue; }
@@ -320,12 +337,13 @@ export function buildHongKong(sim) {
   });
 
   // ------------------------------------------------------------
-  // 4. BANK OF CHINA TOWER (x 14..30, z 18..34): four hollow 8 m prisms ending
+  // 4. BANK OF CHINA TOWER (x 26..42, z 34..50, at the foot of the Peak beside
+  //    the tram, as the real one stands on Garden Road): four hollow 8 m prisms ending
   //    at four heights, white X-bracing over dark blue, stepped wedge tops,
   //    twin masts. Adjacent prisms share their party walls (P skips the
   //    second placement).
   // ------------------------------------------------------------
-  BOX(14, 0, 18, 8, 3, 8, 'steel', 2, 0xeceff1); // podium y 0..6
+  BOX(26, 0, 34, 8, 3, 8, 'steel', 2, 0xeceff1); // podium y 0..6
   const prism = (x0, z0, top) => {
     ring(x0, z0, 8, 8, (x, z, along, face, corner) => {
       for (let y = 6; y < top; y++) {
@@ -339,27 +357,32 @@ export function buildHongKong(sim) {
       for (let j = 0; j < k; j++) P(x0, top + 1 + j * 0.5, z0 + k, 'steel', [8, 0.5, 1], j % 2 ? 0xeceff1 : WHITE);
     }
   };
-  prism(22, 18, 66); // NE, full height — built first so it owns the shared walls
-  prism(14, 18, 52); // NW
-  prism(14, 26, 38); // SW
-  prism(22, 26, 24); // SE
-  for (const mx of [23, 28.5]) BOX(mx, 67, 18.25, 1, 6, 1, 'steel', [0.5, 2, 0.5], 0xfafafa); // masts
+  prism(34, 34, 66); // NE, full height — built first so it owns the shared walls
+  prism(26, 34, 52); // NW
+  prism(26, 42, 38); // SW
+  prism(34, 42, 24); // SE
+  for (const mx of [35, 40.5]) BOX(mx, 67, 34.25, 1, 6, 1, 'steel', [0.5, 2, 0.5], 0xfafafa); // masts
 
   // ------------------------------------------------------------
-  // 5. HSBC MAIN BUILDING (x -14..2, z 17..27, 44 m): eight masts in four
-  //    pairs, glass skin with mullions, chevron trusses at four levels.
+  // 5. HSBC MAIN BUILDING (x -18..-2, z 18..26, 44 m; Garden Road is x -2..2): eight masts in four
+  //    pairs, OPEN ground floor (only masts and slim hangers touch y=0), floor
+  //    slabs hung between, glass skin with mullions, chevron trusses at four
+  //    levels, bronze lions at the Des Voeux Road edge.
   // ------------------------------------------------------------
-  BOX(-14, 0, 17, 8, 2, 4, 'steel', 2, HSBC_GREY); // Ground floor atrium foundation (y: 0..4)
-  const mastX = [-14, -9, -4, 1], mastZ = [18, 23];
-  for (const mx of mastX) for (const mz of mastZ) BOX(mx, 4, mz, 1, 40, 1, 'steel', 1, HSBC_GREY);
+  const mastX = [-18, -13, -8, -3], mastZ = [19, 24];
+  for (const mx of mastX) for (const mz of mastZ) BOX(mx, 0, mz, 1, 44, 1, 'steel', 1, HSBC_GREY);
+  // Slim ground-floor hangers: the first slab has no spandrel under its edge,
+  // so without these the open floor's middle cells sit 4 hops from a mast
+  // (hops accumulate on both axes; concrete maxSpan is 3).
+  for (const hx of [-16, -11, -6]) for (const hz of mastZ) B(hx + 0.25, 0, hz + 0.25, 'steel', [0.5, 4, 0.5], HSBC_GREY);
   const trussLevels = new Set([12, 20, 28, 36]);
   for (let y = 4; y < 44; y++) {
-    if ((y - 4) % 4 === 0) { PBOX(-14, y, 17, 16, 1, 8, 'concrete', 1, 0xb0bec5); continue; }
+    if ((y - 4) % 4 === 0) { PBOX(-18, y, 18, 16, 1, 8, 'concrete', 1, 0xb0bec5); continue; }
     const tl = [...trussLevels].find((t) => y === t + 1 || y === t + 2);
-    ring(-14, 17, 16, 8, (x, z, along, face, corner) => {
+    ring(-18, 18, 16, 8, (x, z, along, face, corner) => {
       if (tl !== undefined && (face === 'n' || face === 's')) {
         // Chevron between mast pair: outer cells on the lower course, inner on the upper.
-        const bay = (x + 14) % 5;           // masts sit at bay 0
+        const bay = (x + 18) % 5;           // masts sit at bay 0
         const lower = y === tl + 1;
         const chev = lower ? (bay === 1 || bay === 4) : (bay === 2 || bay === 3);
         if (chev) { P(x, y, z, 'steel', 1, WHITE); return; }
@@ -369,10 +392,10 @@ export function buildHongKong(sim) {
       P(x, y, z, 'glass', 1);
     });
   }
-  BOX(-14, 44, 17, 16, 1, 8, 'concrete', 1, 0x90a4ae); // roof plate
-  B(-13, 45, 18, 'steel', [1, 3, 1], 0xd32f2f); B(0, 45, 23, 'steel', [1, 3, 1], 0xd32f2f); // maintenance cranes
+  BOX(-18, 44, 18, 16, 1, 8, 'concrete', 1, 0x90a4ae); // roof plate
+  B(-17, 45, 19, 'steel', [1, 3, 1], 0xd32f2f); B(-4, 45, 24, 'steel', [1, 3, 1], 0xd32f2f); // maintenance cranes
   // Stephen and Stitt, the bronze lions, at the Des Voeux Road entrance.
-  B(-13, 0, 16.5, 'steel', [1, 1, 0.5], BRONZE); B(0, 0, 16.5, 'steel', [1, 1, 0.5], BRONZE);
+  B(-17, 0, 18.5, 'steel', [1, 1, 0.5], BRONZE); B(-4, 0, 18.5, 'steel', [1, 1, 0.5], BRONZE);
 
   // ------------------------------------------------------------
   // 6. LIPPO CENTRE: two chamfered-octagon towers with three "koala" pod
@@ -391,7 +414,7 @@ export function buildHongKong(sim) {
     ring(x0, z0, 6, 6, (x, z, along, face, corner) => { if (!corner) B(x, top, z, 'concrete', 1, 0x546e7a); });
     BOX(x0 + 1, top, z0 + 1, 4, 1, 4, 'concrete', 1, 0x546e7a);
   };
-  lippo(33, 17, 46);
+  lippo(33, 18, 46);
   lippo(40, 23, 42);
 
   // ------------------------------------------------------------
@@ -400,34 +423,36 @@ export function buildHongKong(sim) {
   BOX(6, 0, 22, 7, 5, 7, 'brick', 1, 0xa63a2a);
   for (let x = 6; x <= 12; x += 2) {
     B(x, 2, 21.5, 'panel', 0.5, 0xd7ccc8);
-    B(x, 2, 29, 'panel', 0.5, 0xd7ccc8);
   }
   for (let r = 0; r <= 3; r++) BOX(6 + r, 5 + r, 22 + r, 7 - r * 2, 1, 7 - r * 2, 'brick', 1, 0x3e2723);
   for (const tx of [-34, -30, -26]) tree(sim, tx, 21); // Statue Square
+  for (const [tx, tz] of [[4.5, 19.5], [15.5, 19.5], [4.5, 25.5], [15.5, 25.5]]) tree(sim, tx, tz); // Chater Garden
 
   // ------------------------------------------------------------
-  // 8. TONG LAU SHOPHOUSE ROW (x -50..-38, z 18..26): four narrow 4-storey
+  // 8. TONG LAU SHOPHOUSE ROW (x -50..-38, z 19..27): four narrow 4-storey
   //    houses, balconies over the pavement, projecting neon signboards.
   // ------------------------------------------------------------
   for (let i = 0; i < 4; i++) {
     const hx = -50 + i * 3;
-    tower(sim, hx, 18, 3, 8, 0, 12, 'masonry', 'brick', PASTELS[i]);
-    for (const by of [3, 6, 9]) B(hx, by, 17, 'concrete', [3, 0.25, 1], 0xb0bec5);           // balcony
-    for (const sy of [3.25, 6.25, 9.25]) B(hx + 1.5, sy, 17, 'panel', [0.25, 2, 1], NEON[(i * 3 + Math.floor(sy)) % 6]); // signboard
+    tower(sim, hx, 19, 3, 8, 0, 12, 'masonry', 'brick', PASTELS[i]);
+    for (const by of [3, 6, 9]) B(hx, by, 18, 'concrete', [3, 0.25, 1], 0xb0bec5);           // balcony
+    for (const sy of [3.25, 6.25, 9.25]) B(hx + 1.5, sy, 18, 'panel', [0.25, 2, 1], NEON[(i * 3 + Math.floor(sy)) % 6]); // signboard
   }
 
   // ------------------------------------------------------------
-  // 9. EAST CURTAIN-WALL OFFICE BLOCK (x 44..52, z 0..7)
+  // 9. EAST CURTAIN-WALL OFFICE BLOCK (x 44..52, z 2..9)
   // ------------------------------------------------------------
-  tower(sim, 44, 0, 8, 7, 0, 30, 'curtain', 'concrete', 0x455a64);
+  tower(sim, 44, 2, 8, 7, 0, 30, 'curtain', 'concrete', 0x455a64);
 
   // ------------------------------------------------------------
   // 10. VICTORIA PEAK TERRACES & THE MID-LEVELS PENCIL-TOWER WALL
   // ------------------------------------------------------------
   BOX(-50, 0, 36, 29, 2, 4, 'concrete', 2, 0x2e7d32); // tier 1 west, top y 4
-  BOX(14, 0, 36, 18, 2, 4, 'concrete', 2, 0x2e7d32);  // tier 1 east
+  BOX(14, 0, 36, 6, 2, 4, 'concrete', 2, 0x2e7d32);   // tier 1 east of the tram, up to the BoC podium
+  BOX(42, 0, 36, 4, 2, 4, 'concrete', 2, 0x2e7d32);   // tier 1 east of BoC
   BOX(-50, 0, 44, 29, 4, 4, 'concrete', 2, 0x2e7d32); // tier 2, top y 8
-  BOX(14, 0, 44, 18, 4, 4, 'concrete', 2, 0x2e7d32);
+  BOX(14, 0, 44, 6, 4, 4, 'concrete', 2, 0x2e7d32);
+  BOX(42, 0, 44, 4, 4, 4, 'concrete', 2, 0x2e7d32);
   BOX(-50, 0, 52, 23, 6, 2, 'concrete', 2, 0x2e7d32); // tier 3, top y 12
   BOX(20, 0, 52, 15, 6, 2, 'concrete', 2, 0x2e7d32);
   // Pencil towers: 4×4 m, pastel, heights from a fixed pattern so the wall
@@ -438,11 +463,11 @@ export function buildHongKong(sim) {
     B(px + 1, y0 + h + 1, pz + 1, 'concrete', [2, 0.5, 2], 0x78909c); // rooftop tank
     for (let y = y0 + 5; y < y0 + h - 2; y += 6) B(px + 2, y, pz - 0.5, 'steel', 0.5, 0x9e9e9e);
   };
-  const heights1 = [18, 24, 20, 27, 22, 30, 19, 26, 21, 28, 23, 25, 20];
-  const xs1 = [-48, -42, -36, -30, -24, -18, -12, -6, 16, 22, 28, 34, 40];
+  const heights1 = [18, 24, 20, 27, 22, 30, 19, 26, 25, 21, 28, 23];
+  const xs1 = [-48, -42, -36, -30, -24, -18, -12, -6, 2, 15, 20, 44];
   xs1.forEach((px, i) => pencil(px, 37, 4, heights1[i], i));
-  const heights2 = [34, 40, 36, 44, 38, 42, 36, 40];
-  const xs2 = [-45, -35, -25, -15, -5, 19, 29, 39];
+  const heights2 = [32, 34, 40, 36, 44, 38, 42, 36, 37, 40];
+  const xs2 = [-50, -45, -35, -25, -15, -5, 3, 16, 21, 44];
   xs2.forEach((px, i) => pencil(px, 45, 8, heights2[i], i + 3));
 
   // Peak Tramway (x 8..14, z 36..54): stepped bed, 0.5 m rails, two cars.
@@ -533,8 +558,8 @@ export function buildHongKong(sim) {
   };
   let needed = TARGET_BLOCKS - sim.blocks.length;
   outer:
-  for (const rz of sampanRows) {
-    for (let rx = -52; rx <= 50; rx += 3) {
+  for (const [ri, rz] of sampanRows.entries()) {
+    for (let rx = ri % 2 ? -50.5 : -52; rx <= 50; rx += 3) { // staggered rows, not a grid
       if (needed < 7) break outer;
       if (rx > -10 && rx < 20 && rz > -31) continue; // pier, ferry and junk basin
       needed -= sampanAt(rx, rz);

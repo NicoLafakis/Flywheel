@@ -5,7 +5,7 @@ import { VoxelSandboxSim, loadScene, SCENE_GOALS } from '../js/voxelsim.js';
 import { CITY_CATALOG } from '../js/citycatalog.js';
 import {
   HONGKONG_CROSSINGS, HONGKONG_OPEN_GROUND, HONGKONG_ROAD_SPANS,
-  HONGKONG_STREETS, HONGKONG_VEHICLES,
+  HONGKONG_STREETS, HONGKONG_VEHICLES, vehicleBBox,
 } from '../js/voxelscene-hongkong.js';
 import { readFileSync } from 'node:fs';
 
@@ -192,6 +192,26 @@ function probeFacadeArticulation(sim) {
   else pass(`facade articulation: ${(frac * 100).toFixed(1)}% of ${up.length} blocks above y=4 are 1 m/0.5 m/aniso pieces`);
 }
 
+// Ported from tools/validate.mjs: ALL physical blocks vs the roadway rects.
+// The only exemption is the positional vehicle list the scene exports. The
+// first draft of this scene put IFC, Jardine House and the Bank of China
+// Tower inside Connaught Road, Murray Road and Queensway.
+function probeRoadConflicts(sim) {
+  const allow = HONGKONG_VEHICLES.map(vehicleBBox);
+  let n = 0, worst = '';
+  for (const b of sim.blocks) {
+    const r = { x: b.x - b.sx / 2, z: b.z - b.sz / 2, w: b.sx, d: b.sz };
+    const onRoad = sim.sceneDecor.roads.some((rd) => r.x < rd.x + rd.w && r.x + r.w > rd.x && r.z < rd.z + rd.d && r.z + r.d > rd.z);
+    if (!onRoad) continue;
+    const inVehicle = allow.some((v) => r.x >= v.minX - 0.75 && r.x + r.w <= v.maxX + 0.75 && r.z >= v.minZ - 0.75 && r.z + r.d <= v.maxZ + 0.75);
+    if (inVehicle) continue;
+    n++;
+    if (!worst) worst = `${b.matType} at (${r.x},${b.y},${r.z})`;
+  }
+  if (n > 0) fail(`hongkong: ${n} physical block(s) inside a roadway rect, first ${worst}`);
+  else pass('road conflicts: no block inside a roadway rect outside a vehicle envelope');
+}
+
 function fingerprint(sim) {
   let h = 0x811c9dc5;
   for (const b of sim.blocks) {
@@ -247,6 +267,7 @@ const tops = footprintTops(sim);
 probeDeclaredCount(sim);
 probeNoBudgetPadding(sim);
 probeFacadeArticulation(sim);
+probeRoadConflicts(sim);
 probeCameraBlockers(sim, tops);
 probeCellOwnership(sim);
 probePlacementStep(sim);

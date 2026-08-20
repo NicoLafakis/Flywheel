@@ -104,6 +104,8 @@ what each is waiting on, and what could start today.
   The Lab to the Grand Finale at Cambridge · UNBOUND Summit (HubSpot Global HQ).
 - [features/camera-bezier-smoothing/](features/camera-bezier-smoothing/README.md) — **Camera Bézier Occlusion & The Lab Skyscraper Testbed** ([ADR-0022](adr/0022-camera-bezier-occlusion-and-smooth-roof-climbing.md)):
   $C^1$-continuous cubic Bézier / Hermite S-curve pitch transitions, critically damped continuous roof-climbing ascent rates, and an authored 3-tower skyscraper testbed in The Lab to eliminate abrupt overhead flips and vertical pops.
+- [plans/tornado-cataclysm-optimization.md](plans/tornado-cataclysm-optimization.md) — **Tornado & Storm Cataclysm Optimization**:
+  Architecture proposal to multiply destructive impact 5×–10× (foundation/façade shearing, structural cascades) while locking 60 FPS performance via spatial hash queries, funnel apex particle conversions, and rapid debris settling.
 
 
 ## External references
