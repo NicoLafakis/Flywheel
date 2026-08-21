@@ -780,6 +780,46 @@ const AUTHORED_SCENES = {
     hud: 'MUMBAI · GATEWAY OF INDIA & MARINE DRIVE',
     intro: { subtitle: 'MUMBAI' },
   },
+  'dubai': {
+    label: 'DUBAI: BURJ KHALIFA AND PALM MONORAIL',
+    hud: 'DUBAI · BURJ KHALIFA & PALM MONORAIL',
+    intro: { subtitle: 'DUBAI' },
+  },
+  'cairo': {
+    label: 'CAIRO: GIZA PYRAMIDS AND THE NILE',
+    hud: 'CAIRO · GIZA PYRAMIDS & THE SPHINX',
+    intro: { subtitle: 'CAIRO' },
+  },
+  'athens': {
+    label: 'ATHENS: THE ACROPOLIS AND PLAKA',
+    hud: 'ATHENS · PARTHENON & PLAKA QUARTER',
+    intro: { subtitle: 'ATHENS' },
+  },
+  'rome': {
+    label: 'ROME: THE COLOSSEUM AND VATICAN',
+    hud: 'ROME · COLOSSEUM & ST. PETER’S DOME',
+    intro: { subtitle: 'ROME' },
+  },
+  'paris': {
+    label: 'PARIS: EIFFEL TOWER AND ARC DE TRIOMPHE',
+    hud: 'PARIS · EIFFEL TOWER & RIVER SEINE',
+    intro: { subtitle: 'PARIS' },
+  },
+  'london': {
+    label: 'LONDON: TOWER BRIDGE AND BIG BEN',
+    hud: 'LONDON · TOWER BRIDGE & THE SHARD',
+    intro: { subtitle: 'LONDON' },
+  },
+  'amsterdam': {
+    label: 'AMSTERDAM: CANAL RINGS AND GABLE HOUSES',
+    hud: 'AMSTERDAM · CANALS & STEP GABLES',
+    intro: { subtitle: 'AMSTERDAM' },
+  },
+  'berlin': {
+    label: 'BERLIN: BRANDENBURG GATE AND TV TOWER',
+    hud: 'BERLIN · TV TOWER & BRANDENBURG GATE',
+    intro: { subtitle: 'BERLIN' },
+  },
   'chicago': {
     label: 'CHICAGO: THE LOOP AND THE CHICAGO RIVER',
     hud: 'CHICAGO · THE LOOP & WILLIS TOWER',

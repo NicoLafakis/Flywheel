@@ -181,9 +181,9 @@ export function runCampaignSelftest() {
   // they are the tripwire that catches a city whose status was flipped without
   // the rest of the wiring, so deriving them from the catalog would make them
   // agree with any accident. Bump both when a city genuinely ships. Singapore
-  // took the roster from 10/19 to 11/18 on 2026-08-19; Hong Kong took it from 11/18 to 12/17; Seoul took it from 12/17 to 13/16; Beijing took it from 13/16 to 14/15; Bangkok took it from 14/15 to 15/14; Mumbai took it from 15/14 to 16/13.
-  assert.equal(playable.length, 16, `Expected exactly 16 playable cities, found ${playable.length}`); count();
-  assert.equal(development.length, 13, `Expected exactly 13 development cities, found ${development.length}`); count();
+  // took the roster from 10/19 to 11/18 on 2026-08-19; Hong Kong took it from 11/18 to 12/17; Seoul took it from 12/17 to 13/16; Beijing took it from 13/16 to 14/15; Bangkok took it from 14/15 to 15/14; Mumbai took it from 15/14 to 16/13; Act III (Dubai, Cairo, Athens, Rome) and Act IV (Paris, London, Amsterdam, Berlin) took it from 16/13 to 24/5.
+  assert.equal(playable.length, 24, `Expected exactly 24 playable cities, found ${playable.length}`); count();
+  assert.equal(development.length, 5, `Expected exactly 5 development cities, found ${development.length}`); count();
   // The pair cannot silently drift apart from the roster it partitions.
   assert.equal(playable.length + development.length, CITY_CATALOG.length,
     `playable + development must account for every city: ${playable.length} + ${development.length} != ${CITY_CATALOG.length}`); count();

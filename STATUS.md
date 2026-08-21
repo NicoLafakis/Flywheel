@@ -14,10 +14,14 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 - **Brand**: *Flywheel — A sprocket's story*. Branded landing screen over a live
   city backdrop, block wordmark, legal footer.
 - **Campaign**: 29 metropolises across 7 regional Acts + a Prologue
-  (`js/citycatalog.js`). **16 are `PLAYABLE`** (The Lab, Sydney, Auckland,
-  Singapore, Bangkok, Hong Kong, Seoul, Beijing, Tokyo, Mumbai, Chicago, Lower Manhattan, Brooklyn, Upper Manhattan, Boston,
-  Cambridge) — Act 0 (Prologue), Act I (Pacific Gateway), and Act II (Asian Megacities) are 100% COMPLETE and PLAYABLE; the rest are `DEVELOPMENT` and gated in the UI. Unlock ladder is 100%
-  clear of the preceding *playable* city.
+  (`js/citycatalog.js`). **24 are `PLAYABLE`** (The Lab, Sydney, Auckland,
+  Singapore, Bangkok, Hong Kong, Seoul, Beijing, Tokyo, Mumbai, Dubai, Cairo,
+  Athens, Rome, Paris, London, Amsterdam, Berlin, Chicago, Lower Manhattan,
+  Brooklyn, Upper Manhattan, Boston, Cambridge) — Act 0 (Prologue), Act I
+  (Pacific Gateway), Act II (Asian Megacities), Act III (Desert Horizons &
+  Mediterranean Antiquity), and Act IV (European Capitals of Grandeur) are
+  100% COMPLETE, VALIDATED, and PLAYABLE; the rest are `DEVELOPMENT` and
+  gated in the UI. Unlock ladder is 100% clear of the preceding *playable* city.
 - **Run rules**: 5-minute clock, 100% full-clear goal, 60 deterministic coins
   per city, plus a 3-minute challenge tier. Ranked THE RUN (Chicago) is 90 s.
 - **Boards**: public ranked boards with server-replayed trace verification;

@@ -62,6 +62,30 @@ import {
   MUMBAI_ROAD_SPANS, MUMBAI_VEHICLES,
 } from '../js/voxelscene-mumbai.js';
 import {
+  DUBAI_ROAD_SPANS, DUBAI_VEHICLES,
+} from '../js/voxelscene-dubai.js';
+import {
+  CAIRO_ROAD_SPANS, CAIRO_VEHICLES,
+} from '../js/voxelscene-cairo.js';
+import {
+  ATHENS_ROAD_SPANS, ATHENS_VEHICLES,
+} from '../js/voxelscene-athens.js';
+import {
+  ROME_ROAD_SPANS, ROME_VEHICLES,
+} from '../js/voxelscene-rome.js';
+import {
+  PARIS_ROAD_SPANS, PARIS_VEHICLES,
+} from '../js/voxelscene-paris.js';
+import {
+  LONDON_ROAD_SPANS, LONDON_VEHICLES,
+} from '../js/voxelscene-london.js';
+import {
+  AMSTERDAM_ROAD_SPANS, AMSTERDAM_VEHICLES,
+} from '../js/voxelscene-amsterdam.js';
+import {
+  BERLIN_ROAD_SPANS, BERLIN_VEHICLES,
+} from '../js/voxelscene-berlin.js';
+import {
   HONGKONG_ROAD_SPANS, HONGKONG_VEHICLES,
 } from '../js/voxelscene-hongkong.js';
 import { validateAuckland } from './validate-auckland.mjs';
@@ -106,7 +130,7 @@ import { fileURLToPath } from 'node:url';
 // 'hongkong' added 2026-08-20 once the concurrently-edited scene file and
 // standalone validator (ADR-0024's Follow-up note) landed at commit c02ea4a.
 if (process.env.FW_VALIDATE_SECTIONS || process.env.FW_VALIDATE_SEQ) {
-  await Promise.all(['sydney', 'auckland', 'singapore', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo', 'hongkong', 'seoul', 'beijing', 'bangkok', 'mumbai'].map(loadScene));
+  await Promise.all(['sydney', 'auckland', 'singapore', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo', 'hongkong', 'seoul', 'beijing', 'bangkok', 'mumbai', 'dubai', 'cairo', 'athens', 'rome', 'paris', 'london', 'amsterdam', 'berlin'].map(loadScene));
 }
 
 const DT = 1 / 60;
@@ -3157,6 +3181,14 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     ['beijing', 'beijing'],
     ['bangkok', 'bangkok'],
     ['mumbai', 'mumbai'],
+    ['dubai', 'dubai'],
+    ['cairo', 'cairo'],
+    ['athens', 'athens'],
+    ['rome', 'rome'],
+    ['paris', 'paris'],
+    ['london', 'london'],
+    ['amsterdam', 'amsterdam'],
+    ['berlin', 'berlin'],
     // Its own child: it builds every PLAYABLE city once, so its cost is the sum
     // of ten scene builds and it must not serialise behind another group. It is
     // in this list at all because of the note above — a section registered and
@@ -3336,6 +3368,126 @@ function validateMumbai() {
   probePlacementStep(sim, 'mumbai');
   probeIdleStability(sim, 'mumbai');
   console.log(`  mumbai sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// DUBAI (Act III, chapter 10).
+function validateDubai() {
+  console.log('Validating dubai sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'dubai' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'dubai');
+  probeCameraBlockers(sim, 'dubai', tops);
+  probeBoundsRect(sim, 'dubai');
+  probeRoadConflicts(sim, 'dubai', DUBAI_VEHICLES, DUBAI_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'dubai');
+  probePlacementStep(sim, 'dubai');
+  probeIdleStability(sim, 'dubai');
+  console.log(`  dubai sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// CAIRO (Act III, chapter 11).
+function validateCairo() {
+  console.log('Validating cairo sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'cairo' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'cairo');
+  probeCameraBlockers(sim, 'cairo', tops);
+  probeBoundsRect(sim, 'cairo');
+  probeRoadConflicts(sim, 'cairo', CAIRO_VEHICLES, CAIRO_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'cairo');
+  probePlacementStep(sim, 'cairo');
+  probeIdleStability(sim, 'cairo');
+  console.log(`  cairo sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// ATHENS (Act III, chapter 12).
+function validateAthens() {
+  console.log('Validating athens sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'athens' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'athens');
+  probeCameraBlockers(sim, 'athens', tops);
+  probeBoundsRect(sim, 'athens');
+  probeRoadConflicts(sim, 'athens', ATHENS_VEHICLES, ATHENS_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'athens');
+  probePlacementStep(sim, 'athens');
+  probeIdleStability(sim, 'athens');
+  console.log(`  athens sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// ROME (Act III, chapter 13).
+function validateRome() {
+  console.log('Validating rome sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'rome' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'rome');
+  probeCameraBlockers(sim, 'rome', tops);
+  probeBoundsRect(sim, 'rome');
+  probeRoadConflicts(sim, 'rome', ROME_VEHICLES, ROME_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'rome');
+  probePlacementStep(sim, 'rome');
+  probeIdleStability(sim, 'rome');
+  console.log(`  rome sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// PARIS (Act IV, chapter 14).
+function validateParis() {
+  console.log('Validating paris sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'paris' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'paris');
+  probeCameraBlockers(sim, 'paris', tops);
+  probeBoundsRect(sim, 'paris');
+  probeRoadConflicts(sim, 'paris', PARIS_VEHICLES, PARIS_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'paris');
+  probePlacementStep(sim, 'paris');
+  probeIdleStability(sim, 'paris');
+  console.log(`  paris sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// LONDON (Act IV, chapter 15).
+function validateLondon() {
+  console.log('Validating london sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'london' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'london');
+  probeCameraBlockers(sim, 'london', tops);
+  probeBoundsRect(sim, 'london');
+  probeRoadConflicts(sim, 'london', LONDON_VEHICLES, LONDON_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'london');
+  probePlacementStep(sim, 'london');
+  probeIdleStability(sim, 'london');
+  console.log(`  london sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// AMSTERDAM (Act IV, chapter 16).
+function validateAmsterdam() {
+  console.log('Validating amsterdam sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'amsterdam' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'amsterdam');
+  probeCameraBlockers(sim, 'amsterdam', tops);
+  probeBoundsRect(sim, 'amsterdam');
+  probeRoadConflicts(sim, 'amsterdam', AMSTERDAM_VEHICLES, AMSTERDAM_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'amsterdam');
+  probePlacementStep(sim, 'amsterdam');
+  probeIdleStability(sim, 'amsterdam');
+  console.log(`  amsterdam sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// BERLIN (Act IV, chapter 17).
+function validateBerlin() {
+  console.log('Validating berlin sandbox...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'berlin' });
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'berlin');
+  probeCameraBlockers(sim, 'berlin', tops);
+  probeBoundsRect(sim, 'berlin');
+  probeRoadConflicts(sim, 'berlin', BERLIN_VEHICLES, BERLIN_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'berlin');
+  probePlacementStep(sim, 'berlin');
+  probeIdleStability(sim, 'berlin');
+  console.log(`  berlin sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
 }
 
 // Cheap structural fingerprint of a built scene: min corner, extents, material
@@ -3657,6 +3809,14 @@ section('seoul', validateSeoul);
 section('beijing', validateBeijing);
 section('bangkok', validateBangkok);
 section('mumbai', validateMumbai);
+section('dubai', validateDubai);
+section('cairo', validateCairo);
+section('athens', validateAthens);
+section('rome', validateRome);
+section('paris', validateParis);
+section('london', validateLondon);
+section('amsterdam', validateAmsterdam);
+section('berlin', validateBerlin);
 section('declaredBlockCounts', validateDeclaredBlockCounts);
 section('tokyo', validateTokyo);
 section('audioCoverage', validateAudioCoverage);

@@ -272,6 +272,14 @@ const SCENE_IMPORTERS = {
   'beijing': () => import('./voxelscene-beijing.js').then((m) => m.buildBeijing),
   'bangkok': () => import('./voxelscene-bangkok.js').then((m) => m.buildBangkok),
   'mumbai': () => import('./voxelscene-mumbai.js').then((m) => m.buildMumbai),
+  'dubai': () => import('./voxelscene-dubai.js').then((m) => m.buildDubai),
+  'cairo': () => import('./voxelscene-cairo.js').then((m) => m.buildCairo),
+  'athens': () => import('./voxelscene-athens.js').then((m) => m.buildAthens),
+  'rome': () => import('./voxelscene-rome.js').then((m) => m.buildRome),
+  'paris': () => import('./voxelscene-paris.js').then((m) => m.buildParis),
+  'london': () => import('./voxelscene-london.js').then((m) => m.buildLondon),
+  'amsterdam': () => import('./voxelscene-amsterdam.js').then((m) => m.buildAmsterdam),
+  'berlin': () => import('./voxelscene-berlin.js').then((m) => m.buildBerlin),
 };
 const SCENE_BUILDERS = new Map();
 const GALLERY_SCENE = 'gallery';
@@ -562,6 +570,14 @@ export const SCENE_GOALS = {
   beijing: { name: 'UNRAVEL THE CCTV CANTILEVER LOOP', targetFraction: 1.0 },
   bangkok: { name: 'TOPPLE THE WAT ARUN PRANG SPIRE', targetFraction: 1.0 },
   mumbai: { name: 'TOPPLE THE GATEWAY OF INDIA', targetFraction: 1.0 },
+  dubai: { name: 'CONQUER THE BURJ PINNACLE', targetFraction: 1.0 },
+  cairo: { name: 'CRUMBLE THE GIZA PYRAMIDS', targetFraction: 1.0 },
+  athens: { name: 'DISMANTLE THE ACROPOLIS', targetFraction: 1.0 },
+  rome: { name: 'COLLAPSE THE COLOSSEUM', targetFraction: 1.0 },
+  paris: { name: 'TOPPLE THE EIFFEL TOWER', targetFraction: 1.0 },
+  london: { name: 'CONSUME TOWER BRIDGE', targetFraction: 1.0 },
+  amsterdam: { name: 'ENGULF THE CANAL GABLES', targetFraction: 1.0 },
+  berlin: { name: 'CONSUME THE TV TOWER', targetFraction: 1.0 },
 };
 export const SANDBOX_COIN_COUNT = 60;
 export const SANDBOX_COIN_VALUE = 2;

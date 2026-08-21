@@ -50,6 +50,14 @@ export const SCENE_AMBIENCE = {
   beijing: 'amb-manhattan',
   bangkok: 'amb-boston',
   mumbai: 'amb-boston',
+  dubai: 'amb-boston',
+  cairo: 'amb-boston',
+  athens: 'amb-boston',
+  rome: 'amb-brooklyn',
+  paris: 'amb-manhattan',
+  london: 'amb-brooklyn',
+  amsterdam: 'amb-cambridge',
+  berlin: 'amb-chicago',
   brooklyn: 'amb-brooklyn',
   // Tokyo Shinjuku reuses the Manhattan bed: it is a dense high-rise canyon
   // core, which is the texture `amb-manhattan` records, and js/audio/music.js

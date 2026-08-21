@@ -48,6 +48,14 @@ export const MUSIC_CUES = Object.freeze({
   beijing: 'lower-manhattan.mp3',
   bangkok: 'lower-manhattan.mp3',
   mumbai: 'lower-manhattan.mp3',
+  dubai: 'boston.mp3',
+  cairo: 'chicago.mp3',
+  athens: 'cambridge.mp3',
+  rome: 'brooklyn.mp3',
+  paris: 'upper-manhattan.mp3',
+  london: 'brooklyn.mp3',
+  amsterdam: 'cambridge.mp3',
+  berlin: 'chicago.mp3',
   // The Lab's own theme. The gallery was deliberately music-free until the
   // track shipped; the owner reversed that call when it did.
   gallery: 'the-lab.mp3',
