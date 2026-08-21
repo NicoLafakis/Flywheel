@@ -5,15 +5,22 @@
 // and the wiring in screens.js / boards.js stays a thin renderer.
 //
 // The keys mirror the strings js/cloud/sync.js `syncStatus()` returns; 'idle'
-// (nothing to say yet, or a guest with a local-only secret) deliberately maps
-// to nothing at all rather than a fifth label, because a dot that says
-// "NOT SYNCED" reads as a fault on the very first launch.
+// (nothing to say yet — a guest who never tried to sign in) deliberately maps
+// to nothing at all rather than a label, because a dot that says "NOT SYNCED"
+// reads as a fault on the very first launch.
+//
+// 'not-connected' is a DIFFERENT state from 'idle': it means registerPlayer /
+// loginPlayer / claimName tried to reach the server, could not, and fell back
+// to a local-only identity (RCA-2026-08-20). That must be visible — silently
+// folding it into 'idle' is exactly how a phantom "signed in" identity looked
+// indistinguishable from a real one.
 
 export const SYNC_LABELS = Object.freeze({
   synced: 'SYNCED',
   syncing: 'SYNCING…',
   offline: 'OFFLINE — WILL SYNC',
   'signed-out': 'SIGNED OUT ELSEWHERE',
+  'not-connected': 'NOT CONNECTED — SIGN IN AGAIN',
 });
 
 // Longer wording for the same states, used where there is room (the profile
@@ -23,6 +30,7 @@ export const SYNC_DETAIL = Object.freeze({
   syncing: 'Saving your progress to your account…',
   offline: 'No connection right now. Your progress is safe here and will sync when you are back online.',
   'signed-out': 'You signed in on another device, so this one was signed out. Sign in again to keep syncing.',
+  'not-connected': 'We could not reach the server, so this device is not actually signed in yet. Your progress stays here — sign in again once you are back online.',
 });
 
 // → { label, tone } for the four visible states, null for anything else.

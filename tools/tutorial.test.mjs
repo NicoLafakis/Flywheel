@@ -2,6 +2,7 @@
 // Run: node tools/tutorial.test.mjs
 
 import assert from 'node:assert';
+import { readFileSync } from 'node:fs';
 import {
   TutorialManager,
   CONTEXTUAL_HINTS,
@@ -95,6 +96,32 @@ export function runTutorialSelftest() {
   test('CONTEXTUAL_HINTS contains bump alerts for oversized objects', () => {
     assert(CONTEXTUAL_HINTS.too_big, 'Must have too_big hint');
     assert(typeof CONTEXTUAL_HINTS.too_big.text === 'string');
+  });
+
+  // 4. Contract guard: js/main.js is DOM-only and can never be imported by this
+  // headless suite, so a `tutorialManager.<method>()` call there that does not
+  // exist on TutorialManager is invisible to every other test — it only shows
+  // up live, in the browser, as a dead button on The Lab (RCA-2026-08-20:
+  // `.wiki/findings/RCA-2026-08-20-the-lab-post-level-stuck-restart.md`, where
+  // `js/main.js` called `.unmount()` against a class that only ever defined
+  // `.teardown()`). Scan main.js's source for every `tutorialManager.foo(` call
+  // site and assert `foo` is a real method on the class, so a future rename on
+  // either side of the seam fails here instead of on The Lab's results screen.
+  test('every tutorialManager.<method>() call in js/main.js exists on TutorialManager', () => {
+    const mainSrc = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
+    const calls = new Set();
+    for (const m of mainSrc.matchAll(/\btutorialManager\.([A-Za-z_$][\w$]*)\s*\(/g)) {
+      calls.add(m[1]);
+    }
+    assert(calls.size > 0, 'expected js/main.js to call at least one tutorialManager method (scan is broken if not)');
+    const proto = TutorialManager.prototype;
+    for (const method of calls) {
+      assert.strictEqual(
+        typeof proto[method],
+        'function',
+        `js/main.js calls tutorialManager.${method}(), but TutorialManager has no such method`,
+      );
+    }
   });
 
   return passed;

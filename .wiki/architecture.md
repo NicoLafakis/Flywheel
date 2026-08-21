@@ -260,16 +260,19 @@ reaches players in minutes while a repeat visit never re-downloads the module
 graph in the critical path.
 
 **The city scene modules are fetched on demand, not at boot (2026-08-12).**
-`voxelsim.js` keeps an importer registry (`loadScene`/`sceneReady`) for the
-seven authored scenes that are not the gallery (Manhattan, Upper Manhattan,
-Brooklyn, Boston, Cambridge, Chicago, Tokyo — the gallery is built inline in
-`_buildScene` and needs no import); the title screen, the menu backdrop, the
-single-player start path and `js/multiplayer/`'s scene selection each await
-exactly the one city they are about to build. The seven are ~1.11 MB of source
-between them and a session plays one, so static imports would put most of an
-18.6 s throttled cold load in front of the title screen for nothing. The
-sim constructor stays synchronous and throws by name if a city was not awaited
-first — see `.wiki/modules/voxel.md`'s module table.
+`voxelsim.js` keeps an importer registry (`loadScene`/`sceneReady`) for every
+authored scene that is not the gallery — 23 entries as of the Act II/III/IV
+build-out (2026-08-21: Manhattan, Upper Manhattan, Brooklyn, Boston,
+Cambridge, Chicago, Tokyo, Sydney, Auckland, Singapore, Hong Kong, Seoul,
+Beijing, Bangkok, Mumbai, Dubai, Cairo, Athens, Rome, Paris, London,
+Amsterdam, Berlin — the gallery is built inline in `_buildScene` and needs no
+import); the title screen, the menu backdrop, the single-player start path
+and `js/multiplayer/`'s scene selection each await exactly the one city they
+are about to build. The registered scenes are ~1.5 MB of source between them
+and a session plays one, so static imports would put most of a throttled cold
+load in front of the title screen for nothing. The sim constructor stays
+synchronous and throws by name if a city was not awaited first — see
+`.wiki/modules/voxel.md`'s module table.
 
 **A backgrounded tab stops entirely, and a noisy `resize` costs nothing
 (2026-08-12).** `main.js`'s loop cancels its own animation frame on

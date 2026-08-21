@@ -1011,7 +1011,7 @@ function startVoxelSandbox(scene = 'gallery', mode = 'freeplay', ticket = null) 
         onSave: (s) => storeSave(s),
       });
     } else if (tutorialManager) {
-      tutorialManager.unmount();
+      tutorialManager.teardown();
       tutorialManager = null;
     }
 
@@ -1101,7 +1101,7 @@ function teardownWorld() {
   pokeSpawnQueue = [];
   isShowingPokeSpawn = false;
   if (readyGate) { readyGate.dismiss(); readyGate = null; }
-  if (tutorialManager) { tutorialManager.unmount(); tutorialManager = null; }
+  if (tutorialManager) { tutorialManager.teardown(); tutorialManager = null; }
   if (world) { world.dispose(); world = null; }
   if (mpHost) { mpHost.destroy(); mpHost = null; }
   if (mpPeer) { mpPeer.destroy(); mpPeer = null; }

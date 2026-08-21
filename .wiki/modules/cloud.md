@@ -29,7 +29,7 @@ has something to say.
 | `js/cloud/blob.js` | The boundary. `SYNCED_KEYS` (`coins`, `levels`, `sandbox`, `challenges`, `ownedItems`, `equippedSkin`, `equippedIndicator`, `upgrades`, `muted`, `settings`) and `SYNCED_SETTINGS_KEYS` (`masterVol`, `sfxVol`, `musicVol`, `ambVol`, `turnSens` — taste, not device capability) are defined HERE, not in `api/_progress.mjs`, because Vercel does not serve `api/` as static files: the browser can import from `js/`, the server can import from `js/` too, so one definition settles which keys travel. `toBlob(save)` deep-copies exactly that subset out of a save; `applyBlob(save, blob)` writes it back, touching nothing else. Never `outbox`, `player`, `cloud`, `version`, or a settings key outside the taste list (`quality`, `perfMode`, `vox*` dev sliders stay on the device) |
 | `js/cloud/merge.js` | The ONE merge, `mergeBlobs(a, b, {aChangedAt, bChangedAt})`. Pure — no DOM, no clock, no randomness; recency is decided by the timestamps the caller passes. The client runs it on pull (local vs remote); the server runs it on a stale-revision push (stored vs incoming) via `api/_progress.mjs`'s re-export, so the two sides cannot disagree. See the field-by-field table below |
 | `js/cloud/sync.js` | The client state machine: `pull`, `push`, `scheduleSync`, `flushSync`, `onIdentityChanged`, `resetForSignOut`, wrapped as `createSync(deps)` (the seam `tools/progress-sync.test.mjs` drives with a fake clock) and instantiated once as the game's `instance`. Debounces writes, defers pushes while `state === 'playing'`, and never touches a live `sim` (invariant 4) |
-| `js/ui/sync-copy.js` | Pure words-and-state-mapping for the sync surface: `SYNC_LABELS`/`SYNC_DETAIL` (four states, `synced`/`syncing`/`offline`/`signed-out`; `idle` deliberately renders nothing rather than a fifth "NOT SYNCED" label on a fresh install), `syncIndicator(status)`, `shouldShowFirstNote`/`markFirstNoteShown`/`firstNoteText`, and `trimmedNoticeText(trimmed)`. No DOM, no three.js — `js/ui/boards.js` is a thin renderer over this |
+| `js/ui/sync-copy.js` | Pure words-and-state-mapping for the sync surface: `SYNC_LABELS`/`SYNC_DETAIL` (five states, `synced`/`syncing`/`offline`/`signed-out`/`not-connected`; `idle` deliberately renders nothing rather than a sixth "NOT SYNCED" label on a fresh install), `syncIndicator(status)`, `shouldShowFirstNote`/`markFirstNoteShown`/`firstNoteText`, and `trimmedNoticeText(trimmed)`. No DOM, no three.js — `js/ui/boards.js` is a thin renderer over this |
 
 ## Merge rules (`mergeBlobs`)
 
@@ -95,12 +95,21 @@ devices that both advanced from a common base would double-count under sum:
 
 ## Sync indicator and copy (`js/ui/sync-copy.js`, wired in `js/ui/boards.js`)
 
-Four visible states, `SYNC_LABELS`: `SYNCED` (green), `SYNCING…` (gold,
+Five visible states, `SYNC_LABELS`: `SYNCED` (green), `SYNCING…` (gold,
 breathing dot, disabled under `prefers-reduced-motion`), `OFFLINE — WILL SYNC`
-(amber), `SIGNED OUT ELSEWHERE` (red). `idle` renders nothing — a guest with a
-`local-*` secret (`usable()` in `sync.js` rejects it, since the server cannot
-know an offline-minted id) or a save with nothing dirty yet shows no dot,
-because a "NOT SYNCED" label on first launch reads as a fault. The dot lives
+(amber), `SIGNED OUT ELSEWHERE` (red), `NOT CONNECTED — SIGN IN AGAIN` (red).
+`idle` renders nothing — a guest who never attempted to sign in, or a save
+with nothing dirty yet, shows no dot, because a "NOT SYNCED" label on first
+launch reads as a fault. `usable()` in `sync.js` still rejects any `local-*`
+secret (the server cannot know an offline-minted id), but `status()` now tells
+apart WHY it is unusable: a `local-*` secret paired with `save.player.nameSource
+=== 'pending'` means `registerPlayer`/`loginPlayer`/`claimName`
+(`js/board/player.js`) genuinely could not reach the server and minted an
+offline-only fallback identity (RCA-2026-08-20) — that reports `'not-connected'`,
+not `'idle'`. Before this fix the two cases were indistinguishable: a phantom,
+never-verified "signed in" identity showed the exact same nothing as a guest
+who had never tried, which is how a player could look signed in on a second
+device while holding zero of their real progress. The dot lives
 on the profile tab's name plate (`.fw-sync`, right-aligned via
 `.fw-name-plate .fw-sync`, `css/main.css`); guests are cloud-backed too and see
 it once their bearer token is real. A one-time dismissable card
@@ -137,7 +146,12 @@ save-schema guard.
 - **9** `js/cloud/**` never mutates simulation state and never imports
   three.js; all network work is async, outside the fixed-step loop.
 - **10** a failed push never blocks play; `dirty` stays true and the next
-  trigger retries; sign-in already has a local fallback.
+  trigger retries; sign-in already has a local fallback — narrowed
+  (RCA-2026-08-20) to fire ONLY on a genuine network failure or a
+  server-flagged-`retryable` `5xx`/`429` (`isRetryableOffline()`,
+  `js/board/player.js`), never on an unrecognized real answer like `404`, and
+  the fallback identity is marked `nameSource: 'pending'` so it never reads as
+  a verified sign-in.
 
 ## Guards (`tools/validate.mjs`, `core` group)
 
@@ -153,7 +167,20 @@ stops retrying and sets `signed-out`; push during `playing` is deferred; pull
 merges rather than overwrites; a remote blob at an older schema is migrated
 before merge; an import-source guard that the pure-sim modules do not import
 this file.
-`progressUi` (`tools/progress-ui.test.mjs`) — the four state strings exist in
+`progressUi` (`tools/progress-ui.test.mjs`) — the five state strings exist in
 source, none contains `http://`; the first-time card and trimmed notice each
 render once; the sign-out button calls `signOutPlayer` (checked by executing
-lifted source, the `tools/sfx-event-guard.test.mjs` idiom).
+lifted source, the `tools/sfx-event-guard.test.mjs` idiom); `main.css` carries
+a `.fw-sync--<tone>` rule for every state including `not-connected`.
+`playerIdentity` (`tools/player-identity.test.mjs`, run inside the
+`progressSync` section since it covers `js/board/player.js`) —
+RCA-2026-08-20's regression suite: `isRetryableOffline()`'s deny-list logic
+directly; a `404 PLAYER_NOT_FOUND` on `loginPlayer` rejects (no `local-*`
+secret written, no fake success); a plain network error (no `error.status`)
+still resolves with the offline fallback but `nameSource` is `'pending'`, not
+`'claimed'`; a server-flagged-`retryable` `503` also falls back; a
+NOT-retryable `503` rejects; `registerPlayer`/`claimName` share the same
+deny-list; `renamePlayer`'s fallback stays `'claimed'` (it relabels an
+already-real identity, it does not mint a new one); and a UI-facing check that
+a `'pending'` fallback identity's `syncIndicator` is never `null` while
+`nameSource` is simultaneously `'claimed'`.

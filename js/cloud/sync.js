@@ -106,7 +106,18 @@ export function createSync(deps = {}) {
 
   function status(save) {
     const c = cloudOf(save);
-    if (!usable()) return 'idle';
+    if (!usable()) {
+      // A `local-*` secret with nameSource 'pending' means registerPlayer /
+      // loginPlayer / claimName genuinely could not reach the server and
+      // minted an offline-only identity (RCA-2026-08-20 §7 item 3). That must
+      // read differently from a guest who never attempted to sign in at all,
+      // or the UI has no way to tell a real account from a phantom one.
+      const secret = d.secret();
+      const isLocalFallback = secret && typeof secret.player_id === 'string' && secret.player_id.startsWith('local-');
+      const isPending = save && save.player && save.player.nameSource === 'pending';
+      if (isLocalFallback && isPending) return 'not-connected';
+      return 'idle';
+    }
     if (c.state === 'signed-out' || stopped) return 'signed-out';
     if (inflight) return 'syncing';
     if (c.state === 'offline') return 'offline';

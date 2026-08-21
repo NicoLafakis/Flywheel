@@ -135,7 +135,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 4. Hong Kong (`hongkong`) · Victoria Harbour
 * **Act / Chapter:** Act II · Chapter 4: Vertical Island
-* **Status:** `DEVELOPMENT` (~28,500 blocks)
+* **Status:** `PLAYABLE` (32,000 blocks)
 * **Marketing Module:**
   * **ID:** `mod_hongkong_feedrunner`
   * **Name:** `High-Density Feed Runner`
@@ -151,7 +151,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 5. Seoul (`seoul`) · South Korea
 * **Act / Chapter:** Act II · Chapter 5: Techno Harmony
-* **Status:** `DEVELOPMENT` (~32,000 blocks)
+* **Status:** `PLAYABLE` (32,000 blocks)
 * **Marketing Module:**
   * **ID:** `mod_seoul_searchlight`
   * **Name:** `High-Speed Searchlight Lens`
@@ -183,7 +183,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 7. Beijing (`beijing`) · China
 * **Act / Chapter:** Act II · Chapter 7: Imperial Axis
-* **Status:** `DEVELOPMENT` (~38,000 blocks)
+* **Status:** `PLAYABLE` (38,000 blocks)
 * **Marketing Module:**
   * **ID:** `mod_beijing_megaphone`
   * **Name:** `Organic Reach Megaphone`
@@ -199,7 +199,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 8. Bangkok (`bangkok`) · Thailand
 * **Act / Chapter:** Act II · Chapter 8: River of Kings
-* **Status:** `DEVELOPMENT` (~30,000 blocks)
+* **Status:** `PLAYABLE` (30,000 blocks)
 * **Marketing Module:**
   * **ID:** `mod_bangkok_regulator`
   * **Name:** `Viral Cadence Regulator`
@@ -215,7 +215,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 9. Mumbai (`mumbai`) · India
 * **Act / Chapter:** Act II · Chapter 9: Gateway of Momentum
-* **Status:** `DEVELOPMENT` (~34,000 blocks)
+* **Status:** `PLAYABLE` (34,500 blocks)
 * **Marketing Module:**
   * **ID:** `mod_mumbai_intake`
   * **Name:** `Cross-Channel Lead Intake`
@@ -235,7 +235,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 10. Dubai (`dubai`) · UAE
 * **Act / Chapter:** Act III · Chapter 10: Desert Pinnacles
-* **Status:** `DEVELOPMENT` (~36,000 blocks)
+* **Status:** `PLAYABLE` (36,000 blocks)
 * **Marketing Module:**
   * **ID:** `mod_dubai_piston`
   * **Name:** `High-Ticket Conversion Piston`
@@ -251,7 +251,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 11. Cairo & Giza (`cairo`) · Egypt
 * **Act / Chapter:** Act III · Chapter 11: Monolithic Foundations
-* **Status:** `DEVELOPMENT` (~32,000 blocks)
+* **Status:** `PLAYABLE` (32,500 blocks)
 * **Marketing Module:**
   * **ID:** `mod_cairo_sifter`
   * **Name:** `Monolithic Qualification Sifter`
@@ -267,7 +267,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 12. Athens (`athens`) · Greece
 * **Act / Chapter:** Act III · Chapter 12: Classical Pillars
-* **Status:** `DEVELOPMENT` (~26,000 blocks)
+* **Status:** `PLAYABLE` (26,000 blocks)
 * **Marketing Module:**
   * **ID:** `mod_athens_differential`
   * **Name:** `Pricing Elasticity Differential`
@@ -283,7 +283,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 13. Rome (`rome`) · Italy
 * **Act / Chapter:** Act III · Chapter 13: Imperial Colonnades
-* **Status:** `DEVELOPMENT` (~35,000 blocks)
+* **Status:** `PLAYABLE` (35,000 blocks)
 * **Marketing Module:**
   * **ID:** `mod_rome_valve`
   * **Name:** `Enterprise Pipeline Valve`
@@ -303,7 +303,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 14. Paris (`paris`) · France
 * **Act / Chapter:** Act IV · Chapter 14: Grand Boulevards
-* **Status:** `DEVELOPMENT` (~42,000 blocks)
+* **Status:** `PLAYABLE` (42,000 blocks)
 * **Marketing Module:**
   * **ID:** `mod_paris_buffer`
   * **Name:** `Brand Polish Buffer`
@@ -319,7 +319,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 15. London (`london`) · United Kingdom
 * **Act / Chapter:** Act IV · Chapter 15: Crown & Clockwork
-* **Status:** `DEVELOPMENT` (~45,000 blocks)
+* **Status:** `PLAYABLE` (45,000 blocks)
 * **Marketing Module:**
   * **ID:** `mod_london_press`
   * **Name:** `The Deal Closer Stamping Press`
@@ -335,7 +335,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 16. Amsterdam (`amsterdam`) · Netherlands
 * **Act / Chapter:** Act IV · Chapter 16: Canal Ring Harmonics
-* **Status:** `DEVELOPMENT` (~28,000 blocks)
+* **Status:** `PLAYABLE` (28,000 blocks)
 * **Marketing Module:**
   * **ID:** `mod_amsterdam_conveyor`
   * **Name:** `Frictionless Nurture Conveyor`
@@ -351,7 +351,7 @@ This document provides the exhaustive, canonical dossier for all **29 metropolis
 
 #### 17. Berlin (`berlin`) · Germany
 * **Act / Chapter:** Act IV · Chapter 17: Precision Engineering
-* **Status:** `DEVELOPMENT` (~36,000 blocks)
+* **Status:** `PLAYABLE` (36,500 blocks)
 * **Marketing Module:**
   * **ID:** `mod_berlin_sla`
   * **Name:** `Precision SLA Clockwork`

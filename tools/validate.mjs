@@ -3103,7 +3103,12 @@ function validateProgressSync() {
   const applyBody = applyAt === -1 ? '' : player.slice(applyAt, player.indexOf('\n}', applyAt));
   if (!/\bonIdentityChanged\s*\(\s*save\s*\)/.test(applyBody)) fail('js/board/player.js applyIdentity does not call onIdentityChanged(save)');
   if (!/export async function signOutPlayer\(/.test(player)) fail('js/board/player.js has no signOutPlayer(save)');
+  if (!/export function isRetryableOffline\(/.test(player)) fail('js/board/player.js has no shared isRetryableOffline(error) deny-list helper (RCA-2026-08-20)');
   runSuite('tools/progress-sync.test.mjs');
+  // RCA-2026-08-20: a client catch-all that turned any unrecognized server
+  // error into a fabricated local "signed in" identity. See that file's own
+  // header for the four regression scenarios this guards.
+  runSuite('tools/player-identity.test.mjs');
 }
 
 // TWO modes, one command:

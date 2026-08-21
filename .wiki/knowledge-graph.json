@@ -1,15 +1,15 @@
 {
   "meta": {
     "version": 1,
-    "generatedAt": "2026-08-18T02:32:59+00:00",
+    "generatedAt": "2026-08-21T06:23:28+00:00",
     "engine": "ast-only",
     "root": "C:\\programming\\nicos-apps\\Flywheel",
     "counts": {
-      "files": 167,
-      "symbols": 6,
-      "edges": 1,
+      "files": 217,
+      "symbols": 0,
+      "edges": 0,
       "modules": 4,
-      "reusedFromCache": 166
+      "reusedFromCache": 217
     }
   },
   "files": {
@@ -191,8 +191,8 @@
     },
     "js/audio/game-audio.js": {
       "lang": "javascript",
-      "hash": "37d564a39abae984edbcafc69e1b60c8353dfced5f4570248f6a5ad490161a5b",
-      "loc": 694,
+      "hash": "65bbdd472e6ed8731cba1bc84010be365da70dc49022d15ffa37683aa1dff3c7",
+      "loc": 733,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -215,8 +215,8 @@
     },
     "js/audio/music.js": {
       "lang": "javascript",
-      "hash": "2e86430267bc7395714c75b0dba232ff416381aa2341438a5512b9f3481511e8",
-      "loc": 397,
+      "hash": "010f434f49720057f4f0b17c0da951a98c68bdd4ef2e66577d7cbdcb84e14484",
+      "loc": 424,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -239,8 +239,8 @@
     },
     "js/audio/tracklist.test.mjs": {
       "lang": "javascript",
-      "hash": "61ee0643c1a9836438bbea61039fa875f00866c769f89c112fb24ca2277683ff",
-      "loc": 80,
+      "hash": "026c383bca190a79cffd636a58e86e8c5d6fff2e27f83a0ef2193ee0b53cef0b",
+      "loc": 103,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -271,8 +271,8 @@
     },
     "js/board/player.js": {
       "lang": "javascript",
-      "hash": "509bcd36ac1e027fde783cfde1607f9dda2511787a303801947abf89e7fd3199",
-      "loc": 176,
+      "hash": "4d5d454c2fd3fb4c4fe8ba10d5146a885593983192a6a13491a420f16d325506",
+      "loc": 199,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -303,16 +303,16 @@
     },
     "js/camera.js": {
       "lang": "javascript",
-      "hash": "8b3786b0bf62084df4088979f4d88aaea0f57dbde7f2e6d206d37a8bb92f1ca6",
-      "loc": 1737,
+      "hash": "6217a2a6b83df5874f4a7d69bd0c93c26b5fd25cc4340db82732fef87af27c39",
+      "loc": 1877,
       "module": "js",
       "symbols": [],
       "imports": []
     },
     "js/citycatalog.js": {
       "lang": "javascript",
-      "hash": "6a3331a060526607834cac208ead14c33afc3629133d431fe778a11695d99e89",
-      "loc": 191,
+      "hash": "fac6a73723337e0d16623007409b803068ef490076aa6f4f72e3af5a5e0c25e4",
+      "loc": 836,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -343,8 +343,8 @@
     },
     "js/cloud/sync.js": {
       "lang": "javascript",
-      "hash": "e2df34d78fdcdada6d33faaa0cd2d0d36333b012e73818bb3c6edea1a751d91c",
-      "loc": 269,
+      "hash": "d54669892879b044dc6e8b4cadd4da646846a838f85705764911d2d623318bba",
+      "loc": 280,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -353,6 +353,14 @@
       "lang": "javascript",
       "hash": "9a8a78c51d02ee18b921fe894e9de78465979c399ed4fa588127614d2e38be21",
       "loc": 1357,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/device.js": {
+      "lang": "javascript",
+      "hash": "654f5362ac5e870b1f9b1bbb102118c1760518dd8fc2036235e4491ffc77238d",
+      "loc": 37,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -383,8 +391,8 @@
     },
     "js/main.js": {
       "lang": "javascript",
-      "hash": "a3f68adef55c7bf008381e7eebf933860cdf51d55562f746c71ea58aeadc1298",
-      "loc": 2071,
+      "hash": "028d4670a2dee8ee5c9c425fa8a3b76823f2347a37af9ed21048d4a45168a77c",
+      "loc": 2251,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -487,8 +495,8 @@
     },
     "js/quality.js": {
       "lang": "javascript",
-      "hash": "1cef3897cf5400abd870f7499c5999836477a7be9bed2b9cb1c47ceac94124cb",
-      "loc": 102,
+      "hash": "c9eb5fc2e7c158fcaccd4e5f17d531bf1f19dd6f20320eeed6438c34580d4c2d",
+      "loc": 103,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -575,7 +583,7 @@
     },
     "js/ui/help.js": {
       "lang": "javascript",
-      "hash": "990b92fb4e8f2742160c329694d6e7ba99074f5955d600adc9eba0910227f7b2",
+      "hash": "d76401ddca5650a375293e802523851c0dbf76aa5617dab8dc6a14051007c748",
       "loc": 787,
       "module": "js",
       "symbols": [],
@@ -599,59 +607,16 @@
     },
     "js/ui/ready.js": {
       "lang": "javascript",
-      "hash": "61786273001fee37b84fad5ea1c24aba198916cd034f0201d76f0117ac9143cd",
-      "loc": 200,
+      "hash": "b7a690d855b431e5168e96eda3170bb0887ac723c44bb4bf188f70774fc56709",
+      "loc": 243,
       "module": "js",
-      "symbols": [
-        {
-          "name": "hudMute",
-          "kind": "function",
-          "line": 29,
-          "exported": false
-        },
-        {
-          "name": "hudRestore",
-          "kind": "function",
-          "line": 38,
-          "exported": false
-        },
-        {
-          "name": "el",
-          "kind": "function",
-          "line": 57,
-          "exported": false
-        },
-        {
-          "name": "prefersReducedMotion",
-          "kind": "function",
-          "line": 63,
-          "exported": false
-        },
-        {
-          "name": "isStartKey",
-          "kind": "function",
-          "line": 70,
-          "exported": false
-        },
-        {
-          "name": "mountReadyGate",
-          "kind": "function",
-          "line": 90,
-          "exported": true
-        }
-      ],
-      "imports": [
-        {
-          "raw": "./blockword.js",
-          "resolved": "js/ui/blockword.js",
-          "external": false
-        }
-      ]
+      "symbols": [],
+      "imports": []
     },
     "js/ui/screens.js": {
       "lang": "javascript",
-      "hash": "78e926c502d9cba192b074b700f33a64f35da49cdffdef95fb061c48f02a8b36",
-      "loc": 1945,
+      "hash": "e3c2b23f53ba8e310246ba6d3c3253530c7d83f983f2031d7824ae86c7436092",
+      "loc": 2238,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -666,8 +631,16 @@
     },
     "js/ui/sync-copy.js": {
       "lang": "javascript",
-      "hash": "16dbbf16fe89266442198d75c4181d13cc29bf11072e56c7a6697430cd6566c1",
-      "loc": 57,
+      "hash": "50bd183645c3a8218aad172ef6c0cf49a5f00cebfdc47823e0dce40b7f221903",
+      "loc": 65,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/ui/tutorial.js": {
+      "lang": "javascript",
+      "hash": "89b7f1dd564ee59d0c50f9cc56f41c074706476e82483743f4db3a8cf4e55ab8",
+      "loc": 293,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -712,6 +685,54 @@
       "symbols": [],
       "imports": []
     },
+    "js/voxelscene-amsterdam.js": {
+      "lang": "javascript",
+      "hash": "2038be4244ff3da24ca7018aee02402d2033a254fff3f6ddd9c38759b37a184e",
+      "loc": 295,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-athens.js": {
+      "lang": "javascript",
+      "hash": "b2b9ad9cae921ece52793a3ce9ee82c3c7ae55c55969283c621426f324bfc3e5",
+      "loc": 279,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-auckland.js": {
+      "lang": "javascript",
+      "hash": "b3c54f4de32b679dff52a51b7e3d456f453e59ca0a1558572fb6fcc27ff9b60a",
+      "loc": 734,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-bangkok.js": {
+      "lang": "javascript",
+      "hash": "b782fd292aeb0582fd26fd0085f469378cabb6f11eede60ea0f6c0c142016d26",
+      "loc": 385,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-beijing.js": {
+      "lang": "javascript",
+      "hash": "6ba9fb735246a098001e365dc10b039ed1df59907caff8e81e4d8e53b3f1809d",
+      "loc": 351,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-berlin.js": {
+      "lang": "javascript",
+      "hash": "a95f5a432e5a9b608531e07e88e4fe3914c4b9006aad086a5718bd2c52b9d4d4",
+      "loc": 279,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
     "js/voxelscene-boston.js": {
       "lang": "javascript",
       "hash": "ba4d60e22fca0553bcd5e3527d4f03800b5726e8084dc0f7181b874c85fc42b7",
@@ -724,6 +745,14 @@
       "lang": "javascript",
       "hash": "4e9bc331d0d56e8aa2ff64fa2908bcd9ab189968c749e8f8fcec19dd525db3a9",
       "loc": 923,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-cairo.js": {
+      "lang": "javascript",
+      "hash": "834459061e36a620f4620108a3a1dbaf2038c1c8faa79f31b5feba66867ecfae",
+      "loc": 293,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -744,6 +773,30 @@
       "symbols": [],
       "imports": []
     },
+    "js/voxelscene-dubai.js": {
+      "lang": "javascript",
+      "hash": "aefcddfe52125a6cba69c81234660b6509fa05d7eb86e5a417fc7b18a99d46b7",
+      "loc": 276,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-hongkong.js": {
+      "lang": "javascript",
+      "hash": "390f9387f4a26a13372dc84b47928dbe6dc30fd049b49e1d3b8da8d51e58a971",
+      "loc": 584,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-london.js": {
+      "lang": "javascript",
+      "hash": "73df69b165e656032c54c0d00f48a14f375346837354a215c444abd254915a99",
+      "loc": 282,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
     "js/voxelscene-manhattan.js": {
       "lang": "javascript",
       "hash": "d7db4f683cff83ae29da87e837940e61de68d706b15055c7687308781170363b",
@@ -752,10 +805,58 @@
       "symbols": [],
       "imports": []
     },
+    "js/voxelscene-mumbai.js": {
+      "lang": "javascript",
+      "hash": "d2adc80dfebb9ad42a07703f30b4c743c98acb911148cc05d257439ee7ba431f",
+      "loc": 354,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-paris.js": {
+      "lang": "javascript",
+      "hash": "985a431e13a9bc3e9a1e35841d93be0a050f500e59232611cc4477fad8dd0768",
+      "loc": 287,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-rome.js": {
+      "lang": "javascript",
+      "hash": "4544afdcb7d418507606dcb38c9ecc321232af2ddd8eed4f04393e3152dae315",
+      "loc": 273,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-seoul.js": {
+      "lang": "javascript",
+      "hash": "441af6b7ae538775cc7bca788b83bee134b7470128b0e0314ba88cf1e1e64387",
+      "loc": 419,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-singapore.js": {
+      "lang": "javascript",
+      "hash": "b10056a52711f4300ee2cd4e7c6978cc73aafb8d914403861ae34f5788495f7a",
+      "loc": 576,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
+    "js/voxelscene-sydney.js": {
+      "lang": "javascript",
+      "hash": "34514709ac1ca7025c92ef4e776edf3bf316f3301e7ca3f75530f5ba265b92c1",
+      "loc": 427,
+      "module": "js",
+      "symbols": [],
+      "imports": []
+    },
     "js/voxelscene-tokyo.js": {
       "lang": "javascript",
-      "hash": "8d08e6397b6076bd92fe2d47f143f6484656cd723d2407e63f3c06acdd6bca2a",
-      "loc": 807,
+      "hash": "e843215729e0d9bdd1df28f9feac792c118d0d35a7f3a5cde15c6f2b1fdc9032",
+      "loc": 818,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -786,8 +887,8 @@
     },
     "js/voxelsim.js": {
       "lang": "javascript",
-      "hash": "a3a31b03ba7159a5767b55ca05f983f0d2da19225c23b6e9dbd01828b6a4cb1e",
-      "loc": 5139,
+      "hash": "38e89a5a66d76f1ec644c78a1d2fcfb68a7de935f77958d54d7f4224155d6f77",
+      "loc": 5390,
       "module": "js",
       "symbols": [],
       "imports": []
@@ -834,8 +935,8 @@
     },
     "old_voxelsim.js": {
       "lang": "javascript",
-      "hash": "7e6169b86b592f9667ef28895c353656cddd5ae83b0db0582b696995548bd80c",
-      "loc": 4490,
+      "hash": "79d4b6832637276df6c3ccfcb7c80ee73d2fe8282e0b3efb1a510f94670bd34d",
+      "loc": 4509,
       "module": ".",
       "symbols": [],
       "imports": []
@@ -860,6 +961,22 @@
       "lang": "javascript",
       "hash": "c00a129fca4314cd25432d08911babbad49f91eec541f03049c19b34c3ebe3ad",
       "loc": 81,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/camera-smoothing.test.mjs": {
+      "lang": "javascript",
+      "hash": "716019f29ba7084fb109a1d5de852279d36b136a760d090eab586c84c229a7d5",
+      "loc": 315,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/campaign-ui.test.mjs": {
+      "lang": "javascript",
+      "hash": "2d143cda1f972209f0e8f58027b0130bf614ff083397e64a0b43212317c07aa8",
+      "loc": 77,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1008,6 +1125,14 @@
       "symbols": [],
       "imports": []
     },
+    "tools/device-detection.test.mjs": {
+      "lang": "javascript",
+      "hash": "39daa7eb36888bfd5c91008f610047cf2a94a5243bfb11c099c50b2a422062df",
+      "loc": 42,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/diagnostics.mjs": {
       "lang": "javascript",
       "hash": "0bc0a042f5ba624332a36657d3a612a060eb3d6dd6777cc9f06aa61346693817",
@@ -1018,7 +1143,7 @@
     },
     "tools/earthquake-cinematic-selftest.mjs": {
       "lang": "javascript",
-      "hash": "2f7d35f9ffd9a730ac941da396d00b42018dafcc5778bfa2aea325284c58f447",
+      "hash": "571198d6fca3ba37c28092c24afe4e2f29f88c9748798ba06ba873991d0c1463",
       "loc": 94,
       "module": "tools",
       "symbols": [],
@@ -1026,8 +1151,8 @@
     },
     "tools/economy-consistency.test.mjs": {
       "lang": "javascript",
-      "hash": "d5f156ffe82129005bfd699da51271a4fd12edfacb7401156d873c5522068ac6",
-      "loc": 522,
+      "hash": "c2b870ec703a5622d7f35bd1a7761c3b4f50556b3242cea5514bae71f9807611",
+      "loc": 534,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1050,8 +1175,8 @@
     },
     "tools/help.test.mjs": {
       "lang": "javascript",
-      "hash": "f25126dcbb3d444f20ccb897317d4c53354415c6571aee0ddfb8aec6ba0c6a18",
-      "loc": 134,
+      "hash": "f58650d477f74823740c685b07cad863acb3657a13aea7c639480d9c9a55cc82",
+      "loc": 162,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1076,6 +1201,30 @@
       "lang": "javascript",
       "hash": "fa41fc48f750ff3b5f641d1b98a118d2568bde5c0145795a9216c1a66942565a",
       "loc": 255,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/mobile-camera.test.mjs": {
+      "lang": "javascript",
+      "hash": "bd23345a72314b83639441b35c4e67bd8573a045f703c726971fa602e83c833b",
+      "loc": 67,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/mobile-ui.test.mjs": {
+      "lang": "javascript",
+      "hash": "64ae7d6d7805867bf906cdcef1c220510ac0426ff559ee91a07b60553f5adbc4",
+      "loc": 327,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/mobile-zoom-controls.test.mjs": {
+      "lang": "javascript",
+      "hash": "c4d1097b652bb58902f33802dcd2766706e94e3be573348ff8a6d22169677548",
+      "loc": 55,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1106,8 +1255,8 @@
     },
     "tools/multiplayer-fixes.test.mjs": {
       "lang": "javascript",
-      "hash": "f5623e0ecf75d88bb8ab3ab25bbc166df5e4fa6b7ec546ccfe74a569ecbe5f8c",
-      "loc": 557,
+      "hash": "7020395506a4067cfda4c8952238bd5dfa0d1600d352b296d2372f99a384d0e6",
+      "loc": 584,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1162,8 +1311,8 @@
     },
     "tools/multiplayer-sim.test.mjs": {
       "lang": "javascript",
-      "hash": "cd4fbbaa34a4ca151c8c8eda75b06d7e260cb450ae1102d85fc50ab48002ebb5",
-      "loc": 74,
+      "hash": "9f053b0b23429c229f51db135ec18f606876e1cc161861fe514eacc176a1e0f8",
+      "loc": 78,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1192,9 +1341,17 @@
       "symbols": [],
       "imports": []
     },
+    "tools/orchestrator-coverage.test.mjs": {
+      "lang": "javascript",
+      "hash": "81f649648a5c5eb86bf98d07574872371fffaf466221d7184b91becad894bd4c",
+      "loc": 119,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/partner-approval.test.mjs": {
       "lang": "javascript",
-      "hash": "3ab91847141b78c43c7d78dbd17bed21dbb07265022aec9782218c9a45776055",
+      "hash": "0b86c33826aafb856a2e426790a6224dae131e8414cbacc94eb84d3edcfb9bea",
       "loc": 454,
       "module": "tools",
       "symbols": [],
@@ -1232,6 +1389,14 @@
       "symbols": [],
       "imports": []
     },
+    "tools/player-identity.test.mjs": {
+      "lang": "javascript",
+      "hash": "23ee508dd195838d12c84f5e332af8a73172102b2a7f6a4d5422561b9d5e0297",
+      "loc": 182,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/probe-aniso.mjs": {
       "lang": "javascript",
       "hash": "b906bd3d0eb05180c413ce2d00f03bb1af2ff812c8bdfd13e29ad48730989049",
@@ -1244,6 +1409,14 @@
       "lang": "javascript",
       "hash": "50b2ae2ce6baad5d3dd41fbab0e182508bf3ea31fe4eb8d784ef1a2865bbf116",
       "loc": 271,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/probe-lane-modulus.mjs": {
+      "lang": "javascript",
+      "hash": "1557689ec75686eea69b3b7775505616224d9808054803160d11d7b36b6c3f03",
+      "loc": 195,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1290,8 +1463,56 @@
     },
     "tools/progress-ui.test.mjs": {
       "lang": "javascript",
-      "hash": "7378b9cb7e1d495256f7c5b794712ebcfb5881b59a429859f9baa28ef422cc30",
-      "loc": 71,
+      "hash": "48edb485717bd7857b92fd84d526c68ea7719c24aa3071ea3901392704178547",
+      "loc": 76,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/pw/_menu-review-shots.mjs": {
+      "lang": "javascript",
+      "hash": "43aa34c9ab89334cc178c97720d27c5a8b27d66c3f2695e0562d8945d768f454",
+      "loc": 60,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/pw/auckland-playtest.mjs": {
+      "lang": "javascript",
+      "hash": "cbc18a59e72d045de581eb544038b68cb1f7fd2cdc024927ac8ea5e6d548e74e",
+      "loc": 218,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/pw/city-select-fold.mjs": {
+      "lang": "javascript",
+      "hash": "de3c9810a76546ecb08e26521b5c5d3f143feb81b701564a3bf7ee577ad12cee",
+      "loc": 206,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/pw/city-select-mobile.mjs": {
+      "lang": "javascript",
+      "hash": "b421ec3a51518429880b7aee548ec353baf9d2cc79bb32cb2a71ddf73ad0f926",
+      "loc": 279,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/pw/hero-attack-perf.mjs": {
+      "lang": "javascript",
+      "hash": "4ef40be85748639f0009c6074cba10472818a02eb0bf52faf8c6fa20f5da62c6",
+      "loc": 150,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/pw/menu-mobile.mjs": {
+      "lang": "javascript",
+      "hash": "c0dfa9d8515e415626a30cd007d118027759a9bb6fa35cd04c6ef95d55e8a461",
+      "loc": 252,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1312,10 +1533,66 @@
       "symbols": [],
       "imports": []
     },
+    "tools/pw/singapore-playtest.mjs": {
+      "lang": "javascript",
+      "hash": "1b12c557720deddd25b9942b438bcdc0ab6ba0a9e49f53f1aca5a76dede19fd4",
+      "loc": 263,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/pw/singapore-shots.mjs": {
+      "lang": "javascript",
+      "hash": "527a0f6ad5f995a709708666a476f78e4b5195aec722f7ae6c9a32b5a1269170",
+      "loc": 123,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/pw/test.mjs": {
       "lang": "javascript",
       "hash": "c5fc271e89e322975123f428c621613867883e175f9d248e92ee6a4252ff0c92",
       "loc": 99,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/pw/tokyo-blocker-cost.mjs": {
+      "lang": "javascript",
+      "hash": "3925bf7ae61ecbec85c4e8255b3a6b0f0fc891c00fe8e080845bd32eb2a632dd",
+      "loc": 50,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/pw/tokyo-blocker-coverage.mjs": {
+      "lang": "javascript",
+      "hash": "bcc6df3d22bef3da3d1284424cf6d678260630eff8334a388ac64909578450d1",
+      "loc": 76,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/pw/tokyo-camera-clip-ab.mjs": {
+      "lang": "javascript",
+      "hash": "93bc21bfff942b202b7d2e06033bdc032324fea92977f8fa3dcd1ec8b447b10c",
+      "loc": 207,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/pw/unknown-scene-recovery.mjs": {
+      "lang": "javascript",
+      "hash": "3db432b90996e0f33359287d3a89f5311d038014de39b14691fb7cb5ccf3610e",
+      "loc": 144,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/quake-rupture.test.mjs": {
+      "lang": "javascript",
+      "hash": "a7c5a1bfd0b5907004cd4512ab4ebccb4b84734e438d297a16746485c1badfc0",
+      "loc": 200,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1338,8 +1615,8 @@
     },
     "tools/sfx-event-guard.test.mjs": {
       "lang": "javascript",
-      "hash": "93a4d235d8530dd600ca3c14af98c2cecd982fe0589c637610796b74cda9d6f5",
-      "loc": 308,
+      "hash": "465cf37377d91b1f7586bc9b3d9b4783280771f6408305a303614b5bf20f6d98",
+      "loc": 388,
       "module": "tools",
       "symbols": [],
       "imports": []
@@ -1384,22 +1661,96 @@
       "symbols": [],
       "imports": []
     },
+    "tools/tutorial.test.mjs": {
+      "lang": "javascript",
+      "hash": "322446e9279318b5c58224a38c61c113c3fd987773c761cde6ae45e5fed601cb",
+      "loc": 134,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/validate-auckland.mjs": {
+      "lang": "javascript",
+      "hash": "1eda27e14ad3569a4f57b28e6e4f77409767fbfe806b5d5e3e0a9ae6b363fa07",
+      "loc": 126,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/validate-bangkok.mjs": {
+      "lang": "javascript",
+      "hash": "4226af56856b08a11d8fc56ec787578295acd03305ef8cf84352226631a8d517",
+      "loc": 245,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/validate-beijing.mjs": {
+      "lang": "javascript",
+      "hash": "031ba22caca5abe62495a8a4f77e97cfcbd7ffe960a9ddb47d704cfd5fc443eb",
+      "loc": 245,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/validate-campaign.mjs": {
+      "lang": "javascript",
+      "hash": "f7a2338d5e4a6a8624c2b86f411e881df7c13fdd9f1a2571d0537630ca426975",
+      "loc": 256,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/validate-hongkong.mjs": {
+      "lang": "javascript",
+      "hash": "972925c34ec53d002d4b08d1f5d8da57a0422ac59cb565507d466381c4dbec54",
+      "loc": 288,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/validate-mumbai.mjs": {
+      "lang": "javascript",
+      "hash": "454ae3ba3de66178a5eb8c2ce1219b59603ba1c15929c6806b56f7be07ae8077",
+      "loc": 271,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/validate-seoul.mjs": {
+      "lang": "javascript",
+      "hash": "94dc831823213e3ff2d41643fad969902cb522b2378ee26e2b1d119275b6066e",
+      "loc": 245,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/validate-singapore.mjs": {
+      "lang": "javascript",
+      "hash": "93385c798e96fb6e31039d4c57c1552313fa005436f75283efaa444e37875577",
+      "loc": 326,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
+    "tools/validate-sydney.mjs": {
+      "lang": "javascript",
+      "hash": "2df7860fd5e0217e24f53db139da4aa866e81477fac97b02027d25ff88b11e5e",
+      "loc": 113,
+      "module": "tools",
+      "symbols": [],
+      "imports": []
+    },
     "tools/validate.mjs": {
       "lang": "javascript",
-      "hash": "8cb7bbc446ffe81ec34bd2946c37553e91040ef5c9a0ceb1c2abbd5b2ce8b2ab",
-      "loc": 3223,
+      "hash": "d5aa3793582f00530f0c0088db7452ef62167c511f21e166929b62e77b0976e8",
+      "loc": 3852,
       "module": "tools",
       "symbols": [],
       "imports": []
     }
   },
-  "edges": [
-    {
-      "from": "js/ui/ready.js",
-      "to": "js/ui/blockword.js",
-      "kind": "imports"
-    }
-  ],
+  "edges": [],
   "modules": {
     ".": {
       "files": [
@@ -1455,6 +1806,7 @@
         "js/cloud/merge.js",
         "js/cloud/sync.js",
         "js/controls.js",
+        "js/device.js",
         "js/fwmath.js",
         "js/levelclock.js",
         "js/levels.js",
@@ -1489,16 +1841,33 @@
         "js/ui/screens.js",
         "js/ui/sprocket.js",
         "js/ui/sync-copy.js",
+        "js/ui/tutorial.js",
         "js/upgrades.js",
         "js/vendor/supabase-realtime.module.js",
         "js/vendor/three.module.js",
         "js/voxelforms.js",
         "js/voxelkit.js",
+        "js/voxelscene-amsterdam.js",
+        "js/voxelscene-athens.js",
+        "js/voxelscene-auckland.js",
+        "js/voxelscene-bangkok.js",
+        "js/voxelscene-beijing.js",
+        "js/voxelscene-berlin.js",
         "js/voxelscene-boston.js",
         "js/voxelscene-brooklyn.js",
+        "js/voxelscene-cairo.js",
         "js/voxelscene-cambridge.js",
         "js/voxelscene-chicago.js",
+        "js/voxelscene-dubai.js",
+        "js/voxelscene-hongkong.js",
+        "js/voxelscene-london.js",
         "js/voxelscene-manhattan.js",
+        "js/voxelscene-mumbai.js",
+        "js/voxelscene-paris.js",
+        "js/voxelscene-rome.js",
+        "js/voxelscene-seoul.js",
+        "js/voxelscene-singapore.js",
+        "js/voxelscene-sydney.js",
         "js/voxelscene-tokyo.js",
         "js/voxelscene-upper-manhattan.js",
         "js/voxelsim.drain.test.mjs",
@@ -1516,6 +1885,8 @@
         "tools/api-auth.test.mjs",
         "tools/board-live-selftest.mjs",
         "tools/board-selftest.mjs",
+        "tools/camera-smoothing.test.mjs",
+        "tools/campaign-ui.test.mjs",
         "tools/check_imports.mjs",
         "tools/chicago-probe.mjs",
         "tools/cinematic-arming-guard.test.mjs",
@@ -1534,6 +1905,7 @@
         "tools/debug-trap8.mjs",
         "tools/debug-trap9.mjs",
         "tools/demographic-playtest.mjs",
+        "tools/device-detection.test.mjs",
         "tools/diagnostics.mjs",
         "tools/earthquake-cinematic-selftest.mjs",
         "tools/economy-consistency.test.mjs",
@@ -1543,6 +1915,9 @@
         "tools/import-all-modules.mjs",
         "tools/lobby-start-control.test.mjs",
         "tools/main-undefined-identifiers.test.mjs",
+        "tools/mobile-camera.test.mjs",
+        "tools/mobile-ui.test.mjs",
+        "tools/mobile-zoom-controls.test.mjs",
         "tools/multiplayer-clock-coins.test.mjs",
         "tools/multiplayer-config.test.mjs",
         "tools/multiplayer-e2e.test.mjs",
@@ -1557,22 +1932,38 @@
         "tools/music-assets-selftest.mjs",
         "tools/music-cue.test.mjs",
         "tools/names.test.mjs",
+        "tools/orchestrator-coverage.test.mjs",
         "tools/partner-approval.test.mjs",
         "tools/perf/lib.cjs",
         "tools/perf/t901-report.cjs",
         "tools/perf/t901-run.cjs",
         "tools/perf/t901.cjs",
+        "tools/player-identity.test.mjs",
         "tools/probe-aniso.mjs",
         "tools/probe-buildcost2.mjs",
+        "tools/probe-lane-modulus.mjs",
         "tools/progress-and-lab.test.mjs",
         "tools/progress-api.test.mjs",
         "tools/progress-blob.test.mjs",
         "tools/progress-merge.test.mjs",
         "tools/progress-sync.test.mjs",
         "tools/progress-ui.test.mjs",
+        "tools/pw/_menu-review-shots.mjs",
+        "tools/pw/auckland-playtest.mjs",
+        "tools/pw/city-select-fold.mjs",
+        "tools/pw/city-select-mobile.mjs",
+        "tools/pw/hero-attack-perf.mjs",
+        "tools/pw/menu-mobile.mjs",
         "tools/pw/music-picker-smoke.mjs",
         "tools/pw/shop-nav-mobile.mjs",
+        "tools/pw/singapore-playtest.mjs",
+        "tools/pw/singapore-shots.mjs",
         "tools/pw/test.mjs",
+        "tools/pw/tokyo-blocker-cost.mjs",
+        "tools/pw/tokyo-blocker-coverage.mjs",
+        "tools/pw/tokyo-camera-clip-ab.mjs",
+        "tools/pw/unknown-scene-recovery.mjs",
+        "tools/quake-rupture.test.mjs",
         "tools/records-and-names.test.mjs",
         "tools/route-driver.mjs",
         "tools/sfx-event-guard.test.mjs",
@@ -1581,6 +1972,16 @@
         "tools/steering-acceleration.test.mjs",
         "tools/test-live-profile.mjs",
         "tools/train-derail-selftest.mjs",
+        "tools/tutorial.test.mjs",
+        "tools/validate-auckland.mjs",
+        "tools/validate-bangkok.mjs",
+        "tools/validate-beijing.mjs",
+        "tools/validate-campaign.mjs",
+        "tools/validate-hongkong.mjs",
+        "tools/validate-mumbai.mjs",
+        "tools/validate-seoul.mjs",
+        "tools/validate-singapore.mjs",
+        "tools/validate-sydney.mjs",
         "tools/validate.mjs"
       ]
     }

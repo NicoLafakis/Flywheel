@@ -468,11 +468,11 @@ console.log('\n--- tripwire: no MULTIPLAYER_SCENES entry declares sceneMovers --
   // through most of the roster vanishing. Bump it deliberately when a city
   // ships, exactly as the 11/18 playable/development split is bumped.
   //
-  // 15, not 16: this counts IMPORTERS, and the gallery has none because it is
+  // 23, not 24: this counts IMPORTERS, and the gallery has none because it is
   // authored inline in `_buildScene`. So it is (playable cities - gallery), and
   // deriving it from the playable count without that subtraction is wrong — I
   // did exactly that and this assertion caught it on the first run.
-  const EXPECTED_IMPORTERS = 15;
+  const EXPECTED_IMPORTERS = 23;
   assert.equal(sceneModule.size, EXPECTED_IMPORTERS,
     `SCENE_IMPORTERS parsed to ${sceneModule.size} entr(ies), expected ${EXPECTED_IMPORTERS} — either the parser has drifted from the loader, or a scene was registered/unregistered and this count was not bumped with it`);
 

@@ -12,8 +12,13 @@ const fail = (m) => { failures++; console.error('  FAIL: ' + m); };
   try { copy = await import('../js/ui/sync-copy.js'); } catch (e) { fail(`js/ui/sync-copy.js failed to import: ${e.message}`); process.exit(1); }
   const { SYNC_LABELS, syncIndicator, firstNoteText, trimmedNoticeText, shouldShowFirstNote, markFirstNoteShown } = copy;
 
-  // Task 12: four states, one label each, matching syncStatus() names.
-  const wantLabels = { synced: 'SYNCED', syncing: 'SYNCING…', offline: 'OFFLINE — WILL SYNC', 'signed-out': 'SIGNED OUT ELSEWHERE' };
+  // Task 12: five states, one label each, matching syncStatus() names.
+  // 'not-connected' (RCA-2026-08-20) is the offline-fallback identity state:
+  // registerPlayer/loginPlayer/claimName minted a local-* id because the
+  // server was unreachable, and that must be visibly different from 'idle'
+  // (a guest who never tried to sign in at all) — folding it into 'idle' is
+  // exactly how a phantom "signed in" identity went unnoticed.
+  const wantLabels = { synced: 'SYNCED', syncing: 'SYNCING…', offline: 'OFFLINE — WILL SYNC', 'signed-out': 'SIGNED OUT ELSEWHERE', 'not-connected': 'NOT CONNECTED — SIGN IN AGAIN' };
   for (const [k, v] of Object.entries(wantLabels)) if (SYNC_LABELS[k] !== v) fail(`SYNC_LABELS.${k} is ${JSON.stringify(SYNC_LABELS[k])}, want ${JSON.stringify(v)}`);
   if (syncIndicator('idle') !== null) fail('syncIndicator("idle") must be null (nothing to show)');
   if (syncIndicator('nonsense') !== null) fail('syncIndicator(unknown) must be null');
@@ -46,7 +51,7 @@ const fail = (m) => { failures++; console.error('  FAIL: ' + m); };
   if (!/syncStatus\(/.test(stripComments(screens))) fail('screens.js does not read syncStatus');
   if (!/KEEP COINS, SKINS & STARS EVERYWHERE/.test(screens)) fail('screens.js plate note must invite sign-in for progress, not just the name');
   if (!/fw-sync-dot/.test(css)) fail('main.css has no .fw-sync-dot styling');
-  for (const tone of ['synced', 'syncing', 'offline', 'signed-out']) if (!css.includes(`fw-sync--${tone}`)) fail(`main.css lacks .fw-sync--${tone}`);
+  for (const tone of ['synced', 'syncing', 'offline', 'signed-out', 'not-connected']) if (!css.includes(`fw-sync--${tone}`)) fail(`main.css lacks .fw-sync--${tone}`);
   const b = stripComments(boards);
   for (const fn of ['syncIndicator', 'shouldShowFirstNote', 'markFirstNoteShown', 'firstNoteText', 'trimmedNoticeText', 'lastTrimmed', 'signOutPlayer']) {
     if (!new RegExp(`\\b${fn}\\b`).test(b)) fail(`boards.js profile tab does not use ${fn}`);

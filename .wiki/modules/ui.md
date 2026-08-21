@@ -38,6 +38,24 @@ tying everything together.
 
 ## Gotchas
 
+- **`tutorialManager` calls must match `TutorialManager`'s real method
+  names, and nothing headless catches a mismatch except a dedicated
+  contract test** (2026-08-20, RCA:
+  `.wiki/findings/RCA-2026-08-20-the-lab-post-level-stuck-restart.md`).
+  `js/main.js` is DOM-only and can never be imported by the Node validator,
+  and `tools/main-undefined-identifiers.test.mjs`'s scanner explicitly does
+  not check member-expression calls (`obj.foo()`) — only bare identifiers.
+  Both call sites in `teardownWorld()` and `startVoxelSandbox()`'s
+  `buildSandbox()` called `tutorialManager.unmount()` against a class that
+  has only ever defined `.teardown()`; the throw silently killed
+  `teardownWorld()`, which every navigation path (results-screen buttons,
+  pause-menu RESTART, `failSceneLaunch()`'s own recovery call) funnels
+  through, but only on The Lab — the only scene that ever constructs a
+  `TutorialManager`. `tools/tutorial.test.mjs` now has a contract test that
+  scans `js/main.js` for every `tutorialManager.<method>(` call site and
+  asserts the method exists on `TutorialManager.prototype`, so a future
+  rename on either side of this seam fails in `node tools/validate.mjs`
+  instead of on a live results screen.
 - Screens communicate **only** through the `actions` object passed to
   `Screens` — don't reach into `main.js` state from UI code.
 - **RECORDS and LEADERBOARD are two different questions and two different

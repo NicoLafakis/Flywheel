@@ -136,10 +136,15 @@ no migration ever does.
 
 ## Invariant 10 — network is optional
 
-- `js/board/player.js`'s `registerPlayer`/`loginPlayer`/`claimName` each try
-  their `api/` call and fall back to a `local-*` id/token pair on any failure
-  that is not a validation error (bad name, taken name, wrong password) — the
-  player keeps a usable identity even if `api/` is unreachable.
+- `js/board/player.js`'s `registerPlayer`/`loginPlayer`/`claimName`/
+  `renamePlayer` each try their `api/` call and fall back to a `local-*`
+  id/token pair (or, for `renamePlayer`, keep the existing real secret) — but
+  only when `isRetryableOffline(error)` says so: no `error.status` at all
+  (fetch threw / timed out) or a `5xx`/`429` the server itself flagged
+  `retryable`. Everything else, including `404`, rejects for real (see "The
+  `local-*` identity trap, fixed" below) — the player keeps a usable identity
+  only when the server was genuinely unreachable, never when it gave a real
+  answer the client did not recognize.
 - `js/board/outbox.js` queues a finished ranked run (`enqueue`) and only
   drains it (`drain`, which posts to `/run/submit`) at boot/reconnect/focus/
   timer boundaries that `js/main.js` calls into — never from the fixed-step
@@ -285,20 +290,44 @@ client, and callers read `id` and `name` only.
   `js/board/config.js` — necessarily, since one ships to the server bundle
   and the other to the browser, but a scene added to one and not the other is
   a silent drift risk with no test catching it today.
-- **The `local-*` identity trap.** `js/board/player.js`'s `registerPlayer`,
-  `loginPlayer` and `claimName` each fall back to a fabricated
-  `{player_id: 'local-…', token: 'local-token-…'}` on any non-validation
-  failure, and `savePlayerSecret()` persists it. `js/board/run.js`'s
-  `startTicket()` then sends that pair on every later request, and `run/start`
-  rejects an invalid binding outright with `401 PLAYER_TOKEN_INVALID` — so one
-  offline moment permanently un-ranks the browser until localStorage is
-  cleared. The server side cannot fix this (a 401 for a `player_id` that is not
-  a UUID is the correct answer), and `js/**` is out of scope for the change
-  that documented it. Nothing here makes it worse: auto-provisioning only runs
-  when NO binding was sent, so a browser holding a `local-*` secret takes the
-  401 branch before reaching it and gets the same result it does today. The fix
-  belongs in `js/board/player.js` — do not write a credential the server never
-  issued; leave the secret absent and let `run/start` provision a real one.
+- **The `local-*` identity trap, fixed (RCA-2026-08-20).** `js/board/player.js`'s
+  `registerPlayer`/`loginPlayer`/`claimName` used to fall back to a fabricated
+  `{player_id: 'local-…', token: 'local-token-…'}` on ANY non-whitelisted
+  failure — a whitelist of a few expected 4xx codes, everything else silently
+  treated as safe to paper over. A `404 PLAYER_NOT_FOUND` on `auth/login` (the
+  server correctly reporting "no such account") was not whitelisted, so a
+  player signing in on a second device with a name that had never actually
+  registered got a phantom, empty, **`nameSource: 'claimed'`**-looking
+  identity under their own real name — visually indistinguishable from a real
+  sign-in. See
+  `.wiki/findings/RCA-2026-08-20-cross-device-zero-progress.md` for the full
+  trace; a player hit this in production under the name "Cr4sh0veRide".
+  Fixed by inverting the check to a deny-list (`isRetryableOffline(error)`,
+  exported from `js/board/player.js`): only "no response at all" or a
+  server-flagged-`retryable` `5xx`/`429` may fall back; a `404` (and any other
+  unrecognized status/code) now rejects for real, surfacing the server's own
+  message. When the fallback DOES fire, the identity is marked
+  `nameSource: 'pending'`, never `'claimed'` — `js/cloud/sync.js`'s
+  `syncStatus()` reports a distinct `'not-connected'` state for a `pending` +
+  `local-*` identity (label "NOT CONNECTED — SIGN IN AGAIN",
+  `js/ui/sync-copy.js`), and every UI surface gated on `nameSource ===
+  'claimed'` (the "LOGGED IN ACCOUNT... credited to this account on every
+  device" copy in `js/ui/boards.js`, the first-sync card, the re-roll lock in
+  `js/save.js`) now correctly treats a fallback identity as not-yet-signed-in.
+  The separate `run/start` ticket-binding issue below (a `local-*` secret
+  permanently un-ranking the browser) is unaffected by this fix and remains
+  open — it is triggered only by a genuinely offline `pending` fallback now,
+  which is rarer but not eliminated, since invariant 10 still requires an
+  offline player be able to keep playing.
+- **The `run/start` local-token-401 gap (still open).** `js/board/run.js`'s
+  `startTicket()` sends whatever secret `playerSecret()` holds on every later
+  request, and `run/start` rejects an invalid binding outright with `401
+  PLAYER_TOKEN_INVALID` — so a device that ever received a genuine offline
+  `local-*` fallback stays un-ranked until localStorage is cleared or it signs
+  in for real. The server side cannot fix this (a 401 for a `player_id` that is
+  not a UUID is the correct answer). Auto-provisioning only runs when NO
+  binding was sent, so a browser holding a `local-*` secret takes the 401
+  branch before reaching it and gets the same result it does today.
 
 ## Guards
 

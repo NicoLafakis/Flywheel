@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-19
+Last updated: 2026-08-20
 
 This is a board, not a changelog. One line per shipped item; the detail lives in
 the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
@@ -192,9 +192,51 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   on Vercel pauses it (both routes answer `503 SERVER_NOT_READY`, game unchanged).
   An emergency switch, not a deploy step. `.wiki/modules/cloud.md`, ADR-0021.
 
+### Open defects observed during smoke/RCA work
+
+Per `.wiki/findings/RCA-2026-08-20-cross-device-zero-progress.md` §8: a live
+(non-hypothetical) defect surfaced by a runbook or RCA gets tracked here, not
+just left as a paragraph, so "we already knew this could happen" turns into
+"we already scheduled the fix."
+
+- ~~**Sign-in catch-all fabricated a phantom "claimed" identity on any
+  unrecognized server error** — first observed
+  `.wiki/runbooks/cloud-progress-smoke-2026-08-17.md` observation #2 (a 503 on
+  sign-in read as success), confirmed hitting a real player 2026-08-20 under
+  the name "Cr4sh0veRide". **Fixed 2026-08-20**: `js/board/player.js`'s
+  `registerPlayer`/`loginPlayer`/`claimName`/`renamePlayer` now deny-list to
+  only genuine network failures / server-flagged-`retryable` `5xx`/`429`
+  (`isRetryableOffline()`); a `404` and any other unrecognized error reject for
+  real; a genuine offline fallback is marked `nameSource: 'pending'`, not
+  `'claimed'`, and gets its own visible `'NOT CONNECTED — SIGN IN AGAIN'` sync
+  state (`js/cloud/sync.js`, `js/ui/sync-copy.js`) instead of reading as a real
+  sign-in.~~ See `.wiki/modules/api.md` ("The `local-*` identity trap, fixed")
+  and `.wiki/modules/cloud.md` for the shipped shape;
+  `tools/player-identity.test.mjs` is the regression guard.
+- **`run/start` still 401s a device holding a genuine offline `local-*`
+  fallback token** — un-ranks that browser until it signs in for real or
+  clears storage. Narrower now (only reachable via a genuine network failure,
+  not any unrecognized error), but not eliminated — invariant 10 still
+  requires an offline player be able to keep playing. `.wiki/modules/api.md`
+  ("The `run/start` local-token-401 gap").
+
 ---
 
 ## Shipped state
+
+### 2026-08-20
+
+- **Fixed the sign-in phantom-identity bug** (RCA-2026-08-20-cross-device-zero-progress.md)
+  — a player signing in on a second device could silently be handed a fake,
+  empty local identity under their own real name whenever the server answered
+  with an error the client did not specifically expect (most likely a `404`
+  "no such account"). `js/board/player.js`'s four identity call sites now
+  share one `isRetryableOffline()` deny-list; only a genuine network failure or
+  a server-flagged-retryable `5xx`/`429` may fall back to a local identity, and
+  that fallback is now labeled `nameSource: 'pending'` with its own visible
+  "NOT CONNECTED — SIGN IN AGAIN" state (`js/cloud/sync.js`,
+  `js/ui/sync-copy.js`) instead of looking identical to a real sign-in.
+  `tools/player-identity.test.mjs`, `.wiki/modules/api.md`, `.wiki/modules/cloud.md`.
 
 ### 2026-08-19
 
