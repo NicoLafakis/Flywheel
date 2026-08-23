@@ -60,6 +60,33 @@ export const LONDON_CROSSINGS = [
   [1, -8], [1, 26],
 ];
 
+// What the card promises, held to what the scene builds — see PARIS_LANDMARKS
+// in js/voxelscene-paris.js for why `voids` is the clause that matters.
+export const LONDON_LANDMARKS = [
+  {
+    id: 'tower_bridge',
+    name: 'Tower Bridge Bascules',
+    foot: { minX: 26, maxX: 36, minZ: -16, maxZ: 4 },
+    peak: 36,
+    voids: [
+      { minY: 0, maxY: 6, minFrac: 0.20, why: 'the navigation channel under the bascules' },
+      { minY: 8, maxY: 28, minFrac: 0.25, why: 'the open span between the towers' },
+    ],
+  },
+  {
+    id: 'big_ben',
+    name: 'Big Ben Clocktower',
+    foot: { minX: -44, maxX: -34, minZ: -32, maxZ: -22 },
+    peak: 46,
+  },
+  {
+    id: 'the_shard',
+    name: 'The Shard Spire',
+    foot: { minX: 12, maxX: 26, minZ: 24, maxZ: 38 },
+    peak: 62,
+  },
+];
+
 const TARGET_BLOCKS = 45000;
 
 export function buildLondon(sim) {
@@ -132,16 +159,33 @@ export function buildLondon(sim) {
   // 0. TOWER BRIDGE (DUAL GOTHIC SUSPENSION TOWERS & BASCULES)
   // ------------------------------------------------------------
   // Spanning River Thames at x 26..36, z -16..4, y 0..36
-  // North Tower (x: 26..36, z: -14..-6, y: 0..36)
-  BOX(26, 0, -14, 5, 15, 4, 'concrete', 2, 0xd7ccc8); // Portland Stone Base & Walls (y: 0..30)
-  BOX(26, 30, -14, 5, 3, 4, 'steel', 2, 0x00838f);    // Victorian Blue/Copper Spire (y: 30..36)
+  //
+  // TWO TOWERS WITH DAYLIGHT BETWEEN THEM. The bridge shipped as a pair of solid
+  // towers 2 m apart with a plug of masonry filling the gap — no span, no
+  // walkways, nothing to see through. The real central span is 61 m between
+  // 65 m towers, so the opening is very nearly as wide as the towers are tall,
+  // and the two high-level walkways near the top are the silhouette everyone
+  // recognises.
+  //
+  // The towers stand on piers IN the river, where the real ones stand, with a
+  // 4 m bascule span between them and short approach decks to either bank.
+  //
+  // Both decks are 1 m brick rather than 2 m, and the span is 4 m rather than
+  // the 6 m first tried, for the same cumulative-span reason: the first hop off
+  // a 2 m tower block costs (1 + 2) / 2 = 1.5 and each 1 m hop after it costs 1,
+  // against a cap of 3. Six metres left the middle two cells at 3.5 and they
+  // both dropped; four metres puts every cell at 2.5 or less.
+  BOX(26, 0, -14, 5, 15, 3, 'concrete', 2, 0xd7ccc8); // North tower (z: -14..-8, y: 0..30)
+  BOX(26, 30, -14, 5, 3, 3, 'steel', 2, 0x00838f);    // North spire (y: 30..36)
+  BOX(26, 0, -4, 5, 15, 3, 'concrete', 2, 0xd7ccc8);  // South tower (z: -4..2, y: 0..30)
+  BOX(26, 30, -4, 5, 3, 3, 'steel', 2, 0x00838f);     // South spire (y: 30..36)
 
-  // South Tower (x: 26..36, z: -4..4, y: 0..36)
-  BOX(26, 0, -4, 5, 15, 4, 'concrete', 2, 0xd7ccc8);  // Portland Stone Base (y: 0..30)
-  BOX(26, 30, -4, 5, 3, 4, 'steel', 2, 0x00838f);     // Copper Spire (y: 30..36)
-
-  // Bascule Drawbridge Central Road Deck & Piers (y: 0..8, x: 28..34, z: -6..-4)
-  BOX(28, 0, -6, 3, 4, 1, 'concrete', 2, 0xa1887f);  // Pier & deck (y: 0..8)
+  // Bascule roadway deck (y: 6..7) and the approach spans to either bank
+  BOX(28, 6, -8, 6, 1, 4, 'concrete', 1, 0xa1887f);   // Central bascules (z: -8..-4)
+  BOX(28, 6, -16, 6, 1, 2, 'concrete', 1, 0xa1887f);  // North approach (z: -16..-14)
+  BOX(28, 6, 2, 6, 1, 2, 'concrete', 1, 0xa1887f);    // South approach (z: 2..4)
+  // The high-level walkways (y: 28..29), the thing that makes it Tower Bridge
+  BOX(28, 28, -8, 6, 1, 4, 'steel', 1, 0xcfd8dc);
 
   // ------------------------------------------------------------
   // 1. PALACE OF WESTMINSTER & BIG BEN (ELIZABETH TOWER)

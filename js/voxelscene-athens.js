@@ -55,6 +55,30 @@ export const ATHENS_CROSSINGS = [
   [1, -12], [1, 24],
 ];
 
+// What the card promises, held to what the scene builds — see PARIS_LANDMARKS
+// in js/voxelscene-paris.js for why `voids` is the clause that matters.
+export const ATHENS_LANDMARKS = [
+  {
+    id: 'parthenon',
+    name: 'Acropolis Parthenon',
+    foot: { minX: -18, maxX: 18, minZ: -40, maxZ: -24 },
+    peak: 16,
+    voids: [{ minY: 2, maxY: 10, minFrac: 0.45, why: 'the peristyle colonnade' }],
+  },
+  {
+    id: 'erechtheion',
+    name: 'Erechtheion Caryatids',
+    foot: { minX: -24, maxX: -10, minZ: -16, maxZ: 0 },
+    peak: 12,
+  },
+  {
+    id: 'plaka',
+    name: 'Plaka Stepped Streets',
+    foot: { minX: -18, maxX: 18, minZ: 0, maxZ: 8 },
+    peak: 10,
+  },
+];
+
 const TARGET_BLOCKS = 26000;
 
 export function buildAthens(sim) {
@@ -119,20 +143,52 @@ export function buildAthens(sim) {
   // ------------------------------------------------------------
   // 0. ACROPOLIS PARTHENON (DORIC MARBLE TEMPLE)
   // ------------------------------------------------------------
-  // Located at x -18..18, z -44..-20, y 0..26 (36x24x26m)
-  // Stepped Crepidoma Stereobate Base (y: 0..4)
-  BOX(-18, 0, -44, 18, 2, 12, 'concrete', 2, 0xd7ccc8); // Step 1 (y: 0..4)
+  // Located at x -18..18, z -40..-24, y 0..16 (36x16x16m)
+  //
+  // A PERISTYLE, and a long low one. The temple shipped as a solid 36 x 24 x
+  // 26 m block: proportions of 1 : 0.67 : 0.72 against the real stylobate's
+  // 69.5 x 30.9 m under a 13.7 m order, which is 1 : 0.44 : 0.20. Built tall
+  // and solid it read as a blockhouse. The colonnade IS the building — 8 columns
+  // across the ends and 17 down the flanks, with sky between all of them.
+  //
+  // Columns on a 4 m rhythm leave 2 m gaps, well inside the one 2 m hop the
+  // entablature above needs, and the cella within is a hollow shell rather than
+  // a filled core.
+  BOX(-18, 0, -40, 18, 1, 8, 'concrete', 2, 0xd7ccc8);   // Crepidoma (y: 0..2)
 
-  // Classical Doric Pentelic Marble Colonnade & Sanctuary Core (y: 4..16)
-  BOX(-16, 4, -42, 16, 6, 10, 'concrete', 2, 0xfff8e1);
+  const parthenonCols = new Set();
+  for (let cx = -18; cx <= 16; cx += 4) { parthenonCols.add(`${cx},-40`); parthenonCols.add(`${cx},-26`); }
+  for (let cz = -36; cz <= -28; cz += 4) { parthenonCols.add(`-18,${cz}`); parthenonCols.add(`16,${cz}`); }
+  for (const key of parthenonCols) {
+    const [cx, cz] = key.split(',').map(Number);
+    BOX(cx, 2, cz, 1, 4, 1, 'concrete', 2, 0xfff8e1);    // Doric column (y: 2..10)
+  }
 
-  // Doric Entablature, Metopes & Triglyphs (y: 16..22)
-  BOX(-16, 16, -42, 16, 3, 10, 'concrete', 2, 0xf5f5f5);
+  // Cella (naos) walls — a hollow shell, not a filled core (x -14..14, z -38..-26).
+  // The ambulatory between the peristyle and the cella is 2 m, not 4: at 4 m its
+  // outer half was two hops from both the columns outside and the walls inside,
+  // and seven cells of entablature came down on it.
+  BOX(-14, 2, -38, 14, 4, 1, 'concrete', 2, 0xf5f5f5);   // North wall
+  BOX(-14, 2, -28, 14, 4, 1, 'concrete', 2, 0xf5f5f5);   // South wall
+  BOX(-14, 2, -36, 1, 4, 4, 'concrete', 2, 0xf5f5f5);    // West wall
+  BOX(12, 2, -36, 1, 4, 4, 'concrete', 2, 0xf5f5f5);     // East wall
 
-  // Triangular Pediments & Classical Gables (y: 22..26)
-  BOX(-16, 22, -42, 16, 2, 1, 'concrete', 2, 0xffe082); // North Pediment
-  BOX(-16, 22, -24, 16, 2, 1, 'concrete', 2, 0xffe082); // South Pediment
-  BOX(-14, 22, -40, 14, 2, 8, 'brick', 2, 0xb71c1c);    // Terracotta roof tiles (y: 22..26)
+  // Interior colonnade down the naos. The real temple carries a two-storey
+  // Doric order inside the cella; here it is also what holds the entablature
+  // up — without it the middle of the roof is two hops from any wall and
+  // seven cells of it drop.
+  // Two rows, offset by 2 m so each row covers the other's gaps. A single row
+  // leaves the bay behind it two hops from anything and drops five roof cells.
+  for (let cx = -10; cx <= 6; cx += 4) BOX(cx, 2, -34, 1, 4, 1, 'concrete', 2, 0xfff8e1);
+  for (let cx = -8; cx <= 8; cx += 4) BOX(cx, 2, -32, 1, 4, 1, 'concrete', 2, 0xfff8e1);
+
+  // Doric Entablature, Metopes & Triglyphs (y: 10..12)
+  BOX(-18, 10, -40, 18, 1, 8, 'concrete', 2, 0xf5f5f5);
+
+  // Terracotta roof (y: 12..14) and the pediments on the short ends (y: 14..16)
+  BOX(-16, 12, -38, 16, 1, 6, 'brick', 2, 0xb71c1c);
+  BOX(-18, 14, -38, 2, 1, 6, 'concrete', 2, 0xffe082);   // West pediment
+  BOX(14, 14, -38, 2, 1, 6, 'concrete', 2, 0xffe082);    // East pediment
 
   // ------------------------------------------------------------
   // 1. ERECHTHEION & CARYATID PORCH

@@ -69,16 +69,16 @@ import {
   CAIRO_ROAD_SPANS, CAIRO_VEHICLES,
 } from '../js/voxelscene-cairo.js';
 import {
-  ATHENS_ROAD_SPANS, ATHENS_VEHICLES,
+  ATHENS_LANDMARKS, ATHENS_ROAD_SPANS, ATHENS_VEHICLES,
 } from '../js/voxelscene-athens.js';
 import {
-  ROME_ROAD_SPANS, ROME_VEHICLES,
+  ROME_LANDMARKS, ROME_ROAD_SPANS, ROME_VEHICLES,
 } from '../js/voxelscene-rome.js';
 import {
   PARIS_LANDMARKS, PARIS_ROAD_SPANS, PARIS_VEHICLES,
 } from '../js/voxelscene-paris.js';
 import {
-  LONDON_ROAD_SPANS, LONDON_VEHICLES,
+  LONDON_LANDMARKS, LONDON_ROAD_SPANS, LONDON_VEHICLES,
 } from '../js/voxelscene-london.js';
 import {
   AMSTERDAM_ROAD_SPANS, AMSTERDAM_VEHICLES,
@@ -3563,6 +3563,8 @@ function validateAthens() {
   probeCameraBlockers(sim, 'athens', tops);
   probeBoundsRect(sim, 'athens');
   probeRoadConflicts(sim, 'athens', ATHENS_VEHICLES, ATHENS_ROAD_SPANS);
+  probeLandmarks(sim, 'athens', ATHENS_LANDMARKS);
+  probeCatalogHeroes('athens', 'athens', ATHENS_LANDMARKS);
   probeWaterOverSurfaces(sim, 'athens');
   probePlacementStep(sim, 'athens');
   probeIdleStability(sim, 'athens');
@@ -3579,6 +3581,8 @@ function validateRome() {
   probeCameraBlockers(sim, 'rome', tops);
   probeBoundsRect(sim, 'rome');
   probeRoadConflicts(sim, 'rome', ROME_VEHICLES, ROME_ROAD_SPANS);
+  probeLandmarks(sim, 'rome', ROME_LANDMARKS);
+  probeCatalogHeroes('rome', 'rome', ROME_LANDMARKS);
   probeWaterOverSurfaces(sim, 'rome');
   probePlacementStep(sim, 'rome');
   probeIdleStability(sim, 'rome');
@@ -3613,6 +3617,8 @@ function validateLondon() {
   probeCameraBlockers(sim, 'london', tops);
   probeBoundsRect(sim, 'london');
   probeRoadConflicts(sim, 'london', LONDON_VEHICLES, LONDON_ROAD_SPANS);
+  probeLandmarks(sim, 'london', LONDON_LANDMARKS);
+  probeCatalogHeroes('london', 'london', LONDON_LANDMARKS);
   probeWaterOverSurfaces(sim, 'london');
   probePlacementStep(sim, 'london');
   probeIdleStability(sim, 'london');
