@@ -75,7 +75,7 @@ import {
   ROME_ROAD_SPANS, ROME_VEHICLES,
 } from '../js/voxelscene-rome.js';
 import {
-  PARIS_ROAD_SPANS, PARIS_VEHICLES,
+  PARIS_LANDMARKS, PARIS_ROAD_SPANS, PARIS_VEHICLES,
 } from '../js/voxelscene-paris.js';
 import {
   LONDON_ROAD_SPANS, LONDON_VEHICLES,
@@ -3595,6 +3595,8 @@ function validateParis() {
   probeCameraBlockers(sim, 'paris', tops);
   probeBoundsRect(sim, 'paris');
   probeRoadConflicts(sim, 'paris', PARIS_VEHICLES, PARIS_ROAD_SPANS);
+  probeLandmarks(sim, 'paris', PARIS_LANDMARKS);
+  probeCatalogHeroes('paris', 'paris', PARIS_LANDMARKS);
   probeWaterOverSurfaces(sim, 'paris');
   probePlacementStep(sim, 'paris');
   probeIdleStability(sim, 'paris');
