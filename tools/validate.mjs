@@ -63,10 +63,10 @@ import {
   MUMBAI_ROAD_SPANS, MUMBAI_VEHICLES,
 } from '../js/voxelscene-mumbai.js';
 import {
-  DUBAI_ROAD_SPANS, DUBAI_VEHICLES,
+  DUBAI_LANDMARKS, DUBAI_ROAD_SPANS, DUBAI_VEHICLES,
 } from '../js/voxelscene-dubai.js';
 import {
-  CAIRO_ROAD_SPANS, CAIRO_VEHICLES,
+  CAIRO_LANDMARKS, CAIRO_ROAD_SPANS, CAIRO_VEHICLES,
 } from '../js/voxelscene-cairo.js';
 import {
   ATHENS_LANDMARKS, ATHENS_ROAD_SPANS, ATHENS_VEHICLES,
@@ -81,10 +81,10 @@ import {
   LONDON_LANDMARKS, LONDON_ROAD_SPANS, LONDON_VEHICLES,
 } from '../js/voxelscene-london.js';
 import {
-  AMSTERDAM_ROAD_SPANS, AMSTERDAM_VEHICLES,
+  AMSTERDAM_LANDMARKS, AMSTERDAM_ROAD_SPANS, AMSTERDAM_VEHICLES,
 } from '../js/voxelscene-amsterdam.js';
 import {
-  BERLIN_ROAD_SPANS, BERLIN_VEHICLES,
+  BERLIN_LANDMARKS, BERLIN_ROAD_SPANS, BERLIN_VEHICLES,
 } from '../js/voxelscene-berlin.js';
 import {
   HONGKONG_ROAD_SPANS, HONGKONG_VEHICLES,
@@ -3531,6 +3531,8 @@ function validateDubai() {
   probeCameraBlockers(sim, 'dubai', tops);
   probeBoundsRect(sim, 'dubai');
   probeRoadConflicts(sim, 'dubai', DUBAI_VEHICLES, DUBAI_ROAD_SPANS);
+  probeLandmarks(sim, 'dubai', DUBAI_LANDMARKS);
+  probeCatalogHeroes('dubai', 'dubai', DUBAI_LANDMARKS);
   probeWaterOverSurfaces(sim, 'dubai');
   probePlacementStep(sim, 'dubai');
   probeIdleStability(sim, 'dubai');
@@ -3547,6 +3549,8 @@ function validateCairo() {
   probeCameraBlockers(sim, 'cairo', tops);
   probeBoundsRect(sim, 'cairo');
   probeRoadConflicts(sim, 'cairo', CAIRO_VEHICLES, CAIRO_ROAD_SPANS);
+  probeLandmarks(sim, 'cairo', CAIRO_LANDMARKS);
+  probeCatalogHeroes('cairo', 'cairo', CAIRO_LANDMARKS);
   probeWaterOverSurfaces(sim, 'cairo');
   probePlacementStep(sim, 'cairo');
   probeIdleStability(sim, 'cairo');
@@ -3635,6 +3639,8 @@ function validateAmsterdam() {
   probeCameraBlockers(sim, 'amsterdam', tops);
   probeBoundsRect(sim, 'amsterdam');
   probeRoadConflicts(sim, 'amsterdam', AMSTERDAM_VEHICLES, AMSTERDAM_ROAD_SPANS);
+  probeLandmarks(sim, 'amsterdam', AMSTERDAM_LANDMARKS);
+  probeCatalogHeroes('amsterdam', 'amsterdam', AMSTERDAM_LANDMARKS);
   probeWaterOverSurfaces(sim, 'amsterdam');
   probePlacementStep(sim, 'amsterdam');
   probeIdleStability(sim, 'amsterdam');
@@ -3651,6 +3657,8 @@ function validateBerlin() {
   probeCameraBlockers(sim, 'berlin', tops);
   probeBoundsRect(sim, 'berlin');
   probeRoadConflicts(sim, 'berlin', BERLIN_VEHICLES, BERLIN_ROAD_SPANS);
+  probeLandmarks(sim, 'berlin', BERLIN_LANDMARKS);
+  probeCatalogHeroes('berlin', 'berlin', BERLIN_LANDMARKS);
   probeWaterOverSurfaces(sim, 'berlin');
   probePlacementStep(sim, 'berlin');
   probeIdleStability(sim, 'berlin');

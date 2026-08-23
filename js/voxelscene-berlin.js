@@ -60,6 +60,31 @@ export const BERLIN_CROSSINGS = [
   [1, -10], [1, 30],
 ];
 
+// What the card promises, held to what the scene builds — see PARIS_LANDMARKS
+// in js/voxelscene-paris.js for why `voids` is the clause that matters.
+export const BERLIN_LANDMARKS = [
+  {
+    id: 'brandenburg_gate',
+    name: 'Brandenburg Gate Sandstone Arch',
+    foot: { minX: -30, maxX: 2, minZ: 34, maxZ: 42 },
+    peak: 18,
+    voids: [{ minY: 0, maxY: 8, minFrac: 0.60, why: 'the five passageways between twelve columns' }],
+  },
+  {
+    id: 'fernsehturm',
+    name: 'Fernsehturm TV Sphere',
+    foot: { minX: 22, maxX: 32, minZ: 28, maxZ: 38 },
+    peak: 68,
+    voids: [{ minY: 0, maxY: 40, minFrac: 0.55, why: 'the slenderness of the shaft under the sphere' }],
+  },
+  {
+    id: 'reichstag',
+    name: 'Reichstag Glass Dome',
+    foot: { minX: -48, maxX: -24, minZ: -46, maxZ: -24 },
+    peak: 28,
+  },
+];
+
 const TARGET_BLOCKS = 36500;
 
 export function buildBerlin(sim) {
@@ -131,29 +156,59 @@ export function buildBerlin(sim) {
   // ------------------------------------------------------------
   // 0. BRANDENBURG GATE (NEOCLASSICAL SANDSTONE COLONNADE & QUADRIGA)
   // ------------------------------------------------------------
-  // Located on Pariser Platz at x -24..-4, z 30..48, y 0..26 (20x18x26m)
-  // 6 Monumental Doric Fluted Sandstone Columns & Base (y: 0..16)
-  BOX(-24, 0, 30, 10, 8, 9, 'concrete', 2, 0xd7ccc8);
+  // Located on Pariser Platz at x -30..2, z 34..42, y 0..18 (32x8x18m)
+  //
+  // TWELVE COLUMNS AND FIVE PASSAGEWAYS. The gate shipped as a solid 20 x 18 x
+  // 26 m block: proportions of 1 : 0.9 : 1.3 where the real gate is
+  // 65.5 x 11 x 26 m, or 1 : 0.17 : 0.40. Built nearly square in plan and
+  // taller than it is wide, it read as a keep. The Brandenburg Gate is wide,
+  // shallow and above all OPEN — two rows of six Doric columns with five
+  // passages between them, and Berliners have walked through it for two
+  // centuries.
+  //
+  // Lintel beams over each column row are what let the passages be 4 m wide.
+  // Without them the entablature spanning both rows sits two hops from any
+  // column and comes down; with them every entablature cell is either resting
+  // on a beam or one hop from one.
+  for (const cz of [34, 40]) {
+    for (let cx = -30; cx <= 0; cx += 6) {
+      BOX(cx, 0, cz, 1, 4, 1, 'concrete', 2, 0xd7ccc8);   // Doric column (y: 0..8)
+    }
+    BOX(-30, 8, cz, 16, 1, 1, 'concrete', 2, 0xd7ccc8);   // Row lintel (y: 8..10)
+  }
 
-  // Grand Classical Attic Story & Metope Entablature (y: 16..22, x: -24..-4, z: 30..48)
-  BOX(-24, 16, 30, 10, 3, 9, 'concrete', 2, 0xcfd8dc);
+  // Entablature and attic storey (y: 10..14)
+  BOX(-30, 10, 34, 16, 1, 4, 'concrete', 2, 0xcfd8dc);
+  BOX(-30, 12, 34, 16, 1, 4, 'concrete', 2, 0xd7ccc8);
 
-  // Gilded Copper Quadriga Chariot of Victory (y: 22..26, x: -16..-12, z: 37..41)
-  BOX(-16, 22, 38, 2, 1, 1, 'steel', 2, 0x00897b);    // Patinated Copper Chariot (y: 22..24)
-  BOX(-16, 24, 38, 2, 1, 1, 'steel', 2, 0xffd700);    // Golden Goddess & Wing Staff (y: 24..26)
+  // Gilded Copper Quadriga Chariot of Victory (y: 14..18)
+  BOX(-18, 14, 36, 2, 1, 2, 'steel', 2, 0x00897b);    // Patinated Copper Chariot
+  BOX(-18, 16, 36, 2, 1, 2, 'steel', 2, 0xffd700);    // Golden Goddess & Wing Staff
 
   // ------------------------------------------------------------
   // 1. FERNSEHTURM BERLIN TV TOWER (SPHERE & NEEDLE MAST)
   // ------------------------------------------------------------
   // Located at Alexanderplatz (x 22..32, z 28..38, y 0..68)
-  // Tapering Concrete Base Shaft (y: 0..40, 10x10m shaft)
-  BOX(22, 0, 28, 5, 20, 5, 'concrete', 2, 0xf5f5f5);
+  //
+  // A SLENDER SHAFT CARRYING A WIDER SPHERE, which is the whole shape of the
+  // thing. It shipped as a 10 m shaft under a 10 m sphere — a column of
+  // constant width, so the sphere read as just more shaft. On the real tower
+  // the sphere is markedly wider than what holds it up.
+  BOX(24, 0, 30, 3, 20, 3, 'concrete', 2, 0xf5f5f5);   // Shaft (6x6 m, y: 0..40)
 
-  // Faceted Stainless Steel Sphere (y: 40..54, x: 22..32, z: 28..38, 10x10x14m)
-  BOX(22, 40, 28, 5, 7, 5, 'steel', 2, 0xb0bec5);
+  // Faceted stainless sphere (y: 40..52), octagonal: the four corner cells are
+  // left off because they would hang diagonally off the shaft with no
+  // orthogonal neighbour carrying them — and a chamfered plan reads rounder.
+  for (let sx = 22; sx < 32; sx += 2) {
+    for (let sz = 28; sz < 38; sz += 2) {
+      const corner = (sx === 22 || sx === 30) && (sz === 28 || sz === 36);
+      if (corner) continue;
+      BOX(sx, 40, sz, 1, 6, 1, 'steel', 2, 0xb0bec5);
+    }
+  }
 
-  // Segmented Red and White Steel Antenna Needle (y: 54..68, x: 26..28, z: 32..34)
-  BOX(26, 54, 32, 1, 7, 1, 'steel', 2, 0xd32f2f);
+  // Segmented Red and White Steel Antenna Needle (y: 52..68, x: 26..28, z: 32..34)
+  BOX(26, 52, 32, 1, 8, 1, 'steel', 2, 0xd32f2f);
 
   // ------------------------------------------------------------
   // 2. REICHSTAG BUILDING & NORMAN FOSTER GLASS DOME

@@ -69,6 +69,30 @@ export const AMSTERDAM_CROSSINGS = [
   [1, -8], [1, 26],
 ];
 
+// What the card promises, held to what the scene builds — see PARIS_LANDMARKS
+// in js/voxelscene-paris.js for why `voids` is the clause that matters.
+export const AMSTERDAM_LANDMARKS = [
+  {
+    id: 'canal_bridges',
+    name: 'Canal Ring Bridge Network',
+    foot: { minX: -36, maxX: 36, minZ: -48, maxZ: -40 },
+    peak: 6,
+  },
+  {
+    id: 'gable_row',
+    name: 'Step-Gable Merchant Mansions',
+    foot: { minX: -24, maxX: 26, minZ: -36, maxZ: -26 },
+    peak: 18,
+  },
+  {
+    id: 'de_gooyer',
+    name: 'Historic Windmill Blades',
+    foot: { minX: 38, maxX: 48, minZ: 22, maxZ: 34 },
+    peak: 32,
+    voids: [{ minY: 14, maxY: 32, minFrac: 0.55, why: 'the open lattice of the sails' }],
+  },
+];
+
 const TARGET_BLOCKS = 28000;
 
 export function buildAmsterdam(sim) {
@@ -120,6 +144,13 @@ export function buildAmsterdam(sim) {
     { x: -36, z: -40, w: 6, d: 52, axis: 'z', color: 0x37474f },
     { x: 30, z: -56, w: 6, d: 8, axis: 'z', color: 0x37474f },
     { x: 30, z: -40, w: 6, d: 52, axis: 'z', color: 0x37474f },
+    // South of the Herengracht. Both north-south roads used to stop dead at the
+    // canal's north bank (z 12) while the bridges over it were built and
+    // declared in AMSTERDAM_ROAD_SPANS — so each of those two bridges crossed
+    // the water and landed on bare ground, with Rozengracht Avenue stranded at
+    // z 36 with no road reaching it.
+    { x: -36, z: 20, w: 6, d: 24, axis: 'z', color: 0x37474f },
+    { x: 30, z: 20, w: 6, d: 24, axis: 'z', color: 0x37474f },
   );
 
   // Sidewalks
@@ -133,20 +164,29 @@ export function buildAmsterdam(sim) {
   // ------------------------------------------------------------
   // 0. 17TH-CENTURY STEP-GABLE MERCHANT CANAL HOUSES
   // ------------------------------------------------------------
-  // Row of 4 Narrow Step-Gable Canal Mansions (x: -24..-6, z: -36..-26, y: 0..18)
-  for (let hx = -24; hx <= -6; hx += 5) {
-    // Brick Facade & Ground Base
-    BOX(hx, 0, -36, 2, 7, 5, 'brick', 2, 0xb71c1c);    // Red Dutch Clinker Brick (y: 0..14)
-    // Stepped Gable Roof (y: 14..18)
-    BOX(hx, 14, -36, 2, 1, 4, 'concrete', 2, 0xffffff); // White ornamental trim step 1
-    BOX(hx, 16, -35, 2, 1, 2, 'concrete', 2, 0xffffff); // Step 2 + Hoisting Beam
+  // TERRACED, on a 4 m stride. These are 4 m houses that were stepped every 5 m,
+  // leaving a 1 m slot between each pair — 246 sub-extent gaps, the only scene
+  // in the game to report any, and not what an Amsterdam canal row looks like:
+  // the houses share party walls, which is exactly why they are so narrow and
+  // so tall. What distinguishes one from the next is the gable, so the ridge
+  // height alternates instead.
+  for (let i = 0; i < 5; i++) {
+    const hx = -24 + i * 4;
+    const tall = i % 2 === 0;
+    BOX(hx, 0, -36, 2, tall ? 7 : 6, 5, 'brick', 2, 0xb71c1c); // Red Dutch clinker
+    const eaves = tall ? 14 : 12;
+    BOX(hx, eaves, -36, 2, 1, 4, 'concrete', 2, 0xffffff);     // Ornamental trim step 1
+    BOX(hx, eaves + 2, -35, 2, 1, 2, 'concrete', 2, 0xffffff); // Step 2 + hoisting beam
   }
 
-  // Row 2 East (x: 6..24, z: -36..-26, y: 0..18)
-  for (let hx = 6; hx <= 24; hx += 5) {
-    BOX(hx, 0, -36, 2, 7, 5, 'brick', 2, 0x4e342e);    // Dark Umber Brick (y: 0..14)
-    BOX(hx, 14, -36, 2, 1, 4, 'concrete', 2, 0xd7ccc8);
-    BOX(hx, 16, -35, 2, 1, 2, 'concrete', 2, 0xd7ccc8);
+  // Row 2 East (x: 6..26, z: -36..-26, y: 0..18)
+  for (let i = 0; i < 5; i++) {
+    const hx = 6 + i * 4;
+    const tall = i % 2 === 1;
+    BOX(hx, 0, -36, 2, tall ? 7 : 6, 5, 'brick', 2, 0x4e342e); // Dark umber brick
+    const eaves = tall ? 14 : 12;
+    BOX(hx, eaves, -36, 2, 1, 4, 'concrete', 2, 0xd7ccc8);
+    BOX(hx, eaves + 2, -35, 2, 1, 2, 'concrete', 2, 0xd7ccc8);
   }
 
   // ------------------------------------------------------------
@@ -155,16 +195,24 @@ export function buildAmsterdam(sim) {
   // Located at x 38..48, z 24..34, y 0..32 (10x10x32m)
   // Thatched Octagonal Wooden Base (y: 0..12)
   BOX(38, 0, 24, 5, 6, 5, 'wood', 2, 0x5d4037);       // Octagonal Mill Base (y: 0..12)
-  // Wooden Gallery Balcony (y: 12..14)
-  BOX(38, 12, 24, 5, 1, 5, 'wood', 2, 0x8d6e63);      // Stelling Gallery (y: 12..14)
+  // Stelling gallery, projecting 2 m forward (y: 12..14). The projection is what
+  // the sail frame stands on — one hop off the tower, and a real stelling does
+  // project, which is how the miller reaches the sails.
+  BOX(38, 12, 22, 5, 1, 6, 'wood', 2, 0x8d6e63);
   // Upper Windmill Cap & Shaft (y: 14..22)
   BOX(39, 14, 25, 4, 4, 4, 'wood', 2, 0x3e2723);      // Mill Cap (y: 14..22)
 
-  // 4-Blade Canvas Lattice Sails (y: 14..32, in front of cap at z = 23)
-  BOX(41, 14, 23, 1, 9, 1, 'wood', 2, 0xffffff);      // Vertical Sails (18m span)
-  BOX(39, 22, 23, 1, 1, 1, 'wood', 2, 0xffffff);      // Left Horizontal Sail (x: 39..41)
-  BOX(43, 22, 23, 1, 1, 1, 'wood', 2, 0xffffff);      // Right Horizontal Sail (x: 43..45)
-  BOX(41, 22, 22, 1, 1, 1, 'steel', 1, 0xffd700);     // Golden Windmill Axle Hub
+  // Sail frame (y: 14..32): two stocks carrying lattice bars, the whole thing
+  // standing on the projecting gallery. A cantilevered cross was tried and
+  // cannot be built — the arms reach four hops from the hub against a span cap
+  // of three — so the sails are framed the way a real lattice sail is framed,
+  // with the load coming down the stocks.
+  BOX(38, 14, 22, 1, 9, 1, 'wood', 2, 0xffffff);      // West stock
+  BOX(44, 14, 22, 1, 9, 1, 'wood', 2, 0xffffff);      // East stock
+  for (const by of [16, 20, 24, 28]) {
+    BOX(40, by, 22, 2, 1, 1, 'wood', 2, 0xffffff);    // Lattice bar
+  }
+  BOX(40, 22, 22, 2, 1, 1, 'steel', 2, 0xffd700);     // Golden windmill axle hub
 
   // ------------------------------------------------------------
   // 2. ROYAL PALACE ON DAM SQUARE

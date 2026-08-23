@@ -52,6 +52,29 @@ export const CAIRO_CROSSINGS = [
   [1, 6], [1, 38],
 ];
 
+// What the card promises, held to what the scene builds — see PARIS_LANDMARKS
+// in js/voxelscene-paris.js for why `voids` is the clause that matters.
+export const CAIRO_LANDMARKS = [
+  {
+    id: 'khufu',
+    name: 'Giza Limestone Pyramids',
+    foot: { minX: 18, maxX: 46, minZ: -46, maxZ: -18 },
+    peak: 18,
+  },
+  {
+    id: 'citadel',
+    name: 'Citadel Fortress Towers',
+    foot: { minX: 20, maxX: 50, minZ: 20, maxZ: 50 },
+    peak: 44,
+  },
+  {
+    id: 'feluccas',
+    name: 'Nile Felucca Wharves',
+    foot: { minX: -46, maxX: -34, minZ: -32, maxZ: 24 },
+    peak: 12,
+  },
+];
+
 const TARGET_BLOCKS = 32500;
 
 export function buildCairo(sim) {
@@ -115,19 +138,30 @@ export function buildCairo(sim) {
   // ------------------------------------------------------------
   // 0. GREAT PYRAMIDS OF GIZA (KHUFU & KHAFRE)
   // ------------------------------------------------------------
-  // Great Pyramid of Khufu (x: 18..46, z: -46..-18, y: 0..36, 28x28m base)
-  BOX(18, 0, -46, 14, 4, 14, 'concrete', 2, 0xd7ccc8);  // Tier 1 (28x28m, y: 0..8)
-  BOX(20, 8, -44, 12, 4, 12, 'concrete', 2, 0xd7ccc8);  // Tier 2 (24x24m, y: 8..16)
-  BOX(22, 16, -42, 10, 4, 10, 'concrete', 2, 0xcfd8dc); // Tier 3 (20x20m, y: 16..24)
-  BOX(24, 24, -40, 8, 4, 8, 'concrete', 2, 0xcfd8dc);   // Tier 4 (16x16m, y: 24..32)
-  BOX(27, 32, -37, 5, 2, 5, 'steel', 2, 0xffd700);      // Gilded Pyramidion Summit (y: 32..36)
+  // THE SLOPE IS THE POINT. Khufu is 230.3 m across its base and 146.6 m tall:
+  // the height is 0.64 of the base, which is why the Giza pyramids read as
+  // broad and grounded rather than as spires. These shipped at 36 m on a 28 m
+  // base and 26 m on an 18 m base — ratios of 1.29 and 1.44, roughly twice too
+  // tall, which turns a pyramid into an obelisk.
+  //
+  // Rebuilt to 0.64 exactly. Every tier insets 2 m per side, so each course sits
+  // wholly on the one below and nothing cantilevers.
 
-  // Pyramid of Khafre (x: -4..14, z: -48..-30, y: 0..26, 18x18m base)
-  BOX(-4, 0, -48, 9, 3, 9, 'concrete', 2, 0xbcaaa4);   // Tier 1 (18x18m, y: 0..6)
-  BOX(-2, 6, -46, 7, 3, 7, 'concrete', 2, 0xbcaaa4);   // Tier 2 (14x14m, y: 6..12)
-  BOX(0, 12, -44, 5, 3, 5, 'concrete', 2, 0xa1887f);   // Tier 3 (10x10m, y: 12..18)
-  BOX(2, 18, -42, 3, 3, 3, 'concrete', 2, 0x8d6e63);   // Original Casing Cap (y: 18..24)
-  BOX(3, 24, -41, 2, 1, 2, 'steel', 2, 0xffb300);      // Summit Finial (y: 24..26)
+  // Great Pyramid of Khufu (x: 18..46, z: -46..-18, y: 0..18, 28x28m base)
+  BOX(18, 0, -46, 14, 2, 14, 'concrete', 2, 0xd7ccc8);  // Tier 1 (28x28m, y: 0..4)
+  BOX(20, 4, -44, 12, 2, 12, 'concrete', 2, 0xd7ccc8);  // Tier 2 (24x24m, y: 4..8)
+  BOX(22, 8, -42, 10, 1, 10, 'concrete', 2, 0xcfd8dc);  // Tier 3 (20x20m, y: 8..10)
+  BOX(24, 10, -40, 8, 1, 8, 'concrete', 2, 0xcfd8dc);   // Tier 4 (16x16m, y: 10..12)
+  BOX(26, 12, -38, 6, 1, 6, 'concrete', 2, 0xbcaaa4);   // Tier 5 (12x12m, y: 12..14)
+  BOX(28, 14, -36, 4, 1, 4, 'concrete', 2, 0xbcaaa4);   // Tier 6 (8x8m, y: 14..16)
+  BOX(30, 16, -34, 2, 1, 2, 'steel', 2, 0xffd700);      // Gilded Pyramidion (4x4m, y: 16..18)
+
+  // Pyramid of Khafre (x: -4..14, z: -48..-30, y: 0..12, 18x18m base)
+  BOX(-4, 0, -48, 9, 2, 9, 'concrete', 2, 0xbcaaa4);   // Tier 1 (18x18m, y: 0..4)
+  BOX(-2, 4, -46, 7, 1, 7, 'concrete', 2, 0xbcaaa4);   // Tier 2 (14x14m, y: 4..6)
+  BOX(0, 6, -44, 5, 1, 5, 'concrete', 2, 0xa1887f);    // Tier 3 (10x10m, y: 6..8)
+  BOX(2, 8, -42, 3, 1, 3, 'concrete', 2, 0x8d6e63);    // Tier 4 (6x6m, y: 8..10)
+  BOX(4, 10, -40, 1, 1, 1, 'steel', 2, 0xffb300);      // Summit Finial (2x2m, y: 10..12)
 
   // ------------------------------------------------------------
   // 1. GREAT SPHINX OF GIZA

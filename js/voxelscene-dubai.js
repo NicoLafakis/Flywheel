@@ -58,6 +58,30 @@ export const DUBAI_CROSSINGS = [
   [1, -8], [1, 26],
 ];
 
+// What the card promises, held to what the scene builds — see PARIS_LANDMARKS
+// in js/voxelscene-paris.js for why `voids` is the clause that matters.
+export const DUBAI_LANDMARKS = [
+  {
+    id: 'burj_khalifa',
+    name: 'Burj Khalifa Needle',
+    foot: { minX: -8, maxX: 8, minZ: -8, maxZ: 8 },
+    peak: 68,
+  },
+  {
+    id: 'palm_monorail',
+    name: 'Palm Monorail Trestle',
+    foot: { minX: -52, maxX: 50, minZ: 44, maxZ: 48 },
+    peak: 14,
+  },
+  {
+    id: 'burj_al_arab',
+    name: 'Sail Hotel Tower',
+    foot: { minX: 38, maxX: 50, minZ: -50, maxZ: -38 },
+    peak: 38,
+    voids: [{ minY: 20, maxY: 38, minFrac: 0.45, why: 'the sail falling away from the mast' }],
+  },
+];
+
 const TARGET_BLOCKS = 36000;
 
 export function buildDubai(sim) {
@@ -138,12 +162,25 @@ export function buildDubai(sim) {
   // 1. BURJ AL ARAB (SAIL HOTEL TOWER)
   // ------------------------------------------------------------
   // Located on private island at x 38..50, z -50..-38, y 0..38
+  // A SAIL, which means an asymmetric profile: a straight mast up the leading
+  // edge and a curve falling away behind it. This shipped as a plain 16 x 28 x
+  // 16 m box on a podium, which is a tower, not a dhow sail — and the shape is
+  // the entire reason the building is famous.
+  //
   // Island Foundation Podium (x: 38..50, z: -50..-38, y: 0..4)
   BOX(38, 0, -50, 6, 2, 6, 'concrete', 2, 0xffecb3);
-  // Main Sail White Atrium Facade (y: 4..32, x: 40..48, z: -48..-40)
-  BOX(40, 4, -48, 4, 14, 4, 'panel', 2, 0xffffff);
-  // Upper Observation Deck & Skyview Lounge (y: 32..38, x: 40..48, z: -48..-40)
-  BOX(40, 32, -48, 4, 3, 4, 'steel', 2, 0x0288d1);
+  // Exoskeleton mast up the leading edge (x: 38..42, y: 4..38)
+  BOX(38, 4, -48, 2, 17, 4, 'steel', 2, 0xe0e0e0);
+  // The sail itself, falling away from the mast in 2 m steps so each course
+  // sits wholly on the one below (y: 4..34)
+  BOX(42, 4, -48, 4, 4, 4, 'panel', 2, 0xffffff);   // y 4..12,  out to x 50
+  BOX(42, 12, -48, 3, 4, 4, 'panel', 2, 0xffffff);  // y 12..20, out to x 48
+  BOX(42, 20, -48, 2, 4, 4, 'panel', 2, 0xffffff);  // y 20..28, out to x 46
+  BOX(42, 28, -48, 1, 3, 4, 'panel', 2, 0xffffff);  // y 28..34, out to x 44
+  // Skyview Lounge cantilevered off the mast head (y: 34..38). It starts at
+  // x 42, clear of the mast it hangs from — overlapping it would have both
+  // pieces claiming the same cells.
+  BOX(42, 34, -48, 2, 2, 4, 'steel', 2, 0x0288d1);
 
   // ------------------------------------------------------------
   // 2. MOMENTUM FRIEND: FALCON SKY BOT 🦅
