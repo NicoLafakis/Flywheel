@@ -62,6 +62,7 @@ import {
   newsBox, newsstand, pierDeck, planter, pothole, sandwichBoard, schoolBus, sedan, shippingContainer,
   signPost, signText, streetLightSignal, subwayEntrance, subwayStairEntrance, tower, trafficLight, trashBags,
   trashBin, tree, waterTower, kenneySUV, kenneySkyscraper,
+  SOLO_SPAWN,
 } from './voxelkit.js';
 import {
   slab, column, pier, beam, panel, mullion, cornice, plinth, tread, corbelArch, drum, wedge,
@@ -579,6 +580,11 @@ export const SCENE_GOALS = {
   amsterdam: { name: 'ENGULF THE CANAL GABLES', targetFraction: 1.0 },
   berlin: { name: 'CONSUME THE TV TOWER', targetFraction: 1.0 },
 };
+// The solo spawn contract lives in js/voxelkit.js — the one module both this
+// file and every scene can import without a cycle — and is re-exported here so
+// `js/voxelsim.js` stays the name callers reach for. See the note there for why
+// it is not defined in twelve scene files instead.
+export { SOLO_SPAWN, SOLO_SPAWN_KEEPOUT, SOLO_SPAWN_STANDING, SOLO_SPAWN_HEADROOM } from './voxelkit.js';
 export const SANDBOX_COIN_COUNT = 60;
 export const SANDBOX_COIN_VALUE = 2;
 export const SANDBOX_GOAL_BONUS = 35;
@@ -885,7 +891,7 @@ export class VoxelSandboxSim {
     if (Array.isArray(holes) && holes.length > 0) {
       this.holes = holes.map((hCfg, idx) => this._newHole(hCfg.x ?? 0, hCfg.z ?? 0, idx, hCfg));
     } else {
-      this.holes = [this._newHole(0, 16, 0)];
+      this.holes = [this._newHole(SOLO_SPAWN.x, SOLO_SPAWN.z, 0)];
     }
     this.localSlot = 0;
     this.time = 0;

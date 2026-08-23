@@ -324,6 +324,63 @@ slips, re-cut its route rather than lowering the number
 ([RCA-2026-08-17](../findings/RCA-2026-08-17-chicago-excursion-red-since-speed-retune.md)
 section 8).
 
+## The spawn contract (2026-08-23)
+
+`js/voxelkit.js` owns `SOLO_SPAWN` (`{x: 0, z: 16}`) and its three thresholds;
+`js/voxelsim.js` imports them for the real seating and re-exports them so
+callers can keep reaching for the sim. Voxelkit is the only module both the sim
+and every scene can import without a cycle, which is the whole reason it lives
+there: twelve scene files had each hand-copied a private
+`SPAWN_X = 0, SPAWN_Z = 16` that only their own budget close-out consulted, and
+Beijing had never copied it at all.
+
+| Constant | Value | What it means |
+|---|---|---|
+| `SOLO_SPAWN` | `{x: 0, z: 16}` | where `VoxelSandboxSim` seats the solo hole |
+| `SOLO_SPAWN_KEEPOUT` | 2.0 m | clear radius the validator demands |
+| `SOLO_SPAWN_STANDING` | 0.6 m | above this a block obstructs; below it, it is pavement |
+| `SOLO_SPAWN_HEADROOM` | 3.0 m | a block whose underside clears this is overhead, not around |
+| `SPAWN_FILL_KEEPOUT` | 4.0 m | wider berth the ground fill keeps, so scenes do not sit on the line |
+
+Both measured numbers came from the shipped roster rather than being chosen:
+across the 23 authored PLAYABLE scenes the nearest standing block sat at
+Beijing 0.00 m and then nothing closer than 2.00 m, so 2.0 m is the distance
+the game already kept everywhere it was not broken. The headroom clause is what
+separates "buried in the pier" from "standing in the archway", and it is why
+Beijing's fix was to carve the gate's five passages rather than to move the gate.
+
+`probeSpawnClearance` in `tools/validate.mjs` runs on every scene section,
+unconditionally and with no table to exempt anything.
+
+## Geographic accuracy pass — Act II roads (2026-08-23)
+
+Beijing, Bangkok and Mumbai were failing `probeRoadConflicts` at HEAD with 812,
+664 and 160 blocks of building standing inside roadway rects. The cause was the
+same in all three: carriageway rects drawn straight through landmarks, and
+street furniture placed at a `z` that lay inside a lane. Roads moved, landmarks
+did not — the one exception is Mumbai's Rajabai campus and its Chai Kettle Bot,
+which were repositioned because the road they stood in had vehicles on it.
+
+| Scene | Was | Now |
+|---|---|---|
+| beijing | Olympic Blvd 5 m deep, into the Bird's Nest facade | 4 m; vehicle lane untouched |
+| beijing | Dongdaqiao ran 20 m under the CCTV podium | stops at the plaza (z −44) |
+| beijing | Tiananmen Gate a solid slab, burying the spawn | five arched passages, central bay corbelled |
+| bangkok | Na Phra Lan crossed the Grand Palace | two segments either side of the walls |
+| bangkok | Rama I 5 m deep, into the Skytrain piers | 4 m |
+| bangkok | Sukhumvit crossed the night market | parts around x −16..20 |
+| bangkok | no `sidewalks` layer; props stood in the road | kerbs either side of Na Phra Lan, props at z 3.5 |
+| mumbai | Marine Drive 5 m wide, into the CSMT clocktower | 4 m |
+| mumbai | D.N. Road overlapped the Rajabai campus | campus shifted 4 m north |
+| mumbai | Sea Link Connector drawn under the bridge landfall | stops short of the piers |
+
+Beijing's gate is the one worth reading the code for: the central bay is 8 m
+clear at ground level so the spawn is not inside a pier, and corbels to 4 m at
+springing level because voxelkit's 2 m plate reaches exactly one 2 m hop from
+support — an 8 m lintel dropped 277 blocks of pavilion on the player's head.
+The arch is both the historical detail the map was missing and the structural
+answer.
+
 ## Scenes
 
 Eight scene files exist and the sim can boot any of them

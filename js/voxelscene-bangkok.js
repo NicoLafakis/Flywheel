@@ -133,12 +133,31 @@ export function buildBangkok(sim) {
     { x: 22, z: -46, w: 18, d: 16, color: 0x607d8b },   // Wat Pho Courtyard Flagstones
   );
 
-  // Roads
+  // Kerbs either side of Na Phra Lan. Bangkok shipped with an empty `sidewalks`
+  // layer, which is the reason its lamp posts, planters and benches ended up on
+  // the carriageway: there was no pavement in the scene to put them on.
+  sidewalks.push(
+    { x: -54, z: 2, w: 108, d: 3, color: 0xb0bec5 },
+    { x: -54, z: -6, w: 108, d: 3, color: 0xb0bec5 },
+  );
+
   roads.push(
     { x: -54, z: -25, w: 108, d: 5, color: 0x37474f },  // Ratchadamnoen
-    { x: -54, z: -3, w: 108, d: 5, color: 0x37474f },   // Na Phra Lan
-    { x: -54, z: 20, w: 108, d: 5, color: 0x37474f },   // Rama I
-    { x: -50, z: 54, w: 100, d: 5, color: 0x37474f },   // Sukhumvit
+    // Na Phra Lan runs ALONGSIDE the Grand Palace, not through it. As one
+    // 108 m rect it crossed the palace walls (x -20..20) and the Dusit Maha
+    // Prasat throne hall standing 30 m tall inside them, which is where 600 of
+    // Bangkok's roadway conflicts came from. Two segments, stopping at the
+    // walls, is both the fix and the real street plan.
+    { x: -54, z: -3, w: 32, d: 5, color: 0x37474f },    // Na Phra Lan (west of the palace)
+    { x: 22, z: -3, w: 32, d: 5, color: 0x37474f },     // Na Phra Lan (east of the palace)
+    // Rama I is 4 m, not 5: the BTS Skytrain piers are grounded at z 24 and a
+    // 5 m carriageway reached a metre into them. The lane the four vehicles use
+    // is z 20.5..22.5, so the metre came off the unused side.
+    { x: -54, z: 20, w: 108, d: 4, color: 0x37474f },   // Rama I
+    // Sukhumvit likewise parts around the night market and the Skytrain
+    // terminal pier that occupy x -16..20 at this depth.
+    { x: -50, z: 54, w: 32, d: 5, color: 0x37474f },    // Sukhumvit (west of the market)
+    { x: 20, z: 54, w: 30, d: 5, color: 0x37474f },     // Sukhumvit (east of the market)
     { x: -24, z: -25, w: 4, d: 50, color: 0x37474f },   // Phra Athit
     { x: 20, z: -25, w: 4, d: 50, color: 0x37474f },    // Phaya Thai
   );
@@ -268,14 +287,20 @@ export function buildBangkok(sim) {
   // ------------------------------------------------------------
   // 6. STREET FURNITURE & ILLUMINATION
   // ------------------------------------------------------------
+  // Props stand on the kerb at z 3.5, not at z -2 and z 0 — those are inside
+  // Na Phra Lan's carriageway, and every bollard, lamp, planter and bench in
+  // this loop was sitting in the road. `offCrossStreet` keeps the run from
+  // dropping a bench into Phra Athit or Phaya Thai where the spacing lands on
+  // one (the bench at lx + 8 hit x -24 exactly).
+  const offCrossStreet = (x) => !((x > -26 && x < -18) || (x > 18 && x < 26));
   for (let bx = -46; bx <= 46; bx += 8) {
-    if (bx < -24 || bx > 24) bollard(sim, bx, -2);
+    if ((bx < -24 || bx > 24) && offCrossStreet(bx)) bollard(sim, bx, 3.5);
   }
   for (let lx = -48; lx <= 48; lx += 16) {
     if (lx < -24 || lx > 24) {
-      lampPost(sim, lx, 0);
-      planter(sim, lx + 4, 0, 2, 1);
-      bench(sim, lx + 8, 0);
+      if (offCrossStreet(lx)) lampPost(sim, lx, 3.5);
+      if (offCrossStreet(lx + 4)) planter(sim, lx + 4, 3.5, 2, 1);
+      if (offCrossStreet(lx + 8)) bench(sim, lx + 8, 3.5);
     }
   }
 
