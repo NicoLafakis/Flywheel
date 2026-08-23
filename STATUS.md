@@ -22,6 +22,11 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   Mediterranean Antiquity), and Act IV (European Capitals of Grandeur) are
   100% COMPLETE, VALIDATED, and PLAYABLE; the rest are `DEVELOPMENT` and
   gated in the UI. Unlock ladder is 100% clear of the preceding *playable* city.
+  Acts III and IV had their landmarks rebuilt on 2026-08-23 — they had shipped
+  as rectangular solids in the right places — and each scene now exports a
+  `*_LANDMARKS` table that `probeLandmarks` and `probeCatalogHeroes` hold it to.
+  The same pass un-broke Beijing, Bangkok and Mumbai, which were failing
+  `probeRoadConflicts` at HEAD. See `.wiki/modules/voxel.md`.
 - **Run rules**: 5-minute clock, 100% full-clear goal, 60 deterministic coins
   per city, plus a 3-minute challenge tier. Ranked THE RUN (Chicago) is 90 s.
 - **Boards**: public ranked boards with server-replayed trace verification;

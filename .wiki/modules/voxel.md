@@ -352,6 +352,83 @@ Beijing's fix was to carve the gate's five passages rather than to move the gate
 `probeSpawnClearance` in `tools/validate.mjs` runs on every scene section,
 unconditionally and with no table to exempt anything.
 
+## The landmark silhouette contract (2026-08-23)
+
+Every Act III and Act IV landmark shipped in the right place, at the right
+height, inside a scene hitting its declared block count exactly — and built as
+a featureless rectangular solid. The Eiffel Tower's bottom third was one solid
+28 x 20 x 28 m block, the Arc de Triomphe had no archway, the Colosseum's arena
+was filled with travertine, the Parthenon had no columns, and Tower Bridge's
+two towers stood 2 m apart with the gap plugged. Every scalar check passed on
+all of them, which is the point: footprint, peak and block count cannot tell a
+building from a box.
+
+So each of the eight scenes now exports a `*_LANDMARKS` table and
+`tools/validate.mjs` runs two probes over it:
+
+- **`probeLandmarks`** checks the footprint carries geometry, that the tallest
+  block reaches the declared `peak` EXACTLY (a landmark that quietly gained or
+  lost a storey is as wrong as one in the wrong place), and — the clause that
+  actually bites — that each declared `voids` band is substantially empty. A
+  void is measured as a true volume fraction over the whole band, not a sampled
+  cross-section, and carries a `why` naming the real-world feature that makes it
+  open, which is printed in the failure.
+- **`probeCatalogHeroes`** holds each city-select card's `heroes` list to the
+  landmarks its scene declares. This is what caught Paris advertising a "Pont
+  Neuf Stone Bridge" for a map that builds, and documents in four places, the
+  Pont d'Iéna.
+
+Both were verified against regressions before being relied on: reinstating the
+solid Eiffel base fails the first, restoring the phantom Pont Neuf fails the
+second.
+
+### The span budget is cumulative, and it shapes every opening
+
+This is the single most useful thing learned in the pass. `_recalcSupport`
+accumulates `ns = cs + hop` and compares it against the material's `maxSpan`
+(3 for concrete and steel). A hop between two 2 m blocks costs 2 m, so **a 2 m
+block gets exactly ONE hop from anchored mass** — a 4 m clear opening is the
+widest a 2 m lintel can bridge. A 1 m deck springing off a 2 m tower pays
+(1 + 2) / 2 = 1.5 for its first hop and 1 for each after, so it reaches 2.5 m,
+and a 6 m gap drops its middle.
+
+Three corollaries, each of which cost a red build before it was understood:
+
+1. **A cross-shaped void cannot be roofed.** Four corner legs around a "+" of
+   slots leave the centre cell two hops from every leg. Paris's tower is an arch
+   across ONE axis for this reason, with pier on both sides at every z — which
+   is also the axis the tower is seen along from the Trocadéro.
+2. **A course that translates inward sheds its trailing corner**, which sits
+   diagonally off the course below with no orthogonal neighbour carrying it.
+   Berlin's TV sphere is octagonal because of this, and it reads rounder for it.
+3. **A wide opening needs a corbel, not a longer lintel.** Beijing's gate and
+   Paris's arch both narrow their span in 2 m steps to something a lintel can
+   carry, which is how masonry has always solved it.
+
+### Proportions, measured
+
+Height ÷ width, built against published dimensions:
+
+| Landmark | was | now | real |
+|---|---|---|---|
+| Great Pyramid of Khufu | 1.29 | 0.64 | 0.64 |
+| Burj Al Arab | 2.33 | 3.17 | 3.21 |
+| Eiffel Tower | 2.29 | 2.29 | 2.40 |
+| Arc de Triomphe | 1.17 | 1.00 | 1.10 |
+| Brandenburg Gate | 1.30 | 0.56 | 0.40 |
+| Colosseum | 0.88 | 0.42 | 0.25 |
+| Parthenon | 0.72 | 0.44 | 0.20 |
+
+The Colosseum and Parthenon stop short of their true ratios deliberately: a
+Parthenon at 0.20 would stand 7 m against 68 m towers and a Colosseum at 0.25
+would be 9 m. Both moved a long way and stopped where they still read as
+buildings. Recorded here so the gap is a decision, not a defect waiting to be
+"fixed".
+
+Block counts did not move on any of the eight. The budget close-out fills
+`TARGET_BLOCKS - currentCount`, so blocks freed by hollowing a landmark flow
+straight back into the ground fill and the card's promise holds.
+
 ## Geographic accuracy pass — Act II roads (2026-08-23)
 
 Beijing, Bangkok and Mumbai were failing `probeRoadConflicts` at HEAD with 812,
