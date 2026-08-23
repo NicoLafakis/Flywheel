@@ -63,28 +63,36 @@ import {
   MUMBAI_ROAD_SPANS, MUMBAI_VEHICLES,
 } from '../js/voxelscene-mumbai.js';
 import {
-  DUBAI_LANDMARKS, DUBAI_ROAD_SPANS, DUBAI_VEHICLES,
+  DUBAI_CROSSINGS, DUBAI_LANDMARKS, DUBAI_ROAD_SPANS, DUBAI_STREETS,
+  DUBAI_VEHICLES, XW_LEN as DUBAI_XW_LEN,
 } from '../js/voxelscene-dubai.js';
 import {
-  CAIRO_LANDMARKS, CAIRO_ROAD_SPANS, CAIRO_VEHICLES,
+  CAIRO_CROSSINGS, CAIRO_LANDMARKS, CAIRO_ROAD_SPANS, CAIRO_STREETS,
+  CAIRO_VEHICLES, XW_LEN as CAIRO_XW_LEN,
 } from '../js/voxelscene-cairo.js';
 import {
-  ATHENS_LANDMARKS, ATHENS_ROAD_SPANS, ATHENS_VEHICLES,
+  ATHENS_CROSSINGS, ATHENS_LANDMARKS, ATHENS_ROAD_SPANS, ATHENS_STREETS,
+  ATHENS_VEHICLES, XW_LEN as ATHENS_XW_LEN,
 } from '../js/voxelscene-athens.js';
 import {
-  ROME_LANDMARKS, ROME_ROAD_SPANS, ROME_VEHICLES,
+  ROME_CROSSINGS, ROME_LANDMARKS, ROME_ROAD_SPANS, ROME_STREETS,
+  ROME_VEHICLES, XW_LEN as ROME_XW_LEN,
 } from '../js/voxelscene-rome.js';
 import {
-  PARIS_LANDMARKS, PARIS_ROAD_SPANS, PARIS_VEHICLES,
+  PARIS_CROSSINGS, PARIS_LANDMARKS, PARIS_ROAD_SPANS, PARIS_STREETS,
+  PARIS_VEHICLES, XW_LEN as PARIS_XW_LEN,
 } from '../js/voxelscene-paris.js';
 import {
-  LONDON_LANDMARKS, LONDON_ROAD_SPANS, LONDON_VEHICLES,
+  LONDON_CROSSINGS, LONDON_LANDMARKS, LONDON_ROAD_SPANS, LONDON_STREETS,
+  LONDON_VEHICLES, XW_LEN as LONDON_XW_LEN,
 } from '../js/voxelscene-london.js';
 import {
-  AMSTERDAM_LANDMARKS, AMSTERDAM_ROAD_SPANS, AMSTERDAM_VEHICLES,
+  AMSTERDAM_CROSSINGS, AMSTERDAM_LANDMARKS, AMSTERDAM_ROAD_SPANS, AMSTERDAM_STREETS,
+  AMSTERDAM_VEHICLES, XW_LEN as AMSTERDAM_XW_LEN,
 } from '../js/voxelscene-amsterdam.js';
 import {
-  BERLIN_LANDMARKS, BERLIN_ROAD_SPANS, BERLIN_VEHICLES,
+  BERLIN_CROSSINGS, BERLIN_LANDMARKS, BERLIN_ROAD_SPANS, BERLIN_STREETS,
+  BERLIN_VEHICLES, XW_LEN as BERLIN_XW_LEN,
 } from '../js/voxelscene-berlin.js';
 import {
   HONGKONG_ROAD_SPANS, HONGKONG_VEHICLES,
@@ -3444,6 +3452,7 @@ function validateHongKong() {
   probeBoundsRect(sim, 'hongkong');
   probeRoadConflicts(sim, 'hongkong', HONGKONG_VEHICLES, HONGKONG_ROAD_SPANS);
   probeWaterOverSurfaces(sim, 'hongkong');
+  probeDecorKeyOrder(sim, 'hongkong');
   probePlacementStep(sim, 'hongkong');
   probeIdleStability(sim, 'hongkong');
   console.log(`  hongkong sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3462,6 +3471,7 @@ function validateSeoul() {
   probeBoundsRect(sim, 'seoul');
   probeRoadConflicts(sim, 'seoul', SEOUL_VEHICLES, SEOUL_ROAD_SPANS);
   probeWaterOverSurfaces(sim, 'seoul');
+  probeDecorKeyOrder(sim, 'seoul');
   probePlacementStep(sim, 'seoul');
   probeIdleStability(sim, 'seoul');
   console.log(`  seoul sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3480,6 +3490,7 @@ function validateBeijing() {
   probeBoundsRect(sim, 'beijing');
   probeRoadConflicts(sim, 'beijing', BEIJING_VEHICLES, BEIJING_ROAD_SPANS);
   probeWaterOverSurfaces(sim, 'beijing');
+  probeDecorKeyOrder(sim, 'beijing');
   probePlacementStep(sim, 'beijing');
   probeIdleStability(sim, 'beijing');
   console.log(`  beijing sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3498,6 +3509,7 @@ function validateBangkok() {
   probeBoundsRect(sim, 'bangkok');
   probeRoadConflicts(sim, 'bangkok', BANGKOK_VEHICLES, BANGKOK_ROAD_SPANS);
   probeWaterOverSurfaces(sim, 'bangkok');
+  probeDecorKeyOrder(sim, 'bangkok');
   probePlacementStep(sim, 'bangkok');
   probeIdleStability(sim, 'bangkok');
   console.log(`  bangkok sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3516,6 +3528,7 @@ function validateMumbai() {
   probeBoundsRect(sim, 'mumbai');
   probeRoadConflicts(sim, 'mumbai', MUMBAI_VEHICLES, MUMBAI_ROAD_SPANS);
   probeWaterOverSurfaces(sim, 'mumbai');
+  probeDecorKeyOrder(sim, 'mumbai');
   probePlacementStep(sim, 'mumbai');
   probeIdleStability(sim, 'mumbai');
   console.log(`  mumbai sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3534,6 +3547,8 @@ function validateDubai() {
   probeLandmarks(sim, 'dubai', DUBAI_LANDMARKS);
   probeCatalogHeroes('dubai', 'dubai', DUBAI_LANDMARKS);
   probeWaterOverSurfaces(sim, 'dubai');
+  probeDecorKeyOrder(sim, 'dubai');
+  probeCrossingsOnDeclaredStreet('dubai', DUBAI_CROSSINGS, DUBAI_STREETS, DUBAI_XW_LEN);
   probePlacementStep(sim, 'dubai');
   probeIdleStability(sim, 'dubai');
   console.log(`  dubai sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3552,6 +3567,8 @@ function validateCairo() {
   probeLandmarks(sim, 'cairo', CAIRO_LANDMARKS);
   probeCatalogHeroes('cairo', 'cairo', CAIRO_LANDMARKS);
   probeWaterOverSurfaces(sim, 'cairo');
+  probeDecorKeyOrder(sim, 'cairo');
+  probeCrossingsOnDeclaredStreet('cairo', CAIRO_CROSSINGS, CAIRO_STREETS, CAIRO_XW_LEN);
   probePlacementStep(sim, 'cairo');
   probeIdleStability(sim, 'cairo');
   console.log(`  cairo sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3570,6 +3587,8 @@ function validateAthens() {
   probeLandmarks(sim, 'athens', ATHENS_LANDMARKS);
   probeCatalogHeroes('athens', 'athens', ATHENS_LANDMARKS);
   probeWaterOverSurfaces(sim, 'athens');
+  probeDecorKeyOrder(sim, 'athens');
+  probeCrossingsOnDeclaredStreet('athens', ATHENS_CROSSINGS, ATHENS_STREETS, ATHENS_XW_LEN);
   probePlacementStep(sim, 'athens');
   probeIdleStability(sim, 'athens');
   console.log(`  athens sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3588,6 +3607,8 @@ function validateRome() {
   probeLandmarks(sim, 'rome', ROME_LANDMARKS);
   probeCatalogHeroes('rome', 'rome', ROME_LANDMARKS);
   probeWaterOverSurfaces(sim, 'rome');
+  probeDecorKeyOrder(sim, 'rome');
+  probeCrossingsOnDeclaredStreet('rome', ROME_CROSSINGS, ROME_STREETS, ROME_XW_LEN);
   probePlacementStep(sim, 'rome');
   probeIdleStability(sim, 'rome');
   console.log(`  rome sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3606,6 +3627,8 @@ function validateParis() {
   probeLandmarks(sim, 'paris', PARIS_LANDMARKS);
   probeCatalogHeroes('paris', 'paris', PARIS_LANDMARKS);
   probeWaterOverSurfaces(sim, 'paris');
+  probeDecorKeyOrder(sim, 'paris');
+  probeCrossingsOnDeclaredStreet('paris', PARIS_CROSSINGS, PARIS_STREETS, PARIS_XW_LEN);
   probePlacementStep(sim, 'paris');
   probeIdleStability(sim, 'paris');
   console.log(`  paris sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3624,6 +3647,8 @@ function validateLondon() {
   probeLandmarks(sim, 'london', LONDON_LANDMARKS);
   probeCatalogHeroes('london', 'london', LONDON_LANDMARKS);
   probeWaterOverSurfaces(sim, 'london');
+  probeDecorKeyOrder(sim, 'london');
+  probeCrossingsOnDeclaredStreet('london', LONDON_CROSSINGS, LONDON_STREETS, LONDON_XW_LEN);
   probePlacementStep(sim, 'london');
   probeIdleStability(sim, 'london');
   console.log(`  london sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3642,6 +3667,8 @@ function validateAmsterdam() {
   probeLandmarks(sim, 'amsterdam', AMSTERDAM_LANDMARKS);
   probeCatalogHeroes('amsterdam', 'amsterdam', AMSTERDAM_LANDMARKS);
   probeWaterOverSurfaces(sim, 'amsterdam');
+  probeDecorKeyOrder(sim, 'amsterdam');
+  probeCrossingsOnDeclaredStreet('amsterdam', AMSTERDAM_CROSSINGS, AMSTERDAM_STREETS, AMSTERDAM_XW_LEN);
   probePlacementStep(sim, 'amsterdam');
   probeIdleStability(sim, 'amsterdam');
   console.log(`  amsterdam sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3660,6 +3687,8 @@ function validateBerlin() {
   probeLandmarks(sim, 'berlin', BERLIN_LANDMARKS);
   probeCatalogHeroes('berlin', 'berlin', BERLIN_LANDMARKS);
   probeWaterOverSurfaces(sim, 'berlin');
+  probeDecorKeyOrder(sim, 'berlin');
+  probeCrossingsOnDeclaredStreet('berlin', BERLIN_CROSSINGS, BERLIN_STREETS, BERLIN_XW_LEN);
   probePlacementStep(sim, 'berlin');
   probeIdleStability(sim, 'berlin');
   console.log(`  berlin sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);

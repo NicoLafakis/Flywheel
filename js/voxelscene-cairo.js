@@ -20,7 +20,7 @@
 
 import {
   bench, bollard, clearOfSpawn, freeForFill, generateBlockers, inDecorRects,
-  lampPost, planter,
+  lampPost, planter, zebra,
 } from './voxelkit.js';
 
 export { vehicleBBox } from './voxelkit.js';
@@ -46,6 +46,10 @@ export const CAIRO_STREETS = [
   { x: -24, z: -56, w: 6, d: 118, axis: 'z' },  // Corniche El Nil
   { x: 12, z: 8, w: 5, d: 46, axis: 'z' },      // Al-Qalaa Approach
 ];
+
+// Zebra crossing positions: `[streetIndex, at]`, where `at` is the coordinate
+// along that street's own axis and the crossing occupies `at .. at + XW_LEN`.
+export const XW_LEN = 2.8;
 
 export const CAIRO_CROSSINGS = [
   [0, -12], [0, 20],
@@ -85,8 +89,10 @@ export function buildCairo(sim) {
   const BOX = (x0, y0, z0, nx, ny, nz, m, s = 1, c) => sim._box(x0, y0, z0, nx, ny, nz, m, s, c);
 
   // Decor accumulators
-  const parks = [], plaza = [], sidewalks = [], roads = [];
-  const water = [], boardwalk = [], cobbles = [];
+  // Every layer the draw-order contract names, in the order it paints. An
+  // unused layer keeps its key rather than being dropped.
+  const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [], roads = [];
+  const rail = [], bikePaths = [], laneMarkers = [], crosswalks = [], water = [], boardwalk = [];
 
   // ============================================================ DISTRICT SURFACES
   // River Nile Channel (x: -56..-28, z: -56..64)
@@ -292,11 +298,21 @@ export function buildCairo(sim) {
     }
   }
 
+  // Zebra crossings, drawn from CAIRO_CROSSINGS against CAIRO_STREETS.
+  // Both tables shipped with every one of these scenes and nothing had ever
+  // read either of them — the roads were hand-copied into the decor list
+  // beside them and no crossing was drawn at all.
+  const cross = (st, at) => (st.axis === 'x'
+    ? zebra({ x: at, z: st.z + 0.4, w: XW_LEN, d: st.d - 0.8, axis: 'x' })
+    : zebra({ x: st.x + 0.4, z: at, w: st.w - 0.8, d: XW_LEN, axis: 'z' }));
+  for (const [si, at] of CAIRO_CROSSINGS) crosswalks.push(...cross(CAIRO_STREETS[si], at));
+
   // Camera blockers
   sim.cameraBlockers = generateBlockers(sim, 6);
 
   // Decor surfaces
   sim.sceneDecor = {
-    parks, plaza, sidewalks, roads, water, boardwalk, cobbles,
+    parks, sand, plaza, cobbles, sidewalks, roads, rail,
+    bikePaths, laneMarkers, crosswalks, water, boardwalk,
   };
 }
