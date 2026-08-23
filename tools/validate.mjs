@@ -3291,7 +3291,16 @@ function validateProgressSync() {
 // otherwise — the AGENTS.md gate is mode-independent.
 const wanted = (process.env.FW_VALIDATE_SECTIONS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const sectionTimes = [];
+// A NAME THAT MATCHES NOTHING IS A TYPO, NOT A SELECTION. `wanted` used to be
+// consulted only as a filter, so a misspelt entry simply selected no section and
+// the run printed ALL PASS over having checked nothing. That is exactly what
+// happened on 2026-08-23: `upper-manhattan` was passed for a section registered
+// as `upperManhattan`, the section never ran, and the suite still went green.
+// Every name is now accounted for at the end of the run — see the check after
+// the last section() call.
+const seenSections = new Set();
 const section = (name, fn) => {
+  seenSections.add(name);
   if (!wanted.length || wanted.includes(name)) {
     const t0 = performance.now();
     fn();
@@ -4034,6 +4043,15 @@ section('chicago', validateChicago);
 section('speedInvariance', validateSpeedInvariance);
 
 console.log('---');
+// Unknown names are a hard failure, checked here rather than up front because
+// section() registers as it goes and the full list only exists once every call
+// has run.
+for (const name of wanted) {
+  if (!seenSections.has(name)) {
+    fail(`FW_VALIDATE_SECTIONS names '${name}', which is not a registered section — nothing ran for it. Registered: ${[...seenSections].join(', ')}`);
+  }
+}
+
 // The margin summary is only meaningful when the campaign section actually ran.
 // Printing "worst margin Infinity% (L0)" after a single-section run would read
 // as a result rather than as an absence of one.
