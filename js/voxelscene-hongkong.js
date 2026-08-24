@@ -157,8 +157,10 @@ export function buildHongKong(sim) {
   };
 
   // Decor accumulators
-  const parks = [], plaza = [], sidewalks = [], roads = [];
-  const water = [], boardwalk = [], cobbles = [];
+  // Every layer the draw-order contract names, in the order it paints. An
+  // unused layer keeps its key rather than being dropped.
+  const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [], roads = [];
+  const rail = [], bikePaths = [], laneMarkers = [], crosswalks = [], water = [], boardwalk = [];
 
   // ============================================================ DISTRICT SURFACES
   water.push(
@@ -579,6 +581,7 @@ export function buildHongKong(sim) {
   sim.cameraBlockers = generateBlockers(sim, 6);
 
   sim.sceneDecor = {
-    parks, plaza, sidewalks, roads, water, boardwalk, cobbles,
+    parks, sand, plaza, cobbles, sidewalks, roads, rail,
+    bikePaths, laneMarkers, crosswalks, water, boardwalk,
   };
 }

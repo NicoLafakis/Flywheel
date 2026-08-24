@@ -21,7 +21,8 @@
 //   Declared in js/citycatalog.js at exactly 36,000 blocks.
 
 import {
-  bench, bollard, generateBlockers, lampPost, planter,
+  bench, bollard, clearOfSpawn, freeForFill, generateBlockers, inDecorRects,
+  lampPost, planter, zebra,
 } from './voxelkit.js';
 
 export { vehicleBBox } from './voxelkit.js';
@@ -52,38 +53,40 @@ export const DUBAI_STREETS = [
   { x: -36, z: -32, w: 4, d: 98, axis: 'z' },   // Al Mustaqbal Street
 ];
 
+// Zebra crossing positions: `[streetIndex, at]`, where `at` is the coordinate
+// along that street's own axis and the crossing occupies `at .. at + XW_LEN`.
+export const XW_LEN = 2.8;
+
 export const DUBAI_CROSSINGS = [
   [0, -18], [0, 14], [0, 42],
   [1, -8], [1, 26],
 ];
 
+// What the card promises, held to what the scene builds — see PARIS_LANDMARKS
+// in js/voxelscene-paris.js for why `voids` is the clause that matters.
+export const DUBAI_LANDMARKS = [
+  {
+    id: 'burj_khalifa',
+    name: 'Burj Khalifa Needle',
+    foot: { minX: -8, maxX: 8, minZ: -8, maxZ: 8 },
+    peak: 68,
+  },
+  {
+    id: 'palm_monorail',
+    name: 'Palm Monorail Trestle',
+    foot: { minX: -52, maxX: 50, minZ: 44, maxZ: 48 },
+    peak: 14,
+  },
+  {
+    id: 'burj_al_arab',
+    name: 'Sail Hotel Tower',
+    foot: { minX: 38, maxX: 50, minZ: -50, maxZ: -38 },
+    peak: 38,
+    voids: [{ minY: 20, maxY: 38, minFrac: 0.45, why: 'the sail falling away from the mast' }],
+  },
+];
+
 const TARGET_BLOCKS = 36000;
-const SPAWN_X = 0;
-const SPAWN_Z = 16;
-const SPAWN_KEEPOUT = 4.0;
-
-function canPlace(sim, x, y, z, s = 0.5) {
-  const f = 4;
-  const gx = Math.round(x * f);
-  const gy = Math.round(y * f);
-  const gz = Math.round(z * f);
-  const fs = Math.round(s * f);
-  for (let ix = 0; ix < fs; ix++) {
-    for (let iy = 0; iy < fs; iy++) {
-      for (let iz = 0; iz < fs; iz++) {
-        if (sim.grid.has(`${gx + ix},${gy + iy},${gz + iz}`)) return false;
-      }
-    }
-  }
-  return true;
-}
-
-function inDecorRect(rx, rz, s, rects) {
-  for (const r of rects) {
-    if (rx < r.x + r.w && rx + s > r.x && rz < r.z + r.d && rz + s > r.z) return true;
-  }
-  return false;
-}
 
 export function buildDubai(sim) {
   sim.bounds = 90;
@@ -93,8 +96,10 @@ export function buildDubai(sim) {
   const BOX = (x0, y0, z0, nx, ny, nz, m, s = 1, c) => sim._box(x0, y0, z0, nx, ny, nz, m, s, c);
 
   // Decor accumulators
-  const parks = [], plaza = [], sidewalks = [], roads = [];
-  const water = [], boardwalk = [], cobbles = [];
+  // Every layer the draw-order contract names, in the order it paints. An
+  // unused layer keeps its key rather than being dropped.
+  const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [], roads = [];
+  const rail = [], bikePaths = [], laneMarkers = [], crosswalks = [], water = [], boardwalk = [];
 
   // ============================================================ DISTRICT SURFACES
   // Persian Gulf Coastal Waters (z: -56..-32, x: -56..58)
@@ -163,12 +168,25 @@ export function buildDubai(sim) {
   // 1. BURJ AL ARAB (SAIL HOTEL TOWER)
   // ------------------------------------------------------------
   // Located on private island at x 38..50, z -50..-38, y 0..38
+  // A SAIL, which means an asymmetric profile: a straight mast up the leading
+  // edge and a curve falling away behind it. This shipped as a plain 16 x 28 x
+  // 16 m box on a podium, which is a tower, not a dhow sail — and the shape is
+  // the entire reason the building is famous.
+  //
   // Island Foundation Podium (x: 38..50, z: -50..-38, y: 0..4)
   BOX(38, 0, -50, 6, 2, 6, 'concrete', 2, 0xffecb3);
-  // Main Sail White Atrium Facade (y: 4..32, x: 40..48, z: -48..-40)
-  BOX(40, 4, -48, 4, 14, 4, 'panel', 2, 0xffffff);
-  // Upper Observation Deck & Skyview Lounge (y: 32..38, x: 40..48, z: -48..-40)
-  BOX(40, 32, -48, 4, 3, 4, 'steel', 2, 0x0288d1);
+  // Exoskeleton mast up the leading edge (x: 38..42, y: 4..38)
+  BOX(38, 4, -48, 2, 17, 4, 'steel', 2, 0xe0e0e0);
+  // The sail itself, falling away from the mast in 2 m steps so each course
+  // sits wholly on the one below (y: 4..34)
+  BOX(42, 4, -48, 4, 4, 4, 'panel', 2, 0xffffff);   // y 4..12,  out to x 50
+  BOX(42, 12, -48, 3, 4, 4, 'panel', 2, 0xffffff);  // y 12..20, out to x 48
+  BOX(42, 20, -48, 2, 4, 4, 'panel', 2, 0xffffff);  // y 20..28, out to x 46
+  BOX(42, 28, -48, 1, 3, 4, 'panel', 2, 0xffffff);  // y 28..34, out to x 44
+  // Skyview Lounge cantilevered off the mast head (y: 34..38). It starts at
+  // x 42, clear of the mast it hangs from — overlapping it would have both
+  // pieces claiming the same cells.
+  BOX(42, 34, -48, 2, 2, 4, 'steel', 2, 0x0288d1);
 
   // ------------------------------------------------------------
   // 2. MOMENTUM FRIEND: FALCON SKY BOT 🦅
@@ -235,10 +253,10 @@ export function buildDubai(sim) {
   const maxZ0 = R.maxZ - 0.5;
 
   const tryPlaceFiller = (rx, rz, allowWater = false) => {
-    if (inDecorRect(rx, rz, 0.5, roads)) return false;
-    if (!allowWater && inDecorRect(rx, rz, 0.5, water)) return false;
-    if (Math.hypot(rx - SPAWN_X, rz - SPAWN_Z) < SPAWN_KEEPOUT) return false;
-    if (!canPlace(sim, rx, 0, rz, 0.5)) return false;
+    if (inDecorRects(rx, rz, 0.5, roads)) return false;
+    if (!allowWater && inDecorRects(rx, rz, 0.5, water)) return false;
+    if (!clearOfSpawn(rx, rz)) return false;
+    if (!freeForFill(sim, rx, 0, rz, 0.5)) return false;
     const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 4) + 4) % 4;
     B(rx, 0, rz, 'concrete', 0.5, quartzColors[cIdx]);
     return true;
@@ -266,11 +284,21 @@ export function buildDubai(sim) {
     }
   }
 
+  // Zebra crossings, drawn from DUBAI_CROSSINGS against DUBAI_STREETS.
+  // Both tables shipped with every one of these scenes and nothing had ever
+  // read either of them — the roads were hand-copied into the decor list
+  // beside them and no crossing was drawn at all.
+  const cross = (st, at) => (st.axis === 'x'
+    ? zebra({ x: at, z: st.z + 0.4, w: XW_LEN, d: st.d - 0.8, axis: 'x' })
+    : zebra({ x: st.x + 0.4, z: at, w: st.w - 0.8, d: XW_LEN, axis: 'z' }));
+  for (const [si, at] of DUBAI_CROSSINGS) crosswalks.push(...cross(DUBAI_STREETS[si], at));
+
   // Camera blockers
   sim.cameraBlockers = generateBlockers(sim, 6);
 
   // Decor surfaces
   sim.sceneDecor = {
-    parks, plaza, sidewalks, roads, water, boardwalk, cobbles,
+    parks, sand, plaza, cobbles, sidewalks, roads, rail,
+    bikePaths, laneMarkers, crosswalks, water, boardwalk,
   };
 }

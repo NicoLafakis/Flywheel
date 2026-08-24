@@ -21,7 +21,8 @@
 //   Declared in js/citycatalog.js at exactly 35,000 blocks.
 
 import {
-  bench, bollard, generateBlockers, lampPost, planter,
+  bench, bollard, clearOfSpawn, freeForFill, generateBlockers, inDecorRects,
+  lampPost, planter, zebra,
 } from './voxelkit.js';
 
 export { vehicleBBox } from './voxelkit.js';
@@ -51,38 +52,41 @@ export const ROME_STREETS = [
   { x: 26, z: 4, w: 5, d: 50, axis: 'z' },      // Via del Corso
 ];
 
+// Zebra crossing positions: `[streetIndex, at]`, where `at` is the coordinate
+// along that street's own axis and the crossing occupies `at .. at + XW_LEN`.
+export const XW_LEN = 2.8;
+
 export const ROME_CROSSINGS = [
   [0, -12], [0, 20],
   [1, 6], [1, 38],
 ];
 
+// What the card promises, held to what the scene builds — see PARIS_LANDMARKS
+// in js/voxelscene-paris.js for why `voids` is the clause that matters.
+export const ROME_LANDMARKS = [
+  {
+    id: 'colosseum',
+    name: 'Colosseum Oval Arena',
+    foot: { minX: 10, maxX: 48, minZ: -46, maxZ: -14 },
+    peak: 16,
+    voids: [{ minY: 0, maxY: 12, minFrac: 0.55, why: 'the arena and the arcade openings' }],
+  },
+  {
+    id: 'st_peters',
+    name: 'St. Peter\u2019s Great Dome',
+    foot: { minX: -16, maxX: 16, minZ: 22, maxZ: 52 },
+    peak: 44,
+  },
+  {
+    id: 'aqua_claudia',
+    name: 'Roman Aqueduct Arches',
+    foot: { minX: 48, maxX: 52, minZ: -10, maxZ: 46 },
+    peak: 16,
+    voids: [{ minY: 0, maxY: 12, minFrac: 0.55, why: 'the arches between the piers' }],
+  },
+];
+
 const TARGET_BLOCKS = 35000;
-const SPAWN_X = 0;
-const SPAWN_Z = 16;
-const SPAWN_KEEPOUT = 4.0;
-
-function canPlace(sim, x, y, z, s = 0.5) {
-  const f = 4;
-  const gx = Math.round(x * f);
-  const gy = Math.round(y * f);
-  const gz = Math.round(z * f);
-  const fs = Math.round(s * f);
-  for (let ix = 0; ix < fs; ix++) {
-    for (let iy = 0; iy < fs; iy++) {
-      for (let iz = 0; iz < fs; iz++) {
-        if (sim.grid.has(`${gx + ix},${gy + iy},${gz + iz}`)) return false;
-      }
-    }
-  }
-  return true;
-}
-
-function inDecorRect(rx, rz, s, rects) {
-  for (const r of rects) {
-    if (rx < r.x + r.w && rx + s > r.x && rz < r.z + r.d && rz + s > r.z) return true;
-  }
-  return false;
-}
 
 export function buildRome(sim) {
   sim.bounds = 90;
@@ -92,8 +96,10 @@ export function buildRome(sim) {
   const BOX = (x0, y0, z0, nx, ny, nz, m, s = 1, c) => sim._box(x0, y0, z0, nx, ny, nz, m, s, c);
 
   // Decor accumulators
-  const parks = [], plaza = [], sidewalks = [], roads = [];
-  const water = [], boardwalk = [], cobbles = [];
+  // Every layer the draw-order contract names, in the order it paints. An
+  // unused layer keeps its key rather than being dropped.
+  const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [], roads = [];
+  const rail = [], bikePaths = [], laneMarkers = [], crosswalks = [], water = [], boardwalk = [];
 
   // ============================================================ DISTRICT SURFACES
   // River Tiber Channel (x: -56..-24, z: -56..64)
@@ -144,15 +150,53 @@ export function buildRome(sim) {
   // ------------------------------------------------------------
   // 0. THE COLOSSEUM (FLAVIAN AMPHITHEATRE)
   // ------------------------------------------------------------
-  // Located at x 14..48, z -44..-14, y 0..30 (34x30x30m)
-  // Outer Travertine Tier 1: Doric Arches (y: 0..8)
-  BOX(14, 0, -44, 17, 4, 15, 'concrete', 2, 0xd7ccc8);
-  // Outer Travertine Tier 2: Ionic Arches (y: 8..16)
-  BOX(16, 8, -42, 15, 4, 13, 'concrete', 2, 0xcfd8dc);
-  // Outer Travertine Tier 3: Corinthian Arches (y: 16..24)
-  BOX(18, 16, -40, 13, 4, 11, 'concrete', 2, 0xbcaaa4);
-  // Attic Wall with Mast Corbels (y: 24..30)
-  BOX(20, 24, -38, 11, 3, 9, 'concrete', 2, 0xa1887f);
+  // Located at x 10..48, z -46..-14, y 0..16 (38x32x16m)
+  //
+  // A RING ROUND AN ARENA, and much lower than it shipped. Two things were
+  // wrong and they compounded. The proportion: the real amphitheatre is 189 m
+  // on its long axis and 48 m tall, about 1:0.25, and this was 34 m by 30 m
+  // tall — 1:0.88, which reads as a tower block rather than the widest low
+  // ring in Rome. And it was solid, so the arena, the hole the whole building
+  // exists to enclose, was filled with travertine.
+  //
+  // Built as an elliptical arcade: piers on the ellipse carrying a continuous
+  // attic cornice, arena open inside them. Openings are flanked on both sides
+  // at every angle, so each cornice cell bridging one is a single legal hop —
+  // the same reason Paris's tower is an arch across one axis, not a cross.
+  const COL = { x0: 10, x1: 48, z0: -46, z1: -14 };
+  const colCx = (COL.x0 + COL.x1) / 2, colCz = (COL.z0 + COL.z1) / 2;
+  const colAx = (COL.x1 - COL.x0) / 2, colAz = (COL.z1 - COL.z0) / 2;
+  const COL_TIER_COLORS = [0xd7ccc8, 0xcfd8dc, 0xbcaaa4]; // Doric, Ionic, Corinthian
+
+  // Arcade piers, walked round the ellipse. Deduped through a Set: rounding two
+  // neighbouring angles onto the same 2 m cell would place a block twice and
+  // fail cell ownership.
+  // Centres snap to a 4 m lattice, which is the pier's own width: two piers an
+  // odd 2 m apart would interpenetrate and fail cell ownership, and the Set
+  // only dedupes exact repeats, not overlaps.
+  const colPiers = new Set();
+  for (let i = 0; i < 28; i++) {
+    const t = (i / 28) * Math.PI * 2;
+    const px = Math.round((colCx + Math.cos(t) * (colAx - 2)) / 4) * 4;
+    const pz = Math.round((colCz + Math.sin(t) * (colAz - 2)) / 4) * 4;
+    colPiers.add(`${px},${pz}`);
+  }
+  for (const key of colPiers) {
+    const [px, pz] = key.split(',').map(Number);
+    for (let t = 0; t < 3; t++) BOX(px - 2, t * 4, pz - 2, 2, 2, 2, 'concrete', 2, COL_TIER_COLORS[t]);
+  }
+
+  // Attic cornice: a closed elliptical band over the piers (y: 12..16), which
+  // is what makes the arcade read as one building rather than a colonnade.
+  for (let x = COL.x0; x < COL.x1; x += 2) {
+    for (let z = COL.z0; z < COL.z1; z += 2) {
+      const u = (x + 1 - colCx) / colAx, v = (z + 1 - colCz) / colAz;
+      const ui = (x + 1 - colCx) / (colAx - 4), vi = (z + 1 - colCz) / (colAz - 4);
+      if (u * u + v * v > 1) continue;          // outside the outer ellipse
+      if (ui * ui + vi * vi <= 1) continue;     // inside the arena
+      BOX(x, 12, z, 1, 2, 1, 'concrete', 2, 0xa1887f);
+    }
+  }
 
   // ------------------------------------------------------------
   // 1. ST. PETER'S BASILICA & RENAISSANCE DOME
@@ -176,7 +220,21 @@ export function buildRome(sim) {
   // 2. ROMAN AQUEDUCT (AQUA CLAUDIA STONE ARCHES)
   // ------------------------------------------------------------
   // Spans along eastern district boundary (x: 48..52, z: -10..46, y: 0..16)
-  BOX(48, 0, -10, 2, 8, 28, 'concrete', 2, 0x8d6e63); // Solid stone arcade wall (y: 0..16)
+  //
+  // Arches, which the card has always promised and the scene admitted in its
+  // own comment it did not build: this shipped as one solid 4 x 16 x 56 m stone
+  // wall. Piers every 8 m carry a continuous channel, so the 4 m gaps between
+  // them are single hops and the whole run stands.
+  // 2 m piers on a 6 m rhythm: 4 m of arch between each pair, which is both the
+  // widest gap a 2 m springing course can bridge in one hop and close to the
+  // real Aqua Claudia's slender-pier, wide-arch proportion. 4 m piers on an 8 m
+  // rhythm were tried and left the run only 41% open — arches you could not see
+  // daylight through. The last pier lands at z 44 and caps the run.
+  for (let az = -10; az < 46; az += 6) {
+    BOX(48, 0, az, 2, 6, 1, 'concrete', 2, 0x8d6e63);   // Pier (y: 0..12)
+  }
+  BOX(48, 12, -10, 2, 1, 28, 'concrete', 2, 0xa1887f);  // Springing course (y: 12..14)
+  BOX(48, 14, -10, 2, 1, 28, 'concrete', 2, 0x8d6e63);  // Specus water channel (y: 14..16)
 
   // ------------------------------------------------------------
   // 3. PONTE SANT'ANGELO STONE BRIDGE
@@ -226,10 +284,10 @@ export function buildRome(sim) {
   const maxZ0 = R.maxZ - 0.5;
 
   const tryPlaceFiller = (rx, rz, allowWater = false) => {
-    if (inDecorRect(rx, rz, 0.5, roads)) return false;
-    if (!allowWater && inDecorRect(rx, rz, 0.5, water)) return false;
-    if (Math.hypot(rx - SPAWN_X, rz - SPAWN_Z) < SPAWN_KEEPOUT) return false;
-    if (!canPlace(sim, rx, 0, rz, 0.5)) return false;
+    if (inDecorRects(rx, rz, 0.5, roads)) return false;
+    if (!allowWater && inDecorRects(rx, rz, 0.5, water)) return false;
+    if (!clearOfSpawn(rx, rz)) return false;
+    if (!freeForFill(sim, rx, 0, rz, 0.5)) return false;
     const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 4) + 4) % 4;
     B(rx, 0, rz, 'concrete', 0.5, romeColors[cIdx]);
     return true;
@@ -263,11 +321,21 @@ export function buildRome(sim) {
     }
   }
 
+  // Zebra crossings, drawn from ROME_CROSSINGS against ROME_STREETS.
+  // Both tables shipped with every one of these scenes and nothing had ever
+  // read either of them — the roads were hand-copied into the decor list
+  // beside them and no crossing was drawn at all.
+  const cross = (st, at) => (st.axis === 'x'
+    ? zebra({ x: at, z: st.z + 0.4, w: XW_LEN, d: st.d - 0.8, axis: 'x' })
+    : zebra({ x: st.x + 0.4, z: at, w: st.w - 0.8, d: XW_LEN, axis: 'z' }));
+  for (const [si, at] of ROME_CROSSINGS) crosswalks.push(...cross(ROME_STREETS[si], at));
+
   // Camera blockers
   sim.cameraBlockers = generateBlockers(sim, 6);
 
   // Decor surfaces
   sim.sceneDecor = {
-    parks, plaza, sidewalks, roads, water, boardwalk, cobbles,
+    parks, sand, plaza, cobbles, sidewalks, roads, rail,
+    bikePaths, laneMarkers, crosswalks, water, boardwalk,
   };
 }

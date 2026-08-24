@@ -3337,3 +3337,68 @@ export function fineWarehouse(sim, o) {
     }
   }
 }
+
+// ============================================================================
+// THE SOLO SPAWN CONTRACT, AND THE GROUND-FILL HELPERS THAT HAVE TO RESPECT IT
+// ============================================================================
+// This file is the only module both `js/voxelsim.js` and every scene can import
+// without a cycle — voxelkit has no imports of its own — so the spawn contract
+// lives here and the sim re-exports it. That matters: twelve scene files had
+// each hand-copied a private `SPAWN_X = 0, SPAWN_Z = 16` that only their own
+// ground fill consulted, Beijing never copied it at all, and the result was a
+// city that started the player entombed in the Tiananmen Gate. A constant that
+// every author has to remember to re-type is not a contract.
+
+// Where the solo hole is seated. `js/voxelsim.js` reads this for the real thing;
+// scenes read it to keep their budget close-out off it.
+export const SOLO_SPAWN = Object.freeze({ x: 0, z: 16 });
+
+// Radius of clear ground the spawn needs, what counts as standing geometry
+// rather than pavement, and how much headroom overhead is allowed to be solid.
+// All three are measured against the shipped roster — see the note on
+// probeSpawnClearance in tools/validate.mjs for the distribution they came from.
+export const SOLO_SPAWN_KEEPOUT = 2.0;
+export const SOLO_SPAWN_STANDING = 0.6;
+export const SOLO_SPAWN_HEADROOM = 3.0;
+
+// The fill keeps a wider berth than the validator demands. The gate only asks
+// for 2 m of clear ground; leaving 4 m means a scene can gain a kerb or lose a
+// block without landing back on the line, and it costs nothing — the close-out
+// simply places those blocks somewhere else in the same sweep.
+export const SPAWN_FILL_KEEPOUT = 4.0;
+
+// True when a `s`-metre cube whose MIN CORNER is (x, y, z) would land on cells
+// the scene has already used. The fine grid is quarter-metre, which is where the
+// ×4 comes from; every scene's budget close-out needs exactly this test and
+// twelve of them had shipped a byte-identical private copy of it.
+export function freeForFill(sim, x, y, z, s = 0.5) {
+  const f = 4;
+  const gx = Math.round(x * f);
+  const gy = Math.round(y * f);
+  const gz = Math.round(z * f);
+  const fs = Math.round(s * f);
+  for (let ix = 0; ix < fs; ix++) {
+    for (let iy = 0; iy < fs; iy++) {
+      for (let iz = 0; iz < fs; iz++) {
+        if (sim.grid.has(`${gx + ix},${gy + iy},${gz + iz}`)) return false;
+      }
+    }
+  }
+  return true;
+}
+
+// Whether a `s`-metre footprint at MIN CORNER (x, z) touches any of `rects`.
+// Min corner, not centre, matching freeForFill, sim._block and the validator's
+// own blockRect() — the one convention the ground fill has to agree with.
+export function inDecorRects(x, z, s, rects) {
+  for (const r of rects) {
+    if (x < r.x + r.w && x + s > r.x && z < r.z + r.d && z + s > r.z) return true;
+  }
+  return false;
+}
+
+// The whole spawn clause of a scene's budget close-out, in one call, so no
+// scene has to restate the radius or remember the constant's name.
+export function clearOfSpawn(x, z, keepout = SPAWN_FILL_KEEPOUT) {
+  return Math.hypot(x - SOLO_SPAWN.x, z - SOLO_SPAWN.z) >= keepout;
+}

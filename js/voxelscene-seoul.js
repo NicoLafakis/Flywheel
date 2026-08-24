@@ -27,7 +27,8 @@
 //   Declared in js/citycatalog.js at exactly 32,000 blocks.
 
 import {
-  bench, bollard, generateBlockers, lampPost, planter,
+  bench, bollard, clearOfSpawn, freeForFill, generateBlockers, inDecorRects,
+  lampPost, planter,
 } from './voxelkit.js';
 
 export { vehicleBBox } from './voxelkit.js';
@@ -102,8 +103,10 @@ export function buildSeoul(sim) {
   const BOX = (x0, y0, z0, nx, ny, nz, m, s = 1, c) => sim._box(x0, y0, z0, nx, ny, nz, m, s, c);
 
   // Decor accumulators
-  const parks = [], plaza = [], sidewalks = [], roads = [];
-  const water = [], boardwalk = [], cobbles = [];
+  // Every layer the draw-order contract names, in the order it paints. An
+  // unused layer keeps its key rather than being dropped.
+  const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [], roads = [];
+  const rail = [], bikePaths = [], laneMarkers = [], crosswalks = [], water = [], boardwalk = [];
 
   // ============================================================ DISTRICT SURFACES
   // Han River (Hangang)
@@ -147,7 +150,11 @@ export function buildSeoul(sim) {
     { x: -54, z: -25, w: 108, d: 5, color: 0x37474f },  // Olympic-daero
     { x: -54, z: -3, w: 108, d: 5, color: 0x37474f },   // Teheran-ro
     { x: -50, z: 17, w: 100, d: 5, color: 0x37474f },   // Jongno
-    { x: -2, z: 2, w: 4, d: 24, color: 0x37474f },      // Sejong-daero
+    // Sejong-daero parts around the statue standing on its median — which is
+    // where the real boulevard's monuments stand. Drawn as one 24 m rect it ran
+    // straight through the pedestal, putting 388 blocks of monument in the road.
+    { x: -2, z: 2, w: 4, d: 6, color: 0x37474f },       // Sejong-daero (north of the median)
+    { x: -2, z: 14, w: 4, d: 8, color: 0x37474f },      // Sejong-daero (south of the median)
   );
 
   // ------------------------------------------------------------
@@ -334,14 +341,30 @@ export function buildSeoul(sim) {
   // ------------------------------------------------------------
   // 7. STREET FURNITURE & ILLUMINATION
   // ------------------------------------------------------------
+  // A prop only lands where the ground is actually free. Moving this row off
+  // Teheran-ro's carriageway put part of it inside the Gangnam frontages
+  // instead, and the kit builders place blocks unconditionally — so the check
+  // has to happen here rather than being fixed by choosing yet another z.
+  const clearSpot = (x, z, w, d) => {
+    for (let dx = 0; dx < w; dx += 0.5) {
+      for (let dz = 0; dz < d; dz += 0.5) {
+        if (!freeForFill(sim, x + dx, 0, z + dz, 0.5)) return false;
+      }
+    }
+    return true;
+  };
+
   for (let bx = -46; bx <= 46; bx += 8) {
-    if (bx < -8 || bx > 8) bollard(sim, bx, -2);
+    if ((bx < -8 || bx > 8) && clearSpot(bx, 3.5, 0.5, 0.5)) bollard(sim, bx, 3.5);
   }
   for (let lx = -48; lx <= 48; lx += 16) {
     if (lx < -8 || lx > 8) {
-      lampPost(sim, lx, 0);
-      planter(sim, lx + 4, 0, 2, 1);
-      bench(sim, lx + 8, 0);
+      // The bollards take the kerb at z 3.5 and this row sits 2 m behind them
+      // on the pavement. At z 0 and z -2 every one of these props stood in
+      // Teheran-ro's carriageway (z -3..2).
+      if (clearSpot(lx, 5.5, 1, 1)) lampPost(sim, lx, 5.5);
+      if (clearSpot(lx + 4, 5.5, 2, 1)) planter(sim, lx + 4, 5.5, 2, 1);
+      if (clearSpot(lx + 8, 5.5, 2, 1)) bench(sim, lx + 8, 5.5);
     }
   }
 
@@ -358,9 +381,12 @@ export function buildSeoul(sim) {
   // 0, so neither ever touches it. Skipping these cells here, without lowering
   // `needed`, lets the same loop relocate that many blocks into the remaining
   // Course B cells and Course C rather than dropping the total block count.
-  const olympicDaero = { x: -54, z: -25, w: 108, d: 5 };
-  const inOlympicDaero = (x, z) => x >= olympicDaero.x && x < olympicDaero.x + olympicDaero.w
-    && z >= olympicDaero.z && z < olympicDaero.z + olympicDaero.d;
+  // EVERY road, not just this one. The guard below used to name Olympic-daero
+  // alone, so the close-out paved Teheran-ro, Jongno and Sejong-daero as it
+  // swept over them — around 1,250 blocks of concrete inside a carriageway.
+  // Skipping the cells without lowering `needed` lets the same loop relocate
+  // them into the courses that follow rather than dropping the block count.
+  const inAnyRoad = (x, z) => inDecorRects(x, z, 0.5, roads);
 
   // VoxelSandboxSim hard-codes the spawn hole at (0, 16) (js/voxelsim.js
   // `_newHole(0, 16, 0)`). Course C's z-range reaches that row, and skipping
@@ -370,14 +396,14 @@ export function buildSeoul(sim) {
   // spawn during probeIdleStability's 3 s idle. Keepout radius matches the
   // established convention for this defect class (js/voxelscene-bangkok.js's
   // `fillerExcluded`, SPAWN_KEEPOUT = 3).
-  const SPAWN_X = 0, SPAWN_Z = 16, SPAWN_KEEPOUT = 3;
-  const inSpawnKeepout = (x, z) => Math.hypot(x - SPAWN_X, z - SPAWN_Z) < SPAWN_KEEPOUT;
+  const inSpawnKeepout = (x, z) => !clearOfSpawn(x, z);
 
   if (needed > 0) {
     let placed = 0;
     // Course A: Flat riverbed stone coping across Han River (z = -26 down to -54, y = 0)
     for (let rz = -26; rz >= -54 && placed < needed; rz -= 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
+        if (inAnyRoad(rx, rz)) continue;
         if (canPlace(sim, rx, 0, rz, 0.5)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
@@ -388,7 +414,7 @@ export function buildSeoul(sim) {
     // Course B: Flat pavement coping across South Apron / Promenade (z = -6 down to -24, y = 0)
     for (let rz = -6; rz >= -24 && placed < needed; rz -= 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (inOlympicDaero(rx, rz)) continue;
+        if (inAnyRoad(rx, rz)) continue;
         if (canPlace(sim, rx, 0, rz, 0.5)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
@@ -396,10 +422,24 @@ export function buildSeoul(sim) {
         }
       }
     }
-    // Course C: Flat pavement coping across Sejong-daero & Jongno apron (z = 0 to 20, y = 0)
-    for (let rz = 0; rz <= 20 && placed < needed; rz += 0.5) {
+    // Course C: Flat pavement coping across Sejong-daero & Jongno apron (z = 0 to 30, y = 0).
+    // Reaches to z 30 rather than z 20: excluding the three carriageways this
+    // course used to pave cost it about 1,075 legal cells, and the declared
+    // block count is a promise, so the shortfall has to land somewhere real.
+    for (let rz = 0; rz <= 30 && placed < needed; rz += 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (inSpawnKeepout(rx, rz)) continue;
+        if (inAnyRoad(rx, rz) || inSpawnKeepout(rx, rz)) continue;
+        if (canPlace(sim, rx, 0, rz, 0.5)) {
+          const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
+          B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
+          placed++;
+        }
+      }
+    }
+    // Course D: Bukchon apron north of Jongno (z = 30 to 60, y = 0)
+    for (let rz = 30; rz <= 60 && placed < needed; rz += 0.5) {
+      for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
+        if (inAnyRoad(rx, rz)) continue;
         if (canPlace(sim, rx, 0, rz, 0.5)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
@@ -414,6 +454,7 @@ export function buildSeoul(sim) {
 
   // Decor surfaces
   sim.sceneDecor = {
-    parks, plaza, sidewalks, roads, water, boardwalk, cobbles,
+    parks, sand, plaza, cobbles, sidewalks, roads, rail,
+    bikePaths, laneMarkers, crosswalks, water, boardwalk,
   };
 }

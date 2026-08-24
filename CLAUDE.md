@@ -6,11 +6,23 @@ Static browser game, no build step. Read `.wiki/INDEX.md` for the full wiki;
 ## Commands
 
 - Run: `python -m http.server 8000` → `http://localhost:8000/`
-- Validate (REQUIRED before any commit touching `js/citygen.js`, `js/sim.js`,
-  `js/tiers.js`, `js/levels.js`, `js/voxelsim.js`, `js/voxelscene-manhattan.js`,
-  `js/voxelscene-upper-manhattan.js`, `js/voxelscene-brooklyn.js`,
-  `js/voxelkit.js`): `node tools/validate.mjs` → must print `ALL PASS`
-- Fast single section check: `node tools/validate.mjs` with `FW_VALIDATE_SECTIONS=<name>` (e.g. `offlineBoot`, `saveSchema`, `fwMath`, etc.)
+- Validate (REQUIRED before any commit touching sim code):
+  `node tools/validate-changed.mjs` → must print `ALL PASS`. It maps the files
+  you changed to the sections that cover them, runs only those, and prints what
+  it chose and why. Anything it cannot map escalates to the full suite rather
+  than quietly narrowing. A scene edit typically costs seconds to a few minutes.
+- Full suite: `node tools/validate.mjs`. **THIS TAKES HOURS.** Measured
+  2026-08-23: the `cambridge` section alone is **4 h 16 m**, and it is not block
+  count that costs it — Upper Manhattan is a bigger map (73,393 blocks vs
+  72,943) and takes 27 s. Cambridge's cost is its scripted excursion, run twice,
+  through superlinear debris churn (see the section's own GATE VS SOAK note and
+  RCA-2026-08-11). Use the full suite for release checks, not for commits.
+  This is why it is no longer the pre-commit gate: a gate nobody can run is
+  worse than none, because it gets quoted as though it had been.
+- Single section: `FW_VALIDATE_SECTIONS=<name> node tools/validate.mjs` (e.g.
+  `offlineBoot`, `saveSchema`, `fwMath`). Section names are NOT always scene
+  ids — Upper Manhattan's section is `upperManhattan`. An unknown name is a hard
+  failure; it used to select nothing and still print `ALL PASS`.
 - No package.json, no lint, no test runner — the validator IS the test suite.
 
 ## Development Methodology: Test-Driven Development (TDD)

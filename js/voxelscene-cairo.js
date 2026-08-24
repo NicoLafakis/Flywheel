@@ -19,7 +19,8 @@
 //   Declared in js/citycatalog.js at exactly 32,500 blocks.
 
 import {
-  bench, bollard, generateBlockers, lampPost, planter,
+  bench, bollard, clearOfSpawn, freeForFill, generateBlockers, inDecorRects,
+  lampPost, planter, zebra,
 } from './voxelkit.js';
 
 export { vehicleBBox } from './voxelkit.js';
@@ -46,38 +47,39 @@ export const CAIRO_STREETS = [
   { x: 12, z: 8, w: 5, d: 46, axis: 'z' },      // Al-Qalaa Approach
 ];
 
+// Zebra crossing positions: `[streetIndex, at]`, where `at` is the coordinate
+// along that street's own axis and the crossing occupies `at .. at + XW_LEN`.
+export const XW_LEN = 2.8;
+
 export const CAIRO_CROSSINGS = [
   [0, -12], [0, 20],
   [1, 6], [1, 38],
 ];
 
+// What the card promises, held to what the scene builds — see PARIS_LANDMARKS
+// in js/voxelscene-paris.js for why `voids` is the clause that matters.
+export const CAIRO_LANDMARKS = [
+  {
+    id: 'khufu',
+    name: 'Giza Limestone Pyramids',
+    foot: { minX: 18, maxX: 46, minZ: -46, maxZ: -18 },
+    peak: 18,
+  },
+  {
+    id: 'citadel',
+    name: 'Citadel Fortress Towers',
+    foot: { minX: 20, maxX: 50, minZ: 20, maxZ: 50 },
+    peak: 44,
+  },
+  {
+    id: 'feluccas',
+    name: 'Nile Felucca Wharves',
+    foot: { minX: -46, maxX: -34, minZ: -32, maxZ: 24 },
+    peak: 12,
+  },
+];
+
 const TARGET_BLOCKS = 32500;
-const SPAWN_X = 0;
-const SPAWN_Z = 16;
-const SPAWN_KEEPOUT = 4.0;
-
-function canPlace(sim, x, y, z, s = 0.5) {
-  const f = 4;
-  const gx = Math.round(x * f);
-  const gy = Math.round(y * f);
-  const gz = Math.round(z * f);
-  const fs = Math.round(s * f);
-  for (let ix = 0; ix < fs; ix++) {
-    for (let iy = 0; iy < fs; iy++) {
-      for (let iz = 0; iz < fs; iz++) {
-        if (sim.grid.has(`${gx + ix},${gy + iy},${gz + iz}`)) return false;
-      }
-    }
-  }
-  return true;
-}
-
-function inDecorRect(rx, rz, s, rects) {
-  for (const r of rects) {
-    if (rx < r.x + r.w && rx + s > r.x && rz < r.z + r.d && rz + s > r.z) return true;
-  }
-  return false;
-}
 
 export function buildCairo(sim) {
   sim.bounds = 90;
@@ -87,8 +89,10 @@ export function buildCairo(sim) {
   const BOX = (x0, y0, z0, nx, ny, nz, m, s = 1, c) => sim._box(x0, y0, z0, nx, ny, nz, m, s, c);
 
   // Decor accumulators
-  const parks = [], plaza = [], sidewalks = [], roads = [];
-  const water = [], boardwalk = [], cobbles = [];
+  // Every layer the draw-order contract names, in the order it paints. An
+  // unused layer keeps its key rather than being dropped.
+  const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [], roads = [];
+  const rail = [], bikePaths = [], laneMarkers = [], crosswalks = [], water = [], boardwalk = [];
 
   // ============================================================ DISTRICT SURFACES
   // River Nile Channel (x: -56..-28, z: -56..64)
@@ -140,19 +144,30 @@ export function buildCairo(sim) {
   // ------------------------------------------------------------
   // 0. GREAT PYRAMIDS OF GIZA (KHUFU & KHAFRE)
   // ------------------------------------------------------------
-  // Great Pyramid of Khufu (x: 18..46, z: -46..-18, y: 0..36, 28x28m base)
-  BOX(18, 0, -46, 14, 4, 14, 'concrete', 2, 0xd7ccc8);  // Tier 1 (28x28m, y: 0..8)
-  BOX(20, 8, -44, 12, 4, 12, 'concrete', 2, 0xd7ccc8);  // Tier 2 (24x24m, y: 8..16)
-  BOX(22, 16, -42, 10, 4, 10, 'concrete', 2, 0xcfd8dc); // Tier 3 (20x20m, y: 16..24)
-  BOX(24, 24, -40, 8, 4, 8, 'concrete', 2, 0xcfd8dc);   // Tier 4 (16x16m, y: 24..32)
-  BOX(27, 32, -37, 5, 2, 5, 'steel', 2, 0xffd700);      // Gilded Pyramidion Summit (y: 32..36)
+  // THE SLOPE IS THE POINT. Khufu is 230.3 m across its base and 146.6 m tall:
+  // the height is 0.64 of the base, which is why the Giza pyramids read as
+  // broad and grounded rather than as spires. These shipped at 36 m on a 28 m
+  // base and 26 m on an 18 m base — ratios of 1.29 and 1.44, roughly twice too
+  // tall, which turns a pyramid into an obelisk.
+  //
+  // Rebuilt to 0.64 exactly. Every tier insets 2 m per side, so each course sits
+  // wholly on the one below and nothing cantilevers.
 
-  // Pyramid of Khafre (x: -4..14, z: -48..-30, y: 0..26, 18x18m base)
-  BOX(-4, 0, -48, 9, 3, 9, 'concrete', 2, 0xbcaaa4);   // Tier 1 (18x18m, y: 0..6)
-  BOX(-2, 6, -46, 7, 3, 7, 'concrete', 2, 0xbcaaa4);   // Tier 2 (14x14m, y: 6..12)
-  BOX(0, 12, -44, 5, 3, 5, 'concrete', 2, 0xa1887f);   // Tier 3 (10x10m, y: 12..18)
-  BOX(2, 18, -42, 3, 3, 3, 'concrete', 2, 0x8d6e63);   // Original Casing Cap (y: 18..24)
-  BOX(3, 24, -41, 2, 1, 2, 'steel', 2, 0xffb300);      // Summit Finial (y: 24..26)
+  // Great Pyramid of Khufu (x: 18..46, z: -46..-18, y: 0..18, 28x28m base)
+  BOX(18, 0, -46, 14, 2, 14, 'concrete', 2, 0xd7ccc8);  // Tier 1 (28x28m, y: 0..4)
+  BOX(20, 4, -44, 12, 2, 12, 'concrete', 2, 0xd7ccc8);  // Tier 2 (24x24m, y: 4..8)
+  BOX(22, 8, -42, 10, 1, 10, 'concrete', 2, 0xcfd8dc);  // Tier 3 (20x20m, y: 8..10)
+  BOX(24, 10, -40, 8, 1, 8, 'concrete', 2, 0xcfd8dc);   // Tier 4 (16x16m, y: 10..12)
+  BOX(26, 12, -38, 6, 1, 6, 'concrete', 2, 0xbcaaa4);   // Tier 5 (12x12m, y: 12..14)
+  BOX(28, 14, -36, 4, 1, 4, 'concrete', 2, 0xbcaaa4);   // Tier 6 (8x8m, y: 14..16)
+  BOX(30, 16, -34, 2, 1, 2, 'steel', 2, 0xffd700);      // Gilded Pyramidion (4x4m, y: 16..18)
+
+  // Pyramid of Khafre (x: -4..14, z: -48..-30, y: 0..12, 18x18m base)
+  BOX(-4, 0, -48, 9, 2, 9, 'concrete', 2, 0xbcaaa4);   // Tier 1 (18x18m, y: 0..4)
+  BOX(-2, 4, -46, 7, 1, 7, 'concrete', 2, 0xbcaaa4);   // Tier 2 (14x14m, y: 4..6)
+  BOX(0, 6, -44, 5, 1, 5, 'concrete', 2, 0xa1887f);    // Tier 3 (10x10m, y: 6..8)
+  BOX(2, 8, -42, 3, 1, 3, 'concrete', 2, 0x8d6e63);    // Tier 4 (6x6m, y: 8..10)
+  BOX(4, 10, -40, 1, 1, 1, 'steel', 2, 0xffb300);      // Summit Finial (2x2m, y: 10..12)
 
   // ------------------------------------------------------------
   // 1. GREAT SPHINX OF GIZA
@@ -246,10 +261,10 @@ export function buildCairo(sim) {
   const maxZ0 = R.maxZ - 0.5;
 
   const tryPlaceFiller = (rx, rz, allowWater = false) => {
-    if (inDecorRect(rx, rz, 0.5, roads)) return false;
-    if (!allowWater && inDecorRect(rx, rz, 0.5, water)) return false;
-    if (Math.hypot(rx - SPAWN_X, rz - SPAWN_Z) < SPAWN_KEEPOUT) return false;
-    if (!canPlace(sim, rx, 0, rz, 0.5)) return false;
+    if (inDecorRects(rx, rz, 0.5, roads)) return false;
+    if (!allowWater && inDecorRects(rx, rz, 0.5, water)) return false;
+    if (!clearOfSpawn(rx, rz)) return false;
+    if (!freeForFill(sim, rx, 0, rz, 0.5)) return false;
     const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 4) + 4) % 4;
     B(rx, 0, rz, 'concrete', 0.5, limestoneColors[cIdx]);
     return true;
@@ -283,11 +298,21 @@ export function buildCairo(sim) {
     }
   }
 
+  // Zebra crossings, drawn from CAIRO_CROSSINGS against CAIRO_STREETS.
+  // Both tables shipped with every one of these scenes and nothing had ever
+  // read either of them — the roads were hand-copied into the decor list
+  // beside them and no crossing was drawn at all.
+  const cross = (st, at) => (st.axis === 'x'
+    ? zebra({ x: at, z: st.z + 0.4, w: XW_LEN, d: st.d - 0.8, axis: 'x' })
+    : zebra({ x: st.x + 0.4, z: at, w: st.w - 0.8, d: XW_LEN, axis: 'z' }));
+  for (const [si, at] of CAIRO_CROSSINGS) crosswalks.push(...cross(CAIRO_STREETS[si], at));
+
   // Camera blockers
   sim.cameraBlockers = generateBlockers(sim, 6);
 
   // Decor surfaces
   sim.sceneDecor = {
-    parks, plaza, sidewalks, roads, water, boardwalk, cobbles,
+    parks, sand, plaza, cobbles, sidewalks, roads, rail,
+    bikePaths, laneMarkers, crosswalks, water, boardwalk,
   };
 }

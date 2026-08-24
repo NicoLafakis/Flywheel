@@ -23,7 +23,7 @@
 //   Declared in js/citycatalog.js at exactly 38,000 blocks.
 
 import {
-  bench, bollard, generateBlockers, lampPost, planter,
+  bench, bollard, clearOfSpawn, generateBlockers, lampPost, planter,
 } from './voxelkit.js';
 
 export { vehicleBBox } from './voxelkit.js';
@@ -105,8 +105,10 @@ export function buildBeijing(sim) {
   const BOX = (x0, y0, z0, nx, ny, nz, m, s = 1, c) => sim._box(x0, y0, z0, nx, ny, nz, m, s, c);
 
   // Decor accumulators
-  const parks = [], plaza = [], sidewalks = [], roads = [];
-  const water = [], boardwalk = [], cobbles = [];
+  // Every layer the draw-order contract names, in the order it paints. An
+  // unused layer keeps its key rather than being dropped.
+  const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [], roads = [];
+  const rail = [], bikePaths = [], laneMarkers = [], crosswalks = [], water = [], boardwalk = [];
 
   // ============================================================ DISTRICT SURFACES
   // Jinshui River & Dragon Lake Canal
@@ -138,9 +140,15 @@ export function buildBeijing(sim) {
   roads.push(
     { x: -54, z: -24, w: 108, d: 5, color: 0x37474f },  // Jianguomenwai
     { x: -54, z: -3, w: 108, d: 8, color: 0x263238 },   // Chang'an Avenue
-    { x: -50, z: 36, w: 100, d: 5, color: 0x37474f },   // Olympic Blvd
+    // Olympic Blvd is 4 m, not 5: the Bird's Nest south facade stands at z 40
+    // and a 5 m carriageway ran a metre inside it, putting 312 blocks of
+    // stadium on the road. The lane the two vehicles occupy is z 36.5..38.5,
+    // so the metre came off the side nothing was using.
+    { x: -50, z: 36, w: 100, d: 4, color: 0x37474f },   // Olympic Blvd
     { x: -2, z: -54, w: 4, d: 30, color: 0x37474f },    // Wangfujing
-    { x: 20, z: -54, w: 4, d: 30, axis: 'z', color: 0x37474f }, // Dongdaqiao
+    // Dongdaqiao stops at the CCTV plaza (z -44) instead of running 20 m under
+    // the podium, which is where the other 500 conflicting blocks were.
+    { x: 20, z: -54, w: 4, d: 10, axis: 'z', color: 0x37474f }, // Dongdaqiao
   );
 
   // ------------------------------------------------------------
@@ -196,7 +204,44 @@ export function buildBeijing(sim) {
   }
 
   // Tiananmen Gate Fortress Base (x -24..24, z 10..18, y 0..8, 48x8x8m)
-  BOX(-24, 0, 10, 24, 4, 4, 'concrete', 2, 0xb71c1c); // Vermilion red base
+  //
+  // FIVE PASSAGES, not a slab. The real gate is a vermilion wall pierced by five
+  // archways — a wide central one on the imperial axis and two flanking pairs —
+  // and it was built here as one solid box, which cost the map both the detail
+  // and, less obviously, its spawn: js/voxelsim.js seats the solo hole at
+  // (0, 16), dead on the central axis and 6 m inside that box, so every Beijing
+  // run began with the player entombed in the gate with 20 m of pavilion
+  // overhead. Cutting the passages that belong here is the fix for both.
+  //
+  // Piers run to y 6 and a continuous lintel course spans y 6..8, so the
+  // openings read as gateways rather than as gaps between five separate towers.
+  // The central bay is the wide one, as it is on the real gate, and it CORBELS
+  // INWARD as it rises — which is not decoration, it is what makes the thing
+  // stand up. Two constraints meet here and only an arch satisfies both:
+  //
+  //   the spawn needs an 8 m clear bay at ground level, because the hole seats
+  //   at x 0 with a 1.1 m radius and piers any closer end up inside its reach;
+  //
+  //   the pavilion overhead needs a span it can carry, and voxelkit's note is
+  //   explicit — a 2 m plate reaches exactly ONE 2 m hop from its support, so
+  //   anything over a 4 m clear span comes down. An 8 m opening dropped 277
+  //   blocks of pavilion onto the player's head.
+  //
+  // Haunches at y 4..6 bring the central bay from 8 m at the ground to 4 m at
+  // springing level, so the lintel course only ever bridges 4 m. That is how a
+  // masonry arch resolves the same problem, and it is what the gate looks like.
+  const GATE_OPENINGS = [[-20, -16], [-12, -8], [-4, 4], [8, 12], [16, 20]];
+  const openAt = (gx, gy) => GATE_OPENINGS.some(([a, b]) => {
+    const inset = (a === -4 && gy >= 4) ? 2 : 0;   // central bay only, above springing
+    return gx >= a + inset && gx + 2 <= b - inset;
+  });
+  for (let gx = -24; gx < 24; gx += 2) {
+    for (let gy = 0; gy < 6; gy += 2) {
+      if (openAt(gx, gy)) continue;
+      BOX(gx, gy, 10, 1, 1, 4, 'concrete', 2, 0xb71c1c); // Vermilion pier & haunch
+    }
+  }
+  BOX(-24, 6, 10, 24, 1, 4, 'concrete', 2, 0xb71c1c); // Lintel course over the archways (y: 6..8)
 
   // 2-Storey Timber Pavilion atop Gate (x -20..20, z 11..17, y 8..18)
   BOX(-20, 8, 11, 20, 2, 3, 'wood', 2, 0xc62828);   // Lower hall pillars
@@ -274,7 +319,7 @@ export function buildBeijing(sim) {
     // Course A: Tiananmen Grand Square pavement (z = -6 down to -24, y = 0)
     for (let rz = -6; rz >= -24 && placed < needed; rz -= 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water)) {
+        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water) && clearOfSpawn(rx, rz)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
@@ -284,7 +329,7 @@ export function buildBeijing(sim) {
     // Course B: Olympic Green Concourse (z = 36 to 66, x = -54 to 54, y = 0)
     for (let rz = 36; rz <= 66 && placed < needed; rz += 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water)) {
+        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water) && clearOfSpawn(rx, rz)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
@@ -294,7 +339,7 @@ export function buildBeijing(sim) {
     // Course C: Meridian Forecourt (z = 10 to 22, x = -54 to 54, y = 0)
     for (let rz = 10; rz <= 22 && placed < needed; rz += 0.5) {
       for (let rx = -54; rx <= 54 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water)) {
+        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water) && clearOfSpawn(rx, rz)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
@@ -304,7 +349,7 @@ export function buildBeijing(sim) {
     // Course D: CBD & Hutong northern infill (z = -24 down to -54, x = -18 to 18, y = 0)
     for (let rz = -24; rz >= -54 && placed < needed; rz -= 0.5) {
       for (let rx = -18; rx <= 18 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water)) {
+        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water) && clearOfSpawn(rx, rz)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
@@ -314,7 +359,7 @@ export function buildBeijing(sim) {
     // Course E: Western Courtyards (z = -24 down to -54, x = -54 to -18, y = 0)
     for (let rz = -24; rz >= -54 && placed < needed; rz -= 0.5) {
       for (let rx = -54; rx <= -18 && placed < needed; rx += 0.5) {
-        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water)) {
+        if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water) && clearOfSpawn(rx, rz)) {
           const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
           B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
           placed++;
@@ -331,7 +376,7 @@ export function buildBeijing(sim) {
       const bz0 = sim.boundsRect.minZ, bz1 = sim.boundsRect.maxZ - 0.5;
       for (let rz = bz0; rz <= bz1 && placed < needed; rz += 0.5) {
         for (let rx = bx0; rx <= bx1 && placed < needed; rx += 0.5) {
-          if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water)) {
+          if (canPlace(sim, rx, 0, rz, 0.5) && !fillerBlocked(rx, rz, 0.5, roads, water) && clearOfSpawn(rx, rz)) {
             const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 3) + 3) % 3;
             B(rx, 0, rz, 'concrete', 0.5, greys[cIdx]);
             placed++;
@@ -346,6 +391,7 @@ export function buildBeijing(sim) {
 
   // Decor surfaces
   sim.sceneDecor = {
-    parks, plaza, sidewalks, roads, water, boardwalk, cobbles,
+    parks, sand, plaza, cobbles, sidewalks, roads, rail,
+    bikePaths, laneMarkers, crosswalks, water, boardwalk,
   };
 }

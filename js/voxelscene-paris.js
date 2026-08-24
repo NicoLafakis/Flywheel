@@ -21,7 +21,8 @@
 //   Declared in js/citycatalog.js at exactly 42,000 blocks.
 
 import {
-  bench, bollard, generateBlockers, lampPost, planter,
+  bench, bollard, clearOfSpawn, freeForFill, generateBlockers, inDecorRects,
+  lampPost, planter, zebra,
 } from './voxelkit.js';
 
 export { vehicleBBox } from './voxelkit.js';
@@ -52,38 +53,46 @@ export const PARIS_STREETS = [
   { x: 32, z: 0, w: 5, d: 66, axis: 'z' },      // Avenue George V
 ];
 
+// Zebra crossing positions: `[streetIndex, at]`, where `at` is the coordinate
+// along that street's own axis and the crossing occupies `at .. at + XW_LEN`.
+export const XW_LEN = 2.8;
+
 export const PARIS_CROSSINGS = [
   [0, -18], [0, 16], [0, 44],
   [1, -10], [1, 30],
 ];
 
+// What the city-select card promises, held to what the scene builds.
+//
+// `peak` is exact, not a floor: a landmark that quietly gained or lost a storey
+// is as wrong as one in the wrong place. `voids` are the clause that matters —
+// each names a y-band that has to be substantially EMPTY and says which
+// real-world feature makes it so. Every scalar check passes on a solid slab;
+// only these fail it, which is the whole reason they exist.
+export const PARIS_LANDMARKS = [
+  {
+    id: 'eiffel_tower',
+    name: 'Eiffel Tower Iron Lattice',
+    foot: { minX: -14, maxX: 14, minZ: -52, maxZ: -24 },
+    peak: 64,
+    voids: [{ minY: 0, maxY: 12, minFrac: 0.20, why: 'the arch between the piers' }],
+  },
+  {
+    id: 'arc_de_triomphe',
+    name: 'Arc de Triomphe Corbel',
+    foot: { minX: -14, maxX: 14, minZ: 38, maxZ: 52 },
+    peak: 28,
+    voids: [{ minY: 0, maxY: 14, minFrac: 0.30, why: 'the central archway' }],
+  },
+  {
+    id: 'pont_d_iena',
+    name: "Pont d'Iena Stone Bridge",
+    foot: { minX: -6, maxX: 6, minZ: -14, maxZ: -2 },
+    peak: 6,
+  },
+];
+
 const TARGET_BLOCKS = 42000;
-const SPAWN_X = 0;
-const SPAWN_Z = 16;
-const SPAWN_KEEPOUT = 4.0;
-
-function canPlace(sim, x, y, z, s = 0.5) {
-  const f = 4;
-  const gx = Math.round(x * f);
-  const gy = Math.round(y * f);
-  const gz = Math.round(z * f);
-  const fs = Math.round(s * f);
-  for (let ix = 0; ix < fs; ix++) {
-    for (let iy = 0; iy < fs; iy++) {
-      for (let iz = 0; iz < fs; iz++) {
-        if (sim.grid.has(`${gx + ix},${gy + iy},${gz + iz}`)) return false;
-      }
-    }
-  }
-  return true;
-}
-
-function inDecorRect(rx, rz, s, rects) {
-  for (const r of rects) {
-    if (rx < r.x + r.w && rx + s > r.x && rz < r.z + r.d && rz + s > r.z) return true;
-  }
-  return false;
-}
 
 export function buildParis(sim) {
   sim.bounds = 90;
@@ -93,8 +102,10 @@ export function buildParis(sim) {
   const BOX = (x0, y0, z0, nx, ny, nz, m, s = 1, c) => sim._box(x0, y0, z0, nx, ny, nz, m, s, c);
 
   // Decor accumulators
-  const parks = [], plaza = [], sidewalks = [], roads = [];
-  const water = [], boardwalk = [], cobbles = [];
+  // Every layer the draw-order contract names, in the order it paints. An
+  // unused layer keeps its key rather than being dropped.
+  const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [], roads = [];
+  const rail = [], bikePaths = [], laneMarkers = [], crosswalks = [], water = [], boardwalk = [];
 
   // ============================================================ DISTRICT SURFACES
   // River Seine Waterway (z: -14..-2, x: -56..58)
@@ -149,36 +160,77 @@ export function buildParis(sim) {
   // 0. EIFFEL TOWER (TOUR EIFFEL WROUGHT-IRON LATTICE)
   // ------------------------------------------------------------
   // Located on Champ de Mars at x -14..14, z -52..-24, y 0..64 (28x28x64m)
-  // Monumental Wrought-Iron Base & Arched Core (y: 0..20)
-  BOX(-14, 0, -52, 14, 10, 14, 'steel', 2, 0x6d4c41);
+  //
+  // AN ARCH, not a block. The 28 m footprint over a 64 m height is very nearly
+  // the real 125 m / 300 m ratio and was already right; what was wrong is that
+  // the bottom third shipped as one solid 28 x 20 x 28 m slab of steel. The
+  // single most recognisable thing about this tower is that you can see the
+  // Champ de Mars THROUGH it, and none of that was there.
+  //
+  // The piers run the full depth and close inward across x, which is the axis
+  // the tower is seen along from the Trocadéro and the Champ de Mars both. Four
+  // corner legs were tried first and cannot stand here: they leave a cross-
+  // shaped void whose centre is two hops from any pier, and the sim's span
+  // budget is CUMULATIVE — `ns = cs + hop` capped at maxSpan 3 — so a 2 m block
+  // gets exactly one 2 m hop from anchored mass and the middle of the deck
+  // above came down every time. A straight 4 m slot has pier on both sides at
+  // every z, so every cell bridging it is that one legal hop.
+  //
+  // Clear span: 12 m at ground, 8 m, then 4 m at platform level.
+  for (const { y, half } of [{ y: 0, half: 6 }, { y: 4, half: 4 }, { y: 8, half: 2 }]) {
+    BOX(-14, y, -52, (14 - half) / 2, 2, 14, 'steel', 2, 0x6d4c41); // West pier
+    BOX(half, y, -52, (14 - half) / 2, 2, 14, 'steel', 2, 0x6d4c41); // East pier
+  }
 
-  // Tier 1 Observation Platform Deck (y: 20..24, x: -14..14, z: -52..-24)
-  BOX(-14, 20, -52, 14, 2, 14, 'steel', 2, 0x8d6e63);
+  // Tier 1 Observation Platform Deck (y: 12..16, x: -14..14, z: -52..-24)
+  BOX(-14, 12, -52, 14, 2, 14, 'steel', 2, 0x8d6e63);
 
-  // Tier 2 Tapering Mid-Tower (y: 24..40, x: -8..8, z: -46..-30)
-  BOX(-8, 24, -46, 8, 8, 8, 'steel', 2, 0x5d4037);
+  // Tier 2 Tapering Mid-Tower (y: 16..36, x: -8..8, z: -46..-30)
+  BOX(-8, 16, -46, 8, 10, 8, 'steel', 2, 0x5d4037);
 
-  // Tier 2 Upper Platform Deck (y: 40..44, x: -8..8, z: -46..-30)
-  BOX(-8, 40, -46, 8, 2, 8, 'steel', 2, 0x8d6e63);
+  // Tier 2 Upper Platform Deck (y: 36..40). Octagonal, like the real one: a
+  // 16 m core over the tower plus a 2 m skirt on the four SIDES only. Skirting
+  // the corners too would hang them off the tower diagonally, which is the same
+  // unsupported-corner failure the legs above are shaped to avoid.
+  BOX(-8, 36, -46, 8, 2, 8, 'steel', 2, 0x8d6e63);
+  BOX(-8, 36, -48, 8, 2, 1, 'steel', 2, 0x8d6e63);
+  BOX(-8, 36, -30, 8, 2, 1, 'steel', 2, 0x8d6e63);
+  BOX(-10, 36, -46, 1, 2, 8, 'steel', 2, 0x8d6e63);
+  BOX(8, 36, -46, 1, 2, 8, 'steel', 2, 0x8d6e63);
 
-  // Tier 3 Slender Summit Spire (y: 44..60, x: -4..4, z: -42..-34)
-  BOX(-4, 44, -42, 4, 8, 4, 'steel', 2, 0x4e342e);
+  // Tier 3 Slender Mast (y: 40..56, x: -4..4, z: -42..-34)
+  BOX(-4, 40, -42, 4, 8, 4, 'steel', 2, 0x4e342e);
 
-  // Lantern Dome & Summit Beacon Spire (y: 60..64, x: -1..1, z: -39..-37)
-  BOX(-1, 60, -39, 1, 2, 1, 'steel', 2, 0xffd54f);
+  // Summit Spire (y: 56..62) and Lantern Beacon (y: 62..64)
+  BOX(-2, 56, -40, 2, 3, 2, 'steel', 2, 0x4e342e);
+  BOX(-1, 62, -39, 1, 1, 1, 'steel', 2, 0xffd54f);
 
   // ------------------------------------------------------------
   // 1. ARC DE TRIOMPHE (PLACE DE L'ÉTOILE)
   // ------------------------------------------------------------
-  // Located at x -12..12, z 36..56, y 0..28 (24x20x28m)
-  // Neoclassical Sandstone Base & Relief Piers (y: 0..18)
-  BOX(-12, 0, 36, 12, 9, 10, 'concrete', 2, 0xd7ccc8);
+  // Located at x -14..14, z 38..52, y 0..28 (28x14x28m)
+  //
+  // An arch is a hole with stone round it, and this one shipped without the
+  // hole — a solid 24 x 20 x 28 m block. Two things are corrected here. The
+  // proportion: the real monument is 45 m wide by 22 m deep, very nearly 2:1,
+  // and this was 24 by 20, almost square, which reads as a tower rather than a
+  // gate. And the opening: the central archway is 29 m of the real 50 m height,
+  // so well over half of what you see from the Champs-Élysées is sky.
+  //
+  // Piers rise to y 14 and corbel inward in two 2 m courses, bringing the 12 m
+  // clear span down to the 4 m the attic above can carry.
+  BOX(-14, 0, 38, 4, 7, 7, 'concrete', 2, 0xd7ccc8);  // West pier (x: -14..-6, y: 0..14)
+  BOX(6, 0, 38, 4, 7, 7, 'concrete', 2, 0xd7ccc8);    // East pier (x: 6..14, y: 0..14)
+  BOX(-14, 14, 38, 5, 1, 7, 'concrete', 2, 0xd7ccc8); // West haunch (y: 14..16, to x -4)
+  BOX(4, 14, 38, 5, 1, 7, 'concrete', 2, 0xd7ccc8);   // East haunch (y: 14..16, from x 4)
+  BOX(-14, 16, 38, 6, 1, 7, 'concrete', 2, 0xd7ccc8); // West haunch (y: 16..18, to x -2)
+  BOX(2, 16, 38, 6, 1, 7, 'concrete', 2, 0xd7ccc8);   // East haunch (y: 16..18, from x 2)
 
   // Monumental Attic Story with Inscribed Victories (y: 18..24)
-  BOX(-12, 18, 36, 12, 3, 10, 'concrete', 2, 0xcfd8dc);
+  BOX(-14, 18, 38, 14, 3, 7, 'concrete', 2, 0xcfd8dc);
 
-  // Summit Balustrade & Cornice (y: 24..28, x: -10..10, z: 38..54)
-  BOX(-10, 24, 38, 10, 2, 8, 'concrete', 2, 0xb0bec5);
+  // Summit Balustrade & Cornice (y: 24..28, x: -12..12, z: 40..50)
+  BOX(-12, 24, 40, 12, 2, 5, 'concrete', 2, 0xb0bec5);
 
   // ------------------------------------------------------------
   // 2. MOMENTUM FRIEND: CROISSANT BOT 🥐
@@ -240,10 +292,10 @@ export function buildParis(sim) {
   const maxZ0 = R.maxZ - 0.5;
 
   const tryPlaceFiller = (rx, rz, allowWater = false) => {
-    if (inDecorRect(rx, rz, 0.5, roads)) return false;
-    if (!allowWater && inDecorRect(rx, rz, 0.5, water)) return false;
-    if (Math.hypot(rx - SPAWN_X, rz - SPAWN_Z) < SPAWN_KEEPOUT) return false;
-    if (!canPlace(sim, rx, 0, rz, 0.5)) return false;
+    if (inDecorRects(rx, rz, 0.5, roads)) return false;
+    if (!allowWater && inDecorRects(rx, rz, 0.5, water)) return false;
+    if (!clearOfSpawn(rx, rz)) return false;
+    if (!freeForFill(sim, rx, 0, rz, 0.5)) return false;
     const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 4) + 4) % 4;
     B(rx, 0, rz, 'concrete', 0.5, parisColors[cIdx]);
     return true;
@@ -277,11 +329,21 @@ export function buildParis(sim) {
     }
   }
 
+  // Zebra crossings, drawn from PARIS_CROSSINGS against PARIS_STREETS.
+  // Both tables shipped with every one of these scenes and nothing had ever
+  // read either of them — the roads were hand-copied into the decor list
+  // beside them and no crossing was drawn at all.
+  const cross = (st, at) => (st.axis === 'x'
+    ? zebra({ x: at, z: st.z + 0.4, w: XW_LEN, d: st.d - 0.8, axis: 'x' })
+    : zebra({ x: st.x + 0.4, z: at, w: st.w - 0.8, d: XW_LEN, axis: 'z' }));
+  for (const [si, at] of PARIS_CROSSINGS) crosswalks.push(...cross(PARIS_STREETS[si], at));
+
   // Camera blockers
   sim.cameraBlockers = generateBlockers(sim, 6);
 
   // Decor surfaces
   sim.sceneDecor = {
-    parks, plaza, sidewalks, roads, water, boardwalk, cobbles,
+    parks, sand, plaza, cobbles, sidewalks, roads, rail,
+    bikePaths, laneMarkers, crosswalks, water, boardwalk,
   };
 }

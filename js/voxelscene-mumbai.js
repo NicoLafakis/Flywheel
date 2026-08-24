@@ -97,8 +97,10 @@ export function buildMumbai(sim) {
   const BOX = (x0, y0, z0, nx, ny, nz, m, s = 1, c) => sim._box(x0, y0, z0, nx, ny, nz, m, s, c);
 
   // Decor accumulators
-  const parks = [], plaza = [], sidewalks = [], roads = [];
-  const water = [], boardwalk = [], cobbles = [];
+  // Every layer the draw-order contract names, in the order it paints. An
+  // unused layer keeps its key rather than being dropped.
+  const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [], roads = [];
+  const rail = [], bikePaths = [], laneMarkers = [], crosswalks = [], water = [], boardwalk = [];
 
   // ============================================================ DISTRICT SURFACES
   // Arabian Sea Water Basin & Back Bay, carved around the Gateway of India
@@ -150,8 +152,15 @@ export function buildMumbai(sim) {
   roads.push(
     { x: -48, z: 6, w: 102, d: 5, color: 0x37474f },   // D.N. Road
     { x: -48, z: -20, w: 102, d: 5, color: 0x37474f },  // Colaba Causeway
-    { x: -48, z: 58, w: 94, d: 5, color: 0x37474f },   // Sea Link Connector
-    { x: -40, z: -20, w: 5, d: 80, axis: 'z', color: 0x37474f }, // Marine Drive
+    // The Sea Link Connector stops short of the bridge's own landfall: the
+    // approach piers are grounded at z 60 and the elevated deck flies over
+    // everything north of z 58, so a carriageway drawn under them was simply
+    // the bridge's footprint painted as road.
+    { x: -48, z: 58, w: 68, d: 5, color: 0x37474f },   // Sea Link Connector
+    // Marine Drive is 4 m, not 5: the CSMT corner clocktower stands at x -36
+    // and the fifth metre ran inside it, putting a 42 m tower in the road. The
+    // lane the four vehicles use is x -39..-37, which the 4 m rect still holds.
+    { x: -40, z: -20, w: 4, d: 80, axis: 'z', color: 0x37474f }, // Marine Drive
     { x: 10, z: -20, w: 5, d: 80, axis: 'z', color: 0x37474f },  // Station Approach
   );
 
@@ -203,17 +212,25 @@ export function buildMumbai(sim) {
   // 2. MOMENTUM FRIEND & RAJABAI CLOCK TOWER (WHERE'S WALDO)
   // ------------------------------------------------------------
   // Chai Kettle Bot 🫖 (Momentum Friend perched on Gateway Promenade)
-  BOX(10, 0, -22, 2, 1, 2, 'concrete', 2, 0x78909c); // Pedestal
-  BOX(10, 2, -22, 2, 1, 2, 'steel', 2, 0xffb300);    // Brass Kettle Body
-  BOX(10, 4, -22, 2, 1, 2, 'panel', 2, 0x5d4037);    // Spout & Handle
+  // Stands at (6, -30), not (10, -22). Its 4 m pedestal used to reach x 14 and
+  // z -18, which put it in Station Approach (x 10..15) on one axis and Colaba
+  // Causeway (z -20..-15) on the other — the friend was parked in a crossroads.
+  // The 4 m slot between the Gateway's east face (x 6) and the road (x 10) is
+  // exactly its width, and it keeps the friend on the promenade it belongs on.
+  BOX(6, 0, -30, 2, 1, 2, 'concrete', 2, 0x78909c); // Pedestal
+  BOX(6, 2, -30, 2, 1, 2, 'steel', 2, 0xffb300);    // Brass Kettle Body
+  BOX(6, 4, -30, 2, 1, 2, 'panel', 2, 0x5d4037);    // Spout & Handle
 
   // Rajabai Clock Tower & Mumbai University Library (Where's Waldo: x -10..2, z -2..10)
-  BOX(-10, 0, -2, 6, 2, 6, 'concrete', 2, 0xd7ccc8); // Library Base
-  BOX(-8, 4, 0, 4, 3, 4, 'brick', 2, 0xa1887f);      // Library Hall
+  // The campus sits 4 m north of where it shipped. Its library base reached
+  // z 10 and D.N. Road starts at z 6, so the two overlapped for 4 m and the
+  // university stood in the carriageway.
+  BOX(-10, 0, -6, 6, 2, 6, 'concrete', 2, 0xd7ccc8); // Library Base (z: -6..6)
+  BOX(-8, 4, -4, 4, 3, 4, 'brick', 2, 0xa1887f);     // Library Hall
   // Victorian Gothic Spire & 4-dial Clock Tower (y: 10..38)
-  BOX(-6, 10, 2, 2, 10, 2, 'concrete', 2, 0x8d6e63); // Tower Shaft
-  BOX(-6, 30, 2, 2, 2, 2, 'panel', 2, 0xffffff);     // Clock Faces
-  BOX(-6, 34, 2, 2, 2, 2, 'steel', 2, 0x0288d1);     // Gothic Spire Pinnacle
+  BOX(-6, 10, -2, 2, 10, 2, 'concrete', 2, 0x8d6e63); // Tower Shaft
+  BOX(-6, 30, -2, 2, 2, 2, 'panel', 2, 0xffffff);     // Clock Faces
+  BOX(-6, 34, -2, 2, 2, 2, 'steel', 2, 0x0288d1);     // Gothic Spire Pinnacle
 
   // ------------------------------------------------------------
   // 3. CHHATRAPATI SHIVAJI MAHARAJ TERMINUS (CSMT / VICTORIA TERMINUS)
@@ -280,14 +297,20 @@ export function buildMumbai(sim) {
   // ------------------------------------------------------------
   // 6. STREET FURNITURE & ILLUMINATION
   // ------------------------------------------------------------
+  // Props stand on the kerbs, not in the lanes. The bollard run at z -18 was
+  // inside Colaba Causeway (z -20..-15) for its whole length, and the lamp,
+  // planter and bench run at z 4 clipped D.N. Road's north edge. `offMarine`
+  // keeps the westernmost props out of Marine Drive (x -40..-36), which the
+  // lx = -48 lamp and its bench at x -40 were standing in.
+  const offMarine = (x) => x < -42 || x > -34;
   for (let bx = -46; bx <= 46; bx += 8) {
-    if (bx < -24 || bx > 24) bollard(sim, bx, -18);
+    if ((bx < -24 || bx > 24) && offMarine(bx)) bollard(sim, bx, -13.5);
   }
   for (let lx = -48; lx <= 48; lx += 16) {
     if (lx < -24 || lx > 24) {
-      lampPost(sim, lx, 4);
-      planter(sim, lx + 4, 4, 2, 1);
-      bench(sim, lx + 8, 4);
+      if (offMarine(lx)) lampPost(sim, lx, 12.5);
+      if (offMarine(lx + 4)) planter(sim, lx + 4, 12.5, 2, 1);
+      if (offMarine(lx + 8)) bench(sim, lx + 8, 12.5);
     }
   }
 
@@ -349,6 +372,7 @@ export function buildMumbai(sim) {
 
   // Decor surfaces
   sim.sceneDecor = {
-    parks, plaza, sidewalks, roads, water, boardwalk, cobbles,
+    parks, sand, plaza, cobbles, sidewalks, roads, rail,
+    bikePaths, laneMarkers, crosswalks, water, boardwalk,
   };
 }

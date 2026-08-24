@@ -392,7 +392,7 @@ export const CITY_CATALOG = [
     coinCount: 98,
     coinValue: 2,
     goalBonus: 120,
-    heroes: ['Eiffel Tower Iron Lattice', 'Arc de Triomphe Corbel', 'Pont Neuf Stone Bridge'],
+    heroes: ['Eiffel Tower Iron Lattice', 'Arc de Triomphe Corbel', "Pont d'Iena Stone Bridge"],
     momentumFriend: 'Croissant Bot 🥐',
     directive: 'DISASSEMBLE WROUGHT IRON LATTICE & SWEEP THE SEINE',
     transmission: 'Approaching the Champ de Mars. 300m wrought-iron lattice requires multi-point structural undermining. Ingest cafe kiosks on the avenue first.',

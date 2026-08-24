@@ -324,6 +324,140 @@ slips, re-cut its route rather than lowering the number
 ([RCA-2026-08-17](../findings/RCA-2026-08-17-chicago-excursion-red-since-speed-retune.md)
 section 8).
 
+## The spawn contract (2026-08-23)
+
+`js/voxelkit.js` owns `SOLO_SPAWN` (`{x: 0, z: 16}`) and its three thresholds;
+`js/voxelsim.js` imports them for the real seating and re-exports them so
+callers can keep reaching for the sim. Voxelkit is the only module both the sim
+and every scene can import without a cycle, which is the whole reason it lives
+there: twelve scene files had each hand-copied a private
+`SPAWN_X = 0, SPAWN_Z = 16` that only their own budget close-out consulted, and
+Beijing had never copied it at all.
+
+| Constant | Value | What it means |
+|---|---|---|
+| `SOLO_SPAWN` | `{x: 0, z: 16}` | where `VoxelSandboxSim` seats the solo hole |
+| `SOLO_SPAWN_KEEPOUT` | 2.0 m | clear radius the validator demands |
+| `SOLO_SPAWN_STANDING` | 0.6 m | above this a block obstructs; below it, it is pavement |
+| `SOLO_SPAWN_HEADROOM` | 3.0 m | a block whose underside clears this is overhead, not around |
+| `SPAWN_FILL_KEEPOUT` | 4.0 m | wider berth the ground fill keeps, so scenes do not sit on the line |
+
+Both measured numbers came from the shipped roster rather than being chosen:
+across the 23 authored PLAYABLE scenes the nearest standing block sat at
+Beijing 0.00 m and then nothing closer than 2.00 m, so 2.0 m is the distance
+the game already kept everywhere it was not broken. The headroom clause is what
+separates "buried in the pier" from "standing in the archway", and it is why
+Beijing's fix was to carve the gate's five passages rather than to move the gate.
+
+`probeSpawnClearance` in `tools/validate.mjs` runs on every scene section,
+unconditionally and with no table to exempt anything.
+
+## The landmark silhouette contract (2026-08-23)
+
+Every Act III and Act IV landmark shipped in the right place, at the right
+height, inside a scene hitting its declared block count exactly — and built as
+a featureless rectangular solid. The Eiffel Tower's bottom third was one solid
+28 x 20 x 28 m block, the Arc de Triomphe had no archway, the Colosseum's arena
+was filled with travertine, the Parthenon had no columns, and Tower Bridge's
+two towers stood 2 m apart with the gap plugged. Every scalar check passed on
+all of them, which is the point: footprint, peak and block count cannot tell a
+building from a box.
+
+So each of the eight scenes now exports a `*_LANDMARKS` table and
+`tools/validate.mjs` runs two probes over it:
+
+- **`probeLandmarks`** checks the footprint carries geometry, that the tallest
+  block reaches the declared `peak` EXACTLY (a landmark that quietly gained or
+  lost a storey is as wrong as one in the wrong place), and — the clause that
+  actually bites — that each declared `voids` band is substantially empty. A
+  void is measured as a true volume fraction over the whole band, not a sampled
+  cross-section, and carries a `why` naming the real-world feature that makes it
+  open, which is printed in the failure.
+- **`probeCatalogHeroes`** holds each city-select card's `heroes` list to the
+  landmarks its scene declares. This is what caught Paris advertising a "Pont
+  Neuf Stone Bridge" for a map that builds, and documents in four places, the
+  Pont d'Iéna.
+
+Both were verified against regressions before being relied on: reinstating the
+solid Eiffel base fails the first, restoring the phantom Pont Neuf fails the
+second.
+
+### The span budget is cumulative, and it shapes every opening
+
+This is the single most useful thing learned in the pass. `_recalcSupport`
+accumulates `ns = cs + hop` and compares it against the material's `maxSpan`
+(3 for concrete and steel). A hop between two 2 m blocks costs 2 m, so **a 2 m
+block gets exactly ONE hop from anchored mass** — a 4 m clear opening is the
+widest a 2 m lintel can bridge. A 1 m deck springing off a 2 m tower pays
+(1 + 2) / 2 = 1.5 for its first hop and 1 for each after, so it reaches 2.5 m,
+and a 6 m gap drops its middle.
+
+Three corollaries, each of which cost a red build before it was understood:
+
+1. **A cross-shaped void cannot be roofed.** Four corner legs around a "+" of
+   slots leave the centre cell two hops from every leg. Paris's tower is an arch
+   across ONE axis for this reason, with pier on both sides at every z — which
+   is also the axis the tower is seen along from the Trocadéro.
+2. **A course that translates inward sheds its trailing corner**, which sits
+   diagonally off the course below with no orthogonal neighbour carrying it.
+   Berlin's TV sphere is octagonal because of this, and it reads rounder for it.
+3. **A wide opening needs a corbel, not a longer lintel.** Beijing's gate and
+   Paris's arch both narrow their span in 2 m steps to something a lintel can
+   carry, which is how masonry has always solved it.
+
+### Proportions, measured
+
+Height ÷ width, built against published dimensions:
+
+| Landmark | was | now | real |
+|---|---|---|---|
+| Great Pyramid of Khufu | 1.29 | 0.64 | 0.64 |
+| Burj Al Arab | 2.33 | 3.17 | 3.21 |
+| Eiffel Tower | 2.29 | 2.29 | 2.40 |
+| Arc de Triomphe | 1.17 | 1.00 | 1.10 |
+| Brandenburg Gate | 1.30 | 0.56 | 0.40 |
+| Colosseum | 0.88 | 0.42 | 0.25 |
+| Parthenon | 0.72 | 0.44 | 0.20 |
+
+The Colosseum and Parthenon stop short of their true ratios deliberately: a
+Parthenon at 0.20 would stand 7 m against 68 m towers and a Colosseum at 0.25
+would be 9 m. Both moved a long way and stopped where they still read as
+buildings. Recorded here so the gap is a decision, not a defect waiting to be
+"fixed".
+
+Block counts did not move on any of the eight. The budget close-out fills
+`TARGET_BLOCKS - currentCount`, so blocks freed by hollowing a landmark flow
+straight back into the ground fill and the card's promise holds.
+
+## Geographic accuracy pass — Act II roads (2026-08-23)
+
+Beijing, Bangkok and Mumbai were failing `probeRoadConflicts` at HEAD with 812,
+664 and 160 blocks of building standing inside roadway rects. The cause was the
+same in all three: carriageway rects drawn straight through landmarks, and
+street furniture placed at a `z` that lay inside a lane. Roads moved, landmarks
+did not — the one exception is Mumbai's Rajabai campus and its Chai Kettle Bot,
+which were repositioned because the road they stood in had vehicles on it.
+
+| Scene | Was | Now |
+|---|---|---|
+| beijing | Olympic Blvd 5 m deep, into the Bird's Nest facade | 4 m; vehicle lane untouched |
+| beijing | Dongdaqiao ran 20 m under the CCTV podium | stops at the plaza (z −44) |
+| beijing | Tiananmen Gate a solid slab, burying the spawn | five arched passages, central bay corbelled |
+| bangkok | Na Phra Lan crossed the Grand Palace | two segments either side of the walls |
+| bangkok | Rama I 5 m deep, into the Skytrain piers | 4 m |
+| bangkok | Sukhumvit crossed the night market | parts around x −16..20 |
+| bangkok | no `sidewalks` layer; props stood in the road | kerbs either side of Na Phra Lan, props at z 3.5 |
+| mumbai | Marine Drive 5 m wide, into the CSMT clocktower | 4 m |
+| mumbai | D.N. Road overlapped the Rajabai campus | campus shifted 4 m north |
+| mumbai | Sea Link Connector drawn under the bridge landfall | stops short of the piers |
+
+Beijing's gate is the one worth reading the code for: the central bay is 8 m
+clear at ground level so the spawn is not inside a pier, and corbels to 4 m at
+springing level because voxelkit's 2 m plate reaches exactly one 2 m hop from
+support — an 8 m lintel dropped 277 blocks of pavilion on the player's head.
+The arch is both the historical detail the map was missing and the structural
+answer.
+
 ## Scenes
 
 Eight scene files exist and the sim can boot any of them

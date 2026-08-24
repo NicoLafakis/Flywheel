@@ -21,7 +21,8 @@
 //   Declared in js/citycatalog.js at exactly 45,000 blocks.
 
 import {
-  bench, bollard, generateBlockers, lampPost, planter,
+  bench, bollard, clearOfSpawn, freeForFill, generateBlockers, inDecorRects,
+  lampPost, planter, zebra,
 } from './voxelkit.js';
 
 export { vehicleBBox } from './voxelkit.js';
@@ -54,38 +55,43 @@ export const LONDON_STREETS = [
   { x: -18, z: 13, w: 5, d: 53, axis: 'z' },     // Whitehall South (starts at z=13)
 ];
 
+// Zebra crossing positions: `[streetIndex, at]`, where `at` is the coordinate
+// along that street's own axis and the crossing occupies `at .. at + XW_LEN`.
+export const XW_LEN = 2.8;
+
 export const LONDON_CROSSINGS = [
   [0, -18], [0, 14], [0, 42],
   [1, -8], [1, 26],
 ];
 
+// What the card promises, held to what the scene builds — see PARIS_LANDMARKS
+// in js/voxelscene-paris.js for why `voids` is the clause that matters.
+export const LONDON_LANDMARKS = [
+  {
+    id: 'tower_bridge',
+    name: 'Tower Bridge Bascules',
+    foot: { minX: 26, maxX: 36, minZ: -16, maxZ: 4 },
+    peak: 36,
+    voids: [
+      { minY: 0, maxY: 6, minFrac: 0.20, why: 'the navigation channel under the bascules' },
+      { minY: 8, maxY: 28, minFrac: 0.25, why: 'the open span between the towers' },
+    ],
+  },
+  {
+    id: 'big_ben',
+    name: 'Big Ben Clocktower',
+    foot: { minX: -44, maxX: -34, minZ: -32, maxZ: -22 },
+    peak: 46,
+  },
+  {
+    id: 'the_shard',
+    name: 'The Shard Spire',
+    foot: { minX: 12, maxX: 26, minZ: 24, maxZ: 38 },
+    peak: 62,
+  },
+];
+
 const TARGET_BLOCKS = 45000;
-const SPAWN_X = 0;
-const SPAWN_Z = 16;
-const SPAWN_KEEPOUT = 4.0;
-
-function canPlace(sim, x, y, z, s = 0.5) {
-  const f = 4;
-  const gx = Math.round(x * f);
-  const gy = Math.round(y * f);
-  const gz = Math.round(z * f);
-  const fs = Math.round(s * f);
-  for (let ix = 0; ix < fs; ix++) {
-    for (let iy = 0; iy < fs; iy++) {
-      for (let iz = 0; iz < fs; iz++) {
-        if (sim.grid.has(`${gx + ix},${gy + iy},${gz + iz}`)) return false;
-      }
-    }
-  }
-  return true;
-}
-
-function inDecorRect(rx, rz, s, rects) {
-  for (const r of rects) {
-    if (rx < r.x + r.w && rx + s > r.x && rz < r.z + r.d && rz + s > r.z) return true;
-  }
-  return false;
-}
 
 export function buildLondon(sim) {
   sim.bounds = 90;
@@ -95,8 +101,10 @@ export function buildLondon(sim) {
   const BOX = (x0, y0, z0, nx, ny, nz, m, s = 1, c) => sim._box(x0, y0, z0, nx, ny, nz, m, s, c);
 
   // Decor accumulators
-  const parks = [], plaza = [], sidewalks = [], roads = [];
-  const water = [], boardwalk = [], cobbles = [];
+  // Every layer the draw-order contract names, in the order it paints. An
+  // unused layer keeps its key rather than being dropped.
+  const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [], roads = [];
+  const rail = [], bikePaths = [], laneMarkers = [], crosswalks = [], water = [], boardwalk = [];
 
   // ============================================================ DISTRICT SURFACES
   // River Thames Channel (z: -16..4, x: -56..58)
@@ -157,16 +165,33 @@ export function buildLondon(sim) {
   // 0. TOWER BRIDGE (DUAL GOTHIC SUSPENSION TOWERS & BASCULES)
   // ------------------------------------------------------------
   // Spanning River Thames at x 26..36, z -16..4, y 0..36
-  // North Tower (x: 26..36, z: -14..-6, y: 0..36)
-  BOX(26, 0, -14, 5, 15, 4, 'concrete', 2, 0xd7ccc8); // Portland Stone Base & Walls (y: 0..30)
-  BOX(26, 30, -14, 5, 3, 4, 'steel', 2, 0x00838f);    // Victorian Blue/Copper Spire (y: 30..36)
+  //
+  // TWO TOWERS WITH DAYLIGHT BETWEEN THEM. The bridge shipped as a pair of solid
+  // towers 2 m apart with a plug of masonry filling the gap — no span, no
+  // walkways, nothing to see through. The real central span is 61 m between
+  // 65 m towers, so the opening is very nearly as wide as the towers are tall,
+  // and the two high-level walkways near the top are the silhouette everyone
+  // recognises.
+  //
+  // The towers stand on piers IN the river, where the real ones stand, with a
+  // 4 m bascule span between them and short approach decks to either bank.
+  //
+  // Both decks are 1 m brick rather than 2 m, and the span is 4 m rather than
+  // the 6 m first tried, for the same cumulative-span reason: the first hop off
+  // a 2 m tower block costs (1 + 2) / 2 = 1.5 and each 1 m hop after it costs 1,
+  // against a cap of 3. Six metres left the middle two cells at 3.5 and they
+  // both dropped; four metres puts every cell at 2.5 or less.
+  BOX(26, 0, -14, 5, 15, 3, 'concrete', 2, 0xd7ccc8); // North tower (z: -14..-8, y: 0..30)
+  BOX(26, 30, -14, 5, 3, 3, 'steel', 2, 0x00838f);    // North spire (y: 30..36)
+  BOX(26, 0, -4, 5, 15, 3, 'concrete', 2, 0xd7ccc8);  // South tower (z: -4..2, y: 0..30)
+  BOX(26, 30, -4, 5, 3, 3, 'steel', 2, 0x00838f);     // South spire (y: 30..36)
 
-  // South Tower (x: 26..36, z: -4..4, y: 0..36)
-  BOX(26, 0, -4, 5, 15, 4, 'concrete', 2, 0xd7ccc8);  // Portland Stone Base (y: 0..30)
-  BOX(26, 30, -4, 5, 3, 4, 'steel', 2, 0x00838f);     // Copper Spire (y: 30..36)
-
-  // Bascule Drawbridge Central Road Deck & Piers (y: 0..8, x: 28..34, z: -6..-4)
-  BOX(28, 0, -6, 3, 4, 1, 'concrete', 2, 0xa1887f);  // Pier & deck (y: 0..8)
+  // Bascule roadway deck (y: 6..7) and the approach spans to either bank
+  BOX(28, 6, -8, 6, 1, 4, 'concrete', 1, 0xa1887f);   // Central bascules (z: -8..-4)
+  BOX(28, 6, -16, 6, 1, 2, 'concrete', 1, 0xa1887f);  // North approach (z: -16..-14)
+  BOX(28, 6, 2, 6, 1, 2, 'concrete', 1, 0xa1887f);    // South approach (z: 2..4)
+  // The high-level walkways (y: 28..29), the thing that makes it Tower Bridge
+  BOX(28, 28, -8, 6, 1, 4, 'steel', 1, 0xcfd8dc);
 
   // ------------------------------------------------------------
   // 1. PALACE OF WESTMINSTER & BIG BEN (ELIZABETH TOWER)
@@ -241,10 +266,10 @@ export function buildLondon(sim) {
   const maxZ0 = R.maxZ - 0.5;
 
   const tryPlaceFiller = (rx, rz, allowWater = false) => {
-    if (inDecorRect(rx, rz, 0.5, roads)) return false;
-    if (!allowWater && inDecorRect(rx, rz, 0.5, water)) return false;
-    if (Math.hypot(rx - SPAWN_X, rz - SPAWN_Z) < SPAWN_KEEPOUT) return false;
-    if (!canPlace(sim, rx, 0, rz, 0.5)) return false;
+    if (inDecorRects(rx, rz, 0.5, roads)) return false;
+    if (!allowWater && inDecorRects(rx, rz, 0.5, water)) return false;
+    if (!clearOfSpawn(rx, rz)) return false;
+    if (!freeForFill(sim, rx, 0, rz, 0.5)) return false;
     const cIdx = (((Math.round(rx * 2) + Math.round(rz * 2)) % 4) + 4) % 4;
     B(rx, 0, rz, 'concrete', 0.5, londonColors[cIdx]);
     return true;
@@ -272,11 +297,21 @@ export function buildLondon(sim) {
     }
   }
 
+  // Zebra crossings, drawn from LONDON_CROSSINGS against LONDON_STREETS.
+  // Both tables shipped with every one of these scenes and nothing had ever
+  // read either of them — the roads were hand-copied into the decor list
+  // beside them and no crossing was drawn at all.
+  const cross = (st, at) => (st.axis === 'x'
+    ? zebra({ x: at, z: st.z + 0.4, w: XW_LEN, d: st.d - 0.8, axis: 'x' })
+    : zebra({ x: st.x + 0.4, z: at, w: st.w - 0.8, d: XW_LEN, axis: 'z' }));
+  for (const [si, at] of LONDON_CROSSINGS) crosswalks.push(...cross(LONDON_STREETS[si], at));
+
   // Camera blockers
   sim.cameraBlockers = generateBlockers(sim, 6);
 
   // Decor surfaces
   sim.sceneDecor = {
-    parks, plaza, sidewalks, roads, water, boardwalk, cobbles,
+    parks, sand, plaza, cobbles, sidewalks, roads, rail,
+    bikePaths, laneMarkers, crosswalks, water, boardwalk,
   };
 }

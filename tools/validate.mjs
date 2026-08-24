@@ -11,6 +11,7 @@ import {
   MILESTONES, MILESTONE_TIERS, RANKED_TICK_COUNT, SCENE_GOALS, comboLevel, comboMult,
   CHALLENGE_COIN_MULTIPLIER, RANKED_TUNE, RANKED_SIM_VERSION,
   loadScene, sceneReady, isSceneRegistered,
+  SOLO_SPAWN, SOLO_SPAWN_KEEPOUT, SOLO_SPAWN_STANDING, SOLO_SPAWN_HEADROOM,
 } from '../js/voxelsim.js';
 import { POWERUP_TYPES, POWERUP_SPECS, activatePowerUp, createPowerUp } from '../js/powerups.js';
 import { PLAYER_MAX_RADIUS } from '../js/tiers.js';
@@ -62,28 +63,36 @@ import {
   MUMBAI_ROAD_SPANS, MUMBAI_VEHICLES,
 } from '../js/voxelscene-mumbai.js';
 import {
-  DUBAI_ROAD_SPANS, DUBAI_VEHICLES,
+  DUBAI_CROSSINGS, DUBAI_LANDMARKS, DUBAI_ROAD_SPANS, DUBAI_STREETS,
+  DUBAI_VEHICLES, XW_LEN as DUBAI_XW_LEN,
 } from '../js/voxelscene-dubai.js';
 import {
-  CAIRO_ROAD_SPANS, CAIRO_VEHICLES,
+  CAIRO_CROSSINGS, CAIRO_LANDMARKS, CAIRO_ROAD_SPANS, CAIRO_STREETS,
+  CAIRO_VEHICLES, XW_LEN as CAIRO_XW_LEN,
 } from '../js/voxelscene-cairo.js';
 import {
-  ATHENS_ROAD_SPANS, ATHENS_VEHICLES,
+  ATHENS_CROSSINGS, ATHENS_LANDMARKS, ATHENS_ROAD_SPANS, ATHENS_STREETS,
+  ATHENS_VEHICLES, XW_LEN as ATHENS_XW_LEN,
 } from '../js/voxelscene-athens.js';
 import {
-  ROME_ROAD_SPANS, ROME_VEHICLES,
+  ROME_CROSSINGS, ROME_LANDMARKS, ROME_ROAD_SPANS, ROME_STREETS,
+  ROME_VEHICLES, XW_LEN as ROME_XW_LEN,
 } from '../js/voxelscene-rome.js';
 import {
-  PARIS_ROAD_SPANS, PARIS_VEHICLES,
+  PARIS_CROSSINGS, PARIS_LANDMARKS, PARIS_ROAD_SPANS, PARIS_STREETS,
+  PARIS_VEHICLES, XW_LEN as PARIS_XW_LEN,
 } from '../js/voxelscene-paris.js';
 import {
-  LONDON_ROAD_SPANS, LONDON_VEHICLES,
+  LONDON_CROSSINGS, LONDON_LANDMARKS, LONDON_ROAD_SPANS, LONDON_STREETS,
+  LONDON_VEHICLES, XW_LEN as LONDON_XW_LEN,
 } from '../js/voxelscene-london.js';
 import {
-  AMSTERDAM_ROAD_SPANS, AMSTERDAM_VEHICLES,
+  AMSTERDAM_CROSSINGS, AMSTERDAM_LANDMARKS, AMSTERDAM_ROAD_SPANS, AMSTERDAM_STREETS,
+  AMSTERDAM_VEHICLES, XW_LEN as AMSTERDAM_XW_LEN,
 } from '../js/voxelscene-amsterdam.js';
 import {
-  BERLIN_ROAD_SPANS, BERLIN_VEHICLES,
+  BERLIN_CROSSINGS, BERLIN_LANDMARKS, BERLIN_ROAD_SPANS, BERLIN_STREETS,
+  BERLIN_VEHICLES, XW_LEN as BERLIN_XW_LEN,
 } from '../js/voxelscene-berlin.js';
 import {
   HONGKONG_ROAD_SPANS, HONGKONG_VEHICLES,
@@ -614,6 +623,138 @@ function probeRimmedWater(sim, name) {
   }
 }
 
+// THE SPAWN IS NOT A BUILDING SITE. `js/voxelsim.js` seats the solo hole at
+// SOLO_SPAWN and gives it no escape from a solid cell, so a scene that builds
+// over that point opens the run with the camera buried inside a landmark and
+// the player chewing their way out from the inside.
+//
+// Beijing shipped exactly that and nothing caught it: 30 blocks of the
+// Tiananmen Gate fortress base sit ON the spawn cell with 20 m of pavilion
+// overhead. The reason nothing caught it is instructive — eight later scenes
+// each hand-copied a private `SPAWN_X/SPAWN_Z` const that only their own ground
+// fill consulted, and Beijing never copied it at all. A keep-out that only the
+// scene that remembered to write it obeys is not a contract. This reads
+// SOLO_SPAWN from the sim, so the guard and the thing guarded cannot drift.
+//
+// Table-free and unconditional: every scene has one solo spawn, it is the same
+// point in all of them, so there is nothing to parameterise and no scene to
+// exempt. Both thresholds live in js/voxelsim.js next to the spawn itself and
+// are measured against the shipped roster — see the note there.
+function probeSpawnClearance(sim, name, keepout = SOLO_SPAWN_KEEPOUT) {
+  let intruding = 0, worst = '', worstTop = -Infinity;
+  for (const b of sim.blocks) {
+    const top = b.y + b.sy / 2;
+    if (top <= SOLO_SPAWN_STANDING) continue;   // paving and kerbs are ground, not obstruction
+    // Masonry ABOVE the hole is not masonry around it: an archway or a viaduct
+    // deck overhead leaves the spawn perfectly playable, and failing it would
+    // push authors to delete the overhead rather than clear the ground.
+    if (b.y - b.sy / 2 >= SOLO_SPAWN_HEADROOM) continue;
+    const dx = Math.max(0, Math.abs(b.x - SOLO_SPAWN.x) - b.sx / 2);
+    const dz = Math.max(0, Math.abs(b.z - SOLO_SPAWN.z) - b.sz / 2);
+    if (Math.hypot(dx, dz) >= keepout) continue;
+    intruding++;
+    if (top > worstTop) { worstTop = top; worst = `${b.matType}/${sizeLabel(b)}m at (${b.x},${b.y},${b.z})`; }
+  }
+  if (intruding > 0) {
+    fail(`${name}: ${intruding} standing block(s) intrude on the ${keepout} m spawn keep-out around (${SOLO_SPAWN.x},${SOLO_SPAWN.z}) — tallest reaches ${worstTop} m, ${worst}; the player starts inside them`);
+  }
+}
+
+// THE SILHOUETTE IS A PROMISE, THE SAME WAY THE BLOCK COUNT IS.
+//
+// `validateDeclaredBlockCounts` already holds the city-select card's block
+// number to what the scene actually builds. Its `heroes` list had no such
+// guard, so Paris advertised a "Pont Neuf Stone Bridge" for a scene that builds
+// (and documents, in four places) the Pont d'Iéna, and nothing noticed.
+//
+// The deeper problem this probe exists for is not naming, though. A named
+// landmark can be present, correctly placed, the right height — and still be a
+// featureless rectangular slab where the real thing is mostly holes. The Eiffel
+// Tower is four splayed legs around a void; the Colosseum is a ring around an
+// arena; the Arc de Triomphe is an arch, which is to say a hole with stone
+// round it; the Brandenburg Gate is five passageways between twelve columns.
+// Build any of them solid and every scalar check still passes: footprint right,
+// peak right, block count right, and the thing on screen looks nothing like the
+// place it is named after.
+//
+// So a row declares three things, and the third is the one that bites:
+//   foot  the AABB the landmark occupies in x/z
+//   peak  the exact height its tallest block must reach (exact, not a floor —
+//         a landmark that quietly grew a storey is as wrong as one that lost one)
+//   voids y-bands within `foot` that must be substantially EMPTY, each with the
+//         minimum empty fraction and a `why` naming the real-world feature
+//
+// `voids` is measured as a true volume fraction over the whole band, not a
+// sampled cross-section, because a slab with one notch cut in it would pass a
+// sample and fail a volume. `why` is required and is printed in the failure, so
+// a red build says "the arch between the four legs" rather than "band 2".
+function probeLandmarks(sim, name, table) {
+  if (!table || table.length === 0) return;   // scene declares none — vacuous, not exempt
+  for (const row of table) {
+    const F = row.foot;
+    const label = `${row.id} "${row.name}"`;
+    let peak = -Infinity, groundCells = 0;
+    const onGround = new Set();
+    for (const b of sim.blocks) {
+      if (b.x + b.sx / 2 <= F.minX || b.x - b.sx / 2 >= F.maxX) continue;
+      if (b.z + b.sz / 2 <= F.minZ || b.z - b.sz / 2 >= F.maxZ) continue;
+      const top = b.y + b.sy / 2;
+      if (top > peak) peak = top;
+      if (b.y - b.sy / 2 < 0.01) {
+        for (let cx = Math.floor(b.x - b.sx / 2); cx < Math.ceil(b.x + b.sx / 2); cx++) {
+          for (let cz = Math.floor(b.z - b.sz / 2); cz < Math.ceil(b.z + b.sz / 2); cz++) onGround.add(`${cx},${cz}`);
+        }
+      }
+    }
+    groundCells = onGround.size;
+    if (peak === -Infinity) {
+      fail(`${name}: ${label} — no geometry at all inside its declared footprint x[${F.minX},${F.maxX}] z[${F.minZ},${F.maxZ}]`);
+      continue;
+    }
+    if (Math.abs(peak - row.peak) > 0.001) {
+      fail(`${name}: ${label} — tallest block inside the footprint tops out at ${peak} m, declared peak is ${row.peak} m`);
+    }
+    const footCells = (F.maxX - F.minX) * (F.maxZ - F.minZ);
+    const minGround = row.minGroundFrac ?? 0.15;
+    if (groundCells / footCells < minGround) {
+      fail(`${name}: ${label} — only ${(100 * groundCells / footCells).toFixed(0)}% of its footprint carries a ground-level block (floor ${(100 * minGround).toFixed(0)}%); the landmark does not stand where it is declared`);
+    }
+    for (const v of row.voids || []) {
+      // Volume, not a sample: sum the intersected volume of every block against
+      // the band and divide by the band's own volume.
+      const bandVol = (F.maxX - F.minX) * (v.maxY - v.minY) * (F.maxZ - F.minZ);
+      let solid = 0;
+      for (const b of sim.blocks) {
+        const ox = Math.min(b.x + b.sx / 2, F.maxX) - Math.max(b.x - b.sx / 2, F.minX);
+        if (ox <= 0) continue;
+        const oz = Math.min(b.z + b.sz / 2, F.maxZ) - Math.max(b.z - b.sz / 2, F.minZ);
+        if (oz <= 0) continue;
+        const oy = Math.min(b.y + b.sy / 2, v.maxY) - Math.max(b.y - b.sy / 2, v.minY);
+        if (oy <= 0) continue;
+        solid += ox * oy * oz;
+      }
+      const empty = 1 - solid / bandVol;
+      if (empty < v.minFrac - 1e-9) {
+        fail(`${name}: ${label} — y[${v.minY},${v.maxY}] is only ${(100 * empty).toFixed(0)}% open, needs ${(100 * v.minFrac).toFixed(0)}% (${v.why}); built solid it reads as a slab, not as ${row.name}`);
+      }
+    }
+  }
+}
+
+// The card's hero list, held to the scene the same way its block count is. Every
+// name the catalog prints for a city must resolve to a landmark the scene
+// actually declares — no near-misses, no bridges from a different arrondissement.
+function probeCatalogHeroes(name, scene, table) {
+  const city = CITY_CATALOG.find((c) => c.scene === scene);
+  if (!city) { fail(`${name}: no CITY_CATALOG row for scene '${scene}'`); return; }
+  const declared = new Set((table || []).map((r) => r.name));
+  for (const hero of city.heroes || []) {
+    if (!declared.has(hero)) {
+      fail(`${name}: catalog hero "${hero}" matches no landmark the scene declares (${[...declared].join(', ') || 'none'}) — the card names something the map does not build`);
+    }
+  }
+}
+
 // No bare ground, at ANY height. Every footprint cell in the scene must sit on
 // some decor layer — not just buildings. Stated this way it also enforces "curb
 // furniture lands on the sidewalk it claims": a bin or lamp post nudged half a
@@ -1121,6 +1262,7 @@ function validateManhattan() {
   const WP = [{ until: 9, x: -24, z: -20 }, { until: 39, x: -24, z: -26 }];
 
   probeCellOwnership(sim, 'manhattan');
+  probeSpawnClearance(sim, 'manhattan');
   probeCameraBlockers(sim, 'manhattan', footprintTops(sim));
   probeParkUnderWater(sim, 'manhattan');
   probeGradeDiagonal(sim, 'manhattan');
@@ -1206,6 +1348,7 @@ function validateUpperManhattan() {
 
   const umTops = footprintTops(sim);
   probeCellOwnership(sim, 'upper manhattan');
+  probeSpawnClearance(sim, 'upper manhattan');
   probeCameraBlockers(sim, 'upper manhattan', umTops);
   probeBoundsRect(sim, 'upper manhattan');
   probeRoadConflicts(sim, 'upper manhattan', UPPER_MANHATTAN_VEHICLES, UPPER_MANHATTAN_ROAD_SPANS);
@@ -1301,6 +1444,7 @@ function validateBrooklyn() {
 
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'brooklyn');                                                  // 1
+  probeSpawnClearance(sim, 'brooklyn');
   probeCameraBlockers(sim, 'brooklyn', tops);                                           // 2
   probeBoundsRect(sim, 'brooklyn');                                                     // 3
   probeRoadConflicts(sim, 'brooklyn', BROOKLYN_VEHICLES, BROOKLYN_ROAD_SPANS);          // 4
@@ -1379,6 +1523,7 @@ function validateBoston() {
 
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'boston');                                                  // 1
+  probeSpawnClearance(sim, 'boston');
   probeCameraBlockers(sim, 'boston', tops);                                           // 2
   probeBoundsRect(sim, 'boston');                                                     // 3
   probeRoadConflicts(sim, 'boston', BOSTON_VEHICLES, BOSTON_ROAD_SPANS);              // 4
@@ -1451,6 +1596,7 @@ function validateCambridge() {
 
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'cambridge');                                                 // 1
+  probeSpawnClearance(sim, 'cambridge');
   probeCameraBlockers(sim, 'cambridge', tops);                                          // 2
   probeBoundsRect(sim, 'cambridge');                                                    // 3
   probeRoadConflicts(sim, 'cambridge', CAMBRIDGE_VEHICLES, CAMBRIDGE_ROAD_SPANS);       // 4
@@ -1546,6 +1692,7 @@ function validateChicago() {
 
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'chicago');
+  probeSpawnClearance(sim, 'chicago');
   probeCameraBlockers(sim, 'chicago', tops);
   probeBoundsRect(sim, 'chicago');
   probeRoadConflicts(sim, 'chicago', CHICAGO_VEHICLES, CHICAGO_ROAD_SPANS);
@@ -3144,7 +3291,16 @@ function validateProgressSync() {
 // otherwise — the AGENTS.md gate is mode-independent.
 const wanted = (process.env.FW_VALIDATE_SECTIONS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const sectionTimes = [];
+// A NAME THAT MATCHES NOTHING IS A TYPO, NOT A SELECTION. `wanted` used to be
+// consulted only as a filter, so a misspelt entry simply selected no section and
+// the run printed ALL PASS over having checked nothing. That is exactly what
+// happened on 2026-08-23: `upper-manhattan` was passed for a section registered
+// as `upperManhattan`, the section never ran, and the suite still went green.
+// Every name is now accounted for at the end of the run — see the check after
+// the last section() call.
+const seenSections = new Set();
 const section = (name, fn) => {
+  seenSections.add(name);
   if (!wanted.length || wanted.includes(name)) {
     const t0 = performance.now();
     fn();
@@ -3252,6 +3408,7 @@ function validateSydney() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'sydney' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'sydney');
+  probeSpawnClearance(sim, 'sydney');
   probeCameraBlockers(sim, 'sydney', tops);
   probePlacementStep(sim, 'sydney');
   probeIdleStability(sim, 'sydney');
@@ -3268,6 +3425,7 @@ function validateSingapore() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'singapore' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'singapore');
+  probeSpawnClearance(sim, 'singapore');
   probeCameraBlockers(sim, 'singapore', tops);
   probeBoundsRect(sim, 'singapore');
   probeRoadConflicts(sim, 'singapore', SINGAPORE_VEHICLES, SINGAPORE_ROAD_SPANS);
@@ -3298,10 +3456,12 @@ function validateHongKong() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'hongkong' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'hongkong');
+  probeSpawnClearance(sim, 'hongkong');
   probeCameraBlockers(sim, 'hongkong', tops);
   probeBoundsRect(sim, 'hongkong');
   probeRoadConflicts(sim, 'hongkong', HONGKONG_VEHICLES, HONGKONG_ROAD_SPANS);
   probeWaterOverSurfaces(sim, 'hongkong');
+  probeDecorKeyOrder(sim, 'hongkong');
   probePlacementStep(sim, 'hongkong');
   probeIdleStability(sim, 'hongkong');
   console.log(`  hongkong sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3315,10 +3475,12 @@ function validateSeoul() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'seoul' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'seoul');
+  probeSpawnClearance(sim, 'seoul');
   probeCameraBlockers(sim, 'seoul', tops);
   probeBoundsRect(sim, 'seoul');
   probeRoadConflicts(sim, 'seoul', SEOUL_VEHICLES, SEOUL_ROAD_SPANS);
   probeWaterOverSurfaces(sim, 'seoul');
+  probeDecorKeyOrder(sim, 'seoul');
   probePlacementStep(sim, 'seoul');
   probeIdleStability(sim, 'seoul');
   console.log(`  seoul sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3332,10 +3494,12 @@ function validateBeijing() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'beijing' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'beijing');
+  probeSpawnClearance(sim, 'beijing');
   probeCameraBlockers(sim, 'beijing', tops);
   probeBoundsRect(sim, 'beijing');
   probeRoadConflicts(sim, 'beijing', BEIJING_VEHICLES, BEIJING_ROAD_SPANS);
   probeWaterOverSurfaces(sim, 'beijing');
+  probeDecorKeyOrder(sim, 'beijing');
   probePlacementStep(sim, 'beijing');
   probeIdleStability(sim, 'beijing');
   console.log(`  beijing sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3349,10 +3513,12 @@ function validateBangkok() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'bangkok' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'bangkok');
+  probeSpawnClearance(sim, 'bangkok');
   probeCameraBlockers(sim, 'bangkok', tops);
   probeBoundsRect(sim, 'bangkok');
   probeRoadConflicts(sim, 'bangkok', BANGKOK_VEHICLES, BANGKOK_ROAD_SPANS);
   probeWaterOverSurfaces(sim, 'bangkok');
+  probeDecorKeyOrder(sim, 'bangkok');
   probePlacementStep(sim, 'bangkok');
   probeIdleStability(sim, 'bangkok');
   console.log(`  bangkok sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3366,10 +3532,12 @@ function validateMumbai() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'mumbai' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'mumbai');
+  probeSpawnClearance(sim, 'mumbai');
   probeCameraBlockers(sim, 'mumbai', tops);
   probeBoundsRect(sim, 'mumbai');
   probeRoadConflicts(sim, 'mumbai', MUMBAI_VEHICLES, MUMBAI_ROAD_SPANS);
   probeWaterOverSurfaces(sim, 'mumbai');
+  probeDecorKeyOrder(sim, 'mumbai');
   probePlacementStep(sim, 'mumbai');
   probeIdleStability(sim, 'mumbai');
   console.log(`  mumbai sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3381,10 +3549,15 @@ function validateDubai() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'dubai' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'dubai');
+  probeSpawnClearance(sim, 'dubai');
   probeCameraBlockers(sim, 'dubai', tops);
   probeBoundsRect(sim, 'dubai');
   probeRoadConflicts(sim, 'dubai', DUBAI_VEHICLES, DUBAI_ROAD_SPANS);
+  probeLandmarks(sim, 'dubai', DUBAI_LANDMARKS);
+  probeCatalogHeroes('dubai', 'dubai', DUBAI_LANDMARKS);
   probeWaterOverSurfaces(sim, 'dubai');
+  probeDecorKeyOrder(sim, 'dubai');
+  probeCrossingsOnDeclaredStreet('dubai', DUBAI_CROSSINGS, DUBAI_STREETS, DUBAI_XW_LEN);
   probePlacementStep(sim, 'dubai');
   probeIdleStability(sim, 'dubai');
   console.log(`  dubai sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3396,10 +3569,15 @@ function validateCairo() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'cairo' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'cairo');
+  probeSpawnClearance(sim, 'cairo');
   probeCameraBlockers(sim, 'cairo', tops);
   probeBoundsRect(sim, 'cairo');
   probeRoadConflicts(sim, 'cairo', CAIRO_VEHICLES, CAIRO_ROAD_SPANS);
+  probeLandmarks(sim, 'cairo', CAIRO_LANDMARKS);
+  probeCatalogHeroes('cairo', 'cairo', CAIRO_LANDMARKS);
   probeWaterOverSurfaces(sim, 'cairo');
+  probeDecorKeyOrder(sim, 'cairo');
+  probeCrossingsOnDeclaredStreet('cairo', CAIRO_CROSSINGS, CAIRO_STREETS, CAIRO_XW_LEN);
   probePlacementStep(sim, 'cairo');
   probeIdleStability(sim, 'cairo');
   console.log(`  cairo sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3411,10 +3589,15 @@ function validateAthens() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'athens' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'athens');
+  probeSpawnClearance(sim, 'athens');
   probeCameraBlockers(sim, 'athens', tops);
   probeBoundsRect(sim, 'athens');
   probeRoadConflicts(sim, 'athens', ATHENS_VEHICLES, ATHENS_ROAD_SPANS);
+  probeLandmarks(sim, 'athens', ATHENS_LANDMARKS);
+  probeCatalogHeroes('athens', 'athens', ATHENS_LANDMARKS);
   probeWaterOverSurfaces(sim, 'athens');
+  probeDecorKeyOrder(sim, 'athens');
+  probeCrossingsOnDeclaredStreet('athens', ATHENS_CROSSINGS, ATHENS_STREETS, ATHENS_XW_LEN);
   probePlacementStep(sim, 'athens');
   probeIdleStability(sim, 'athens');
   console.log(`  athens sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3426,10 +3609,15 @@ function validateRome() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'rome' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'rome');
+  probeSpawnClearance(sim, 'rome');
   probeCameraBlockers(sim, 'rome', tops);
   probeBoundsRect(sim, 'rome');
   probeRoadConflicts(sim, 'rome', ROME_VEHICLES, ROME_ROAD_SPANS);
+  probeLandmarks(sim, 'rome', ROME_LANDMARKS);
+  probeCatalogHeroes('rome', 'rome', ROME_LANDMARKS);
   probeWaterOverSurfaces(sim, 'rome');
+  probeDecorKeyOrder(sim, 'rome');
+  probeCrossingsOnDeclaredStreet('rome', ROME_CROSSINGS, ROME_STREETS, ROME_XW_LEN);
   probePlacementStep(sim, 'rome');
   probeIdleStability(sim, 'rome');
   console.log(`  rome sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3441,10 +3629,15 @@ function validateParis() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'paris' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'paris');
+  probeSpawnClearance(sim, 'paris');
   probeCameraBlockers(sim, 'paris', tops);
   probeBoundsRect(sim, 'paris');
   probeRoadConflicts(sim, 'paris', PARIS_VEHICLES, PARIS_ROAD_SPANS);
+  probeLandmarks(sim, 'paris', PARIS_LANDMARKS);
+  probeCatalogHeroes('paris', 'paris', PARIS_LANDMARKS);
   probeWaterOverSurfaces(sim, 'paris');
+  probeDecorKeyOrder(sim, 'paris');
+  probeCrossingsOnDeclaredStreet('paris', PARIS_CROSSINGS, PARIS_STREETS, PARIS_XW_LEN);
   probePlacementStep(sim, 'paris');
   probeIdleStability(sim, 'paris');
   console.log(`  paris sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3456,10 +3649,15 @@ function validateLondon() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'london' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'london');
+  probeSpawnClearance(sim, 'london');
   probeCameraBlockers(sim, 'london', tops);
   probeBoundsRect(sim, 'london');
   probeRoadConflicts(sim, 'london', LONDON_VEHICLES, LONDON_ROAD_SPANS);
+  probeLandmarks(sim, 'london', LONDON_LANDMARKS);
+  probeCatalogHeroes('london', 'london', LONDON_LANDMARKS);
   probeWaterOverSurfaces(sim, 'london');
+  probeDecorKeyOrder(sim, 'london');
+  probeCrossingsOnDeclaredStreet('london', LONDON_CROSSINGS, LONDON_STREETS, LONDON_XW_LEN);
   probePlacementStep(sim, 'london');
   probeIdleStability(sim, 'london');
   console.log(`  london sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3471,10 +3669,15 @@ function validateAmsterdam() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'amsterdam' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'amsterdam');
+  probeSpawnClearance(sim, 'amsterdam');
   probeCameraBlockers(sim, 'amsterdam', tops);
   probeBoundsRect(sim, 'amsterdam');
   probeRoadConflicts(sim, 'amsterdam', AMSTERDAM_VEHICLES, AMSTERDAM_ROAD_SPANS);
+  probeLandmarks(sim, 'amsterdam', AMSTERDAM_LANDMARKS);
+  probeCatalogHeroes('amsterdam', 'amsterdam', AMSTERDAM_LANDMARKS);
   probeWaterOverSurfaces(sim, 'amsterdam');
+  probeDecorKeyOrder(sim, 'amsterdam');
+  probeCrossingsOnDeclaredStreet('amsterdam', AMSTERDAM_CROSSINGS, AMSTERDAM_STREETS, AMSTERDAM_XW_LEN);
   probePlacementStep(sim, 'amsterdam');
   probeIdleStability(sim, 'amsterdam');
   console.log(`  amsterdam sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3486,10 +3689,15 @@ function validateBerlin() {
   const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'berlin' });
   const tops = footprintTops(sim);
   probeCellOwnership(sim, 'berlin');
+  probeSpawnClearance(sim, 'berlin');
   probeCameraBlockers(sim, 'berlin', tops);
   probeBoundsRect(sim, 'berlin');
   probeRoadConflicts(sim, 'berlin', BERLIN_VEHICLES, BERLIN_ROAD_SPANS);
+  probeLandmarks(sim, 'berlin', BERLIN_LANDMARKS);
+  probeCatalogHeroes('berlin', 'berlin', BERLIN_LANDMARKS);
   probeWaterOverSurfaces(sim, 'berlin');
+  probeDecorKeyOrder(sim, 'berlin');
+  probeCrossingsOnDeclaredStreet('berlin', BERLIN_CROSSINGS, BERLIN_STREETS, BERLIN_XW_LEN);
   probePlacementStep(sim, 'berlin');
   probeIdleStability(sim, 'berlin');
   console.log(`  berlin sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
@@ -3835,6 +4043,15 @@ section('chicago', validateChicago);
 section('speedInvariance', validateSpeedInvariance);
 
 console.log('---');
+// Unknown names are a hard failure, checked here rather than up front because
+// section() registers as it goes and the full list only exists once every call
+// has run.
+for (const name of wanted) {
+  if (!seenSections.has(name)) {
+    fail(`FW_VALIDATE_SECTIONS names '${name}', which is not a registered section — nothing ran for it. Registered: ${[...seenSections].join(', ')}`);
+  }
+}
+
 // The margin summary is only meaningful when the campaign section actually ran.
 // Printing "worst margin Infinity% (L0)" after a single-section run would read
 // as a result rather than as an absence of one.
