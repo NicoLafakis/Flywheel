@@ -324,6 +324,70 @@ slips, re-cut its route rather than lowering the number
 ([RCA-2026-08-17](../findings/RCA-2026-08-17-chicago-excursion-red-since-speed-retune.md)
 section 8).
 
+## Where the sim's time actually goes (2026-08-23)
+
+The cambridge validator section takes **4 h 16 m**. It is worth being precise
+about why, because the obvious answer is wrong and acting on it would cost
+detail for nothing.
+
+**It is not map size.** Upper Manhattan is a bigger map — 73,393 blocks against
+cambridge's 72,943 — and its section finishes in 27 s. Boston is bigger still
+at 82,894 and takes 145 s. Cambridge's cost is its scripted excursion, and the
+excursion's cost is debris physics.
+
+Wall cost per 30 sim-seconds along cambridge's own route:
+
+| simT | wall | non-static blocks |
+|---|---|---|
+| 30 | 2.4 s | 698 |
+| 60 | 2.8 s | 1,216 |
+| 90 | **138.2 s** | 3,095 |
+| 120 | 206.7 s | 4,127 |
+| 150 | 243.3 s | 5,722 |
+
+A 50× jump in cost against a 2.5× rise in falling blocks. A CPU profile across
+that knee: `_supportBelow` 28%, `_resolveDebrisContacts` 18%, `_stepDebris` 14%,
+GC 7% — about 74% in debris handling.
+
+### What `_supportBelow` actually costs, and what does NOT fix it
+
+`_supportBelow` is 79% of every grid operation the sim performs: 9.34 M of
+11.76 M lookups over 20 sim-seconds of cambridge. Two hypotheses were measured
+and both are recorded here so nobody pays for them twice.
+
+**Ruled out — "it walks open air".** The theory was that debris falling over
+ground the player has excavated scans a long empty column to y 0, so the sim
+gets slower the better the player does. A per-column occupancy ceiling was built
+to start the walk at the terrain instead of the sky. It cut lookups by 3% on
+chicago and 5% on cambridge, and wall time not at all. Reverted. The walk depth
+was already short (~3 cells per column); the depth was never the cost.
+
+**The real shape.** Cost is `bodies × fsx × fsz × ~3`. A 2 m block spans 8 × 8
+fine columns, so a single call costs ~185 lookups on cambridge and ~306 on
+chicago almost entirely because of the FOOTPRINT, not the depth. The expensive
+dimension is how many fine columns a body has to ask about.
+
+**Measured but not landed — numeric grid keys.** `key()` builds a string per
+lookup. On a representative 2 M-entry map, numeric keys are 2.9× faster than
+string keys (1668 ms → 572 ms per 9 M lookups), which is worth about 1.4 s of
+cambridge's 15.3 s for a 20-second drive: **~9%**. Real, cheap, and
+determinism-safe — nothing iterates `this.grid`, so key ordering is never
+observed. It needs `key()` shared with `freeForFill` in voxelkit and the four
+Act II scenes that still carry a private `canPlace`.
+
+**The structural fix, unattempted.** Stop asking about 64 fine columns per 2 m
+body. A coarse max-height field over 1 m or 2 m tiles answers the common case —
+body above everything in its own footprint — in 1 to 4 lookups, with a fall back
+to the fine walk when `yBase` is below the tile maximum. The catch is that the
+fast path needs an EXACT tile maximum, so unlike the ceiling above it cannot be
+left stale-high on deletion; it needs dirty-marking and lazy recompute. That is
+the change with the large win in it.
+
+`tools/validate.mjs`'s `supportCost` section counts grid lookups — deterministic
+and machine-independent, so a regression is a number rather than a flaky
+timeout — and holds chicago's 30-second drive to a ceiling above the measured
+7,576,328. Lower the ceiling when the number actually falls.
+
 ## The spawn contract (2026-08-23)
 
 `js/voxelkit.js` owns `SOLO_SPAWN` (`{x: 0, z: 16}`) and its three thresholds;

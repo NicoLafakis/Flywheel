@@ -1246,6 +1246,65 @@ function probeHeroIdentity(sim, name, table) {
   }
 }
 
+// THE SUPPORT LOOKUP HAS A BUDGET, AND IT IS COUNTED, NOT TIMED.
+//
+// `_supportBelow` answers "what is the highest solid surface under this falling
+// body" by walking every fine cell from the body's height down to y 0, per
+// footprint column, per debris body, per step. Its cost therefore scales with
+// how far the debris is above the nearest solid surface — and removing solid
+// surfaces is the entire game. Measured on cambridge's own route on 2026-08-23:
+//
+//   sim seconds  0-30    2,855 calls    17,979 grid lookups   (6 per call)
+//   sim seconds 30-60    7,768 calls   282,679 grid lookups  (36 per call)
+//
+// Both the call count and the per-call cost climb as the map is excavated, and
+// the wall cost of a 30-second slice went 2.4 s → 2.8 s → 138 s → 207 s → 243 s
+// across the same route. That is what makes the cambridge section four hours,
+// and it is not a test-only problem: it is the same code path a player's device
+// runs during a large collapse.
+//
+// This gate counts GRID LOOKUPS rather than wall time on purpose. Lookups are
+// deterministic and machine-independent, so the number means the same thing on
+// a laptop and in CI, and a regression shows up as a number rather than as a
+// flaky timeout.
+function validateSupportCost() {
+  console.log('Validating debris support-lookup cost...');
+  // Chicago's route for 30 sim-seconds: ~10 s of wall, enough collapse to be
+  // representative, and cheap enough to sit in a commit gate. Cambridge would be
+  // the harsher case and is far too slow to gate on.
+  //
+  // The budget is the MEASURED figure plus headroom, not a target. 7,576,328 is
+  // what this tree does today; the ceiling exists so the number cannot climb
+  // again unnoticed while someone works on bringing it down. Lower it when it
+  // actually falls — see `.wiki/modules/voxel.md` for what has been ruled out.
+  const BUDGET = 8_500_000;
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'chicago' });
+
+  // Counted by shadowing `get` on the grid instance and gating on a flag, not by
+  // swapping in a copied Map — copying a 73k-block scene's two million fine-cell
+  // entries per call costs more than the thing being measured.
+  let lookups = 0, calls = 0, inside = false;
+  const proto = Object.getPrototypeOf(sim);
+  const real = proto._supportBelow;
+  sim.grid.get = function (k) { if (inside) lookups++; return Map.prototype.get.call(this, k); };
+  proto._supportBelow = function (b, yBase) {
+    calls++; inside = true;
+    try { return real.call(this, b, yBase); } finally { inside = false; }
+  };
+
+  try {
+    driveRoute(sim, CHICAGO_ROUTE, 30);
+  } finally {
+    proto._supportBelow = real;
+    delete sim.grid.get;
+  }
+
+  console.log(`  support lookups: ${lookups.toLocaleString()} over ${calls.toLocaleString()} call(s) (${(lookups / Math.max(1, calls)).toFixed(1)} per call), budget ${BUDGET.toLocaleString()}`);
+  if (lookups > BUDGET) {
+    fail(`debris support cost: ${lookups.toLocaleString()} grid lookups in 30 sim-seconds of chicago, budget ${BUDGET.toLocaleString()} — _supportBelow is walking open air again`);
+  }
+}
+
 // --- manhattan sandbox checks -------------------------------------------------
 // The second voxel scene (Lower Manhattan): same engine, so we check the
 // scene-specific risks — overlapping placement (ghost blocks), spontaneous
@@ -4038,6 +4097,7 @@ section('manhattan', validateManhattan);
 section('upperManhattan', validateUpperManhattan);
 section('brooklyn', validateBrooklyn);
 section('boston', validateBoston);
+section('supportCost', validateSupportCost);
 section('cambridge', validateCambridge);
 section('chicago', validateChicago);
 section('speedInvariance', validateSpeedInvariance);
