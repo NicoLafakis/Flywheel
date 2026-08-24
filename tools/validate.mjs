@@ -638,8 +638,10 @@ function probeRimmedWater(sim, name) {
 //
 // Table-free and unconditional: every scene has one solo spawn, it is the same
 // point in all of them, so there is nothing to parameterise and no scene to
-// exempt. Both thresholds live in js/voxelsim.js next to the spawn itself and
-// are measured against the shipped roster — see the note there.
+// exempt. The thresholds live in js/voxelkit.js — the one module both the sim
+// and every scene can import without a cycle — and are re-exported from
+// js/voxelsim.js. They are measured against the shipped roster; see the note in
+// voxelkit for the distribution they came from.
 function probeSpawnClearance(sim, name, keepout = SOLO_SPAWN_KEEPOUT) {
   let intruding = 0, worst = '', worstTop = -Infinity;
   for (const b of sim.blocks) {

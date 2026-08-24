@@ -345,6 +345,18 @@ export function buildSeoul(sim) {
   // Teheran-ro's carriageway put part of it inside the Gangnam frontages
   // instead, and the kit builders place blocks unconditionally — so the check
   // has to happen here rather than being fixed by choosing yet another z.
+  //
+  // ARGUMENTS ARE THE PROP'S TRUE EXTENT, and the callers below have to convert,
+  // because voxelkit's builders do not share one convention:
+  //
+  //   bollard(x, z)          min corner — occupies x..x+0.25
+  //   planter(x, z, w, d)    min corner — occupies x..x+w
+  //   lampPost(lx, lz)       CENTRED    — the head spans lx-0.25..lx+0.25
+  //   bench(bx, bz)          the seat spans bx-0.25..bx+0.75
+  //
+  // Passing the raw argument for the last two checks a box offset from the one
+  // the prop actually fills, so an overlap on their negative side would pass the
+  // guard and interpenetrate whatever is there. Caught in review on PR #1.
   const clearSpot = (x, z, w, d) => {
     for (let dx = 0; dx < w; dx += 0.5) {
       for (let dz = 0; dz < d; dz += 0.5) {
@@ -355,16 +367,16 @@ export function buildSeoul(sim) {
   };
 
   for (let bx = -46; bx <= 46; bx += 8) {
-    if ((bx < -8 || bx > 8) && clearSpot(bx, 3.5, 0.5, 0.5)) bollard(sim, bx, 3.5);
+    if ((bx < -8 || bx > 8) && clearSpot(bx, 3.5, 0.25, 0.25)) bollard(sim, bx, 3.5);
   }
   for (let lx = -48; lx <= 48; lx += 16) {
     if (lx < -8 || lx > 8) {
       // The bollards take the kerb at z 3.5 and this row sits 2 m behind them
       // on the pavement. At z 0 and z -2 every one of these props stood in
       // Teheran-ro's carriageway (z -3..2).
-      if (clearSpot(lx, 5.5, 1, 1)) lampPost(sim, lx, 5.5);
+      if (clearSpot(lx - 0.25, 5.25, 0.5, 0.5)) lampPost(sim, lx, 5.5);
       if (clearSpot(lx + 4, 5.5, 2, 1)) planter(sim, lx + 4, 5.5, 2, 1);
-      if (clearSpot(lx + 8, 5.5, 2, 1)) bench(sim, lx + 8, 5.5);
+      if (clearSpot(lx + 7.75, 5.5, 1, 0.5)) bench(sim, lx + 8, 5.5);
     }
   }
 
@@ -388,14 +400,13 @@ export function buildSeoul(sim) {
   // them into the courses that follow rather than dropping the block count.
   const inAnyRoad = (x, z) => inDecorRects(x, z, 0.5, roads);
 
-  // VoxelSandboxSim hard-codes the spawn hole at (0, 16) (js/voxelsim.js
-  // `_newHole(0, 16, 0)`). Course C's z-range reaches that row, and skipping
-  // the Olympic-daero cells above means Course C now has to absorb more of
-  // `needed` than before, extending its fill further into that row than the
-  // original scan did — close enough to leave blocks non-static/eaten at
-  // spawn during probeIdleStability's 3 s idle. Keepout radius matches the
-  // established convention for this defect class (js/voxelscene-bangkok.js's
-  // `fillerExcluded`, SPAWN_KEEPOUT = 3).
+  // Course C's z-range reaches the spawn row, and skipping the road cells above
+  // means it absorbs more of `needed` than the original scan did, extending its
+  // fill closer to the spawn — close enough to leave blocks non-static or eaten
+  // during probeIdleStability's 3 s idle. The radius is no longer restated here:
+  // `clearOfSpawn` reads SPAWN_FILL_KEEPOUT from js/voxelkit.js, which is the
+  // same constant every other scene's close-out uses and the one the validator's
+  // own spawn gate is derived from.
   const inSpawnKeepout = (x, z) => !clearOfSpawn(x, z);
 
   if (needed > 0) {
