@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-20
+Last updated: 2026-08-24
 
 This is a board, not a changelog. One line per shipped item; the detail lives in
 the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
@@ -39,25 +39,19 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 ## Active focus
 
 - **Act I map completion** — every Act I city built to the voxel count declared
-  in its catalog entry, exactly. Sydney, Auckland and Singapore done — Singapore
-  is `PLAYABLE` at 22,000 blocks / 571 camera blockers with zero uncovered tall
-  cells, and its `singapore` section plus `tools/validate-singapore.mjs` both run
-  green. `.wiki/features/act-i-pacific-completion/`.
-  **Closed 2026-08-19:** the 1,241-block budget close-out course used to stand
-  entirely inside the Marina Bay water rect, rendering as a flat grey mat on the
-  water. No probe could see it — `probeWaterOverSurfaces` compares decor rects,
-  and a physical block standing in water is not a decor rect — so it was green
-  the whole time. The lanes now walk SOUTH from the bank across the boardwalk
-  instead of north into the bay, with occupancy, spawn and water skips; ground
-  blocks wholly inside the water rect went 1,377 -> 136 (the remainder is the
-  Shoppes podium's west face and the two moored launches, both legitimate), the
-  count held at exactly 22,000, and blockers held at 571 with 0 uncovered.
-  Also closed: `tools/pw/singapore-shots.mjs` was broken on the same retired
-  `_buildScene` prototype seam that had broken `tools/validate-singapore.mjs` —
-  two callers, one fix — and now runs green on `await loadScene('singapore')`
-  with `canvas.toDataURL()` in place of `page.screenshot()`. Nothing else in the
-  repo is on that seam; `tools/probe-aniso.mjs` uses the gallery fall-through,
-  which is still valid and still runs.
+  in its catalog entry, exactly. Sydney, Auckland and Singapore done and green
+  (`singapore` section + `tools/validate-singapore.mjs`). The 2026-08-19
+  water-course close-out and the `_buildScene`-seam harness repair are recorded
+  in `.wiki/features/act-i-pacific-completion/` and `.wiki/modules/voxel.md`
+  (§Singapore).
+- **Construction-doctrine district (The Lab, north quarter)** — prototype for
+  era-appropriate construction language: five beam-and-slab towers built from
+  single large pieces (columns, floor plates, curtain sheets), the Corbel Gate
+  monument and three cottages kept at brick grain, plus Doctrine Row street kit.
+  4,581 blocks standing in for an equivalent ~44,000 half-metre cubes (89.6%
+  saved); Lab is 20,348 total, bounds now z −95..45. Gated by the `labDoctrine`
+  validator section (piece-volume contrast ≥10×, shape mix, overlap, road,
+  stability). Uncommitted — under Nico's visual review. `.wiki/modules/voxel.md`.
 - **Camera Bézier occlusion smoothing (The Lab only)** — C¹ cubic Hermite pitch
   transitions and critically-damped roof-climb easing, behind a per-scene flag.
   `.wiki/features/camera-bezier-smoothing/`, ADR-0022.
@@ -70,6 +64,26 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 - **Multiplayer multi-hole & join polish** — 6-player invite lobby, PvP hole
   swallowing, per-player coin isolation. `.wiki/modules/multiplayer.md`.
 - **Cambridge Phase 7** — 44 easter eggs, 11 ground glyphs, championship belts.
+- **Hong Kong Take Two (2026-08-25, Nico)** — new LOCAL-ONLY sandbox: recreate
+  Hong Kong's skyline in its entirety using **pieces** (anisotropic boxes —
+  cores, columns, beams, slabs, sheets; brick grain only in declared historic
+  zones), hard budget ≤ 8,000 pieces, spec-as-validator-gate written BEFORE any
+  geometry. Scope (harbour frame vs. whole territory) awaiting Nico's call.
+- **Debris never settles — retirement predicate can't see solver-supported
+  bodies** (RCA-2026-08-24-debris-jiggle-never-settles.md, CONFIRMED by
+  ablation). Two defects: the 1.02 separation skin parks piled bodies ~0.3 mm
+  above the zero-tolerance grounded test so they never sleep (243 permanently
+  awake on Boston); `_pushAxis` pumps embedded pairs through grounded bodies
+  (~1 m visible jiggle). Fix specced, not built; needs `RANKED_SIM_VERSION`
+  3→4. Likely the same root cause as the validator's superlinear debris churn
+  and much of Singapore's frame cost. Awaiting go.
+- **Skin rework pass (outside agent, 2026-08-24) — UNDER REVIEW, disputed.**
+  Uncommitted 479-line rewrite of `js/skins.js` + regenerated `docs/skins/`
+  contact sheet. Its own shipped-entry claim of "verified" is not accepted:
+  7 of 8 partner PNGs are byte-identical (all render one green ring) and Nico
+  reports the reworked standard skins look worse in play.
+  RCA in flight → `.wiki/findings/RCA-2026-08-25-partner-skins-render-identical.md`;
+  outcome is fix-forward or surgical revert of the skins-scoped files.
 
 - **Singapore exceeds the frame budget in real play — the only city that does.**
   With the hole growing as it eats (what actually happens in play), Singapore
@@ -89,74 +103,24 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   `contactBudget` 200 moved it ~10% with debris essentially unchanged).
   **Owner's call, three options, no work done on any of them**: (a) accept 108%;
   (b) incremental / dirty-region support propagation — the durable fix, and
-  justified beyond Singapore by the 1.80 exponent, since a map dumping twice the
-  debris would cost ~3.5× and nothing structural prevents one; (c) reshape the
-  hero, which is **not** supported by this evidence and is not recommended.
-  > **Correction — an earlier figure of 15.33 ms / 92% was wrong, and was on
-  > this board.** It came from an uncontrolled comparison: the hole GREW while
-  > eating, so Singapore finished at r=8.4 having eaten 3,273 blocks while
-  > Boston sat at r=6.0 having eaten 361. Each arm ran a different experiment,
-  > measuring how much each city happened to be engaging rather than the cost of
-  > attacking it. Controlled, Singapore is 5.39 ms — **32%**, not 92%.
-  > Two things made it controlled, and the first is the trap: pin `size`, **not**
-  > `radius` — radius is recomputed from size every step, so an assigned radius
-  > is silently overwritten on frame one and the hole reverts to 1.1 m while the
-  > harness reads plausible numbers forever. And place the hole at the
-  > **ground-footprint** centroid of the component, since a tall tower's 3D
-  > centroid is up in the air and parks the hole beside the thing it is meant to
-  > undermine. The 108% figure above is the *growth-allowed* run, which is a
-  > deliberate play-realism measurement rather than a controlled comparison, and
-  > is labelled as such.
-- **Rip-rap palette: a third of every apron's colours never rendered.** The
-  scatter expression `(Math.round(x * 2) + lane * N) % 3` is wrong twice over,
-  and both halves shipped. **Coprimality**: with `N = 3` the per-lane term is a
-  multiple of the modulus and cancels, so every lane gets an identical stripe —
-  corduroy running perpendicular to the shore. **Sign**: JS `%` keeps the
-  *dividend's* sign, so `-2 % 3` is `-2`, and the colour ternary funnels every
-  negative index into the third grey. Auckland's 21 stones all sit at negative
-  x, so the shipped split was **14 / 7 / 0 — the middle grey never appeared at
-  all**. Fixed to a coprime lane term with a floor-mod:
-  `(((Math.round(x * 2) + lane * 2) % 3) + 3) % 3`. Now 7/7/7.
-  Two instances, both fixed, found by sweeping the idiom rather than the value:
-  Auckland (both halves) and Singapore (coprime already right in the copy,
-  **sign not** — 416/304/521 across 1,241 stones, now 416/415/410). No third:
-  the only other `% 3` in `js/` are vendored three.js and an axis index 0..2.
-  Geometry is bit-identical and counts hold exactly (16,000 / 22,000, blockers
-  115 / 571, mass unchanged); `sceneFingerprint` hashes `b.color`, so the
-  fingerprints move — auckland `6c1b3a42` → `4447ccb4`, singapore `3200114096`
-  → `790920319` — and **no code constant anywhere pins either**.
-  Guarded by one shared probe over both scenes, `tools/probe-lane-modulus.mjs`,
-  not two copies — a second copy of a check is how the economy ladder above
-  ended up half-retired. Its balance floor (0.75) was set from **both** arms
-  measured first (0.583 broken, 0.986 fixed), so it is not fitted to either, and
-  it skips loudly below 12 stones where an even 3-way split is not achievable —
-  a threshold derived from the population must never make a small population
-  illegal.
-  **The refactor to a shared probe nearly disarmed it**, which is the part worth
-  keeping: deriving the sample domain from the built stones made the corduroy
-  check *undecidable* for Auckland, because all 21 of its stones sit at negative
-  x and that property is only meaningful at x ≥ 0 — so the shared probe reported
-  Auckland clean at HEAD on the exact fault its inline predecessor caught. The
-  domain restriction was an exclusion zone with the defect inside it. Now the
-  two properties sample deliberately different domains: the range check uses the
-  scene's real domain so it quotes indices that genuinely occur, the corduroy
-  check uses a fixed non-negative sweep because `lane * 3` is wrong wherever it
-  is written. Caught only by running the refactored guard against the *bad*
-  commit; green after a refactor proves the code passes, not that the guard
-  still works.
-- **Test-suite integrity — the suite was red on `main`.** Declaring Flywheel's
-  real commit gates in `.sop-gates.json` (the attestation harness had been
-  discovering gates only from `package.json`, which this repo does not have, so
-  it wrote `PASS … 0 gate(s) ran` receipts) meant running them, and three
-  defects fell out — all pre-existing at `origin/main`, proven by `git archive`
-  across five trees. `sfx-event-guard.test.mjs` fails 16/32 because its
-  positional source extraction from `js/main.js` now captures a nested
-  `tutorialManager` arm, so fifteen assertions report an audio regression that
-  does not exist; `economy-consistency.test.mjs` still asserts the retired
-  size-as-progression coin ladder that `validate-campaign.mjs` replaced with the
-  role-based floor/ceiling model; and the `singapore` section is registered in
-  `tools/validate.mjs` but absent from the orchestrator's `groups`, so a bare
-  full run has never executed it. `.wiki/findings/2026-08-19-the-suite-was-red-on-main.md`.
+  justified beyond Singapore by the 1.80 exponent; (c) reshape the hero — not
+  supported by the evidence, not recommended. (An earlier 92% figure was an
+  uncontrolled comparison and was corrected on this board 2026-08-22; the
+  measurement method — pin `size` not `radius`, hole at the ground-footprint
+  centroid — is documented in `tools/pw/hero-attack-perf.mjs`.) The 2026-08-24
+  debris-settlement RCA above may substantially shrink this number if fixed.
+- **Rip-rap palette bug: fixed, both instances (Auckland, Singapore).** The
+  `% 3` lane-scatter expression was wrong twice (coprimality + JS sign) and a
+  third of the apron colours never rendered; fixed with a coprime floor-mod,
+  guarded by `tools/probe-lane-modulus.mjs` (one shared probe, deliberately
+  split sample domains — the refactor-nearly-disarmed-it lesson lives in the
+  probe's own header comments). Geometry bit-identical; both
+  `sceneFingerprint`s moved, nothing pins them.
+- **Test-suite integrity — the suite was red on `main`.** Declaring the real
+  commit gates in `.sop-gates.json` surfaced three pre-existing defects
+  (sfx-event-guard positional extraction, the retired economy ladder, the
+  `singapore` section missing from the orchestrator's groups). Full detail:
+  `.wiki/findings/2026-08-19-the-suite-was-red-on-main.md`.
 
 ### Open decisions (owner's call, papered not parked)
 
@@ -177,14 +141,9 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 - **Mid-play power-up spawn cutscene** — still fires on every ~30 s respawn, now
   smooth and cancellable. Suppressing it is a one-line change to the gate that
   already suppresses it at level start.
-- **Cambridge's card now reads 72,943, down from 88,500** — a player-facing
-  number was corrected *downward*, so it is flagged rather than buried. The card
-  metric (`js/ui/screens.js:792`) and the Help walkthrough had claimed 88,500
-  against a map of 72,943, overstating it by 15,557 blocks. The card now states
-  the map that exists. **The 88,500 figure is not abandoned — it is the
-  Cambridge 2 target and lives in the entry below**; the risk this trades
-  against is that editing a promise down can quietly retire the work behind it,
-  which is why the target is recorded rather than deleted. Reverse it if the
+- **Cambridge's card now reads 72,943, down from 88,500** — the card
+  (`js/ui/screens.js:792`) and Help walkthrough now state the map that exists;
+  88,500 is NOT abandoned, it is the Cambridge 2 target below. Reverse if the
   card should advertise the target instead.
 - **Cambridge 2** — the map was specced to *look* as detailed as 73k voxels, not
   to contain them. Rebuild at perceived density; the existing map stays. Root
@@ -197,6 +156,16 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   on Vercel pauses it (both routes answer `503 SERVER_NOT_READY`, game unchanged).
   An emergency switch, not a deploy step. `.wiki/modules/cloud.md`, ADR-0021.
 
+- **Power-up respawn pacing (2026-08-24, Nico)** — raise the post-capture /
+  post-despawn respawn delay from 30 s to ~45–55 s (exact value Nico's call
+  within that band). At larger hole sizes (radius ≳ 20) power-ups repop so fast
+  players hit them by accident. The 30 s is a hardcoded `30.0` at **four**
+  sites — `js/sim.js:414`, `js/sim.js:424`, `js/voxelsim.js:1822`,
+  `js/voxelsim.js:5088` — so the fix is one shared constant (e.g.
+  `POWERUP_RESPAWN_SECONDS`) consumed by both sims, not four edited literals.
+  Note: this timer feeds ranked determinism (`voxelsim`), so check whether
+  `RANKED_SIM_VERSION` needs a bump when it lands.
+
 ### Open defects observed during smoke/RCA work
 
 Per `.wiki/findings/RCA-2026-08-20-cross-device-zero-progress.md` §8: a live
@@ -205,19 +174,9 @@ just left as a paragraph, so "we already knew this could happen" turns into
 "we already scheduled the fix."
 
 - ~~**Sign-in catch-all fabricated a phantom "claimed" identity on any
-  unrecognized server error** — first observed
-  `.wiki/runbooks/cloud-progress-smoke-2026-08-17.md` observation #2 (a 503 on
-  sign-in read as success), confirmed hitting a real player 2026-08-20 under
-  the name "Cr4sh0veRide". **Fixed 2026-08-20**: `js/board/player.js`'s
-  `registerPlayer`/`loginPlayer`/`claimName`/`renamePlayer` now deny-list to
-  only genuine network failures / server-flagged-`retryable` `5xx`/`429`
-  (`isRetryableOffline()`); a `404` and any other unrecognized error reject for
-  real; a genuine offline fallback is marked `nameSource: 'pending'`, not
-  `'claimed'`, and gets its own visible `'NOT CONNECTED — SIGN IN AGAIN'` sync
-  state (`js/cloud/sync.js`, `js/ui/sync-copy.js`) instead of reading as a real
-  sign-in.~~ See `.wiki/modules/api.md` ("The `local-*` identity trap, fixed")
-  and `.wiki/modules/cloud.md` for the shipped shape;
-  `tools/player-identity.test.mjs` is the regression guard.
+  unrecognized server error.** Fixed 2026-08-20 via the `isRetryableOffline()`
+  deny-list + visible `pending` state.~~ `.wiki/modules/api.md` ("The `local-*`
+  identity trap, fixed"), `tools/player-identity.test.mjs` guards it.
 - **`run/start` still 401s a device holding a genuine offline `local-*`
   fallback token** — un-ranks that browser until it signs in for real or
   clears storage. Narrower now (only reachable via a genuine network failure,
@@ -229,43 +188,28 @@ just left as a paragraph, so "we already knew this could happen" turns into
 
 ## Shipped state
 
+### 2026-08-24
+
+- **Hole-skin rework pass (14 skins, outside agent) — NOT accepted as shipped;
+  see the UNDER REVIEW entry in Active focus.** Registry ids/prices untouched.
+  The entry's original "verified" claim is disputed by the byte-identical
+  partner PNGs and Nico's in-play report. `.wiki/modules/render.md`.
+
 ### 2026-08-20
 
-- **Fixed the sign-in phantom-identity bug** (RCA-2026-08-20-cross-device-zero-progress.md)
-  — a player signing in on a second device could silently be handed a fake,
-  empty local identity under their own real name whenever the server answered
-  with an error the client did not specifically expect (most likely a `404`
-  "no such account"). `js/board/player.js`'s four identity call sites now
-  share one `isRetryableOffline()` deny-list; only a genuine network failure or
-  a server-flagged-retryable `5xx`/`429` may fall back to a local identity, and
-  that fallback is now labeled `nameSource: 'pending'` with its own visible
-  "NOT CONNECTED — SIGN IN AGAIN" state (`js/cloud/sync.js`,
-  `js/ui/sync-copy.js`) instead of looking identical to a real sign-in.
+- **Fixed the sign-in phantom-identity bug**
+  (RCA-2026-08-20-cross-device-zero-progress.md) — the `isRetryableOffline()`
+  deny-list plus the visible `pending` sync state.
   `tools/player-identity.test.mjs`, `.wiki/modules/api.md`, `.wiki/modules/cloud.md`.
 
 ### 2026-08-19
 
-- **Auckland: Act I chapter 2, playable at exactly 16,000 blocks** — new
-  `js/voxelscene-auckland.js`: the Sky Tower (an octagonal shaft, copper pod and
-  full antenna mast to y 67), three Waitematā wharves on even-bay `pierDeck`
-  timber, the Ferry Building, and Maungawhau / North Head / Mt Victoria as solid
-  truncated scoria cones with sunk craters. Wired through `SCENE_IMPORTERS`,
-  `SCENE_GOALS` (*TOPPLE THE SKY TOWER*), `AUTHORED_SCENES`, the music cue
-  registry, and `CITY_CATALOG` (`DEVELOPMENT` → `PLAYABLE`, 10 playable). The
-  count is hit by authoring the city deliberately short and closing the gap with
-  a shore-first harbour rip-rap apron, so the last ~55 blocks are real armour
-  rock rather than filler. 115 camera blockers, 0 overlaps, 0 unsupported
-  blocks, 0 road conflicts; `step` 4.4 ms/frame mid-collapse on a 390×844 touch
-  viewport. `tools/validate.mjs` section `auckland`,
-  `tools/pw/auckland-playtest.mjs`.
-- **Sydney: camera blockers restored, exact 14,120 blocks** — `buildSydney` ended
-  with a bare `generateBlockers(sim, 6);`, but the function *returns* the rect
-  list rather than assigning it, so the Act I opener shipped with `blockers=0`
-  and the camera clipped through every landmark. Now assigned, as every other
-  scene does: 250 blockers, 0 uncovered cells. Geometry also trimmed 189 blocks
-  of surplus street furniture to hit the catalog's declared 14,120 exactly; no
-  hero touched. Proven by a forced-yaw A/B (0/120 camera-inside poses with
-  blockers on, 31/120 with them off). `1d7bda9`.
+- **Auckland: Act I chapter 2, playable at exactly 16,000 blocks** — Sky Tower,
+  wharves, Ferry Building, scoria cones; fully wired and validated (section
+  `auckland`, `tools/pw/auckland-playtest.mjs`). `.wiki/modules/voxel.md`.
+- **Sydney: camera blockers restored, exact 14,120 blocks** — the unassigned
+  `generateBlockers` return had shipped blockers=0; now 250, proven by forced-yaw
+  A/B. `1d7bda9`.
 - **Fault Line Rupture: full-length wavefront** — QUAKE and the Seismic disaster
   used to resolve in one frame, stop after ~160 blocks and detach only the y≤3
   band. The trigger now queues a fault and `step()` releases it front-to-back
