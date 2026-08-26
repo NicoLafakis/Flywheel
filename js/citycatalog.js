@@ -26,7 +26,10 @@ export const CITY_CATALOG = [
     // GEOMETRY is the intended thing here and this number was the stale side —
     // the opposite of Sydney, where the declared count was authoritative
     // because it is a city map the owner specified.
-    blocks: 15767,
+    // 15767 -> 20348: the construction-doctrine district (north quarter,
+    // z -95..-49) — five beam-and-slab towers, the Corbel Gate masonry
+    // monument, three cottages and Doctrine Row. Gated by `labDoctrine`.
+    blocks: 20348,
     difficulty: 'TIER 1 · STARTER',
     badge: 'PROLOGUE',
     accentColor: '#00f0ff',

@@ -19,9 +19,10 @@
 //   vertex-colours-instead-of-shaders idiom as rampQuadGeo() in voxelworld.js.
 //
 // Measured (Chromium/ANGLE, desktop, renderer.info): today's hole is 2 draw
-// calls. Median skin here is 3, worst is 7 (Deep Funnel's five throat rings),
-// worst update() is 0.0048 ms — 0.03% of a 16.7 ms frame. One skin is live at
-// a time, so that is the whole cost of the feature.
+// calls. Median skin here is 4, worst is 7 (Deep Funnel's five throat rings,
+// Attribution Ripple's four world-space ripple meshes), worst update() is
+// 0.0048 ms — 0.03% of a 16.7 ms frame. One skin is live at a time, so that is
+// the whole cost of the feature.
 //
 // Four laws every skin obeys:
 //
@@ -569,12 +570,13 @@ export const SKINS = [
   // CUT CANDIDATES, in this order, if the shelf has to shrink. Recorded here
   // because a registry row is a one-line deletion and the reasoning should not
   // have to be re-derived by whoever makes the call:
-  //   1. chomper — its closed fangs read close enough to closer's that at 84 m
-  //      you cannot name which one you are wearing, and the chart's honesty (it
-  //      really is your last twelve `gained` values) is invisible at speed.
+  //   1. chomper — the chart's honesty (it really is your last twelve `gained`
+  //      values) is invisible at speed, and its bite-snap fangs still read
+  //      close to closer's iris at 84 m even though the rest pose no longer
+  //      shows them.
   //   2. shredder — the only skin whose straight banks fight the circular
-  //      silhouette; it took three tuning passes to stop reading as a cattle
-  //      grid over a manhole, and the rim has to be drawn LAST to win.
+  //      silhouette; the canted mill stopped it reading as a cattle grid over
+  //      a manhole, and the rim has to be drawn LAST to win.
   { id: 'chomper', name: 'Dashboard Jaws', price: 450, color: 0x4fd1c5, css: '#4fd1c5',
     family: 'creature',
     blurb: 'Your last twelve bites, plotted. The chart bites back.', build: buildChomper },
@@ -829,20 +831,32 @@ function buildSprocket(row) {
   const hair = ringPart(24, [0.81, 0.835], [1, 1], { additive: true, y: 0.022, order: 1002 });
   const spin = new THREE.Group();
   spin.add(teeth, rim, hair);
+  // the counter-gear: a smaller wheel deep in the bore, turning the OTHER way.
+  // Additive and dim, so it reads as machinery seen down a shaft and never
+  // covers the void — the dark centre stays open well inside it.
+  const hub = tickPart(8, [0.28, 0.44], [1, 0.85], 0.05, { additive: true, taper: 0.9, y: 0.019, order: 999 });
   let ang = 0, kick = 0;
   return {
-    parts: [spin],
+    parts: [spin, hub],
     onEat(st, e) { kick += 0.16 + e.size * 0.34; },   // a ratchet click, sized by the meal
     update(st) {
       kick *= Math.max(0, 1 - st.dt * 5);
       if (!st.reduced) ang += st.dt * (0.35 + st.speed * 0.09) + kick * st.dt * 9;
       spin.rotation.y = -ang;
+      hub.rotation.y = ang * 0.6;           // meshed gears counter-rotate
       for (let i = 0; i < N; i++) {
         // a glint travelling round the wheel: machined metal under a moving light
         const g = Math.pow(Math.max(0, Math.cos(i / N * TAU - (st.reduced ? 0.8 : st.t * 0.9))), 8);
         const k = mixc(steel, hot, g * 0.9 + st.glow * 0.5 + kick * 0.6);
         const b = 0.62 + g * 0.5 + kick;
         teeth.userData.set(i, k[0] * b, k[1] * b, k[2] * b);
+      }
+      for (let i = 0; i < 8; i++) {
+        // the same glint, deeper and dimmer — it is down the bore
+        const g = Math.pow(Math.max(0, Math.cos(i / 8 * TAU + (st.reduced ? 0.5 : st.t * 0.55))), 8);
+        const k = mixc(steel, hot, g * 0.8 + kick * 0.5);
+        const b = 0.28 + g * 0.3 + kick * 0.4;
+        hub.userData.set(i, k[0] * b, k[1] * b, k[2] * b);
       }
       for (let i = 0; i < 24; i++) {
         setRim(rim, i, steel, 0.62 + st.glow * 0.4);
@@ -853,27 +867,58 @@ function buildSprocket(row) {
 }
 
 function buildBurnRate(row) {
-  const N = 12, c = rgb(row.color), ember = rgb(0xffd08a);
-  const rim = ringPart(N, [0.86, 1.01], [1, 1], { y: 0.02, order: 1000 });
-  const flame = tickPart(N, [1.0, 1.14, 1.30], [1, 0.55, 0], 0.05, { additive: true, taper: 0.45, y: 0.021, order: 1001 });
-  const lick = tickPart(N, [1.06, 1.26], [0.7, 0], 0.028, { additive: true, taper: 0.4, y: 0.022, order: 1002, phase: TAU / (N * 2) });
+  // Molten crust, not a pink crown. The rim is dark slag with glowing cracks
+  // running through it (per-wedge heat noise, so the cracks wander without any
+  // rng); the fire outside it is layered red-over-yellow so it reads as flame
+  // in silhouette, and embers lift off the rim on a fixed cycle.
+  const N = 12, c = rgb(row.color), slag = rgb(0x6e1206), ember = rgb(0xffd08a), yell = rgb(0xffe9a8);
+  const crust = ringPart(24, [0.86, 1.01], [1, 1], { y: 0.02, order: 1000 });
+  const crack = ringPart(24, [0.88, 0.99], [1, 1], { additive: true, gap: 0.55, y: 0.021, order: 1001 });
+  const fire = new THREE.Group();
+  const flame = tickPart(N, [1.0, 1.16, 1.34], [1, 0.5, 0], 0.05, { additive: true, taper: 0.4, y: 0.022, order: 1002 });
+  const lick = tickPart(N, [1.04, 1.24], [0.8, 0], 0.026, { additive: true, taper: 0.35, y: 0.023, order: 1003, phase: TAU / (N * 2) });
+  fire.add(flame, lick);
+  const embers = worldQuads(10, { local: true });
   let spike = 0;
   return {
-    parts: [rim, flame, lick],
-    onEat(st, e) { spike = Math.max(spike, 0.55 + e.size * 0.45); },
+    parts: [crust, crack, fire, embers],
+    onEat(st, e) { spike = Math.max(spike, 0.7 + e.size * 0.5); },
     update(st) {
       spike *= Math.max(0, 1 - st.dt * 2.6);
+      fire.scale.setScalar(1 + spike * 0.12);
       const T = st.reduced ? 0 : st.t;
+      for (let i = 0; i < 24; i++) {
+        // wandering heat noise: two incommensurate sines per wedge, no rng
+        const n = 0.5 + 0.5 * Math.sin(T * 1.3 + i * 1.9) * Math.sin(T * 0.7 + i * 0.8);
+        // slag wedges with the heat showing through; identity hue preserved
+        setRim(crust, i, mixc(slag, c, 0.35 + 0.65 * n + spike * 0.2), 0.85 + n * 0.3 + st.glow * 0.4);
+        // only the hot wedges crack light — gap does the sparseness, n the flicker
+        const cb = Math.max(0, n - 0.45) * 2 * (0.5 + spike);
+        crack.userData.set(i, ember[0] * cb, ember[1] * cb, ember[2] * cb);
+      }
       for (let i = 0; i < N; i++) {
-        // two incommensurate sines per tooth: deterministic fire, no rng
         const f = 0.55 + 0.45 * Math.sin(T * 3.1 + i * 2.4) * Math.sin(T * 1.7 + i * 0.9);
-        const h = (0.5 + f * 0.8) * (1 + spike * 0.9);
-        const k = mixc(c, ember, clamp01(f * 0.7 + spike));
+        const h = (0.5 + f * 0.8) * (1 + spike * 0.7);
+        // red at the root to orange at the tip, whitening only at the spike's
+        // peak — full-strength white under farBoost reads as a magnesium flare
+        const k = mixc(mixc(c, ember, f * 0.4), WHITE, clamp01(spike * 0.3));
         flame.userData.set(i, k[0] * h, k[1] * h, k[2] * h);
+        // the inner tongues run hotter: yellow, not more red
         const g = 0.35 + 0.3 * Math.sin(T * 2.3 + i * 1.7 + 1.1) + spike * 0.5;
-        lick.userData.set(i, ember[0] * g, ember[1] * g, ember[2] * g);
-        setRim(rim, i, mixc(c, WHITE, clamp01(st.glow + spike * 0.5)),
-          (0.8 + f * 0.35) * (1 + st.glow * 0.5) * (1 + spike * 0.3));
+        lick.userData.set(i, yell[0] * g, yell[1] * g, yell[2] * g);
+      }
+      // embers: a fixed lift-off cycle per quad, golden-angle placement so two
+      // cycles never stack. Pure function of t — deterministic by construction.
+      for (let j = 0; j < 10; j++) {
+        const cyc = Math.floor((T + j * 0.53) / 1.6);
+        const k = ((T + j * 0.53) % 1.6) / 1.6;
+        if (st.reduced && k > 0.01) { embers.userData.setQuad(j, 0, 0, 0, 0, 0, 0, 0, 0); continue; }
+        const a = j * 2.399963 + cyc * 1.7;
+        const d = 1.05 + k * 0.6;
+        const b = (1 - k) * (0.55 + spike * 0.6);
+        const col = mixc(yell, c, k);
+        embers.userData.setQuad(j, Math.cos(a) * d, Math.sin(a) * d, 0.045, 0.045, a,
+          col[0] * b, col[1] * b, col[2] * b);
       }
     },
   };
@@ -881,13 +926,15 @@ function buildBurnRate(row) {
 
 function buildPipeline(row) {
   // Five dials, coldest outside. A deal enters at the rim of the market and
-  // works its way inward until you swallow it.
+  // works its way inward until you swallow it. Deep base tones, not pastels —
+  // the pastel ramp read as a candy archipelago at 84 m; the cascade below is
+  // what sells the metaphor, so it is allowed to be twice as loud as the fill.
   const RINGS = [
-    { r: [1.30, 1.37], c: 0x3b4fb8, fill: 1.00 },
-    { r: [1.20, 1.27], c: 0x5c7cfa, fill: 0.78 },
-    { r: [1.10, 1.17], c: 0x36c9d6, fill: 0.55 },
-    { r: [1.00, 1.07], c: 0x4be36b, fill: 0.34 },
-    { r: [0.86, 1.01], c: 0xffe9a8, fill: 0.18, solid: true },
+    { r: [1.30, 1.37], c: 0x2c3a9e, fill: 1.00 },
+    { r: [1.20, 1.27], c: 0x4a63e8, fill: 0.78 },
+    { r: [1.10, 1.17], c: 0x1fb3c9, fill: 0.55 },
+    { r: [1.00, 1.07], c: 0x2fc65a, fill: 0.34 },
+    { r: [0.86, 1.01], c: 0xffd23f, fill: 0.18, solid: true },
   ];
   const N = 16;
   const rings = RINGS.map((R, j) => ({
@@ -895,17 +942,24 @@ function buildPipeline(row) {
     part: ringPart(N, R.r, [1, 1], { additive: !R.solid, gap: 0.18, y: 0.02 + j * 0.001, order: 1000 + j }),
   }));
   const hand = [];                          // deals in flight: { stage, t0 }
+  const stageFlash = new Float32Array(RINGS.length);
   return {
     parts: rings.map((r) => r.part),
     onEat(st, e) {
       hand.push({ t0: st.t, i: Math.round(e.bearing / TAU * N) % N });
-      for (const r of rings) r.cur = Math.min(1, r.cur + 0.03);
+      for (let j = 0; j < rings.length; j++) {
+        const was = rings[j].cur;
+        rings[j].cur = Math.min(1, was + 0.03);
+        // a stage COMPLETING is the payoff moment — flash it white
+        if (was < 1 && rings[j].cur >= 1) stageFlash[j] = 1;
+      }
     },
     update(st) {
       while (hand.length && st.t - hand[0].t0 > 0.8) hand.shift();
       rings[4].cur = 0.12 + st.sizeFrac * 0.88;
       for (let j = 0; j < rings.length; j++) {
         const R = rings[j];
+        stageFlash[j] = Math.max(0, stageFlash[j] - st.dt * 2.2);
         const lit = R.cur * N;
         const drift = st.reduced ? 0 : Math.sin(st.t * (0.5 + j * 0.13)) * 0.5;
         for (let i = 0; i < N; i++) {
@@ -916,8 +970,8 @@ function buildPipeline(row) {
             if (age > 0 && age < 0.3 && ((i - d.i + N) % N) < 2) hot = Math.max(hot, 1 - age / 0.3);
           }
           const edge = i < lit && i > lit - 1.6 ? 0.5 + drift * 0.3 : 0;
-          const b = (on ? 0.85 : 0.16) + hot * 1.3 + edge + st.glow * 0.5;
-          const k = mixc(R.col, WHITE, hot * 0.8);
+          const b = (on ? 0.9 : 0.14) + hot * 2.2 + edge + st.glow * 0.5 + stageFlash[j];
+          const k = mixc(R.col, WHITE, clamp01(hot * 0.9 + stageFlash[j] * 0.8));
           R.part.userData.set(i, k[0] * b, k[1] * b, k[2] * b);
         }
       }
@@ -926,33 +980,69 @@ function buildPipeline(row) {
 }
 
 function buildColdOutreach(row) {
-  const N = 8, cold = rgb(row.color), warm = rgb(0xffb15c);
+  // A crystal shelf, not eight spikes: every shard is a wide blue blade with a
+  // narrow pale core stacked on it, so it reads as cut ice instead of a glow
+  // stick. The hairline inside the rim is the frost line — it creeps IN as the
+  // shelf runs cold and burns off wherever a bite lands.
+  const N = 12, cold = rgb(row.color), ice = rgb(0xeaf6ff), warm = rgb(0xffb15c);
   const rim = ringPart(12, [0.86, 1.01], [1, 1], { y: 0.02, order: 1000 });
-  const shard = tickPart(N, [1.0, 1.12, 1.30], [1, 0.6, 0], 0.032, { additive: true, taper: 0.25, y: 0.021, order: 1001 });
-  const heat = new Float32Array(N);
+  const shard = tickPart(N, [1.0, 1.14, 1.32], [1, 0.55, 0], 0.034, { additive: true, taper: 0.2, y: 0.021, order: 1001 });
+  const core = tickPart(N, [1.0, 1.09, 1.21], [1, 0.7, 0], 0.013, { additive: true, taper: 0.1, y: 0.022, order: 1002 });
+  const hair = ringPart(24, [0.79, 0.845], [1, 1], { additive: true, y: 0.023, order: 1003 });
+  const chips = worldQuads(6, { local: true });
+  const heat = new Float32Array(N), flash = new Float32Array(N);
+  const bits = [];
   return {
-    parts: [rim, shard],
+    parts: [rim, shard, core, hair, chips],
     onEat(st, e) {
-      // a bigger lead warms more of the rim
-      const i = Math.round(e.bearing / TAU * N) % N;
+      // a bigger lead warms more of the rim; the struck shard cracks white and
+      // sheds ice chips. bearing can be negative — normalise before indexing or
+      // the write lands nowhere.
+      const i = ((Math.round(e.bearing / TAU * N) % N) + N) % N;
       heat[i] = Math.min(1.4, 0.75 + e.size * 0.65);
       heat[(i + 1) % N] = Math.max(heat[(i + 1) % N], 0.45);
       heat[(i + N - 1) % N] = Math.max(heat[(i + N - 1) % N], 0.45);
+      flash[i] = 1;
+      for (let j = 0; j < 6; j++) {
+        // deterministic spray: index-derived, no rng
+        bits[j] = { t0: st.t, a: (i / N) * TAU + (j - 2.5) * 0.30, sp: 0.55 + ((j * 7) % 5) * 0.16 };
+      }
     },
     update(st) {
-      // The heat decay survives reduced motion on purpose: it is discrete
-      // feedback for an action the player took, not ambience. Only the idle
-      // breathing is suppressed.
-      const breathe = st.reduced ? 0.5 : 0.5 + 0.5 * Math.sin(st.t * 0.8);
+      // The heat decay and the crack flash survive reduced motion on purpose:
+      // they are discrete feedback for an action the player took, not ambience.
+      // Only the frost creep is suppressed.
+      const T = st.reduced ? 0 : st.t;
+      let mean = 0;
       for (let i = 0; i < N; i++) {
         heat[i] = Math.max(0, heat[i] - st.dt * 1.4);
-        const h = smooth(heat[i]);
-        const k = mixc(cold, warm, h);
-        const b = 0.3 + breathe * 0.25 + h * 1.6;
+        flash[i] = Math.max(0, flash[i] - st.dt * 5);
+        mean += heat[i];
+        const h = smooth(clamp01(heat[i]));
+        // frost creep: a slow cold wave walking the shelf, two lobes at a time,
+        // so the ring is never uniformly lit and never frozen solid
+        const creep = st.reduced ? 0.5 : 0.5 + 0.5 * Math.sin(T * 0.9 - i * (TAU / N) * 2);
+        const k = mixc(mixc(cold, ice, creep * 0.35), warm, h);
+        const b = 0.26 + creep * 0.34 + h * 1.5 + flash[i] * 1.2;
         shard.userData.set(i, k[0] * b, k[1] * b, k[2] * b);
+        const ck = mixc(ice, warm, h);
+        const cb = 0.40 + creep * 0.45 + h * 1.6 + flash[i] * 2.0;
+        core.userData.set(i, ck[0] * cb, ck[1] * cb, ck[2] * cb);
       }
-      let mean = 0; for (let i = 0; i < N; i++) mean += heat[i];
       mean /= N;
+      // the frost line brightens as the shelf runs cold, burns off when it feeds
+      const frost = 1 - clamp01(mean * 1.1);
+      const hb = 0.04 + frost * 0.22;
+      for (let i = 0; i < 24; i++) hair.userData.set(i, ice[0] * hb, ice[1] * hb, ice[2] * hb);
+      for (let j = 0; j < 6; j++) {
+        const q = bits[j];
+        const kk = q ? Math.max(0, 1 - (st.t - q.t0) / 0.5) : 0;
+        if (kk <= 0) { chips.userData.setQuad(j, 0, 0, 0, 0, 0, 0, 0, 0); continue; }
+        const d = 1.15 + (1 - kk) * q.sp * 0.8;
+        const bb = kk * 0.9;
+        chips.userData.setQuad(j, Math.cos(q.a) * d, Math.sin(q.a) * d, 0.05, 0.05, q.a * 2,
+          ice[0] * bb, ice[1] * bb, ice[2] * bb);
+      }
       const k = mixc(cold, mixc(warm, WHITE, st.glow), mean);
       const b = 0.65 + mean * 0.5 + st.glow * 0.5;
       for (let i = 0; i < 12; i++) setRim(rim, i, k, b);
@@ -966,9 +1056,14 @@ function buildRadar(row) {
   const sweepG = new THREE.Group();
   const sweep = ringPart(SW, [1.05, 1.9, 2.6], [0.25, 1, 0], { additive: true, y: 0.021, order: 1001 });
   const blip = tickPart(NB, [2.3, 2.48], [1, 1], 0.022, { additive: true, y: 0.022, order: 1002 });
-  sweepG.add(sweep, blip);
+  // range rings: faint, gapped, inside the sweep group so they share its reach
+  // compensation. They are what makes the field read as a SCOPE rather than a
+  // glow — a radar without range marks is just a torch.
+  const range1 = ringPart(SW, [1.42, 1.46], [1, 1], { additive: true, gap: 0.5, y: 0.0215, order: 1001 });
+  const range2 = ringPart(SW, [2.02, 2.06], [1, 1], { additive: true, gap: 0.5, y: 0.0215, order: 1001 });
+  sweepG.add(sweep, blip, range1, range2);
   let ang = 0;
-  const seen = new Float32Array(NB);
+  const seen = new Float32Array(NB), ping = new Float32Array(NB);
   return {
     // The rim goes in FIRST and it must go in at all: it was built, written to
     // by setRim every frame, and never added to the group, so ICP Radar shipped
@@ -987,18 +1082,30 @@ function buildRadar(row) {
         // trailing wake: bright at the head, gone 70 deg behind it
         const d = (head - i + SW) % SW;
         const w = st.reduced ? 0.10 : Math.pow(Math.max(0, 1 - d / (SW * 0.19)), 1.6);
-        const b = (0.013 + w * 0.34) * (1 + st.glow * 0.6);
+        // hot phosphor tip right AT the head, so the beam has a leading edge
+        const tip = d < 1 ? 0.22 : 0;
+        const b = (0.013 + w * 0.34 + tip) * (1 + st.glow * 0.6);
         sweep.userData.set(i, c[0] * b, c[1] * b, c[2] * b);
+        const rb = 0.05 + tip * 0.2;
+        range1.userData.set(i, c[0] * rb, c[1] * rb, c[2] * rb);
+        range2.userData.set(i, c[0] * rb, c[1] * rb, c[2] * rb);
       }
       // Blips: `st.sectorMass[i]` is edible mass in that bearing sector, which
       // the sim's spatial grid already knows. A skin that is also a tool.
       const mass = st.sectorMass;
       for (let i = 0; i < NB; i++) {
         const passed = st.reduced ? 1 : (((head / SW * NB) - i + NB) % NB) < 1.2 ? 1 : 0;
-        if (passed && mass) seen[i] = clamp01(mass[i]);
+        if (passed && mass) {
+          const v = clamp01(mass[i]);
+          // first contact: a white ping that decays into the green blip
+          if (v > seen[i] + 0.15) ping[i] = 1;
+          seen[i] = v;
+        }
+        ping[i] = Math.max(0, ping[i] - st.dt * 2.5);
         seen[i] = Math.max(0, seen[i] - st.dt * (st.reduced ? 0 : 0.45));
-        const b = seen[i] * 1.5 + 0.04;
-        blip.userData.set(i, c[0] * b, WHITE[1] * seen[i] * 0.5 + c[1] * b, c[2] * b);
+        const b = seen[i] * 1.5 + 0.04 + ping[i] * 1.2;
+        const mc = mixc(c, WHITE, clamp01(ping[i] + seen[i] * 0.5));
+        blip.userData.set(i, mc[0] * b, mc[1] * b, mc[2] * b);
       }
       for (let i = 0; i < 12; i++) setRim(rim, i, c, 1);
     },
@@ -1006,30 +1113,57 @@ function buildRadar(row) {
 }
 
 function buildTAM(row) {
-  const c = rgb(row.color), N = 16, HN = 48;
+  // An actual galaxy this time: two log-spiral arms of quads winding out of the
+  // rim, a fixed starfield that twinkles instead of rotating, and a brightening
+  // wave that rolls out along the arms when the hole grows. All quad placement
+  // is a pure function of index and t — deterministic by construction.
+  const c = rgb(row.color), ice = rgb(0xdcc8ff), N = 16, ARMS = 2, PER = 26, STARS = 14;
   const rim = ringPart(12, [0.86, 1.01], [1, 1], { y: 0.02, order: 1000 });
   const captured = ringPart(N, [1.03, 1.10], [1, 1], { additive: true, gap: 0.15, y: 0.021, order: 1001 });
-  const outer = new THREE.Group();
-  const halo = ringPart(HN, [1.4, 2.1, 2.8], [0, 1, 0], { additive: true, sub: 1, y: 0.022, order: 1002 });
-  const edge = tickPart(12, [2.72, 2.92], [1, 1], 0.02, { additive: true, y: 0.023, order: 1003 });
-  outer.add(halo, edge);
+  const sky = worldQuads(ARMS * PER + STARS, { local: true });
   let flare = 0, lastSize = 1;
   return {
-    parts: [rim, captured, outer],
+    parts: [rim, captured, sky],
     onEat() {},
     update(st) {
       if (st.size > lastSize) { flare = 1; lastSize = st.size; }
       flare *= Math.max(0, 1 - st.dt * 1.6);
-      outer.scale.setScalar(reach(2.8, st.radius) / 2.8);
-      if (!st.reduced) outer.rotation.y = -st.t * 0.12;
-      for (let i = 0; i < HN; i++) {
-        const lobe = 0.6 + 0.4 * Math.sin(i / HN * TAU * 3 + (st.reduced ? 0 : st.t * 0.5));
-        const b = (0.048 + flare * 0.2) * lobe;
-        halo.userData.set(i, c[0] * b, c[1] * b, c[2] * b);
+      const R = reach(2.6, st.radius) / 2.6;
+      const T = st.reduced ? 0 : st.t;
+      const rot = T * 0.14;
+      for (let a = 0; a < ARMS; a++) {
+        for (let k = 0; k < PER; k++) {
+          const i = a * PER + k;
+          // Swept by ANGLE, not by index: quad half-width tracks r*step so
+          // consecutive quads overlap and the arm reads as a BAND. Spaced out
+          // dots at this radius read as a uniform scatter, not a spiral.
+          const th = k * 0.16;
+          const ang = a * Math.PI + th + rot;
+          const r = 1.06 * Math.exp(0.030 * k) * R;
+          // growth flare: a brightening wave rolling outward along the arm
+          const wave = flare * Math.max(0, 1 - Math.abs(k - (1 - flare) * PER) / 3);
+          const tw = st.reduced ? 0.6 : 0.6 + 0.4 * Math.sin(T * 0.8 + k * 1.3 + a * 2.1);
+          const b = (0.5 - (k / PER) * 0.35) * tw + wave * 0.5;
+          const col = mixc(c, ice, 0.25 + wave * 0.5);
+          // overlap near the hub so the band reads, but CAP the quad: an
+          // uncapped r-proportional quad is a 2 m paving slab at SIZE 12
+          const s = Math.min(r * 0.075, 0.14 * R);
+          sky.userData.setQuad(i, Math.cos(ang) * r, Math.sin(ang) * r, s, s, ang,
+            col[0] * b, col[1] * b, col[2] * b);
+        }
       }
-      for (let i = 0; i < 12; i++) {
-        const b = 0.22 + flare * 0.6;
-        edge.userData.set(i, c[0] * b, c[1] * b, c[2] * b);
+      // the starfield: fixed positions (golden angle), only the twinkle moves.
+      // Deliberately smaller than any arm quad, or stars and arm read as one
+      // scatter of identical squares.
+      for (let sI = 0; sI < STARS; sI++) {
+        const i = ARMS * PER + sI;
+        const ang = sI * 2.399963;
+        const r = (1.35 + (sI % 5) * 0.27) * R;
+        const tw = st.reduced ? 0.5 : 0.5 + 0.5 * Math.sin(T * 1.1 + sI * 1.7);
+        const b = 0.10 + tw * 0.4 + flare * 0.2;
+        const sz = 0.045 * R;
+        sky.userData.setQuad(i, Math.cos(ang) * r, Math.sin(ang) * r, sz, sz, 0.785,
+          ice[0] * b, ice[1] * b, ice[2] * b);
       }
       const lit = clamp01(st.progress) * N;
       for (let i = 0; i < N; i++) {
@@ -1049,8 +1183,15 @@ function buildABTest(row) {
   const lock = new THREE.Group();
   const rim = ringPart(N, [0.86, 1.01], [1, 1], { y: 0.02, order: 1000 });
   const sig = ringPart(N, [1.04, 1.11], [1, 1], { additive: true, gap: 0.2, y: 0.021, order: 1001 });
-  lock.add(rim, sig);
+  // the seam: two bright dividers welded to the split axis, shimmering, so the
+  // boundary between variants is an EVENT and not just where two colours meet
+  const seam = tickPart(2, [0.84, 1.02], [1, 1], 0.022, { additive: true, y: 0.022, order: 1002 });
+  const confetti = worldQuads(6, { local: true });
+  // confetti lives INSIDE the lock group: the burst must come off the winner's
+  // side, and the side only exists in the heading-locked frame
+  lock.add(rim, sig, seam, confetti);
   let sa = 3, sb = 3, flash = 0, winner = 0;
+  const bits = [];
   return {
     parts: [lock],
     onEat(st, e) {
@@ -1068,8 +1209,28 @@ function buildABTest(row) {
       const total = sa + sb;
       const lead = Math.abs(sa - sb) / Math.max(1, Math.sqrt(total));
       const conf = clamp01(lead / 1.96);      // a wink at p < 0.05, not real stats
-      if (conf >= 1) { flash = 1; winner = sa > sb ? 0 : 1; sa = 3; sb = 3; }
+      if (conf >= 1) {
+        flash = 1; winner = sa > sb ? 0 : 1; sa = 3; sb = 3;
+        // significance is the payoff: confetti in the WINNER's colour
+        const wc = winner === 0 ? A : B;
+        for (let j = 0; j < 6; j++) {
+          bits[j] = { t0: st.t, a: winner * Math.PI + (j - 2.5) * 0.5,
+                      sp: 0.7 + ((j * 5) % 4) * 0.2, r: wc[0], g: wc[1], b: wc[2] };
+        }
+      }
       const aWin = sa >= sb;
+      // the seam shimmers; it is welded into the lock group, so it tracks the
+      // split axis for free
+      const sh = st.reduced ? 0.5 : 0.5 + 0.3 * Math.sin(st.t * 3);
+      for (let i = 0; i < 2; i++) seam.userData.set(i, sh, sh, sh);
+      for (let j = 0; j < 6; j++) {
+        const q = bits[j];
+        const kk = q ? Math.max(0, 1 - (st.t - q.t0) / 0.6) : 0;
+        if (kk <= 0) { confetti.userData.setQuad(j, 0, 0, 0, 0, 0, 0, 0, 0); continue; }
+        const d = 1.1 + (1 - kk) * q.sp;
+        confetti.userData.setQuad(j, Math.cos(q.a) * d, Math.sin(q.a) * d, 0.05, 0.05, q.a,
+          q.r * kk, q.g * kk, q.b * kk);
+      }
       for (let i = 0; i < N; i++) {
         const isA = i < N / 2;
         const c = isA ? A : B;
@@ -1080,7 +1241,7 @@ function buildABTest(row) {
         // significance arc grows on the leader's side only
         const idx = isA ? i : i - N / 2;
         const on = (isA === aWin) && idx < conf * (N / 2);
-        const sb2 = on ? 0.9 + fl * 1.5 : 0.06;
+        const sb2 = on ? 1.1 + fl * 1.5 : 0.06;
         sig.userData.set(i, c[0] * sb2, c[1] * sb2, c[2] * sb2);
       }
     },
@@ -1089,12 +1250,13 @@ function buildABTest(row) {
 
 function buildAttribution(row) {
   // 4 ripples covers the worst case: 0.9 s life against ~0.26 s between
-  // consumptions at a high chain. Each is its own mesh, which is why this is the
-  // only skin above 5 draw calls.
-  const c = rgb(row.color), accent = rgb(0x4fd1c5), DOTS = 64, RIPPLES = 4;
+  // consumptions at a high chain. Each is its own mesh, which is why this skin
+  // sits AT the 7-draw-call ceiling — and why the crumbs and their breadcrumb
+  // links share ONE worldQuads mesh below instead of getting a mesh each.
+  const c = rgb(row.color), accent = rgb(0x4fd1c5), CRUMBS = 40, LINKS = 24, RIPPLES = 4;
   const rim = ringPart(12, [0.86, 1.01], [1, 1], { y: 0.02, order: 1000 });
   const dial = tickPart(12, [1.05, 1.12], [1, 1], 0.022, { additive: true, y: 0.021, order: 1001 });
-  const dots = worldQuads(DOTS);
+  const dots = worldQuads(CRUMBS + LINKS);
   const rip = [];
   for (let i = 0; i < RIPPLES; i++) {
     const m = ringPart(24, [0.7, 0.88, 1.0], [0, 1, 0], { additive: true, sub: 2, y: 0.0098, order: 6 });
@@ -1109,7 +1271,7 @@ function buildAttribution(row) {
     world: [dots, ...rip.map((r) => r.mesh)],
     onEat(st, e) {
       const x = e.x ?? st.x, z = e.z ?? st.z;
-      log[head % DOTS] = { x, z, t: st.t };
+      log[head % CRUMBS] = { x, z, t: st.t };
       head++;
       pulse = 1;
       const free = rip.find((r) => r.life <= 0);
@@ -1117,13 +1279,34 @@ function buildAttribution(row) {
     },
     update(st) {
       pulse *= Math.max(0, 1 - st.dt * 3);
-      for (let i = 0; i < DOTS; i++) {
+      // crumbs: small and quick-fading. The old dots were 60% bigger and lived
+      // 25 s, which paved the city in chunky teal squares — a touchpoint is a
+      // pinprick, not a paving stone.
+      for (let i = 0; i < CRUMBS; i++) {
         const e = log[i];
         if (!e) { dots.userData.setQuad(i, 0, 0, 0, 0, 0, 0, 0, 0); continue; }
         const age = st.t - e.t;
-        const k = Math.max(0, 1 - age / 25);
-        const s = st.radius * (0.16 + (1 - k) * 0.07);
+        const k = Math.max(0, 1 - age / 18);
+        const s = st.radius * (0.10 + (1 - k) * 0.04);
         dots.userData.setQuad(i, e.x, e.z, s, s, 0.785, accent[0] * k * 0.8, accent[1] * k * 0.8, accent[2] * k * 0.8);
+      }
+      // the breadcrumb path: a faint dash between consecutive touchpoints, so
+      // the route reads as a JOURNEY and not a scatter. Log order is write
+      // order, so the newest LINKS entries chain backwards from head.
+      for (let j = 0; j < LINKS; j++) {
+        const idx = CRUMBS + j;
+        const n = head - 1 - j;
+        const e1 = n >= 0 ? log[n % CRUMBS] : null;
+        const e0 = n - 1 >= 0 ? log[(n - 1) % CRUMBS] : null;
+        if (!e0 || !e1) { dots.userData.setQuad(idx, 0, 0, 0, 0, 0, 0, 0, 0); continue; }
+        const k = Math.max(0, 1 - (st.t - e1.t) / 18);
+        const dx = e1.x - e0.x, dz = e1.z - e0.z;
+        const len = Math.hypot(dx, dz);
+        if (len < 1e-3 || k <= 0) { dots.userData.setQuad(idx, 0, 0, 0, 0, 0, 0, 0, 0); continue; }
+        const b = k * 0.22;
+        dots.userData.setQuad(idx, (e0.x + e1.x) / 2, (e0.z + e1.z) / 2,
+          len / 2, st.radius * 0.03, Math.atan2(dz, dx),
+          accent[0] * b, accent[1] * b, accent[2] * b);
       }
       for (const r of rip) {
         if (r.life <= 0) { r.mesh.visible = false; continue; }
@@ -1131,7 +1314,7 @@ function buildAttribution(row) {
         const k = clamp01(r.life / 0.9);
         // reduced motion: land on the final state, do not travel to it.
         // Scaled by the hole, or a SIZE-1 ripple swamps a 2.2 m player.
-        const s = st.radius * (st.reduced ? 1.5 : 0.8 + (1 - k) * 1.2);
+        const s = st.radius * (st.reduced ? 1.3 : 0.7 + (1 - k) * 0.9);
         r.mesh.position.set(r.x, 0.0098, r.z);
         r.mesh.scale.setScalar(s);
         const b = k * k * 0.32;
@@ -1159,11 +1342,14 @@ function buildCompounding(row) {
   const spin = new THREE.Group();
   const teeth = tickPart(12, [1.02, 1.15], [1, 0.9], 0.05, { additive: true, y: 0.021, order: 1001 });
   spin.add(teeth);
+  // The growth shockwave: one transient ring, invisible at rest, that scales
+  // out of the rim when the hole grows. The payoff moment the dial cannot show.
+  const shock = ringPart(24, [1.02, 1.14, 1.30], [0, 1, 0], { additive: true, sub: 2, y: 0.022, order: 1002 });
   const trail = worldQuads(TRAIL);
   const pts = [];
   let head = 0, lastDrop = -1, ang = 0, flare = 0, lastSize = 1;
   return {
-    parts: [dial, spin],
+    parts: [dial, spin, shock],
     world: [trail],
     onEat() {},
     update(st) {
@@ -1171,12 +1357,18 @@ function buildCompounding(row) {
       flare *= Math.max(0, 1 - st.dt * 1.3);
       if (!st.reduced) ang += st.dt * (0.28 + st.speed * 0.05);
       spin.rotation.y = -ang;
+      // shockwave: expands and fades with the flare, gone at flare = 0
+      shock.scale.setScalar(1 + (1 - flare) * 1.2);
+      const sb = flare * flare * 0.6;
+      for (let i = 0; i < 24; i++) shock.userData.set(i, hot[0] * sb, hot[1] * sb, hot[2] * sb);
       // The growth curve: a ribbon dropped at a fixed spatial interval, so it
       // records DISTANCE travelled, not time — a parked hole does not smear.
+      // Segments are SHORT and WIDELY spaced: long dense ones pave the path
+      // into a slab, and the gaps are what keeps it reading as a plotted curve.
       const prev = pts[(head - 1 + TRAIL) % TRAIL];
-      const gap = st.radius * 0.9;           // drop spacing scales with the hole
+      const gap = st.radius * 1.2;           // drop spacing scales with the hole
       if (!prev || (st.x - prev.x) ** 2 + (st.z - prev.z) ** 2 > gap * gap) {
-        pts[head % TRAIL] = { x: st.x, z: st.z, t: st.t, a: st.heading, w: st.radius * 0.15, l: gap * 0.60 };
+        pts[head % TRAIL] = { x: st.x, z: st.z, t: st.t, a: st.heading, w: st.radius * 0.15, l: gap * 0.42 };
         head++;
       }
       for (let i = 0; i < TRAIL; i++) {
@@ -1185,7 +1377,9 @@ function buildCompounding(row) {
         const near = Math.hypot(p.x - st.x, p.z - st.z) < st.radius * 1.15;
         if (near) { trail.userData.setQuad(i, 0, 0, 0, 0, 0, 0, 0, 0); continue; }
         const k = Math.max(0, 1 - (st.t - p.t) / 7);
-        const b = k * k * (0.22 + flare * 0.5);
+        // brightness rises toward the hole: the curve climbs as it approaches
+        // you, which is the whole pitch
+        const b = k * k * (0.30 + flare * 0.5);
         const col = mixc(c, hot, k * 0.2 + flare * 0.35);
         // local +x runs along travel: heading is atan2(dx, dz), so the quad's
         // rotation is its complement. Getting this wrong lays the ribbon
@@ -1194,11 +1388,14 @@ function buildCompounding(row) {
         trail.userData.setQuad(i, p.x, p.z, p.l, p.w * (0.35 + k * 0.65), ang,
           col[0] * b, col[1] * b, col[2] * b);
       }
+      // a coin-glint sweeping the dial on top of the fill, so even a stalled
+      // fill line reads as polished metal rather than a static gauge
       const lit = st.sizeFrac * N;
       for (let i = 0; i < N; i++) {
         const on = i < lit;
-        const k = mixc(c, hot, (on ? 0.4 : 0) + flare * 0.8 + st.glow);
-        const b = (on ? 1.15 : 0.28) + flare * 0.9 + st.glow * 0.5;
+        const g = Math.pow(Math.max(0, Math.cos(i / N * TAU - (st.reduced ? 0.7 : st.t * 1.2))), 10);
+        const k = mixc(c, hot, (on ? 0.4 : 0) + g * 0.6 + flare * 0.8 + st.glow);
+        const b = (on ? 1.15 : 0.28) + g * 0.7 + flare * 0.9 + st.glow * 0.5;
         dial.userData.set(i, k[0] * b, k[1] * b, k[2] * b);
       }
       for (let i = 0; i < 12; i++) {
@@ -1226,6 +1423,12 @@ function buildCompounding(row) {
 // --- The Shredder ---------------------------------------------------------
 // Two banks of square blades, offset by half a pitch so they INTERLEAVE rather
 // than butt together. Unqualified leads go in; confetti comes out.
+//
+// The whole mill sits in a parent group canted 15° off the city grid, which is
+// what stops it reading as a cattle grid over a manhole: axis-aligned with the
+// streets it was furniture; diagonal it is machinery. During a bite the two
+// banks scissor a few degrees against each other, so the mesh visibly WORKS
+// rather than just heating up.
 function buildShredder(row) {
   const steel = rgb(row.color), red = rgb(0xff4d4d), pale = rgb(0xdfe8f5);
   const N = 6, LEN = [0, 0.34, 0.62, 0.88, 1.12, 1.34];
@@ -1237,23 +1440,30 @@ function buildShredder(row) {
   const gB = new THREE.Group(); gB.add(bankB); gB.position.z = 0.99;
   gB.rotation.y = Math.PI;
   gB.position.x = 0.136;                     // half a pitch: the blades mesh
+  const mill = new THREE.Group();
+  mill.add(gA, gB);
+  mill.rotation.y = 0.26;                    // 15° off the grid: machinery, not a grate
+  const CANT_C = Math.cos(0.26), CANT_S = Math.sin(0.26);
   const rim = ringPart(16, [0.84, 1.02], [1, 1], { y: 0.024, order: 1006 });
-  const chaff = worldQuads(14, { local: true });
+  const chaff = worldQuads(28, { local: true });
   const jaw = new Chomp();
   const rowsA = new Float32Array(LEN.length);
   const bits = [];
   return {
-    parts: [rim, gA, gB, chaff],
+    parts: [rim, mill, chaff],
     onEat(st, e) {
       jaw.fire(st.t, e);
-      for (let i = 0; i < 14; i++) {
+      for (let i = 0; i < 28; i++) {
         // deterministic spray: index-derived, no rng
         bits[i] = { t0: st.t, side: i % 2 ? 1 : -1, o: ((i * 9) % 14) / 14 - 0.5,
-                    sp: 1.2 + ((i * 5) % 7) * 0.22 };
+                    sp: 1.2 + ((i * 5) % 7) * 0.22, red: i % 3 === 0 };
       }
     },
     update(st) {
       const c = jaw.value(st.dt);
+      // the scissor: banks counter-rotate a few degrees as they bite
+      gA.rotation.y = 0.10 * c;
+      gB.rotation.y = Math.PI - 0.10 * c;
       reveal(rowsA, LEN.length, 0.24 + 0.76 * c);
       const heat = clamp01(c * 1.3);
       const col = mixc(steel, red, heat * 0.9);
@@ -1262,14 +1472,20 @@ function buildShredder(row) {
         bankA.userData.setRows(i, rowsA, col[0] * b, col[1] * b, col[2] * b);
         bankB.userData.setRows(i, rowsA, col[0] * b, col[1] * b, col[2] * b);
       }
-      for (let i = 0; i < 14; i++) {
+      for (let i = 0; i < 28; i++) {
         const q = bits[i];
         const k = q ? Math.max(0, 1 - (st.t - q.t0) / 0.55) : 0;
         if (k <= 0) { chaff.userData.setQuad(i, 0, 0, 0, 0, 0, 0, 0, 0); continue; }
         const d = 0.75 + (1 - k) * q.sp;
         const bb = k * 0.85;
-        chaff.userData.setQuad(i, q.side * d, q.o * 2.1, 0.062, 0.062, q.o * 4,
-          pale[0] * bb, pale[1] * bb, pale[2] * bb);
+        // two-tone paper: mostly pale, every third chip runs red. The spray is
+        // rotated by the mill's cant so the chips come off the blades, not off
+        // where the blades used to be.
+        const lx = q.side * d, lz = q.o * 2.1;
+        const wx = lx * CANT_C + lz * CANT_S, wz = -lx * CANT_S + lz * CANT_C;
+        const pc = q.red ? red : pale;
+        chaff.userData.setQuad(i, wx, wz, 0.062, 0.062, q.o * 4,
+          pc[0] * bb, pc[1] * bb, pc[2] * bb);
       }
       // the round rim has to hold its own against two straight banks, or the
       // whole thing silhouettes as a square grate over a round hole
@@ -1291,29 +1507,44 @@ function buildCloser(row) {
   const gA = new THREE.Group(); gA.add(setA);
   const gB = new THREE.Group(); gB.add(setB);
   const rim = ringPart(24, [0.84, 1.01], [1, 1], { y: 0.02, order: 1000 });
+  // the engraving: a faint gapped hairline inside the teeth, always on. It is
+  // what makes the rest pose read as jewellery instead of a plain toothed rim.
+  const engrave = ringPart(24, [0.70, 0.73], [1, 1], { additive: true, gap: 0.4, y: 0.021, order: 1001 });
   const jaw = new Chomp();
   const rows = new Float32Array(R.length);
+  let lastC = 0, flashT = -9;
   return {
-    parts: [rim, gA, gB],
+    parts: [rim, gA, gB, engrave],
     onEat(st, e) { jaw.fire(st.t, e); },
     onGrowth(st) { jaw.fire(st.t, { size: 1, golden: true }); },
     update(st) {
       const c = jaw.value(st.dt);
-      // idle drift: the teeth breathe a couple of percent so it is never frozen
+      // the payoff: a 100 ms over-bright the instant the iris seals shut
+      if (c >= 0.92 && lastC < 0.92) flashT = st.t;
+      lastC = c;
+      const seal = Math.max(0, 1 - (st.t - flashT) / 0.10);
+      // idle drift: the teeth breathe a couple of percent and the two sets
+      // counter-twist a couple of degrees, so it is never a parked aperture
       const idle = st.reduced ? 0 : 0.5 + 0.5 * Math.sin(st.t * 1.1);
+      const twist = st.reduced ? 0 : 0.03 * Math.sin(st.t * 0.7);
       reveal(rows, R.length, 0.13 + idle * 0.02 + 0.85 * c);
       // counter-twist as they close — this is what makes them MESH instead of
       // collide, and it is the whole reason there are two sets of six
-      gA.rotation.y = 0.10 * c;
-      gB.rotation.y = -0.10 * c;
-      const col = mixc(steel, gold, clamp01(c * 1.25));
-      const b = 0.66 + c * 0.75 + st.glow * 0.35;
+      gA.rotation.y = 0.10 * c + twist;
+      gB.rotation.y = -0.10 * c - twist;
+      const col = mixc(mixc(steel, gold, clamp01(c * 1.25)), hot, seal);
+      const b = 0.66 + c * 0.75 + seal * 0.5 + st.glow * 0.35;
       for (let i = 0; i < 6; i++) {
         setA.userData.setRows(i, rows, col[0] * b, col[1] * b, col[2] * b);
         setB.userData.setRows(i, rows, col[0] * b, col[1] * b, col[2] * b);
       }
-      const rc = mixc(steel, c > 0.92 ? hot : gold, clamp01(c * 1.1) * 0.8 + st.glow);
-      for (let i = 0; i < 24; i++) setRim(rim, i, rc, 0.7 + c * 0.4);
+      const eb = 0.10 + c * 0.25 + seal * 0.4;
+      const ec = mixc(steel, gold, 0.5 + seal * 0.5);
+      for (let i = 0; i < 24; i++) {
+        engrave.userData.set(i, ec[0] * eb, ec[1] * eb, ec[2] * eb);
+        const rc = mixc(steel, c > 0.92 ? hot : gold, clamp01(c * 1.1) * 0.8 + st.glow + seal * 0.5);
+        setRim(rim, i, rc, 0.7 + c * 0.4 + seal * 0.3);
+      }
     },
   };
 }
@@ -1322,7 +1553,7 @@ function buildCloser(row) {
 // The void is a pupil. It watches the largest mass near it, constricts when it
 // swallows, and blinks when its combo is about to die.
 function buildEyeballs(row) {
-  const iris = rgb(row.color), limb = rgb(0xffe08a), lidc = rgb(0x141014);
+  const iris = rgb(row.color), limb = rgb(0xffe08a), lidc = rgb(0x141014), vein = rgb(0xff6a5a);
   const IR = [0.40, 0.58, 0.76, 0.94, 1.02];
   const irisPart = ringPart(24, IR, [1, 1, 1, 1, 1], { sub: 2, y: 0.021, order: 1001 });
   const rim = ringPart(24, [0.94, 1.06], [1, 1], { y: 0.02, order: 1000 });
@@ -1354,14 +1585,20 @@ function buildEyeballs(row) {
       if (SM) for (let i = 0; i < NS; i++) if (SM[i] > bv) { bv = SM[i]; bi = i; }
       const a = (bi + 0.5) / NS * TAU;
       const g = st.reduced ? 0 : Math.min(0.17, bv * 0.22);
-      look.position.x += (Math.cos(a) * g - look.position.x) * Math.min(1, st.dt * 4);
-      look.position.z += (Math.sin(a) * g - look.position.z) * Math.min(1, st.dt * 4);
+      look.position.x += (Math.cos(a) * g - look.position.x) * Math.min(1, st.dt * 6);
+      look.position.z += (Math.sin(a) * g - look.position.z) * Math.min(1, st.dt * 6);
       // the iris' INNER edge is the pupil, animated purely by the reveal ramp
       for (let j = 0; j < IR.length; j++) rowsIris[j] = clamp01((IR[j] - pupil) / 0.16);
       for (let i = 0; i < 24; i++) {
         const fibre = 0.72 + 0.28 * Math.cos(i * 2.4);         // iris striations
-        const c = mixc(iris, limb, i % 2 ? 0.28 : 0);
-        const b = fibre * (0.95 + st.glow * 0.6);
+        let c = mixc(iris, limb, i % 2 ? 0.28 : 0);
+        // the eye bloodshots when its combo is about to die
+        if (panic && (i === 10 || i === 15 || i === 20)) c = mixc(c, vein, 0.45);
+        // a fixed two-wedge specular glint: the light source that makes it wet.
+        // Restrained — at SIZE 12 an undamped glint is a white slab, not a glint
+        const glint = i === 2 || i === 3;
+        if (glint) c = mixc(c, WHITE, 0.45);
+        const b = fibre * (0.95 + st.glow * 0.6) + (glint ? 0.25 : 0);
         irisPart.userData.setRows(i, rowsIris, c[0] * b, c[1] * b, c[2] * b);
         setRim(rim, i, mixc(limb, WHITE, st.glow), 0.85);
       }
@@ -1385,7 +1622,9 @@ function buildEyeballs(row) {
 function buildThroat(row) {
   const c = rgb(row.color), deep = rgb(0x5c1436), pale = rgb(0xffd2e8);
   const mouth = new THREE.Group();
-  const lip = ringPart(16, [0.86, 1.01], [1, 1], { y: 0.02, order: 1000 });
+  // the lip carries the gloss: a bright rung at its INNER edge (the wet part),
+  // baked into the radial ramp so it costs no part and no per-frame branch
+  const lip = ringPart(16, [0.86, 0.92, 1.01], [1.2, 0.75, 1], { y: 0.02, order: 1000 });
   const flare = ringPart(16, [1.04, 1.20], [1, 1], { additive: true, gap: 0.1, y: 0.021, order: 1001 });
   mouth.add(lip, flare);
   const RR = [0.80, 0.65, 0.51, 0.39, 0.28];
@@ -1422,16 +1661,16 @@ function buildThroat(row) {
         // Damped by (1 - hq) so a bite always outshouts it, and exactly 0 under
         // reduced motion, which leaves that path's numbers untouched.
         //
-        // 3.2 is deliberately large: the resting rings sit at 0.03-0.11 and a
+        // 4.6 is deliberately large: the resting rings sit at 0.03-0.11 and a
         // 60% swing on that measures fine and is invisible on screen (two shots
-        // at opposite phases were indistinguishable). It peaks near 0.47 on the
-        // outer ring against a bite's ~2.0, so it is loud enough to see and
-        // still a quarter of what a bite does.
+        // at opposite phases were indistinguishable). It peaks near 0.65 on the
+        // outer ring against a bite's ~2.0, so the peristalsis is unmissable
+        // and still a third of what a bite does.
         const sw = st.reduced ? 0 : (0.5 + 0.5 * Math.sin(st.t * 1.9 - j * 0.85)) * (1 - hq);
         // resting brightness falls off inward: that gradient IS the depth cue,
         // so the pulse multiplies the falloff rather than adding a flat term,
         // which would wash the gradient out at every crest.
-        const base = (0.10 * (1 - j / rings.length) + 0.012) * (1 + sw * 3.2);
+        const base = (0.10 * (1 - j / rings.length) + 0.012) * (1 + sw * 4.6);
         const k = mixc(mixc(deep, c, 0.5), hc, hq);
         const b = base + hot * 1.9;
         rings[j].scale.setScalar(1 - hot * 0.20 + sw * 0.02);
@@ -1448,7 +1687,13 @@ function buildThroat(row) {
 
 // --- Dashboard Jaws -------------------------------------------------------
 // A radial bar chart of your last twelve bites that is also a bear trap. The
-// bars are real data; the fangs are what the data does when it is hungry.
+// two ideas are separated SPATIALLY so the rest pose stops reading as a
+// sunburst: the chart lives entirely OUTSIDE the rim and is always on; the
+// fangs live entirely INSIDE it and are geometrically absent at rest (reveal
+// 0, brightness 0), so the resting skin is a clean ring with a chart round it.
+// A bite snaps the fangs in from zero — hard and fast — while the new bar
+// plants itself on the chart. The bars are real data; the fangs are what the
+// data does when it is hungry.
 function buildChomper(row) {
   const bar = rgb(row.color), fang = rgb(0xf2fbff), warn = rgb(0xff5d7a);
   const N = 12;
@@ -1461,7 +1706,10 @@ function buildChomper(row) {
   // the attribute arrays caught it. See the length guard in finishPart().
   const onesB = BR.map(() => 1), onesF = FR.map(() => 1);
   const bars = tickPart(N, BR, onesB, 0.075, { additive: true, y: 0.021, order: 1001 });
-  const fangs = tickPart(N, FR, onesF, 0.066, { taper: 0.28, y: 0.023, order: 1003 });
+  // ADDITIVE is load-bearing here: the new rest pose hides the fangs by writing
+  // brightness 0, and on a normal-blended part 0 is not "gone", it is BLACK —
+  // twelve opaque spokes parked over the void. Additive makes 0 invisible.
+  const fangs = tickPart(N, FR, onesF, 0.066, { additive: true, taper: 0.28, y: 0.023, order: 1003 });
   const rim = ringPart(N, [0.88, 1.01], [1, 1], { y: 0.02, order: 1000 });
   const hist = new Float32Array(N);
   const rowsB = new Float32Array(BR.length), rowsF = new Float32Array(FR.length);
@@ -1480,8 +1728,11 @@ function buildChomper(row) {
       const c = jaw.value(st.dt) * (st.reduced ? 0.55 : 1);
       let max = 1e-6;
       for (let i = 0; i < N; i++) max = Math.max(max, hist[i]);
-      reveal(rowsF, FR.length, 0.06 + 0.94 * c);
-      const fb = safeb(fang, 0.5 + c * 0.7 + flash * 0.4);
+      // The snap: pow(c, 0.5) front-loads the jaw curve so the fangs are most
+      // of the way in within ~80 ms, and the reveal starts at ZERO — no teeth
+      // at rest, which is the whole fix.
+      reveal(rowsF, FR.length, clamp01(Math.pow(c, 0.5) * 1.1));
+      const fb = safeb(fang, c * 1.3 + flash * 0.4);
       const fc = mixc(fang, warn, clamp01(c * 0.9) * 0.7);
       for (let i = 0; i < N; i++) {
         // newest bar first, walking backwards: the chart reads clockwise from
@@ -1490,7 +1741,7 @@ function buildChomper(row) {
         reveal(rowsB, BR.length, 0.1 + clamp01(v) * 0.9);
         const recent = i < 1 ? 1 : i < 3 ? 0.55 : 0;
         const bc = mixc(bar, WHITE, recent * 0.5 + flash * 0.6);
-        const bb = (0.34 + recent * 0.5 + flash * 0.45) * (1 + st.glow * 0.4);
+        const bb = (0.42 + recent * 0.5 + flash * 0.45) * (1 + st.glow * 0.4);
         bars.userData.setRows(i, rowsB, bc[0] * bb, bc[1] * bb, bc[2] * bb);
         fangs.userData.setRows(i, rowsF, fc[0] * fb, fc[1] * fb, fc[2] * fb);
         setRim(rim, i, mixc(bar, WHITE, st.glow + flash * 0.5), 0.7 + c * 0.35);

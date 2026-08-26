@@ -13,12 +13,19 @@
        &t=30                   fast-forward the sim this many seconds before first paint
        &cx=&cy=&cz=&tx=&ty=&tz fixed camera position / look-at (world metres)
        &chase=1                low chase framing that follows the hole instead
-       &fov=60                 camera fov -->
-<style>html,body{margin:0;height:100%;background:#1a1f3d;overflow:hidden}canvas{width:100vw;height:100vh;display:block}</style>
+       &fov=60                 camera fov
+     Without cx/chase the camera is a free-look orbit (hand-rolled — there is
+     no vendored OrbitControls): left-drag orbit, wheel zoom, right/shift-drag
+     pan, one-finger orbit / pinch zoom / two-finger pan on touch, WASD/arrows
+     move the target, Q/E or PgUp/PgDn its height. Init frames the scene's
+     boundsRect so harbour-scale scenes land fully in view. -->
+<style>html,body{margin:0;height:100%;background:#1a1f3d;overflow:hidden}canvas{width:100vw;height:100vh;display:block;touch-action:none}
+#hint{position:fixed;left:8px;bottom:8px;color:#cfd8e3;font:12px/1.4 system-ui,sans-serif;background:rgba(10,14,30,.55);padding:4px 8px;border-radius:6px;pointer-events:none}</style>
 <script type="importmap">{ "imports": { "three": "../js/vendor/three.module.js" } }</script>
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="hint">drag orbit · wheel zoom · right/shift-drag pan · WASD/arrows move · Q/E height · M mute</div>
 <script type="module">
 import * as THREE from 'three';
 import { VoxelSandboxSim, loadScene } from '../js/voxelsim.js';
@@ -77,7 +84,96 @@ const warm = num('t', 0);
 for (let i = 0; i < warm * 60; i++) sim.step(FIXED_DT, moveAt(sim.time));
 
 const chase = !!q.get('chase');
+const fixed = q.get('cx') !== null; // explicit camera params keep the old fixed framing
 let heading = 0;
+
+// --- free-look orbit (default when neither chase nor cx is given) -----------
+// Frame the whole scene from its bounds: distance so the bounding circle fits
+// the vertical fov (and the horizontal one on narrow portrait viewports).
+const br = sim.boundsRect || { minX: -sim.bounds, maxX: sim.bounds, minZ: -sim.bounds, maxZ: sim.bounds };
+const orbit = {
+  target: { x: (br.minX + br.maxX) / 2, y: 0, z: (br.minZ + br.maxZ) / 2 },
+  yaw: Math.PI / 4,
+  pitch: 0.7,
+  dist: 100,
+};
+{
+  const radius = Math.hypot(br.maxX - br.minX, br.maxZ - br.minZ) / 2;
+  const fovV = (cam.fov * Math.PI) / 180;
+  const fovH = 2 * Math.atan(Math.tan(fovV / 2) * cam.aspect);
+  orbit.dist = Math.min(850, (radius / Math.tan(Math.min(fovV, fovH) / 2)) * 1.1);
+}
+const clampOrbit = () => {
+  // pitch floor keeps the camera above the ground plane, ceiling short of gimbal top-down
+  orbit.pitch = Math.max(0.08, Math.min(1.45, orbit.pitch));
+  orbit.dist = Math.max(5, Math.min(850, orbit.dist));
+  orbit.target.y = Math.max(0, Math.min(120, orbit.target.y));
+};
+
+const pointers = new Map(); // pointerId -> {x, y}
+let pinchDist = 0;
+const panScale = () => orbit.dist * 0.0016; // world metres per pixel, distance-proportional
+const applyOrbitDrag = (dx, dy) => { orbit.yaw -= dx * 0.005; orbit.pitch += dy * 0.005; };
+const applyPan = (dx, dy) => {
+  const s = panScale(), cy = Math.cos(orbit.yaw), sy = Math.sin(orbit.yaw);
+  orbit.target.x -= (dx * cy - dy * sy) * s;
+  orbit.target.z -= (-dx * sy - dy * cy) * s;
+};
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+canvas.addEventListener('pointerdown', (e) => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, button: e.button, shift: e.shiftKey });
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+  }
+});
+canvas.addEventListener('pointermove', (e) => {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  if (pointers.size === 2) {
+    // two fingers: pinch zooms, the pair's average motion pans
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (pinchDist > 0) orbit.dist *= pinchDist / Math.max(1, d);
+    pinchDist = d;
+    applyPan(dx / 2, dy / 2);
+  } else if (p.button === 2 || p.shift) {
+    applyPan(dx, dy);
+  } else {
+    applyOrbitDrag(dx, dy);
+  }
+  clampOrbit();
+});
+const endPointer = (e) => { pointers.delete(e.pointerId); pinchDist = 0; };
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+addEventListener('wheel', (e) => {
+  orbit.dist *= Math.exp(e.deltaY * 0.0012);
+  clampOrbit();
+}, { passive: true });
+
+const keys = new Set();
+addEventListener('keydown', (e) => keys.add(e.code));
+addEventListener('keyup', (e) => keys.delete(e.code));
+function stepOrbitKeys(dt) {
+  const v = orbit.dist * 0.6 * dt; // move faster when zoomed out
+  const cy = Math.cos(orbit.yaw), sy = Math.sin(orbit.yaw);
+  let fx = 0, fz = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) fz -= 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) fz += 1;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) fx -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) fx += 1;
+  orbit.target.x += (fx * cy - fz * sy) * v;
+  orbit.target.z += (-fx * sy - fz * cy) * v;
+  if (keys.has('KeyQ') || keys.has('PageDown')) orbit.target.y -= v;
+  if (keys.has('KeyE') || keys.has('PageUp')) orbit.target.y += v;
+  clampOrbit();
+}
+window.__orbit = orbit; // read back by the browser-automation harness
+
 function frameCamera() {
   if (chase) {
     const h = sim.hole;
@@ -86,9 +182,18 @@ function frameCamera() {
     const dist = num('dist', 14), height = num('h', 9);
     cam.position.set(h.x - Math.sin(heading) * dist, height, h.z - Math.cos(heading) * dist);
     cam.lookAt(h.x + Math.sin(heading) * 6, 1.5, h.z + Math.cos(heading) * 6);
-  } else {
+  } else if (fixed) {
     cam.position.set(num('cx', 40), num('cy', 90), num('cz', 120));
     cam.lookAt(num('tx', -10), num('ty', 0), num('tz', -10));
+  } else {
+    const t = orbit.target;
+    const cp = Math.cos(orbit.pitch);
+    cam.position.set(
+      t.x + Math.sin(orbit.yaw) * cp * orbit.dist,
+      t.y + Math.sin(orbit.pitch) * orbit.dist,
+      t.z + Math.cos(orbit.yaw) * cp * orbit.dist,
+    );
+    cam.lookAt(t.x, t.y, t.z);
   }
 }
 
@@ -102,6 +207,7 @@ function tick(now) {
   audio.updateListener(sim.hole.x, sim.hole.z, sim.moverSim);
   audio.handleEvents(events);
   world.update(dt, events);
+  if (!chase && !fixed) stepOrbitKeys(dt);
   frameCamera();
   world.render(cam);
   requestAnimationFrame(tick);

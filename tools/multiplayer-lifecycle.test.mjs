@@ -605,8 +605,9 @@ console.log('\n--- T-627: storm 2 fires before the final tick of a 3-minute matc
 
   const at180 = stormTwoTimeSeconds('freeplay', 180 * 60);
   assert.ok(at180 < 180, 'a 180 s match must fire its storm strictly before the final tick');
-  // 4 s of warning plus a 16 s storm has to fit inside what is left.
-  assert.ok(at180 + 4 + 16 < 180, 'the storm must have time to actually play out');
+  // 4 s of warning plus a 20 s storm has to fit inside what is left
+  // (duration 16 -> 20 per the 2026-08-25 tornado rework).
+  assert.ok(at180 + 4 + 20 < 180, 'the storm must have time to actually play out');
   // And it must not land on top of the meteor beat the same match already has.
   assert.notEqual(at180, voxelsim.disasterTwoTimeSeconds('freeplay', 180 * 60));
   assert.equal(stormTwoTimeSeconds('challenge3m', CHALLENGE_CLOCK_TICKS), at180,
@@ -616,9 +617,9 @@ console.log('\n--- T-627: storm 2 fires before the final tick of a 3-minute matc
 
   const at300 = new StormSystem(fakeSim(LEVEL_CLOCK_TICKS)).schedule;
   assert.deepEqual(at300, [
-    { triggerT: 60.0, duration: 16.0, done: false },
-    { triggerT: 180.0, duration: 16.0, done: false },
-  ], 'the 300 s schedule must be unchanged, entry for entry');
+    { triggerT: 60.0, duration: 20.0, done: false },
+    { triggerT: 180.0, duration: 20.0, done: false },
+  ], 'the 300 s schedule keeps its beats; duration is 20 s per the 2026-08-25 rework');
 
   const short = new StormSystem(fakeSim(180 * 60)).schedule;
   assert.equal(short.length, 2, 'a 3-minute match still gets both storms');
@@ -628,9 +629,9 @@ console.log('\n--- T-627: storm 2 fires before the final tick of a 3-minute matc
 
   // The 90 s modes keep their own single hand-tuned storm.
   const run90 = new StormSystem({ seed: 'storm', mode: 'run90', clockLimit: null, scene: 'manhattan' }).schedule;
-  assert.deepEqual(run90, [{ triggerT: 28.0, duration: 12.0, done: false }]);
+  assert.deepEqual(run90, [{ triggerT: 28.0, duration: 15.0, done: false }]);
   const secret = new StormSystem(fakeSim(5400, 'challenge90s')).schedule;
-  assert.deepEqual(secret, [{ triggerT: 28.0, duration: 12.0, done: false }]);
+  assert.deepEqual(secret, [{ triggerT: 28.0, duration: 15.0, done: false }]);
   // The Lab never storms.
   assert.deepEqual(new StormSystem({ seed: 'storm', mode: 'freeplay', clockLimit: LEVEL_CLOCK_TICKS, scene: 'gallery' }).schedule, []);
 }

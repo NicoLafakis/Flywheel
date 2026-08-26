@@ -260,7 +260,13 @@ export function runCameraSmoothingSelftest() {
     { name: 'Gamma|Alpha 6 m', minX: 40, maxX: 46, minZ: 27, maxZ: 41 },
     { name: 'Alpha|Beta 7 m', minX: 62, maxX: 69, minZ: 26, maxZ: 42 },
   ];
-  const LAB_BLOCKS_BEFORE = 13739;
+  // Boot-scene budget baseline. 13739 was the pre-ADR-0022 Lab; the testbed
+  // added ~2k (its 25% budget). The construction-doctrine district (north
+  // quarter, gated by validate.mjs `labDoctrine`) added a further 4,581 on
+  // 2026-08-24 — deliberate authored content, so the baseline moves WITH it
+  // rather than the budget quietly widening. The 1.25x headroom below is once
+  // again headroom for accidental growth, not a pocket already spent.
+  const LAB_BLOCKS_BEFORE = 13739 + 4581;
   t('The Lab ships cameraBlockers that cover every >= 6 m footprint cell, and the three ADR towers', () => {
     const sim = new VoxelSandboxSim({ seed: 'validator' });
     assert.equal(sim.scene, 'gallery');

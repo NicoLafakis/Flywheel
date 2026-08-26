@@ -472,7 +472,9 @@ console.log('\n--- tripwire: no MULTIPLAYER_SCENES entry declares sceneMovers --
   // authored inline in `_buildScene`. So it is (playable cities - gallery), and
   // deriving it from the playable count without that subtraction is wrong — I
   // did exactly that and this assertion caught it on the first run.
-  const EXPECTED_IMPORTERS = 23;
+  // 24 = the 23 playable-city importers plus the hongkong2 local-only sandbox
+  // (registered, deliberately not in CITY_CATALOG).
+  const EXPECTED_IMPORTERS = 24;
   assert.equal(sceneModule.size, EXPECTED_IMPORTERS,
     `SCENE_IMPORTERS parsed to ${sceneModule.size} entr(ies), expected ${EXPECTED_IMPORTERS} — either the parser has drifted from the loader, or a scene was registered/unregistered and this count was not bumped with it`);
 

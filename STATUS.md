@@ -64,26 +64,46 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 - **Multiplayer multi-hole & join polish** — 6-player invite lobby, PvP hole
   swallowing, per-player coin isolation. `.wiki/modules/multiplayer.md`.
 - **Cambridge Phase 7** — 44 easter eggs, 11 ground glyphs, championship belts.
-- **Hong Kong Take Two (2026-08-25, Nico)** — new LOCAL-ONLY sandbox: recreate
-  Hong Kong's skyline in its entirety using **pieces** (anisotropic boxes —
-  cores, columns, beams, slabs, sheets; brick grain only in declared historic
-  zones), hard budget ≤ 8,000 pieces, spec-as-validator-gate written BEFORE any
-  geometry. Scope (harbour frame vs. whole territory) awaiting Nico's call.
+- **Hong Kong Take Two (2026-08-25) — BUILT, uncommitted, under Nico's visual
+  review.** Local-only sandbox (`hongkong2`, not in CITY_CATALOG): the Victoria
+  Harbour frame in **pieces** — **2,804** total after the 2026-08-25 detail
+  pass (Nico's ceiling 4,000; ~1,200 headroom), **0.0% cubic by count / 0.2%
+  by volume outside the three historic zones**, standing in for ~379k
+  half-metre cubes (99.3% saved). Gates re-raised RED first (floor 2,800,
+  cap 4,000 in the `hongkong2` section). The former approximations are now
+  real geometry: BoC/HSBC chevron cross-bracing, Jardine porthole facade
+  (~200 glass insets), octagonal Hopewell shell, Lippo overhanging pod
+  plates; all background buildings articulated (podium/setback/crown), Star
+  Ferry piers, trams, 28 vehicles, harbour traffic. Dev viewer now has
+  free-look controls (orbit/zoom/pan, touch, WASD).
+  Load: `tools/scene-view.html?scene=hongkong2`.
 - **Debris never settles — retirement predicate can't see solver-supported
   bodies** (RCA-2026-08-24-debris-jiggle-never-settles.md, CONFIRMED by
   ablation). Two defects: the 1.02 separation skin parks piled bodies ~0.3 mm
   above the zero-tolerance grounded test so they never sleep (243 permanently
   awake on Boston); `_pushAxis` pumps embedded pairs through grounded bodies
-  (~1 m visible jiggle). Fix specced, not built; needs `RANKED_SIM_VERSION`
-  3→4. Likely the same root cause as the validator's superlinear debris churn
-  and much of Singapore's frame cost. Awaiting go.
-- **Skin rework pass (outside agent, 2026-08-24) — UNDER REVIEW, disputed.**
-  Uncommitted 479-line rewrite of `js/skins.js` + regenerated `docs/skins/`
-  contact sheet. Its own shipped-entry claim of "verified" is not accepted:
-  7 of 8 partner PNGs are byte-identical (all render one green ring) and Nico
-  reports the reworked standard skins look worse in play.
-  RCA in flight → `.wiki/findings/RCA-2026-08-25-partner-skins-render-identical.md`;
-  outcome is fix-forward or surgical revert of the skins-scoped files.
+  (~1 m visible jiggle). **FIXED 2026-08-25** (local tree, riding the tornado
+  rework's `RANKED_SIM_VERSION` 3→4): `_sepFloor` solver-support stamp +
+  jam-latch alternative eligibility, and grounded bodies never pushed below
+  support. Pinned by `tools/debris-settle.test.mjs` (opt-in, ~2 min): RED
+  pre-fix, GREEN post-fix with final awake = 0. Post-storm sustained cost on
+  Tokyo: 5.700 ms/step (145 awake forever) → 0.002 ms/step (0 awake). The
+  Singapore 108% figure above should be re-measured — this was its suspected
+  main component.
+- **Skin rework pass (outside agent, 2026-08-24) — no defect found; keep-vs-
+  revert is Nico's aesthetic call.**
+  RCA-2026-08-25-partner-skins-render-identical.md (CONFIRMED): the 7
+  byte-identical partner PNGs are the 2026-08-17 approval gate working as
+  designed — withdrawn partner skins fail closed to `classic`
+  (`js/skinapproval.js:48`), and the re-bake was merely the first regeneration
+  since; the shop already hides those rows. All 14 rewritten builders ran
+  live with zero errors. The remaining objection is taste on the reworked
+  visuals: keep, or surgically revert (`git restore js/skins.js
+  .wiki/modules/render.md docs/skins/` + `git clean -f docs/skins/` + drop
+  `tools/pw/skin-shots.mjs`; per-file workstream map in the RCA). Real defect
+  found and being fixed: `tools/skinsheet.mjs` wrote PNGs BEFORE its
+  byte-identical assertion, so its red exit left regenerated files on disk —
+  the outside agent shipped past that red exit without reporting it.
 
 - **Singapore exceeds the frame budget in real play — the only city that does.**
   With the hole growing as it eats (what actually happens in play), Singapore
@@ -156,15 +176,56 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   on Vercel pauses it (both routes answer `503 SERVER_NOT_READY`, game unchanged).
   An emergency switch, not a deploy step. `.wiki/modules/cloud.md`, ADR-0021.
 
-- **Power-up respawn pacing (2026-08-24, Nico)** — raise the post-capture /
-  post-despawn respawn delay from 30 s to ~45–55 s (exact value Nico's call
-  within that band). At larger hole sizes (radius ≳ 20) power-ups repop so fast
-  players hit them by accident. The 30 s is a hardcoded `30.0` at **four**
-  sites — `js/sim.js:414`, `js/sim.js:424`, `js/voxelsim.js:1822`,
-  `js/voxelsim.js:5088` — so the fix is one shared constant (e.g.
-  `POWERUP_RESPAWN_SECONDS`) consumed by both sims, not four edited literals.
-  Note: this timer feeds ranked determinism (`voxelsim`), so check whether
-  `RANKED_SIM_VERSION` needs a bump when it lands.
+- **Power-up spawn rules + tornado rework (2026-08-25, Nico — SUPERSEDES the
+  2026-08-24 45–55 s pacing note)** — new spec: spawn cadence stays **30 s**,
+  one spawn at a time, but power-ups now **accumulate on the board up to a
+  maximum of 5** if the player ignores them (spawner pauses at 5; no forced
+  despawn to make room). Tornado specifically: (a) cut its processing cost,
+  (b) improve its visual, (c) improve its pathing, (d) duration → **20 s**.
+  Recon done (2026-08-25); corrections to the spec's assumptions:
+  - The tornado is NOT a power-up — it is the scheduled `StormSystem`
+    cataclysm (`js/voxelsim.js:98`). Actual duration is **16 s** on long
+    clocks / **12 s** in 90 s modes (`js/voxelsim.js:106-110`), not 15.
+    Open Nico call: does the 90 s ranked mode also go to 20 s, or scale
+    (e.g. 12→15)?
+  - CPU cost: full linear block scan at 8.3 Hz to find ≤8 rip candidates
+    (`js/voxelsim.js:198-238`) + support-graph invalidation each pulse +
+    uncapped swirl walk of `_falling` (`:5416-5463`). A ready-made perf spec
+    exists: `.wiki/plans/tornado-cataclysm-optimization.md`.
+  - Pathing today is one random heading at 6.8 m/s with wall bounce, never
+    re-rolled (`js/voxelsim.js:151-176`) — can loop a short bounce path.
+  - Visual: wireframe cones + 6 torus rings, per-particle material allocation
+    (no pooling), and the tornado group is never disposed (leak) —
+    `js/voxelworld.js:2598-2699`, `:3252-3283`. Renderer work needs no
+    version bump.
+  - The four 30 s hardcodes are `js/sim.js:414`, `:424`,
+    `js/voxelsim.js:1825`, `:5399` (two previously-cited lines were stale);
+    consolidate into one shared constant.
+  - Cap raise 2→5 must also touch the two initial-placement literals
+    (`js/sim.js:191`, `js/voxelsim.js:1408`) and rework the top-up loop
+    (`js/sim.js:413`, `js/voxelsim.js:5398`), which otherwise queues 5
+    parallel timers that all fire at once — defeating "one spawn at a time".
+  - Known test collisions: `tools/multiplayer-lifecycle.test.mjs:609`
+    hardcodes the 16 s duration; `tools/cinematic-arming-guard.test.mjs`
+    arms a cinematic per intermittent spawn (5 spawns = 5 cinematics —
+    behavior call); `.wiki/modules/powerups.md:29-35` is stale (says 35 s).
+  - Latent bug to fix or preserve deliberately: `vortexRadius` read at
+    `js/voxelsim.js:5427` is never assigned; the 12.0 fallback always fires.
+  - `RANKED_SIM_VERSION` (3, `js/voxelsim.js:662`) MUST bump: duration,
+    pathing, destruction, and cap changes all alter ranked determinism.
+  **IMPLEMENTED 2026-08-25 (local tree, not committed).** All spec items
+  landed: shared `POWERUP_RESPAWN_SECONDS = 30` single-slot spawner, cap 5
+  (initial placement stays 2), backlog spawns suppress the encounter
+  cinematic (toast only), the two tunable duration constants are
+  `STORM_DURATION_SECONDS = 20` and `STORM_DURATION_90S_SECONDS = 15`
+  (`js/voxelsim.js`), spatial-hash rip candidates + batched graph
+  invalidation + bounded swirl + `AIRBORNE_CAP = 160` saturation guard,
+  seeded heading wander, `vortexRadius` fixed (16 tornado / 22 hurricane),
+  solid pooled funnel renderer with teardown dispose, and
+  `RANKED_SIM_VERSION` 3→4. Pinned by `tools/powerup-storm-rework.test.mjs`
+  (6063 assertions). Storm active-window cost ~3.2 ms mean on Tokyo with the
+  old 116–139 ms spikes gone; ~1.9× more blocks ripped. The debris-settle RCA
+  fix (above) rode the same version bump.
 
 ### Open defects observed during smoke/RCA work
 

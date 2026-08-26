@@ -120,7 +120,12 @@ export function pickRandomPowerUpType(rng, activePowerups = [], lastSpawnedType 
   return candidates[Math.min(index, candidates.length - 1)];
 }
 
-export const MAX_MAP_POWERUPS = 2;
+// The board refills ONE power-up at a time on this shared clock (a single
+// respawn slot, not a timer per consumed slot) and pauses once MAX_MAP_POWERUPS
+// are sitting uncollected. Nothing is ever force-despawned to make room: an
+// ignored board simply accumulates to the cap over time. 2026-08-25 spec.
+export const POWERUP_RESPAWN_SECONDS = 30.0;
+export const MAX_MAP_POWERUPS = 5;
 export const MIN_POWERUP_SEPARATION = 26.0;
 export const MAX_ACTIVE_BUFFS = 3;
 

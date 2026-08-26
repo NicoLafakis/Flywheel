@@ -97,6 +97,9 @@ import {
 import {
   HONGKONG_ROAD_SPANS, HONGKONG_VEHICLES,
 } from '../js/voxelscene-hongkong.js';
+import {
+  HONGKONG2_HISTORIC_ZONES, HONGKONG2_LANDMARKS, HONGKONG2_ROAD_SPANS, HONGKONG2_VEHICLES,
+} from '../js/voxelscene-hongkong2.js';
 import { validateAuckland } from './validate-auckland.mjs';
 import { SCENE_AMBIENCE } from '../js/audio/game-audio.js';
 import { MUSIC_CUES } from '../js/audio/music.js';
@@ -139,7 +142,7 @@ import { fileURLToPath } from 'node:url';
 // 'hongkong' added 2026-08-20 once the concurrently-edited scene file and
 // standalone validator (ADR-0024's Follow-up note) landed at commit c02ea4a.
 if (process.env.FW_VALIDATE_SECTIONS || process.env.FW_VALIDATE_SEQ) {
-  await Promise.all(['sydney', 'auckland', 'singapore', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo', 'hongkong', 'seoul', 'beijing', 'bangkok', 'mumbai', 'dubai', 'cairo', 'athens', 'rome', 'paris', 'london', 'amsterdam', 'berlin'].map(loadScene));
+  await Promise.all(['sydney', 'auckland', 'singapore', 'manhattan', 'upper-manhattan', 'brooklyn', 'boston', 'cambridge', 'chicago', 'tokyo', 'hongkong', 'hongkong2', 'seoul', 'beijing', 'bangkok', 'mumbai', 'dubai', 'cairo', 'athens', 'rome', 'paris', 'london', 'amsterdam', 'berlin'].map(loadScene));
 }
 
 const DT = 1 / 60;
@@ -445,6 +448,155 @@ function validateVoxelCollisions() {
   sim._separate(a, b, true);
   if (overlaps(a, b)) fail('voxel collision: loose-body separation left a pair overlapping');
   console.log('  voxel collision separation: solid and loose-body overlap probes clear');
+}
+
+// --- The Lab's Construction Doctrine District (north quarter, z -95..-49) -----
+// The doctrine being prototyped: era-appropriate construction LANGUAGE at
+// reduced piece count with equal perceived detail. Modern structures are built
+// the way real modern buildings are — steel columns as single tall pieces,
+// floor plates as single wide pieces, curtain-wall glazing as large sheets —
+// while the masonry-era monument and houses keep brick-scale granularity,
+// because fine grain is CORRECT for that era. The gate therefore asserts the
+// contrast itself, not vanity counts: mean piece volume in the modern rows must
+// be an order of magnitude above the monument's, and the piece-shape mix
+// (anisotropic boxes vs small cubes) must split the same way.
+//
+// Region rects are declared HERE, not derived from the geometry — deriving the
+// domain from the subject is how a probe grows an exclusion zone (see the
+// refactored-guard memory in the repo's history). Move a building, move its rect.
+const LAB_DISTRICT_BAND = { minZ: -95, maxZ: -49 };
+const LAB_MODERN_TOWERS = [
+  { name: 'Meridian Core & Slab', minX: -79, maxX: -65, minZ: -93, maxZ: -79, minPeak: 36 },
+  { name: 'Spandrel Frame', minX: -63, maxX: -51, minZ: -93, maxZ: -79, minPeak: 28 },
+  { name: 'Slab Block', minX: -39, maxX: -17, minZ: -91, maxZ: -79, minPeak: 20 },
+  { name: 'Setback Crown', minX: -7, maxX: 7, minZ: -93, maxZ: -79, minPeak: 30 },
+  { name: 'Skeleton Frame (construction)', minX: 19, maxX: 33, minZ: -93, maxZ: -79, minPeak: 16 },
+];
+const LAB_MONUMENT = { name: 'Corbel Gate monument', minX: -9, maxX: 9, minZ: -63, maxZ: -52, minPeak: 10 };
+const LAB_HOUSES = [
+  { name: 'house A', minX: -79, maxX: -70, minZ: -61, maxZ: -52 },
+  { name: 'house B', minX: -65, maxX: -57, minZ: -61, maxZ: -52 },
+  { name: 'house C', minX: -34, maxX: -25, minZ: -61, maxZ: -52 },
+];
+const LAB_DISTRICT_ROAD = { minX: -95, maxX: 95, minZ: -73, maxZ: -65 };
+// Vehicles parked ON the district road, exported as positional exemptions the
+// same way every city scene exports its VEHICLES table.
+const LAB_DISTRICT_VEHICLES = [
+  { minX: -70, maxX: -65, minZ: -72, maxZ: -70 },     // sedan
+  { minX: -30, maxX: -25, minZ: -72, maxZ: -70 },     // SUV
+  { minX: -18, maxX: -12, minZ: -68.25, maxZ: -66.25 }, // bus
+  { minX: 50, maxX: 55, minZ: -68.25, maxZ: -66.25 }, // sedan
+  { minX: -51, maxX: -49, minZ: -67.5, maxZ: -67 },   // motorcycle
+];
+
+function validateLabDoctrine() {
+  console.log('Validating Lab construction-doctrine district...');
+  const sim = new VoxelSandboxSim({ seed: 'validator' });
+  const inRect = (b, r) =>
+    b.x - b.sx / 2 >= r.minX && b.x + b.sx / 2 <= r.maxX &&
+    b.z - b.sz / 2 >= r.minZ && b.z + b.sz / 2 <= r.maxZ;
+  const isSmallCube = (b) => b.sx === b.sy && b.sy === b.sz && b.sx <= 0.5;
+  const vol = (b) => b.sx * b.sy * b.sz;
+  const stats = (r) => {
+    const list = sim.blocks.filter((b) => inRect(b, r));
+    const v = list.reduce((s, b) => s + vol(b), 0);
+    return {
+      list,
+      n: list.length,
+      peak: list.reduce((m, b) => Math.max(m, b.y + b.sy / 2), 0),
+      cubes: list.filter(isSmallCube).length,
+      vol: v,
+      meanVol: list.length ? v / list.length : 0,
+    };
+  };
+
+  // The district must exist inside widened bounds.
+  const R = sim.boundsRect;
+  if (!R || R.minZ !== -95) {
+    fail(`lab doctrine: boundsRect.minZ is ${R && R.minZ} — the north district quarter needs the Lab bounds widened to z -95`);
+  }
+
+  // Modern towers: tall, present, and built from LARGE anisotropic pieces.
+  let modernN = 0, modernVol = 0;
+  for (const t of LAB_MODERN_TOWERS) {
+    const s = stats(t);
+    modernN += s.n; modernVol += s.vol;
+    if (s.n < 40) { fail(`lab doctrine: ${t.name} — only ${s.n} pieces inside its declared lot (needs >= 40); the tower does not stand where declared`); continue; }
+    if (s.peak < t.minPeak) fail(`lab doctrine: ${t.name} tops out at ${s.peak.toFixed(1)} m, needs >= ${t.minPeak} m`);
+    const aniso = 1 - s.cubes / s.n;
+    if (aniso < 0.7) fail(`lab doctrine: ${t.name} is ${(100 * (1 - aniso)).toFixed(0)}% small cubes — modern construction must be >= 70% beam/slab/panel pieces, not brick stacks`);
+    if (s.meanVol < 1.5) fail(`lab doctrine: ${t.name} mean piece volume is ${s.meanVol.toFixed(2)} m^3 (needs >= 1.5) — the pieces are too small to read as modern construction`);
+  }
+
+  // Monument: fine-grain masonry, deliberately the opposite shape mix.
+  const mon = stats(LAB_MONUMENT);
+  if (mon.n < 400) fail(`lab doctrine: ${LAB_MONUMENT.name} — only ${mon.n} pieces (needs >= 400 bricks to read as masonry)`);
+  if (mon.peak < LAB_MONUMENT.minPeak) fail(`lab doctrine: ${LAB_MONUMENT.name} tops out at ${mon.peak.toFixed(1)} m, needs >= ${LAB_MONUMENT.minPeak} m`);
+  if (mon.n && mon.cubes / mon.n < 0.9) {
+    fail(`lab doctrine: ${LAB_MONUMENT.name} is only ${(100 * mon.cubes / mon.n).toFixed(0)}% brick-scale cubes (needs >= 90%) — the historic side must keep fine granularity`);
+  }
+
+  // Houses: masonry-era too — mostly small cubes (the kit's masonry grain is
+  // 1 m, coarser than the monument's 0.5 m bricks but still cube-ladder work).
+  for (const h of LAB_HOUSES) {
+    const list = sim.blocks.filter((b) => inRect(b, h));
+    const cubes = list.filter((b) => b.sx === b.sy && b.sy === b.sz && b.sx <= 1).length;
+    if (list.length < 100) { fail(`lab doctrine: ${h.name} — only ${list.length} pieces inside its lot (needs >= 100)`); continue; }
+    if (cubes / list.length < 0.75) fail(`lab doctrine: ${h.name} is only ${(100 * cubes / list.length).toFixed(0)}% cube-grain masonry (needs >= 75%)`);
+  }
+
+  // THE DOCTRINE ITSELF: the contrast must be an order of magnitude.
+  if (mon.n && modernN) {
+    const ratio = (modernVol / modernN) / mon.meanVol;
+    if (ratio < 10) fail(`lab doctrine: modern mean piece volume is only ${ratio.toFixed(1)}x the monument's (needs >= 10x) — the construction-language contrast is the point of the district`);
+    console.log(`  lab doctrine: modern mean piece ${(modernVol / modernN).toFixed(2)} m^3 vs monument ${mon.meanVol.toFixed(3)} m^3 (${ratio.toFixed(1)}x)`);
+  }
+
+  // Whole-band accounting: what the district costs vs an all-0.5 m-cube build
+  // of the same solid volume. This is the savings number the doctrine buys.
+  const band = sim.blocks.filter((b) => b.z + b.sz / 2 <= LAB_DISTRICT_BAND.maxZ && b.z - b.sz / 2 >= LAB_DISTRICT_BAND.minZ);
+  if (band.length === 0) { fail('lab doctrine: the district band z[-95,-49] holds no geometry at all'); return; }
+  const bandVol = band.reduce((s, b) => s + vol(b), 0);
+  const equivCubes = Math.round(bandVol / 0.125);
+  console.log(`  lab doctrine: district blocks=${band.length} solidVol=${bandVol.toFixed(0)} m^3 equivalent-0.5m-cubes=${equivCubes} savings=${(100 * (1 - band.length / equivCubes)).toFixed(1)}%`);
+
+  // No-overlap by construction, scoped to the band: the wider gallery predates
+  // this probe and carries 4,478 legacy ghost cells, so the whole-scene form
+  // would gate history, not this district. New geometry gets the real contract.
+  let ghosts = 0, firstGhost = '';
+  for (const b of band) {
+    for (let ix = 0; ix < b.fsx; ix++) {
+      for (let iy = 0; iy < b.fsy; iy++) {
+        for (let iz = 0; iz < b.fsz; iz++) {
+          if (sim.grid.get(`${b.gx + ix},${b.gy + iy},${b.gz + iz}`) !== b) {
+            ghosts++;
+            if (!firstGhost) firstGhost = `${b.matType}/${sizeLabel(b)}m at (${b.x},${b.y},${b.z})`;
+          }
+        }
+      }
+    }
+  }
+  if (ghosts > 0) fail(`lab doctrine: ${ghosts} fine cells in the district owned by the wrong block (overlapping placement), first ${firstGhost}`);
+
+  // Road conflicts: nothing physical on the district road except the declared
+  // parked vehicles (the same positional-exemption contract every city uses).
+  let roadBad = 0, roadWorst = '';
+  for (const b of band) {
+    const r = blockRect(b);
+    const road = { x: LAB_DISTRICT_ROAD.minX, z: LAB_DISTRICT_ROAD.minZ, w: LAB_DISTRICT_ROAD.maxX - LAB_DISTRICT_ROAD.minX, d: LAB_DISTRICT_ROAD.maxZ - LAB_DISTRICT_ROAD.minZ };
+    if (!rectsOverlap(r, road)) continue;
+    const ok = LAB_DISTRICT_VEHICLES.some((v) =>
+      r.x >= v.minX - 0.75 && r.x + r.w <= v.maxX + 0.75 && r.z >= v.minZ - 0.75 && r.z + r.d <= v.maxZ + 0.75);
+    if (!ok) { roadBad++; if (!roadWorst) roadWorst = `${b.matType}/${sizeLabel(b)}m at (${b.x},${b.y},${b.z})`; }
+  }
+  if (roadBad > 0) fail(`lab doctrine: ${roadBad} physical block(s) on the district road outside a declared vehicle, first ${roadWorst}`);
+
+  // Placement-step contract on the whole (now larger) gallery, and 3 s idle
+  // stability: big pieces mis-seated on columns collapse at spawn, and the
+  // existing Lab stability test would catch it late — this catches it here.
+  probePlacementStep(sim, 'lab doctrine');
+  probeIdleStability(sim, 'lab doctrine');
+  console.log(`  lab doctrine: gallery total blocks=${sim.blocks.length} district=${band.length} towers=${LAB_MODERN_TOWERS.length} houses=${LAB_HOUSES.length}`);
 }
 
 // --- shared voxel-scene contract probes --------------------------------------
@@ -3326,7 +3478,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     // the sixth instance. The `orchestratorCoverage` entry below is the guard
     // that now makes a seventh impossible: it asserts this array's names and the
     // section('name') registrations are the same set, in both directions.
-    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,globalCampaign,campaignUi,tutorialOnboarding,mobileCameraClarity,mobileUiResponsive,deviceDetection,mobileZoomControls,cameraSmoothing,quakeRupture,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,levelClock,gameplayEnhancements,cityChallenges,orchestratorCoverage,playableCitiesGated'],
+    ['core', 'offlineBoot,saveSchema,rewardLadders,shopAndUpgrades,helpAndWalkthrough,globalCampaign,campaignUi,tutorialOnboarding,mobileCameraClarity,mobileUiResponsive,deviceDetection,mobileZoomControls,cameraSmoothing,quakeRupture,fwMath,runBoard,progressSchema,progressMerge,progressApi,progressBlob,progressSync,progressUi,voxelSandbox,voxelCollisions,labDoctrine,levelClock,gameplayEnhancements,cityChallenges,orchestratorCoverage,playableCitiesGated,surfaceTiles'],
     // Its own child rather than folded into `core`: every suite in it is itself
     // a spawned process, so it is the one group whose cost is process startup
     // instead of CPU, and it finishes long before the scenes either way.
@@ -3338,6 +3490,7 @@ if (!wanted.length && !process.env.FW_VALIDATE_SEQ) {
     // a heavy scene build serialised into a shared child would make that
     // child the wall-clock long pole.
     ['hongkong', 'hongkong'],
+    ['hongkong2', 'hongkong2'],
     ['seoul', 'seoul'],
     ['beijing', 'beijing'],
     ['bangkok', 'bangkok'],
@@ -3465,6 +3618,102 @@ function validateHongKong() {
   probePlacementStep(sim, 'hongkong');
   probeIdleStability(sim, 'hongkong');
   console.log(`  hongkong sandbox: blocks=${sim.blocks.length} mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
+}
+
+// HONG KONG TAKE TWO — the piece-doctrine city (local-only sandbox, no catalog
+// card). This section is the load-bearing gate for the scene's whole reason to
+// exist: cubes must NEVER be the predominant shape. It generalizes
+// `validateLabDoctrine`'s contrast checks to a full city, reading the historic
+// zones and landmark table out of the scene module so the geometry and its
+// exemptions move together.
+function validateHongKong2() {
+  console.log('Validating hongkong2 sandbox (piece-doctrine city)...');
+  const sim = new VoxelSandboxSim({ seed: 'validator', scene: 'hongkong2' });
+  const n = sim.blocks.length;
+
+  // An empty or stub build must be RED, never green-by-vacuity: a count of
+  // zero is a reading, and every ratio below divides by it.
+  //
+  // Floor lowered 2,800 → 2,400 (Nico, 2026-08-25, low-poly doctrine): facade
+  // articulation moved from fine geometry onto procedural surfaces
+  // (js/voxeltiles.js mat_hk_*), so the intent the floor guards changed —
+  // proven RED first at 2,472 pieces against the old 2,800 before this edit.
+  if (n < 2400) {
+    fail(`hongkong2: only ${n} piece(s) built — below the 2,400 floor the scene is a stub, not the low-poly-plus-textures build (Nico, 2026-08-25)`);
+  }
+  if ((HONGKONG2_LANDMARKS || []).length < 10) {
+    fail(`hongkong2: only ${(HONGKONG2_LANDMARKS || []).length} landmark row(s) declared — the marquee-skyline contract needs >= 10 (probeLandmarks passes vacuously on an empty table, so the floor lives here)`);
+  }
+  if (n === 0) return; // nothing else is measurable; the fails above are the RED
+
+  // Hard piece budget: the doctrine's whole claim is that a full recognizable
+  // city costs a few thousand pieces, not tens of thousands of cubes.
+  // Nico's hard ceiling (2026-08-25): "up to 4,000 — less is fine, not more."
+  if (n > 4000) fail(`hongkong2: ${n} pieces exceeds the 4,000 budget — the scene exists to prove pieces beat cube counts`);
+
+  // THE CUBE-PREDOMINANCE BAN. "Cubic" = max extent / min extent < 1.5, i.e.
+  // a piece that reads as a block rather than as a column/beam/slab/sheet.
+  // Brick grain is CORRECT for the historic fabric, so pieces inside the
+  // declared historic rects are exempt — and the rects themselves are held to
+  // being (a) actually populated and (b) a small fraction of the map, so a
+  // zone cannot be an empty placeholder or a blanket over the whole city.
+  const inHistoric = (b) => HONGKONG2_HISTORIC_ZONES.some((r) =>
+    b.x >= r.minX && b.x <= r.maxX && b.z >= r.minZ && b.z <= r.maxZ);
+  const isCubic = (b) => Math.max(b.sx, b.sy, b.sz) / Math.min(b.sx, b.sy, b.sz) < 1.5;
+  const vol = (b) => b.sx * b.sy * b.sz;
+  let outN = 0, outCubicN = 0, outVol = 0, outCubicVol = 0, totalVol = 0;
+  for (const b of sim.blocks) {
+    totalVol += vol(b);
+    if (inHistoric(b)) continue;
+    outN++; outVol += vol(b);
+    if (isCubic(b)) { outCubicN++; outCubicVol += vol(b); }
+  }
+  const cubicCountFrac = outN ? outCubicN / outN : 0;
+  const cubicVolFrac = outVol ? outCubicVol / outVol : 0;
+  if (cubicCountFrac >= 0.25) {
+    fail(`hongkong2: ${(100 * cubicCountFrac).toFixed(1)}% of pieces outside the historic zones are cubic (needs < 25%) — the builders are stacking blocks again`);
+  }
+  if (cubicVolFrac >= 0.15) {
+    fail(`hongkong2: ${(100 * cubicVolFrac).toFixed(1)}% of built volume outside the historic zones is cubic (needs < 15%)`);
+  }
+  if (cubicCountFrac >= 0.5) {
+    fail('hongkong2: cubic is the predominant shape class by count — the one absolute this scene exists to refute');
+  }
+  const R = sim.boundsRect;
+  if (R) {
+    const mapArea = (R.maxX - R.minX) * (R.maxZ - R.minZ);
+    let histArea = 0;
+    for (const r of HONGKONG2_HISTORIC_ZONES) {
+      histArea += (r.maxX - r.minX) * (r.maxZ - r.minZ);
+      const held = sim.blocks.filter((b) => b.x >= r.minX && b.x <= r.maxX && b.z >= r.minZ && b.z <= r.maxZ);
+      if (held.length < 80) fail(`hongkong2: historic zone "${r.name}" holds only ${held.length} piece(s) (needs >= 80) — an unpopulated exemption rect is a loophole, not a district`);
+    }
+    if (mapArea > 0 && histArea / mapArea > 0.15) {
+      fail(`hongkong2: historic zones cover ${(100 * histArea / mapArea).toFixed(1)}% of the map (max 15%) — the exemption must stay the exception`);
+    }
+  }
+
+  // The standard scene contract, exactly what every other city section runs.
+  const tops = footprintTops(sim);
+  probeCellOwnership(sim, 'hongkong2');
+  probeSpawnClearance(sim, 'hongkong2');
+  probeCameraBlockers(sim, 'hongkong2', tops);
+  probeBoundsRect(sim, 'hongkong2');
+  probeRoadConflicts(sim, 'hongkong2', HONGKONG2_VEHICLES, HONGKONG2_ROAD_SPANS);
+  probeWaterOverSurfaces(sim, 'hongkong2');
+  probeDecorKeyOrder(sim, 'hongkong2');
+  probePlacementStep(sim, 'hongkong2');
+  // Winnable residual: no ground piece over the 8 m plan diagonal, past which
+  // the hole can never eat it and the mass goal silently hardens.
+  probeGradeDiagonal(sim, 'hongkong2');
+  probeLandmarks(sim, 'hongkong2', HONGKONG2_LANDMARKS);
+  probeIdleStability(sim, 'hongkong2');
+
+  // The doctrine's ledger, printed every run: what this city costs vs the same
+  // solid volume stacked as 0.5 m cubes.
+  const equivCubes = Math.round(totalVol / 0.125);
+  const savings = equivCubes ? (100 * (1 - n / equivCubes)).toFixed(1) : '0.0';
+  console.log(`  hongkong2: pieces=${n} cubic(count)=${(100 * cubicCountFrac).toFixed(1)}% cubic(vol)=${(100 * cubicVolFrac).toFixed(1)}% equivalent-0.5m-cubes=${equivCubes} savings=${savings}% mass=${sim.totalMass.toFixed(0)} blockers=${sim.cameraBlockers.length}`);
 }
 
 // SEOUL (Act II, chapter 5). Shaped like `validateSingapore` above, minus
@@ -3988,6 +4237,17 @@ section('quakeRupture', () => console.log(`Validating Fault Line Rupture full-le
 // both ways. It is itself listed in the `core` group below — a coverage guard
 // left out of `groups` would be exactly the hole it exists to catch.
 section('orchestratorCoverage', () => console.log(`Validating validator orchestrator coverage (${runOrchestratorCoverageSelftest()} assertions)...`));
+// The procedural surface registry's gate (js/voxeltiles.js). The body lives in
+// tools/shimmer.mjs — ramp floor, colour space, metal rules, determinism —
+// and until 2026-08-25 only a by-hand run ever fired it: the file mapped to no
+// section, so validate-changed escalated to a full suite that ALSO never ran
+// it. Registered here so the registry has a section like everything else.
+section('surfaceTiles', () => {
+  console.log('Validating procedural surface registry (tools/shimmer.mjs)...');
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL('./shimmer.mjs', import.meta.url))], { encoding: 'utf8' });
+  if (r.stdout) process.stdout.write(r.stdout);
+  if (r.status !== 0) fail(`tools/shimmer.mjs failed:\n${r.stderr || ''}`);
+});
 section('fwMath', validateFwMath);
 
 
@@ -4011,6 +4271,7 @@ section('levelClock', validateLevelClock);
 section('scenesWinnable', validateScenesWinnable);
 section('voxelSandbox', validateVoxelSandbox);
 section('voxelCollisions', validateVoxelCollisions);
+section('labDoctrine', validateLabDoctrine);
 section('gameplayEnhancements', validateGameplayEnhancements);
 section('cityChallenges', validateCityChallenges);
 section('multiplayer', validateMultiplayer);
@@ -4018,6 +4279,7 @@ section('sydney', validateSydney);
 section('auckland', () => validateAuckland(AUCKLAND_CTX));
 section('singapore', validateSingapore);
 section('hongkong', validateHongKong);
+section('hongkong2', validateHongKong2);
 section('seoul', validateSeoul);
 section('beijing', validateBeijing);
 section('bangkok', validateBangkok);

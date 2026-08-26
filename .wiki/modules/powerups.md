@@ -26,12 +26,12 @@ Provides collectible in-game power-up entities and active status effects across 
 
 ## Spawning, Cooldown & Lifespan Rules
 
-1. **Strict Board Maximum**: Exactly 2 power-ups on the board at any given time (`MAX_MAP_POWERUPS = 2`).
+1. **Board Maximum**: Up to 5 power-ups may accumulate on the board (`MAX_MAP_POWERUPS = 5`); the spawner pauses at the cap and there is **no forced despawn**.
 2. **Permanent Ground Lifespan**: Ground power-ups persist indefinitely until collected (`lifespan = Infinity`) and will not despawn over time.
-3. **35-Second Spawning Cadence & Post-Collection Cooldown**:
-   - Initial spawn places up to 2 power-ups at the start of a map.
-   - When a power-up is consumed by the player, a **35-second cooldown timer** starts before another power-up can spawn (as long as active on board < 2).
-   - If neither power-up is eaten, they remain unchanged and in place.
+3. **Single-Slot 30-Second Cadence** (2026-08-24 rework, `POWERUP_RESPAWN_SECONDS = 30.0` in `js/powerups.js`, shared by `js/sim.js` and `js/voxelsim.js`):
+   - Initial spawn places 2 power-ups at the start of a map (initial count is deliberately still 2).
+   - ONE respawn slot, not one timer per collected power-up: whenever the board holds fewer than 5, a single 30 s timer arms; on expiry it spawns exactly one power-up and re-arms if still under the cap. Ignored power-ups therefore accumulate roughly one per 30 s up to the cap of 5.
+   - Spawns onto a non-empty board carry `backlog: true` on their `powerup_spawn` event; the renderer suppresses the Pokemon encounter cinematic for those and toasts instead (only an empty-board spawn earns the cinematic).
 4. **Duration Standardization**: All timed buffs last for **15.0 seconds** (`duration: 15.0`).
 
 ## Visual Feedback, Screen FX & Endgame Systems

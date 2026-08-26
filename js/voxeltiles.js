@@ -172,6 +172,15 @@ export const SURFACES = [
   { id: 'mat_suburban_siding', tile: tSuburbanSiding, rough: 0.82, roughVar: 0.08, metal: 0.0, uv: 'brick', edge: 0.35, grime: 0.10, res: 256 },
   { id: 'mat_clay_shingles', tile: tClayShingles, rough: 0.86, roughVar: 0.08, metal: 0.0, uv: 'brick', edge: 0.40, grime: 0.15, res: 256 },
   { id: 'mat_warehouse_roll', tile: tRollDoor, rough: 0.50, roughVar: 0.12, metal: 1.0, uv: 'brick', edge: 0.30, grime: 0.15, res: 256, envInt: 0.40 },
+
+  // --- Hong Kong facade language (2026-08-25 low-poly doctrine) ---
+  // Facade articulation that used to be authored as many small pieces — window
+  // grids, Jardine's portholes, signage bands — moves onto the SURFACE of large
+  // pieces. All 'metre' so a 24 m shaft shows 24 window courses; the tile is a
+  // multiplier, so the scene's paint still carries the colour identity.
+  { id: 'mat_hk_grid', tile: tHKGrid, rough: 0.30, roughVar: 0.14, metal: 0.0, uv: 'metre', edge: 0.15, grime: 0.12, res: 256 },
+  { id: 'mat_hk_porthole', tile: tHKPorthole, rough: 0.45, roughVar: 0.12, metal: 0.0, uv: 'metre', edge: 0.20, grime: 0.10, res: 256 },
+  { id: 'mat_hk_neon', tile: tHKNeon, rough: 0.55, roughVar: 0.10, metal: 0.0, uv: 'brick', edge: 0.10, grime: 0.05, res: 256 },
 ];
 
 export const SURFACE_BY_ID = new Map(SURFACES.map((s) => [s.id, s]));
@@ -481,6 +490,76 @@ function tRollDoor(n) {
       const track = lerp(0.58, 1.0, jointRamp(dSide, trackW));
       out[y * n + x] = rib * track;
     }
+  }
+  return out;
+}
+
+// HK curtain-wall window: one window per metre-tile. A recessed pane with a
+// vertical sky gradient inside an anodised frame, and a spandrel band low on
+// the tile that ramps back to frame value before the wrap so the tile stays
+// seamless. All boundaries go through jointRamp/smooth at >= 8 texels.
+function tHKGrid(n) {
+  const J = Math.max(6, Math.round(n / 32));
+  const x0 = 0.14 * n, x1 = 0.86 * n, y0 = 0.12 * n, y1 = 0.66 * n;
+  const out = new Float32Array(n * n);
+  for (let y = 0; y < n; y++) {
+    // Spandrel bump centred at 0.82n, ramped over J both sides, back to the
+    // frame value by the tile edge — the wrap seam is flat by construction.
+    const sUp = smooth((y - (0.72 * n)) / J);
+    const sDn = 1 - smooth((y - (0.92 * n)) / J);
+    const base = 0.52 + 0.16 * Math.min(sUp, sDn);
+    const dy = Math.min(y - y0, y1 - y);
+    for (let x = 0; x < n; x++) {
+      const dx = Math.min(x - x0, x1 - x);
+      const pm = jointRamp(Math.min(dx, dy), J);
+      const g = 1 - (y - y0) / (y1 - y0);
+      const pane = 0.84 + 0.16 * smooth(g);
+      out[y * n + x] = lerp(base, pane, pm);
+    }
+  }
+  return out;
+}
+
+// Jardine House porthole: one round window per metre-tile — a dark rim ring
+// around a graded circular pane on a precast panel field. Radial ramps are
+// >= 8 texels; the field carries a faint periodic mottle so the panel does not
+// read as vinyl. Wraps because the pane never reaches the tile edge.
+function tHKPorthole(n) {
+  const mott = fbm(n, 3, 3, 2, mulberry32(hash32('hk_porthole')));
+  const cx = n / 2, cy = n / 2;
+  const R = 0.30 * n, W = Math.max(8, Math.round(n / 28));
+  const out = new Float32Array(n * n);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const d = Math.hypot(x - cx, y - cy);
+    const panel = 0.92 + (mott[y * n + x] - 0.5) * 0.08;
+    // rim: panel -> dark ring over W texels; pane: dark ring -> glass over W.
+    const inRim = smooth((R + W - d) / W);         // 1 inside rim outer edge
+    const inPane = smooth((R - W * 0.5 - d) / W);  // 1 inside the glass
+    const g = 0.5 + 0.5 * ((cy - y) / (R || 1));
+    const pane = 0.80 + 0.20 * smooth(Math.max(0, Math.min(1, g)));
+    let v = lerp(panel, 0.50, inRim);
+    v = lerp(v, pane, inPane);
+    out[y * n + x] = v;
+  }
+  return out;
+}
+
+// Signage band: a dark sign board across the face's midriff with a brighter
+// text-glow core. The MULTIPLIER can only darken, so the "neon" is the scene's
+// paint showing through the bright core while the board mutes the rest.
+// uv 'brick' — one board per piece face, whatever the piece size.
+function tHKNeon(n) {
+  const J = Math.max(8, Math.round(n / 24));
+  const out = new Float32Array(n * n);
+  for (let y = 0; y < n; y++) {
+    const bUp = smooth((y - 0.30 * n) / J);
+    const bDn = 1 - smooth((y - 0.66 * n) / J);
+    const board = Math.min(bUp, bDn);              // 1 inside the sign board
+    const cUp = smooth((y - 0.40 * n) / J);
+    const cDn = 1 - smooth((y - 0.56 * n) / J);
+    const core = Math.min(cUp, cDn);               // 1 inside the glow core
+    const v = lerp(0.95, lerp(0.48, 1.0, core), board);
+    for (let x = 0; x < n; x++) out[y * n + x] = v;
   }
   return out;
 }

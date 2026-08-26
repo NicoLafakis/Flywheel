@@ -7,7 +7,8 @@ import { RNG } from './rng.js';
 import {
   POWERUP_TYPES, createPowerUp, pickRandomPowerUpType, activatePowerUp,
   stepActivePowerUps, hasActivePowerUp, stepGroundPowerUps,
-  MAX_MAP_POWERUPS, MIN_POWERUP_SEPARATION, findSpacedPowerUpLocation,
+  MAX_MAP_POWERUPS, MIN_POWERUP_SEPARATION, POWERUP_RESPAWN_SECONDS,
+  findSpacedPowerUpLocation,
 } from './powerups.js';
 
 export const COMBO_WINDOW = 10.0;
@@ -179,7 +180,8 @@ export class Sim {
       this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'initial' });
     }
     this.activePowerUps = [];
-    this.powerupRespawnTimers = [];
+    // ONE shared respawn slot (null = idle). See POWERUP_RESPAWN_SECONDS.
+    this.powerupRespawnTimer = null;
     this.nextScorePowerUpThreshold = 100000;
     this.nextMultPowerUpThreshold = 500;
     this._nextPowerUpId = this.powerups.length + 1;
@@ -389,12 +391,20 @@ export class Sim {
     }
     this.powerups = this.powerups.filter((p) => !p.collected && !p.expired);
 
-    // Independent 30s cooldown per consumed power-up slot (always capped at MAX_MAP_POWERUPS = 2)
-    for (let i = this.powerupRespawnTimers.length - 1; i >= 0; i--) {
-      this.powerupRespawnTimers[i] -= dt;
-      if (this.powerupRespawnTimers[i] <= 0) {
-        this.powerupRespawnTimers.splice(i, 1);
+    // ONE shared respawn slot: the board refills a single power-up per
+    // POWERUP_RESPAWN_SECONDS and pauses while MAX_MAP_POWERUPS sit
+    // uncollected. Per-consumed-slot parallel timers are exactly what the
+    // 2026-08-25 spec removed — they all fired at once after a multi-collect.
+    if (this.powerupRespawnTimer === null) {
+      if (this.powerups.length < MAX_MAP_POWERUPS) {
+        this.powerupRespawnTimer = POWERUP_RESPAWN_SECONDS;
+      }
+    } else {
+      this.powerupRespawnTimer -= dt;
+      if (this.powerupRespawnTimer <= 0) {
+        this.powerupRespawnTimer = null;
         if (this.powerups.length < MAX_MAP_POWERUPS) {
+          const backlog = this.powerups.length > 0;
           const bounds = { minX: b.xmin, maxX: b.xmax, minZ: b.zmin, maxZ: b.zmax };
           const pos = findSpacedPowerUpLocation(this.powerups, bounds, this.rng, MIN_POWERUP_SEPARATION);
           const angle = this.rng.float(0, Math.PI * 2);
@@ -406,12 +416,9 @@ export class Sim {
             angle,
           });
           this.powerups.push(pu);
-          this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'intermittent' });
+          this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'intermittent', backlog });
         }
       }
-    }
-    if (this.powerups.length + this.powerupRespawnTimers.length < MAX_MAP_POWERUPS) {
-      this.powerupRespawnTimers.push(30.0);
     }
 
     // --- power-up collection ---
@@ -421,7 +428,8 @@ export class Sim {
       const dx = pu.x - p.x, dz = pu.z - p.z;
       if (dx * dx + dz * dz <= puReach * puReach) {
         pu.collected = true;
-        this.powerupRespawnTimers.push(30.0);
+        // No timer push here: the single shared respawn slot above re-arms
+        // itself the moment the board is below MAX_MAP_POWERUPS.
         activatePowerUp(this.activePowerUps, pu, p, this);
         if (pu.type === POWERUP_TYPES.QUAKE) {
           this._triggerQuake(p);
@@ -432,14 +440,16 @@ export class Sim {
 
     // --- dynamic reward milestones: 100k points & 500 mult ---
     if (p.mass >= this.nextScorePowerUpThreshold) {
+      const backlog = this.powerups.some((pu) => !pu.collected);
       const pu = this._spawnBonusPowerUp('score_100k', p);
       this.nextScorePowerUpThreshold += 100000;
-      this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'score_100k', hole: p });
+      this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'score_100k', hole: p, backlog });
     }
     if (p.chain >= this.nextMultPowerUpThreshold) {
+      const backlog = this.powerups.some((pu) => !pu.collected);
       const pu = this._spawnBonusPowerUp('mult_500', p);
       this.nextMultPowerUpThreshold += 500;
-      this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'mult_500', hole: p });
+      this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'mult_500', hole: p, backlog });
     }
 
     // --- rivals: greedy nearest-edible policy, deterministic ---

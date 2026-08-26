@@ -1,6 +1,21 @@
 # Architecture Proposal: Tornado Cataclysm — High-Destruction & High-FPS Optimization
 
-> **Status**: PROPOSAL / SPECIFICATION  
+> **Status**: IMPLEMENTED (2026-08-25 rework, local tree; `RANKED_SIM_VERSION` 3 → 4).
+> Shipped: spatial candidate query via the `_top` fine-column heightmap
+> (stride-2 sweep of the storm's bounding square, no `sim.blocks` linear scan),
+> batched support-graph invalidation (`_pendingGraphDirty` flushed per 0.25 s
+> and on clearing), bounded swirl pass (`MAX_SWIRL_SCAN = 512`, rotating
+> cursor), a physics-saturation guard (rip pulses pause above
+> `AIRBORNE_CAP = 160` awake movers), the latent never-assigned `vortexRadius`
+> fixed (now 16 m tornado / 22 m hurricane), seeded heading wander, and
+> durations `STORM_DURATION_SECONDS = 20` / `STORM_DURATION_90S_SECONDS = 15`.
+> `maxRips = 8` and the `y >= 5` vulnerability rule were deliberately KEPT.
+> Renderer: solid three-layer lumpy funnel replacing the wireframe cone, pooled
+> debris materials, full teardown dispose. Pinned by
+> `tools/powerup-storm-rework.test.mjs`. Sections below are the original
+> proposal, kept for the analysis; where they differ from the shipped shape,
+> the shipped shape above wins.
+
 > **Scope**: `StormSystem` in `js/voxelsim.js`, Debris Physics in `js/voxelsim.js`, Particle & Funnel Rendering in `js/voxelworld.js`  
 > **Target**: 5×–10× Destructive Impact with Locked 60 FPS (Sub-5ms Sim Step Budget)
 

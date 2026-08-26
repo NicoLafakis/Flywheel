@@ -473,8 +473,9 @@ free-play menu — see the chicago section below. `js/main.js`'s `AUTHORED_SCENE
 scenes are real places (label text, HUD text, and whether an `intro`
 establishing shot/READY-gate framing applies) — see Talks To below. Scene
 builders run inside the constructor, may set
-`sim.bounds` (square hole clamp in m — 24 gallery) or `sim.boundsRect`
-(`{minX,maxX,minZ,maxZ}`, which overrides the scalar; off-center maps need it
+`sim.bounds` (square hole clamp in m) or `sim.boundsRect`
+(`{minX,maxX,minZ,maxZ}`, which overrides the scalar; the gallery sets both,
+95 and `x[-95,95] z[-95,45]`; off-center maps need it
 — Manhattan's peninsula is 124 × 118 m and asymmetric, so the old square ±80
 left ~36 m of empty harbor south of the last block), `sim.sceneDecor`
 (render-only roads/parks/water planes) and `sim.cameraBlockers`
@@ -617,8 +618,34 @@ Chicago/Cambridge/Boston get.
 
 ### gallery (VOXEL SANDBOX)
 
-Hand-authored, deterministic — a full city gallery in districts (~3800
-blocks, one of each researched city-object kind):
+Hand-authored, deterministic — a full city gallery in districts (20,348
+blocks, one of each researched city-object kind). Bounds
+`x[-95,95] z[-95,45]`; the north quarter (z −95..−49, added 2026-08-24) is
+the **construction-doctrine district**, gated by the `labDoctrine` validator
+section:
+
+- **Doctrine district, modern row** (z −93..−79): five towers erected in
+  era-appropriate construction language — single large pieces, not cube
+  stacks. T1 "Meridian" core-and-slab (12×12, 40.5 m: steel columns as one
+  3.5 m piece each, 6 m floor plates, 5 m curtain sheets); T2 "Girder"
+  expressed spandrel frame (10×10, 32.5 m, facade beams per bay); T3
+  "Ribbon" slab block (20×10, 21.5 m, shear-wall pier ends, 4.5 m ribbon
+  glazing); T4 "Ziggurat" setbacks with cornices (12→8→4, 39.5 m incl.
+  spire); T5 "Skeleton" — the frame mid-erection with no cladding, staged
+  girders and a shipping container. Column/pier paint alternates per storey
+  on purpose: stacked identical boxes with a 0.5 m slab between them read as
+  a sliver to `probePlacementStep` unless the courses differ.
+- **Doctrine district, historic row** (z −62..−50): the "Corbel Gate"
+  monument — ~2,000 half-metre bricks, solid piers, a corbelled span and
+  attic band, where fine grain is the CORRECT construction language — and
+  three 1 m-grain masonry cottages under stepped timber roofs.
+- **Doctrine Row** (road z −73..−65): sedans, SUV, bus, motorcycle, lamp
+  posts, trees, sidewalk furniture; two N-S connector avenues at x −44/13.
+- The district's 4,581 pieces carry the solid volume of ~44,000 half-metre
+  cubes (89.6% saved) — the doctrine's savings number, printed by the
+  validator on every run.
+
+The original three zones (z −45..45):
 
 - **Downtown core**: 1 m tower (steel/concrete/glass/wood), 2 m warehouse
 - **Vehicle lot** (E): sedan, taxi, police, city bus, garbage truck, fire

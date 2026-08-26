@@ -695,6 +695,20 @@ mutates sim state.
   Compounding events) sat at y=0.0095, underneath all 27 opaque depth-writing
   ground planes (roads 0.03, tree pads 0.025, water/building pads 0.02) —
   invisible over every road and building footprint. Raised to 0.04.
+- **2026-08-24 shelf rework (Sprocket Drive → The Closer).** Every skin from
+  `sprocket` through the creature shelf was re-reviewed against the four laws
+  and rebuilt within the same budgets (≤7 draw calls, colour-attribute
+  animation only, zero randomness). The pattern to copy when touching a
+  builder: anything whose rest brightness can hit 0 must be `additive: true`
+  (on a normal-blended part 0 is not "gone", it is opaque black — the chomper
+  fangs shipped black spokes over the void for exactly one iteration), and
+  worldQuad sizes reaching past ~1.5× the rim must be capped in absolute
+  units, not just scaled by `reach()` (TAM's spiral-arm quads paved the street
+  at SIZE 12 until capped). In-game review harness:
+  `tools/pw/skin-shots.mjs` hot-swaps all 14 skins onto one live
+  `VoxelWorld3D` in Singapore and shoots SIZE 1 rest, SIZE 12 mid-bite at
+  camDist 84, and the reduced-motion pose per skin — the contact sheet proves
+  the shop tile, this proves the hole at play scale.
 - **Partner marks have two paths: `logoTex` (raster) beside the original
   `logo` (traced vertex-colour points).** `logoTex` wins over `logo` when a
   row carries both. Source priority for a new partner mark is the agency's

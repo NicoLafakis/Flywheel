@@ -51,6 +51,7 @@ const SCENE_SECTIONS = {
   'voxelscene-auckland': 'auckland',
   'voxelscene-singapore': 'singapore',
   'voxelscene-hongkong': 'hongkong',
+  'voxelscene-hongkong2': 'hongkong2',
   'voxelscene-seoul': 'seoul',
   'voxelscene-beijing': 'beijing',
   'voxelscene-bangkok': 'bangkok',
@@ -74,7 +75,7 @@ const SCENE_COMPANIONS = ['declaredBlockCounts', 'playableCitiesGated', 'audioCo
 // `js/voxelkit.js` are imported by all of them, so a change there means the
 // whole scene roster plus the companions.
 const ALL_SCENES = Object.values(SCENE_SECTIONS);
-const SHARED_SIM = [...ALL_SCENES, ...SCENE_COMPANIONS, 'voxelSandbox', 'voxelCollisions', 'scenesWinnable'];
+const SHARED_SIM = [...ALL_SCENES, ...SCENE_COMPANIONS, 'voxelSandbox', 'voxelCollisions', 'labDoctrine', 'scenesWinnable'];
 
 // Non-scene files, mapped to the sections that actually cover them. Anything
 // not listed here falls through to the full suite.
@@ -89,6 +90,9 @@ const FILE_SECTIONS = [
   [/^js\/save\.js$/, ['saveSchema', 'progressSchema', 'progressMerge']],
   [/^js\/rng\.js$/, ['fwMath', 'voxelSandbox']],
   [/^js\/fwmath\.js$/, ['fwMath']],
+  // Render-only: surfaces never touch sim state, so no scene section applies.
+  // tools/shimmer.mjs (spawned by this section) is the registry's real suite.
+  [/^js\/voxeltiles\.js$/, ['surfaceTiles']],
   [/^js\/audio\//, ['audioCoverage']],
   [/^js\/board\//, ['runBoard']],
   [/^js\/multiplayer\//, ['multiplayer']],

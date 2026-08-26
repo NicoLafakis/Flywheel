@@ -20,9 +20,12 @@
 //   - There is no `save.equippedSkin` round-trip and no VoxelWorld. The baker
 //     calls `makeSkin(row.id)` per row directly, so the usual hazard — a bad id
 //     silently falling back to 'classic' and every tile still looking fine —
-//     cannot arise from a mis-bound save. It could still arise from a builder
-//     that draws nothing, so the identical-bytes assertion below covers it from
-//     the pixel side instead, which is the direction that actually proves it.
+//     cannot arise from a mis-bound save. It DOES arise from the approval gate:
+//     `makeSkin` resolves any withdrawn partner id to 'classic' (fail closed,
+//     js/skinapproval.js), so those rows legitimately bake identical Classic
+//     tiles — see RCA-2026-08-25. It could also arise from a builder that draws
+//     nothing. The identical-bytes assertion below covers both from the pixel
+//     side, which is the direction that actually proves it.
 //
 // WHAT IT DOES NOT REUSE, and why that is a REPORTED FINDING rather than a fork:
 // `bakeSkinThumbnails` runs its build-pose-render loop fully synchronously. A
@@ -32,10 +35,15 @@
 // mark. This tool detects that case and says so loudly instead of shipping a
 // blank tile that looks deliberate. Fixing it means making the baker async,
 // which is a change inside js/skins.js and belongs to whoever owns that file.
-import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync, renameSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+// The same source of truth the game resolves against (js/skinapproval.js is
+// dependency-free by design so headless tools can import it). A withdrawn
+// partner row baking byte-identical to classic is the approval gate WORKING,
+// not a defect — the assertions below treat it as a requirement, not a problem.
+import { WITHDRAWN_PARTNER_SKIN_IDS } from '../js/skinapproval.js';
 
 const APP_URL = process.argv[2] || 'http://localhost:8150';
 const SIZE = Number(process.argv[3] || 512);
@@ -80,23 +88,29 @@ if (!baked.thumbs) {
   process.exit(1);
 }
 
-// --- write the PNGs ----------------------------------------------------------
-// The directory is cleared first so a row deleted from SKINS does not leave a
-// stale tile behind that the sheet no longer links but a reader still finds.
-if (existsSync(OUT)) for (const f of readdirSync(OUT)) rmSync(join(OUT, f));
-mkdirSync(OUT, { recursive: true });
+// --- stage the PNGs ----------------------------------------------------------
+// Everything is written to a staging directory first and only moved into
+// docs/skins/ after EVERY assertion below has passed. RCA-2026-08-25: the old
+// order (write, then assert) meant a red run still left regenerated files on
+// disk, and they got shipped while the exit code was ignored. A failing run
+// must leave docs/skins/ byte-for-byte untouched.
+const STAGE = OUT + `.staging-${process.pid}`;
+rmSync(STAGE, { recursive: true, force: true });
+mkdirSync(STAGE, { recursive: true });
 
 const hashes = new Map();
+const hashById = new Map();
 const missing = [];
 let bytes = 0;
 for (const row of baked.rows) {
   const url = baked.thumbs[row.id];
   if (!url) { missing.push(row.id); continue; }
   const buf = Buffer.from(url.split(',')[1], 'base64');
-  writeFileSync(join(OUT, row.id + '.png'), buf);
+  writeFileSync(join(STAGE, row.id + '.png'), buf);
   bytes += buf.length;
   const h = createHash('sha256').update(buf).digest('hex');
   row.sha = h.slice(0, 12);
+  hashById.set(row.id, h);
   if (!hashes.has(h)) hashes.set(h, []);
   hashes.get(h).push(row.id);
 }
@@ -112,11 +126,32 @@ console.log(`SKINS rows: ${baked.rows.length}`);
 console.log(`PNGs written: ${baked.rows.length - missing.length} (${(bytes / 1024).toFixed(0)} KB) at ${SIZE}x${SIZE}`);
 if (missing.length) problem(`${missing.length} row(s) baked no image: ${missing.join(', ')}`);
 
-const dupes = [...hashes.entries()].filter(([, ids]) => ids.length > 1);
+// Withdrawn partner rows MUST bake byte-identical to classic — resolveAvailableRow
+// sends them there, fail closed — so the gate is asserted in BOTH directions:
+// a withdrawn row baking its own pixels means the gate failed open (red), and
+// any identical pair OUTSIDE {classic + withdrawn} is still the original
+// nothing-drew / silent-fallback red.
+const WITHDRAWN = new Set(WITHDRAWN_PARTNER_SKIN_IDS);
+const classicHash = hashById.get('classic');
+const withdrawnBaked = baked.rows.filter((r) => WITHDRAWN.has(r.id) && hashById.has(r.id));
+if (withdrawnBaked.length && !classicHash) {
+  problem(`withdrawn partner row(s) baked but 'classic' did not — cannot verify the approval gate`);
+}
+for (const r of withdrawnBaked) {
+  if (classicHash && hashById.get(r.id) !== classicHash) {
+    problem(`withdrawn partner row '${r.id}' rendered its OWN pixels — the approval gate should resolve it to classic (js/skinapproval.js)`);
+  }
+}
+if (withdrawnBaked.length && classicHash && withdrawnBaked.every((r) => hashById.get(r.id) === classicHash)) {
+  console.log(`approval gate: ${withdrawnBaked.length} withdrawn partner row(s) render as classic, as designed`);
+}
+
+const legalClassicGroup = (ids) => ids.every((id) => id === 'classic' || WITHDRAWN.has(id));
+const dupes = [...hashes.entries()].filter(([, ids]) => ids.length > 1 && !legalClassicGroup(ids));
 if (dupes.length) {
   for (const [, ids] of dupes) problem(`byte-identical tiles — these rows rendered the same pixels: ${ids.join(', ')}`);
 } else {
-  console.log(`distinct tiles: ${hashes.size}/${baked.rows.length - missing.length} — every row rendered its own pixels`);
+  console.log(`distinct tiles: ${hashes.size}/${baked.rows.length - missing.length} — no identical pair outside the designed classic/withdrawn set`);
 }
 
 // The raster-path rows the synchronous baker cannot wait for. Named, counted,
@@ -186,9 +221,23 @@ const html = `<!doctype html>
   Click a tile for the full-size PNG.</p>
 ${families.map(section).join('\n')}
 `;
-writeFileSync(join(OUT, 'index.html'), html);
-console.log(`contact sheet: docs/skins/index.html (${families.length} shelves: ${families.join(', ')})`);
+writeFileSync(join(STAGE, 'index.html'), html);
 
 await browser.close();
-if (failed) { console.error(`${failed} problem(s).`); process.exit(1); }
+
+// --- commit or discard -------------------------------------------------------
+// Red: throw the staging away; docs/skins/ keeps whatever was committed.
+// Green: clear docs/skins/ (so a row deleted from SKINS does not leave a stale
+// tile behind that the sheet no longer links but a reader still finds), then
+// move the staged files in.
+if (failed) {
+  rmSync(STAGE, { recursive: true, force: true });
+  console.error(`${failed} problem(s). docs/skins/ left untouched.`);
+  process.exit(1);
+}
+if (existsSync(OUT)) for (const f of readdirSync(OUT)) rmSync(join(OUT, f), { recursive: true, force: true });
+mkdirSync(OUT, { recursive: true });
+for (const f of readdirSync(STAGE)) renameSync(join(STAGE, f), join(OUT, f));
+rmSync(STAGE, { recursive: true, force: true });
+console.log(`contact sheet: docs/skins/index.html (${families.length} shelves: ${families.join(', ')})`);
 console.log('OK');

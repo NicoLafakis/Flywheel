@@ -96,7 +96,7 @@ const earlyUnlock = () => {
     if (audio.music && audio.music.audio && audio.music.audio.paused && !audio.music._muted) {
       audio.music._safePlay();
     }
-  } catch {}
+  } catch { /* autoplay policies vary; a failed early unlock is retried on the next gesture */ }
 };
 window.addEventListener('pointerdown', earlyUnlock, { passive: true });
 window.addEventListener('touchstart', earlyUnlock, { passive: true });
@@ -284,7 +284,7 @@ function triggerHaptic(ms = 12) {
     if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function' && !save?.settings?.reducedMotion) {
       navigator.vibrate(ms);
     }
-  } catch { /* ignored */ }
+  } catch { /* vibration is a nicety; some browsers throw on it mid-gesture */ }
 }
 
 const screens = new Screens(document.getElementById('screen-root'), save, {
@@ -443,8 +443,14 @@ function announcePowerUpSpawn(pu) {
   screens.showOrbitalBeaconNotification(pu);
 }
 
-function queuePokemonSpawnIntro(pu, simInstance, camInstance, reason) {
+function queuePokemonSpawnIntro(pu, simInstance, camInstance, reason, backlog) {
   if (!pu) return;
+  // A BACKLOG spawn lands on a board that already holds uncollected power-ups
+  // (the sims flag it on the event). The player ignoring power-ups must not
+  // buy them an interrupting cutscene every 30 s accumulation tick — only an
+  // arrival onto an empty board earns the encounter cinematic. The toast still
+  // shows: it is information, the cutscene is a flourish.
+  if (backlog) { announcePowerUpSpawn(pu); return; }
   // The two map power-ups are placed by the sim CONSTRUCTOR and their events are
   // drained on the first frame of the level, before a single tick has run
   // (js/voxelsim.js, js/main.js's event pump). They are level furniture, not an
@@ -1784,7 +1790,7 @@ function frame(ts) {
             }
           }
         } else if (ev.type === 'powerup_spawn') {
-          if (!isMultiplayer) queuePokemonSpawnIntro(ev.powerup, sim, cam, ev.reason);
+          if (!isMultiplayer) queuePokemonSpawnIntro(ev.powerup, sim, cam, ev.reason, ev.backlog);
         } else if (ev.type === 'disaster') {
           if (!isMultiplayer) cam.triggerShake(1.2);
           triggerHaptic(100);
@@ -1955,7 +1961,7 @@ function frame(ts) {
           }
           if (!isQuake) playPowerUpCollectCinematic(ev.powerup);
         } else if (ev.type === 'powerup_spawn') {
-          queuePokemonSpawnIntro(ev.powerup, sim, cam, ev.reason);
+          queuePokemonSpawnIntro(ev.powerup, sim, cam, ev.reason, ev.backlog);
         } else if (ev.type === 'disaster') {
           cam.triggerShake(1.2);
           triggerHaptic(100);

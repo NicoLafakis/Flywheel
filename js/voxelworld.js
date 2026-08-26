@@ -2594,19 +2594,27 @@ export class VoxelWorld3D {
     this.spawnDustPuff(x, z, 1.1, 0, 0);
   }
 
-  // Airborne swirling twister debris particles caught in the cyclone
+  // Airborne swirling twister debris particles caught in the cyclone.
+  // Meshes and their materials are POOLED: a storm emits ~16 of these per
+  // second for its whole life, and allocating (then disposing) a material per
+  // particle was measurable GC churn on mobile. Dead debris parks in
+  // _stormDebrisPool and is recycled; the pool's high-water mark is the
+  // particle cap, so steady-state allocation is zero.
   spawnTornadoDebrisParticle(vx, vz) {
     if (this.particles.length > (this.perfMode ? 45 : 120)) return;
-    const geo = boxGeo();
     const isDust = Math.random() > 0.45;
     const col = isDust ? 0x8d99ae : (Math.random() > 0.5 ? 0xd90429 : 0xffb703);
-    const mat = new THREE.MeshBasicMaterial({
-      color: col,
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false,
-    });
-    const m = new THREE.Mesh(geo, mat);
+    if (!this._stormDebrisPool) this._stormDebrisPool = [];
+    let m = this._stormDebrisPool.pop();
+    if (!m) {
+      m = new THREE.Mesh(boxGeo(), new THREE.MeshBasicMaterial({
+        transparent: true,
+        depthWrite: false,
+      }));
+    }
+    m.material.color.setHex(col);
+    m.material.opacity = 0.85;
+    m.visible = true;
     const y = 1.0 + Math.random() * 22.0;
     const r = 2.5 + (y / 22.0) * 7.5;
     const angle = Math.random() * Math.PI * 2;
@@ -2617,6 +2625,7 @@ export class VoxelWorld3D {
     const speed = 12.0 + Math.random() * 8.0;
     this.particles.push({
       mesh: m,
+      pooled: true,
       vx: -Math.sin(angle) * speed,
       vy: 2.5 + Math.random() * 4.0,
       vz: Math.cos(angle) * speed,
@@ -2626,72 +2635,112 @@ export class VoxelWorld3D {
     });
   }
 
-  // 3D Visual Funnel Mesh for Tornadoes & Hurricanes
+  // 3D Visual Funnel Mesh for Tornadoes & Hurricanes.
+  //
+  // 2026-08-25 rework: the old look was a WIREFRAME cone plus six torus wind
+  // rings — it read as a debug gizmo, not weather. The funnel is now three
+  // nested SOLID translucent cones whose ring vertices are radially displaced
+  // with per-ring phase noise (a lumpy, twisted silhouette), so the constant
+  // counter-rotation is actually visible on an untextured surface, matching
+  // the game's flat-shaded voxel style. Dust collars near the base sell the
+  // debris skirt. All layers stay MeshBasicMaterial (unlit, cheap) and
+  // perfMode lowers segment counts.
   _ensureTornadoMesh(stormType = 'tornado') {
     if (this.tornadoGroup) return this.tornadoGroup;
     const group = new THREE.Group();
     const isHurricane = stormType === 'hurricane';
+    const radial = this.perfMode ? 12 : 20;
+    const heights = this.perfMode ? 6 : 10;
 
-    // 1. Inverted tapered cyclone funnel cone (30m tall)
-    const funnelGeo = new THREE.CylinderGeometry(10.5, 1.8, 30.0, 18, 8, true);
-    const funnelMat = new THREE.MeshBasicMaterial({
-      color: isHurricane ? 0x64dfdf : 0x8d99ae,
-      transparent: true,
-      opacity: 0.48,
-      wireframe: true,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const funnelMesh = new THREE.Mesh(funnelGeo, funnelMat);
+    // Radially displace each ring of an open cone so the silhouette is lumpy
+    // and rotation reads. Displacement is per-ring-phase so vertical seams
+    // stay continuous (no cracked surface).
+    const lumpyCone = (topR, botR, h, amp) => {
+      const geo = new THREE.CylinderGeometry(topR, botR, h, radial, heights, true);
+      const pos = geo.attributes.position;
+      const phase = Math.random() * Math.PI * 2;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+        const r = Math.hypot(x, z);
+        if (r < 0.001) continue;
+        const a = Math.atan2(z, x);
+        // Two-lobe wobble, its angle drifting with height: a baked-in twist.
+        const k = 1 + amp * Math.sin(a * 2 + y * 0.45 + phase) + amp * 0.5 * Math.sin(a * 5 - y * 0.8 + phase);
+        pos.setX(i, x * k);
+        pos.setZ(i, z * k);
+      }
+      geo.computeVertexNormals();
+      return geo;
+    };
+
+    // 1. Outer sheath — wide, faint, slow.
+    const funnelMesh = new THREE.Mesh(
+      lumpyCone(11.5, 2.2, 30.0, 0.10),
+      new THREE.MeshBasicMaterial({
+        color: isHurricane ? 0x64dfdf : 0x9aa5b1,
+        transparent: true, opacity: 0.22,
+        side: THREE.DoubleSide, depthWrite: false,
+      }));
     funnelMesh.position.y = 15.0;
     group.add(funnelMesh);
 
-    // 2. Inner dense swirling funnel core
-    const coreGeo = new THREE.CylinderGeometry(7.0, 1.0, 28.0, 14, 4, true);
-    const coreMat = new THREE.MeshBasicMaterial({
-      color: isHurricane ? 0x48cae4 : 0x4a4e69,
-      transparent: true,
-      opacity: 0.38,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    // 2. Mid condensation funnel — the readable body, counter-rotating.
+    const midMesh = new THREE.Mesh(
+      lumpyCone(8.4, 1.4, 29.0, 0.14),
+      new THREE.MeshBasicMaterial({
+        color: isHurricane ? 0x48cae4 : 0x6b7280,
+        transparent: true, opacity: 0.34,
+        side: THREE.DoubleSide, depthWrite: false,
+      }));
+    midMesh.position.y = 14.5;
+    group.add(midMesh);
+
+    // 3. Dense dark core.
+    const coreMesh = new THREE.Mesh(
+      lumpyCone(4.6, 0.7, 28.0, 0.18),
+      new THREE.MeshBasicMaterial({
+        color: isHurricane ? 0x1d5d73 : 0x3a3f4d,
+        transparent: true, opacity: 0.52,
+        side: THREE.DoubleSide, depthWrite: false,
+      }));
     coreMesh.position.y = 14.0;
     group.add(coreMesh);
 
-    // 3. Multi-tier swirling spiral wind rings
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: isHurricane ? 0x90e0ef : 0xc8d6e5,
-      transparent: true,
-      opacity: 0.65,
-      depthWrite: false,
-    });
+    // 4. Low dust collars — solid squashed tori hugging the base, where the
+    // debris skirt lives (the old six evenly-spaced rings were pure gizmo).
     const rings = [];
-    for (let y = 2.0; y <= 28.0; y += 4.5) {
-      const r = 2.0 + (y / 28.0) * 8.5;
-      const torusGeo = new THREE.TorusGeometry(r, 0.22, 6, 20);
-      const torus = new THREE.Mesh(torusGeo, ringMat);
+    const collarSpecs = [
+      { y: 1.2, r: 4.2, tube: 0.9, opacity: 0.45 },
+      { y: 3.0, r: 3.2, tube: 0.7, opacity: 0.38 },
+      { y: 5.2, r: 2.6, tube: 0.55, opacity: 0.30 },
+    ];
+    for (const c of collarSpecs) {
+      const torus = new THREE.Mesh(
+        new THREE.TorusGeometry(c.r, c.tube, this.perfMode ? 5 : 7, this.perfMode ? 14 : 22),
+        new THREE.MeshBasicMaterial({
+          color: isHurricane ? 0x90e0ef : 0x7d7468,
+          transparent: true, opacity: c.opacity, depthWrite: false,
+        }));
       torus.rotation.x = Math.PI / 2;
-      torus.position.y = y;
+      torus.position.y = c.y;
+      torus.scale.y = 0.6;
       group.add(torus);
       rings.push(torus);
     }
 
-    // 4. Ground suction dust disc
-    const discGeo = new THREE.RingGeometry(1.0, 13.0, 24);
-    const discMat = new THREE.MeshBasicMaterial({
-      color: isHurricane ? 0x0077b6 : 0x5a5048,
-      transparent: true,
-      opacity: 0.55,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const groundDisc = new THREE.Mesh(discGeo, discMat);
+    // 5. Ground suction dust disc.
+    const groundDisc = new THREE.Mesh(
+      new THREE.RingGeometry(1.0, 13.0, this.perfMode ? 16 : 24),
+      new THREE.MeshBasicMaterial({
+        color: isHurricane ? 0x0077b6 : 0x5a5048,
+        transparent: true, opacity: 0.55,
+        side: THREE.DoubleSide, depthWrite: false,
+      }));
     groundDisc.rotation.x = -Math.PI / 2;
     groundDisc.position.y = 0.1;
     group.add(groundDisc);
 
-    group.userData = { funnelMesh, coreMesh, rings, groundDisc, scaleT: 0.01 };
+    group.userData = { funnelMesh, midMesh, coreMesh, rings, groundDisc, scaleT: 0.01 };
     group.position.set(0, 0, 0);
     this.scene.add(group);
     this.tornadoGroup = group;
@@ -3260,9 +3309,13 @@ export class VoxelWorld3D {
       tornado.userData.scaleT = (tornado.userData.scaleT || 0.01) + (targetScale - (tornado.userData.scaleT || 0.01)) * dt * 3.5;
       tornado.scale.set(tornado.userData.scaleT, tornado.userData.scaleT, tornado.userData.scaleT);
 
-      tornado.userData.funnelMesh.rotation.y += dt * 14.0;
-      tornado.userData.coreMesh.rotation.y -= dt * 18.0;
+      tornado.userData.funnelMesh.rotation.y += dt * 8.0;
+      if (tornado.userData.midMesh) tornado.userData.midMesh.rotation.y -= dt * 13.0;
+      tornado.userData.coreMesh.rotation.y += dt * 19.0;
       tornado.userData.groundDisc.rotation.z += dt * 12.0;
+      // Slow breathing on the outer sheath so the funnel never reads static.
+      const breathe = 1.0 + Math.sin(this.time * 2.1) * 0.05;
+      tornado.userData.funnelMesh.scale.set(breathe, 1, breathe);
 
       for (let i = 0; i < tornado.userData.rings.length; i++) {
         const sign = i % 2 === 0 ? 1 : -1;
@@ -3278,6 +3331,13 @@ export class VoxelWorld3D {
         }
       }
     } else if (this.tornadoGroup) {
+      // Teardown must dispose: every layer owns its geometry and material
+      // (the lumpy cones are per-storm one-offs), and before 2026-08-25 they
+      // leaked on every storm end for the rest of the session.
+      this.tornadoGroup.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
+      });
       this.scene.remove(this.tornadoGroup);
       this.tornadoGroup = null;
     }
@@ -3704,7 +3764,14 @@ export class VoxelWorld3D {
       }
       if (p.life <= 0 || (p.isVortex && p.dist <= 0.05)) {
         this.scene.remove(p.mesh);
-        if (p.mesh.material) p.mesh.material.dispose();
+        if (p.pooled) {
+          // Pooled storm debris: recycle the mesh + material, never dispose.
+          p.mesh.visible = false;
+          if (!this._stormDebrisPool) this._stormDebrisPool = [];
+          this._stormDebrisPool.push(p.mesh);
+        } else if (p.mesh.material) {
+          p.mesh.material.dispose();
+        }
         this.particles.splice(i, 1);
       }
     }

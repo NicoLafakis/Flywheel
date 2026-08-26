@@ -70,7 +70,8 @@ import {
 import {
   POWERUP_TYPES, createPowerUp, pickRandomPowerUpType, activatePowerUp,
   stepActivePowerUps, hasActivePowerUp, stepGroundPowerUps,
-  MAX_MAP_POWERUPS, MIN_POWERUP_SEPARATION, findSpacedPowerUpLocation,
+  MAX_MAP_POWERUPS, MIN_POWERUP_SEPARATION, POWERUP_RESPAWN_SECONDS,
+  findSpacedPowerUpLocation,
 } from './powerups.js';
 
 // The second scheduled storm used to be a hard-coded 180.0 s, which is exactly
@@ -84,6 +85,14 @@ import {
 // (a 180 s match fires at 108 s and is clear by 128 s) and staying off the
 // meteor's own two-thirds beat so the two cataclysms do not land together.
 export const STORM_TWO_FRACTION = 0.6;
+
+// Storm length, in seconds of active funnel time. Two dials on purpose so the
+// 90 s ranked modes can be retuned independently of the long clocks:
+// 2026-08-25 rework took the long clocks 16 -> 20 s and scaled the 90 s modes
+// by the same factor (12 x 20/16 = 15). A 180 s match still fits comfortably:
+// storm two fires at 108 s, plus 4 s warning plus 20 s storm = clear by 132 s.
+export const STORM_DURATION_SECONDS = 20.0;
+export const STORM_DURATION_90S_SECONDS = 15.0;
 
 /**
  * When the second scheduled storm fires, in seconds of elapsed match time.
@@ -103,10 +112,10 @@ export class StormSystem {
     const is90s = sim.mode === 'run90' || sim.clockLimit === 5400;
     const isGallery = sim.scene === 'gallery';
     this.schedule = isGallery ? [] : (is90s ? [
-      { triggerT: 28.0, duration: 12.0, done: false },
+      { triggerT: 28.0, duration: STORM_DURATION_90S_SECONDS, done: false },
     ] : [
-      { triggerT: 60.0,  duration: 16.0, done: false },
-      { triggerT: stormTwoTimeSeconds(sim.mode, sim.clockLimit), duration: 16.0, done: false },
+      { triggerT: 60.0,  duration: STORM_DURATION_SECONDS, done: false },
+      { triggerT: stormTwoTimeSeconds(sim.mode, sim.clockLimit), duration: STORM_DURATION_SECONDS, done: false },
     ]);
     this.state = 'idle'; // 'idle' | 'warning' | 'active' | 'clearing'
     this.stateTimer = 0;
@@ -116,7 +125,17 @@ export class StormSystem {
     this.vortexZ = 0;
     this.vortexVx = 0;
     this.vortexVz = 0;
+    // Assigned on activation from the storm type's destruction radius. The
+    // hole-teleport check in step() reads it; before 2026-08-25 it was never
+    // assigned anywhere and the 12.0 fallback fired on every frame.
+    this.vortexRadius = 0;
     this.ripTimer = 0;
+    // Seeded wander: the heading re-rolls on this clock so the vortex cannot
+    // loop one short wall-bounce corridor for its whole life.
+    this.wanderTimer = 0;
+    // Batched support-graph invalidation (see _applyStormDestruction).
+    this.graphBatchTimer = 0;
+    this._pendingGraphDirty = false;
   }
 
   _detectStormType() {
@@ -146,8 +165,12 @@ export class StormSystem {
       this.stateTimer -= dt;
       if (this.stateTimer <= 0) {
         this.state = 'active';
-        this.stateTimer = this.currentStorm ? this.currentStorm.duration : 16.0;
-        
+        this.stateTimer = this.currentStorm ? this.currentStorm.duration : STORM_DURATION_SECONDS;
+        this.vortexRadius = this.stormType === 'tornado' ? 16.0 : 22.0;
+        this.wanderTimer = 0;
+        this.graphBatchTimer = 0;
+        this._pendingGraphDirty = false;
+
         const r = this.sim.boundsRect || { minX: -this.sim.bounds * 0.7, maxX: this.sim.bounds * 0.7, minZ: -this.sim.bounds * 0.7, maxZ: this.sim.bounds * 0.7 };
         this.vortexX = (r.minX + r.maxX) * 0.5 + (this.rng.next() - 0.5) * (r.maxX - r.minX) * 0.5;
         this.vortexZ = (r.minZ + r.maxZ) * 0.5 + (this.rng.next() - 0.5) * (r.maxZ - r.minZ) * 0.5;
@@ -166,6 +189,21 @@ export class StormSystem {
       }
     } else if (this.state === 'active') {
       this.stateTimer -= dt;
+
+      // Seeded wander: perturb the heading every 1.25-2.5 s from the storm's
+      // own RNG stream. Fully deterministic per seed, and it breaks the old
+      // failure mode where one never-re-rolled heading ping-ponged the funnel
+      // along a short corridor for its whole 20 s life.
+      this.wanderTimer -= dt;
+      if (this.wanderTimer <= 0) {
+        this.wanderTimer = 1.25 + this.rng.next() * 1.25;
+        const heading = Math.atan2(this.vortexVz, this.vortexVx)
+          + (this.rng.next() - 0.5) * 2.4;
+        const speed = fwHypot2(this.vortexVx, this.vortexVz) || 6.8;
+        this.vortexVx = fwCos(heading) * speed;
+        this.vortexVz = fwSin(heading) * speed;
+      }
+
       this.vortexX += this.vortexVx * dt;
       this.vortexZ += this.vortexVz * dt;
 
@@ -181,9 +219,27 @@ export class StormSystem {
         this._applyStormDestruction();
       }
 
+      // Batched support-graph invalidation (plan lever 5): rip pulses mark
+      // `_pendingGraphDirty` and the BFS re-propagation is requested once per
+      // 0.25 s window instead of once per 0.12 s pulse, halving graph churn
+      // during a storm. The flush below (and on clearing) bounds the extra
+      // collapse latency at 0.25 s.
+      this.graphBatchTimer += dt;
+      if (this.graphBatchTimer >= 0.25) {
+        this.graphBatchTimer = 0;
+        if (this._pendingGraphDirty) {
+          this._pendingGraphDirty = false;
+          this.sim._graphDirty = true;
+        }
+      }
+
       if (this.stateTimer <= 0) {
         this.state = 'clearing';
         this.stateTimer = 3.5;
+        if (this._pendingGraphDirty) {
+          this._pendingGraphDirty = false;
+          this.sim._graphDirty = true;
+        }
         this.sim.events.push({ type: 'storm_cleared', stormType: this.stormType });
       }
     } else if (this.state === 'clearing') {
@@ -196,45 +252,90 @@ export class StormSystem {
   }
 
   _applyStormDestruction() {
-    const stormRad = this.stormType === 'tornado' ? 16.0 : 22.0;
+    // Spatial candidate query (plan lever 1). The old form linearly scanned
+    // ALL of this.sim.blocks — up to ~85k in Tokyo — every 0.12 s to find at
+    // most 8 rips inside a 16 m circle. The sim already maintains `_top`, the
+    // live per-fine-column solid-surface heightmap, so the storm now sweeps
+    // only the columns under its own footprint and detaches the TOP block of
+    // each — which is also the physically honest choice: a funnel peels the
+    // surface layer by layer. Column order (gx then gz, ascending, fixed
+    // stride) is deterministic, and the vulnerability rules and maxRips = 8
+    // are unchanged from the linear scan.
+    const stormRad = this.vortexRadius || (this.stormType === 'tornado' ? 16.0 : 22.0);
     const stormRad2 = stormRad * stormRad;
-    const minX = this.vortexX - stormRad, maxX = this.vortexX + stormRad;
-    const minZ = this.vortexZ - stormRad, maxZ = this.vortexZ + stormRad;
+    const grid = this.sim.grid, top = this.sim._top;
+    if (!grid || !top || top.size === 0) return;
+
+    // Physics saturation guard (the plan's FPS-protection lever): the wander +
+    // top-surface rips detach far more effectively than the old corridor-bound
+    // scan (measured 2.7x on Tokyo), and swirled debris stays airborne for the
+    // storm's life — unbounded, the awake-mover count climbed past 270 and the
+    // step past 14 ms. While too many movers are airborne, rip pulses stand
+    // down; destruction resumes as debris lands. Deterministic: derived purely
+    // from sim state. Early exit keeps the count O(cap).
+    const AIRBORNE_CAP = 160;
+    const falling = this.sim._falling || [];
+    let awake = 0;
+    for (let i = 0; i < falling.length; i++) {
+      const fb = falling[i];
+      if (fb && !fb.consumed && !fb.asleep && ++awake > AIRBORNE_CAP) return;
+    }
+
     let count = 0;
     const maxRips = 8;
 
-    for (let i = 0; i < this.sim.blocks.length; i++) {
-      const b = this.sim.blocks[i];
-      if (b.state !== 'static' && b.state !== 'unstable') continue;
-      if (b.x < minX || b.x > maxX || b.z < minZ || b.z > maxZ) continue;
-      
-      const dx = b.x - this.vortexX;
-      const dz = b.z - this.vortexZ;
-      const dist2 = dx * dx + dz * dz;
-      if (dist2 > stormRad2) continue;
+    const f = 1 / FINE;
+    const minGx = Math.floor((this.vortexX - stormRad) * f);
+    const maxGx = Math.ceil((this.vortexX + stormRad) * f);
+    const minGz = Math.floor((this.vortexZ - stormRad) * f);
+    const maxGz = Math.ceil((this.vortexZ + stormRad) * f);
+    // 0.5 m sampling stride: the smallest block face is 0.25 m, so a column
+    // can be skipped for one pulse — the next pulse (8.3 Hz) sweeps again.
+    const stride = 2;
+    const seen = new Set();
 
-      const isVulnerable = this.stormType === 'tornado' ? (b.y >= 5.0) : (b.matType === 'glass' || b.matType === 'panel' || b.y >= 3.5);
-      if (!isVulnerable) continue;
+    outer:
+    for (let gx = minGx; gx <= maxGx; gx += stride) {
+      for (let gz = minGz; gz <= maxGz; gz += stride) {
+        const h = top.get(cellKey(gx, gz));
+        if (!h) continue;
+        // The top block of this column ends at height h: its occupied fine
+        // cell is the one just below.
+        const b = grid.get(key(gx, Math.round(h * f) - 1, gz));
+        if (!b || seen.has(b)) continue;
+        seen.add(b);
+        if (b.state !== 'static' && b.state !== 'unstable') continue;
 
-      const dist = fwHypot2(dx, dz) || 1;
-      const nx = dx / dist;
-      const nz = dz / dist;
+        const dx = b.x - this.vortexX;
+        const dz = b.z - this.vortexZ;
+        const dist2 = dx * dx + dz * dz;
+        if (dist2 > stormRad2) continue;
 
-      if (this.stormType === 'tornado') {
-        const vx = -nz * 12.0 + (this.rng.next() - 0.5) * 4;
-        const vz = nx * 12.0 + (this.rng.next() - 0.5) * 4;
-        const vy = 6.0 + this.rng.next() * 5.0;
-        this.sim._detachBlock(b, vx, vy, vz);
-      } else {
-        const vx = this.vortexVx * 2.0 - nz * 8.0 + (this.rng.next() - 0.5) * 4;
-        const vz = this.vortexVz * 2.0 + nx * 8.0 + (this.rng.next() - 0.5) * 4;
-        const vy = 4.0 + this.rng.next() * 3.5;
-        this.sim._detachBlock(b, vx, vy, vz);
+        const isVulnerable = this.stormType === 'tornado' ? (b.y >= 5.0) : (b.matType === 'glass' || b.matType === 'panel' || b.y >= 3.5);
+        if (!isVulnerable) continue;
+
+        const dist = fwHypot2(dx, dz) || 1;
+        const nx = dx / dist;
+        const nz = dz / dist;
+
+        if (this.stormType === 'tornado') {
+          const vx = -nz * 12.0 + (this.rng.next() - 0.5) * 4;
+          const vz = nx * 12.0 + (this.rng.next() - 0.5) * 4;
+          const vy = 6.0 + this.rng.next() * 5.0;
+          this.sim._detachBlock(b, vx, vy, vz);
+        } else {
+          const vx = this.vortexVx * 2.0 - nz * 8.0 + (this.rng.next() - 0.5) * 4;
+          const vz = this.vortexVz * 2.0 + nx * 8.0 + (this.rng.next() - 0.5) * 4;
+          const vy = 4.0 + this.rng.next() * 3.5;
+          this.sim._detachBlock(b, vx, vy, vz);
+        }
+        count++;
+        if (count >= maxRips) break outer;
       }
-      count++;
-      if (count >= maxRips) break;
     }
-    if (count > 0) this.sim._graphDirty = true;
+    // Graph invalidation is BATCHED: step() flushes _pendingGraphDirty into
+    // sim._graphDirty once per 0.25 s window instead of on every pulse.
+    if (count > 0) this._pendingGraphDirty = true;
   }
 }
 
@@ -269,6 +370,9 @@ const SCENE_IMPORTERS = {
   'auckland': () => import('./voxelscene-auckland.js').then((m) => m.buildAuckland),
   'singapore': () => import('./voxelscene-singapore.js').then((m) => m.buildSingapore),
   'hongkong': () => import('./voxelscene-hongkong.js').then((m) => m.buildHongKong),
+  // Local-only piece-doctrine sandbox: registered so tools/scene-view.html and
+  // the validator can build it, deliberately absent from CITY_CATALOG.
+  'hongkong2': () => import('./voxelscene-hongkong2.js').then((m) => m.buildHongKong2),
   'seoul': () => import('./voxelscene-seoul.js').then((m) => m.buildSeoul),
   'beijing': () => import('./voxelscene-beijing.js').then((m) => m.buildBeijing),
   'bangkok': () => import('./voxelscene-bangkok.js').then((m) => m.buildBangkok),
@@ -656,7 +760,13 @@ export const RANKED_TUNE_ID = 'ranked-v2';
 // staggered wavefront that detaches every storey and swallows what lands in
 // the crack (was: first 160/180 blocks, ground band only, one frame). Both
 // fire inside a 90 s RUN, so a v2 replay no longer reproduces the v3 score.
-export const RANKED_SIM_VERSION = 3;
+// v4 (2026-08-25): the storm rework — duration 12 -> 15 s in the 90 s modes,
+// seeded heading wander, top-surface spatial rip candidates (different blocks
+// detach in a different order), batched graph invalidation, the vortexRadius
+// hole-teleport radius now actually 16/22 m instead of the 12.0 fallback, and
+// the power-up board accumulates to 5 on a single 30 s respawn slot. The 90 s
+// RUN storms at 28 s, so a v3 replay no longer reproduces the v4 score.
+export const RANKED_SIM_VERSION = 4;
 export const RANKED_TICK_COUNT = 90 * 60;
 export const CHALLENGE_COIN_MULTIPLIER = 2;
 
@@ -1051,7 +1161,8 @@ export class VoxelSandboxSim {
     for (const pu of this.powerups) {
       this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'initial' });
     }
-    this.powerupRespawnTimers = [];
+    // ONE shared respawn slot (null = idle). See POWERUP_RESPAWN_SECONDS.
+    this.powerupRespawnTimer = null;
     this.disastersTriggered = new Set();
     this.disasterRng = new RNG((seed || 'sandbox') + ':disasters');
     this._nextPowerUpId = this.powerups.length + 1;
@@ -1818,8 +1929,8 @@ export class VoxelSandboxSim {
     for (const pu of this.powerups) {
       if (pu.collected || fwHypot2(pu.x - h.x, pu.z - h.z) > reach) continue;
       pu.collected = true;
-      // Each consumed powerup queues its own independent 30s cooldown timer
-      this.powerupRespawnTimers.push(30.0);
+      // No timer push here: the single shared respawn slot in step() re-arms
+      // itself the moment the board is below MAX_MAP_POWERUPS.
       activatePowerUp(h.activePowerUps, pu, h, this);
       if (pu.type === POWERUP_TYPES.QUAKE) {
         this._triggerVoxelQuake(h);
@@ -2727,9 +2838,291 @@ export class VoxelSandboxSim {
       [-60, 23.5], [0, -24.5], [32, 23.5]
     ]) pothole(this, px, pz);
 
-    // Dynamic Player Movement Bounds (190m × 90m total area)
+    // =========================================================================
+    // ZONE 4 (NORTH QUARTER: z -93..-49) — CONSTRUCTION DOCTRINE DISTRICT
+    // The prototype for era-appropriate construction LANGUAGE: modern towers
+    // are erected the way real modern buildings are — steel columns as single
+    // tall pieces, floor plates as single wide pieces, curtain glazing as large
+    // sheets — while the masonry monument and cottages keep brick-scale
+    // granularity, because fine grain is CORRECT for that era. Gated by the
+    // `labDoctrine` section in tools/validate.mjs, which pins the contrast
+    // itself (mean piece volume, shape mix) rather than counts.
+    //
+    // Placement-step discipline for the big pieces: collinear identical boxes
+    // either abut (gap 0) or alternate COLOR per bay, so any same-group gap is
+    // a whole extent — the sliver probe's contract. Every glass panel sits on
+    // the slab or plinth below it (glass never passes support), and every slab
+    // corner lands over a column or pier.
+    // =========================================================================
+
+    // T1 "Meridian" — core-and-slab tower (x -78..-66, z -92..-80, 40.5 m).
+    // Kept >= 10 m clear of the map's SW corner: the quake-rupture selftest
+    // parks the hole at (minX+8, minZ+8) and debris that falls INTO the hole
+    // is eaten and scores, unlike crack-swallowed debris (tools/quake-rupture.test.mjs).
+    {
+      const ox = -78, oz = -92, storeys = 10, mod = 4.0;
+      for (let px = 0; px < 12; px += 4) {
+        for (let pz = 0; pz < 12; pz += 6) {
+          plinth(this, { x: ox + px, y: 0, z: oz + pz, w: 4, d: 6, h: 0.5, mat: 'concrete', color: 0x1b2436 });
+        }
+      }
+      for (let lvl = 0; lvl < storeys; lvl++) {
+        const y = 0.5 + lvl * mod;
+        const glassA = lvl % 2 === 0 ? 0x7fb8d8 : 0x5aa7d6, glassB = lvl % 2 === 0 ? 0x5aa7d6 : 0x7fb8d8;
+        // Column/pier colors alternate per storey: stacked identical boxes with
+        // a 0.5 m slab between them read as a sliver to the placement-step
+        // probe unless the paint distinguishes the courses (zone 3 precedent).
+        const colC = lvl % 2 === 0 ? 0x16324a : 0x1d3f5c;
+        const midC = lvl % 2 === 0 ? 0x1f4e6e : 0x27597c;
+        for (const cx of [0, 11.25]) for (const cz of [0, 11.25]) {
+          column(this, { x: ox + cx, y, z: oz + cz, h: 3.5, s: 0.75, mat: 'steel', color: colC });
+        }
+        for (const [mx, mz] of [[5.75, 0], [5.75, 11.5], [0, 5.75], [11.5, 5.75]]) {
+          column(this, { x: ox + mx, y, z: oz + mz, h: 3.5, s: 0.5, mat: 'steel', color: midC });
+        }
+        pier(this, { x: ox + 5, y, z: oz + 5, w: 2, h: 3.5, d: 2, mat: 'concrete', color: lvl % 2 === 0 ? 0x2c3a4d : 0x354457 });
+        // curtain wall: two 5 m sheets per face, alternating tint per bay
+        panel(this, { x: ox + 0.75, y, z: oz, w: 5, h: 3.5, axis: 'x', t: 0.25, mat: 'glass', color: glassA });
+        panel(this, { x: ox + 6.25, y, z: oz, w: 5, h: 3.5, axis: 'x', t: 0.25, mat: 'glass', color: glassB });
+        panel(this, { x: ox + 0.75, y, z: oz + 11.75, w: 5, h: 3.5, axis: 'x', t: 0.25, mat: 'glass', color: glassB });
+        panel(this, { x: ox + 6.25, y, z: oz + 11.75, w: 5, h: 3.5, axis: 'x', t: 0.25, mat: 'glass', color: glassA });
+        panel(this, { x: ox, y, z: oz + 0.75, w: 5, h: 3.5, axis: 'z', t: 0.25, mat: 'glass', color: glassB });
+        panel(this, { x: ox, y, z: oz + 6.25, w: 5, h: 3.5, axis: 'z', t: 0.25, mat: 'glass', color: glassA });
+        panel(this, { x: ox + 11.75, y, z: oz + 0.75, w: 5, h: 3.5, axis: 'z', t: 0.25, mat: 'glass', color: glassA });
+        panel(this, { x: ox + 11.75, y, z: oz + 6.25, w: 5, h: 3.5, axis: 'z', t: 0.25, mat: 'glass', color: glassB });
+        // one floor: four 6 m plates, not 576 cubes
+        for (const sx of [0, 6]) for (const sz of [0, 6]) {
+          slab(this, { x: ox + sx, y: y + 3.5, z: oz + sz, w: 6, d: 6, t: 0.5, mat: 'concrete', color: 0xdde5ee });
+        }
+      }
+    }
+
+    // T2 "Girder" — expressed spandrel-frame tower (x -62..-52, z -92..-82, 32.5 m).
+    {
+      const ox = -62, oz = -92, storeys = 8, mod = 4.0;
+      for (let px = 0; px < 10; px += 5) {
+        for (let pz = 0; pz < 10; pz += 5) {
+          plinth(this, { x: ox + px, y: 0, z: oz + pz, w: 5, d: 5, h: 0.5, mat: 'concrete', color: 0x231f1c });
+        }
+      }
+      for (let lvl = 0; lvl < storeys; lvl++) {
+        const y = 0.5 + lvl * mod;
+        const beamA = 0x3d3733, beamB = 0x54493f;
+        const amberA = lvl % 2 === 0 ? 0xd9a441 : 0xc78f2e, amberB = lvl % 2 === 0 ? 0xc78f2e : 0xd9a441;
+        const colC = lvl % 2 === 0 ? 0x2b241f : 0x352c26;
+        const midC = lvl % 2 === 0 ? 0x38302a : 0x423931;
+        for (const cx of [0, 9.25]) for (const cz of [0, 9.25]) {
+          column(this, { x: ox + cx, y, z: oz + cz, h: 3.5, s: 0.75, mat: 'steel', color: colC });
+        }
+        for (const [mx, mz] of [[4.75, 0], [4.75, 9.5], [0, 4.75], [9.5, 4.75]]) {
+          column(this, { x: ox + mx, y, z: oz + mz, h: 3.5, s: 0.5, mat: 'steel', color: midC });
+        }
+        // spandrel beams expressed on the facade, one per bay, alternating tone
+        beam(this, { x: ox + 0.75, y: y + 3.0, z: oz, len: 4, axis: 'x', t: 0.5, depth: 0.5, mat: 'steel', color: beamA });
+        beam(this, { x: ox + 5.25, y: y + 3.0, z: oz, len: 4, axis: 'x', t: 0.5, depth: 0.5, mat: 'steel', color: beamB });
+        beam(this, { x: ox + 0.75, y: y + 3.0, z: oz + 9.5, len: 4, axis: 'x', t: 0.5, depth: 0.5, mat: 'steel', color: beamB });
+        beam(this, { x: ox + 5.25, y: y + 3.0, z: oz + 9.5, len: 4, axis: 'x', t: 0.5, depth: 0.5, mat: 'steel', color: beamA });
+        beam(this, { x: ox, y: y + 3.0, z: oz + 0.75, len: 4, axis: 'z', t: 0.5, depth: 0.5, mat: 'steel', color: beamB });
+        beam(this, { x: ox, y: y + 3.0, z: oz + 5.25, len: 4, axis: 'z', t: 0.5, depth: 0.5, mat: 'steel', color: beamA });
+        beam(this, { x: ox + 9.5, y: y + 3.0, z: oz + 0.75, len: 4, axis: 'z', t: 0.5, depth: 0.5, mat: 'steel', color: beamA });
+        beam(this, { x: ox + 9.5, y: y + 3.0, z: oz + 5.25, len: 4, axis: 'z', t: 0.5, depth: 0.5, mat: 'steel', color: beamB });
+        // amber glazing under the spandrels, alternating tint per bay
+        panel(this, { x: ox + 0.75, y, z: oz, w: 4, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: amberA });
+        panel(this, { x: ox + 5.25, y, z: oz, w: 4, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: amberB });
+        panel(this, { x: ox + 0.75, y, z: oz + 9.75, w: 4, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: amberB });
+        panel(this, { x: ox + 5.25, y, z: oz + 9.75, w: 4, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: amberA });
+        for (const sx of [0, 5]) for (const sz of [0, 5]) {
+          slab(this, { x: ox + sx, y: y + 3.5, z: oz + sz, w: 5, d: 5, t: 0.5, mat: 'concrete', color: 0xcfc8bd });
+        }
+      }
+    }
+
+    // T3 "Ribbon" — long slab-block with shear-wall ends (x -38..-18, z -90..-80, 21.5 m).
+    {
+      const ox = -38, oz = -90, storeys = 6, mod = 3.5;
+      for (let px = 0; px < 20; px += 5) {
+        for (let pz = 0; pz < 10; pz += 5) {
+          plinth(this, { x: ox + px, y: 0, z: oz + pz, w: 5, d: 5, h: 0.5, mat: 'concrete', color: 0x2f3e46 });
+        }
+      }
+      for (let lvl = 0; lvl < storeys; lvl++) {
+        const y = 0.5 + lvl * mod;
+        const ribA = lvl % 2 === 0 ? 0x9fd6c9 : 0x83c5b5, ribB = lvl % 2 === 0 ? 0x83c5b5 : 0x9fd6c9;
+        // end shear walls: two 5 m pier pieces per end, not brick stacks
+        const wallC = lvl % 2 === 0 ? 0x40535c : 0x4b6069;
+        for (const wx of [0, 19]) {
+          pier(this, { x: ox + wx, y, z: oz, w: 1, h: 3.0, d: 5, mat: 'concrete', color: wallC });
+          pier(this, { x: ox + wx, y, z: oz + 5, w: 1, h: 3.0, d: 5, mat: 'concrete', color: wallC });
+        }
+        // interior column pairs at the 5 m grid
+        for (const cx of [4.75, 9.75, 14.75]) {
+          for (const cz of [2.25, 7.25]) {
+            column(this, { x: ox + cx, y, z: oz + cz, h: 3.0, s: 0.5, mat: 'steel', color: lvl % 2 === 0 ? 0x2c3a42 : 0x36454e });
+          }
+        }
+        // ribbon glazing: four 4.5 m sheets per long face, alternating tint
+        panel(this, { x: ox + 1, y, z: oz, w: 4.5, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: ribA });
+        panel(this, { x: ox + 5.5, y, z: oz, w: 4.5, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: ribB });
+        panel(this, { x: ox + 10, y, z: oz, w: 4.5, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: ribA });
+        panel(this, { x: ox + 14.5, y, z: oz, w: 4.5, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: ribB });
+        panel(this, { x: ox + 1, y, z: oz + 9.75, w: 4.5, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: ribB });
+        panel(this, { x: ox + 5.5, y, z: oz + 9.75, w: 4.5, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: ribA });
+        panel(this, { x: ox + 10, y, z: oz + 9.75, w: 4.5, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: ribB });
+        panel(this, { x: ox + 14.5, y, z: oz + 9.75, w: 4.5, h: 3.0, axis: 'x', t: 0.25, mat: 'glass', color: ribA });
+        for (let sx = 0; sx < 20; sx += 5) {
+          for (const sz of [0, 5]) {
+            slab(this, { x: ox + sx, y: y + 3.0, z: oz + sz, w: 5, d: 5, t: 0.5, mat: 'concrete', color: 0xe8eef1 });
+          }
+        }
+      }
+    }
+
+    // T4 "Ziggurat" — setback tower with cornices (x -6..6, z -92..-80, 39.5 m).
+    {
+      const ox = -6, oz = -92;
+      const tierAt = (tx, tz, w, y0, storeys, colColor, glassA, glassB, slabColor) => {
+        for (let lvl = 0; lvl < storeys; lvl++) {
+          const y = y0 + lvl * 4.0;
+          const gA = lvl % 2 === 0 ? glassA : glassB, gB = lvl % 2 === 0 ? glassB : glassA;
+          const cC = lvl % 2 === 0 ? colColor : colColor + 0x0a0a0a;
+          for (const c of [0, w - 0.75]) for (const cz of [0, w - 0.75]) {
+            column(this, { x: tx + c, y, z: tz + cz, h: 3.5, s: 0.75, mat: 'steel', color: cC });
+          }
+          if (w >= 8) pier(this, { x: tx + w / 2 - 1, y, z: tz + w / 2 - 1, w: 2, h: 3.5, d: 2, mat: 'concrete', color: cC });
+          const run = w - 1.5;
+          panel(this, { x: tx + 0.75, y, z: tz, w: run, h: 3.5, axis: 'x', t: 0.25, mat: 'glass', color: gA });
+          panel(this, { x: tx + 0.75, y, z: tz + w - 0.25, w: run, h: 3.5, axis: 'x', t: 0.25, mat: 'glass', color: gB });
+          panel(this, { x: tx, y, z: tz + 0.75, w: run, h: 3.5, axis: 'z', t: 0.25, mat: 'glass', color: gB });
+          panel(this, { x: tx + w - 0.25, y, z: tz + 0.75, w: run, h: 3.5, axis: 'z', t: 0.25, mat: 'glass', color: gA });
+          const half = w / 2;
+          for (const sx of [0, half]) for (const sz of [0, half]) {
+            slab(this, { x: tx + sx, y: y + 3.5, z: tz + sz, w: half, d: half, t: 0.5, mat: 'concrete', color: slabColor });
+          }
+        }
+      };
+      for (let px = 0; px < 12; px += 4) {
+        for (let pz = 0; pz < 12; pz += 6) {
+          plinth(this, { x: ox + px, y: 0, z: oz + pz, w: 4, d: 6, h: 0.5, mat: 'concrete', color: 0x3a2f45 });
+        }
+      }
+      tierAt(ox, oz, 12, 0.5, 4, 0x4a3b5c, 0xb497d6, 0x9d7fc4, 0xcabfd9);       // 0.5..16.5
+      cornice(this, { x: ox, y: 16.5, z: oz, run: 12, axis: 'x', t: 0.25, proj: 0.5, mat: 'concrete', color: 0x6c5a82 });
+      cornice(this, { x: ox, y: 16.5, z: oz + 11.5, run: 12, axis: 'x', t: 0.25, proj: 0.5, mat: 'concrete', color: 0x6c5a82 });
+      tierAt(ox + 2, oz + 2, 8, 16.5, 3, 0x574669, 0xa285cc, 0x8b6bb8, 0xbfb2d1); // 16.5..28.5
+      cornice(this, { x: ox + 2, y: 28.5, z: oz + 2, run: 8, axis: 'x', t: 0.25, proj: 0.5, mat: 'concrete', color: 0x6c5a82 });
+      cornice(this, { x: ox + 2, y: 28.5, z: oz + 9.5, run: 8, axis: 'x', t: 0.25, proj: 0.5, mat: 'concrete', color: 0x6c5a82 });
+      tierAt(ox + 4, oz + 4, 4, 28.5, 2, 0x63518a, 0x9370c9, 0x7d5bb5, 0xb5a6ce); // 28.5..36.5
+      this._block(ox + 5.75, 36.5, oz + 5.75, 'steel', [0.5, 3.0, 0.5], 0xd6c9f0); // crown spire
+    }
+
+    // T5 "Skeleton" — beam-and-slab frame mid-erection: the doctrine with no
+    // cladding on it at all (x 20..32, z -92..-80, 20.5 m).
+    {
+      const ox = 20, oz = -92, storeys = 5, mod = 4.0;
+      for (let px = 0; px < 12; px += 4) {
+        for (let pz = 0; pz < 12; pz += 6) {
+          plinth(this, { x: ox + px, y: 0, z: oz + pz, w: 4, d: 6, h: 0.5, mat: 'concrete', color: 0x4d4d55 });
+        }
+      }
+      for (let lvl = 0; lvl < storeys; lvl++) {
+        const y = 0.5 + lvl * mod;
+        for (const cx of [0, 5.75, 11.5]) {
+          for (const cz of [0, 5.75, 11.5]) {
+            column(this, { x: ox + cx, y, z: oz + cz, h: 3.5, s: 0.5, mat: 'steel', color: lvl % 2 === 0 ? 0xb3552e : 0xc2643c });
+          }
+        }
+        if (lvl < storeys - 1) {
+          for (const sx of [0, 6]) for (const sz of [0, 6]) {
+            slab(this, { x: ox + sx, y: y + 3.5, z: oz + sz, w: 6, d: 6, t: 0.5, mat: 'concrete', color: 0x8d99ae });
+          }
+        } else {
+          // top floor still being decked: two plates in, two to go, loose beams staged
+          slab(this, { x: ox, y: y + 3.5, z: oz, w: 6, d: 6, t: 0.5, mat: 'concrete', color: 0x8d99ae });
+          slab(this, { x: ox + 6, y: y + 3.5, z: oz + 6, w: 6, d: 6, t: 0.5, mat: 'concrete', color: 0x8d99ae });
+          // staged girders resting on the storey below's finished deck
+          beam(this, { x: ox + 1, y, z: oz + 7, len: 4, axis: 'x', t: 0.5, depth: 0.5, mat: 'steel', color: 0xd97706 });
+          beam(this, { x: ox + 1, y, z: oz + 9, len: 4, axis: 'x', t: 0.5, depth: 0.5, mat: 'steel', color: 0xb3552e });
+        }
+      }
+      shippingContainer(this, 34.5, 0, -90, 5, 0xd96c2c); // staged materials by the frame
+    }
+
+    // "Corbel Gate" — the historic monument: ~2,000 half-metre bricks, solid
+    // masonry piers and a corbelled span, the era where fine grain IS correct
+    // (x -6..6, z -58..-55, 11.5 m).
+    {
+      const brickA = 0x9a6a4f, brickB = 0x8a5b42;
+      const putBrick = (x, y, z) => this._block(x, y, z, 'brick', 0.5, ((x + z) * 4 + Math.round(y * 2)) % 2 === 0 ? brickA : brickB);
+      // solid piers x -6..-3 and 3..6, z -58..-55, y 0..8
+      for (const [x0, x1] of [[-6, -3], [3, 6]]) {
+        for (let y = 0; y < 8; y += 0.5) {
+          for (let x = x0; x < x1; x += 0.5) {
+            for (let z = -58; z < -55; z += 0.5) putBrick(x, y, z);
+          }
+        }
+      }
+      // corbelled span: each course cantilevers 0.5 m further over the opening
+      for (let i = 0; i < 6; i++) {
+        const y = 8 + i * 0.5, reachL = -3 + 0.5 * (i + 1), reachR = 3 - 0.5 * (i + 1);
+        for (let z = -58; z < -55; z += 0.5) {
+          for (let x = -6; x < reachL; x += 0.5) putBrick(x, y, z);
+          for (let x = reachR; x < 6; x += 0.5) putBrick(x, y, z);
+        }
+      }
+      // attic band capping the gate
+      for (let y = 11; y < 11.5; y += 0.5) {
+        for (let x = -6; x < 6; x += 0.5) {
+          for (let z = -58; z < -55; z += 0.5) putBrick(x, y, z);
+        }
+      }
+      // shallow approach steps, north and south faces
+      for (const [z0, z1] of [[-59, -58], [-55, -54]]) {
+        for (let x = -5; x < 5; x += 0.5) {
+          for (let z = z0; z < z1; z += 0.5) putBrick(x, 0, z);
+        }
+      }
+    }
+
+    // Masonry-era cottages: kit `tower` masonry shells (1 m brick grain) under
+    // stepped timber roofs — small blocks are CORRECT here.
+    {
+      const cottage = (ox, oz, w, d, wallColor, roofColor) => {
+        tower(this, ox, oz, w, d, 0, 4, 'masonry', 'brick', wallColor);
+        wedge(this, { x: ox, y: 4, z: oz, w, d, h: 1.5, axis: 'x', from: 'center', riser: 0.5, mat: 'wood', color: roofColor });
+      };
+      cottage(-78, -60, 7, 5, 0x8a5a44, 0x6b4226);
+      cottage(-64, -60, 7, 5, 0x9c6b53, 0x59371f);
+      cottage(-33, -60, 7, 5, 0x7a4f3a, 0x6b4226);
+    }
+
+    // District street life along Doctrine Row (road z -73..-65)
+    sedan(this, -70, -72, 0xf7c948, 0x1d3557, 'x');
+    kenneySUV(this, -30, -72, 0x1a1a1e, 'x');
+    bus(this, -18, -68.25, 0x2a9d8f, 'x');
+    sedan(this, 50, -68.25, 0xd90429, 0xd90429, 'x');
+    motorcycle(this, -51, -67.5);
+
+    for (const lx of [-84, -58, -36, -12, 18, 40, 64, 84]) lampPost(this, lx, -73.5);
+    for (const lx of [-72, -50, -24, 0, 30, 52, 76]) lampPost(this, lx, -64.5);
+    for (const [tx, tz] of [
+      [-90, -74.5], [-72, -74.5], [-54, -74.5], [-14, -74.5], [8, -74.5], [38, -74.5], [58, -74.5], [78, -74.5],
+      [-88, -63.5], [-52, -63.5], [-20, -63.5], [24, -63.5], [46, -63.5], [70, -63.5],
+    ]) tree(this, tx, tz);
+
+    // sidewalk furniture on the historic side
+    hydrant(this, -74, -63.4); trashBin(this, -60, -63.5); mailbox(this, -37, -63.5);
+    bench(this, -14, -63.5, 0); bench(this, 14, -63.5, 0);
+    planter(this, -22, -63.5); planter(this, 20, -63.5);
+    bollard(this, -4, -63.5); bollard(this, 4, -63.5);
+
+    // green pocket east of the houses
+    for (const [tx, tz] of [[40, -56], [48, -59], [56, -54], [66, -58], [76, -53], [84, -57], [62, -51], [78, -50.5]]) tree(this, tx, tz);
+    bench(this, 52, -56, 0); bench(this, 70, -54, 0);
+
+    // Dynamic Player Movement Bounds (190m × 140m total area; the north quarter
+    // is the ADR-pending construction-doctrine district)
     this.bounds = 95;
-    this.boundsRect = { minX: -95, maxX: 95, minZ: -45, maxZ: 45 };
+    this.boundsRect = { minX: -95, maxX: 95, minZ: -95, maxZ: 45 };
 
     // --- FULL GROUND DECOR ROAD, CANAL & SIDEWALK NETWORK --------------------
     const parks = [], sand = [], plaza = [], cobbles = [], sidewalks = [];
@@ -2843,6 +3236,32 @@ export class VoxelSandboxSim {
 
     // Rail Bed under Elevated Viaduct
     rail.push({ x: -95, z: 22, w: 190, d: 6, color: 0x3a3128 });
+
+    // --- ZONE 4 (north quarter) ground network --------------------------------
+    // Base green for the whole new band
+    parks.push({ x: -95, z: -95, w: 190, d: 50, color: 0x2d5a27 });
+    // Modern row plaza (under the five towers) and historic-side cobbles
+    plaza.push({ x: -92, z: -95, w: 184, d: 19, color: 0x39465a });
+    cobbles.push({ x: -84, z: -62, w: 130, d: 13, color: 0x6c584c });
+    // Doctrine Row: east-west district street with flanking sidewalks
+    roads.push({ x: -95, z: -73, w: 190, d: 8, color: 0x1c2030 });
+    sidewalks.push({ x: -95, z: -76, w: 190, d: 3, color: 0xd1d5db });
+    sidewalks.push({ x: -95, z: -65, w: 190, d: 3, color: 0xd1d5db });
+    // Two north-south connector avenues through the tower gaps (x -44 and 13)
+    for (const ax of [-44, 13]) {
+      roads.push({ x: ax - 3, z: -95, w: 6, d: 50, color: 0x1c2030 });
+      sidewalks.push({ x: ax - 6, z: -95, w: 3, d: 50, color: 0xd1d5db });
+      sidewalks.push({ x: ax + 3, z: -95, w: 3, d: 50, color: 0xd1d5db });
+    }
+    // Dashed yellow centerline for Doctrine Row and the connectors
+    for (let x = -92; x < 92; x += 6) {
+      laneMarkers.push({ x: x, z: -69.1, w: 3.0, d: 0.2, color: 0xf59e0b });
+    }
+    for (const ax of [-44, 13]) {
+      for (let z = -92; z < -50; z += 6) {
+        laneMarkers.push({ x: ax - 0.1, z: z, w: 0.2, d: 3.0, color: 0xf59e0b });
+      }
+    }
 
     this.sceneDecor = {
       parks, sand, plaza, cobbles, sidewalks, roads, rail,
@@ -4202,7 +4621,16 @@ export class VoxelSandboxSim {
       //     in 57d0652). This is the identical condition `_capDebris` applies,
       //     so this path is strictly MORE conservative than the walk's own sleep
       //     path: same support rule, plus JAM_STEPS of proven stillness.
-      if (b._groundT !== this.time || !b._grounded || b._looseSup || b._budgetHold ||
+      // Two ways in (RCA-2026-08-24): the walk's own fresh-grounded rule, or
+      // `_sepFloor === this.time` — the contact solver pushed this body +y off
+      // a static partner THIS step, which is support evidence the walk's
+      // zero-tolerance landing test cannot see (the separator's 1.02 skin
+      // leaves the body ~0.3 mm above `rest`, so `_grounded` never sets and
+      // the whole retirement family starved). A body with neither form of
+      // evidence — hovering, mid-fall — must stay awake.
+      const supported = (b._groundT === this.time && b._grounded) ||
+        b._sepFloor === this.time;
+      if (!supported || b._looseSup || b._budgetHold ||
           b.vx * b.vx + b.vz * b.vz >= 0.06) {
         b._jamSteps = 0;
         continue;
@@ -4532,7 +4960,20 @@ export class VoxelSandboxSim {
       (b._yPrevBase === undefined || b._yPrevBase < o.y + o.sy / 2 - 0.05);
     
     if (px <= py && px <= pz) this._pushAxis(b, o, 'x', dx >= 0 ? 1 : -1, px, movableO);
-    else if (py <= px && py <= pz && !upBlocked) this._pushAxis(b, o, 'y', dy >= 0 ? 1 : -1, py, movableO);
+    else if (py <= px && py <= pz && !upBlocked) {
+      // Never push a GROUNDED body down through its own support (RCA-2026-08-24
+      // mechanism B: a fast body embedded above — immovable per the speed
+      // filter — shoved its grounded partner below the floor, the ground snap
+      // undid it, and the pair pumped a ~1 m vertical cycle forever). With no
+      // movable partner to absorb the correction, resolve laterally instead;
+      // with one, _pushAxis gives the partner the full correction.
+      if (dy < 0 && b._grounded && !movableO) {
+        if (px <= pz) this._pushAxis(b, o, 'x', dx >= 0 ? 1 : -1, px, movableO);
+        else this._pushAxis(b, o, 'z', dz >= 0 ? 1 : -1, pz, movableO);
+      } else {
+        this._pushAxis(b, o, 'y', dy >= 0 ? 1 : -1, py, movableO);
+      }
+    }
     else if (pz <= px) this._pushAxis(b, o, 'z', dz >= 0 ? 1 : -1, pz, movableO);
     else this._pushAxis(b, o, 'x', dx >= 0 ? 1 : -1, px, movableO);
   }
@@ -4549,8 +4990,14 @@ export class VoxelSandboxSim {
     // _resolveDebrisContacts) — not the separator. Deep chunk-birth overlaps
     // resolve here as they always have.
     pen *= 1.02;       // separation skin — visibly touching, never interpenetrating
-    b[axis] += sign * pen * (movableO ? 0.5 : 1);
-    if (movableO) o[axis] -= sign * pen * 0.5;
+    if (axis === 'y' && sign < 0 && b._grounded && movableO) {
+      // grounded bodies never take a downward correction (RCA-2026-08-24
+      // mechanism B) — the movable partner absorbs all of it
+      o[axis] -= sign * pen;
+    } else {
+      b[axis] += sign * pen * (movableO ? 0.5 : 1);
+      if (movableO) o[axis] -= sign * pen * 0.5;
+    }
     // bounce only when actually closing along the axis; gentle contacts just stop
     const vb = b['v' + axis];
     if (vb * sign < 0) b['v' + axis] = Math.abs(vb) > 1 ? -vb * REST : 0;
@@ -4575,6 +5022,13 @@ export class VoxelSandboxSim {
     if (axis === 'y' && sign > 0) {
       this._scFloorHit = true; // read (and reset) by the debris wall-scrape response
       if (o.state === 'falling') b._restLoose = o;
+      // Solver-provided support evidence (RCA-2026-08-24 mechanism A): the
+      // 1.02 skin leaves a separator-supported body a fraction of a millimetre
+      // above the walk's zero-tolerance landing test, so `_grounded` is
+      // unreachable for it and every retirement path starves. This stamp is
+      // the jam latch's alternative eligibility — set only for a +y push off a
+      // NON-movable partner, i.e. actual weight-bearing support.
+      if (!movableO) b._sepFloor = this.time;
     }
   }
 
@@ -5071,21 +5525,26 @@ export class VoxelSandboxSim {
     }
     this.powerups = this.powerups.filter((p) => !p.collected && !p.expired);
 
-    // Intermittent power-up respawns on the board (capped at MAX_MAP_POWERUPS = 2, independent 30s cooldown per eaten slot)
-    for (let i = this.powerupRespawnTimers.length - 1; i >= 0; i--) {
-      this.powerupRespawnTimers[i] -= dt;
-      if (this.powerupRespawnTimers[i] <= 0) {
-        this.powerupRespawnTimers.splice(i, 1);
-        const activeGround = this.powerups.filter((p) => !p.collected);
-        if (activeGround.length < MAX_MAP_POWERUPS) {
-          const pu = this._spawnIntermittentPowerUp();
-          if (pu) this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'intermittent' });
-        }
-      }
-    }
+    // ONE shared respawn slot: the board refills a single power-up per
+    // POWERUP_RESPAWN_SECONDS and pauses while MAX_MAP_POWERUPS sit
+    // uncollected. Per-consumed-slot parallel timers are exactly what the
+    // 2026-08-25 spec removed — they all fired at once after a multi-collect.
     const activeGroundCount = this.powerups.filter((p) => !p.collected).length;
-    if (activeGroundCount + this.powerupRespawnTimers.length < MAX_MAP_POWERUPS) {
-      this.powerupRespawnTimers.push(30.0);
+    if (this.powerupRespawnTimer === null) {
+      if (activeGroundCount < MAX_MAP_POWERUPS) {
+        this.powerupRespawnTimer = POWERUP_RESPAWN_SECONDS;
+      }
+    } else {
+      this.powerupRespawnTimer -= dt;
+      if (this.powerupRespawnTimer <= 0) {
+        this.powerupRespawnTimer = null;
+        // `backlog` marks a spawn onto a board already holding uncollected
+        // power-ups: the renderer announces it but suppresses the encounter
+        // cinematic (five accumulated spawns must not be five cutscenes).
+        const backlog = activeGroundCount > 0;
+        const pu = this._spawnIntermittentPowerUp();
+        if (pu) this.events.push({ type: 'powerup_spawn', powerup: pu, reason: 'intermittent', backlog });
+      }
     }
 
     this._collectPowerups();
@@ -5120,8 +5579,19 @@ export class VoxelSandboxSim {
           }
         }
       }
+      // Bounded pass (plan lever: swirl cost cap). During a city-wide collapse
+      // `_falling` can hold thousands of movers; scanning them all every step
+      // just to swirl at most 48 is the storm's second linear cost. A rotating
+      // cursor examines at most MAX_SWIRL_SCAN entries per step and resumes
+      // where it left off next step — deterministic (cursor is sim state), and
+      // every mover is still visited a few times per second.
+      const MAX_SWIRL_SCAN = 512;
+      const fallingCount = this._falling.length;
+      const scanCount = Math.min(fallingCount, MAX_SWIRL_SCAN);
+      const cursor = fallingCount > 0 ? (this._stormSwirlCursor || 0) % fallingCount : 0;
       let swirled = 0;
-      for (let i = 0; i < this._falling.length; i++) {
+      for (let s = 0; s < scanCount; s++) {
+        const i = (cursor + s) % fallingCount;
         const b = this._falling[i];
         if (!b || b.consumed) continue;
         if (b.x < minX || b.x > maxX || b.z < minZ || b.z > maxZ) continue;
@@ -5149,6 +5619,7 @@ export class VoxelSandboxSim {
           if (swirled >= 48) break;
         }
       }
+      this._stormSwirlCursor = fallingCount > 0 ? (cursor + scanCount) % fallingCount : 0;
     }
 
     // Vortex vacuum pull on active loose movers
