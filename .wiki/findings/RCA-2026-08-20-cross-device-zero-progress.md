@@ -9,7 +9,7 @@ everything, as if it were a brand-new account.
 is silent: nothing in the UI tells the player their "sign-in" did not connect
 to their real account.
 
-**Status:** diagnosis only, not fixed. Confirmed at the code level; the exact
+**Status:** identity fallback fixed in `aefdb96` (2026-08-20); `tools/player-identity.test.mjs` passes 32 assertions on 2026-09-08. The separate ranked ticket recovery gap is being remediated in the current plan. Original diagnosis follows. Confirmed at the code level; the exact
 trigger on Nico's second device is not confirmed from logs (none were queried
 against a known timestamp — see section 5).
 

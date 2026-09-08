@@ -1,7 +1,7 @@
 # RCA — `backdrop-filter` captures `position: fixed` descendants
 
 **Date:** 2026-08-17
-**Status:** one instance fixed (shop tab bar), one instance OPEN (`#mp-countdown-modal`)
+**Status (2026-09-08):** both instances fixed in code. The countdown is body-mounted, explicitly removed by clear(), and match startup calls that cleanup before loading. Layout and lifecycle tests pass; a live two-peer transition passed on preview `flywheel-1w7bmvlek` with no console errors or failed requests. Historical diagnosis follows.
 **Surfaces:** `css/main.css`, `css/multiplayer.css`, `js/ui/screens.js`, `js/multiplayer/ui.js`
 
 ## The rule

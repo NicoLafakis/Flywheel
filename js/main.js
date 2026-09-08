@@ -1314,6 +1314,7 @@ function joinMultiplayerLobby(roomCode, chosenName = null) {
 }
 
 function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180, players, mySlot, channel }) {
+  mpUI.clear(); // also owns the viewport-mounted countdown, outside screen-root
   screens.showLoading('MULTIPLAYER · ' + scene.toUpperCase());
   // Same rejection-has-nowhere-to-land shape as startVoxelSandbox; here the
   // scene id arrives off the wire in the host's GAME_START message, so an
@@ -2071,7 +2072,7 @@ function endSandbox() {
       });
     } else {
       recordSandboxResult(save, finished.scene, {
-        coinsEarned: coins, elapsed: finished.time,
+        coinsEarned: coins, elapsed: finished.time, size: finished.hole.size,
         bestCombo: finished.hole.bestCombo, score: finished.hole.mass,
         // Both halves of the outcome, because the clock made them different
         // questions (R-2.2). `won` is a genuine full clear of the city and is what

@@ -464,6 +464,10 @@ export class MultiplayerUI {
     this._container = lobbyView;
     this._chatContainer = lobbyView.querySelector('#mp-chat-feed');
     this._countdownEl = lobbyView.querySelector('#mp-countdown-modal');
+    // .screen's backdrop-filter captures fixed descendants; the lobby scrolls.
+    // Mount at the viewport and explicitly dispose it in clear().
+    document.body.appendChild(this._countdownEl);
+    const countdownEl = this._countdownEl;
 
     // Roster is built as DOM nodes (never markup) so a player name can only ever
     // be text — see _renderRosterInto.
@@ -592,6 +596,7 @@ export class MultiplayerUI {
     let lastCountdownDigit = null;
 
     lobby.onCountdownStart = (sec) => {
+      if (this._countdownEl !== countdownEl) return;
       if (this._countdownEl) {
         this._countdownEl.classList.remove('hidden');
         const num = this._countdownEl.querySelector('#mp-countdown-num');
@@ -602,6 +607,7 @@ export class MultiplayerUI {
     };
 
     lobby.onCountdownTick = (sec) => {
+      if (this._countdownEl !== countdownEl) return;
       if (!this._countdownEl) return;
       const digit = Math.max(1, Math.ceil(sec));
       if (digit === lastCountdownDigit) return;
@@ -616,6 +622,7 @@ export class MultiplayerUI {
     };
 
     lobby.onCountdownCancel = (reason) => {
+      if (this._countdownEl !== countdownEl) return;
       if (this._countdownEl) {
         this._countdownEl.classList.add('hidden');
       }
@@ -834,6 +841,9 @@ export class MultiplayerUI {
   }
 
   clear() {
+    if (this._countdownEl?.parentNode) {
+      this._countdownEl.parentNode.removeChild(this._countdownEl);
+    }
     if (this._container && this._container.parentNode) {
       this._container.parentNode.removeChild(this._container);
     }

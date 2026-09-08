@@ -319,15 +319,7 @@ client, and callers read `id` and `name` only.
   open — it is triggered only by a genuinely offline `pending` fallback now,
   which is rarer but not eliminated, since invariant 10 still requires an
   offline player be able to keep playing.
-- **The `run/start` local-token-401 gap (still open).** `js/board/run.js`'s
-  `startTicket()` sends whatever secret `playerSecret()` holds on every later
-  request, and `run/start` rejects an invalid binding outright with `401
-  PLAYER_TOKEN_INVALID` — so a device that ever received a genuine offline
-  `local-*` fallback stays un-ranked until localStorage is cleared or it signs
-  in for real. The server side cannot fix this (a 401 for a `player_id` that is
-  not a UUID is the correct answer). Auto-provisioning only runs when NO
-  binding was sent, so a browser holding a `local-*` secret takes the 401
-  branch before reaching it and gets the same result it does today.
+- **Ranked local-token recovery (2026-09-08, worktree fix).** `startTicket()` omits known `local-*` / `local-token-*` placeholder pairs, allowing the existing device-player provision path. A WeakMap keeps each ticket's credentials (including a newly issued auto token) independent of subsequent sign-ins. A no-token auto ticket uses the server's signed-ticket/device binding. Pending sign-in and local progress are not overwritten; real invalid tokens remain rejected. `finishRun()` serializes that binding into the outbox, and thrown network/timeout errors now remain queued. `tools/ranked-recovery.test.mjs` covers request bodies, account switching, auto tokens, retries and unchanged pending identity. Server authentication and replay scoring are unchanged.
 
 ## Guards
 
@@ -475,3 +467,31 @@ section asserts `_verify.mjs` writes `coins_collected` from
   `pending` — a run outside the current top 25 for its scene is marked
   `unranked` without spending a server replay on it, and the trace is kept
   regardless so it can be re-verified later if the bar moves.
+
+### Ranked recovery live checkpoint (2026-09-08)
+
+Preview `flywheel-1w7bmvlek` completed a hardware-rendered 90-second run from
+known offline placeholder credentials: start200, submit200, queue empty and
+pending profile preserved, with no console errors or failed network requests.
+Run `93885f9f-c560-4f7e-a922-67fe73e220b5` remained pending through the status
+polling window. Server score and attribution are not yet verified live.
+A manual verifier request returned401 because the exported credential was
+redacted. No authentication checks were weakened and no production deployment
+was made. All seven changed application modules matched the deployed preview
+by normalized SHA-256 on this checkpoint.
+
+## Deployment identity discovered during acceptance
+
+On 2026-09-08, Vercel's production deployment metadata identifies
+`NicoLafakis/Flywheel-v2`, commit `28805e15a6c5ade3dc060f50ceb1acdcd37c85fb`,
+as the source of `www.playflywheel.com`. Its entry point imports `js/sim/*`;
+this workspace uses `js/voxelsim.js`. Production returns 404 for the legacy
+`/api/run/start` and `/api/run/verify` endpoints, and the project's deployed
+cron definitions are empty. Those differences are consistent with a separate
+successor application, not proof of a failed deployment of this workspace.
+
+The remediation preview belongs to the legacy workspace. Do not promote it
+over Flywheel-v2 as a routine completion step. Acceptance needs a designated
+legacy deployment with a working ranked verifier and a physical-phone target.
+The user has been asked to identify that environment. Existing preview runs
+remain durable/pending; no authentication checks have been weakened.

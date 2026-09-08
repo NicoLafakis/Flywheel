@@ -16,7 +16,7 @@ python -m http.server 8000     # from repo root
 ## Run the proof
 
 ```
-node tools/validate.mjs        # all 100 levels, ~10s
+node tools/validate.mjs        # full suite; potentially hours, includes city excursions
 node tools/validate.mjs 42     # single level
 ```
 
@@ -37,3 +37,11 @@ world map opens, level starts with no console errors, eating increases mass.
 2. Make the change; keep the sim/render boundary intact.
 3. `node tools/validate.mjs` → ALL PASS.
 4. Update the wiki page and `STATUS.md` in the same commit.
+
+## Validation authority (2026-09-08)
+
+The user-provided AGENTS.md requires the full validator to print ALL PASS.
+Focused `FW_VALIDATE_SECTIONS` runs support RED/GREEN iteration; older
+CLAUDE.md and .sop-gates.json subset guidance does not waive that requirement.
+The multiplayer section now includes a real Chromium layout regression and
+requires Playwright (local installation or the documented global Windows install).

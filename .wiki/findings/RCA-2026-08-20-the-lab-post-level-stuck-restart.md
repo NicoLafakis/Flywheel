@@ -8,9 +8,13 @@ scans `js/main.js` for every `tutorialManager.<method>()` call and asserts
 it exists on `TutorialManager.prototype`; it was confirmed to fail against
 the pre-fix code (`tutorialManager.unmount(), but TutorialManager has no
 such method`) and passes after the fix. `node tools/validate.mjs` prints
-`ALL PASS`. The section-7 "defense in depth" (per-subsystem try/catch in
-`teardownWorld()`) and the section-6 unrelated `bestSize: NaN` bug were not
-addressed by this fix — both remain open, see section 7/8 below.
+`ALL PASS`. The section-6 unrelated `bestSize: NaN` bug is now fixed in the
+2026-09-08 remediation: the main result callback supplies SIZE and the save
+recorder tolerates non-finite historical values. `tools/sandbox-size.test.mjs`
+reproduces both sites before the fix and passes afterward. The section-7
+per-subsystem exception isolation remains a separate hardening proposal;
+no additional teardown crash has been reproduced.
+
 
 **Status (original, pre-fix):** root cause confirmed by live reproduction
 against production (www.playflywheel.com), one bug, not two. Not fixed by

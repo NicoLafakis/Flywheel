@@ -35,7 +35,7 @@ this afternoon*. Most of what follows is not blocked.
 | Cloud progress sync | Coins, skins, stars and upgrades follow you when you sign in on another phone | **Yes — shipped 2026-08-17** (behind `FW_PROGRESS_SYNC`) | Nothing | Done |
 | Achievements | A trophy list that remembers what you have done | No — 96 designed, 0 built | A rule engine and a saved bitmask field; cloud progress sync (above) proves out the per-player storage and RLS posture such a field would sit next to, but does not itself add one | Medium (per batch) |
 | Championship belts | Named titles somebody holds until you beat their number | No | The online backend | Large |
-| Known defects | Fewer ways for the game to break in front of somebody | Zero open | Nothing | Small each |
+| Known defects | Ranked recovery, countdown visibility, and measured frame-budget misses | Remediation in progress (2026-09-08) | [Current plan](plans/bug-remediation-2026-09-08.md) | See plan |
 
 Two things are worth pulling out of that table before the detail.
 

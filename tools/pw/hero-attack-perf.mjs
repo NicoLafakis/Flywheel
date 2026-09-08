@@ -50,12 +50,14 @@
 //      node tools/pw/hero-attack-perf.mjs sydney boston
 import { VoxelSandboxSim, loadScene } from '../../js/voxelsim.js';
 import { CITY_CATALOG } from '../../js/citycatalog.js';
+import { summarizeSteps, attackLabel, countAwake } from '../perf-summary.mjs';
 
 const ARGS = process.argv.slice(2);
 const SCENES = ARGS.length ? ARGS : CITY_CATALOG.filter((c) => c.status === 'PLAYABLE').map((c) => c.scene);
 const REPS = Number(process.env.FW_PERF_REPS || 3);
 const ATTACK_SIZE = 11;      // pinned: radius 1.1 + (11-1)*0.5 = 6.1 m
 const SETTLE = 60, STEPS = 200, BUDGET_MS = 1000 / 60;
+const GROW = process.env.FW_PERF_GROW === '1';
 
 for (const s of SCENES) await loadScene(s);
 
@@ -80,6 +82,8 @@ const heroOf = (sim) => {
 
 const runs = Object.fromEntries(SCENES.map((s) => [s, []]));
 const meta = {};
+const timings = Object.fromEntries(SCENES.map(s => [s, []]));
+const awakeCount = sim => countAwake(sim.blocks);
 for (let rep = 0; rep < REPS; rep++) {
   for (const scene of SCENES) {
     const sim = new VoxelSandboxSim({ seed: 'perf', scene });
@@ -94,14 +98,18 @@ for (let rep = 0; rep < REPS; rep++) {
     // that engages early ends up with a bigger aperture than one that does
     // not — so it answers a different question: not "which city is dearest
     // per unit of attack" but "does any city blow the budget in real play".
-    const GROW = process.env.FW_PERF_GROW === '1';
     const pin = () => { if (!GROW) { h.size = ATTACK_SIZE; h.sizeFrac = 0; } };
     pin();
     for (let i = 0; i < SETTLE; i++) { pin(); sim.step(1 / 60, { x: 0, z: 0 }); }
     const eaten0 = h.eatenCount;
     const debris = sim.blocks.filter((b) => b.state !== 'static').length;
     const t0 = sim.time, w = process.hrtime.bigint();
-    for (let i = 0; i < STEPS; i++) { pin(); sim.step(1 / 60, { x: 0, z: 0 }); }
+    for (let i = 0; i < STEPS; i++) {
+      pin();
+      const start = performance.now();
+      sim.step(1 / 60, { x: 0, z: 0 });
+      timings[scene].push(performance.now() - start);
+    }
     const ms = Number(process.hrtime.bigint() - w) / 1e6 / STEPS;
     const advanced = sim.time - t0;
     if (Math.abs(advanced - STEPS / 60) > 1e-6) {
@@ -109,12 +117,22 @@ for (let rep = 0; rep < REPS; rep++) {
     }
     runs[scene].push(ms);
     meta[scene] = { hero: hero.n, blocks: sim.blocks.length, debris, ate: h.eatenCount - eaten0 };
+    meta[scene].awake = awakeCount(sim);
+    // Observe retirement after leaving the structure. This is a fixed 10-second
+    // observation window, not a claim that all destruction has finished.
+    h.x = 10000; h.z = 10000;
+    for (let i = 0; i < 600; i++) sim.step(1 / 60, { x: 0, z: 0 });
+    meta[scene].settledAwake = awakeCount(sim);
+    const settledStart = performance.now();
+    for (let i = 0; i < 60; i++) sim.step(1 / 60, { x: 0, z: 0 });
+    meta[scene].settledMs = (performance.now() - settledStart) / 60;
+    console.log(`completed ${scene} rep ${rep + 1}/${REPS}: ${ms.toFixed(3)} ms/step`);
   }
 }
 
 const median = (a) => { const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
-console.log(`\nhero-attack step cost — ${REPS} round-robined reps x ${STEPS} steps, hole pinned at SIZE ${ATTACK_SIZE} (r 6.1 m)`);
+console.log(`\nhero-attack step cost — ${REPS} round-robined reps x ${STEPS} steps, ${attackLabel(GROW, ATTACK_SIZE)}`);
 console.log(`frame budget ${BUDGET_MS.toFixed(2)} ms\n`);
 console.log('scene            blocks  largestComp  debris   ate    min ms   median ms   % budget');
 const rows = SCENES.map((s) => ({ s, ...meta[s], min: Math.min(...runs[s]), med: median(runs[s]) }))
@@ -125,6 +143,8 @@ for (const r of rows) {
     + `${r.min.toFixed(3).padStart(10)}${r.med.toFixed(3).padStart(12)}`
     + `${(r.med / BUDGET_MS * 100).toFixed(0).padStart(10)}%`);
 }
+console.log('PERF_JSON ' + JSON.stringify({ growing: GROW, reps: REPS, steps: STEPS,
+  rows: rows.map(r => ({ ...r, ...summarizeSteps(timings[r.s]) })) }));
 
 // Which variable actually predicts the cost? Reported rather than assumed:
 // the whole point of widening this to 11 cities was that the first answer

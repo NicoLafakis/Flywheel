@@ -20,7 +20,7 @@ levels.js ──► citygen.js ──► sim.js ──► world3d.js ──► s
                               60 Hz)
                                 ▲
 controls.js ──► move/orbit intents ──┘
-save.js ◄──► localStorage (schema v17 + migrations)
+save.js ◄──► localStorage (schema v25 + migrations)
 
 voxelsim.js ──► voxelworld.js        (voxel sandbox: same split,
  (seed, fixed 60 Hz)                  no citygen/levels)

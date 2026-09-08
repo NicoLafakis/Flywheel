@@ -1,3 +1,4 @@
+import { VoxelGrid } from './voxelgrid.js';
 // Progressive voxel excavation sandbox.
 //
 // The hole removes floor support; a deterministic load-path graph decides how
@@ -1009,7 +1010,7 @@ export class VoxelSandboxSim {
     this.won = false;
     this.events = [];
     this.blocks = [];
-    this.grid = new Map(); // every occupied fine cell -> owning block
+    this.grid = new VoxelGrid(); // every occupied fine cell -> owning block
     this.chunks = [];
     this._blockId = 1;
     this._chunkId = 1;
@@ -2119,7 +2120,7 @@ export class VoxelSandboxSim {
     for (let i = 0; i < fsx; i++) {
       for (let j = 0; j < fsy; j++) {
         for (let k = 0; k < fsz; k++) {
-          this.grid.set(key(fx + i, fy + j, fz + k), b);
+          this.grid.setCell(fx + i, fy + j, fz + k, b);
         }
       }
     }
@@ -3294,7 +3295,7 @@ export class VoxelSandboxSim {
           for (let v = 0; v < e[i2]; v++) {
             const c = [0, 0, 0];
             c[a] = fixed; c[i1] = g[i1] + u; c[i2] = g[i2] + v;
-            const nb = this.grid.get(key(c[0], c[1], c[2]));
+            const nb = this.grid.getCell(c[0], c[1], c[2]);
             if (nb && nb !== b) found.add(nb);
           }
         }
@@ -3885,7 +3886,7 @@ export class VoxelSandboxSim {
         if (this._top.get(k) === bTop) {
           let ny = 0;
           for (let cy = fy - 1; cy >= 0; cy--) {
-            const o = this.grid.get(key(fx + ix, cy, fz + iz));
+            const o = this.grid.getCell(fx + ix, cy, fz + iz);
             if (o && (o.state === 'static' || o.state === 'unstable')) { ny = (o.gy + o.fsy) * FINE; break; }
           }
           if (ny > 0) this._top.set(k, ny); else this._top.delete(k);
@@ -3942,13 +3943,8 @@ export class VoxelSandboxSim {
     let best = 0;
     for (let ix = 0; ix < b.fsx; ix++) {
       for (let iz = 0; iz < b.fsz; iz++) {
-        for (let cy = fyTop; cy >= 0;) {
-          const o = this.grid.get(key(fx + ix, cy, fz + iz));
-          if (!o || (o.state !== 'static' && o.state !== 'unstable')) { cy--; continue; }
-          const t = (o.gy + o.fsy) * FINE;
-          if (t <= yBase + 0.05) { if (t > best) best = t; break; }
-          cy = o.gy - 1; // inside/beside a taller solid: keep walking down
-        }
+        const top = this.grid.supportBelow(fx + ix, fz + iz, fyTop, yBase + 0.05);
+        if (top > best) best = top;
       }
     }
     return best;
@@ -3980,11 +3976,11 @@ export class VoxelSandboxSim {
           let cx, cz;
           if (xDominant) { cx = sgn > 0 ? fx + b.fsx : fx - 1; cz = fz + u; }
           else { cz = sgn > 0 ? fz + b.fsz : fz - 1; cx = fx + u; }
-          const o = this.grid.get(key(cx, fy + v, cz));
+          const o = this.grid.getCell(cx, fy + v, cz);
           if (o && o !== b && (o.state === 'static' || o.state === 'unstable')) return o;
         }
         if (u < b.fsx && v < b.fsz) {
-          const o = this.grid.get(key(fx + u, fy - 1, fz + v));
+          const o = this.grid.getCell(fx + u, fy - 1, fz + v);
           if (o && o !== b && (o.state === 'static' || o.state === 'unstable')) return o;
         }
       }
@@ -5146,7 +5142,7 @@ export class VoxelSandboxSim {
     for (let l = -t.halfW; l <= t.halfW + 1e-9; l += FINE * 2) {
       const gx = Math.floor((px + nx * l) / FINE), gz = Math.floor((pz + nz * l) / FINE);
       for (let fy = fy0; fy < fy1; fy++) {
-        const o = this.grid.get(key(gx, fy, gz));
+        const o = this.grid.getCell(gx, fy, gz);
         if (o && (o.state === 'static' || o.state === 'unstable')) return true;
       }
     }
@@ -5175,7 +5171,7 @@ export class VoxelSandboxSim {
     for (let ix = 0; ix < 2; ix++) {
       for (let iz = 0; iz < 2; iz++) {
         for (let cy = fyTop; cy >= 0;) {
-          const o = this.grid.get(key(fx + ix, cy, fz + iz));
+          const o = this.grid.getCell(fx + ix, cy, fz + iz);
           if (!o || (o.state !== 'static' && o.state !== 'unstable')) { cy--; continue; }
           const top = (o.gy + o.fsy) * FINE;
           if (top <= preBase + 0.05) { if (top > best) best = top; break; }
@@ -5352,7 +5348,7 @@ export class VoxelSandboxSim {
     for (let ix = 0; ix < b.fsx; ix++) {
       for (let iy = 0; iy < b.fsy; iy++) {
         for (let iz = 0; iz < b.fsz; iz++) {
-          this.grid.delete(key(b.gx + ix, b.gy + iy, b.gz + iz));
+          this.grid.deleteCell(b.gx + ix, b.gy + iy, b.gz + iz);
         }
       }
     }
@@ -5674,7 +5670,9 @@ export class VoxelSandboxSim {
     // 0b. in-flight fault ruptures release their next wavefront slice BEFORE the
     // support recalc so the freed columns are evaluated this same step.
     this._advanceFaults(dt);
-    let recalc = covChanged || this._graphDirty;
+    // A deferred coverage change remains pending even if the hole stops. The
+    // coverage sets have already swapped, so covChanged alone loses that work.
+    let recalc = covChanged || this._graphDirty || this._supportSkipped > 0;
     if (recalc && !this._graphDirty && this.tune.supportEvery > 1
         && ++this._supportSkipped < this.tune.supportEvery) recalc = false;
     if (recalc) { this._supportSkipped = 0; this._recalcSupport(); }

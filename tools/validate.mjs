@@ -3124,6 +3124,7 @@ function validateCityChallenges() {
 // and let the run print ALL PASS before a single suite had answered — a gate
 // that always passes is worse than no gate.
 function validateMultiplayer() {
+  runSuite('tools/countdown-layout.test.mjs');
   console.log('Validating multiplayer suites...');
   // Paths are resolved off import.meta.url rather than cwd so the section behaves
   // the same whether it is run directly or as an orchestrator child.
@@ -4220,7 +4221,10 @@ function validateProgressUi() {
 }
 section('syntaxCheck', validateSyntax);
 section('offlineBoot', validateOfflineBoot);
-section('saveSchema', validateSaveSchema);
+section('saveSchema', () => {
+  runSuite('tools/sandbox-size.test.mjs');
+  validateSaveSchema();
+});
 section('rewardLadders', validateRewardLadders);
 section('shopAndUpgrades', validateShopAndUpgrades);
 section('helpAndWalkthrough', () => console.log(`Validating Help, Walkthrough & FAQ (${runHelpSelftest()} assertions)...`));
@@ -4254,6 +4258,10 @@ section('fwMath', validateFwMath);
 
 
 section('runBoard', () => {
+  runSuite('tools/remediation-coverage.test.mjs');
+  runSuite('tools/ranked-recovery.test.mjs');
+  runSuite('tools/perf-summary.test.mjs');
+  runSuite('tools/hero-perf-output.test.mjs');
   console.log(`Validating THE RUN trace/replay (${runBoardSelftest()} assertions)...`);
   const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\n'"`]*\/\/.*$/gm, '');
   const verifySrc = stripComments(readFileSync(new URL('../api/_verify.mjs', import.meta.url), 'utf8'));
@@ -4269,7 +4277,14 @@ section('progressSync', validateProgressSync);
 section('progressUi', validateProgressUi);
 section('levelClock', validateLevelClock);
 section('scenesWinnable', validateScenesWinnable);
-section('voxelSandbox', validateVoxelSandbox);
+section('voxelSandbox', () => {
+  runSuite('tools/voxel-grid.test.mjs');
+  runSuite('tools/support-query.test.mjs');
+  runSuite('tools/contact-query.test.mjs');
+  runSuite('tools/support-defer.test.mjs');
+  runSuite('tools/grid-sim-parity.test.mjs');
+  validateVoxelSandbox();
+});
 section('voxelCollisions', validateVoxelCollisions);
 section('labDoctrine', validateLabDoctrine);
 section('gameplayEnhancements', validateGameplayEnhancements);

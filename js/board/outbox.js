@@ -34,7 +34,9 @@ export async function drain(save, onResult = null) {
       storeSave(save);
       if (onResult) onResult(result, entry);
     } catch (error) {
-      if (!error.retryable) {
+      // A thrown fetch/timeout has no HTTP status or server retryable flag.
+      // Keep its replay just like an explicitly retryable server response.
+      if (error.status != null && !error.retryable) {
         queue.splice(index, 1);
         storeSave(save);
         if (onResult) onResult({ run_id: entry.run_id, verdict: error.code || 'unranked', error }, entry);

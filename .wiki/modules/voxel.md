@@ -1,6 +1,7 @@
 ---
 covers:
   - "js/voxelsim.js"
+  - "js/voxelgrid.js"
   - "js/voxelworld.js"
   - "js/voxelkit.js"
   - "js/voxelforms.js"
@@ -1149,3 +1150,34 @@ especially
   mask rather than range-check, so a scene that outgrows them would otherwise
   silently alias two far-apart columns into one bucket and present as phantom
   collisions against nothing.
+
+## Collision grid optimization (2026-09-08, worktree)
+
+`voxelgrid.js` stores fine cells under exact numeric keys with string-key
+compatibility for scene authoring and probes. Internal simulation lookups avoid
+coordinate-string allocation. A per-column occupied-height index lazily coalesces
+contiguous cell ownership into runs, so support queries skip empty cells and
+repeated ownership without changing the legacy downward scan's selection order.
+State is checked live; ownership edits invalidate only their column. Out-of-range
+numeric packing falls back to string keys instead of aliasing coordinates.
+
+Tests cover coordinate boundaries, Map traversal, support-query float boundaries,
+state transitions and deletion. `grid-sim-parity.test.mjs` compares real collapse
+state/scores/events against a string grid and the original support algorithm.
+The lookup optimization preserves physics and ranked version; the final
+validator passed all 31 groups in 1867.0 seconds. Physical-phone performance
+acceptance remains unresolved. The attempted within-step answer cache showed no material
+benefit and was removed.
+
+## Deferred coverage repair (2026-09-08)
+
+LOW quality uses `supportEvery: 2`. Previously a coverage change could be
+skipped on the first tick, then forgotten when the hole stopped: the coverage
+sets had already swapped, so the next tick saw no new change. Pending work is
+now included in the recalc condition via `_supportSkipped > 0`; it drains on
+the scheduled tick, while structural graph changes still run immediately.
+`tools/support-defer.test.mjs` checks intervals 1/2/3, immediate graph updates,
+and a real stationary Singapore hero attack (0 blocks before, 2,470 after).
+The default and frozen ranked tunes use interval 1, so their behavior and
+ranked sim version 4 remain unchanged. This is a LOW-quality correctness fix,
+not a performance gain: the formerly skipped collapse now incurs real work.

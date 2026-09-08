@@ -630,7 +630,9 @@ export function recordSandboxResult(save, scene, {
     // it meant.
     completions: prev.completions + (won ? 1 : 0),
     runs: (prev.runs ?? prev.completions ?? 0) + 1,
-    bestSize: Math.max(prev.bestSize, size),
+    // Older results omitted size and serialized NaN as null. Recover on the
+    // next result without changing the save shape or losing a valid record.
+    bestSize: Math.max(Number.isFinite(prev.bestSize) ? prev.bestSize : 1, Number.isFinite(size) ? size : 1),
     // Only a full clear sets a TIME, because only a full clear has one: a run
     // that ends on the clock always took exactly the clock, so recording it
     // would drive every scene's `bestTime` to 180 and erase the real records.

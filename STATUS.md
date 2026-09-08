@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-08-24
+Last updated: 2026-09-08
 
 This is a board, not a changelog. One line per shipped item; the detail lives in
 the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
@@ -38,6 +38,23 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 
 ## Active focus
 
+- **Deployment identity (2026-09-08):** production currently comes from
+  `Flywheel-v2` commit `28805e1`, not this legacy workspace. The legacy ranked
+  API and cron are absent there. Remediation preview `flywheel-azk45ktwb`
+  must not be promoted over that successor as a routine bug-fix release.
+  A designated legacy acceptance environment and physical-phone target remain
+  to be confirmed.
+- **Bug remediation (2026-09-08), in progress:** ranked recovery and multiplayer countdown fixes pass targeted tests; countdown also passes 27 layout checks against the preview deployment. Sandbox bestSize omission/NaN repaired with a RED-proven test. The final full validator passed all 31 section groups (1867.0 s); physical-phone performance acceptance and live server-verdict verification remain open. See `.wiki/plans/bug-remediation-2026-09-08.md`.
+- **LOW-quality deferred support loss (2026-09-08):** found while testing the
+  real phone-quality path. A stationary hole could lose a deferred coverage
+  recalculation and leave unsupported structures standing. RED scheduling
+  regression reproduced it; pending work now drains on the next scheduled
+  tick. Singapore stationary hero attack changed from 0 to 2,470 consumed blocks.
+  Targeted tests and the updated preview LOW-quality flow pass (2,493 blocks
+  consumed, no browser errors). Final full validation passed all 31 groups (1867.0 s). Synthetic
+  4x CPU frame timing still misses the target; physical-phone results are unknown.
+
+
 - **Act I map completion** — every Act I city built to the voxel count declared
   in its catalog entry, exactly. Sydney, Auckland and Singapore done and green
   (`singapore` section + `tools/validate-singapore.mjs`). The 2026-08-19
@@ -64,12 +81,12 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 - **Multiplayer multi-hole & join polish** — 6-player invite lobby, PvP hole
   swallowing, per-player coin isolation. `.wiki/modules/multiplayer.md`.
 - **Cambridge Phase 7** — 44 easter eggs, 11 ground glyphs, championship belts.
-- **Hong Kong Take Two (2026-08-25) — BUILT, uncommitted, under Nico's visual
+- **Hong Kong Take Two (2026-08-25) — BUILT and committed in `20ae91c`, under Nico's visual
   review.** Local-only sandbox (`hongkong2`, not in CITY_CATALOG): the Victoria
-  Harbour frame in **pieces** — **2,804** total after the 2026-08-25 detail
-  pass (Nico's ceiling 4,000; ~1,200 headroom), **0.0% cubic by count / 0.2%
+  Harbour frame in **pieces** — **2,463** total, regenerated and verified 2026-09-08 after the texture detail
+  pass (Nico's ceiling 4,000; 1,537 headroom), **0.0% cubic by count / 0.2%
   by volume outside the three historic zones**, standing in for ~379k
-  half-metre cubes (99.3% saved). Gates re-raised RED first (floor 2,800,
+  half-metre cubes (99.3% saved). Gates re-raised RED first (current gate in source,
   cap 4,000 in the `hongkong2` section). The former approximations are now
   real geometry: BoC/HSBC chevron cross-bracing, Jardine porthole facade
   (~200 glass insets), octagonal Hopewell shell, Lippo overhanging pod
@@ -82,53 +99,30 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   ablation). Two defects: the 1.02 separation skin parks piled bodies ~0.3 mm
   above the zero-tolerance grounded test so they never sleep (243 permanently
   awake on Boston); `_pushAxis` pumps embedded pairs through grounded bodies
-  (~1 m visible jiggle). **FIXED 2026-08-25** (local tree, riding the tornado
+  (~1 m visible jiggle). **FIXED 2026-08-25** (committed in `20ae91c`, riding the tornado
   rework's `RANKED_SIM_VERSION` 3→4): `_sepFloor` solver-support stamp +
   jam-latch alternative eligibility, and grounded bodies never pushed below
   support. Pinned by `tools/debris-settle.test.mjs` (opt-in, ~2 min): RED
   pre-fix, GREEN post-fix with final awake = 0. Post-storm sustained cost on
   Tokyo: 5.700 ms/step (145 awake forever) → 0.002 ms/step (0 awake). The
-  Singapore 108% figure above should be re-measured — this was its suspected
-  main component.
-- **Skin rework pass (outside agent, 2026-08-24) — no defect found; keep-vs-
-  revert is Nico's aesthetic call.**
-  RCA-2026-08-25-partner-skins-render-identical.md (CONFIRMED): the 7
-  byte-identical partner PNGs are the 2026-08-17 approval gate working as
-  designed — withdrawn partner skins fail closed to `classic`
-  (`js/skinapproval.js:48`), and the re-bake was merely the first regeneration
-  since; the shop already hides those rows. All 14 rewritten builders ran
-  live with zero errors. The remaining objection is taste on the reworked
-  visuals: keep, or surgically revert (`git restore js/skins.js
-  .wiki/modules/render.md docs/skins/` + `git clean -f docs/skins/` + drop
-  `tools/pw/skin-shots.mjs`; per-file workstream map in the RCA). Real defect
-  found and being fixed: `tools/skinsheet.mjs` wrote PNGs BEFORE its
-  byte-identical assertion, so its red exit left regenerated files on disk —
-  the outside agent shipped past that red exit without reporting it.
-
-- **Singapore exceeds the frame budget in real play — the only city that does.**
-  With the hole growing as it eats (what actually happens in play), Singapore
-  costs **18.03 ms/step median against a 16.67 ms budget — 108%**, for the sim
-  alone before rendering, on a mobile-first game. Next worst are Auckland at 62%
-  and Cambridge at 55%; every other playable city is at or under 12%. Measured
-  across all 11 scenes, 3 round-robined reps × 200 steps, median and min.
-  `tools/pw/hero-attack-perf.mjs`.
-  **Cost tracks blocks concurrently IN MOTION, not map size and not component
-  size.** Log-log across 11 cities: active debris r=0.727 (exponent ≈1.80),
-  largest component r=0.318, total blocks r=−0.444 (*anti*-correlated — the four
-  biggest cities are four of the five cheapest). Boston's largest component is
-  11,739, **1.83× Singapore's**, at 7% of budget; Chicago's 6,512 is *larger*
-  than Singapore's at 1%. Singapore is expensive because the Sands, undermined,
-  dumps an unusually large fraction of itself at once for its size.
-  The shipped device-tier lever is not the fix (`debrisCap` 280 /
-  `contactBudget` 200 moved it ~10% with debris essentially unchanged).
-  **Owner's call, three options, no work done on any of them**: (a) accept 108%;
-  (b) incremental / dirty-region support propagation — the durable fix, and
-  justified beyond Singapore by the 1.80 exponent; (c) reshape the hero — not
-  supported by the evidence, not recommended. (An earlier 92% figure was an
-  uncontrolled comparison and was corrected on this board 2026-08-22; the
-  measurement method — pin `size` not `radius`, hole at the ground-footprint
-  centroid — is documented in `tools/pw/hero-attack-perf.mjs`.) The 2026-08-24
-  debris-settlement RCA above may substantially shrink this number if fixed.
+  Updated collision profiling and measurements are recorded below.
+- **Skin rework and skinsheet atomicity:** committed in `20ae91c`.
+  Withdrawn partner skins intentionally resolve to Classic; identical partner
+  PNGs are expected. The skinsheet writer now validates before publishing
+  generated assets; its regression suite passed again on 2026-09-08.
+- **Collision performance remediation (2026-09-08), verification in progress.**
+  The old 11-city report is superseded by a 24-city baseline. Growing-hole
+  attack medians were Singapore 24.36 ms, Paris 25.64 ms and Auckland 17.32 ms.
+  Numeric cell keys and indexed vertical support queries reduce those to
+  13.98 ms, 17.18 ms and 12.30 ms respectively. Singapore's per-step p95 is
+  still 21.52 ms; these are simulation timings, not sustained 60 FPS results.
+  Profiles identify collision probes as the main measured opportunity;
+  incremental structural-support propagation is not justified by this profile.
+  All 24 cities pass comparison against the legacy grid and support algorithm.
+  The full validator passed all 31 groups. Rendered viewer emulation shows an
+  improvement but misses the frame target; final all-city timing and the
+  actual phone-quality game path remain under verification. See
+  `.wiki/findings/PERF-2026-09-08-collision-grid.md`.
 - **Rip-rap palette bug: fixed, both instances (Auckland, Singapore).** The
   `% 3` lane-scatter expression was wrong twice (coprimality + JS sign) and a
   third of the apron colours never rendered; fixed with a coprime floor-mod,
@@ -213,7 +207,7 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
     `js/voxelsim.js:5427` is never assigned; the 12.0 fallback always fires.
   - `RANKED_SIM_VERSION` (3, `js/voxelsim.js:662`) MUST bump: duration,
     pathing, destruction, and cap changes all alter ranked determinism.
-  **IMPLEMENTED 2026-08-25 (local tree, not committed).** All spec items
+  **COMMITTED 2026-08-25 in `20ae91c`.** All spec items
   landed: shared `POWERUP_RESPAWN_SECONDS = 30` single-slot spawner, cap 5
   (initial placement stays 2), backlog spawns suppress the encounter
   cinematic (toast only), the two tunable duration constants are
