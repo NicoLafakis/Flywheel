@@ -38,6 +38,22 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 
 ## Active focus
 
+- **Tokyo / controls remediation (2026-09-08):** implemented on the review branch.
+  Tokyo v2 reduces 84,122 pieces to 34,796 using authored bays and
+  bounds occupancy; growth tuning reaches maximum around three minutes. Direct
+  WASD/touch movement, fixed camera orientation and major-only power sequences
+  are implemented, including functional pinch zoom and retirement of the old
+  full-screen power overlays. Preview functional checks pass. The latest full
+  validator passed 30/31 groups (2091.6 s); the remaining HUD test fixture lacked
+  classList.remove. Its fixture is corrected and the complete core group passed
+  (172.9 s), giving passing coverage of all 31 groups across both runs. The user
+  requested commit/push using this evidence; a redundant full rerun was stopped.
+  The user observed smooth desktop play without visible FPS drops. Automated
+  RAF measurements exceed the 100 ms gap limit despite averages above 70 FPS;
+  attribution of those gaps to visible gameplay defects is unproven. Physical-device 60 FPS and
+  final visual acceptance remain open. Separate plans: `.wiki/plans/tokyo-geometry-remediation.md` and
+  `.wiki/plans/controls-powerup-remediation.md`. No production promotion.
+
 - **Deployment identity (2026-09-08):** production currently comes from
   `Flywheel-v2` commit `28805e1`, not this legacy workspace. The legacy ranked
   API and cron are absent there. Remediation preview `flywheel-azk45ktwb`

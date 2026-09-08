@@ -709,17 +709,12 @@ for (const liveDist of [250, 16]) {
     'A4: js/camera.js exports introActive() specifically to gate this, and js/main.js never calls '
     + 'it. A predicate with zero callers is a gate that was written and never wired up.');
 }
-// The call sites must actually forward the reason, or the gate above can never
-// see anything but `undefined`.
-for (const site of [/queuePokemonSpawnIntro\(ev\.powerup,\s*sim,\s*cam,\s*ev\.reason,\s*ev\.backlog\)/]) {
-  const hits = [...mainSrc.matchAll(new RegExp(site.source, 'g'))].length;
-  const total = [...mainSrc.matchAll(/queuePokemonSpawnIntro\(ev\.powerup/g)].length;
-  check(total >= 2, `ANTI-VACUITY: expected both powerup_spawn call sites in js/main.js, found ${total}`);
-  eq(hits, total,
-    `A4: ${total - hits} of ${total} queuePokemonSpawnIntro call site(s) do not forward ev.reason `
-    + 'and ev.backlog. The sims emit both on every powerup_spawn (js/voxelsim.js, js/sim.js) and '
-    + 'the initial/backlog gates are unreachable without them.');
-}
+// Spawns now announce without any camera takeover, regardless of reason.
+// The historical queue above remains covered until its compatibility removal.
+eq([...mainSrc.matchAll(/queuePokemonSpawnIntro\(ev\.powerup/g)].length, 0,
+  'A4: spawn events must never start a camera sequence');
+eq([...mainSrc.matchAll(/announcePowerUpSpawn\(ev\.powerup\)/g)].length, 2,
+  'A4: both simulation event pumps must still announce spawns');
 
 // ---------------------------------------------------------------------------
 // A5. THE FRAME DELTA MUST NEVER BE NEGATIVE.

@@ -117,8 +117,8 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', directive = ''
           <span class="rg-hint-tap">tap anywhere</span>
         </div>
         <div class="rg-controls">
-          <span class="rg-controls-key">W/S drive · A/D turn · Q/E orbit · R/F or Scroll zoom · Esc pause</span>
-          <span class="rg-controls-tap">🕹️ Drag Left: Steer · 🔄 Right: Orbit · 🤏 Pinch / Expand: Zoom</span>
+          <span class="rg-controls-key">WASD / Arrows move · R/F or Scroll zoom · Esc pause</span>
+          <span class="rg-controls-tap">Drag anywhere to move · Pinch / Expand to zoom</span>
         </div>
         <div class="rg-rule">eat what's smaller than you to grow</div>
       </div>
@@ -147,13 +147,13 @@ export function mountReadyGate({ title = 'READY?', subtitle = '', directive = ''
     const cardsEl = el(`<div class="rg-tutorial-cards" aria-label="How to play instructions">
       <div class="rg-tut-card">
         <span class="rg-tut-card-icon">🕳️</span>
-        <strong class="rg-tut-card-title">${isTouch ? '1. Steer & Eat' : '1. WASD Drive'}</strong>
-        <span class="rg-tut-card-desc">${isTouch ? 'Drag left screen with thumb' : 'Steer into small cones & trash'}</span>
+        <strong class="rg-tut-card-title">${isTouch ? '1. Move & Eat' : '1. WASD Move'}</strong>
+        <span class="rg-tut-card-desc">${isTouch ? 'Drag anywhere with your thumb' : 'Move into small cones & trash'}</span>
       </div>
       <div class="rg-tut-card">
         <span class="rg-tut-card-icon">🔄</span>
-        <strong class="rg-tut-card-title">${isTouch ? '2. Look & Orbit' : '2. Q/E Orbit'}</strong>
-        <span class="rg-tut-card-desc">${isTouch ? 'Drag right screen to orbit camera' : 'Rotate camera view around hole'}</span>
+        <strong class="rg-tut-card-title">${isTouch ? '2. Change direction' : '2. Change direction'}</strong>
+        <span class="rg-tut-card-desc">${isTouch ? 'Point the stick where you want to go' : 'A/D move left/right immediately'}</span>
       </div>
       <div class="rg-tut-card">
         <span class="rg-tut-card-icon">${isTouch ? '🤏' : '🔍'}</span>

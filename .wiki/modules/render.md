@@ -3,10 +3,36 @@ covers:
   - "js/world3d.js"
   - "js/camera.js"
   - "js/controls.js"
+  - "js/power-presentation.js"
+  - "js/render-budget.js"
+  - "js/surface-repeat.js"
   - "js/skins.js"
   - "js/quality.js"
 ---
 # Render & input
+
+## Direct controls and major-power presentation (2026-09-08)
+
+The current control contract supersedes historical tank/orbit notes below:
+WASD/arrows and the floating touch stick name immediate screen direction;
+gameplay yaw is fixed. Follow/zoom remain, the normal pitch is 65 degrees, and
+portrait adaptive FOV survives frame updates. Input is cancelled on holds,
+blur, pause and teardown; touch always uses the floating stick.
+
+One active `PowerPresentation` owns the 2.4-second Quake/Titan/Vortex sequence.
+Routine powers, ranked and reduced-motion paths are nonblocking; spawn events
+only announce. Rendering never activates a power. Full sequences hide competing
+HUD elements and restore them and the normal camera on completion/skip.
+Major sequences take priority over brief routine feedback. Tokyo v2 uses a
+render-only frame budget: two-second sustained misses lower resolution, shadows
+and ambient animation; ten seconds of recovery restores one of three steps.
+Physics and saved graphics preferences remain independent of this fallback.
+The WebGL2 surface array now accepts per-axis repeat and chooses the appropriate
+pair for each box face. Consolidated Tokyo pieces retain their original tile
+dimensions, preventing roof/façade patterns from stretching with larger geometry.
+Legacy pieces retain their prior scalar repeat on all axes.
+See [the implementation/acceptance plan](../plans/controls-powerup-remediation.md)
+and [ADR 0026](../adr/0026-direct-input-and-power-presentation.md).
 
 ## Purpose
 

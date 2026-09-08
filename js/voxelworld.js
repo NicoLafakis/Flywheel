@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { moverArc, moverPose } from './voxelsim.js';
 import { loadSave } from './save.js';
 import { surfaceMaterial, isSurface, disposeSurfaces, surfaceArrayMaterial, surfaceArrayLayer, surfacePerMetre } from './voxelsurfaces.js';
+import { surfaceRepeat } from './surface-repeat.js';
 import { makeSkin, indicatorRowFor } from './skins.js';
 import { POWERUP_TYPES, hasActivePowerUp } from './powerups.js';
 
@@ -972,14 +973,14 @@ export class VoxelWorld3D {
     if (arrayList.length) {
       const arrayGeo = boxG.clone();
       const layers = new Float32Array(arrayList.length);
-      const repeats = new Float32Array(arrayList.length);
+      const repeats = new Float32Array(arrayList.length * 3);
       arrayList.forEach((b, i) => {
         const id = surfOf(b);
         layers[i] = surfaceArrayLayer(id);
-        repeats[i] = surfacePerMetre(id) ? b.sAvg : 1;
+        repeats.set(surfaceRepeat(b, surfacePerMetre(id)), i * 3);
       });
       arrayGeo.setAttribute('aSurf', new THREE.InstancedBufferAttribute(layers, 1));
-      arrayGeo.setAttribute('aRepeat', new THREE.InstancedBufferAttribute(repeats, 1));
+      arrayGeo.setAttribute('aRepeat', new THREE.InstancedBufferAttribute(repeats, 3));
       this._ownedGeos.push(arrayGeo);
       byMat.set('array', { surf: 'array', size: null, list: arrayList, geo: arrayGeo });
     }

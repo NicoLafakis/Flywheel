@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+const {advanceTokyoGrowth}=await import('../js/tokyo-growth.js');
+assert.equal(advanceTokyoGrowth(1,1,1),1,'no growth without earned material');
+assert.equal(advanceTokyoGrowth(1,25,0),8,'a collapse cannot jump straight to maximum');
+let p=8;for(let i=0;i<9000;i++)p=advanceTokyoGrowth(p,25,1/60);
+assert(p>23&&p<24,'upper progression takes about 150 seconds of simulation');
+assert.equal(advanceTokyoGrowth(10,10,10),10,'never exceed earned size');
+assert.equal(advanceTokyoGrowth(10,25,-1),10);
+assert.equal(advanceTokyoGrowth(11,1,1/60),11,'already attained size never shrinks');
+console.log('ALL PASS earned Tokyo growth rate');

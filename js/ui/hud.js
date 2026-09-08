@@ -398,25 +398,14 @@ export class HUD {
   }
 
   _updateScreenHeat(chain, activeList) {
+    if (this._screenHeatRetired) return;
     if (!this._appEl) this._appEl = document.getElementById('app');
     if (!this._appEl) return;
-
-    const isVortex = hasActivePowerUp(activeList, POWERUP_TYPES.VORTEX);
-    const isTitan = hasActivePowerUp(activeList, POWERUP_TYPES.TITAN);
-    const isFrenzy = hasActivePowerUp(activeList, POWERUP_TYPES.FRENZY);
-    const isSpeed = hasActivePowerUp(activeList, POWERUP_TYPES.SPEED);
-    const isChrono = hasActivePowerUp(activeList, POWERUP_TYPES.CHRONO);
-
-    this._appEl.classList.toggle('pu-vortex-active', isVortex);
-    this._appEl.classList.toggle('pu-titan-active', isTitan);
-    this._appEl.classList.toggle('pu-frenzy-active', isFrenzy);
-    this._appEl.classList.toggle('pu-speed-active', isSpeed);
-
-    if (this.chronoOverlay) this.chronoOverlay.classList.toggle('hidden', !isChrono);
-    if (this.vortexOverlay) this.vortexOverlay.classList.toggle('hidden', !isVortex);
-    if (this.titanOverlay) this.titanOverlay.classList.toggle('hidden', !isTitan);
-    if (this.speedOverlay) this.speedOverlay.classList.toggle('hidden', !isSpeed);
-    if (this.chainOverlay) this.chainOverlay.classList.toggle('hidden', !isFrenzy);
+    // Major powers have a camera sequence; persistent pills report durations.
+    // Retire the competing animated full-screen glows once, not every frame.
+    this._appEl.classList.remove('pu-vortex-active','pu-titan-active','pu-frenzy-active','pu-speed-active');
+    for (const overlay of [this.chronoOverlay,this.vortexOverlay,this.titanOverlay,this.speedOverlay,this.chainOverlay]) overlay?.classList.add('hidden');
+    this._screenHeatRetired = true;
   }
 
   _updatePowerUps(activeList) {

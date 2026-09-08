@@ -44,7 +44,8 @@ export function runMobileCameraSelftest() {
   // 2. Camera resize hook contract in camera.js
   t('ChaseCamera constructor and resize methods wire computeAdaptiveFov to camera.fov', () => {
     assert(cameraSrc.includes('const fov = computeAdaptiveFov(aspect);'), 'Constructor must compute adaptive FOV');
-    assert(cameraSrc.includes('this.camera.fov = computeAdaptiveFov(aspect);'), 'Resize must update camera.fov with adaptive FOV');
+    assert(cameraSrc.includes('this.fovBase = computeAdaptiveFov(aspect);'), 'Adaptive FOV must remain the frame-update baseline');
+    assert(cameraSrc.includes('this.camera.fov = this.fovBase;'), 'Resize must apply that adaptive baseline');
     assert(cameraSrc.includes('this.camera.updateProjectionMatrix();'), 'Resize must update projection matrix');
   });
 

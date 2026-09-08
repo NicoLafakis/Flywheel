@@ -97,7 +97,7 @@ export function economyLadderViolations(read = (city) => city) {
   // The 27 in between still scale with size.
   const body = CITY_CATALOG
     .filter((c) => c.scene !== floorCity.scene && c.scene !== ceilCity.scene)
-    .sort((a, b) => a.blocks - b.blocks);
+    .sort((a, b) => (a.economyWeight ?? a.blocks) - (b.economyWeight ?? b.blocks));
   for (let i = 1; i < body.length; i++) {
     const prev = rowOf(body[i - 1]);
     const cur = rowOf(body[i]);

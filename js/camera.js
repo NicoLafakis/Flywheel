@@ -351,7 +351,7 @@ export class ChaseCamera {
     this.lastEffPitch = 0;    // the placed effective pitch (rad), read by probes/tests
     this._span = { enter: 0, exit: 0 };  // raySpan2D scratch; ~540 calls/frame
     this._padBox = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };  // flagged sweep scratch
-    this.fovBase = 45;
+    this.fovBase = computeAdaptiveFov(aspect);
     this._fovKick = 0;        // temporary FOV punch (growth/milestone juice)
 
     // Level intro. Inert until beginIntro() is called: introK stays 0, which
@@ -492,6 +492,13 @@ export class ChaseCamera {
     if (this.reducedMotion && (this.introPhase === 'rise' || this.introPhase === 'dive')) this.skipIntro();
   }
   setFollowDirection(val) { this.followDir = !!val; }
+
+  setFixedGameplayYaw(yaw) {
+    this.fixedGameplayYaw = Number.isFinite(yaw) ? yaw : null;
+    if (this.fixedGameplayYaw != null) { this.pitch = 65 * Math.PI / 180; this.dist = 8; }
+    this._yawOffset = 0;
+    this._yawVel = 0;
+  }
   setSmoothOcclusion(val) { this.smoothOcclusion = !!val; }
 
   // Aim the chase at THIS yaw instead of at the drive heading, or pass null to
@@ -950,7 +957,8 @@ export class ChaseCamera {
 
   resize(aspect) {
     this.camera.aspect = aspect;
-    this.camera.fov = computeAdaptiveFov(aspect);
+    this.fovBase = computeAdaptiveFov(aspect);
+    this.camera.fov = this.fovBase;
     this.camera.updateProjectionMatrix();
   }
 
@@ -1196,7 +1204,7 @@ export class ChaseCamera {
     // number that is about to decay to zero on its own.
     const osc = this._introOscYaw;
     this.yaw -= osc;
-    if (this.followDir && !this.reducedMotion) {
+    if (this.followDir && !this.reducedMotion && this.fixedGameplayYaw == null) {
       // The hold outranks the heading (see setChaseYawHold): while the touch
       // stick is the driver, "behind the heading" is the wrong place to be.
       // It does NOT reach the velocity fallback below — that path only runs
@@ -1308,6 +1316,11 @@ export class ChaseCamera {
       scale = (1 + Math.pow(holeRadius, 0.85) * 0.22) * this.distScale;
     }
     let dist = this.dist * scale;
+    if (this.fixedGameplayYaw != null) {
+      // Context is the neutral framing, not a floor that makes zoom inert.
+      const zoom = Math.min(1.5, Math.max(0.7, this.dist / 8));
+      dist = (12 + holeRadius * 5) * this.distScale * zoom;
+    }
     if (this.introPhase !== 'off') {
       // Geometric (log-space) blend toward the overview. A linear dolly across
       // a 20x range crawls at the far end and slams at the near end; blending
@@ -1614,7 +1627,21 @@ export class ChaseCamera {
 
 
 
-    const pitch = this.pitch;
+    if (this.fixedGameplayYaw != null && !this.introActive() && !this.quakeCinematic && !this.pokeSpawnCinematic) this.pitch = 65 * Math.PI / 180;
+    let pitch = this.pitch;
+    if (this.fixedGameplayYaw != null && !this.introActive() && !this.quakeCinematic && !this.pokeSpawnCinematic) {
+      this.yaw = this.fixedGameplayYaw;
+      this._yawOffset = 0;
+      this._yawVel = 0;
+    }
+    if (this.powerShot) {
+      const shot = this.powerShot;
+      const blend = Math.max(0, Math.min(1, shot.blend));
+      const close = Math.max(8, holeRadius * shot.distance + 4);
+      dist = close > 0 && liveDist > 0 ? liveDist * Math.pow(close / liveDist, blend) : liveDist;
+      pitch += (shot.pitch - pitch) * blend;
+      this.yaw = (this.fixedGameplayYaw ?? 0) + shot.yaw;
+    }
     const dirX = Math.sin(this.yaw) * Math.cos(pitch);
     const dirZ = Math.cos(this.yaw) * Math.cos(pitch);
     const dirY = Math.sin(pitch);

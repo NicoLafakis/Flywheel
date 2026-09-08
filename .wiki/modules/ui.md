@@ -9,6 +9,16 @@ covers:
 ---
 # UI & glue
 
+## Controls and power presentation revision (2026-09-08)
+
+Instructions now describe direct WASD/arrows and an anywhere-origin floating
+joystick, fixed gameplay orientation and zoom. Major powers use the shared
+2.4-second camera presentation with skip/reduced-motion/competitive handling.
+HUD duration pills remain authoritative for active buffs. Legacy full-screen
+power glows and animated overlays are retired; routine collection uses a brief
+toast. Results entry and scene teardown explicitly release presentation ownership.
+See [the controls/presentation plan](../plans/controls-powerup-remediation.md).
+
 ## Purpose
 
 DOM overlay (HUD + screens + brand layer) and the `main.js` state machine

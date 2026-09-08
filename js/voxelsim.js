@@ -1,3 +1,5 @@
+import { advanceTokyoGrowth } from './tokyo-growth.js';
+import { BoxGrid } from './boxgrid.js';
 import { VoxelGrid } from './voxelgrid.js';
 // Progressive voxel excavation sandbox.
 //
@@ -1010,7 +1012,9 @@ export class VoxelSandboxSim {
     this.won = false;
     this.events = [];
     this.blocks = [];
-    this.grid = new VoxelGrid(); // every occupied fine cell -> owning block
+    this.geometryVersion = scene === 'tokyo' ? (opts.geometryVersion ?? 2) : 1;
+    if (![1, 2].includes(this.geometryVersion)) throw new Error('Unsupported geometry version');
+    this.grid = this.geometryVersion === 2 ? new BoxGrid() : new VoxelGrid();
     this.chunks = [];
     this._blockId = 1;
     this._chunkId = 1;
@@ -1130,6 +1134,13 @@ export class VoxelSandboxSim {
         perfMode: false,
       };
     }
+    if (this.geometryVersion === 2 && !this.tuneLocked) {
+      this.tuneLocked = true;
+      Object.defineProperty(this, 'tune', {
+        value: Object.freeze({ ...this.tune, speed: 0.55, debrisCap: 350, contactBudget: 250, contactRounds: 2, supportEvery: 1 }),
+        writable: false, configurable: false, enumerable: true,
+      });
+    }
     this._supportSkipped = 0;  // coverage-only recalcs deferred by supportEvery
 
     // Authored scenes come from the on-demand registry at the top of this file.
@@ -1209,6 +1220,15 @@ export class VoxelSandboxSim {
     // itself is raw-mass based, so this never shortens a city goal.
     const ladderMult = (this.sceneName === 'gallery' || !this.sceneName) ? 1 : Math.min(10, Math.max(1, Math.round(this.totalMass / 4200)));
     this._sizeLadder = SIZE_MASS.map((m) => m * 0.3 * ladderMult);
+    if (this.geometryVersion === 2) {
+      // Preserve the opening food ladder, then spread the remaining sizes over
+      // material progress. Maximum size must precede full clear, not exceed it.
+      const start = this._sizeLadder[7], finish = this.totalMass * 0.3;
+      for (let i = 8; i < MAX_SIZE; i++) {
+        const t = (i - 7) / (MAX_SIZE - 8);
+        this._sizeLadder[i] = start + (finish - start) * t * t;
+      }
+    }
     // Solid-surface heightmap: per fine column, the highest SOLID top
     // (static blocks + sleeping debris). Falling bodies collide with THIS
     // instead of a flat ground plane — blocks land on roofs and stack into
@@ -2117,6 +2137,7 @@ export class VoxelSandboxSim {
       neighbors: [],
     };
     this.blocks.push(b);
+    if (this.grid.addBlock) { this.grid.addBlock(b); return b; }
     for (let i = 0; i < fsx; i++) {
       for (let j = 0; j < fsy; j++) {
         for (let k = 0; k < fsz; k++) {
@@ -3789,6 +3810,7 @@ export class VoxelSandboxSim {
         members.push(cur);
         if (members.length >= CHUNK_CAP) continue;
         for (const nb of cur.neighbors) {
+          if (this.geometryVersion === 2 && (nb.assemblyId !== cur.assemblyId || members.length + stack.length >= CHUNK_CAP)) continue;
           if (nb.state !== 'falling' || nb._mark || nb.parentChunk || nb.matType === 'loose') continue;
           if (this.time - nb.fallT > FRESH_WINDOW) continue;
           const vertical = nb.gy >= cur.gy + cur.fsy || nb.gy + nb.fsy <= cur.gy;
@@ -3940,6 +3962,10 @@ export class VoxelSandboxSim {
     const fx = Math.round(b.x / FINE - b.fsx / 2);
     const fz = Math.round(b.z / FINE - b.fsz / 2);
     const fyTop = Math.max(0, Math.floor(yBase / FINE + 0.2));
+    if (this.grid.supportUnder) {
+      const top = this.grid.supportUnder(fx, fz, b.fsx, b.fsz, fyTop, yBase + 0.05);
+      if (top !== undefined) return top;
+    }
     let best = 0;
     for (let ix = 0; ix < b.fsx; ix++) {
       for (let iz = 0; iz < b.fsz; iz++) {
@@ -3954,6 +3980,10 @@ export class VoxelSandboxSim {
   // falling bodies scrape walls and shatter on structures instead of
   // ghosting through them. (vx,vz) come from the body (chunk or debris).
   _contact(b, vx, vz) {
+    if (this.grid.contact) {
+      const contact = this.grid.contact(b, vx, vz);
+      if (contact !== undefined) return contact;
+    }
     // _foot inline: this runs once per airborne body per step and the array it
     // returns was pure garbage
     const fx = Math.round(b.x / FINE - b.fsx / 2);
@@ -5336,6 +5366,7 @@ export class VoxelSandboxSim {
   // to holes[0] for external probes (tools/validate.mjs's win guard feeds
   // blocks in directly).
   _consume(b, h = this.holes[0], award = true) {
+    if (this.geometryVersion === 2 && b.state === 'consumed') return;
     b.state = 'consumed';
     // The renderer hides consumed blocks, and `_syncFalling` drops this entry at
     // the top of the NEXT step — which, with the fixed-timestep catch-up in
@@ -5345,12 +5376,15 @@ export class VoxelSandboxSim {
     this._fallingRemoved++;             // stale entry in the active mover list
     this._dirtyComps.add(this._compOf[b.bi]); // its zone's support graph shrank
     this._unsleep(b); // sleeping debris: unregister + drop solid contribution
+    if (this.grid.removeBlock) this.grid.removeBlock(b);
+    else {
     for (let ix = 0; ix < b.fsx; ix++) {
       for (let iy = 0; iy < b.fsy; iy++) {
         for (let iz = 0; iz < b.fsz; iz++) {
           this.grid.deleteCell(b.gx + ix, b.gy + iy, b.gz + iz);
         }
       }
+    }
     }
     this._graphDirty = true;
     if (!award) return; // swallowed by a fault fissure: gone, but nobody scores it
@@ -5363,6 +5397,18 @@ export class VoxelSandboxSim {
   // score/raw mass, SIZE ladder, growth and milestone events. Extracted, not
   // rewritten — same operations in the same order, so every shipped scene's
   // arithmetic is bit-identical to the pre-extraction build.
+  _updateTokyoGrowth(h, dt) {
+    let earnedSize = 1;
+    while (earnedSize < MAX_SIZE && h.rawMass >= this._sizeLadder[earnedSize]) earnedSize++;
+    const lo = this._sizeLadder[earnedSize - 1], hi = this._sizeLadder[earnedSize] ?? Infinity;
+    const fraction = earnedSize === MAX_SIZE ? 1 : Math.min(1, (h.rawMass - lo) / (hi - lo));
+    const progress = advanceTokyoGrowth(h.size + h.sizeFrac, earnedSize + fraction, dt);
+    h.size = Math.min(MAX_SIZE, Math.floor(progress));
+    h.sizeFrac = progress - h.size;
+    const titan = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.TITAN);
+    h.radius = titan ? MAX_RADIUS : START_RADIUS + (progress - 1) * 0.5;
+  }
+
   _award(h, raw, obj) {
     const prevLevel = comboLevel(h.chain);
     h.chain += 1;
@@ -5379,7 +5425,9 @@ export class VoxelSandboxSim {
     const currentMult = isFrenzy ? (baseMult + extraFrenzyMult) : baseMult;
     const frenzyMult = isFrenzy ? 2.0 : 1.0;
     const effectiveRaw = raw * (h.growthMult || 1.0);
-    const basePoints = Math.max(10, Math.round(effectiveRaw * 25));
+    const basePoints = this.geometryVersion === 2 && Number.isFinite(obj.basePoints)
+      ? Math.round(obj.basePoints * (h.growthMult || 1.0))
+      : Math.max(10, Math.round(effectiveRaw * 25));
     const gained = basePoints * currentMult * frenzyMult;
     h.mass += gained;      // the SCORE: combo-multiplied, and displayed as such
     h.rawMass += effectiveRaw;      // un-multiplied: the goal bar, the milestones and the SIZE ladder
@@ -5393,6 +5441,8 @@ export class VoxelSandboxSim {
     // for a sloppy run and a hot one, and the ×8 top of the new ladder cannot
     // turn a city into a ninety-second run.
     const prevSize = h.size;
+    if (this.geometryVersion === 2) this._updateTokyoGrowth(h, 0);
+    else {
     let size = 1;
     while (size < MAX_SIZE && h.rawMass >= this._sizeLadder[size]) size++;
     h.size = size;
@@ -5400,6 +5450,7 @@ export class VoxelSandboxSim {
     h.sizeFrac = size >= MAX_SIZE ? 1 : Math.min(1, (h.rawMass - lo) / (hi - lo));
     const isTitan = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.TITAN);
     h.radius = isTitan ? MAX_RADIUS : (START_RADIUS + (h.size - 1 + Math.min(1, h.sizeFrac)) * 0.5);
+    }
     this.events.push({ type: 'eat', obj, hole: h, gained, chain: h.chain });
     // milestone events (render-side juice: shakes, bursts, big pops, toasts)
     if (h.size > prevSize) {
@@ -5481,6 +5532,11 @@ export class VoxelSandboxSim {
       const m = moves ? moves[hi] : (hi === 0 ? move : null);
 
       stepActivePowerUps(h.activePowerUps, dt);
+      if (this.geometryVersion === 2) {
+        const previousSize = h.size;
+        this._updateTokyoGrowth(h, dt);
+        if (h.size > previousSize) this.events.push({ type: 'growth', size: h.size, hole: h });
+      }
 
       const isTitan = hasActivePowerUp(h.activePowerUps, POWERUP_TYPES.TITAN);
       h.radius = isTitan ? MAX_RADIUS : (START_RADIUS + (h.size - 1 + Math.min(1, h.sizeFrac)) * 0.5);

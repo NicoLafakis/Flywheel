@@ -1,25 +1,5 @@
-// Input: keyboard (desktop) + virtual joystick / touch orbit (mobile) + an
-// optional world-space point-to-move scheme (drag or tap, touch or mouse).
-// Produces a heading-relative world-space move intent and orbit deltas.
-//
-// TWO steering schemes, split by input device. The keyboard is TANK: W/S
-// throttle along the heading, A/D rotate the heading itself — and a heading
-// pointer welded to the hole (voxelworld.js, 2026-08-07) shows where it
-// points, which is what makes the scheme playable: an unmarked circle gives
-// no hint which way is forward, and that missing feedback — not the scheme —
-// is what read as "it loops the long way round". The touch stick is DIRECT:
-// its angle names a direction on screen and the heading turns toward it at a
-// capped rate. (History in one breath: keyboard went camera-relative strafe →
-// tank (c3579da) → direct for a day → back to tank by player choice once the
-// heading was visible. The stick's direct scheme was never touched.)
-//
-// Fingers are assigned by ROLE, not by count, and the roles are exclusive: at
-// most one finger is the stick (or, in point-to-move, the world pointer), and
-// every OTHER finger down is a camera finger. One camera finger orbits by its
-// own travel; two orbit by their midpoint and zoom by the distance between
-// them. That split is what lets a left thumb steer while a right hand pinches
-// without the two gestures having to arbitrate against each other — they are
-// never competing for the same finger in the first place.
+// Input: direct screen-direction keyboard and floating touch joystick.
+// Gameplay camera yaw stays fixed; heading is visual only.
 
 // Held-key rates are PER SECOND. They used to be per frame, which quietly made
 // the whole control scheme a function of how fast the machine ran: the same
@@ -280,9 +260,10 @@ export class Controls {
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       this.keys.add(e.code);
+      this._dismissHint();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('blur', () => { this.keys.clear(); this._clearPoint(); });
+    window.addEventListener('blur', () => this.cancelPointer());
 
     this._canvas = canvas;
     // Pointer Events, NOT touch events plus a parallel mouse set.
@@ -316,7 +297,7 @@ export class Controls {
   // assigns (it hands over the same object the settings screen mutates, so a
   // toggle takes effect on the next frame with no wiring in between). Absent
   // from older saves, which reads as off.
-  get pointMove() { return !!(this.settings && this.settings.pointMove); }
+  get pointMove() { return !this._stickLive() && !!(this.settings && this.settings.pointMove); }
 
   // The camera the screen->ground raycast projects through. Set once per level
   // from main.js; null disables point-to-move rather than guessing a projection.
@@ -330,7 +311,9 @@ export class Controls {
     this.camera = camera;
     this._rig = (camera && camera.userData && camera.userData.rig) || null;
     // Fresh level: whatever the last one left held is not this one's business.
-    this._setChaseHold(null);
+    this._setChaseHold(0);
+    this._rig?.setFixedGameplayYaw?.(0);
+    this.cancelPointer();
   }
 
   // Ask the chase camera to hold a yaw, or release it back to chasing the
@@ -370,6 +353,7 @@ export class Controls {
   get orbitHeld() { return this.orbitId !== null || this._pinchOn; }
 
   onPointerDown(e) {
+    if (this._now() < this._ptBlockUntil) return;
     // Wide surface with a fine pointer — a desktop. Unchanged from what the
     // deleted onMouseDown did, primary-button test included: no stick, no orbit
     // drag, point-to-move only if the player asked for it.
@@ -468,7 +452,7 @@ export class Controls {
       // for the same thumb sweep, on the device it matters most on. Opacity
       // keeps the element in layout so the measurement stays honest.
       this.joyEl.classList.remove('hidden');
-      this.joyEl.classList.add('latent');
+      this.joyEl.classList.remove('latent');
       this._placeRing(e.clientX, e.clientY);
       this.knobEl.style.transform = 'translate(-50%, -50%)';
     } else if (this.orbitId === null) {
@@ -525,7 +509,7 @@ export class Controls {
       // instant it became a one-finger gesture again.
       const dx = e.clientX - this.orbitLastX;
       this.orbitLastX = e.clientX;
-      if (!this._pinchOn) this.orbitDelta += dx * ORBIT_PX_RATE * this._orbitSens();
+      // Single extra touches never rotate the gameplay camera.
     }
     this._updatePinch();
   }
@@ -685,7 +669,7 @@ export class Controls {
     }
     if (dMid) {
       this._pinchMidX = midX;
-      this.orbitDelta += dMid * ORBIT_PX_RATE * this._orbitSens();
+      // Pinch midpoint movement does not change the camera orientation.
     }
   }
 
@@ -951,6 +935,15 @@ export class Controls {
   // aimed at the READY sign set a world destination and the hole set off for it
   // the instant the gate released, so pressing START doubled as a move order.
   cancelPointer() {
+    this._dismissHint();
+    this.keys.clear();
+    for (const id of this._touches.keys()) this._release({ pointerId: id });
+    this._touches.clear();
+    this.joyId = null; this.joyActive = false;
+    this.joyVec = { x: 0, y: 0 }; this._joyEverLive = false;
+    this.orbitId = null; this.orbitDelta = 0; this.zoomDelta = 0;
+    this._pinchOn = false;
+    this._hideMarker();
     this._ptBlockUntil = this._now() + PT_RELEASE_GRACE * 1000;
     if (this._pt || this._ptTarget) this._clearPoint();
   }
@@ -1156,200 +1149,26 @@ export class Controls {
   getMove(camYaw, dt, hole) {
     const step = this._frameDt(dt);
     if (!this._hintSettled) this._settleHint();
-    let ix = 0, iy = 0;
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) iy -= 1;
-    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) iy += 1;
-    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) ix -= 1;
-    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) ix += 1;
-    let orbitKeyDir = 0;
-    if (this.keys.has('KeyQ')) orbitKeyDir += 1;
-    if (this.keys.has('KeyE')) orbitKeyDir -= 1;
-    if (orbitKeyDir !== 0) {
-      if (Math.sign(orbitKeyDir) !== Math.sign(this._lastOrbitKeyDir)) {
-        this._orbitKeyHoldTime = 0;
-        this._lastOrbitKeyDir = Math.sign(orbitKeyDir);
-      }
-      this._orbitKeyHoldTime += step;
-      const uOrbit = Math.min(1, this._orbitKeyHoldTime / 0.40);
-      const orbitRamp = uOrbit * uOrbit * (3 - 2 * uOrbit);
-      const minOrbitRate = 1.0 * this._orbitSens();
-      const maxOrbitRate = ORBIT_RATE * this._orbitSens();
-      const currentOrbitRate = minOrbitRate + (maxOrbitRate - minOrbitRate) * orbitRamp;
-      this.orbitDelta += orbitKeyDir * currentOrbitRate * step;
-    } else {
-      this._orbitKeyHoldTime = 0;
-      this._lastOrbitKeyDir = 0;
-    }
-    // The stick is no longer folded into ix/iy — it steers a different scheme
-    // now (see the header note), so it carries its own pair through. Invert
-    // applies to both because it is a statement about the player's hands, not
-    // about a particular device: invertX mirrors left/right, invertY mirrors
-    // up/down, and on the stick that is a mirror of the commanded ANGLE rather
-    // than of a turn direction.
-    let sx = this.joyVec.x, sy = this.joyVec.y;
-    if (this.settings.invertX) { ix = -ix; sx = -sx; }
-    if (this.settings.invertY) { iy = -iy; sy = -sy; }
-    const stickMag = Math.hypot(sx, sy);
-
     if (this.keys.has('KeyR')) this.zoomDelta -= ZOOM_RATE * step;
     if (this.keys.has('KeyF')) this.zoomDelta += ZOOM_RATE * step;
-
-    // --- point-to-move ------------------------------------------------------
-    // Resolved BEFORE the direct-steer branches and it wins outright while a
-    // target is live, so a stray key cannot argue with a finger. Keys are not
-    // disabled by the setting though: on a desktop both are reasonable, and
-    // WASD picks up again the frame the pointer target retires.
     if (this.pointMove) {
       const pt = this._pointMoveVec(hole);
       this._syncMarker();
-      if (pt) {
-        // Point-to-move wants the chase: the heading it writes below IS the
-        // direction the player asked to travel in, named in world space rather
-        // than against the screen, so nothing is erased by the camera swinging
-        // behind it. Releasing here also covers the setting being flipped on
-        // while a stick hold was standing.
-        this._setChaseHold(null);
-        // Keep the heading honest while something else drives the hole: the
-        // chase camera aims at the heading, and the first W after the target
-        // retires must continue where the pointer left off, not where an old
-        // heading points. Inverse of forward = (-sin, -cos) below.
-        if (pt.x || pt.z) this.heading = Math.atan2(-pt.x, -pt.z);
-        return pt;
-      }
-    } else if (this._ptTarget || this._pt) {
-      this._clearPoint();   // setting turned off mid-gesture
+      if (pt) return pt;
+    } else if (this._ptTarget || this._pt) this._clearPoint();
+    let x = Number(this.keys.has('KeyD') || this.keys.has('ArrowRight')) - Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft'));
+    let z = Number(this.keys.has('KeyS') || this.keys.has('ArrowDown')) - Number(this.keys.has('KeyW') || this.keys.has('ArrowUp'));
+    if (!this.pointMove && Math.hypot(this.joyVec.x, this.joyVec.y) > JOY_DEAD) {
+      x = this.joyVec.x; z = this.joyVec.y;
     }
-
-    // --- direct steer (touch stick) -------------------------------------------
-    // The stick's angle IS a direction, in the screen basis latched at the last
-    // moment the stick was at rest. It beats the keys outright while it is out
-    // of the dead zone rather than summing with them — the two schemes disagree
-    // about what an input means (one names an angle, the other a turn rate), so
-    // a frame that ran both would be integrating a rate on top of a converging
-    // error and neither control would do what it says. Keys pick up again the
-    // frame the thumb comes back to the middle, which is the only case that
-    // matters in practice: a phone with a keyboard attached.
-    // `!this.pointMove` is the read-time half of an exclusivity that was only
-    // enforced at routing time. onPointerDown will not ARM the stick while
-    // pointing is on, which covers every gesture that begins in that mode — but
-    // the setting is live, read off the object the settings screen mutates, so
-    // it can flip while a stick finger is already down and holding a joyVec.
-    // Nothing in the block above zeroes it (onPointerUp does, on lift), so
-    // without this the player would be steering with a stick their mode says
-    // does not exist. Mirrors the _clearPoint() in the other direction.
-    if (!this.pointMove && stickMag > JOY_DEAD) {
-      const basis = Number.isFinite(this._basisYaw) ? this._basisYaw
-        : (Number.isFinite(camYaw) ? camYaw : 0);
-      // Screen -> world. Screen-up is the camera's own forward, i.e. heading ==
-      // basis; screen-LEFT is heading + pi/2, because forward is
-      // (-sin h, -cos h) and increasing h rotates it from -z toward -x. sy runs
-      // DOWN the screen (client coordinates), so the up component is -sy and
-      // the left component is -sx, and the angle off screen-up is atan2 of the
-      // two in that order.
-      const target = basis + Math.atan2(-sx, -sy);
-      // Pin the chase camera to the basis for as long as the stick is driving.
-      //
-      // This is THE fix for "down still goes forward", and the reason it is not
-      // a sign flip is that the sign was never wrong. The world direction this
-      // branch produces is exact: measured over 8 drag directions x 4 stick
-      // origins x 4 camera yaws with the chase frozen, the hole's screen-space
-      // travel matched the drag to within 6.1 deg, and to 0.0 deg on all four
-      // cardinals — down went backward, from every origin. Then the camera slews
-      // behind the heading it just set (camera.js, driveHeading), at a rate that
-      // is CAPPED TO ITS OWN (see DIRECT_STEER_MAX above, which was deliberately
-      // matched to camera.js FOLLOW_MAX_RATE), so it turns in lockstep with the
-      // reversal and the reversal is never on screen. The same 128 pushes with
-      // the chase live all settled to a screen direction of 0.0-2.0 deg — up-
-      // screen — whatever was dragged.
-      //
-      // The genre answers this the same way: hole.io and its peers pair the
-      // drag-anywhere floating stick with a camera whose yaw never rotates, so
-      // the stick's angle and the screen agree permanently. Chasing the
-      // direction of travel is a TANK affordance, and with the keyboard direct
-      // as well there is no scheme left that wants it: the hold below is the
-      // standing contract whenever anything is steering, keys included.
-      //
-      // Held at the basis rather than "frozen wherever we are": the basis is
-      // only written on frames the stick is at rest (_latchBasis), where it
-      // equals the live yaw, so engaging costs no motion and releasing asks for
-      // no swing back. A camera that snapped behind the heading the instant a
-      // thumb lifted would be the same bug wearing a different hat.
-      this._setChaseHold(basis);
-      // First input of a level. Seeded to the BASIS rather than to the target:
-      // seeding to the target would snap the sprocket to face wherever the
-      // first flick pointed, and the sprocket is already drawn at a heading
-      // (main.js welds controls.heading onto the hole for the directional
-      // skins). Starting at the basis means the very first push turns from
-      // up-screen, visibly, exactly like every push after it.
-      if (this.heading === null) this.heading = Math.atan2(Math.sin(basis), Math.cos(basis));
-      // Shortest path through +/-pi. Without the wrap a target of -3.10 rad
-      // from a heading of 3.10 reads as 6.20 rad of error and the hole takes
-      // the long way round through a full turn to reach a point 5 deg away.
-      const err = Math.atan2(Math.sin(target - this.heading), Math.cos(target - this.heading));
-      const rate = this._directSteerRate();
-      const maxStep = rate * step;
-      this.heading += Math.abs(err) <= maxStep ? err : Math.sign(err) * maxStep;
-      this.heading = Math.atan2(Math.sin(this.heading), Math.cos(this.heading));
-      // Full throw, always. Magnitude past the dead zone is deliberately NOT
-      // speed: both sims re-normalise `move` themselves (voxelsim.js step,
-      // sim.js step — same NOTE as _pointMoveVec), so a 0.4 vector would be
-      // scaled straight back to 1.0 and the only thing a half-push would buy is
-      // a control that lies about what it is doing. Proportional speed is one
-      // line in each sim, not a fudge here.
-      return { x: -Math.sin(this.heading), z: -Math.cos(this.heading) };
-    }
-    // At rest (or lifted) — the one safe moment to re-read the camera. See
-    // _latchBasis for why this line's POSITION is the whole feedback argument.
-    this._latchBasis(camYaw);
-
-    // --- tank scheme (keyboard) -----------------------------------------------
-    // One piece of state: the heading. A/D integrate it ALWAYS (a stationary
-    // press spins the hole in place — the on-hole heading pointer shows the
-    // heading directly, and the chase camera swinging round backs it up);
-    // W/S translate along it. Turning therefore only changes the path while
-    // moving, exactly like a car, but the wheel is never locked when parked.
-    // steer > 0 turns left: forward = (-sin, -cos), so increasing the heading
-    // rotates forward from -z toward -x, which is screen-left for a camera
-    // sitting behind the hole (regression history: a flipped basis made W go
-    // backwards — see .wiki/modules/render.md).
-    const steer = -ix;       // A (ix < 0) turns left = heading increases
-    const throttle = -iy;    // W (iy < 0) drives forward
-    if (steer || throttle) {
-      this._setChaseHold(null);
-      if (this.heading === null) {
-        // First input of a level: face up-screen so W reads as "drive away".
-        this.heading = Math.atan2(Math.sin(camYaw), Math.cos(camYaw));
-      }
-      if (steer !== 0) {
-        if (Math.sign(steer) !== Math.sign(this._lastSteerDir)) {
-          this._steerHoldTime = 0;
-          this._lastSteerDir = Math.sign(steer);
-        }
-        this._steerHoldTime += step;
-        // Smooth continuous acceleration: starts from a gentle, responsive base rate
-        // (1.0 rad/s ~ 57 deg/s) for subtle micro-taps and ramps smoothly over 0.45s
-        // up to full maximum turning speed (ORBIT_RATE * 1.5 ~ 225-300 deg/s).
-        const u = Math.min(1, this._steerHoldTime / 0.45);
-        const ramp = u * u * (3 - 2 * u); // smoothstep ease
-        const minSteerRate = 1.0 * this._steerSens();
-        const maxSteerRate = ORBIT_RATE * this._steerSens() * 1.5;
-        const currentSteerRate = minSteerRate + (maxSteerRate - minSteerRate) * ramp;
-        this.heading += steer * currentSteerRate * step;
-      } else {
-        this._steerHoldTime = 0;
-        this._lastSteerDir = 0;
-      }
-      // Wrap once per call so a held key cannot grow an unbounded angle.
-      this.heading = Math.atan2(Math.sin(this.heading), Math.cos(this.heading));
-    } else {
-      this._steerHoldTime = 0;
-      this._lastSteerDir = 0;
-    }
-    if (!throttle) return { x: 0, z: 0 };
-    return {
-      x: -Math.sin(this.heading) * throttle,
-      z: -Math.cos(this.heading) * throttle,
-    };
+    if (this.settings.invertX) x = -x;
+    if (this.settings.invertY) z = -z;
+    const length = Math.hypot(x, z);
+    if (!length) return { x: 0, z: 0 };
+    x /= length; z /= length;
+    // Gameplay yaw is fixed at zero. Facing is presentation, never steering.
+    this.heading = Math.atan2(-x, -z);
+    return { x, z };
   }
 
   consumeOrbit() { const d = this.orbitDelta; this.orbitDelta = 0; return d; }

@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {architecturalPieces} from '../js/architectural-pieces.js';
+const rows=[0,1,2].map(x=>({x,y:0,z:0,size:1,mat:'concrete',surface:'mat_default'}));
+const [piece]=architecturalPieces(rows,{id:'floor',bay:3});
+assert.deepEqual(piece.tileSize,[1,1,1],'retain original surface tile scale when merging');
+const {surfaceRepeat}=await import('../js/surface-repeat.js');
+assert.deepEqual(surfaceRepeat({sx:3,sy:1,sz:1,tileSize:piece.tileSize},false),[3,1,1]);
+assert.deepEqual(surfaceRepeat({sx:3,sy:.5,sz:2,tileSize:[.5,.5,.5]},true),[3,.5,2]);
+assert.deepEqual(surfaceRepeat({sx:4,sy:1,sz:4,tileSize:[2,1,4]},true),[4,2,2],'rectangular source uses original characteristic length');
+assert.deepEqual(surfaceRepeat({sx:3,sy:1,sz:2,sAvg:2},true),[2,2,2],'legacy appearance remains unchanged');
+const source=readFileSync(new URL('../js/voxelsurfaces.js',import.meta.url),'utf8');
+assert.match(source,/attribute vec3 aRepeat/);assert.match(source,/aRepeat\.zy/);assert.match(source,/aRepeat\.xz/);assert.match(source,/aRepeat\.xy/);
+console.log('ALL PASS architectural tile density: per-face repeat and legacy appearance');

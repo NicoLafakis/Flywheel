@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { VoxelSandboxSim, loadScene } from '../js/voxelsim.js';
 import { VoxelGrid } from '../js/voxelgrid.js';
+import { BoxGrid } from '../js/boxgrid.js';
 import { originalContact } from './legacy-contact.mjs';
 
 // The original string grid is the independent lookup oracle. The simulation
@@ -36,7 +37,7 @@ function snapshot(sim) {
 for (const scene of (process.env.FW_GRID_SCENES || 'gallery,singapore').split(',')) {
   await loadScene(scene);
   const a = new VoxelSandboxSim({ scene, seed: 'perf' });
-  assert.ok(a.grid instanceof VoxelGrid, 'sim must use allocation-free cell lookup storage');
+  assert.ok(a.grid instanceof (a.geometryVersion === 2 ? BoxGrid : VoxelGrid), 'scene-selected occupancy backend');
   const b = new VoxelSandboxSim({ scene, seed: 'perf' });
   b.grid = new StringGrid(b.grid);
   b._supportBelow = originalSupportBelow;

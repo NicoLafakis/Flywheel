@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {POWERUP_TYPES,hasActivePowerUp} from '../js/powerups.js';
+const source=readFileSync(new URL('../js/ui/hud.js',import.meta.url),'utf8');
+const method=source.slice(source.indexOf('  _updateScreenHeat('),source.indexOf('  _updatePowerUps('));
+const update=new Function('POWERUP_TYPES','hasActivePowerUp',`return ({${method}})._updateScreenHeat;`)(POWERUP_TYPES,hasActivePowerUp);
+const classes=(...initial)=>{const set=new Set(initial);return {add:(...x)=>x.forEach(v=>set.add(v)),remove:(...x)=>x.forEach(v=>set.delete(v)),toggle:(x,on)=>on?set.add(x):set.delete(x),contains:x=>set.has(x)};};
+const app=classes('pu-vortex-active','pu-titan-active','pu-frenzy-active','pu-speed-active');
+const hud={_appEl:{classList:app}};
+for(const key of ['chronoOverlay','vortexOverlay','titanOverlay','speedOverlay','chainOverlay'])hud[key]={classList:classes()};
+const active=Object.values(POWERUP_TYPES).map(type=>({type,remaining:10})),before=JSON.stringify(active);
+update.call(hud,10000,active);
+for(const name of ['vortex','titan','frenzy','speed'])assert(!app.contains(`pu-${name}-active`),'legacy full-screen animation cannot compete with the new presentation');
+for(const key of ['chronoOverlay','vortexOverlay','titanOverlay','speedOverlay','chainOverlay'])assert(hud[key].classList.contains('hidden'));
+assert.equal(JSON.stringify(active),before,'retiring cosmetics never changes buffs');
+console.log('ALL PASS legacy power overlays retired; buff state remains untouched');

@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {VoxelSandboxSim} from '../js/voxelsim.js';
+const s=Object.create(VoxelSandboxSim.prototype);s.geometryVersion=2;s.time=0;
+s._falling=Array.from({length:150},(_,i)=>({id:i,assemblyId:i<75?'tower-a':'tower-b',state:'falling',matType:'steel',mat:{vertBond:.9,horizBond:.9},fallT:0,gy:0,fsy:1,neighbors:[]}));
+for(const b of s._falling)b.neighbors=s._falling.filter(n=>n!==b);
+const chunks=[];s._makeChunk=members=>{chunks.push(members);for(const b of members)b.parentChunk=members;};
+s._groupChunks();
+assert(chunks.every(c=>new Set(c.map(b=>b.assemblyId)).size===1),'adjacent buildings never become one rigid chunk');
+assert(chunks.every(c=>c.length<=64),'coherent pieces have a hard member cap');
+assert.equal(new Set(chunks.flat()).size,150,'no material disappears when grouping is bounded');
+console.log('ALL PASS architectural chunk boundaries and capacity');

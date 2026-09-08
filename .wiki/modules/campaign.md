@@ -12,6 +12,12 @@ covers:
 
 ## Current implementation
 
+Tokyo geometry v2 displays 34,796 physical pieces. Its explicit `economyWeight`
+retains 84,122, the authored reward-tier weight: optimization changes neither coin
+rewards nor canonical story order. The economy validator uses that weight when
+present and otherwise the original catalog block count. World Tour copy matches
+the current physical count. Save schema and progression gates are unchanged.
+
 The workspace contains the 100-level campaign, a 29-entry metropolis catalog
 with 24 playable cities, Act filters and mission dossiers, local save data,
 and optional cloud progress sync. The full storyline design goes beyond the

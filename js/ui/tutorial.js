@@ -107,7 +107,7 @@ export class TutorialManager {
       <div class="tut-sprocket-avatar">⚙️</div>
       <div class="tut-bubble-content">
         <div class="tut-bubble-title">START EATING BLOCKS!</div>
-        <div class="tut-bubble-sub">${isTouch ? '🕹️ Drag left ½ with thumb to steer · 🤏 Pinch / expand to zoom' : '⌨️ Use WASD or Arrow Keys to steer · 🖱️ Scroll or R/F to zoom'}</div>
+        <div class="tut-bubble-sub">${isTouch ? 'Drag anywhere to move · Pinch / expand to zoom' : 'Use WASD or Arrow Keys to move · Scroll or R/F to zoom'}</div>
       </div>
       <div class="tut-bouncy-arrow">⬇️</div>
     `;

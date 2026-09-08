@@ -6,8 +6,17 @@ covers:
   - "js/world3d.js"
   - "js/voxelworld.js"
   - "js/ui/hud.js"
+  - "js/power-presentation.js"
 ---
 # Power-Up System
+
+## Presentation revision (2026-09-08)
+
+Quake, Titan and Vortex collections use one render-clock presentation owner.
+Routine pickups and ground spawns do not take the camera; ranked/shared play and
+reduced motion use nonblocking feedback. The fixed-step sim still owns activation
+and duration. Persistent HUD pills remain, while the old full-screen power
+overlays/glows are retired. See the [implementation and acceptance plan](../plans/controls-powerup-remediation.md).
 
 ## Purpose
 

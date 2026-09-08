@@ -318,7 +318,7 @@ export function surfaceArrayMaterial(maxAniso = 4, renderer = null) {
     // (video textures only — these are generated DataArrayTextures).
     const vs = shader.vertexShader.replace(
       '#include <begin_vertex>',
-      '#include <begin_vertex>\n\tvSurf = aSurf;\n\tvRepeat = aRepeat;'
+      '#include <begin_vertex>\n\tvSurf = aSurf;\n\tvRepeat = abs(normal.x) > 0.5 ? aRepeat.zy : (abs(normal.y) > 0.5 ? aRepeat.xz : aRepeat.xy);'
     );
     let fs = shader.fragmentShader;
     const swaps = [
@@ -357,8 +357,8 @@ export function surfaceArrayMaterial(maxAniso = 4, renderer = null) {
     // without tiles beats a city that does not render. The sweep's console
     // capture is where a miss would surface.
     if (!ok) { console.error('surfaceArrayMaterial: shader anchor missing, array path disabled —', missing); return; }
-    shader.vertexShader = 'attribute float aSurf;\nattribute float aRepeat;\nvarying float vSurf;\nvarying float vRepeat;\n' + vs;
-    shader.fragmentShader = 'varying float vSurf;\nvarying float vRepeat;\n' + fs;
+    shader.vertexShader = 'attribute float aSurf;\nattribute vec3 aRepeat;\nvarying float vSurf;\nvarying vec2 vRepeat;\n' + vs;
+    shader.fragmentShader = 'varying float vSurf;\nvarying vec2 vRepeat;\n' + fs;
   };
   m.name = 'mat_array';
   arrayMat = m;

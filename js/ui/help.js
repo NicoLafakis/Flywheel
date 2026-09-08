@@ -52,27 +52,25 @@ export const WALKTHROUGH_MODULES = Object.freeze([
       {
         heading: 'Desktop Keyboard Controls',
         list: [
-          'W / Up Arrow: Drive forward',
-          'S / Down Arrow: Reverse / brake',
-          'A / Left Arrow: Turn left',
-          'D / Right Arrow: Turn right',
-          'Q / E: Orbit camera clockwise / counter-clockwise',
+          'W / Up Arrow: Move up',
+          'S / Down Arrow: Move down',
+          'A / Left Arrow: Move left',
+          'D / Right Arrow: Move right',
           'R / F: Zoom camera in / out',
           'Esc: Pause game menu',
         ],
       },
       {
-        heading: 'Mobile & Touchscreen Dual-Zone Controls',
+        heading: 'Mobile & Touchscreen Controls',
         list: [
-          'Left Screen Half: Drag anywhere to steer your black hole directly toward your finger.',
-          'Right Screen Half: Drag to orbit and look around the city from any angle.',
+          'Drag anywhere: The joystick starts where you touch; move in the direction you drag.',
           'Pinch with Two Fingers: Dynamic zoom in and out.',
-          'Optional "Tap to Move" Mode: Switchable in Settings to replace the virtual joystick with direct point-and-click movement.',
+          'Optional "Tap to Move" Mode: Mouse-only point-and-click movement. Touch always uses the floating joystick.',
         ],
       },
       {
         heading: 'Camera Positioning & Sensitivity',
-        text: 'You can customize camera distance and steering sensitivity in the Settings menu. The camera automatically elevates and zooms out smoothly as your hole expands to colossal sizes.',
+        text: 'You can customize camera distance in the Settings menu. Movement directions stay fixed on screen. The camera automatically elevates and zooms out smoothly as your hole expands to colossal sizes.',
       },
     ],
   },
@@ -117,7 +115,7 @@ export const WALKTHROUGH_MODULES = Object.freeze([
         list: [
           'PROLOGUE · Calibration: THE LAB (Proving Ground · 20,348 blocks) — starter ramps and training grid.',
           'ACT I · The Pacific Awakening: SYDNEY HARBOUR (14,120 blocks), AUCKLAND (16,000 blocks), SINGAPORE MARINA BAY (22,000 blocks).',
-          'ACT II · Asian Megacities: HONG KONG (32,000 blocks), SEOUL (32,000 blocks), TOKYO SHINJUKU (84,122 blocks), BEIJING (38,000 blocks), BANGKOK (30,000 blocks), MUMBAI (34,500 blocks).',
+          'ACT II · Asian Megacities: HONG KONG (32,000 blocks), SEOUL (32,000 blocks), TOKYO SHINJUKU (34,796 blocks), BEIJING (38,000 blocks), BANGKOK (30,000 blocks), MUMBAI (34,500 blocks).',
           'ACT III · Desert & Antiquity: DUBAI (36,000 blocks), CAIRO & GIZA (32,500 blocks), ATHENS (26,000 blocks), ROME (35,000 blocks).',
           'ACT IV · European Grandeur: PARIS (42,000 blocks), LONDON (45,000 blocks), AMSTERDAM (28,000 blocks), BERLIN (36,500 blocks).',
           'ACT V · The Americas: RIO DE JANEIRO (38,500 blocks), BUENOS AIRES (34,000 blocks), MEXICO CITY (37,000 blocks), SAN FRANCISCO (44,000 blocks), CHICAGO LOOP (44,578 blocks), TORONTO (40,000 blocks).',
@@ -408,7 +406,7 @@ export const FAQ_ITEMS = Object.freeze([
   },
   {
     q: 'How do touch controls work on mobile phones and tablets?',
-    a: 'Drag the left half of the glass to steer your hole; drag the right half to orbit the camera; pinch two fingers to zoom. You can also enable "Tap to Move" in Settings for single-finger point-and-click pathing.',
+    a: 'Drag anywhere to move using the floating joystick. Release to stop. Pinch with two non-steering fingers to zoom.',
     category: 'Controls',
     tags: ['mobile', 'touch', 'touchscreen', 'joystick', 'tap to move'],
   },
@@ -500,10 +498,10 @@ export const TIPS_ITEMS = Object.freeze([
     desc: 'When you spot both Temporal Stasis Field (Chrono) and Resonance Chain Frenzy, grab Chrono first to freeze the countdown clock, then Frenzy to lock the combo multiplier. You get 15+ seconds of risk-free double-multiplier feeding!',
   },
   {
-    title: 'Camera Orbiting on Complex Bridges',
+    title: 'Framing Complex Bridges',
     badge: 'NAVIGATION',
     icon: '🧭',
-    desc: 'When navigating Brooklyn waterfront piers or Boston bridges, press Q/E (or swipe the right screen) to look perpendicular to your travel vector. This exposes hidden snack clusters tucked behind warehouse walls.',
+    desc: 'When navigating waterfront piers or bridges, zoom out with R/F or pinch to see nearby snack clusters. The camera keeps a stable orientation.',
   },
   {
     title: 'Endgame Blocks Left Radar Sweeping',

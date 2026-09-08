@@ -32,7 +32,7 @@ test('HUD.updateSandbox sets massBar style width accurately', () => {
   const comboLabel = { classList: { add() {}, remove() {} } };
   const blocksLeftPill = { classList: { add() {}, remove() {}, contains(c) { return this._classes.has(c); }, _classes: new Set() } };
   const blocksLeftText = { textContent: '' };
-  const appEl = { classList: { toggle() {} } };
+  const appEl = { classList: { toggle() {}, remove() {} } };
 
   blocksLeftPill.classList.add = (c) => blocksLeftPill.classList._classes.add(c);
   blocksLeftPill.classList.remove = (c) => blocksLeftPill.classList._classes.delete(c);

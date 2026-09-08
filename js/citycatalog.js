@@ -4,7 +4,8 @@
 //
 // ECONOMY LADDER INVARIANT: the PROLOGUE is the floor and the ACT VII finale is
 // the ceiling for coinCount/coinValue/goalBonus; the other 27 cities scale with
-// `blocks`. Rewards follow ROLE, not map size — a testbed can grow the tutorial
+// `economyWeight ?? blocks`. Consolidation preserves a city's authored weight.
+// Rewards follow ROLE, not map size — a testbed can grow the tutorial
 // without making it richer. Enforced by tools/validate-campaign.mjs; the full
 // derivation is in .wiki/features/act-i-pacific-completion/.
 
@@ -183,7 +184,9 @@ export const CITY_CATALOG = [
     tagline: 'CHAPTER 6 · MEGA METROPOLIS',
     chapter: 'CHAPTER 6',
     status: 'PLAYABLE',
-    blocks: 84122,
+    blocks: 34796,
+    // Consolidation changes physical piece count, not the authored reward tier.
+    economyWeight: 84122,
     difficulty: 'TIER 8 · APEX',
     badge: 'ACT II',
     accentColor: '#ff0054',

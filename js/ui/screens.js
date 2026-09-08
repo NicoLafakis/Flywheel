@@ -1871,7 +1871,7 @@ export class Screens {
     const s = el(`<div class="screen">
       <h2>PAUSED</h2>
       <div class="pause-ctrl-hint" style="font-size:11px; font-weight:700; color:rgba(255,210,63,0.85); background:rgba(12,16,28,0.7); border:1px solid rgba(255,210,63,0.25); border-radius:12px; padding:6px 14px; margin-bottom:8px; text-align:center;">
-        ${isTouch ? '🕹️ Left: Steer · 🔄 Right: Look · 🤏 Pinch/Expand: Zoom' : '⌨️ WASD: Move · Q/E: Orbit · R/F or Scroll: Zoom · Esc: Resume'}
+        ${isTouch ? 'Drag anywhere: Move · Pinch/Expand: Zoom' : 'WASD: Move · R/F or Scroll: Zoom · Esc: Resume'}
       </div>
     </div>`);
     const resume = el(`<button class="btn">RESUME</button>`);
@@ -1987,7 +1987,7 @@ export class Screens {
       return row;
     };
 
-    panel.appendChild(toggle('👆 Tap to move', 'pointMove', 'Replaces the on-screen joystick'));
+    panel.appendChild(toggle('👆 Tap to move', 'pointMove', 'Mouse only; touch always uses the joystick'));
     panel.appendChild(toggle('↔ Flip left and right', 'invertX'));
     panel.appendChild(toggle('↕ Flip up and down', 'invertY'));
     panel.appendChild(toggle('🌤 Pretty shadows', 'shadows'));
@@ -2009,11 +2009,10 @@ export class Screens {
     // documented the campaign, which a137054 retired. showTitle() offers only
     // sandbox scenes plus SHOP/SETTINGS now, so there is no route to a campaign
     // level and no second scheme left to distinguish.
-    ctl('Drive forward', 'W / ↑');
-    ctl('Reverse', 'S / ↓');
-    ctl('Turn left', 'A / ←');
-    ctl('Turn right', 'D / →');
-    ctl('Orbit camera', 'Q / E');
+    ctl('Move up', 'W / ↑');
+    ctl('Move down', 'S / ↓');
+    ctl('Move left', 'A / ←');
+    ctl('Move right', 'D / →');
     ctl('Zoom in / out', 'R / F');
     ctl('Pause', 'Esc');
     // Touch is three separate bindings, so it gets three rows. It was one row
@@ -2023,8 +2022,7 @@ export class Screens {
     // Splitting also matches how every other line here reads: action, then
     // binding. Left half is direct steer (the drag names a screen direction and
     // the hole turns to face it), not a heading nudge.
-    ctl('Steer (touch)', 'drag left ½');
-    ctl('Look around (touch)', 'drag right ½');
+    ctl('Move (touch)', 'drag anywhere');
     ctl('Zoom (touch)', 'pinch two fingers');
 
     // Graphics detail, binary: full graphics or not. LOW drops the pixel ratio,
@@ -2153,24 +2151,7 @@ export class Screens {
     // size-dependent now: quoting either end alone would be false for the whole
     // rest of the ladder, which is the same class of lie the old readout told.
     // Both ends come off the exported constants, so neither can drift.
-    const DEG_PER_RAD = 180 / Math.PI;
-    const sensFmt = (v) => `${v.toFixed(2)} · ~${Math.round(ORBIT_RATE * DEG_PER_RAD * v)}` +
-      `-${Math.round(ORBIT_RATE * ORBIT_RATE_RAMP * DEG_PER_RAD * v)}°/s (SIZE 1→12)`;
-    // Stacked for the same reason as the camera row, and more so: the readout is
-    // deliberately a full range with a SIZE annotation (see above), which is
-    // 223px on its own at 320px. Shortening it to fit would re-introduce exactly
-    // the lie the comment above exists to prevent.
-    const sensRow = el(`<div class="set-row set-row--stack"><span class="set-label">Sandbox turn sensitivity</span>
-      <span class="set-val"><span class="tune-val">${sensFmt(st.turnSens !== undefined ? st.turnSens : 1)}</span>
-      <input type="range" min="0.1" max="2.5" step="0.05" value="${st.turnSens !== undefined ? st.turnSens : 1}"></span></div>`);
-    const sensSlider = sensRow.querySelector('input');
-    const sensVal = sensRow.querySelector('.tune-val');
-    sensSlider.oninput = () => {
-      st.turnSens = parseFloat(sensSlider.value);
-      sensVal.textContent = sensFmt(st.turnSens);
-      this.actions.applySettings();
-    };
-    panel.appendChild(sensRow);
+
 
     // Dev voxel-physics tuning — live-applied to the running sandbox via
     // actions.applySettings(). Folded behind an ADVANCED disclosure (playtest

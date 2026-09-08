@@ -1,3 +1,4 @@
+import { buildArchitecturalAssembly } from './architectural-pieces.js';
 // Tokyo (Nishi-Shinjuku, Kabukicho & Golden Gai, Shibuya Scramble, Yoyogi & Meiji Jingu)
 // Real rail geography: the JR Chūō Line runs east-west through the terminal while
 // the Yamanote Line runs north-south on its own elevated track, breaking at the
@@ -16,7 +17,7 @@ import {
   bench, bikeRack, bollard, boxVan, bus, cafeTable, generateBlockers, hydrant,
   lampPost, mailbox, marqueeSign, motorcycle, newsBox, planter,
   sedan, signPost, statue, towerCrown, trafficLight, trashBin, tree,
-  zebra, laneDashes, kenneySUV, kenneySkyscraper,
+  zebra, laneDashes, kenneySUV, kenneySkyscraper as legacySkyscraper,
 } from './voxelkit.js';
 
 export const TOKYO_BOUNDS = { minX: -110, maxX: 110, minZ: -100, maxZ: 100 };
@@ -142,6 +143,9 @@ export const TOKYO_HEROES = [
 ];
 
 export function buildTokyo(sim) {
+  const kenneySkyscraper = (s, x, z, cols, rows, layers, color, accent, roof) =>
+    buildArchitecturalAssembly(s, { id: `tower:${x}:${z}`, origin: [x, z], bay: 2, storey: 3 },
+      () => legacySkyscraper(s, x, z, cols, rows, layers, color, accent, roof));
   sim.bounds = 105;
   sim.boundsRect = TOKYO_BOUNDS;
 
@@ -206,7 +210,7 @@ export function buildTokyo(sim) {
   // =========================================================================
   // HELPER CITY BLOCK BUILDER: Solid Commercial Slabs & Department Stores
   // =========================================================================
-  const commercialPodium = (px, pz, w, d, floors, trimCol, roofCol) => {
+  const podiumLegacy = (px, pz, w, d, floors, trimCol, roofCol) => {
     for (let f = 0; f < floors; f++) {
       const y0 = f * 3;
       for (let x = 0; x < w; x++) for (let z = 0; z < d; z++) {
@@ -233,6 +237,10 @@ export function buildTokyo(sim) {
 
   // HERO LANDMARK: Tokyo Metropolitan Government Building (Tochō Twin Towers, 30m)
   // Block NW3 (x: -105..-76, z: -65..-37)
+  const commercialPodium = (x, z, ...args) => buildArchitecturalAssembly(sim,
+    { id: `podium:${x}:${z}`, origin: [x, z], bay: 3, storey: 3 },
+    () => podiumLegacy(x, z, ...args));
+
   {
     // Twin Tower South (30m tall) — light granite lattice, observation decks (no helipads)
     kenneySkyscraper(sim, -100, -60, 8, 10, 30, 0x9aa0a6, 0x6c757d, 'flat');

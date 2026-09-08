@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {VoxelSandboxSim,loadScene} from '../js/voxelsim.js';
+await loadScene('tokyo');const s=new VoxelSandboxSim({scene:'tokyo',seed:'growth'});
+assert(s._sizeLadder.at(-1)<=s.totalMass*.6,'maximum size reachable before clearing the map');
+for(let i=1;i<s._sizeLadder.length;i++)assert(s._sizeLadder[i]>s._sizeLadder[i-1]);
+const b=s.blocks.find(b=>b.assemblyId&&b.sx*b.sy*b.sz>1);
+assert(Number.isFinite(b.basePoints),'authored piece preserves original base score');
+const before=s.hole.rawMass;s._consume(b);assert.equal(s.hole.rawMass-before,b.mat.mass*b.sx*b.sy*b.sz);
+assert.equal(s.hole.mass,b.basePoints,'base score does not depend on consolidated piece count');
+const raw=s.hole.rawMass;s._consume(b);assert.equal(s.hole.rawMass,raw);
+assert(s.tuneLocked,'Tokyo physics must not vary with graphics quality');
+console.log('ALL PASS Tokyo growth: reachable maximum, material rewards, single consumption, fixed physics');

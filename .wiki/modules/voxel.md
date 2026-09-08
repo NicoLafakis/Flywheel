@@ -2,6 +2,9 @@
 covers:
   - "js/voxelsim.js"
   - "js/voxelgrid.js"
+  - "js/boxgrid.js"
+  - "js/architectural-pieces.js"
+  - "js/tokyo-growth.js"
   - "js/voxelworld.js"
   - "js/voxelkit.js"
   - "js/voxelforms.js"
@@ -15,6 +18,20 @@ covers:
   - "js/voxelscene-tokyo.js"
 ---
 # Voxel Sandbox (pile physics)
+
+## Tokyo architectural pilot (2026-09-08)
+
+Tokyo now defaults to geometry v2: 34,796 physical pieces, with bounds-backed
+occupancy and two/three-metre authored bay consolidation. The former 84,122-piece
+v1 remains available via `geometryVersion: 1` for comparison. Material, finish and
+occupied-space checks pass; small props are retained. Other cities retain v1.
+The pilot's fixed physics tune is independent of graphics quality. Its growth
+reserve expands gradually after SIZE 8; tuning drives reached maximum at 157.2,
+187.48 and 157.2 seconds. These are not physical-device performance results.
+
+See [the implementation and acceptance plan](../plans/tokyo-geometry-remediation.md)
+and [ADR 0025](../adr/0025-tokyo-architectural-pieces.md). Earlier block-count and
+instant-growth descriptions below describe v1 unless explicitly updated.
 
 ## Purpose
 

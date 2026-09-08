@@ -116,6 +116,13 @@ what each is waiting on, and what could start today.
 
 ## External references
 
+Current remediation plans:
+- [Tokyo geometry, destruction and growth](plans/tokyo-geometry-remediation.md)
+- [Direct controls and power-up presentation](plans/controls-powerup-remediation.md)
+- [Tokyo acceptance evidence and open gates](findings/TOKYO-ACCEPTANCE-2026-09-08.md)
+- [ADR 0025: architectural pieces](adr/0025-tokyo-architectural-pieces.md)
+- [ADR 0026: input/presentation](adr/0026-direct-input-and-power-presentation.md)
+
 - `docs/PRD.md` — product requirements (normative)
 - `docs/ARCHITECTURE.md` — original architecture note (merged into wiki architecture page)
 - `docs/TUNING.md` — growth math and proof methodology

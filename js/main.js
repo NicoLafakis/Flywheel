@@ -1,3 +1,4 @@
+import { PowerPresentation } from './power-presentation.js';
 // Boot + screen state machine + game loop glue.
 
 import { Sim } from './sim.js';
@@ -23,6 +24,7 @@ import { mountReadyGate } from './ui/ready.js';
 import { TutorialManager, shouldShowTutorial } from './ui/tutorial.js';
 import { startMenuScene, stopMenuScene, tickMenuScene, resizeMenuScene } from './ui/menuscene.js';
 import { TIERS, defaultTierForDevice } from './quality.js';
+import { RenderBudget } from './render-budget.js';
 
 import { GameAudio } from './audio/game-audio.js';
 import { DEFAULT_AMBIENCE_VOLUME, DEFAULT_MASTER_VOLUME, DEFAULT_MUSIC_VOLUME, DEFAULT_SFX_VOLUME, reseedAudioMix } from './audio/mix.js';
@@ -152,14 +154,15 @@ let mpLobby = null;
 let mpUI = null;
 
 // ------------------------------------------------------------------ quality tier
-// Two tiers, and the player picks one. Nothing here watches frame times and
-// nothing adjusts mid-session: full graphics or not is the whole contract.
+// Saved tiers remain the graphics ceiling. Tokyo v2 can temporarily reduce
+// rendering cost when frames fall behind, without changing physics or the save.
 // The DEFAULT does read the device once — a coarse-pointer phone that has never
 // opened SETTINGS starts on LOW, everything else on HIGH — because HIGH on a
 // phone measured as an unplayable frame rather than as better graphics. That is
 // a starting point, not a classifier: one press of the Graphics detail button
 // records a choice and this stops looking at the device forever (wantedTier).
 let tierName = wantedTier();
+const renderBudget = new RenderBudget();
 // Debug hook, same idiom as window.__sim / __world / __cam / __controls.
 // `force` lets a harness (and a dev) push a tier without going through the
 // settings screen; it does not touch the saved setting, so the next level start
@@ -175,6 +178,7 @@ window.__quality = {
   },
   levers: () => ({
     tier: tierName,
+    renderFallback: renderBudget.level,
     dpr: world && world.renderer ? world.renderer.getPixelRatio() : null,
     shadows: world ? world.shadows : null,
     ambientFrozen: world ? world._ambientFrozen : null,
@@ -209,7 +213,10 @@ function wantedTier() {
 // applySettings, from level start, and from the debug hook.
 function applyQuality() {
   const spec = TIERS[tierName] || TIERS.high;
-  if (world && world.setQuality) world.setQuality(spec);
+  if (world && world.setQuality) {
+    if (sim?.geometryVersion === 2) world.setQuality(renderBudget.spec(spec));
+    else world.setQuality(spec);
+  }
   // RENDER quality is always applied — a phone may draw less at any time. The
   // PHYSICS half stops at a ranked sim (T-302, audit A5.2): these four are the
   // device-tier levers, and re-applying them mid-run rewrote ranked physics with
@@ -230,6 +237,7 @@ function applyQuality() {
 // varies per level any more — `world` and `sim` are rebuilt there, so the tier
 // has to be pushed at the new pair.
 function startQuality() {
+  renderBudget.reset();
   tierName = wantedTier();
   applyQuality();
 }
@@ -546,71 +554,65 @@ function playNextPokemonSpawn() {
 // The quake is resolved by the pure sim before this is called.  This is only a
 // presentation hold: it gives the player a clear read on the rupture without
 // allowing the fixed-step loop or a queued movement target to advance unseen.
+let powerOwner = null, powerOverlay = null, powerSkip = null, powerPhase = null, powerHudVisibility = '';
+const powerPresentation = new PowerPresentation({
+  begin(sample) {
+    powerOwner = cam;
+    powerPhase = sample.phase;
+    if (!sample.camera) return;
+    controls?.cancelPointer();
+    state = 'powerup_pause';
+    accumulator = 0;
+    powerHudVisibility = hud.root.style.visibility;
+    hud.root.style.visibility = 'hidden';
+    audio.playPowerUpTransformation({ vol: 0.5 });
+    powerOwner.powerShot = sample.camera;
+    powerOverlay = document.createElement('div');
+    powerOverlay.className = 'power-charge';
+    powerOverlay.style.cssText = 'position:fixed;left:50%;bottom:18%;transform:translateX(-50%);z-index:90;text-align:center;color:white;font:700 16px system-ui;text-shadow:0 2px 8px #000;pointer-events:auto';
+    const title = document.createElement('div');
+    title.textContent = sample.power.spec?.name || sample.power.type.toUpperCase();
+    const skip = document.createElement('button');
+    skip.type = 'button'; skip.textContent = 'Skip';
+    skip.style.cssText = 'display:block;margin:14px auto 0;padding:10px 24px;border:1px solid #ffffff66;border-radius:24px;background:#101525cc;color:white;cursor:pointer';
+    skip.onclick = () => powerPresentation.cancel();
+    powerSkip = e => { if (e.code === 'Space' || e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); powerPresentation.cancel(); } };
+    window.addEventListener('keydown', powerSkip, true);
+    powerOverlay.append(title, skip); document.body.appendChild(powerOverlay);
+  },
+  frame(sample) {
+    if (powerOwner !== cam) { powerPresentation.cancel(); return; }
+    if (sample.camera) powerOwner.powerShot = sample.camera;
+    if (sample.phase === 'release' && powerPhase !== 'release') {
+      audio.playAnimeHitStop();
+      const h = sim?.localHole || sim?.hole || sim?.player;
+      if (h && world?.spawnShockRing) world.spawnShockRing(h.x,h.z,h.radius*1.5,sample.power.spec?.color || 0xffffff);
+    }
+    powerPhase = sample.phase;
+  },
+  end(previous) {
+    if (powerOwner) powerOwner.powerShot = null;
+    powerOverlay?.remove(); powerOverlay = null;
+    if (powerSkip) window.removeEventListener('keydown', powerSkip, true);
+    powerSkip = null; powerOwner = null;
+    if (previous.blocking) {
+      hud.root.style.visibility = powerHudVisibility;
+      controls?.cancelPointer(); accumulator = 0;
+      if (state === 'powerup_pause') state = 'playing';
+    }
+  },
+});
+
 function playEarthquakeCinematic(ev) {
-  if (!cam || !ev || ev.x0 == null || ev.z0 == null || ev.x1 == null || ev.z1 == null) return;
-
-  const previousState = state;
-  const reducedMotion = !!save.settings.reducedMotion
-    || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const duration = reducedMotion ? 2.4 : 5.8;
-  let finished = false;
-  let token = null;
-  const finish = (skipped = false) => {
-    if (finished) return;
-    finished = true;
-
-    // A skip reveals the completed visual state immediately; natural completion
-    // leaves the fissure and its delayed collapses to finish in the live world.
-    if (skipped && world && world.skipQuakeCinematic) world.skipQuakeCinematic();
-    screens.dismissEarthquakeCinematic();
-    if (skipped && cam && cam.skipEarthquakeCinematic) cam.skipEarthquakeCinematic(token);
-
-    if (state === 'quake_cinematic') {
-      state = previousState === 'quake_cinematic' ? 'playing' : previousState;
-      accumulator = 0;
-    }
-    if (sim && (sim.over || (typeof sim.timeLeft === 'number' && sim.timeLeft <= 0))) {
-      if (isVoxelSandbox) endSandbox(); else endLevel();
-    }
-  };
-
-  controls?.cancelPointer();
-  state = 'quake_cinematic';
-  audio.playAnimeHitStop();
-  // Arm before announce, same as playNextPokemonSpawn. This one works today only
-  // because showEarthquakeCinematic is still a real asynchronous overlay; it is
-  // one cleanup commit away from the identical failure, with 5.8 s of
-  // uncancellable camera and eight hard-cut phases behind it.
-  token = cam.startEarthquakeCinematic({
-    x0: ev.x0,
-    z0: ev.z0,
-    x1: ev.x1,
-    z1: ev.z1,
-    angle: ev.angle,
-    length: ev.length,
-    duration,
-    reducedMotion,
-    onComplete: () => finish(false),
-  });
-  screens.showEarthquakeCinematic({
-    onSkip: () => finish(true),
-    reducedMotion,
-    duration,
-  });
+  if (!ev) return;
+  playPowerUpCollectCinematic({type:'quake',spec:{name:'TECTONIC FAULT RUPTURE',color:0xf77f00}});
 }
 
-// Ground spawns already use the Pokemon encounter to announce themselves. This
-// is the second half of that contract: on collection, pause the fixed-step
-// world long enough for the Dragon Ball card to say what the earned power does.
-// Fault Line Rupture owns its longer bespoke sequence and is intentionally
-// excluded before this function is called.
 function playPowerUpCollectCinematic(powerup) {
-  if (!cam || !powerup || powerup.type === 'quake' || state !== 'playing') return;
-
-  const prevState = state;
-  state = 'powerup_pause';
-  screens.showPowerUpShowcase(powerup, () => {
-    state = prevState;
+  if (!cam || !powerup || state !== 'playing') return;
+  powerPresentation.start(powerup, {
+    competitive: isMultiplayer || !!rankedRun,
+    reducedMotion: !!save.settings.reducedMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   });
 }
 
@@ -1098,6 +1100,8 @@ function failSceneLaunch(scene, err, returnTo = 'cities') {
 }
 
 function teardownWorld() {
+  powerPresentation.cancel();
+  controls?.cancelPointer();
   // The menu backdrop owns the same canvas a game world is about to claim, so
   // it goes first and it goes here — this is the one function both start paths
   // call before constructing anything.
@@ -1483,6 +1487,7 @@ function startMultiplayerMatch({ isHost, scene, matchSeed, durationSeconds = 180
 }
 
 function endLevel() {
+  powerPresentation.cancel();
   state = 'results';
   hud.hide();
   const won = sim.won;
@@ -1528,6 +1533,13 @@ function frame(ts) {
   const rawDt = (ts - lastTs) / 1000 || 0;
   const realDt = Math.max(0, Math.min(0.1, rawDt));
   lastTs = ts;
+  if (state === 'playing' && !readyGate && sim?.geometryVersion === 2) {
+    if (renderBudget.sample(rawDt)) {
+      const spec = TIERS[tierName] || TIERS.high;
+      world.setQuality(renderBudget.spec(spec));
+    }
+  } else renderBudget.sample(0);
+  if (state !== 'paused') powerPresentation.step(realDt);
 
   if (state === 'playing' && sim) {
     // The READY gate holds the establishing shot: the world renders and the
@@ -1766,12 +1778,10 @@ function frame(ts) {
               source: 'powerup',
               tier: 'powerup',
               priority: ANN.SIZE,
-              ms: 6000,
-              channel: 'band',
+              ms: 1200,
+              channel: 'toast',
             });
-            if (typeof screens.triggerActivePowerUpOverlay === 'function') {
-              screens.triggerActivePowerUpOverlay(ev.powerup.type);
-            }
+            // The presentation controller owns collection effects.
             if (!isQuake) playPowerUpCollectCinematic(ev.powerup);
           } else {
             // Multiplayer: only trigger lightweight non-blocking announcement if the local player collected it
@@ -1784,14 +1794,14 @@ function frame(ts) {
                 source: 'powerup',
                 tier: 'powerup',
                 priority: ANN.SIZE,
-                ms: 2200,
-                channel: 'band',
+                ms: 1200,
+                channel: 'toast',
               });
               triggerHaptic(50);
             }
           }
         } else if (ev.type === 'powerup_spawn') {
-          if (!isMultiplayer) queuePokemonSpawnIntro(ev.powerup, sim, cam, ev.reason, ev.backlog);
+          if (!isMultiplayer) announcePowerUpSpawn(ev.powerup);
         } else if (ev.type === 'disaster') {
           if (!isMultiplayer) cam.triggerShake(1.2);
           triggerHaptic(100);
@@ -1955,14 +1965,12 @@ function frame(ts) {
             tier: 'powerup',
             priority: ANN.SIZE,
             ms: 2000,
-            channel: 'band',
+            channel: 'toast',
           });
-          if (typeof screens.triggerActivePowerUpOverlay === 'function') {
-            screens.triggerActivePowerUpOverlay(ev.powerup.type);
-          }
+          // The presentation controller owns collection effects.
           if (!isQuake) playPowerUpCollectCinematic(ev.powerup);
         } else if (ev.type === 'powerup_spawn') {
-          queuePokemonSpawnIntro(ev.powerup, sim, cam, ev.reason, ev.backlog);
+          announcePowerUpSpawn(ev.powerup);
         } else if (ev.type === 'disaster') {
           cam.triggerShake(1.2);
           triggerHaptic(100);
@@ -2039,6 +2047,7 @@ function frame(ts) {
 
 function endSandbox() {
   if (state === 'results') return;
+  powerPresentation.cancel();
   state = 'results'; hud.hide();
   audio.stopScene();   // the results reveal plays over quiet, same as the arena
   const finished = sim;
@@ -2159,7 +2168,7 @@ let loopHandle = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if (loopHandle) { cancelAnimationFrame(loopHandle); loopHandle = 0; }
-    if (state === 'playing') { state = 'paused'; screens.showPause(); }
+    if (state === 'playing') { state = 'paused'; controls?.cancelPointer(); screens.showPause(); }
     accumulator = 0;
     // The tab going away may be the last moment this device is online: push
     // whatever the save owes the account now (paused is not playing, so a
@@ -2174,7 +2183,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 document.getElementById('btn-pause').addEventListener('click', () => {
-  if (state === 'playing') { state = 'paused'; screens.showPause(); }
+  if (state === 'playing') { state = 'paused'; controls?.cancelPointer(); screens.showPause(); }
 });
 document.getElementById('btn-mute').addEventListener('click', () => {
   save.muted = !save.muted; storeSave(save);
@@ -2193,7 +2202,7 @@ document.getElementById('screen-root').addEventListener('click', (e) => {
   else audio.uiConfirm();
 });
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Escape' && state === 'playing') { state = 'paused'; screens.showPause(); }
+  if (e.code === 'Escape' && state === 'playing') { state = 'paused'; controls?.cancelPointer(); screens.showPause(); }
   else if (e.code === 'Escape' && state === 'paused') {
     state = 'playing';
     audio.setMusicCue(playCue());

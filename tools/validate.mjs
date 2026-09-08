@@ -4234,7 +4234,18 @@ section('tutorialOnboarding', () => console.log(`Validating Interactive Onboardi
 section('mobileCameraClarity', () => console.log(`Validating Adaptive Mobile Camera & Clarity (${runMobileCameraSelftest()} assertions)...`));
 section('mobileUiResponsive', () => console.log(`Validating Mobile-First UI & Navigation (${runMobileUiSelftest()} assertions)...`));
 section('deviceDetection', () => console.log(`Validating Device Detection & Relative Controls (${runDeviceDetectionSelftest()} assertions)...`));
-section('mobileZoomControls', () => console.log(`Validating Mobile Pinch/Expand Zoom & Gestures (${runMobileZoomControlsSelftest()} assertions)...`));
+section('mobileZoomControls', () => {
+  runSuite('tools/direct-controls.test.mjs');
+  runSuite('tools/direct-controls-copy.test.mjs');
+  runSuite('tools/fixed-camera.test.mjs');
+  runSuite('tools/power-presentation.test.mjs');
+  runSuite('tools/power-presentation-wiring.test.mjs');
+  runSuite('tools/power-overlay-retirement.test.mjs');
+  runSuite('tools/render-budget.test.mjs');
+  runSuite('tools/architectural-tiles.test.mjs');
+  runSuite('tools/geometry-economy.test.mjs');
+  console.log(`Validating Mobile Pinch/Expand Zoom & Gestures (${runMobileZoomControlsSelftest()} assertions)...`);
+});
 section('cameraSmoothing', () => console.log(`Validating ADR-0022 Camera Bezier Occlusion Smoothing, Lab-scoped (${runCameraSmoothingSelftest()} assertions)...`));
 section('quakeRupture', () => console.log(`Validating Fault Line Rupture full-length wavefront (${runQuakeRuptureSelftest()} assertions)...`));
 // Guards this file's own orchestrator: registered sections == names in `groups`,
@@ -4308,7 +4319,17 @@ section('london', validateLondon);
 section('amsterdam', validateAmsterdam);
 section('berlin', validateBerlin);
 section('declaredBlockCounts', validateDeclaredBlockCounts);
-section('tokyo', validateTokyo);
+section('tokyo', () => {
+  runSuite('tools/box-grid.test.mjs');
+  runSuite('tools/box-queries.test.mjs');
+  runSuite('tools/architectural-pieces.test.mjs');
+  runSuite('tools/architectural-chunks.test.mjs');
+  runSuite('tools/tokyo-geometry.test.mjs');
+  runSuite('tools/tokyo-growth.test.mjs');
+  runSuite('tools/tokyo-growth-rate.test.mjs');
+  runSuite('tools/tokyo-growth-routes.mjs');
+  validateTokyo();
+});
 section('audioCoverage', validateAudioCoverage);
 section('playableCitiesGated', validatePlayableCitiesGated);
 section('manhattan', validateManhattan);
