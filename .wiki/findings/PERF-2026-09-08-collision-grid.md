@@ -1,6 +1,6 @@
 # Collision grid performance remediation — 2026-09-08
 
-Status: final automated validation passed (31 groups, 1867.0 s). Physical-phone performance acceptance remains unresolved.
+Status: final automated validation passed (31 groups, 1867.0 s). The physical-phone performance acceptance gate was retired by the owner on 2026-09-13.
 
 The old “Singapore is the only city over budget” report covered 11 cities.
 The current catalog has 24. Three round-robin runs of the growing-hole hero
@@ -61,8 +61,8 @@ benefit, and was removed.
 
 - All 24 cities pass legacy collapse parity; the final validator passed all 31 groups in 1867.0 s.
 - Rerun all 24 cities in pinned and growing modes on the final revision.
-- Rendered mobile-emulation measurements are recorded below; the 60 FPS target remains unmet.
-- Keep physical-device performance explicitly unverified until measured.
+- Rendered mobile-emulation measurements are recorded below; the 60 FPS target remains unmet under synthetic emulation.
+- Physical-device performance was never measured; the owner retired that requirement on 2026-09-13.
 
 ## Rendered mobile emulation (2026-09-08)
 

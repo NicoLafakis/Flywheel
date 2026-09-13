@@ -59,7 +59,8 @@ Scene replacement during a full sequence also passed: the previous overlay and
 camera ownership are released before the new city's ready gate.
 
 Remaining acceptance: physical touch/pinch cancellation scenarios, visual/audio review,
-and the shared physical-device frame-time gate in the geometry plan. No claim of
+and the shared physical-device frame-time gate in the geometry plan (retired by
+the owner on 2026-09-13). No claim of
 finished art direction or 60 FPS on phones is made from the automated timing model.
 
 See [ADR 0026](../adr/0026-direct-input-and-power-presentation.md) and the separate

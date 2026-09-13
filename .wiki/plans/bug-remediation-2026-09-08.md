@@ -88,7 +88,8 @@ Use all current playable cities, repeated round-robin measurements and the
 same machine/revision/seed/settings. Record median, p95, worst step, awake
 debris, consumed blocks and post-collapse settling. Extend measurement output
 only with test-first coverage. Confirm the displayed run mode is accurate.
-Measure rendered frame time on a representative phone as well: a sim result
+Measuring rendered frame time on a representative phone was retired with the
+physical-device gate on 2026-09-13; note that a sim result
 below 16.67 ms alone does not establish 60 FPS.
 
 **Decision:** if Singapore now meets the frame budget in the tested scenarios,
@@ -155,7 +156,7 @@ or feature work, not part of this bug-remediation scope.
 - The final validator after the LOW-quality fix passed all 31 groups in
   1867.0 s (exit 0), including all new registered regression suites. All-city pinned/growing data and the
   actual LOW-quality game measurement are complete; physical-phone acceptance
-  is unverified and the synthetic frame-budget target remains unmet.
+  was retired by the owner on 2026-09-13 and the synthetic frame-budget target remains unmet.
 - Changes are prepared on local review branch
   `fix/legacy-bug-remediation-2026-09-08`. No push or production promotion.
 
@@ -187,14 +188,15 @@ contact parity tests remain; the simpler collision implementation is retained.
 | Performance measured across all 24 cities in both modes | Four datasets in collision-benchmarks JSON, with median/p95/max and final settling data | Complete |
 | Physics and scoring preserved by lookup optimization | All 24 cities pass independent grid/support/contact collapse parity | Passed |
 | Deferred LOW-quality support executes while stationary | RED/GREEN scheduling test; real Singapore test and deployed attack | Passed |
-| Rendered performance reaches acceptance target | Viewer improves; actual LOW game remains over budget under 4x throttle; no physical phone result | Not achieved |
+| Rendered performance reaches acceptance target | Viewer improves; actual LOW game remains over budget under 4x throttle | Not achieved (synthetic); physical-phone gate retired 2026-09-13 |
 | Full required validator on final code | Post-LOW-fix run: ALL PASS, 31 groups, 1867.0 seconds, exit 0 | Passed |
 | Documentation and gate coverage reconciled | STATUS/module updates, version/city corrections, full gate, registered regression suites | Complete |
 | Deployed revision matches reviewed changes | Seven application modules match preview azk45ktwb | Passed |
 
-The work is not complete while the live server verdict and performance
-acceptance remain unresolved. The final automated gate has passed. No production promotion is implied
-by these preview checks.
+The work is not complete while the live server verdict and synthetic performance
+target remain unresolved. The final automated gate has passed. No production promotion is implied
+by these preview checks. The physical-phone acceptance requirement was retired
+by the owner on 2026-09-13.
 
 ## Deployment identity discovered during acceptance
 
@@ -208,7 +210,8 @@ successor application, not proof of a failed deployment of this workspace.
 
 The remediation preview belongs to the legacy workspace. Do not promote it
 over Flywheel-v2 as a routine completion step. Acceptance needs a designated
-legacy deployment with a working ranked verifier and a physical-phone target.
+legacy deployment with a working ranked verifier; the physical-phone target
+was retired by the owner on 2026-09-13.
 The user has been asked to identify that environment. Existing preview runs
 remain durable/pending; no authentication checks have been weakened.
 

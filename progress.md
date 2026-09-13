@@ -14,7 +14,8 @@ User watched the visible playthrough and reported no visible FPS drops or
 performance problems. Sustained desktop rates agree with that observation;
 recorded RAF gaps are not yet attributed to visible gameplay defects. Do not
 make speculative performance changes from those gaps alone or claim the strict
-timing gate passed. Physical-device acceptance remains separate.
+timing gate passed. Physical-device acceptance was retired by the owner on
+2026-09-13 (recorded below under Remaining acceptance).
 
 Visible Chrome three-run benchmark finished (session 21931, exit 1).
 Runs averaged 73.93, 73.36 and 72.95 FPS; p95 13.5 ms each; max RAF gaps
@@ -153,6 +154,9 @@ recovery completed a rendered 90-second run and submitted successfully.
 Screenshots were inspected. The bundled browser client also ran.
 
 ## Remaining acceptance
+
+2026-09-13 update: the owner retired the physical-phone 60 FPS acceptance gate;
+the phone items below are historical.
 
 - Local review branch: `fix/legacy-bug-remediation-2026-09-08`. Preserve the
   user's existing `.gitignore` changes and keep them unstaged. No push or

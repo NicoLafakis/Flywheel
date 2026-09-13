@@ -1224,7 +1224,7 @@ state transitions and deletion. `grid-sim-parity.test.mjs` compares real collaps
 state/scores/events against a string grid and the original support algorithm.
 The lookup optimization preserves physics and ranked version; the final
 validator passed all 31 groups in 1867.0 seconds. Physical-phone performance
-acceptance remains unresolved. The attempted within-step answer cache showed no material
+acceptance was retired as a gate by the owner on 2026-09-13. The attempted within-step answer cache showed no material
 benefit and was removed.
 
 ## Deferred coverage repair (2026-09-08)

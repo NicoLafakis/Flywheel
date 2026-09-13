@@ -12,6 +12,7 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 ## Geometry authoring standard
 
 - **2026-09-13, owner approved:** The twin-city Lab is the reference for all map remediation and new construction. Cube-only "voxel" terminology and the mixed geometry workflow are required in `AGENTS.md` and `CLAUDE.md`; see [.wiki/geometry-authoring.md](.wiki/geometry-authoring.md). Keep piece savings, preserve enjoyable eating, with the conflicting older rule removed from source comments and authoring docs. This is a standard, not a completed rollout to all maps.
+- **2026-09-13, owner decision:** the physical-device 60 FPS acceptance gate is retired and no longer tracks as an open item anywhere. Automated/desktop performance evidence stands as recorded; no handset matrix, device service or physical-phone session is required for acceptance.
 
 ## Baseline
 
@@ -56,17 +57,19 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   requested commit/push using this evidence; a redundant full rerun was stopped.
   The user observed smooth desktop play without visible FPS drops. Automated
   RAF measurements exceed the 100 ms gap limit despite averages above 70 FPS;
-  attribution of those gaps to visible gameplay defects is unproven. Physical-device 60 FPS and
-  final visual acceptance remain open. Separate plans: `.wiki/plans/tokyo-geometry-remediation.md` and
+  attribution of those gaps to visible gameplay defects is unproven. Final visual
+  acceptance remains open; the owner retired the physical-device 60 FPS
+  acceptance gate on 2026-09-13 (see the board note above). Separate plans: `.wiki/plans/tokyo-geometry-remediation.md` and
   `.wiki/plans/controls-powerup-remediation.md`. No production promotion.
 
 - **Deployment identity (2026-09-08):** production currently comes from
   `Flywheel-v2` commit `28805e1`, not this legacy workspace. The legacy ranked
   API and cron are absent there. Remediation preview `flywheel-azk45ktwb`
   must not be promoted over that successor as a routine bug-fix release.
-  A designated legacy acceptance environment and physical-phone target remain
-  to be confirmed.
-- **Bug remediation (2026-09-08), in progress:** ranked recovery and multiplayer countdown fixes pass targeted tests; countdown also passes 27 layout checks against the preview deployment. Sandbox bestSize omission/NaN repaired with a RED-proven test. The final full validator passed all 31 section groups (1867.0 s); physical-phone performance acceptance and live server-verdict verification remain open. See `.wiki/plans/bug-remediation-2026-09-08.md`.
+  A designated legacy acceptance environment remains
+  to be confirmed; its physical-phone target was retired with the device gate
+  on 2026-09-13.
+- **Bug remediation (2026-09-08), in progress:** ranked recovery and multiplayer countdown fixes pass targeted tests; countdown also passes 27 layout checks against the preview deployment. Sandbox bestSize omission/NaN repaired with a RED-proven test. The final full validator passed all 31 section groups (1867.0 s); live server-verdict verification remains open, while physical-phone performance acceptance was retired by the owner on 2026-09-13. See `.wiki/plans/bug-remediation-2026-09-08.md`.
 - **LOW-quality deferred support loss (2026-09-08):** found while testing the
   real phone-quality path. A stationary hole could lose a deferred coverage
   recalculation and leave unsupported structures standing. RED scheduling
@@ -74,7 +77,8 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   tick. Singapore stationary hero attack changed from 0 to 2,470 consumed blocks.
   Targeted tests and the updated preview LOW-quality flow pass (2,493 blocks
   consumed, no browser errors). Final full validation passed all 31 groups (1867.0 s). Synthetic
-  4x CPU frame timing still misses the target; physical-phone results are unknown.
+  4x CPU frame timing still misses the target; physical-phone measurement was
+  retired with the device gate on 2026-09-13.
 
 
 - **Act I map completion** — every Act I city built to the voxel count declared

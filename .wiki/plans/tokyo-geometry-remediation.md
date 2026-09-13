@@ -1,7 +1,9 @@
 # Tokyo geometry, destruction and growth remediation
 
-Status: implementation complete for the Tokyo pilot; sustained frame-stall,
-physical-device and visual acceptance remain open. Other-city rollout is gated.
+Status: implementation complete for the Tokyo pilot; sustained frame-stall
+and visual acceptance remain open. Other-city rollout is gated.
+The physical-device 60 FPS acceptance gate was retired by the owner on
+2026-09-13; the phone-matrix requirements below are kept as historical record.
 Owner: legacy Flywheel workspace. Tokyo is the pilot; do not convert other cities
 or promote over the separate Flywheel-v2 production deployment.
 
@@ -10,9 +12,10 @@ or promote over the separate Flywheel-v2 production deployment.
 Preserve architectural identity and satisfying breakup using actual floor bays,
 columns, walls, roofs and joints rather than arbitrary building slices. Keep
 small street food. Reach maximum size around three minutes of a five-minute run.
-Target 60 FPS on desktop and phones released from 2019 onward across iPhone,
-Pixel, Galaxy S and Galaxy A. Universal handset performance is not established
-by a representative test matrix.
+Target 60 FPS on desktop. The 2019-onward phone matrix (iPhone, Pixel, Galaxy S
+and Galaxy A) is retired as an acceptance gate per the owner's 2026-09-13
+decision; universal handset performance was never established by a
+representative test matrix and is no longer required.
 
 ## Implementation
 
@@ -75,18 +78,21 @@ Remaining release acceptance:
   uses the existing passing coverage; no additional runtime changes were made.
 - Matching whole-city and five-district captures were inspected against the old
   deployed build. This caught texture stretching, now fixed and rechecked. Review
-  sustained destruction recordings as part of physical-device acceptance.
-- Three consecutive five-minute physical-device sessions, including tornado,
+  sustained destruction recordings as part of visual acceptance.
+- RETIRED 2026-09-13 (owner decision): three consecutive five-minute
+  physical-device sessions, including tornado,
   landmark collapse, simultaneous major power, and recovery. Required anchors:
   iPhone 11/SE 2020/16; Pixel 4a/6a/9; Galaxy S10/A12/A16 5G/S24. Record exact
   chipset/RAM, OS, browser, thermal state and display mode. Safari, Chrome and
   Samsung Internet are separate coverage surfaces.
-- Per scenario: average >=59 FPS, p95 frame interval <=18 ms, p99 <=33.4 ms,
-  no gameplay stall >100 ms. Desktop throttling cannot substitute for phones.
+- RETIRED 2026-09-13 (owner decision): per-scenario phone thresholds
+  (average >=59 FPS, p95 frame interval <=18 ms, p99 <=33.4 ms,
+  no gameplay stall >100 ms). Desktop throttling cannot substitute for phones.
 - Runtime render fallback now observes two-second frame windows and reduces
   resolution/shadows/ambient animation in three bounded steps. Ten seconds of
   recovery restores one step. It changes neither physics nor saved preferences;
-  the physical-device gate must still establish whether these levers suffice.
+  the physical-device gate that would have judged these levers was retired
+  2026-09-13.
 - Only after Tokyo passes, benchmark the remaining catalog and migrate failing
   cities individually. Keep current production separate.
 

@@ -1,5 +1,8 @@
 # Tokyo remediation acceptance evidence
 
+Update 2026-09-13: the owner retired the physical-device 60 FPS acceptance
+gate. The "Phones released from 2019 onward" row below is historical record.
+
 Review build: https://flywheel-448ypdw2r-nicos-projects-896b6ff8.vercel.app
 
 This is the legacy Tokyo pilot, not the separate Flywheel-v2 production build.
@@ -17,7 +20,7 @@ Implementation is present; release acceptance is incomplete.
 | Retire competing full-screen power treatments | RED-proven HUD retirement test; deployed old-overlay visibility assertions | Verified |
 | Preserve rewards and other cities | Explicit Tokyo economy weight and unchanged story order; geometry v2 Tokyo-only; Chicago ranked v1 retained | Targeted tests and relevant full-suite groups passed |
 | Desktop sustained frame target | Three visible 300-second sessions below | Mixed evidence; strict timing gate not met |
-| Phones released from 2019 onward | No physical devices or device service available | Unverified |
+| Phones released from 2019 onward | No physical devices or device service available | Retired 2026-09-13 (owner decision; was: unverified) |
 | Validator coverage | Full run: 30/31 groups, 2091.6 s; corrected core: ALL PASS, 172.9 s (`_tokyo-core-final.log`) | All groups covered across runs; no single all-green run. Redundant rerun stopped following user direction during commit/push |
 | Other-city rollout | Intentionally gated on Tokyo acceptance in approved plan | Not started |
 

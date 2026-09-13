@@ -492,6 +492,7 @@ successor application, not proof of a failed deployment of this workspace.
 
 The remediation preview belongs to the legacy workspace. Do not promote it
 over Flywheel-v2 as a routine completion step. Acceptance needs a designated
-legacy deployment with a working ranked verifier and a physical-phone target.
+legacy deployment with a working ranked verifier; the physical-phone target
+was retired by the owner on 2026-09-13.
 The user has been asked to identify that environment. Existing preview runs
 remain durable/pending; no authentication checks have been weakened.
