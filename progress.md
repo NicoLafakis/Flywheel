@@ -199,3 +199,14 @@ follow-up: no runtime behavior changed and no simulation tests rerun.
 User clarified that conflicting guidance must be removed, not merely overridden.
 Removed the old rule and its cross-references; updated the Cambridge measurement
 plan to retain savings and assess gameplay. Source edits are comments only.
+
+## 2026-09-13 — Lab Tokyo prototype district
+Owner asked for the Lab to become the sandbox for recreating the Tokyo map with
+the mixed-geometry method. Added a third district (north band z -70..-34) with
+miniature mixed-geometry recreations of Tokyo's five heroes, recorded as
+`sim.labTokyo` so the twin-city comparison stays two-sided. TDD: lab-comparison
+test went RED on the new district assertions before the scene was written.
+Measured build lessons pinned by the test: glass curtain panels are
+non-structural (tower cascade at spawn), tapered drum tiers misalign and fall,
+cornice runs overshoot drum facet chords, post-hung lanterns cantilever and
+fall. District: 1,170 pieces; Lab total 8,042; catalog/help copy updated.

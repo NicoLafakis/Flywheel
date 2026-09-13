@@ -292,7 +292,9 @@ export function runCameraSmoothingSelftest() {
       }
     }
     console.log(`  lab testbed: ${sim.blocks.length} blocks (+${(100 * (sim.blocks.length / LAB_BLOCKS_BEFORE - 1)).toFixed(1)} %), ${bl.length} blockers, ${tall} tall cells all covered`);
-    assert.ok(sim.blocks.length <= 7000, `block budget: ${sim.blocks.length} <= ${7000}`);
+    // Budget raised 7000 -> 10000 for the Tokyo prototype district (2026-09-13):
+    // the twin comparison cities stay at 6,872 and the band adds its own pieces.
+    assert.ok(sim.blocks.length <= 10000, `block budget: ${sim.blocks.length} <= ${10000}`);
   });
 
   return n;

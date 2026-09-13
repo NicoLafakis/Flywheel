@@ -98,4 +98,8 @@ quota for other maps.
 
 The owner approved the Lab result on 2026-09-13 and selected its process for
 all maps. This records design acceptance; the module notes retain the separate
-validation limitations and browser findings.
+validation limitations and browser findings. Later on 2026-09-13 the Lab gained
+a third district — a miniature mixed-geometry Tokyo prototype (Tocho twins,
+Cocoon Tower, Kabukicho gate, station viaduct, Shibuya 109) in a north band —
+making it the working sandbox for the method on real map content. The
+comparison cities and their numbers above are unchanged.

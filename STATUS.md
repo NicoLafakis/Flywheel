@@ -13,6 +13,7 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 
 - **2026-09-13, owner approved:** The twin-city Lab is the reference for all map remediation and new construction. Cube-only "voxel" terminology and the mixed geometry workflow are required in `AGENTS.md` and `CLAUDE.md`; see [.wiki/geometry-authoring.md](.wiki/geometry-authoring.md). Keep piece savings, preserve enjoyable eating, with the conflicting older rule removed from source comments and authoring docs. This is a standard, not a completed rollout to all maps.
 - **2026-09-13, owner decision:** the physical-device 60 FPS acceptance gate is retired and no longer tracks as an open item anywhere. Automated/desktop performance evidence stands as recorded; no handset matrix, device service or physical-phone session is required for acceptance.
+- **2026-09-13:** The Lab gains a third district — a miniature **Tokyo prototype** (Tocho twins, Cocoon Tower, Kabukicho gate, station viaduct, Shibuya 109) in a north band, making the Lab the working sandbox for the mixed-geometry method on real map content. 1,170 district pieces; Lab total 8,042. The twin-city comparison is unchanged. `tools/lab-comparison.test.mjs` pins the district's heroes, budgets, idle stability and playability.
 
 ## Baseline
 

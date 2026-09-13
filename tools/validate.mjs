@@ -229,6 +229,9 @@ const VOXEL_PATH = [
   { until: 46, x: 52, z: 12 },
   { until: 50, x: 45, z: 21 },
   { until: 56, x: 31, z: -16 },
+  // Tokyo prototype band (z -70..-34): twins/cocoon, gate, 109.
+  { until: 62, x: -20, z: -58 },
+  { until: 68, x: 30, z: -52 },
 ];
 
 // Every scripted excursion below is driven by `driveRoute` from
@@ -269,7 +272,7 @@ function probeRouteSpent(name, run, what = 'excursion') {
 function runVoxelSandbox() {
   const snap = {};
   let maxUnstable = 0;
-  const sim = driveRoute(new VoxelSandboxSim({ seed: 'validator' }), VOXEL_PATH, 56, (i, run) => {
+  const sim = driveRoute(new VoxelSandboxSim({ seed: 'validator' }), VOXEL_PATH, 68, (i, run) => {
     maxUnstable = Math.max(maxUnstable, run.blocks.filter((b) => b.state === 'unstable').length);
     if (i === 2.5 * 60) { // sample while the hole is definitely still idling (VOXEL_PATH[0] holds to t=3)
       snap.eaten3 = run.hole.eatenCount;

@@ -43,8 +43,9 @@ a geometry/feel comparison, not a claim of score parity.
 
 City centres are x=-36 and x=36; declared edges leave a 32 m gap. Amber marks
 the west entry, mint the east. Start remains (0,16) between the two cities.
-Bounds are x=-62..62, z=-26..30. Shared city economy and save schema are unchanged.
-The catalog shows the actual combined count, 6,872 physical pieces.
+Bounds are x=-62..62, z=-72..30 (extended north for the Tokyo prototype district below).
+Shared city economy and save schema are unchanged.
+The catalog shows the actual combined count, 8,042 physical pieces.
 
 `tools/lab-comparison.test.mjs` is RED-proven and runs under the existing
 `labDoctrine` validator section. It checks removal of old geometry, cube-only
@@ -58,6 +59,32 @@ after 40.9 minutes, so no full-suite ALL PASS is claimed. Browser Lab
 launch/pause/restart succeeded; title loading logged a recovering 25-second
 watchdog timeout (tracked in STATUS). The owner approved the Lab result on 2026-09-13 and selected its geometry
 authoring process as the standard for all existing and future maps.
+
+### Tokyo prototype district (2026-09-13)
+
+The Lab is also the sandbox for prototyping the mixed-geometry method on real
+map content: a third district (recorded as `sim.labTokyo`, outside
+`labCities` so the comparison stays two-sided) recreates Tokyo's five heroes
+in miniature in a north band (x -56..56, z -70..-34): Tocho twin slab towers
+with a skybridge, a banded three-tier Cocoon drum, the Kabukicho gate as red
+piers carrying a tiled-beam lintel, a pier-and-beam station viaduct with a
+five-car train, and a drum Shibuya 109 with a magenta crown tier. Golden Gai izakaya and promenade
+crates/lanterns stay 0.5 m cubes — starter bites, not structure. 1,170 pieces
+for the district; 8,042 total.
+
+Build lessons measured here, all pinned by `tools/lab-comparison.test.mjs`:
+glass curtain panels are non-structural — floor slabs over a glass wall get no
+vertical support and the tower cascades at spawn (use painted masonry courses,
+as the comparison cities do); a tapered drum's facets stop aligning vertically
+between tiers and the upper ring falls (keep radius constant, band colour
+instead); an 8 m cornice run overshoots a drum's ~2 m facet chords (crown with
+a shallow drum tier); a 0.5 m lantern hung on a 0.25 m post cantilevers two
+cells and falls (keep lanterns at grade); and `corbelArch` trips
+`probePlacementStep` on sight — the recorded false positive from Cambridge
+§7/P6.9 — so the gate uses piers plus end-to-end tiling 4 m beams instead.
+The district stands idle-stable, has
+its own playable route (151 pieces consumed, SIZE 5 in 36 s from start), and
+the gallery excursion tour now ends with two legs through the band.
 
 
 ## Tokyo architectural pilot (2026-09-08)

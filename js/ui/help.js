@@ -113,7 +113,7 @@ export const WALKTHROUGH_MODULES = Object.freeze([
       {
         heading: 'The 29-Metropolis World Tour (7 Regional Acts)',
         list: [
-          'PROLOGUE · Calibration: THE LAB (Proving Ground · 6,872 physical pieces) — two matching micro cities: voxels west, architectural pieces east.',
+          'PROLOGUE · Calibration: THE LAB (Proving Ground · 8,042 physical pieces) — two matching micro cities (voxels west, architectural pieces east) plus a miniature mixed-geometry Tokyo prototype district.',
           'ACT I · The Pacific Awakening: SYDNEY HARBOUR (14,120 blocks), AUCKLAND (16,000 blocks), SINGAPORE MARINA BAY (22,000 blocks).',
           'ACT II · Asian Megacities: HONG KONG (32,000 blocks), SEOUL (32,000 blocks), TOKYO SHINJUKU (34,796 blocks), BEIJING (38,000 blocks), BANGKOK (30,000 blocks), MUMBAI (34,500 blocks).',
           'ACT III · Desert & Antiquity: DUBAI (36,000 blocks), CAIRO & GIZA (32,500 blocks), ATHENS (26,000 blocks), ROME (35,000 blocks).',
