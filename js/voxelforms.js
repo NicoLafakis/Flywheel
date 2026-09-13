@@ -18,16 +18,11 @@
 // is not a kit — and a composite never lands here at all, because this layer is
 // members, not buildings.
 //
-// THE TWO-HAND RULE governs every call site, and both hands are needed:
-//   Hand 1 — SKIN, NOT FILL. A solid piece replaces a SURFACE, never an
-//     INTERIOR. A floor is a 0.25–0.5 m plate, not a 1 m solid cube of
-//     concrete. Fine-cell cost is linear in occupied volume, so consolidating
-//     by filling produces a beautifully low block count that builds slower and
-//     costs the same per frame. `sim.grid.size` tells the truth; the block
-//     count lies.
-//   Hand 2 — SPEND IT BACK. Every block a primitive frees is owed back to the
-//     scene, not banked. A falling block count is a warning sign, not a result:
-//     it means the district is under-populated, not efficient.
+// GEOMETRY AUTHORING: see .wiki/geometry-authoring.md.
+// Replace surfaces with surfaces; keep hollow interiors hollow. Grid occupancy
+// and physical piece count are separate costs, so measure both.
+// Keep the piece savings. Preserve starter food, bounded bites and progressive
+// collapse; never add filler simply to restore the previous count.
 //
 // THE SCALE RULE: the bigger the building, the bigger the pieces. A 60 m tower
 // is hundreds of blocks, not twenty thousand — same silhouette, same surface

@@ -62,6 +62,28 @@ Static browser game, no build step. Read `.wiki/INDEX.md` for the full wiki;
     city or RUN, and failed ranked submissions remain queued rather than
     blocking play.
 
+## Geometry terminology and map authoring
+
+These rules apply project-wide to every existing-map remediation and every new
+map. Read [.wiki/geometry-authoring.md](.wiki/geometry-authoring.md) before
+creating or changing map geometry.
+
+- **Voxel** means a cube-shaped physical piece. **Architectural piece** means
+  a non-cube physical piece, such as a wall panel, beam, column or floor slab.
+  **Physical piece count** is the total of both; grid cells are a separate metric.
+- Use the owner-approved twin-city Lab as the reference process: consolidate
+  suitable surfaces into bounded architectural pieces, retain cubes where they
+  serve eating, detail or silhouette, and preserve satisfying progressive destruction.
+- Build new maps with this mixed approach from the outset. For existing maps,
+  preserve their identity and compare before/after geometry and gameplay.
+- Keep efficiency savings. Do not add filler to restore an old count or treat
+  catalog counts as quotas.
+- Keep interiors hollow and structures divisible into multiple satisfying bites.
+  Verify startup food, growth, support/collapse and full-clear reachability;
+  fewer pieces alone do not prove better performance or preserved fun.
+- Follow the existing TDD and simulation invariants. Geometry optimization does
+  not authorize changing the fixed timestep, physics or reward balance.
+
 ## House style
 
 ES modules, one concern per file, shared three.js geometry/material caches,

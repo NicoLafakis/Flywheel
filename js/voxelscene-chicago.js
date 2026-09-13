@@ -419,7 +419,7 @@ export const CHICAGO_MOVERS = [{
 }];
 
 // ---------------------------------------------------------- shared helpers --
-// A tower is a SKIN, not a fill (voxelforms' two-hand rule): 0.5 m-thick wall
+// A tower is a SKIN, not a fill (the geometry authoring standard): 0.5 m-thick wall
 // panels in 2 m courses with horizontal colour banding, slim interior columns
 // on the megaShell dominating pattern, and a plate roof. Same silhouette and
 // load path as the 2 m-cube shell at roughly a quarter of the fine-cell cost

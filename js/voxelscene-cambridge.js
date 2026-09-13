@@ -54,7 +54,7 @@
 //                  hero of this district and the reason it was chosen for the
 //                  proof: a mill wall is the vocabulary's best argument.
 //   z +24.5 .. +30 THE REAR YARD — freight spur, loading dock and canopy, yard
-//                  clutter. This band is where most of Variant B2's spend-back
+//                  clutter. This band is where most of Variant B2's district detail
 //                  went, because it is the part of a mill block a cube ladder
 //                  cannot afford to furnish.
 //
@@ -117,7 +117,7 @@
 // THE RULE `03` §8.2 ASKS TO BE CARRIED HERE, verbatim: *in a district built
 // from large primitives, the ground plane carries the density.* A tower can be
 // four slabs; the 30 m of pavement in front of it cannot be empty. That is the
-// whole design of this file's spend-back — the rear yard, the mill floor, the
+// whole design of this file's district detail — the rear yard, the mill floor, the
 // dock and the shopfront row are all ground-plane content. Measured: this
 // district ships at 4.29 eatable pieces per m² of built footprint, against
 // `03` §8.2's 2.8 target for District 2 and its 2.34 scene median.
@@ -3068,7 +3068,7 @@ export function cambridgeBuildings(E, sim) {
   millRange(E, sim, FRONTAGE, C.glassLobby);
   // The painted wall sign on the Davenport's west gable — the mark
   // `probeHeroIdentity` guards. It belongs to the SHARED plan rather than to
-  // B2's spend-back because it identifies the building, and both variants build
+  // B2's district detail because it identifies the building, and both variants build
   // the same building; a control that has no mark on it would fail the identity
   // probe for a reason that has nothing to do with the vocabulary. Two panels of
   // different extents, so the pair is never a run of identical collinear boxes.
@@ -10389,7 +10389,7 @@ export const TEN_AMBIENT = {
 // Ground, streets, decor, kerbs, street furniture, vehicles, ambient life and
 // camera blockers. IDENTICAL across all three variants by construction: it is
 // one function and all three call it, so the A/B/B2 deltas are a property of the
-// buildings and of the spend-back, never of the pavement.
+// buildings and of the district detail, never of the pavement.
 
 // `opts` is P6.2's one structural addition, and it exists so that this function
 // can stay the single shared shell while the SHIPPED scene grows past what the
@@ -10649,14 +10649,11 @@ export function cambridgeShell(sim, buildings, opts = {}) {
   sim.cameraBlockers = generateBlockers(sim);
 }
 
-// --- VARIANT B2: THE SPEND-BACK ----------------------------------------------
-// Hand 2 of the two-hand rule. The primitive vocabulary builds the shared plan
-// above far more cheaply than the cube ladder does, and rather than stop there,
-// this district put the room that freed up into more ground-plane content,
-// which is what the district actually wanted: the rear yard, the freight dock,
-// the fire escapes, the 1987 lobby link and the 2008 courtyard, roof plant, and
-// the shopfronts on the frontage row. None of it fits on a cube ladder at
-// anything like the same cost.
+// --- VARIANT B2: DISTRICT DETAILS -------------------------------------------
+// This variant includes the rear yard, freight dock, fire escapes, lobby link,
+// courtyard, roof plant and shopfronts. These are authored district features;
+// their existence does not require spending savings from consolidation.
+// Follow .wiki/geometry-authoring.md when changing or extending the district.
 //
 // It is also where the three COMPOSITE primitives earn their place — the dock's
 // corbelled brick arch, the roof tank's drum, and the ramp's wedge. They are

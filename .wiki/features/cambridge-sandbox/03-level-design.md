@@ -1787,7 +1787,7 @@ touching a file that would re-measure districts already verified. They are Phase
 - `README.md` — the package index
 - `00-objective-overview.md` — why this level exists and where it goes
 - `01-voxel-primitive-vocabulary.md` — the twelve primitives, the cost model, the
-  two-hand rule, the grain rule, the measurement plan
+  surface-consolidation guidance, the grain rule, the measurement plan
 - `02-cambridge-reference.md` — every fact on this page, with its confidence
 - `04-easter-eggs-and-achievements.md` — the hidden things this page reserves
   slots for

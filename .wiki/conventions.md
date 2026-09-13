@@ -1,5 +1,10 @@
 # Conventions
 
+Map geometry follows the mandatory [geometry authoring standard](geometry-authoring.md):
+voxel means cube; non-cubes are architectural pieces. Apply the approved Lab
+approach to both existing-map remediation and every new map, keeping efficiency
+savings while preserving enjoyable eating and progressive destruction.
+
 ## Hard rules (validator-enforced or review-blocking)
 
 1. **Test-Driven Development (TDD) mandatory** — all features, bug fixes,

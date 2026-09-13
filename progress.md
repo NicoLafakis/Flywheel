@@ -170,3 +170,28 @@ See `.wiki/plans/bug-remediation-2026-09-08.md` for the requirement audit and
 `.wiki/findings/PERF-2026-09-08-collision-grid.md` for all performance caveats.
 Raw logs, screenshots and the chronological working log are local ignored
 artifacts under `tools/pw/_remediation/` and matching `.log` files.
+
+## 2026-09-13 ? Lab comparison rebuild
+User requested clearing The Lab and authoring two separated micro cities, one entirely cubes and one using architectural pieces without sacrificing eating fun. New shared-layout builder gives west 5,461 cubes and east 1,411 pieces, identical material occupancy and 74.2% fewer pieces. Both retain small cube street objects. 32 m separation. RED-proven comparison test covers replacement, count, occupancy parity, no overlap, and idle stability. Validation and browser checks ongoing. Preserve pre-existing .gitignore changes.
+
+Lab verification update: new layout tour reaches SIZE 11, 3,899 pieces consumed in 56 seconds, with deterministic repeat and progressive consumption checks passing. Standalone matched 20-second starter routes: west 2,681 consumed / SIZE 10, east 341 / SIZE 8. Both independently playable. Crosswalk omission found by progress-and-lab test and repaired. Fresh 127.0.0.1 browser shows new geometry and card count; start/pause/restart verified, left at READY. Browser recorded a boot watchdog timeout during full-suite CPU contention; subsequent restart succeeded. Full validator still running.
+
+Browser follow-up: a second fresh title load logged the same 25-second watchdog timeout, then recovered and launched the new Lab to READY. Cause is unproven; recorded in STATUS.md. Do not claim a clean boot/console run. Lab start/pause/restart worked and the comparison tab remains at READY.
+
+Final verification (2026-09-13): `_lab-full.log` records 30/31 passing groups, including complete core (184.7 s), multiplayer, all declared counts, and scenesWinnable. Cambridge was the sole remaining worker and was stopped after 2455.3 s (40.9 min); full-suite ALL PASS is NOT established. Final `FW_VALIDATE_SECTIONS=labDoctrine node tools/validate.mjs` passed current comparison assertions plus both independent starter routes in 10.1 s (`_lab-final.log`). Camera and help tests also passed after fixture/copy updates. No commit or deployment. Owner can compare the new scene in the preserved 127.0.0.1:8000 tab. Remaining: subjective eating feel; title boot watchdog diagnosis; full Cambridge validation if required for a release.
+
+
+## 2026-09-13 ? Project-wide geometry authoring decision
+
+Owner approved the Lab and requested durable terminology and its conversion
+process for both existing maps and all new maps. Added matching AGENTS.md and
+CLAUDE.md rules, a canonical .wiki/geometry-authoring.md workflow, and discovery
+links/definitions in the wiki index, conventions, glossary and voxel module.
+The conflicting older rule was removed from toolkit/scene comments and authoring docs; savings
+are retained while starter food, bounded bites and progressive collapse remain
+requirements. Lab design acceptance is now recorded. Documentation only in this
+follow-up: no runtime behavior changed and no simulation tests rerun.
+
+User clarified that conflicting guidance must be removed, not merely overridden.
+Removed the old rule and its cross-references; updated the Cambridge measurement
+plan to retain savings and assess gameplay. Source edits are comments only.

@@ -1,6 +1,8 @@
 ---
 covers:
   - "js/voxelsim.js"
+  - "js/voxelscene-lab.js"
+  - "tools/lab-comparison.test.mjs"
   - "js/voxelgrid.js"
   - "js/boxgrid.js"
   - "js/architectural-pieces.js"
@@ -18,6 +20,45 @@ covers:
   - "js/voxelscene-tokyo.js"
 ---
 # Voxel Sandbox (pile physics)
+
+## The Lab: twin micro-city comparison (2026-09-13)
+
+The old gallery, including Doctrine Row and the camera-test towers, is replaced
+by `js/voxelscene-lab.js`, called synchronously from `VoxelSandboxSim._buildScene`.
+Historical Lab layouts described below are superseded for the gallery only.
+
+Project-wide terminology (see the mandatory [geometry authoring standard](../geometry-authoring.md)): a **voxel** is a cube. A non-cube box is an
+**architectural piece**. **Physical pieces** includes both. Internal engine names
+such as `blocks` remain compatible.
+
+Both cities share one authored layout and identical occupied cells/materials:
+five hollow buildings (one to four storeys), rooftop equipment, four cars,
+four trees, and starter crates. West uses 5,461 half-metre cubes. East uses
+1,411 physical pieces (293 cubes and 1,118 architectural pieces): small props stay cubes, floors become 2 x 0.5 x 2 m
+bays and walls become short masonry sections. This reduces pieces by 74.2%
+without filling interiors or changing total material volume. Fewer pieces do
+not imply an equal reduction in grid occupancy or frame time. Combo/score
+pacing can differ because the existing engine counts consumed pieces; this is
+a geometry/feel comparison, not a claim of score parity.
+
+City centres are x=-36 and x=36; declared edges leave a 32 m gap. Amber marks
+the west entry, mint the east. Start remains (0,16) between the two cities.
+Bounds are x=-62..62, z=-26..30. Shared city economy and save schema are unchanged.
+The catalog shows the actual combined count, 6,872 physical pieces.
+
+`tools/lab-comparison.test.mjs` is RED-proven and runs under the existing
+`labDoctrine` validator section. It checks removal of old geometry, cube-only
+west, efficient east, retained small bites, exact occupancy/material parity,
+no overlaps, and three-second idle stability. Camera coverage tests now pin the
+two micro-city towers and clear gap. The gallery excursion follows the new
+streets and retains its growth, progressive consumption and determinism gates.
+Verification: final Lab comparison ALL PASS; the broad run passed 30/31 groups,
+including complete core and multiplayer. Unchanged Cambridge was interrupted
+after 40.9 minutes, so no full-suite ALL PASS is claimed. Browser Lab
+launch/pause/restart succeeded; title loading logged a recovering 25-second
+watchdog timeout (tracked in STATUS). The owner approved the Lab result on 2026-09-13 and selected its geometry
+authoring process as the standard for all existing and future maps.
+
 
 ## Tokyo architectural pilot (2026-09-08)
 

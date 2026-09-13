@@ -1,3 +1,4 @@
+import { validateLabComparison } from './lab-comparison.test.mjs';
 // Headless proof that every level is beatable, overlap-free, and snack-ringed.
 // Run: node tools/validate.mjs [levelIndex]
 // Uses the exact same citygen + sim code as the game.
@@ -218,32 +219,16 @@ const levelsToCheck = onlyIndex ? LEVELS.filter((l) => l.index === onlyIndex) : 
 // Scripted hole tour: hold south of the tower (locality probe), then drive
 // through every district and object type in the gallery.
 const VOXEL_PATH = [
-  // `hold` opts this leg out of arrival advance (see driveRoute): the 3 s idle
-  // is the point of it — `nonStatic3`/`eaten3` below assert that a hole sitting
-  // still collapses and consumes NOTHING — so reaching the spot early must not
-  // end it early.
-  { until: 3, x: 0, z: 16, hold: true },   // hold (stability probe)
-  { until: 6, x: -6, z: 13 },     // street furniture, west half
-  { until: 8, x: 8, z: 13 },      // street furniture, east half
-  { until: 12, x: 0, z: 6 },      // tower south edge
-  { until: 16, x: 0, z: 0 },      // tower center
-  { until: 20, x: 10.5, z: 0.5 }, // car
-  { until: 22, x: 17.5, z: 0.5 }, // taxi
-  { until: 24, x: 11, z: 4.2 },   // bus
-  { until: 26, x: 17.5, z: 4.5 }, // police
-  { until: 28, x: 11, z: -3.5 },  // garbage + fire trucks
-  { until: 31, x: 12, z: -12 },   // crane
-  { until: 33, x: 17, z: -10.5 }, // containers
-  { until: 36, x: -14, z: -11 },  // fountain + statue
-  { until: 38, x: -18, z: -12 },  // water tower
-  { until: 40, x: -17, z: -6.5 }, // apartment
-  { until: 42, x: -20, z: 0.5 },  // church
-  { until: 44, x: -14.5, z: 5.5 },// brownstone
-  { until: 46, x: -18.5, z: 10.5 },// parking garage
-  { until: 48, x: -9, z: 9.5 },   // crate pile
-  { until: 50, x: 12, z: 11 },    // warehouse
-  { until: 53, x: 21, z: 11.5 },  // gas station
-  { until: 56, x: 0, z: 22 },     // elevated track
+  { until: 3, x: 0, z: 16, hold: true },
+  { until: 8, x: -18, z: 12 },
+  { until: 14, x: -54, z: 12 },
+  { until: 20, x: -50, z: 21 },
+  { until: 26, x: -42, z: -16 },
+  { until: 32, x: -26, z: -16 },
+  { until: 40, x: 18, z: 12 },
+  { until: 46, x: 52, z: 12 },
+  { until: 50, x: 45, z: 21 },
+  { until: 56, x: 31, z: -16 },
 ];
 
 // Every scripted excursion below is driven by `driveRoute` from
@@ -438,7 +423,7 @@ function collisionBody(id, x, y, z, s = 1) {
 function validateVoxelCollisions() {
   console.log('Validating voxel collision separation...');
   const sim = new VoxelSandboxSim({ seed: 'collision-validator' });
-  const solid = sim.blocks.find((b) => b.state === 'static' && b.sx === 1 && b.sy === 1 && b.sz === 1);
+  const solid = sim.blocks.find((b) => b.state === 'static' && b.sx === 0.5 && b.sy === 0.5 && b.sz === 0.5);
   const mover = collisionBody(-1, solid.x, solid.y, solid.z);
   if (!sim._resolveStaticContacts(mover) || overlaps(mover, solid)) {
     fail('voxel collision: solid AABB separation left the mover embedded');
@@ -464,140 +449,7 @@ function validateVoxelCollisions() {
 // Region rects are declared HERE, not derived from the geometry — deriving the
 // domain from the subject is how a probe grows an exclusion zone (see the
 // refactored-guard memory in the repo's history). Move a building, move its rect.
-const LAB_DISTRICT_BAND = { minZ: -95, maxZ: -49 };
-const LAB_MODERN_TOWERS = [
-  { name: 'Meridian Core & Slab', minX: -79, maxX: -65, minZ: -93, maxZ: -79, minPeak: 36 },
-  { name: 'Spandrel Frame', minX: -63, maxX: -51, minZ: -93, maxZ: -79, minPeak: 28 },
-  { name: 'Slab Block', minX: -39, maxX: -17, minZ: -91, maxZ: -79, minPeak: 20 },
-  { name: 'Setback Crown', minX: -7, maxX: 7, minZ: -93, maxZ: -79, minPeak: 30 },
-  { name: 'Skeleton Frame (construction)', minX: 19, maxX: 33, minZ: -93, maxZ: -79, minPeak: 16 },
-];
-const LAB_MONUMENT = { name: 'Corbel Gate monument', minX: -9, maxX: 9, minZ: -63, maxZ: -52, minPeak: 10 };
-const LAB_HOUSES = [
-  { name: 'house A', minX: -79, maxX: -70, minZ: -61, maxZ: -52 },
-  { name: 'house B', minX: -65, maxX: -57, minZ: -61, maxZ: -52 },
-  { name: 'house C', minX: -34, maxX: -25, minZ: -61, maxZ: -52 },
-];
-const LAB_DISTRICT_ROAD = { minX: -95, maxX: 95, minZ: -73, maxZ: -65 };
-// Vehicles parked ON the district road, exported as positional exemptions the
-// same way every city scene exports its VEHICLES table.
-const LAB_DISTRICT_VEHICLES = [
-  { minX: -70, maxX: -65, minZ: -72, maxZ: -70 },     // sedan
-  { minX: -30, maxX: -25, minZ: -72, maxZ: -70 },     // SUV
-  { minX: -18, maxX: -12, minZ: -68.25, maxZ: -66.25 }, // bus
-  { minX: 50, maxX: 55, minZ: -68.25, maxZ: -66.25 }, // sedan
-  { minX: -51, maxX: -49, minZ: -67.5, maxZ: -67 },   // motorcycle
-];
-
-function validateLabDoctrine() {
-  console.log('Validating Lab construction-doctrine district...');
-  const sim = new VoxelSandboxSim({ seed: 'validator' });
-  const inRect = (b, r) =>
-    b.x - b.sx / 2 >= r.minX && b.x + b.sx / 2 <= r.maxX &&
-    b.z - b.sz / 2 >= r.minZ && b.z + b.sz / 2 <= r.maxZ;
-  const isSmallCube = (b) => b.sx === b.sy && b.sy === b.sz && b.sx <= 0.5;
-  const vol = (b) => b.sx * b.sy * b.sz;
-  const stats = (r) => {
-    const list = sim.blocks.filter((b) => inRect(b, r));
-    const v = list.reduce((s, b) => s + vol(b), 0);
-    return {
-      list,
-      n: list.length,
-      peak: list.reduce((m, b) => Math.max(m, b.y + b.sy / 2), 0),
-      cubes: list.filter(isSmallCube).length,
-      vol: v,
-      meanVol: list.length ? v / list.length : 0,
-    };
-  };
-
-  // The district must exist inside widened bounds.
-  const R = sim.boundsRect;
-  if (!R || R.minZ !== -95) {
-    fail(`lab doctrine: boundsRect.minZ is ${R && R.minZ} — the north district quarter needs the Lab bounds widened to z -95`);
-  }
-
-  // Modern towers: tall, present, and built from LARGE anisotropic pieces.
-  let modernN = 0, modernVol = 0;
-  for (const t of LAB_MODERN_TOWERS) {
-    const s = stats(t);
-    modernN += s.n; modernVol += s.vol;
-    if (s.n < 40) { fail(`lab doctrine: ${t.name} — only ${s.n} pieces inside its declared lot (needs >= 40); the tower does not stand where declared`); continue; }
-    if (s.peak < t.minPeak) fail(`lab doctrine: ${t.name} tops out at ${s.peak.toFixed(1)} m, needs >= ${t.minPeak} m`);
-    const aniso = 1 - s.cubes / s.n;
-    if (aniso < 0.7) fail(`lab doctrine: ${t.name} is ${(100 * (1 - aniso)).toFixed(0)}% small cubes — modern construction must be >= 70% beam/slab/panel pieces, not brick stacks`);
-    if (s.meanVol < 1.5) fail(`lab doctrine: ${t.name} mean piece volume is ${s.meanVol.toFixed(2)} m^3 (needs >= 1.5) — the pieces are too small to read as modern construction`);
-  }
-
-  // Monument: fine-grain masonry, deliberately the opposite shape mix.
-  const mon = stats(LAB_MONUMENT);
-  if (mon.n < 400) fail(`lab doctrine: ${LAB_MONUMENT.name} — only ${mon.n} pieces (needs >= 400 bricks to read as masonry)`);
-  if (mon.peak < LAB_MONUMENT.minPeak) fail(`lab doctrine: ${LAB_MONUMENT.name} tops out at ${mon.peak.toFixed(1)} m, needs >= ${LAB_MONUMENT.minPeak} m`);
-  if (mon.n && mon.cubes / mon.n < 0.9) {
-    fail(`lab doctrine: ${LAB_MONUMENT.name} is only ${(100 * mon.cubes / mon.n).toFixed(0)}% brick-scale cubes (needs >= 90%) — the historic side must keep fine granularity`);
-  }
-
-  // Houses: masonry-era too — mostly small cubes (the kit's masonry grain is
-  // 1 m, coarser than the monument's 0.5 m bricks but still cube-ladder work).
-  for (const h of LAB_HOUSES) {
-    const list = sim.blocks.filter((b) => inRect(b, h));
-    const cubes = list.filter((b) => b.sx === b.sy && b.sy === b.sz && b.sx <= 1).length;
-    if (list.length < 100) { fail(`lab doctrine: ${h.name} — only ${list.length} pieces inside its lot (needs >= 100)`); continue; }
-    if (cubes / list.length < 0.75) fail(`lab doctrine: ${h.name} is only ${(100 * cubes / list.length).toFixed(0)}% cube-grain masonry (needs >= 75%)`);
-  }
-
-  // THE DOCTRINE ITSELF: the contrast must be an order of magnitude.
-  if (mon.n && modernN) {
-    const ratio = (modernVol / modernN) / mon.meanVol;
-    if (ratio < 10) fail(`lab doctrine: modern mean piece volume is only ${ratio.toFixed(1)}x the monument's (needs >= 10x) — the construction-language contrast is the point of the district`);
-    console.log(`  lab doctrine: modern mean piece ${(modernVol / modernN).toFixed(2)} m^3 vs monument ${mon.meanVol.toFixed(3)} m^3 (${ratio.toFixed(1)}x)`);
-  }
-
-  // Whole-band accounting: what the district costs vs an all-0.5 m-cube build
-  // of the same solid volume. This is the savings number the doctrine buys.
-  const band = sim.blocks.filter((b) => b.z + b.sz / 2 <= LAB_DISTRICT_BAND.maxZ && b.z - b.sz / 2 >= LAB_DISTRICT_BAND.minZ);
-  if (band.length === 0) { fail('lab doctrine: the district band z[-95,-49] holds no geometry at all'); return; }
-  const bandVol = band.reduce((s, b) => s + vol(b), 0);
-  const equivCubes = Math.round(bandVol / 0.125);
-  console.log(`  lab doctrine: district blocks=${band.length} solidVol=${bandVol.toFixed(0)} m^3 equivalent-0.5m-cubes=${equivCubes} savings=${(100 * (1 - band.length / equivCubes)).toFixed(1)}%`);
-
-  // No-overlap by construction, scoped to the band: the wider gallery predates
-  // this probe and carries 4,478 legacy ghost cells, so the whole-scene form
-  // would gate history, not this district. New geometry gets the real contract.
-  let ghosts = 0, firstGhost = '';
-  for (const b of band) {
-    for (let ix = 0; ix < b.fsx; ix++) {
-      for (let iy = 0; iy < b.fsy; iy++) {
-        for (let iz = 0; iz < b.fsz; iz++) {
-          if (sim.grid.get(`${b.gx + ix},${b.gy + iy},${b.gz + iz}`) !== b) {
-            ghosts++;
-            if (!firstGhost) firstGhost = `${b.matType}/${sizeLabel(b)}m at (${b.x},${b.y},${b.z})`;
-          }
-        }
-      }
-    }
-  }
-  if (ghosts > 0) fail(`lab doctrine: ${ghosts} fine cells in the district owned by the wrong block (overlapping placement), first ${firstGhost}`);
-
-  // Road conflicts: nothing physical on the district road except the declared
-  // parked vehicles (the same positional-exemption contract every city uses).
-  let roadBad = 0, roadWorst = '';
-  for (const b of band) {
-    const r = blockRect(b);
-    const road = { x: LAB_DISTRICT_ROAD.minX, z: LAB_DISTRICT_ROAD.minZ, w: LAB_DISTRICT_ROAD.maxX - LAB_DISTRICT_ROAD.minX, d: LAB_DISTRICT_ROAD.maxZ - LAB_DISTRICT_ROAD.minZ };
-    if (!rectsOverlap(r, road)) continue;
-    const ok = LAB_DISTRICT_VEHICLES.some((v) =>
-      r.x >= v.minX - 0.75 && r.x + r.w <= v.maxX + 0.75 && r.z >= v.minZ - 0.75 && r.z + r.d <= v.maxZ + 0.75);
-    if (!ok) { roadBad++; if (!roadWorst) roadWorst = `${b.matType}/${sizeLabel(b)}m at (${b.x},${b.y},${b.z})`; }
-  }
-  if (roadBad > 0) fail(`lab doctrine: ${roadBad} physical block(s) on the district road outside a declared vehicle, first ${roadWorst}`);
-
-  // Placement-step contract on the whole (now larger) gallery, and 3 s idle
-  // stability: big pieces mis-seated on columns collapse at spawn, and the
-  // existing Lab stability test would catch it late — this catches it here.
-  probePlacementStep(sim, 'lab doctrine');
-  probeIdleStability(sim, 'lab doctrine');
-  console.log(`  lab doctrine: gallery total blocks=${sim.blocks.length} district=${band.length} towers=${LAB_MODERN_TOWERS.length} houses=${LAB_HOUSES.length}`);
-}
+function validateLabDoctrine() { validateLabComparison(); }
 
 // --- shared voxel-scene contract probes --------------------------------------
 // Brooklyn and Upper Manhattan are authored against the same contracts, so every

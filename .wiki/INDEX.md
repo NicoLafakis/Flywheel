@@ -24,6 +24,9 @@ Single source of truth for architecture, conventions, and operational knowledge,
 read by both humans and AI agents. Product/design requirements live in `docs/`;
 this wiki is the engineering companion.
 
+Geometry work: read the project-wide [geometry authoring standard](geometry-authoring.md)
+for terminology and the approved Lab process for existing and new maps.
+
 ## Quickstart
 
 **Wondering what is actually built?** → [roadmap.md](roadmap.md). Several

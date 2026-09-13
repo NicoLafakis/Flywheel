@@ -2,12 +2,16 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-09-08
+Last updated: 2026-09-13
 
 This is a board, not a changelog. One line per shipped item; the detail lives in
 the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 
 ---
+
+## Geometry authoring standard
+
+- **2026-09-13, owner approved:** The twin-city Lab is the reference for all map remediation and new construction. Cube-only "voxel" terminology and the mixed geometry workflow are required in `AGENTS.md` and `CLAUDE.md`; see [.wiki/geometry-authoring.md](.wiki/geometry-authoring.md). Keep piece savings, preserve enjoyable eating, with the conflicting older rule removed from source comments and authoring docs. This is a standard, not a completed rollout to all maps.
 
 ## Baseline
 
@@ -37,6 +41,8 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 ---
 
 ## Active focus
+
+- **Lab geometry comparison (2026-09-13):** replaced the old Lab with two matching micro cities separated by 32 m. West is 5,461 cube voxels; east is 1,411 physical pieces (74.2% fewer), using bay-sized floors and masonry sections while preserving granular street objects. Identical material occupancy, no overlap and idle stability pass. Final Lab comparison ALL PASS; full run passed 30/31 groups, with unchanged Cambridge interrupted after 40.9 minutes. Browser Lab launch/restart passed; title boot timeout tracked below. Eating feel awaits owner comparison. See `.wiki/modules/voxel.md`.
 
 - **Tokyo / controls remediation (2026-09-08):** implemented on the review branch.
   Tokyo v2 reduces 84,122 pieces to 34,796 using authored bays and
@@ -77,14 +83,7 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   water-course close-out and the `_buildScene`-seam harness repair are recorded
   in `.wiki/features/act-i-pacific-completion/` and `.wiki/modules/voxel.md`
   (§Singapore).
-- **Construction-doctrine district (The Lab, north quarter)** — prototype for
-  era-appropriate construction language: five beam-and-slab towers built from
-  single large pieces (columns, floor plates, curtain sheets), the Corbel Gate
-  monument and three cottages kept at brick grain, plus Doctrine Row street kit.
-  4,581 blocks standing in for an equivalent ~44,000 half-metre cubes (89.6%
-  saved); Lab is 20,348 total, bounds now z −95..45. Gated by the `labDoctrine`
-  validator section (piece-volume contrast ≥10×, shape mix, overlap, road,
-  stability). Uncommitted — under Nico's visual review. `.wiki/modules/voxel.md`.
+- **Previous Lab construction-doctrine district (superseded 2026-09-13):** replaced by the twin micro-city geometry comparison above. Historical measurements remain in `.wiki/modules/voxel.md`.
 - **Camera Bézier occlusion smoothing (The Lab only)** — C¹ cubic Hermite pitch
   transitions and critically-damped roof-climb easing, behind a per-scene flag.
   `.wiki/features/camera-bezier-smoothing/`, ADR-0022.
@@ -238,6 +237,8 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
   fix (above) rode the same version bump.
 
 ### Open defects observed during smoke/RCA work
+
+- **Title boot watchdog (2026-09-13):** two local browser loads logged the 25-second boot timeout while validation was running; the title then recovered and the rebuilt Lab reached READY. Cause is not isolated (background scheduling/CPU contention are unproven possibilities). Lab launch, pause and restart succeeded.
 
 Per `.wiki/findings/RCA-2026-08-20-cross-device-zero-progress.md` §8: a live
 (non-hypothetical) defect surfaced by a runbook or RCA gets tracked here, not

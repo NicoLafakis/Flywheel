@@ -135,7 +135,7 @@ export function runHelpSelftest() {
     // other CITY_CATALOG row, so it needs no special-casing beyond this note
     // that the shape was checked -- it goes through the generic loop below.
     const escapedName = city.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const match = worldTourText.match(new RegExp(`${escapedName}\\s*\\([^)]*?([\\d][\\d,]*)\\s*blocks`));
+    const match = worldTourText.match(new RegExp(`${escapedName}\\s*\\([^)]*?([\\d][\\d,]*)\\s*(?:blocks|physical pieces)`));
     if (!match) continue; // city's block count is not written out as "(N blocks)" in the copy
     worldTourMatched++;
     const copyBlocks = Number(match[1].replace(/,/g, ''));

@@ -245,29 +245,10 @@ export function runCameraSmoothingSelftest() {
     assert.doesNotMatch(mainSrc, /setSmoothOcclusion\(true\)/, 'never unconditionally on');
   });
 
-  // --- L1/L2: The Lab testbed -------------------------------------------------
-  // Authored footprints (see .wiki/features/camera-bezier-smoothing/02-technical-design.md):
-  //   Gamma x 26..40, z 27..41, h 25   | 6 m canyon | Alpha x 46..62, z 26..42, h 35
-  //   | 7 m canyon | Beta x 69..89, z 25..45, h 48 (crown spire)
-  const TOWERS = [
-    // h: peak height (parapet/crown/spire); base: the roof height EVERY footprint
-    // cell reaches (Gamma/Alpha roofs sit 1 m under their rings; Beta steps back above 16 m)
-    { name: 'Tower Gamma', minX: 26, maxX: 40, minZ: 27, maxZ: 41, h: 25, base: 24 },
-    { name: 'Tower Alpha', minX: 46, maxX: 62, minZ: 26, maxZ: 42, h: 35, base: 34 },
-    { name: 'Tower Beta', minX: 69, maxX: 89, minZ: 25, maxZ: 45, h: 48, base: 16 },
-  ];
-  const CANYONS = [
-    { name: 'Gamma|Alpha 6 m', minX: 40, maxX: 46, minZ: 27, maxZ: 41 },
-    { name: 'Alpha|Beta 7 m', minX: 62, maxX: 69, minZ: 26, maxZ: 42 },
-  ];
-  // Boot-scene budget baseline. 13739 was the pre-ADR-0022 Lab; the testbed
-  // added ~2k (its 25% budget). The construction-doctrine district (north
-  // quarter, gated by validate.mjs `labDoctrine`) added a further 4,581 on
-  // 2026-08-24 — deliberate authored content, so the baseline moves WITH it
-  // rather than the budget quietly widening. The 1.25x headroom below is once
-  // again headroom for accidental growth, not a pocket already spent.
-  const LAB_BLOCKS_BEFORE = 13739 + 4581;
-  t('The Lab ships cameraBlockers that cover every >= 6 m footprint cell, and the three ADR towers', () => {
+  // The comparison replaces the old three-tower testbed. Keep camera coverage
+  // checks against the new skyline and the intentionally empty separation.
+  const LAB_BLOCKS_BEFORE = 6872;
+  t('The Lab ships cameraBlockers that cover every >= 6 m footprint cell, and both micro-city towers', () => {
     const sim = new VoxelSandboxSim({ seed: 'validator' });
     assert.equal(sim.scene, 'gallery');
     const bl = sim.cameraBlockers;
@@ -289,6 +270,8 @@ export function runCameraSmoothingSelftest() {
       if (!bl.some((b) => cx + 1 > b.minX && cx < b.maxX && cz + 1 > b.minZ && cz < b.maxZ && b.h + 0.01 >= top)) uncovered++;
     }
     assert.ok(tall > 0 && uncovered === 0, `${uncovered} of ${tall} tall cells uncovered by a blocker`);
+    const TOWERS = [-36,36].map(x => ({ name: 'Micro-city tower', minX:x-7, maxX:x-1, minZ:-18, maxZ:-12, base:12.5, h:13 }));
+    const CANYONS = [{name:'Comparison separation',minX:-15,maxX:15,minZ:-20,maxZ:26}];
     for (const tw of TOWERS) {
       // every 1 m cell of the footprint has geometry reaching the spec height, and a blocker at it
       let short = 0, nocover = 0, peak = 0;
@@ -309,7 +292,7 @@ export function runCameraSmoothingSelftest() {
       }
     }
     console.log(`  lab testbed: ${sim.blocks.length} blocks (+${(100 * (sim.blocks.length / LAB_BLOCKS_BEFORE - 1)).toFixed(1)} %), ${bl.length} blockers, ${tall} tall cells all covered`);
-    assert.ok(sim.blocks.length <= LAB_BLOCKS_BEFORE * 1.25, `block budget: ${sim.blocks.length} <= ${LAB_BLOCKS_BEFORE * 1.25}`);
+    assert.ok(sim.blocks.length <= 7000, `block budget: ${sim.blocks.length} <= ${7000}`);
   });
 
   return n;

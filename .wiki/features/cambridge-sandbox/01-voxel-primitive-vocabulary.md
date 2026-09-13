@@ -255,7 +255,7 @@ Three places, all honest:
    as one solid 10 × 10 × 1 m piece it is 6,400. Hence *skin, not fill*: a
    solid piece stands in for a surface rather than an interior, so a floor
    becomes one 0.25 m or 0.5 m *plate* rather than a 1 m solid block. That is
-   one half of the two-hand rule in §4.
+   the surface-consolidation guidance in §4.
 2. **One more render bucket per distinct `b.s`**, unless §2.3's key change
    lands.
 3. **Per-metre surface tiling** is uniform (`repeat.set(size, size)`,
@@ -500,8 +500,8 @@ Design premises, each grounded above:
   a brick ladder.
 - **Solid where the member is solid; a plate where the member is a surface** —
   hollow interiors stay hollow (§2.4).
-- **The map stays full.** Consolidation is a way to afford more place, not a way
-  to end up with less of one. See the two-hand rule below.
+- **Keep the savings.** Preserve the map's identity and enjoyable eating while
+  reducing unnecessary physical pieces.
 - **All extents are multiples of 0.25 m**, so ADR-0006's determinism proof
   survives (§3.1).
 - **Piece size follows building size.** The ask is not "more complex buildings,"
@@ -531,9 +531,7 @@ Three clauses:
 3. **The failure this avoids is the toy model.** A large building piled from
    small cubes reads as a miniature of a building — the Mickey Mouse read — and
    spends an enormous number of blocks doing it. That is a third failure mode
-   alongside the two-hand rule's expensive solid lump and empty diorama: those
-   two come from consolidating wrongly or stopping early; this one comes from
-   not consolidating at all.
+   alongside filling hollow interiors and losing useful eating detail.
 
 One deliberate refinement, and it comes from gameplay rather than from diluting
 the ask: "each floor one solid piece" lands as **one slab per structural bay**
@@ -542,42 +540,13 @@ the ask: "each floor one solid piece" lands as **one slab per structural bay**
 Floors *are* solid pieces; columns *are* solid pillars. The bay cap just keeps
 the collapse readable while they are.
 
-### The two-hand rule — *skin, not fill* · *keep it full*
+### Surface consolidation and retained savings
 
-Two guidelines, always stated together, because they pull in opposite directions
-and an author wants both hands on the wheel. Each one alone produces a
-recognisable, different failure.
-
-> **Hand 1 — skin, not fill.** A solid piece stands in for a *surface*, not an
-> *interior*. A floor becomes one 0.25 m or 0.5 m plate rather than a 1 m solid
-> cube of concrete. A wall becomes a panel rather than a block. A column is
-> solid because a column *is* solid.
->
-> *Avoids:* **the expensive solid lump.** Fine-cell cost is linear in occupied
-> volume, not in block count (§2.1, §2.4), so consolidating by filling produces
-> a scene with a beautifully low block count that builds *slower*, eats more
-> memory, and is no cheaper per frame than the thing it replaced. The block
-> count flatters you; `sim.grid.size` tells the truth.
-
-> **Hand 2 — keep it full.** Consolidating a member frees room for the loading
-> dock, the roof plant, the fire escape, the bike racks — the things that make a
-> district feel inhabited. Cambridge should read as *more* place than the
-> existing authored scenes, not less, and no part of the map should feel empty
-> as the player crosses it.
->
-> *Avoids:* **the empty diorama.** Consolidating and then stopping produces a
-> technically elegant, over-simplified level — correct silhouettes, nothing to
-> look at between them, and (per §3.3 and §3.5) too few things to eat. This is
-> the failure the owner named directly: *"we're not trying to do a 'least amount
-> of blocks possible.'"*
->
-> The guard here is **density, not count**. `probeDistrictDensity` in
-> `tools/validate.mjs` checks eatable pieces per m² and the gap between
-> consecutive pieces, per district — that is what actually catches an empty
-> quarter. Nothing in the validator checks a block total, and nothing needs to.
-
-Together they give the objective: **detail per block** — more place per block,
-spread evenly enough that the player never crosses a dead patch.
+Follow the project-wide [geometry authoring standard](../../geometry-authoring.md).
+Replace surfaces with thin panels or slabs and keep interiors hollow. Measure
+occupied cells separately from physical piece count. Retain the reduction in
+pieces while preserving small food, recognizable detail and progressive collapse.
+Do not add geometry merely because consolidation freed a budget.
 
 ### 4.1 The primitives
 
@@ -884,13 +853,9 @@ the hard way:
 
 ## 7. Measurement plan
 
-The claim to prove is **"materially more scene, comfortably inside the
-headroom."** A lower block count is not itself the deliverable — it is room, and
-the deliverable is what gets built in it. So the measurement answers two
-questions, and keeping them apart is most of the discipline here:
-
-- **Is the primitive more efficient per member?** (a control experiment, E1)
-- **Does the district deliver more place?** (the real claim, E2)
+The claim to prove is fewer physical pieces with preserved visual quality and
+satisfying eating. Measure efficiency on the matched plan (E1), then review the
+actual district's appearance and gameplay (E2). Added content is not a requirement.
 
 `STATUS.md:50-53` sets the instrument standard:
 
@@ -936,22 +901,13 @@ plan: same footprints, same skyline, same palette.
 - **B1 — `cambridge-forms`**: the identical plan through the §4 vocabulary, with
   nothing added.
 
-E1 answers one question: how much room does the primitive buy? Its block-count
-delta is an input to E2, not a result in itself — a large delta with nothing
-built into it is the empty diorama the two-hand rule warns about.
+E1 measures the physical-piece reduction at matching occupied geometry. A useful
+reduction is a result to retain, subject to gameplay and visual verification.
 
-**E2 — scene richness (the real claim).** Take the room E1 opened up and build
-in it.
-
-- **B2 — `cambridge`**: same ground area, same 19-probe contract, authored
-  freely through the vocabulary and comfortably inside the headroom.
-
-The comparison that decides the direction is **A vs. B2 at equal ground area**,
-and the question it answers is: does the vocabulary deliver a materially richer
-place than the same plan diced into cubes would have?
-
-Both A and B2 pass the full shared 19-probe contract in `tools/validate.mjs`,
-and the comparison is recorded before either ships.
+**E2 ? district quality.** Review eating, collapse and appearance at equal ground
+area. The historical B2 (`cambridge`) variant includes additional authored district
+features; it is not a requirement to spend the E1 savings. Both variants remain
+subject to the shared validation contract.
 
 **What it produced.** Phase 5 ran this on District 2: A built the plan in cubes
 at 54,933 blocks, B1 at 5,162, and B2 shipped through the vocabulary at 6,532.

@@ -791,7 +791,7 @@ export class Screens {
           <div class="city-metric-box">
             <span class="metric-k">📐 CITY SCALE</span>
             <span class="metric-v">${city.blocks.toLocaleString('en-US')}</span>
-            <span class="metric-sub">VOXEL BLOCKS</span>
+            <span class="metric-sub">PHYSICAL PIECES</span>
           </div>
           <div class="city-metric-box">
             <span class="metric-k">DIFFICULTY</span>

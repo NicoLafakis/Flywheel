@@ -12,6 +12,10 @@ covers:
 
 ## Current implementation
 
+The Lab comparison (2026-09-13) contains 6,872 total physical pieces. Its
+Prologue rewards remain 60 coins at value 1 plus the 25-coin clear bonus.
+The UI uses physical pieces for total geometry counts, reserving voxel for cubes.
+
 Tokyo geometry v2 displays 34,796 physical pieces. Its explicit `economyWeight`
 retains 84,122, the authored reward-tier weight: optimization changes neither coin
 rewards nor canonical story order. The economy validator uses that weight when

@@ -17,20 +17,12 @@ export const CITY_CATALOG = [
     location: 'PROVING GROUND',
     act: 'PROLOGUE',
     actTitle: 'CALIBRATION',
-    sub: 'Physics playground & training yard',
-    desc: 'The spark begins. Compact starter grid with ramps, street props, and calibration structures.',
+    sub: 'Twin micro-city comparison',
+    desc: 'Two matching micro cities: cubes to the west, architectural pieces to the east.',
     tagline: 'PROLOGUE · CALIBRATION',
     chapter: 'PROLOGUE',
     status: 'PLAYABLE',
-    // 13652 -> 15767: ADR-0022 authored a permanent 3-tower camera testbed into
-    // The Lab and nobody moved this number. The Lab is a testbed, so the
-    // GEOMETRY is the intended thing here and this number was the stale side —
-    // the opposite of Sydney, where the declared count was authoritative
-    // because it is a city map the owner specified.
-    // 15767 -> 20348: the construction-doctrine district (north quarter,
-    // z -95..-49) — five beam-and-slab towers, the Corbel Gate masonry
-    // monument, three cottages and Doctrine Row. Gated by `labDoctrine`.
-    blocks: 20348,
+    blocks: 6872,
     difficulty: 'TIER 1 · STARTER',
     badge: 'PROLOGUE',
     accentColor: '#00f0ff',
@@ -38,7 +30,7 @@ export const CITY_CATALOG = [
     coinCount: 60,
     coinValue: 1,
     goalBonus: 25,
-    heroes: ['Crash Ramps', 'Calibration Pylons', 'Subway Terminal'],
+    heroes: ['Voxel City', 'Architectural City', 'Comparison Boulevard'],
     momentumFriend: 'Clockwork Moth 🦋',
     directive: 'CALIBRATE VORTEX & INGEST STARTER SNACKS',
     transmission: 'Initial boot sequence complete. Kinetic void online. Consume low-mass testing props to calibrate rotational inertia and establish baseline momentum.',

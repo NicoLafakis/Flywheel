@@ -15,3 +15,24 @@ _*-deliverables/
 supabase/.temp/
 # Agent UI verification output (screenshots + throwaway harnesses); not shipped.
 tools/pw/_*/
+
+# Unity artifacts and caches
+/[Uu]nity/[Ll]ibrary/
+/[Uu]nity/[Tt]emp/
+/[Uu]nity/[Oo]bj/
+/[Uu]nity/[Bb]uild/
+/[Uu]nity/[Bb]uilds/
+/[Uu]nity/[Ll]ogs/
+/[Uu]nity/[Mm]emoryCaptures/
+/[Uu]nity/[Uu]serSettings/
+/[Uu]nity/*.csproj
+/[Uu]nity/*.unityproj
+/[Uu]nity/*.sln
+/[Uu]nity/*.suo
+/[Uu]nity/*.user
+/[Uu]nity/*.userprefs
+/[Uu]nity/*.pidb
+/[Uu]nity/*.booproj
+/[Uu]nity/sysinfo.txt
+/[Uu]nity/.vs/
+/[Uu]nity/.idea/

@@ -1,5 +1,9 @@
 # Glossary
 
+- **Voxel** ? a cube-shaped physical piece, at any cube size.
+- **Architectural piece** ? a non-cube physical piece, such as a panel, beam, column or slab.
+- **Physical piece count** ? total voxels plus architectural pieces, distinct from grid-cell and render-triangle counts. See the project-wide [geometry authoring standard](geometry-authoring.md).
+
 - **Flywheel** — the product name (rebranded 2026-08-04 from "Hole City"),
   tagline "A sprocket's story". The core eat-everything mechanic is still
   called "hole" throughout code, saves, and this glossary — only the product
