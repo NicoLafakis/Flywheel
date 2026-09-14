@@ -21,7 +21,42 @@ covers:
 ---
 # Voxel Sandbox (pile physics)
 
-## The Lab: twin micro-city comparison (2026-09-13)
+## The Lab: Tokyo recreation (2026-09-13, current)
+
+The gallery is now a fresh recreation of Tokyo built only under the
+[geometry authoring standard](../geometry-authoring.md) (owner direction,
+2026-09-13): the shipped Tokyo map's geography (bounds, streets, hero
+identities, relative scale) authored new with voxelforms members plus
+deliberate cubes — no assembly merging, no legacy kit builders. Phase 0 ships
+the skeleton and the Nishi-Shinjuku ward at 2,244 pieces: Tocho twins (30 m
+shafts on a shared 23x11 podium, cyan window banding, dark side ribs, setback
+crowns, two skybridges, warning beacons, low assembly-hall drum), Cocoon Tower
+(22 m, woven two-tone facet skin with the weave shifted one facet per tier —
+the box-vocabulary answer to a diagrid), three articulated supporting towers,
+a two-shop podium row, and a granular starter-food esplanade. Later phases add
+Kabukicho/Golden Gai, the station, Shibuya and Meiji Jingu, each gated on
+owner screenshot review; `tools/lab-tokyo.test.mjs` pins hero identity,
+measurable articulation (crown setbacks smaller than shafts), mixed-geometry
+budgets, no-overlap, idle stability and the starter route.
+
+Construction lessons recorded in `js/voxelscene-lab.js`'s header and earned
+here: blocks store CENTER coordinates (test box math must halve extents); the
+build-time overlap resolver shifts whole walls off grid, so never emit two
+pieces into the same cells (corner columns over corner wall sections, a second
+floor plate over a podium roof, a beam through a wall plane, a building row
+reaching into a hero footprint); a setback floor plate must stay full-width —
+inset plates touch no bearing wall and the crown falls at tick 0; setback
+reads come from inset WALLS on a full-width roof; two identical podiums 1 m
+apart trip `probePlacementStep`, so shared bases are one plinth.
+
+Historical: the twin micro-city comparison and the "Tokyo prototype district"
+that briefly followed it are superseded (the owner rejected the prototype's
+buildings for lacking identity and scale). The comparison's measured result —
+74.2% fewer physical pieces at identical occupied volume — stands as the
+reference number for the standard; its construction notes below are kept for
+the record.
+
+## The Lab: twin micro-city comparison (2026-09-13, superseded)
 
 The old gallery, including Doctrine Row and the camera-test towers, is replaced
 by `js/voxelscene-lab.js`, called synchronously from `VoxelSandboxSim._buildScene`.
@@ -60,31 +95,17 @@ launch/pause/restart succeeded; title loading logged a recovering 25-second
 watchdog timeout (tracked in STATUS). The owner approved the Lab result on 2026-09-13 and selected its geometry
 authoring process as the standard for all existing and future maps.
 
-### Tokyo prototype district (2026-09-13)
+### Tokyo prototype district (2026-09-13, rejected and removed)
 
-The Lab is also the sandbox for prototyping the mixed-geometry method on real
-map content: a third district (recorded as `sim.labTokyo`, outside
-`labCities` so the comparison stays two-sided) recreates Tokyo's five heroes
-in miniature in a north band (x -56..56, z -70..-34): Tocho twin slab towers
-with a skybridge, a banded three-tier Cocoon drum, the Kabukicho gate as red
-piers carrying a tiled-beam lintel, a pier-and-beam station viaduct with a
-five-car train, and a drum Shibuya 109 with a magenta crown tier. Golden Gai izakaya and promenade
-crates/lanterns stay 0.5 m cubes — starter bites, not structure. 1,170 pieces
-for the district; 8,042 total.
-
-Build lessons measured here, all pinned by `tools/lab-comparison.test.mjs`:
-glass curtain panels are non-structural — floor slabs over a glass wall get no
-vertical support and the tower cascades at spawn (use painted masonry courses,
-as the comparison cities do); a tapered drum's facets stop aligning vertically
-between tiers and the upper ring falls (keep radius constant, band colour
-instead); an 8 m cornice run overshoots a drum's ~2 m facet chords (crown with
-a shallow drum tier); a 0.5 m lantern hung on a 0.25 m post cantilevers two
-cells and falls (keep lanterns at grade); and `corbelArch` trips
-`probePlacementStep` on sight — the recorded false positive from Cambridge
-§7/P6.9 — so the gate uses piers plus end-to-end tiling 4 m beams instead.
-The district stands idle-stable, has
-its own playable route (151 pieces consumed, SIZE 5 in 36 s from start), and
-the gallery excursion tour now ends with two legs through the band.
+A third district briefly added miniature recreations of Tokyo's five heroes in
+a north band (1,170 pieces, `sim.labTokyo`). The owner reviewed it in play and
+rejected it: the buildings lacked identity and scale ("diagrams, not
+buildings"). It was removed the same day and superseded by the full Tokyo
+recreation above. Its measured build lessons survive: glass curtain panels are
+non-structural (tower cascade at spawn — use painted masonry courses); tapered
+drum tiers misalign and fall (keep radius constant); cornice runs overshoot
+drum facet chords; post-hung lanterns cantilever and fall; `corbelArch` trips
+`probePlacementStep` on sight (the Cambridge §7/P6.9 false positive).
 
 
 ## Tokyo architectural pilot (2026-09-08)

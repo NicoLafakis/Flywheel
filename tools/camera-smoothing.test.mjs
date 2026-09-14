@@ -245,9 +245,9 @@ export function runCameraSmoothingSelftest() {
     assert.doesNotMatch(mainSrc, /setSmoothOcclusion\(true\)/, 'never unconditionally on');
   });
 
-  // The comparison replaces the old three-tower testbed. Keep camera coverage
-  // checks against the new skyline and the intentionally empty separation.
-  const LAB_BLOCKS_BEFORE = 6872;
+  // The Lab is now the Tokyo recreation (phase 0: Nishi-Shinjuku). Camera
+  // coverage pins the Tocho shafts; the esplanade avenue stays a clear canyon.
+  const LAB_BLOCKS_BEFORE = 2244;
   t('The Lab ships cameraBlockers that cover every >= 6 m footprint cell, and both micro-city towers', () => {
     const sim = new VoxelSandboxSim({ seed: 'validator' });
     assert.equal(sim.scene, 'gallery');
@@ -270,8 +270,11 @@ export function runCameraSmoothingSelftest() {
       if (!bl.some((b) => cx + 1 > b.minX && cx < b.maxX && cz + 1 > b.minZ && cz < b.maxZ && b.h + 0.01 >= top)) uncovered++;
     }
     assert.ok(tall > 0 && uncovered === 0, `${uncovered} of ${tall} tall cells uncovered by a blocker`);
-    const TOWERS = [-36,36].map(x => ({ name: 'Micro-city tower', minX:x-7, maxX:x-1, minZ:-18, maxZ:-12, base:12.5, h:13 }));
-    const CANYONS = [{name:'Comparison separation',minX:-15,maxX:15,minZ:-20,maxZ:26}];
+    const TOWERS = [
+      { name: 'Tocho A', minX: -104, maxX: -95, minZ: -63, maxZ: -56, base: 24, h: 29 },
+      { name: 'Tocho B', minX: -92, maxX: -83, minZ: -63, maxZ: -56, base: 24, h: 29 },
+    ];
+    const CANYONS = [{ name: 'Koshu-kaido avenue', minX: -105, maxX: 105, minZ: 0, maxZ: 9 }];
     for (const tw of TOWERS) {
       // every 1 m cell of the footprint has geometry reaching the spec height, and a blocker at it
       let short = 0, nocover = 0, peak = 0;
@@ -292,9 +295,9 @@ export function runCameraSmoothingSelftest() {
       }
     }
     console.log(`  lab testbed: ${sim.blocks.length} blocks (+${(100 * (sim.blocks.length / LAB_BLOCKS_BEFORE - 1)).toFixed(1)} %), ${bl.length} blockers, ${tall} tall cells all covered`);
-    // Budget raised 7000 -> 10000 for the Tokyo prototype district (2026-09-13):
-    // the twin comparison cities stay at 6,872 and the band adds its own pieces.
-    assert.ok(sim.blocks.length <= 10000, `block budget: ${sim.blocks.length} <= ${10000}`);
+    // Budget covers the full Tokyo recreation build-out (phase 0: 1,855 pieces;
+    // target for all five districts is <= 25,000, per the plan).
+    assert.ok(sim.blocks.length <= 30000, `block budget: ${sim.blocks.length} <= ${30000}`);
   });
 
   return n;

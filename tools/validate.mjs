@@ -1,4 +1,4 @@
-import { validateLabComparison } from './lab-comparison.test.mjs';
+import { validateLabTokyo } from './lab-tokyo.test.mjs';
 // Headless proof that every level is beatable, overlap-free, and snack-ringed.
 // Run: node tools/validate.mjs [levelIndex]
 // Uses the exact same citygen + sim code as the game.
@@ -220,18 +220,16 @@ const levelsToCheck = onlyIndex ? LEVELS.filter((l) => l.index === onlyIndex) : 
 // through every district and object type in the gallery.
 const VOXEL_PATH = [
   { until: 3, x: 0, z: 16, hold: true },
-  { until: 8, x: -18, z: 12 },
-  { until: 14, x: -54, z: 12 },
-  { until: 20, x: -50, z: 21 },
-  { until: 26, x: -42, z: -16 },
-  { until: 32, x: -26, z: -16 },
-  { until: 40, x: 18, z: 12 },
-  { until: 46, x: 52, z: 12 },
-  { until: 50, x: 45, z: 21 },
-  { until: 56, x: 31, z: -16 },
-  // Tokyo prototype band (z -70..-34): twins/cocoon, gate, 109.
-  { until: 62, x: -20, z: -58 },
-  { until: 68, x: 30, z: -52 },
+  { until: 8, x: -10, z: 12 },
+  { until: 14, x: -45, z: 12 },
+  { until: 20, x: -70, z: 4 },
+  { until: 26, x: -78, z: -26 },
+  { until: 33, x: -85, z: -42 },
+  { until: 40, x: -94, z: -46 },
+  { until: 47, x: -100, z: -60 },
+  { until: 54, x: -88, z: -60 },
+  { until: 60, x: -55, z: -20 },
+  { until: 68, x: -30, z: -18 },
 ];
 
 // Every scripted excursion below is driven by `driveRoute` from
@@ -452,7 +450,7 @@ function validateVoxelCollisions() {
 // Region rects are declared HERE, not derived from the geometry — deriving the
 // domain from the subject is how a probe grows an exclusion zone (see the
 // refactored-guard memory in the repo's history). Move a building, move its rect.
-function validateLabDoctrine() { validateLabComparison(); }
+function validateLabDoctrine() { validateLabTokyo(); }
 
 // --- shared voxel-scene contract probes --------------------------------------
 // Brooklyn and Upper Manhattan are authored against the same contracts, so every

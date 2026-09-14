@@ -210,3 +210,16 @@ Measured build lessons pinned by the test: glass curtain panels are
 non-structural (tower cascade at spawn), tapered drum tiers misalign and fall,
 cornice runs overshoot drum facet chords, post-hung lanterns cantilever and
 fall. District: 1,170 pieces; Lab total 8,042; catalog/help copy updated.
+
+## 2026-09-13 — Lab replaced by Tokyo recreation, phase 0
+Owner rejected the miniature prototype district ("buildings suck", no identity,
+wrong scale) and directed: replace the ENTIRE Lab with a fresh Tokyo recreation
+built only per .wiki/geometry-authoring.md, ignoring all other construction
+methods. Phase 0 shipped: street skeleton + Nishi-Shinjuku ward at 2,244 pieces
+(Tocho twins 30 m on shared podium with skybridges and assembly hall, woven
+Cocoon Tower, three articulated supporters, granular esplanade food).
+Screenshot loop (tools/pw/lab-tokyo-shots.mjs) captures new build vs shipped
+Tokyo from matched cameras; owner visual review gates Phase 1 (Kabukicho).
+Lessons pinned: blocks store CENTER coords; overlap resolver shifts walls off
+grid; setback floor plates stay full-width; shared podiums avoid
+probePlacementStep twin-row trips. Targeted validator sections ALL PASS 81.4 s.

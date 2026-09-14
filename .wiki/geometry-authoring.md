@@ -87,19 +87,18 @@ been converted or that every future design has been accepted.
 
 See [the Lab module notes](modules/voxel.md#the-lab-twin-micro-city-comparison-2026-09-13),
 [`js/voxelscene-lab.js`](../js/voxelscene-lab.js), and
-[`tools/lab-comparison.test.mjs`](../tools/lab-comparison.test.mjs).
+[`tools/lab-tokyo.test.mjs`](../tools/lab-tokyo.test.mjs).
 
-Two matching micro cities share occupied cells, material distribution and total
-volume, with a 32 m gap between declared city edges. West uses 5,461 cube voxels.
-East uses 293 cube voxels and 1,118 architectural pieces: 1,411 total physical
-pieces, a 74.2% reduction. Small props remain granular; floors use 2 x 0.5 x 2 m
-bays and walls use short sections. That percentage is a reference result, not a
-quota for other maps.
+The Lab IS the Tokyo recreation: the shipped Tokyo map's geography rebuilt
+fresh under this standard (phase 0, 2026-09-13: Nishi-Shinjuku ward, 2,244
+pieces). It demonstrates the new-map construction path of this document and is
+the working sandbox where representative buildings are calibrated before
+district build-out.
 
-The owner approved the Lab result on 2026-09-13 and selected its process for
-all maps. This records design acceptance; the module notes retain the separate
-validation limitations and browser findings. Later on 2026-09-13 the Lab gained
-a third district — a miniature mixed-geometry Tokyo prototype (Tocho twins,
-Cocoon Tower, Kabukicho gate, station viaduct, Shibuya 109) in a north band —
-making it the working sandbox for the method on real map content. The
-comparison cities and their numbers above are unchanged.
+Historical: the owner first approved a twin-city comparison Lab on 2026-09-13
+(west 5,461 cube voxels; east 293 cubes + 1,118 architectural pieces, a 74.2%
+reduction at identical occupied volume) and selected its process for all maps.
+That comparison's numbers stand as the measured reference result; its scene
+content was replaced by the Tokyo recreation later the same day, and an
+intermediate "Tokyo prototype district" addition was reviewed and rejected by
+the owner (insufficient building identity) before the full recreation began.
