@@ -47,7 +47,7 @@ mutates sim state.
 | `js/voxelworld.js` | Voxel sandbox rendering, block instance synchronization, ambient layers (`atmosphere`, `gulls`, `pigeons`, `steam`, `neon`, `surf`, `ferries`), and particle systems |
 | `js/camera.js` | `ChaseCamera`: dynamic third-person chase perspective (base pitch 0.54 rad / ~31°, dynamic adaptive FOV compensation for mobile portrait screens via `computeAdaptiveFov` keeping horizontal view >= 68°-72° on phones, 45° on landscape desktop), follow, orbit, zoom, building-occlusion pull-in, opt-in follow-direction yaw, and juice FOV kicks |
 | `js/controls.js` | Keyboard + touch joystick/orbit + optional world-space point-to-move → camera-relative move intents |
-| `js/quality.js` | Mobile-first high-fidelity device tiers (`TIERS`): crisp DPR (1.5x on both high and low) and directional shadows enabled for clear 3D voxel depth perception on phones |
+| `js/quality.js` | Mobile-first high-fidelity device tiers (`TIERS`): crisp DPR (1.5x on both high and low) and directional shadows enabled for clear 3D voxel depth perception on phones. Since 2026-09-25 (owner decision) HIGH caps loose rubble at `debrisCap` 700 / `contactBudget` 500 (LOW 350/250; ranked keeps its own frozen 280/200); the sim's own default tune stays uncapped, so validator trajectories are unchanged. Rationale and numbers: `tools/quality-high-cap.test.mjs` |
 | `js/skins.js` | Hole skin registry (32 skins as of 2026-08-16: the 25 below plus 7 free baseline color skins added for multiplayer slot identity) + heading-indicator registry (`INDICATOR_SKINS`, 6 rows) + geometry primitives + per-frame runtime; consumed by `world3d.js`/`voxelworld.js` for the mesh and re-exported by `js/ui/screens.js` for the shop |
 
 

@@ -84,10 +84,14 @@ export function defaultTierForDevice() {
 //   ambient        — 0.4% of CPU. Included because it is free once the tier is
 //                    already down, not because it buys anything. Do not sell it.
 //
-// HIGH keeps every SIM-TRAJECTORY lever of the pre-tier build: Infinity /
-// Infinity / 2 / 1. That is deliberate and load-bearing — a default-tier sim
-// must stay byte-identical, and `tools/validate.mjs` never constructs a tier at
-// all. `maxSubSteps` is the one number that moved off the pre-tier value (6 -> 2)
+// HIGH keeps contactRounds 2 / supportEvery 1 from the pre-tier build, but
+// since 2026-09-25 (owner decision) caps loose rubble at 700 / 500: uncapped,
+// a big Singapore collapse ran at 8.8 FPS. Measured on that collapse (CPU ms
+// per step): uncapped 168, 900/700 113, 700/500 95, 600/450 88, LOW 55, with
+// pieces in the air within 8% of uncapped, so collapses still look generous
+// (tools/quality-high-cap.test.mjs). The SIM's own default tune is still
+// Infinity: `tools/validate.mjs` never constructs a tier, so validator
+// trajectories are unchanged, and ranked play replaces the tune outright. `maxSubSteps` is the one number that moved off the pre-tier value (6 -> 2)
 // and it is NOT one of those levers: it lives in main.js's real-time catch-up
 // loop, not in `sim.tune`, so it changes how much game time a wall-clock second
 // buys, never what a given sequence of steps computes. The validator does not
@@ -97,7 +101,7 @@ export function defaultTierForDevice() {
 // device that has never been to SETTINGS defaults to LOW instead (see js/save.js
 // and main.js's wantedTier).
 export const TIERS = {
-  high: { dpr: 1.5, shadows: true, ambient: true, debrisCap: Infinity, contactBudget: Infinity, contactRounds: 2, supportEvery: 1, maxSubSteps: 2 },
+  high: { dpr: 1.5, shadows: true, ambient: true, debrisCap: 700, contactBudget: 500, contactRounds: 2, supportEvery: 1, maxSubSteps: 2 },
   low: { dpr: 1.5, shadows: true, ambient: true, debrisCap: 350, contactBudget: 250, contactRounds: 1, supportEvery: 2, maxSubSteps: 2 },
 };
 
