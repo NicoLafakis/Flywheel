@@ -39,6 +39,7 @@ const MENU_SCENE = 'brooklyn';
 // last letter lands at ~0.4 s, the CTA at ~1.0 s). The build blocks the main
 // thread once; this is what keeps that block off the animation.
 const BUILD_DELAY_MS = 1100;
+const SPLASH_POLL_MS = 150; // re-check cadence while the boot splash is still up
 const FIXED_DT = 1 / 60;
 // The autopilot's heading sweep. Slow — the hole is scenery, not a demo of the
 // controls, and a fast one reads as a bot playing badly.
@@ -106,11 +107,20 @@ export function startMenuScene(canvas, opts = {}) {
       || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
     onReady: opts.onReady,
   };
-  if (opts.immediate) {
-    build();
-  } else if (!timer) {
-    timer = setTimeout(build, BUILD_DELAY_MS);
+  if (!timer) timer = setTimeout(buildWhenClear, BUILD_DELAY_MS);
+}
+
+// Rule 1, enforced: the boot splash must be gone before the one blocking build
+// starts, or the splash freezes mid-fade and the menu waits on the backdrop.
+// (Cold boot used to build here first, with the splash waiting on it: 2-4 s on
+// desktop, 20+ s on a phone-class CPU; PERF-2026-09-25-load-times.)
+function buildWhenClear() {
+  timer = 0;
+  if (document.getElementById('boot-splash')) {
+    timer = setTimeout(buildWhenClear, SPLASH_POLL_MS);
+    return;
   }
+  build();
 }
 
 async function build() {

@@ -203,12 +203,10 @@
 
      The splash covers the slow case; this covers the FAILED case. Two triggers:
 
-       (a) 20 s elapsed and #boot-splash is still in the DOM. The splash comment
-           above cites 10-15 s cold loads from playtest, so anything at or under
-           that would fire on a working-but-slow boot and tell the player a lie.
-           20 s clears the observed worst case with margin while still being
-           inside the span a person will actually keep waiting. The engine is
-           same-origin now, so a real cold load is well under this.
+       (a) 25 s pass with NO progress (no new milestone, no new file fetched)
+           while #boot-splash is still in the DOM; progress re-arms it. A pure
+           wall-clock limit told slow phones (40+ s boots) a lie; a window with
+           nothing at all happening is the only honest "dead".
 
        (b) an uncaught error or rejection while the splash is still up. A hard
            module failure surfaces immediately rather than making the player wait
@@ -333,9 +331,30 @@
     bootFailed(reason);
   });
 
-  setTimeout(function () {
-    bootFailed(new Error('Boot sequence timed out after ' + TIMEOUT_MS + 'ms'));
-  }, TIMEOUT_MS);
+  // Slow is not dead. A timer cannot run during a long main-thread task, so on
+  // a slow device it fires the instant the task ends, and a bare wall-clock
+  // check reported a boot that had just finished as failed (PERF-2026-09-25-
+  // load-times, reproduced at 4x CPU). So each window compares a progress
+  // signature: the milestone reached plus the number of files the browser has
+  // finished fetching. Any change re-arms the watchdog; only a full window with
+  // no progress at all is a failure. tools/boot-watchdog.test.mjs drives this.
+  function progressSig() {
+    var n = 0;
+    try { n = performance.getEntriesByType('resource').length; } catch (e) { /* old browser */ }
+    return targetPct + '|' + (isSceneReady ? 1 : 0) + '|' + n;
+  }
+  var lastSig = progressSig();
+  function watchdog() {
+    if (done) return;
+    var sig = progressSig();
+    if (sig !== lastSig) {
+      lastSig = sig;
+      setTimeout(watchdog, TIMEOUT_MS);
+      return;
+    }
+    bootFailed(new Error('Boot made no progress for ' + TIMEOUT_MS + 'ms'));
+  }
+  setTimeout(watchdog, TIMEOUT_MS);
 })();
 </script>
 <script type="module" src="js/main.js"></script>

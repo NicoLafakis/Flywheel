@@ -2210,8 +2210,8 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// The boot splash tracks actual loading progress until the 3D spinning city
-// is built and rendered, and title music has started.
+// The boot splash tracks loading progress until the title menu is mounted
+// (the 3D city behind it builds afterwards; see the call at the end of boot).
 let bootFinished = false;
 function finishBootSplash() {
   if (bootFinished) return;
@@ -2244,15 +2244,6 @@ function finishBootSplash() {
   }, 1400);
 }
 
-// Start menu scene immediately on cold boot with onReady hook
-startMenuScene(canvas, {
-  settings: save.settings,
-  skinId: equippedSkinId(),
-  immediate: true,
-  onReady: finishBootSplash,
-});
-
-// Fallback safety timeout so boot splash never gets stuck
 // Check for invite link parameter (?room=CODE or ?join=CODE)
 const urlParams = typeof window !== 'undefined' && window.location ? new URLSearchParams(window.location.search) : null;
 const roomParam = urlParams ? (urlParams.get('room') || urlParams.get('join')) : null;
@@ -2262,6 +2253,13 @@ if (roomParam) {
 } else {
   screens.showTitle();
 }
+
+// The menu can draw now, so the splash goes. The Brooklyn backdrop used to be
+// built here first, as one blocking task the splash waited on: 2-4 s on a
+// desktop, over 20 s on a phone-class CPU (PERF-2026-09-25-load-times). It is
+// now scheduled by the title mount (menuScene(true)), builds only once the
+// splash has cleared, and fades in behind the menu (css fw-scene-fade).
+finishBootSplash();
 
 resize();
 requestAnimationFrame((ts) => { lastTs = ts; loopHandle = requestAnimationFrame(frame); });

@@ -4073,7 +4073,7 @@ function validateProgressUi() {
   if (r.status !== 0) fail(`tools/progress-ui.test.mjs failed:\n${r.stderr || ''}`);
 }
 section('syntaxCheck', validateSyntax);
-section('offlineBoot', validateOfflineBoot);
+section('offlineBoot', () => { validateOfflineBoot(); runSuite('tools/boot-watchdog.test.mjs'); });
 section('saveSchema', () => {
   runSuite('tools/sandbox-size.test.mjs');
   validateSaveSchema();
