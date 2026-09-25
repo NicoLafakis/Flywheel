@@ -4147,6 +4147,7 @@ section('voxelSandbox', () => {
   runSuite('tools/contact-query.test.mjs');
   runSuite('tools/support-defer.test.mjs');
   runSuite('tools/grid-sim-parity.test.mjs');
+  runSuite('tools/debris-contact-parity.test.mjs');
   validateVoxelSandbox();
 });
 section('voxelCollisions', validateVoxelCollisions);

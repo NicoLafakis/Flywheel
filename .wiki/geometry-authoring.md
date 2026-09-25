@@ -34,10 +34,11 @@ must not add hidden solid fill. Respect support spans, grid alignment, no-overla
 placement and the engine's edibility limits. Size pieces for the player's growth
 stage and verify that ground-level pieces can eventually be eaten.
 
-**Bank the savings.** Lower physical piece counts are a desired outcome when
-visual quality and eating remain strong. Do not repopulate a map simply to spend
-the savings, or add filler to meet an old catalog count. The authoring objective is fewer physical pieces with preserved visual quality
-and enjoyable eating.
+**Reinvest the savings (owner rule, 2026-09-25).** Efficiency savings from
+consolidation are reinvested into authored detail: hollow landmark shells,
+facade detail and fuller districts. They are never spent on filler, never used
+to restore an old catalog count, and never simply banked. The authoring
+objective is a richer map for the same or lower cost, with enjoyable eating.
 
 There is no universal reduction percentage or piece budget. Choose a budget
 appropriate to the map and measure it. Fewer pieces can reduce per-piece work,

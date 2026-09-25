@@ -321,7 +321,11 @@ Three layers, cheapest first:
    debris, chunk members, and falling rain, separated along the least-
    penetration axis with bounce + friction + spin kill (2 relaxation rounds
    per step, 1 in `perfMode`; fine-column buckets padded 1 cell using bit-packed
-   integer spatial keys `keyInt(x,z)` and pooled bucket arrays for zero GC allocations per frame). Moving bodies also get full
+   integer spatial keys `keyInt(x,z)` and pooled bucket arrays for zero GC allocations per frame;
+   candidates are pre-rejected on all three overlap axes, exactly
+   `_separate`'s own early-out, which cut Singapore's collapse from 35.5M to
+   2.8M `_separate` calls with a bit-identical trajectory, free play and
+   ranked, pinned by `tools/debris-contact-parity.test.mjs`). Moving bodies also get full
    AABB separation against nearby solid collision buckets when a directional
    or top-surface probe finds contact; chunk members split on solid overlap.
    Blocks resting on loose

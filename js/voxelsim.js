@@ -3713,7 +3713,14 @@ export class VoxelSandboxSim {
         // it is processed are both unchanged — this is a pure cost cut.
         // NB b.y is read live on every test, never hoisted: _pushAxis moves b
         // mid-loop, and _separate's own py term sees the updated position.
-        const bhs = b.sy / 2;
+        //
+        // Horizontal pre-reject (PERF-2026-09-25-framerate). The same pair is
+        // found in up to 36 padded fine cells, and the vertical test alone
+        // still let 92% of calls through as no-ops. px and pz are _separate's
+        // other two early-out terms; halving is exact, so bhx + o.sx / 2 is
+        // bit-for-bit (b.sx + o.sx) / 2 and the surviving set is unchanged.
+        // tools/debris-contact-parity.test.mjs pins the trajectory hash.
+        const bhs = b.sy / 2, bhx = b.sx / 2, bhz = b.sz / 2;
         for (let ix = -1; ix <= b.fsx; ix++) {
           for (let iz = -1; iz <= b.fsz; iz++) {
             const k = keyInt(fx + ix, fz + iz);
@@ -3721,8 +3728,9 @@ export class VoxelSandboxSim {
             if (mo) {
               for (const o of mo) {
                 if (o === b || o.id < b.id) continue; // each pair once per round
-                const dy = b.y - o.y;
-                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, true);
+                const dy = b.y - o.y, dx = b.x - o.x, dz = b.z - o.z;
+                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy) && bhx + o.sx / 2 > (dx < 0 ? -dx : dx) &&
+                    bhz + o.sz / 2 > (dz < 0 ? -dz : dz)) this._separate(b, o, true);
               }
             }
             const ob = occObs.get(k), sb = sleepObs.get(k);
@@ -3731,30 +3739,35 @@ export class VoxelSandboxSim {
               let p = 0, q = 0;
               while (p < ob.length && q < sb.length) {
                 o = ob[p].id < sb[q].id ? ob[p++] : sb[q++];
-                const dy = b.y - o.y;
-                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+                const dy = b.y - o.y, dx = b.x - o.x, dz = b.z - o.z;
+                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy) && bhx + o.sx / 2 > (dx < 0 ? -dx : dx) &&
+                    bhz + o.sz / 2 > (dz < 0 ? -dz : dz)) this._separate(b, o, false);
               }
               while (p < ob.length) {
                 o = ob[p++];
-                const dy = b.y - o.y;
-                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+                const dy = b.y - o.y, dx = b.x - o.x, dz = b.z - o.z;
+                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy) && bhx + o.sx / 2 > (dx < 0 ? -dx : dx) &&
+                    bhz + o.sz / 2 > (dz < 0 ? -dz : dz)) this._separate(b, o, false);
               }
               while (q < sb.length) {
                 o = sb[q++];
-                const dy = b.y - o.y;
-                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+                const dy = b.y - o.y, dx = b.x - o.x, dz = b.z - o.z;
+                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy) && bhx + o.sx / 2 > (dx < 0 ? -dx : dx) &&
+                    bhz + o.sz / 2 > (dz < 0 ? -dz : dz)) this._separate(b, o, false);
               }
             } else if (ob) {
               for (let p = 0; p < ob.length; p++) {
                 o = ob[p];
-                const dy = b.y - o.y;
-                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+                const dy = b.y - o.y, dx = b.x - o.x, dz = b.z - o.z;
+                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy) && bhx + o.sx / 2 > (dx < 0 ? -dx : dx) &&
+                    bhz + o.sz / 2 > (dz < 0 ? -dz : dz)) this._separate(b, o, false);
               }
             } else if (sb) {
               for (let q = 0; q < sb.length; q++) {
                 o = sb[q];
-                const dy = b.y - o.y;
-                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy)) this._separate(b, o, false);
+                const dy = b.y - o.y, dx = b.x - o.x, dz = b.z - o.z;
+                if (bhs + o.sy / 2 > (dy < 0 ? -dy : dy) && bhx + o.sx / 2 > (dx < 0 ? -dx : dx) &&
+                    bhz + o.sz / 2 > (dz < 0 ? -dz : dz)) this._separate(b, o, false);
               }
             }
           }
@@ -3876,18 +3889,18 @@ export class VoxelSandboxSim {
       if (movableO) o[axis] -= sign * pen * 0.5;
     }
     // bounce only when actually closing along the axis; gentle contacts just stop
-    const vb = b['v' + axis];
-    if (vb * sign < 0) b['v' + axis] = Math.abs(vb) > 1 ? -vb * REST : 0;
+    // No 'v' + axis string keys or per-push arrays: this runs thousands of
+    // times per step in a collapse.
+    const vk = axis === 'x' ? 'vx' : axis === 'y' ? 'vy' : 'vz';
+    const vb = b[vk];
+    if (vb * sign < 0) b[vk] = Math.abs(vb) > 1 ? -vb * REST : 0;
     if (movableO) {
-      const vo = o['v' + axis];
-      if (vo * sign > 0) o['v' + axis] = Math.abs(vo) > 1 ? -vo * REST : 0;
+      const vo = o[vk];
+      if (vo * sign > 0) o[vk] = Math.abs(vo) > 1 ? -vo * REST : 0;
     }
     // contact friction, and spin dies on contact — no pirouettes in a pile
-    for (const t of ['x', 'z']) {
-      if (t === axis) continue;
-      b['v' + t] *= 0.6;
-      if (movableO) o['v' + t] *= 0.6;
-    }
+    if (axis !== 'x') { b.vx *= 0.6; if (movableO) o.vx *= 0.6; }
+    if (axis !== 'z') { b.vz *= 0.6; if (movableO) o.vz *= 0.6; }
     b.vRotX *= 0.5; b.vRotZ *= 0.5;
     if (movableO) { o.vRotX *= 0.5; o.vRotZ *= 0.5; }
     // remember what we are standing on: resting on a loose body counts as
