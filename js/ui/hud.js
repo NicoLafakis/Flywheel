@@ -379,9 +379,8 @@ export class HUD {
     this._updateScreenHeat(h.chain, h.activePowerUps || sim.activePowerUps);
 
     // Endgame remaining blocks counter (displays when <= 100 blocks remain or <= 5% remain or <= 30s left or >=95% cleared)
-    const standingBlocks = sim.remainingBlocksCount != null
-      ? sim.remainingBlocksCount
-      : (sim.blocks ? sim.blocks.filter((b) => b.state !== 'eaten' && b.state !== 'consumed').length : 0);
+    // Running count kept by the sim (never a per-frame rescan of every block).
+    const standingBlocks = sim.remainingBlocksCount ?? 0;
     
     const isEndgameBlocks = standingBlocks <= 100 || (sim.totalBlocks > 0 && standingBlocks <= Math.max(100, Math.floor(sim.totalBlocks * 0.05))) || cleared >= 0.95;
 

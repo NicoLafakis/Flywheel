@@ -3479,9 +3479,8 @@ export class VoxelWorld3D {
     }
 
     // Update Endgame 3D Target Locator Beacons (when <= 30s remain, <= 100 blocks, <= 5% blocks remain, or >= 95% cleared)
-    const standingCount = this.sim.remainingBlocksCount != null
-      ? this.sim.remainingBlocksCount
-      : (this.sim.blocks ? this.sim.blocks.filter((b) => b.state !== 'consumed' && b.state !== 'eaten').length : 0);
+    // Running count kept by the sim (never a per-frame rescan of every block).
+    const standingCount = this.sim.remainingBlocksCount ?? 0;
     const clearedFrac = (this.sim && this.sim.totalMass && this.sim.totalMass > 0 && h) ? ((h.rawMass || h.mass || 0) / this.sim.totalMass) : 0;
     const isEndgameFrac = clearedFrac >= 0.95 || (this.sim && this.sim.totalBlocks > 0 && standingCount <= Math.max(100, Math.floor(this.sim.totalBlocks * 0.05)));
     const showBeacons = this.sim && !this.sim.won && standingCount > 0 && ((this.sim.timeLeft != null && this.sim.timeLeft <= 30) || standingCount <= 100 || isEndgameFrac);

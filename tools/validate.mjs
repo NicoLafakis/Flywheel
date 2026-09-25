@@ -4149,6 +4149,7 @@ section('voxelSandbox', () => {
   runSuite('tools/grid-sim-parity.test.mjs');
   runSuite('tools/debris-contact-parity.test.mjs');
   runSuite('tools/quality-high-cap.test.mjs');
+  runSuite('tools/remaining-count.test.mjs');
   validateVoxelSandbox();
 });
 section('voxelCollisions', validateVoxelCollisions);

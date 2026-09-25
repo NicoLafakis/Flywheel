@@ -1188,6 +1188,9 @@ export class VoxelSandboxSim {
     this.isTimeFrozen = false;
     this._wasTimeFrozen = false;
     this.totalBlocks = this.blocks.length;
+    // Display-only running count for the HUD's "blocks left" pill and the
+    // endgame beacons; decremented in _consume. Nothing in the sim reads it.
+    this.remainingBlocksCount = this.blocks.length;
     // Static collision broad phase. The fine occupancy grid is ideal for
     // support/consumption, but scanning its full y-range for every falling
     // block is too expensive during a city-wide collapse.
@@ -4231,6 +4234,7 @@ export class VoxelSandboxSim {
   // blocks in directly).
   _consume(b, h = this.holes[0], award = true) {
     if (this.geometryVersion === 2 && b.state === 'consumed') return;
+    if (b.state !== 'consumed') this.remainingBlocksCount--;
     b.state = 'consumed';
     // The renderer hides consumed blocks, and `_syncFalling` drops this entry at
     // the top of the NEXT step — which, with the fixed-timestep catch-up in

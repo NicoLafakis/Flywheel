@@ -247,7 +247,10 @@ C1 PROP (< 2 m, 0.25 bricks — lamps, hydrants, benches, carts), C2 VEHICLE
 object scale; physics is identical across classes.
 Each block registers every fine cell it occupies; neighbors are found by
 scanning face cells, so mixed-size blocks connect wherever their faces
-touch. Cantilever spans are measured in meters (`(cur.s + nb.s)/2` per
+touch. The sim also keeps a display-only
+`remainingBlocksCount` (decremented in `_consume`) that the HUD pill and
+endgame beacons read instead of filtering every block per frame
+(`tools/remaining-count.test.mjs`). Cantilever spans are measured in meters (`(cur.s + nb.s)/2` per
 horizontal step), block mass is `density × s³`, chunk centers of mass are
 volume-weighted, fall speed is driven by material density (size-independent),
 and rest/sink thresholds scale with block height.
