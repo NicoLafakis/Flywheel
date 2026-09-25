@@ -2156,22 +2156,43 @@ export class VoxelSandboxSim {
     buildLab(this);
   }
 
+  // Walks each face's cell grid (rows u along axis i1, cells v along i2). Once
+  // a neighbour is found at (u, v), the rest of that row inside the
+  // neighbour's i2 extent is the same neighbour, PROVIDED no block ever took a
+  // cell over from another (VoxelGrid.overwrites === 0), so v jumps past it.
+  // Skipped cells could only re-add a block already in `found`, so discovery
+  // order, which the support BFS walks, is unchanged. BoxGrid (Tokyo) has
+  // overlapping pieces and no such counter, so it keeps the full scan. No
+  // per-cell allocation either: this was 1-3 s of every city load
+  // (PERF-2026-09-25-load-times); tools/neighbors-build.test.mjs is the oracle.
   _buildNeighbors() {
+    const grid = this.grid;
+    const skip = grid.overwrites === 0;
     for (const b of this.blocks) {
-      const g = [b.gx, b.gy, b.gz];
-      const e = [b.fsx, b.fsy, b.fsz]; // extents indexed the same way as `g`
       const found = new Set();
-      for (const [dx, dy, dz] of DIRS) {
-        const a = dx !== 0 ? 0 : dy !== 0 ? 1 : 2;
-        const sign = dx + dy + dz;
-        const fixed = sign > 0 ? g[a] + e[a] : g[a] - 1;
-        const i1 = (a + 1) % 3, i2 = (a + 2) % 3;
-        for (let u = 0; u < e[i1]; u++) {
-          for (let v = 0; v < e[i2]; v++) {
-            const c = [0, 0, 0];
-            c[a] = fixed; c[i1] = g[i1] + u; c[i2] = g[i2] + v;
-            const nb = this.grid.getCell(c[0], c[1], c[2]);
-            if (nb && nb !== b) found.add(nb);
+      for (let d = 0; d < 6; d++) {
+        const dir = DIRS[d];
+        const a = dir[0] !== 0 ? 0 : dir[1] !== 0 ? 1 : 2;
+        const sign = dir[0] + dir[1] + dir[2];
+        const ga = a === 0 ? b.gx : a === 1 ? b.gy : b.gz;
+        const ea = a === 0 ? b.fsx : a === 1 ? b.fsy : b.fsz;
+        const fixed = sign > 0 ? ga + ea : ga - 1;
+        // i1 = (a + 1) % 3, i2 = (a + 2) % 3
+        const g1 = a === 0 ? b.gy : a === 1 ? b.gz : b.gx, e1 = a === 0 ? b.fsy : a === 1 ? b.fsz : b.fsx;
+        const g2 = a === 0 ? b.gz : a === 1 ? b.gx : b.gy, e2 = a === 0 ? b.fsz : a === 1 ? b.fsx : b.fsy;
+        for (let u = 0; u < e1; u++) {
+          const c1 = g1 + u;
+          for (let v = 0; v < e2; v++) {
+            const c2 = g2 + v;
+            const nb = a === 0 ? grid.getCell(fixed, c1, c2)
+              : a === 1 ? grid.getCell(c2, fixed, c1)
+              : grid.getCell(c1, c2, fixed);
+            if (nb && nb !== b) {
+              found.add(nb);
+              if (!skip) continue;
+              const end = a === 0 ? nb.gz + nb.fsz : a === 1 ? nb.gx + nb.fsx : nb.gy + nb.fsy;
+              if (end - g2 - 1 > v) v = end - g2 - 1;
+            }
           }
         }
       }

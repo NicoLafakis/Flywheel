@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-09-13
+Last updated: 2026-09-25
 
 This is a board, not a changelog. One line per shipped item; the detail lives in
 the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
@@ -44,6 +44,7 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 
 ## Active focus
 
+- **Performance step 1 (2026-09-25):** five fixes from the [framerate](.wiki/findings/PERF-2026-09-25-framerate.md) and [load-time](.wiki/findings/PERF-2026-09-25-load-times.md) findings. Title menu appears in 1.2-1.3 s (was 3.5-5.0 s; 1.5-1.7 s vs 20-22 s at 4x CPU); Brooklyn builds after and fades in; the boot watchdog now reports only a boot with no progress, so the false "LOAD ERROR" is gone. HIGH caps rubble at 700/500 (owner decision): Singapore play p95 frame 100 -> 67 ms, frames over 100 ms 273 -> 63; Tokyo 54.5 -> 58.9 FPS, p95 33 -> 17 ms. The blocks-left count is now a running total (HUD 2.7 -> 0.2 ms per frame on Tokyo). Debris contacts skip 92% of no-op pair checks with a bit-identical trajectory, free play and ranked (no ranked version bump); Cambridge's adjacency build 2.1-2.3 -> 1.5-1.6 s with identical adjacency. Tests: `tools/{debris-contact-parity,neighbors-build,remaining-count,quality-high-cap,boot-watchdog}.test.mjs`.
 - **Lab geometry comparison (2026-09-13):** replaced the old Lab with two matching micro cities separated by 32 m. West is 5,461 cube voxels; east is 1,411 physical pieces (74.2% fewer), using bay-sized floors and masonry sections while preserving granular street objects. Identical material occupancy, no overlap and idle stability pass. Final Lab comparison ALL PASS; full run passed 30/31 groups, with unchanged Cambridge interrupted after 40.9 minutes. Browser Lab launch/restart passed; title boot timeout tracked below. Eating feel awaits owner comparison. See `.wiki/modules/voxel.md`.
 
 - **Tokyo / controls remediation (2026-09-08):** implemented on the review branch.
@@ -243,7 +244,6 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 
 ### Open defects observed during smoke/RCA work
 
-- **Title boot watchdog (2026-09-13):** two local browser loads logged the 25-second boot timeout while validation was running; the title then recovered and the rebuilt Lab reached READY. Cause is not isolated (background scheduling/CPU contention are unproven possibilities). Lab launch, pause and restart succeeded.
 
 Per `.wiki/findings/RCA-2026-08-20-cross-device-zero-progress.md` §8: a live
 (non-hypothetical) defect surfaced by a runbook or RCA gets tracked here, not

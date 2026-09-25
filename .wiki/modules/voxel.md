@@ -247,7 +247,11 @@ C1 PROP (< 2 m, 0.25 bricks — lamps, hydrants, benches, carts), C2 VEHICLE
 object scale; physics is identical across classes.
 Each block registers every fine cell it occupies; neighbors are found by
 scanning face cells, so mixed-size blocks connect wherever their faces
-touch. The sim also keeps a display-only
+touch. Since 2026-09-25 the scan skips past a found neighbour's extent along
+each face row when no cell was ever written by two blocks
+(`VoxelGrid.overwrites === 0`; BoxGrid/Tokyo keeps the full scan), with no
+per-cell allocation. Adjacency, including order, is pinned against the old
+scan by `tools/neighbors-build.test.mjs`. The sim also keeps a display-only
 `remainingBlocksCount` (decremented in `_consume`) that the HUD pill and
 endgame beacons read instead of filtering every block per frame
 (`tools/remaining-count.test.mjs`). Cantilever spans are measured in meters (`(cur.s + nb.s)/2` per

@@ -4148,6 +4148,7 @@ section('voxelSandbox', () => {
   runSuite('tools/support-defer.test.mjs');
   runSuite('tools/grid-sim-parity.test.mjs');
   runSuite('tools/debris-contact-parity.test.mjs');
+  runSuite('tools/neighbors-build.test.mjs');
   runSuite('tools/quality-high-cap.test.mjs');
   runSuite('tools/remaining-count.test.mjs');
   validateVoxelSandbox();

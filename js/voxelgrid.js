@@ -27,6 +27,11 @@ function unpack(key) {
 }
 
 export class VoxelGrid extends Map {
+  // Cells that one block took over from ANOTHER block. Zero means every cell
+  // has had a single owner, which is what lets the adjacency build skip past a
+  // neighbour's extent (see VoxelSandboxSim._buildNeighbors). Free to keep:
+  // the has() check below already runs on every write.
+  overwrites = 0;
   getCell(x, y, z) { return super.get(pack(x, y, z)); }
   setCell(x, y, z, value) {
     const key = pack(x, y, z);
@@ -35,6 +40,7 @@ export class VoxelGrid extends Map {
     let column = this._columns.get(columnKey);
     if (!column) { column = { ys: [], runs: null }; this._columns.set(columnKey, column); }
     if (!super.has(key)) column.ys.push(y);
+    else if (super.get(key) !== value) this.overwrites++;
     column.runs = null;
     super.set(key, value);
     return this;
