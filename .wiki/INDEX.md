@@ -126,6 +126,11 @@ Current remediation plans:
 - [ADR 0025: architectural pieces](adr/0025-tokyo-architectural-pieces.md)
 - [ADR 0026: input/presentation](adr/0026-direct-input-and-power-presentation.md)
 
+Future features in planning:
+- [Living World: blocky people, dogs, flocks and traffic](plans/living-world.md) — PLAN: pedestrians on walk paths, signal-gated crosswalks, left-hand vehicles, eatable flocks, dogs, and seeded deterministic behaviour; phases 0–5 from Lab pedestrians through ranked availability
+- [Camera Never Obscured](plans/camera-never-obscured.md) — PROPOSED: the hole and food ring always visible via dither-fading occluding buildings; L1 ray sweep promotion, L2 per-instance fade with hysteresis, L3 silhouette rim fallback
+- [Power-up effects overhaul](plans/powerup-effects-overhaul.md) — PLAN: expanded spawn/idle/find/capture/expiry effects with three-tier announcements, magnet reach, pacing model by area, and six new auras; data gathered 2026-09-27, rollout phases 0–4
+
 - `docs/PRD.md` — product requirements (normative)
 - `docs/ARCHITECTURE.md` — original architecture note (merged into wiki architecture page)
 - `docs/TUNING.md` — growth math and proof methodology
