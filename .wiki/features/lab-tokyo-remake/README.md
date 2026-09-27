@@ -45,7 +45,7 @@ below is written to be reused.
 
 | | Before (HEAD, Nishi-Shinjuku phase 0) | Abandoned Shibuya draft (not shipped) | Now (Shibuya from OSM) |
 |---|---:|---:|---:|
-| Physical pieces | 2,244 | 7,474 | **22,718** (291 cubes, 22,427 architectural) |
+| Physical pieces | 2,244 | 7,474 | **22,702** (291 cubes, 22,411 architectural) |
 | Buildings | 5 hand-authored | 9 hand-authored, placed by eye | **109 real footprints** + koban + viaduct |
 | Occupancy grid | 0.25 m cell grid | 0.25 m cell grid | **box grid** |
 | Sim build, Node | 0.13 s | 2.9-3.2 s | 0.83-0.88 s |

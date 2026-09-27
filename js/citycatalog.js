@@ -22,7 +22,7 @@ export const CITY_CATALOG = [
     tagline: 'PROLOGUE · CALIBRATION',
     chapter: 'PROLOGUE',
     status: 'PLAYABLE',
-    blocks: 22718,
+    blocks: 22702,
     difficulty: 'TIER 1 · STARTER',
     badge: 'PROLOGUE',
     accentColor: '#00f0ff',

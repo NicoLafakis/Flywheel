@@ -93,7 +93,7 @@ See [the Lab module notes](modules/voxel.md#the-lab-twin-micro-city-comparison-2
 The Lab is the Tokyo remake. Phase 1 (2026-09-27) is Shibuya Crossing, built
 from OpenStreetMap data: 109 real footprints as hollow mixed-geometry shells
 (`js/footprint-shell.js`) and a Japan-convention streetscape (`js/streetkit.js`).
-The total is 22,718 physical pieces on the box grid. It demonstrates the
+The total is 22,702 physical pieces on the box grid. It demonstrates the
 new-map construction path of this document, and its method is the template
 for every other city:
 [features/lab-tokyo-remake](features/lab-tokyo-remake/README.md). Phase 0

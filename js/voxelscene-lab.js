@@ -2,6 +2,8 @@ import { generateBlockers, SOLO_SPAWN } from './voxelkit.js';
 import { buildShell, CellClaims, slabBays } from './footprint-shell.js';
 import { planStreets, placeProps, JP } from './streetkit.js';
 import SHIBUYA from './citydata/shibuya.js';
+import { spawnPositionForSlot } from './multiplayer/roster.js';
+import { MAX_PLAYERS } from './multiplayer/config.js';
 
 // THE LAB: Tokyo remake, phase 1 — SHIBUYA CROSSING.
 //
@@ -286,9 +288,15 @@ export function buildLab(sim) {
     stationPostBox: [6, 6],
     flockSpots: hachiko ? [{ x: hachiko.x + 4, z: hachiko.z, r: 6, kind: 'pigeons', note: 'Hachiko Square' }] : [],
   });
+  // Every start seat: the solo spawn plus each multiplayer ring seat for every
+  // roster size (the scene is built before the roster is known, so all of them).
+  const seats = [SOLO_SPAWN];
+  for (let n = 2; n <= MAX_PLAYERS; n++) for (let slot = 0; slot < n; slot++) seats.push(spawnPositionForSlot(slot, n));
   const keepSpawn = (b) => {
-    const cx = Math.max(b[0], Math.min(SOLO_SPAWN.x, b[0] + b[3])), cz = Math.max(b[2], Math.min(SOLO_SPAWN.z, b[2] + b[5]));
-    if (Math.hypot(cx - SOLO_SPAWN.x, cz - SOLO_SPAWN.z) < 2.5) return true;
+    for (const s of seats) {
+      const cx = Math.max(b[0], Math.min(s.x, b[0] + b[3])), cz = Math.max(b[2], Math.min(s.z, b[2] + b[5]));
+      if (Math.hypot(cx - s.x, cz - s.z) < 2.5) return true;
+    }
     for (const e of extras) if (e[0] < b[0] + b[3] && e[0] + e[3] > b[0] && e[1] < b[1] + b[4] && e[1] + e[4] > b[1] && e[2] < b[2] + b[5] && e[2] + e[5] > b[2]) return true;
     return false;
   };

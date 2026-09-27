@@ -7,6 +7,8 @@ import { rasterise, snappedPolygon, storeyPlan, pointInPoly } from '../js/footpr
 import { leftOf, JP } from '../js/streetkit.js';
 import SHIBUYA from '../js/citydata/shibuya.js';
 import { driveRoute } from './route-driver.mjs';
+import { spawnPositionForSlot } from '../js/multiplayer/roster.js';
+import { MAX_PLAYERS } from '../js/multiplayer/config.js';
 
 // THE LAB = Tokyo remake, phase 1: Shibuya Crossing, built from OpenStreetMap
 // data by the two reusable kits (js/footprint-shell.js, js/streetkit.js). This
@@ -231,6 +233,20 @@ export function validateLabTokyo() {
   driveRoute(run, LAB_ROUTE, 40);
   assert.ok(run.hole.eatenCount >= 60, `starter route feeds a fresh hole (${run.hole.eatenCount} pieces)`);
   assert.ok(run.hole.size >= 4, `starter route grows the hole (SIZE ${run.hole.size})`);
+
+  // --- multiplayer starts: no street furniture inside any player's start hole ---
+  // A 3-player match once seated two small props inside a hole's start disc.
+  // Every roster size uses its own ring, so check them all (2.5 m, the solo keepout).
+  const intrusions = [];
+  for (let n = 2; n <= MAX_PLAYERS; n++) for (let slot = 0; slot < n; slot++) {
+    const s = spawnPositionForSlot(slot, n);
+    for (const pr of lab.props) for (const b of pr.boxes) {
+      if (b[1] >= 3) continue;
+      const cx = Math.max(b[0], Math.min(s.x, b[0] + b[3])), cz = Math.max(b[2], Math.min(s.z, b[2] + b[5]));
+      if (Math.hypot(cx - s.x, cz - s.z) < 2.5) { intrusions.push(`${n}p slot ${slot}: ${pr.kind}`); break; }
+    }
+  }
+  assert.deepEqual(intrusions, [], 'street furniture stays out of every multiplayer start hole');
 
   console.log(`Lab Shibuya Crossing: ${sim.blocks.length} pieces (${cubes} cubes), ${lab.buildings.length} structures, ${lab.props.length} props, ${cws.length} crossings, ${sim.sceneWires.length} wires; built in ${buildMs.toFixed(0)} ms; route ate ${run.hole.eatenCount}, SIZE ${run.hole.size}`);
 }

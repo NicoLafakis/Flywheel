@@ -16,11 +16,14 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 - **2026-09-27, Tokyo remake phase 1: Shibuya Crossing (the Lab).**
   - **Data and build.** Rebuilt from OpenStreetMap data (ODbL, `js/citydata/shibuya.js`). It has 109 real building footprints at their mapped heights, plus hero dressing: Q's Eye, MAGNET screens, the 109 sign, Hachiko, the koban, and the JR viaduct with a Yamanote train.
   - **Streets.** The scramble has five zebra crossings and the one diagonal. Stop lines, signal poles at every corner and all other street furniture are placed by OSM position, or by the Japan convention profile where OSM is silent.
-  - **Performance.** 22,718 pieces on the box grid: about 1.3 s city load and 44 MB, against 3.9 s and 250 MB for the abandoned hand-placed draft.
+  - **Performance.** 22,702 pieces on the box grid: about 1.3 s city load and 44 MB, against 3.9 s and 250 MB for the abandoned hand-placed draft.
   - **Reusable kits.** `js/footprint-shell.js` and `js/streetkit.js` (profile `JP`; `US`/`UK`/`EU` drafts), plus `tools/citydata/extract-osm.mjs`, are the template for every other city.
   - **Next phase.** `sim.sceneLife` carries the seam for the moving-life phase ([.wiki/plans/living-world.md](.wiki/plans/living-world.md)).
   - **Details.** Method, screenshots and measurements are in [.wiki/features/lab-tokyo-remake](.wiki/features/lab-tokyo-remake/README.md). Gate: `tools/lab-tokyo.test.mjs`.
   - **Superseded.** Phase 0 (Nishi-Shinjuku, 2,244 pieces, 2026-09-13).
+  - **2026-09-27 fix.** Street furniture no longer lands inside any player's starting hole in multiplayer (a 3-player match had planters and shrubs there); 16 pieces fewer. Gate: `tools/lab-tokyo.test.mjs`.
+- **2026-09-27, power-up pacing owner decisions:** uncollected ground power-ups disappear after 25 s (warning in the final 6 s), next spawn about 45 s later; ranked 90 s cadence unchanged; pure extras deferred. See [.wiki/plans/powerup-effects-overhaul.md](.wiki/plans/powerup-effects-overhaul.md).
+- **2026-09-27:** removed the obsolete `tools/steering-acceleration.test.mjs`. It tested the retired tank-steering ramp that ADR 0026 replaced with direct input (A+W now points 45 degrees at once, by design); `tools/direct-controls.test.mjs` covers the current controls. Not a game defect.
 
 ## Baseline
 

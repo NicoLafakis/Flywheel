@@ -61,7 +61,7 @@ template for rebuilding every city; method, screenshots and measurements are in
 - **Grid**: the Lab runs on `BoxGrid` via `BOX_GRID_SCENES` in `voxelsim.js`,
   independent of `geometryVersion` (which still selects Tokyo's physics tune).
   `BoxGrid.overwrites` lets `_buildNeighbors` skip along found neighbours on
-  an overlap-free scene. 22,718 pieces build in about 0.9 s (44 MB heap). The
+  an overlap-free scene. 22,702 pieces build in about 0.9 s (44 MB heap). The
   abandoned hand-placed draft took 2.9 s (250 MB) for 7,474 pieces on the cell
   grid.
 - **Renderer** (`voxelworld.js`): a `sceneDecor` entry may carry

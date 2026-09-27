@@ -38,30 +38,32 @@ Mario Kart (silhouette/colour, reveal beat), Fortnite drops (map-wide beam, hum 
 ## 5. Pacing model [S]
 - Cap = clamp(round(area/11000), 3, 5) (Lab/Chicago -> 4).
 - Opening t < 0.2C: the 2 start items only. Middle interval I = clamp(C/10, 18, 30). Surge: one guaranteed drop at t >= C - max(25, 0.15C), may exceed cap by 1, landing 15-20 s after the T-60 meteor.
-- Ground lifespan L = 2.5 x I with 6 s warning (reverses 2026-08-25 "no forced despawn": owner decision). Alternative: at cap, the timer relocates the oldest item with full drop effect.
+- Ground lifespan (owner 2026-09-27): an uncollected ground power-up disappears after 25 s, with the visible warning in its final 6 s (from 19 s). After a disappearance the next spawn waits about 45 s. Reverses the 2026-08-25 "no forced despawn" rule; replaces the earlier L = 2.5 x I formula and the relocate-at-cap alternative (both dropped).
+- Ranked run90 is unchanged (owner 2026-09-27): keeps today's 0,0,30,60 cadence; no RANKED_SIM_VERSION bump for pacing.
 | Mode | C | Today | Proposed | Max |
 |---|---|---|---|---|
-| run90 | 90 | 0,0,30,60 | 0,0,18,36,54,72(surge) | 6 |
+| run90 (ranked) | 90 | 0,0,30,60 | unchanged | 4 |
 | challenge3m | 180 | 0,0,30..150 | 0,0,36,54..144,158(surge) | ~9 |
 | freeplay/level | 300 | 0,0,30..270 | 0,0,60,90..240,255(surge) | ~9 |
 Targets: with 25 m sight + arrows, Lab median time-to-collect <= 12 s and <= 15% uncollected; never > 60 s at cap.
 
 ## 6. Ranked impact
-All [P] and powerup_incoming: no bump (pin replay hash unchanged). Magnet, annulus, wander, cap-by-area, cadence, surge, lifespan/relocate: one bump 4 -> 5 in Phase 3. Offline sim hitstop: test ranked/multiplayer/reduced-motion never hold ticks.
+All [P] and powerup_incoming: no bump (pin replay hash unchanged). Pacing (cadence, surge, 25 s lifespan) does not apply to ranked run90, so no bump for pacing (owner 2026-09-27). Magnet, annulus, wander and cap-by-area still need one bump 4 -> 5 if they ever reach ranked; deferred. Offline sim hitstop: test ranked/multiplayer/reduced-motion never hold ticks.
 
 ## 7. Perf budget
 <= +8 draw calls for 5 power-ups; <= 0.25 ms desktop / 0.5 ms phone per frame; pooled arrows (no per-frame DOM churn); zero allocation on capture (replaces per-particle materials in spawnPowerUpCollectBurst/spawnPowerUpSpawnBeams); <= 32 particles per burst (perfMode 12); sim <= 0.02 ms/step; one proximity loop; Lab+Tokyo p95 regression <= 0.3 ms, no new > 50 ms frames.
 
 ## 8. TDD tests
-1 powerup-pacing: cap by area, interval formula, opening quiet, one surge after meteor, cap exceeded by at most 1. 2 lifespan warn at L-6 (or relocate keeps count and unique types). 3 powerup-magnet: r+3.9 m reaches in 1 s, r+4.1 m doesn't move, bit-identical. 4 annulus 30-60 m for 50 seeds x 3 scenes. 5 RANKED_SIM_VERSION === 5 with hash proof. 6 powerup_incoming exactly 72 ticks early, hash identical with/without listener. 7 update powerup-storm-rework P1/P2/P4 (superseded, dated). 8 hitstop durations, no sim hold in competitive/multiplayer/reduced motion. 9 pure computeEdgeArrow (8 bearings, portrait safe area). 10 no new THREE materials in burst/beam/add paths; pillars InstancedMesh. 11 cinematic-arming-guard three-tier announcement. 12 expiry warning at 5 s, ticks 3/2/1, one power-down sting per buff end. 13 power-overlay-retirement stays green (flash <= 18%, <= 120 ms). 14 discovery probe before/after each phase. 15 validate-changed ALL PASS + earthquake-cinematic-selftest.
+1 powerup-pacing: cap by area, interval formula, opening quiet, one surge after meteor, cap exceeded by at most 1. 2 lifespan: despawn at 25 s, warning from 19 s, next spawn about 45 s after a despawn; ranked run90 schedule unchanged. 3 powerup-magnet: r+3.9 m reaches in 1 s, r+4.1 m doesn't move, bit-identical. 4 annulus 30-60 m for 50 seeds x 3 scenes. 5 RANKED_SIM_VERSION stays 4 and ranked replay hash unchanged. 6 powerup_incoming exactly 72 ticks early, hash identical with/without listener. 7 update powerup-storm-rework P1/P2/P4 (superseded, dated). 8 hitstop durations, no sim hold in competitive/multiplayer/reduced motion. 9 pure computeEdgeArrow (8 bearings, portrait safe area). 10 no new THREE materials in burst/beam/add paths; pillars InstancedMesh. 11 cinematic-arming-guard three-tier announcement. 12 expiry warning at 5 s, ticks 3/2/1, one power-down sting per buff end. 13 power-overlay-retirement stays green (flash <= 18%, <= 120 ms). 14 discovery probe before/after each phase. 15 validate-changed ALL PASS + earthquake-cinematic-selftest.
 
 ## 9. Rollout
 0 probe + powerups.md doc fix + baseline. 1 Lab only, [P] only behind labFx (scene gallery); owner review + mobile perf. 2 [P] everywhere, three-tier announcements, hum, offline hitstop; re-run probe. 3 [S] in Lab unranked first, then single 4 -> 5 bump with ranked seeds, board note, STATUS entry. 4 campaign parity (28 s drops get expiry FX) and multiplayer checks.
 
 ## 10. Owner decisions
-1. Ground lifespan (reverses "no forced despawn") or relocate the oldest at cap. PENDING owner.
+Owner guidance 2026-09-27: add no complexity beyond what is needed unless it affects performance. Pure extras are DEFERRED: [S optional] wander slowdown, magnet, start annulus, cap-by-area, lock-on ring, proximity hum, "missed" arrow ghost, hole scale pop, music duck, aura shatter shards, type tails for all 6.
+1. Ground lifespan. Decided by owner 2026-09-27: 25 s lifespan (inside the 15-30 s window), warning in the final 6 s, next spawn about 45 s after a disappearance. Relocate alternative dropped; 2026-08-25 "no forced despawn" reversed.
 2. Surge may exceed cap by one. Decided by lead 2026-09-27: yes.
 3. Capture freeze-frame. Decided by lead 2026-09-27: offline-only and brief; visual-only in ranked/multiplayer.
-4. Ranked 90 s gets the new cadence (4 -> 6 spawns, changes scores). PENDING owner.
+4. Ranked 90 s cadence. Decided by owner 2026-09-27: not changed; ranked stays as-is, no RANKED_SIM_VERSION bump for pacing.
 
 Critical files: js/powerups.js, js/voxelsim.js, js/voxelworld.js, js/main.js, js/power-presentation.js.
