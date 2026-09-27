@@ -90,11 +90,15 @@ See [the Lab module notes](modules/voxel.md#the-lab-twin-micro-city-comparison-2
 [`js/voxelscene-lab.js`](../js/voxelscene-lab.js), and
 [`tools/lab-tokyo.test.mjs`](../tools/lab-tokyo.test.mjs).
 
-The Lab IS the Tokyo recreation: the shipped Tokyo map's geography rebuilt
-fresh under this standard (phase 0, 2026-09-13: Nishi-Shinjuku ward, 2,244
-pieces). It demonstrates the new-map construction path of this document and is
-the working sandbox where representative buildings are calibrated before
-district build-out.
+The Lab is the Tokyo remake. Phase 1 (2026-09-27) is Shibuya Crossing, built
+from OpenStreetMap data: 109 real footprints as hollow mixed-geometry shells
+(`js/footprint-shell.js`) and a Japan-convention streetscape (`js/streetkit.js`).
+The total is 22,718 physical pieces on the box grid. It demonstrates the
+new-map construction path of this document, and its method is the template
+for every other city:
+[features/lab-tokyo-remake](features/lab-tokyo-remake/README.md). Phase 0
+(Nishi-Shinjuku, 2,244 hand-authored pieces) is superseded and returns later as
+a data district.
 
 Historical: the owner first approved a twin-city comparison Lab on 2026-09-13
 (west 5,461 cube voxels; east 293 cubes + 1,118 architectural pieces, a 74.2%

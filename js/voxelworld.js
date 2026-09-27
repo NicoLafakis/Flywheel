@@ -206,23 +206,32 @@ function mat(color) {
 // reads as decking over the river. A rect may carry its own `color`, which
 // beats the layer default; that is how murals, painted courts, rusted rail beds
 // and tinted pavement happen without inventing a layer.
+//
+// A rect may instead carry `poly` ([[x, z], ...], any simple polygon) with
+// x/z/w/d as its bounding box: that is how a real street network lands — a
+// road at 12 degrees, a zebra bar across it, a plaza's true outline — while
+// every consumer that only understands rects keeps reading the box.
 export const DECOR_LAYERS = [
+  ['ground', 0x7d7a74],   // a district's base paving (streetkit), under everything
   ['parks', 0x2d5a33],
   ['sand', 0xd9c48a],
   ['plaza', 0x8a8578],
+  ['planting', 0x5e8a4a], // planted beds inside plazas
   ['cobbles', 0x5a5560],
   ['sidewalks', 0x676b72],
   ['roads', 0x1c2030],
+  ['kerbs', 0xb9b6ae],    // kerb-stone line along a carriageway edge
   ['rail', 0x3a3128],
   ['bikePaths', 0x2a8068],
   ['laneMarkers', 0xd6bd55],
   ['crosswalks', 0xe4e5df],
+  ['tactile', 0xf2c200],  // tactile warning blocks at crossing ends
   ['water', 0x16375e],
   ['boardwalk', 0xb08050],
 ];
-// 12 layers between the ground plane and the hole disc at y 0.01.
+// 16 layers between the ground plane and the hole disc at y 0.01.
 const DECOR_Y0 = 0.0012;
-const DECOR_DY = 0.0007; // top layer lands at 0.0089
+const DECOR_DY = 0.0005; // top layer lands at 0.0087
 
 // Decor is merged into ONE geometry with vertex colors: N rects used to be N
 // meshes and N draw calls (Upper Manhattan alone ships 253 rects, and per-rect
@@ -1078,6 +1087,10 @@ export class VoxelWorld3D {
     this._movers = null;
     this._moverPosed = false;
     this._buildMovers(sim.sceneMovers);
+    // Overhead wires (sim.sceneWires): render-only lines between two pole
+    // blocks, drawn while both poles stand.
+    this._wires = null;
+    this._buildWires(sim.sceneWires);
 
     if (typeof window !== 'undefined') window.__voxelWorld = this; // debug hook
   }
@@ -1098,29 +1111,48 @@ export class VoxelWorld3D {
     this.decorRectCount = rects.length;
     if (!rects.length) return;
 
-    const n = rects.length;
-    const pos = new Float32Array(n * 18);
-    const nor = new Float32Array(n * 18);
-    const col = new Float32Array(n * 18);
+    // Triangles per entry: 2 for a rect, n-2 for a polygon (ear-clipped once
+    // here; decor is static, so this runs at build only).
+    const tris = rects.map(({ r }) => {
+      if (!Array.isArray(r.poly) || r.poly.length < 3) return null;
+      const contour = r.poly.map(([x, z]) => new THREE.Vector2(x, z));
+      return THREE.ShapeUtils.triangulateShape(contour, []);
+    });
+    let nv = 0;
+    for (let i = 0; i < rects.length; i++) nv += tris[i] ? tris[i].length * 3 : 6;
+    const pos = new Float32Array(nv * 3);
+    const nor = new Float32Array(nv * 3);
+    const col = new Float32Array(nv * 3);
     const c = new THREE.Color();
     let o = 0;
-    for (let i = 0; i < n; i++) {
+    const vert = (x, y, z) => {
+      pos[o] = x; pos[o + 1] = y; pos[o + 2] = z;
+      nor[o] = 0; nor[o + 1] = 1; nor[o + 2] = 0;
+      col[o] = c.r; col[o + 1] = c.g; col[o + 2] = c.b;
+      o += 3;
+    };
+    for (let i = 0; i < rects.length; i++) {
       const { r, y, color } = rects[i];
+      // setHex converts sRGB -> linear working space, exactly like
+      // MeshStandardMaterial({ color }) did, so merged decor matches the old
+      // per-mesh look pixel for pixel.
+      c.setHex(color);
+      if (tris[i]) {
+        // Wind every triangle so its normal is +y, whatever the source order.
+        for (const [a, b, d] of tris[i]) {
+          const pa = r.poly[a], pb = r.poly[b], pd = r.poly[d];
+          const cross = (pb[0] - pa[0]) * (pd[1] - pa[1]) - (pb[1] - pa[1]) * (pd[0] - pa[0]);
+          vert(pa[0], y, pa[1]);
+          if (cross < 0) { vert(pb[0], y, pb[1]); vert(pd[0], y, pd[1]); } else { vert(pd[0], y, pd[1]); vert(pb[0], y, pb[1]); }
+        }
+        continue;
+      }
       const x0 = r.x, x1 = r.x + r.w, z0 = r.z, z1 = r.z + r.d;
       // Wound so the face normal is +y: (x0,z0)-(x1,z1)-(x1,z0) and
       // (x0,z0)-(x0,z1)-(x1,z1).
       const vx = [x0, x1, x1, x0, x0, x1];
       const vz = [z0, z1, z0, z0, z1, z1];
-      // setHex converts sRGB -> linear working space, exactly like
-      // MeshStandardMaterial({ color }) did, so merged decor matches the old
-      // per-mesh look pixel for pixel.
-      c.setHex(color);
-      for (let k = 0; k < 6; k++) {
-        pos[o] = vx[k]; pos[o + 1] = y; pos[o + 2] = vz[k];
-        nor[o] = 0; nor[o + 1] = 1; nor[o + 2] = 0;
-        col[o] = c.r; col[o + 1] = c.g; col[o + 2] = c.b;
-        o += 3;
-      }
+      for (let k = 0; k < 6; k++) vert(vx[k], y, vz[k]);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -1141,6 +1173,57 @@ export class VoxelWorld3D {
     this._ownedMats.push(m);
     this.decorMesh = mesh;
     this.scene.add(mesh);
+  }
+
+  // ---------------------------------------------------------- overhead wires
+  // Each wire is a shallow catenary of WIRE_SEGS straight pieces between two
+  // pole tops. A wire whose pole has been eaten (or has started to fall) is
+  // collapsed to nothing; checked a few times a second, not per frame.
+  _buildWires(wires) {
+    if (!Array.isArray(wires) || !wires.length) return;
+    const SEG = 4, n = wires.length;
+    const pos = new Float32Array(n * SEG * 2 * 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.LineBasicMaterial({ color: 0x1d1f22 });
+    const lines = new THREE.LineSegments(geo, mat);
+    lines.frustumCulled = false;
+    this._ownedGeos.push(geo);
+    this._ownedMats.push(mat);
+    this.scene.add(lines);
+    this._wires = { list: wires, pos, geo, lines, seg: SEG, t: 0, shown: new Uint8Array(n) };
+    this._updateWires(Infinity);
+  }
+
+  _updateWires(dt) {
+    const W = this._wires;
+    if (!W) return;
+    W.t += dt;
+    if (W.t < 0.25) return;
+    W.t = 0;
+    const blocks = this.sim.blocks;
+    let dirty = false;
+    W.list.forEach((w, i) => {
+      const a = blocks[w.a - 1], b = blocks[w.b - 1];
+      const up = !!a && !!b && a.state === 'static' && b.state === 'static';
+      if ((W.shown[i] === 1) === up) return;
+      W.shown[i] = up ? 1 : 0;
+      dirty = true;
+      const o = i * W.seg * 6;
+      for (let k = 0; k < W.seg; k++) {
+        for (let e = 0; e < 2; e++) {
+          const t = (k + e) / W.seg;
+          const sag = 0.6 * 4 * t * (1 - t);
+          const j = o + (k * 2 + e) * 3;
+          if (up) {
+            W.pos[j] = w.pa[0] + (w.pb[0] - w.pa[0]) * t;
+            W.pos[j + 1] = w.ya + (w.yb - w.ya) * t - sag;
+            W.pos[j + 2] = w.pa[1] + (w.pb[1] - w.pa[1]) * t;
+          } else { W.pos[j] = 0; W.pos[j + 1] = -50; W.pos[j + 2] = 0; }
+        }
+      }
+    });
+    if (dirty) W.geo.attributes.position.needsUpdate = true;
   }
 
   // ---------------------------------------------------------- ambient build
@@ -3243,6 +3326,7 @@ export class VoxelWorld3D {
   // ------------------------------------------------------------------ frame
   update(dt, events) {
     this.time += dt;
+    this._updateWires(dt);
 
     // --- Active 3D Tectonic Fissures Animation with Molten Magma Geysers ---
     if (this._activeFissures && this._activeFissures.length > 0) {

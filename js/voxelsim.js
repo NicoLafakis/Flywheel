@@ -392,6 +392,8 @@ const SCENE_IMPORTERS = {
 };
 const SCENE_BUILDERS = new Map();
 const GALLERY_SCENE = 'gallery';
+// Scenes on the bounds-backed occupancy grid regardless of geometryVersion.
+const BOX_GRID_SCENES = new Set([GALLERY_SCENE]);
 // In-flight promises, so two overlapping starts (a fast double-tap on a city
 // chip) share one module fetch instead of racing two.
 const SCENE_PENDING = new Map();
@@ -1015,7 +1017,15 @@ export class VoxelSandboxSim {
     this.blocks = [];
     this.geometryVersion = scene === 'tokyo' ? (opts.geometryVersion ?? 2) : 1;
     if (![1, 2].includes(this.geometryVersion)) throw new Error('Unsupported geometry version');
-    this.grid = this.geometryVersion === 2 ? new BoxGrid() : new VoxelGrid();
+    // WHICH GRID is separate from WHICH TUNE (PERF-2026-09-25-load-times fix 1).
+    // geometryVersion 2 freezes Tokyo's physics tune; the bounds-backed grid is
+    // a storage choice with identical query results on a scene whose pieces
+    // never overlap (tools/grid-sim-parity.test.mjs), and it is what makes an
+    // architectural piece cheap to load: one record per 4 m bucket instead of
+    // one per 0.25 m cell. The Lab moved on 2026-09-27 (Shibuya remake); other
+    // scenes move one at a time behind their validator sections.
+    this.gridKind = this.geometryVersion === 2 || BOX_GRID_SCENES.has(scene) ? 'box' : 'cell';
+    this.grid = this.gridKind === 'box' ? new BoxGrid() : new VoxelGrid();
     this.chunks = [];
     this._blockId = 1;
     this._chunkId = 1;

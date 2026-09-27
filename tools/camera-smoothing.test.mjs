@@ -245,8 +245,8 @@ export function runCameraSmoothingSelftest() {
     assert.doesNotMatch(mainSrc, /setSmoothOcclusion\(true\)/, 'never unconditionally on');
   });
 
-  // The Lab is now the Tokyo recreation (phase 0: Nishi-Shinjuku). Camera
-  // coverage pins the Tocho shafts; the esplanade avenue stays a clear canyon.
+  // The Lab is the Tokyo remake (phase 1: Shibuya Crossing). Camera coverage
+  // pins the QFRONT and MAGNET shafts; the scramble stays a clear canyon.
   const LAB_BLOCKS_BEFORE = 2244;
   t('The Lab ships cameraBlockers that cover every >= 6 m footprint cell, and both micro-city towers', () => {
     const sim = new VoxelSandboxSim({ seed: 'validator' });
@@ -270,11 +270,13 @@ export function runCameraSmoothingSelftest() {
       if (!bl.some((b) => cx + 1 > b.minX && cx < b.maxX && cz + 1 > b.minZ && cz < b.maxZ && b.h + 0.01 >= top)) uncovered++;
     }
     assert.ok(tall > 0 && uncovered === 0, `${uncovered} of ${tall} tall cells uncovered by a blocker`);
+    // Shibuya remake (2026-09-27): QFRONT and MAGNET roofs at their mapped
+    // heights (45.9 m / 34.2 m); the scramble centre stays an open canyon.
     const TOWERS = [
-      { name: 'Tocho A', minX: -104, maxX: -95, minZ: -63, maxZ: -56, base: 24, h: 29 },
-      { name: 'Tocho B', minX: -92, maxX: -83, minZ: -63, maxZ: -56, base: 24, h: 29 },
+      { name: 'QFRONT', minX: -65, maxX: -34, minZ: -66, maxZ: -50, base: 44, h: 46 },
+      { name: 'MAGNET', minX: -8, maxX: 11, minZ: -88, maxZ: -41, base: 33, h: 33.5 },
     ];
-    const CANYONS = [{ name: 'Koshu-kaido avenue', minX: -105, maxX: 105, minZ: 0, maxZ: 9 }];
+    const CANYONS = [{ name: 'Scramble crossing centre', minX: -30, maxX: -14, minZ: -25, maxZ: -9 }];
     for (const tw of TOWERS) {
       // every 1 m cell of the footprint has geometry reaching the spec height, and a blocker at it
       let short = 0, nocover = 0, peak = 0;

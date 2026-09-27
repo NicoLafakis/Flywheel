@@ -2,7 +2,7 @@
 
 *A sprocket's story.*
 
-Last updated: 2026-09-25
+Last updated: 2026-09-27
 
 This is a board, not a changelog. One line per shipped item; the detail lives in
 the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
@@ -13,7 +13,14 @@ the linked `.wiki` page and in `git log`. Older history: `CHANGELOG.md`.
 
 - **2026-09-13, owner approved:** The twin-city Lab is the reference for all map remediation and new construction. Cube-only "voxel" terminology and the mixed geometry workflow are required in `AGENTS.md` and `CLAUDE.md`; see [.wiki/geometry-authoring.md](.wiki/geometry-authoring.md). Keep piece savings, preserve enjoyable eating, with the conflicting older rule removed from source comments and authoring docs. This is a standard, not a completed rollout to all maps.
 - **2026-09-13, owner decision:** the physical-device 60 FPS acceptance gate is retired and no longer tracks as an open item anywhere. Automated/desktop performance evidence stands as recorded; no handset matrix, device service or physical-phone session is required for acceptance.
-- **2026-09-13, owner direction:** The Lab is replaced by a fresh **Tokyo recreation** built only per the geometry authoring standard (the prototype-district experiment above it in this section was reviewed and rejected by the owner and is gone). Phase 0 shipped: map skeleton plus the Nishi-Shinjuku ward — Tocho twins (30 m, shared podium, skybridges, assembly hall), Cocoon Tower (woven two-tone skin), three articulated supporting towers, esplanade starter food. 2,244 pieces. Remaining districts (Kabukicho, station, Shibuya, Meiji Jingu) land in later phases, each gated on owner screenshot review. `tools/lab-tokyo.test.mjs` pins heroes, articulation, budgets and playability.
+- **2026-09-27, Tokyo remake phase 1: Shibuya Crossing (the Lab).**
+  - **Data and build.** Rebuilt from OpenStreetMap data (ODbL, `js/citydata/shibuya.js`). It has 109 real building footprints at their mapped heights, plus hero dressing: Q's Eye, MAGNET screens, the 109 sign, Hachiko, the koban, and the JR viaduct with a Yamanote train.
+  - **Streets.** The scramble has five zebra crossings and the one diagonal. Stop lines, signal poles at every corner and all other street furniture are placed by OSM position, or by the Japan convention profile where OSM is silent.
+  - **Performance.** 22,718 pieces on the box grid: about 1.3 s city load and 44 MB, against 3.9 s and 250 MB for the abandoned hand-placed draft.
+  - **Reusable kits.** `js/footprint-shell.js` and `js/streetkit.js` (profile `JP`; `US`/`UK`/`EU` drafts), plus `tools/citydata/extract-osm.mjs`, are the template for every other city.
+  - **Next phase.** `sim.sceneLife` carries the seam for the moving-life phase ([.wiki/plans/living-world.md](.wiki/plans/living-world.md)).
+  - **Details.** Method, screenshots and measurements are in [.wiki/features/lab-tokyo-remake](.wiki/features/lab-tokyo-remake/README.md). Gate: `tools/lab-tokyo.test.mjs`.
+  - **Superseded.** Phase 0 (Nishi-Shinjuku, 2,244 pieces, 2026-09-13).
 
 ## Baseline
 

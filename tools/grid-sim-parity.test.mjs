@@ -37,7 +37,8 @@ function snapshot(sim) {
 for (const scene of (process.env.FW_GRID_SCENES || 'gallery,singapore').split(',')) {
   await loadScene(scene);
   const a = new VoxelSandboxSim({ scene, seed: 'perf' });
-  assert.ok(a.grid instanceof (a.geometryVersion === 2 ? BoxGrid : VoxelGrid), 'scene-selected occupancy backend');
+  assert.ok(a.grid instanceof (a.gridKind === 'box' ? BoxGrid : VoxelGrid), 'scene-selected occupancy backend');
+  if (scene === 'gallery') assert.equal(a.gridKind, 'box', 'the Lab runs on the bounds grid (PERF-2026-09-25)');
   const b = new VoxelSandboxSim({ scene, seed: 'perf' });
   b.grid = new StringGrid(b.grid);
   b._supportBelow = originalSupportBelow;

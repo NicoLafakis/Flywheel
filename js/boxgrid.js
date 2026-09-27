@@ -5,7 +5,10 @@ const bucketKey = (x, z) => (x + 32768) * 65536 + z + 32768;
 const inside = (b,x,y,z) => x>=b.gx && x<b.gx+b.fsx && y>=b.gy && y<b.gy+b.fsy && z>=b.gz && z<b.gz+b.fsz;
 const cellKey = (x,y,z) => `${x},${y},${z}`;
 export class BoxGrid {
-  constructor() { this.buckets=new Map(); this.blocks=new Set(); this.edits=new Map(); this.overlaps=new WeakSet(); }
+  constructor() { this.buckets=new Map(); this.blocks=new Set(); this.edits=new Map(); this.overlaps=new WeakSet(); this.overwrites=0; }
+  // Every fine cell as a `x,y,z` key: the cell-map view the parity oracle in
+  // tools/grid-sim-parity.test.mjs rebuilds from. Never used in play.
+  *[Symbol.iterator]() { for(const b of this.blocks) for(let x=0;x<b.fsx;x++)for(let y=0;y<b.fsy;y++)for(let z=0;z<b.fsz;z++) yield [cellKey(b.gx+x,b.gy+y,b.gz+z),b]; }
   _keys(b) {
     const keys=[];
     for(let x=Math.floor(b.gx/CELL);x<=Math.floor((b.gx+b.fsx-1)/CELL);x++)
@@ -14,8 +17,10 @@ export class BoxGrid {
   }
   addBlock(b) {
     if(this.blocks.has(b)) return;
+    // `overwrites` mirrors VoxelGrid's counter: zero means no cell ever had two
+    // owners, which is what lets _buildNeighbors skip along a found neighbour.
     for(const other of this.range(b.gx,b.gy,b.gz,b.gx+b.fsx,b.gy+b.fsy,b.gz+b.fsz)) {
-      this.overlaps.add(b);this.overlaps.add(other);
+      this.overlaps.add(b);this.overlaps.add(other);this.overwrites++;
     }
     this.blocks.add(b);
     for(const key of this._keys(b)) {

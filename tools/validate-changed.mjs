@@ -77,9 +77,20 @@ const SCENE_COMPANIONS = ['declaredBlockCounts', 'playableCitiesGated', 'audioCo
 const ALL_SCENES = Object.values(SCENE_SECTIONS);
 const SHARED_SIM = [...ALL_SCENES, ...SCENE_COMPANIONS, 'voxelSandbox', 'voxelCollisions', 'labDoctrine', 'scenesWinnable'];
 
+// The Lab (scene 'gallery') has no per-scene section of its own: the Shibuya
+// remake is gated by labDoctrine (tools/lab-tokyo.test.mjs), its tour and
+// probes by voxelSandbox, its camera blockers by cameraSmoothing. The two kits
+// and the district data only feed the Lab today; when a second city imports
+// them, add that city's section here.
+const LAB = [...SCENE_COMPANIONS, 'labDoctrine', 'voxelSandbox', 'voxelCollisions', 'cameraSmoothing', 'scenesWinnable'];
+
 // Non-scene files, mapped to the sections that actually cover them. Anything
 // not listed here falls through to the full suite.
 const FILE_SECTIONS = [
+  [/^js\/voxelscene-lab\.js$/, LAB],
+  [/^js\/(streetkit|footprint-shell)\.js$/, LAB],
+  [/^js\/citydata\//, LAB],
+  [/^js\/boxgrid\.js$/, ['voxelSandbox', 'tokyo', 'labDoctrine']],
   [/^js\/voxelsim\.js$/, SHARED_SIM],
   [/^js\/voxelkit\.js$/, SHARED_SIM],
   [/^js\/citycatalog\.js$/, [...SCENE_COMPANIONS, 'globalCampaign', 'campaignUi', 'cityChallenges']],

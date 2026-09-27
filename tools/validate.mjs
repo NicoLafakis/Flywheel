@@ -219,17 +219,29 @@ const levelsToCheck = onlyIndex ? LEVELS.filter((l) => l.index === onlyIndex) : 
 // Scripted hole tour: hold south of the tower (locality probe), then drive
 // through every district and object type in the gallery.
 const VOXEL_PATH = [
+  // Shibuya remake: hold at spawn in Hachiko Square, graze the planting bed
+  // round Hachiko, the scramble's south-east corner, the Shibu Hachi Box and
+  // koban, then into the station's west face.
   { until: 3, x: 0, z: 16, hold: true },
-  { until: 8, x: -10, z: 12 },
-  { until: 14, x: -45, z: 12 },
-  { until: 20, x: -70, z: 4 },
-  { until: 26, x: -78, z: -26 },
-  { until: 33, x: -85, z: -42 },
-  { until: 40, x: -94, z: -46 },
-  { until: 47, x: -100, z: -60 },
-  { until: 54, x: -88, z: -60 },
-  { until: 60, x: -55, z: -20 },
-  { until: 68, x: -30, z: -18 },
+  { until: 6, x: -7, z: 15 },
+  { until: 9, x: -10, z: 12 },
+  { until: 12, x: -9, z: 18 },
+  { until: 15, x: -10, z: 24 },
+  { until: 18, x: -9, z: 30 },
+  { until: 21, x: -7, z: 28 },
+  { until: 23, x: -4, z: 22 },
+  { until: 25, x: -1, z: 31 },
+  { until: 28, x: -9, z: 9 },
+  { until: 31, x: 4, z: -6 },
+  { until: 34, x: 16, z: -7 },
+  { until: 38, x: 10, z: 16 },
+  { until: 42, x: 16, z: 24 },
+  { until: 46, x: 12, z: 30 },
+  { until: 50, x: 20, z: 20 },
+  { until: 54, x: 23, z: -6 },
+  { until: 58, x: 27, z: 0 },
+  { until: 63, x: 30, z: 12 },
+  { until: 68, x: 32, z: 24 },
 ];
 
 // Every scripted excursion below is driven by `driveRoute` from
@@ -985,7 +997,7 @@ function probePlacementStep(sim, name) {
     { g: 'gy', fs: 'fsy', a: 'gx', b: 'gz', label: 'y' },
     { g: 'gz', fs: 'fsz', a: 'gx', b: 'gy', label: 'z' },
   ];
-  let gated = 0, census = 0, worst = '';
+  let gated = 0, census = 0, filled = 0, worst = '';
   for (const A of AXES) {
     // Grouped in fine-cell integers, never metres: a gap test against a float
     // extent would invent its own slivers.
@@ -1003,6 +1015,11 @@ function probePlacementStep(sim, name) {
         const gap = nxt[A.g] - (cur[A.g] + cur[A.fs]);
         if (gap <= 0 || gap >= cur[A.fs]) continue;
         if (cur.fsx === cur.fsy && cur.fsy === cur.fsz) { census++; continue; }
+        // A gap other geometry fills is not a sliver: it is two members of a
+        // tiled surface with a different-sized member between them (a floor
+        // plate cut along a stair-stepped footprint, 2026-09-27). Only a gap
+        // with open cells in it is a step that missed.
+        if (gapFilled(sim, cur, A, gap)) { filled++; continue; }
         gated++;
         if (!worst) {
           worst = `${cur.matType}/${sizeLabel(cur)}m at (${cur.x},${cur.y},${cur.z}) leaves ${(gap * 0.25).toFixed(2)} m on ${A.label} before (${nxt.x},${nxt.y},${nxt.z}), against a ${(cur[A.fs] * 0.25).toFixed(2)} m extent`;
@@ -1012,6 +1029,18 @@ function probePlacementStep(sim, name) {
   }
   if (gated > 0) fail(`${name}: ${gated} sub-extent gap(s) between collinear identical BOXES — the placement step does not match the piece extent. First: ${worst}`);
   if (census > 0) console.log(`  ${name} placement step: ${census} sub-extent gap(s) between cubes (reported, not gated — see the probe's note)`);
+  if (filled > 0) console.log(`  ${name} placement step: ${filled} sub-extent gap(s) filled by other members (not slivers)`);
+}
+
+// Every fine cell between `cur`'s far face and the next piece, across cur's
+// own cross-section, is occupied by something.
+function gapFilled(sim, cur, A, gap) {
+  const lo = { gx: cur.gx, gy: cur.gy, gz: cur.gz }, ext = { gx: cur.fsx, gy: cur.fsy, gz: cur.fsz };
+  lo[A.g] = cur[A.g] + cur[A.fs]; ext[A.g] = gap;
+  for (let x = 0; x < ext.gx; x++) for (let y = 0; y < ext.gy; y++) for (let z = 0; z < ext.gz; z++) {
+    if (!sim.grid.getCell(lo.gx + x, lo.gy + y, lo.gz + z)) return false;
+  }
+  return true;
 }
 
 // Arc-length parameterisation of a scripted route, so "the gap between

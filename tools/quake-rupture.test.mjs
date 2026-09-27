@@ -148,7 +148,11 @@ export function runQuakeRuptureSelftest() {
     check(restingInCrack === 0, `${restingInCrack} loose blocks are resting inside the open crack`);
     check(sim.hole.mass === 0 && sim.hole.eatenCount === 0, 'swallowed blocks must not score (mass/eatenCount unchanged)');
     const detached = preStates.filter((s, i) => s === 'static' && sim.blocks[i].state !== 'static').length;
-    check(detached > 600, `total detached ${detached} must be far beyond the old 160 cap on a 200 m gallery fault`);
+    // The claim is "far beyond the old 160 cap", not a count tied to one
+    // gallery's piece size: the Shibuya Lab (2026-09-27) carries bay-sized
+    // pieces, so the same 200 m fault detaches fewer, larger ones. Every decile
+    // clearing (above) is the real proof; this pins the order of magnitude.
+    check(detached > 3 * 160, `total detached ${detached} must be far beyond the old 160 cap on a 200 m gallery fault`);
     check(sim._lastFaultReleases === 0, 'release list drains');
     // The crack stays open (swallowing debris that lands in it) for a while after
     // the last release, then the fault record is dropped.
